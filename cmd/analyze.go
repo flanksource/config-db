@@ -14,6 +14,7 @@ import (
 
 var Analyzers = []v1.Analyzer{
 	analyzers.PatchAnalyzer,
+	aws.EC2InstanceAnalyzer,
 }
 var Analyze = &cobra.Command{
 	Use:   "analyze -i <output dir>",
