@@ -1,0 +1,6 @@
+aws:
+ - region: ap-south-1
+   compliance: true
+   patch_states: true
+   patch_details: true
+   inventory: true

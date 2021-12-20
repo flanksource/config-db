@@ -7,6 +7,7 @@ import (
 	configservice "github.com/aws/aws-sdk-go-v2/service/configservice/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ssmTypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	supportTypes "github.com/aws/aws-sdk-go-v2/service/support/types"
 	v1 "github.com/flanksource/confighub/api/v1"
 )
 
@@ -536,4 +537,211 @@ type Instance struct {
 
 	// [EC2-VPC] The ID of the VPC in which the instance is running.
 	VpcId string `json:"vpc_id,omitempty"`
+
+	TrsutedAdvisorChecks []TrustedAdvisorCheck `json:"trusted_advisor_checks,omitempty"`
+}
+
+type TrustedAdvisorCheck struct {
+	EstimatedMonthlySavings float64           `json:"estimated_monthly_savings,omitempty"`
+	CheckId                 string            `json:"check_id,omitempty"`
+	CheckName               string            `json:"check_name,omitempty"`
+	CheckCategory           string            `json:"check_category,omitempty"`
+	CheckStatus             string            `json:"check_status,omitempty"`
+	SecurityGroupID         string            `json:"security_group_id,omitempty"`
+	Metdata                 map[string]string `json:"metadata,omitempty"`
+}
+
+// The results of a Trusted Advisor check returned by
+// DescribeTrustedAdvisorCheckResult.
+type TrustedAdvisorCheckResult struct {
+	CheckName        string `json:"check_name,omitempty"`
+	CheckDescription string `json:"check_description,omitempty"`
+	CheckCategory    string `json:"check_category,omitempty"`
+	// Summary information that relates to the category of the check. Cost Optimizing
+	// is the only category that is currently supported.
+	//
+	// This member is required.
+	CategorySpecificSummary TrustedAdvisorCategorySpecificSummary `json:"category_specific_summary,omitempty"`
+
+	// The unique identifier for the Trusted Advisor check.
+	//
+	// This member is required.
+	CheckId string `json:"check_id,omitempty"`
+
+	// The details about each resource listed in the check result.
+	//
+	// This member is required.
+	FlaggedResources []TrustedAdvisorResourceDetail `json:"flagged_resources,omitempty"`
+
+	// Details about AWS resources that were analyzed in a call to Trusted Advisor
+	// DescribeTrustedAdvisorCheckSummaries.
+	//
+	// This member is required.
+	ResourcesSummary TrustedAdvisorResourcesSummary `json:"resources_summary,omitempty"`
+
+	// The alert status of the check: "ok" (green), "warning" (yellow), "error" (red),
+	// or "not_available".
+	//
+	// This member is required.
+	Status string `json:"status,omitempty"`
+
+	// The time of the last refresh of the check.
+	//
+	// This member is required.
+	Timestamp string `json:"timestamp,omitempty"`
+}
+
+// The container for summary information that relates to the category of the
+// Trusted Advisor check.
+type TrustedAdvisorCategorySpecificSummary struct {
+
+	// The summary information about cost savings for a Trusted Advisor check that is
+	// in the Cost Optimizing category.
+	CostOptimizing TrustedAdvisorCostOptimizingSummary `json:"cost_optimizing,omitempty"`
+}
+
+// The estimated cost savings that might be realized if the recommended operations
+// are taken.
+type TrustedAdvisorCostOptimizingSummary struct {
+
+	// The estimated monthly savings that might be realized if the recommended
+	// operations are taken.
+	//
+	// This member is required.
+	EstimatedMonthlySavings float64 `json:"estimated_monthly_savings,omitempty"`
+
+	// The estimated percentage of savings that might be realized if the recommended
+	// operations are taken.
+	//
+	// This member is required.
+	EstimatedPercentMonthlySavings float64 `json:"estimated_percent_monthly_savings,omitempty"`
+}
+
+// Details about AWS resources that were analyzed in a call to Trusted Advisor
+// DescribeTrustedAdvisorCheckSummaries.
+type TrustedAdvisorResourcesSummary struct {
+
+	// The number of AWS resources that were flagged (listed) by the Trusted Advisor
+	// check.
+	//
+	// This member is required.
+	ResourcesFlagged int64 `json:"resources_flagged,omitempty"`
+
+	// The number of AWS resources ignored by Trusted Advisor because information was
+	// unavailable.
+	//
+	// This member is required.
+	ResourcesIgnored int64 `json:"resources_ignored,omitempty"`
+
+	// The number of AWS resources that were analyzed by the Trusted Advisor check.
+	//
+	// This member is required.
+	ResourcesProcessed int64 `json:"resources_processed,omitempty"`
+
+	// The number of AWS resources ignored by Trusted Advisor because they were marked
+	// as suppressed by the user.
+	//
+	// This member is required.
+	ResourcesSuppressed int64 `json:"resources_suppressed,omitempty"`
+}
+
+// Contains information about a resource identified by a Trusted Advisor check.
+type TrustedAdvisorResourceDetail struct {
+
+	// Additional information about the identified resource. The exact metadata and its
+	// order can be obtained by inspecting the TrustedAdvisorCheckDescription object
+	// returned by the call to DescribeTrustedAdvisorChecks. Metadata contains all the
+	// data that is shown in the Excel download, even in those cases where the UI shows
+	// just summary data.
+	//
+	// This member is required.
+	// Modifying the inbuilt metadata type to map[string]string to also retain the header information
+	Metadata map[string]string `json:"metadata,omitempty"`
+
+	// The unique identifier for the identified resource.
+	//
+	// This member is required.
+	ResourceId string `json:"resource_id,omitempty"`
+
+	// The status code for the resource identified in the Trusted Advisor check.
+	//
+	// This member is required.
+	Status string `json:"status,omitempty"`
+
+	// Specifies whether the AWS resource was ignored by Trusted Advisor because it was
+	// marked as suppressed by the user.
+	IsSuppressed bool `json:"is_suppressed,omitempty"`
+
+	// The AWS Region in which the identified resource is located.
+	Region string `json:"region,omitempty"`
+}
+
+func NewTrustedAdvisorCategorySpecificSummary(b *supportTypes.TrustedAdvisorCategorySpecificSummary) TrustedAdvisorCategorySpecificSummary {
+	a := TrustedAdvisorCategorySpecificSummary{}
+	if b.CostOptimizing != nil {
+		a.CostOptimizing = NewTrustedAdvisorCostOptimizingSummary(b.CostOptimizing)
+	}
+	return a
+}
+
+func NewTrustedAdvisorCostOptimizingSummary(b *supportTypes.TrustedAdvisorCostOptimizingSummary) TrustedAdvisorCostOptimizingSummary {
+	a := TrustedAdvisorCostOptimizingSummary{}
+	a.EstimatedMonthlySavings = b.EstimatedMonthlySavings
+	a.EstimatedPercentMonthlySavings = b.EstimatedPercentMonthlySavings
+	return a
+}
+
+func NewTrustedAdvisorResourceDetailList(b []supportTypes.TrustedAdvisorResourceDetail, checkMetadata []string) []TrustedAdvisorResourceDetail {
+	a := []TrustedAdvisorResourceDetail{}
+	for _, v := range b {
+		a = append(a, NewTrustedAdvisorResourceDetail(v, checkMetadata))
+	}
+	return a
+}
+
+func NewTrustedAdvisorResourceDetail(b supportTypes.TrustedAdvisorResourceDetail, checkMetadata []string) TrustedAdvisorResourceDetail {
+	a := TrustedAdvisorResourceDetail{}
+	a.Metadata = createMapFromLists(checkMetadata, b.Metadata)
+	a.ResourceId = deref(b.ResourceId)
+	a.Status = deref(b.Status)
+	a.IsSuppressed = b.IsSuppressed
+	a.Region = deref(b.Region)
+	return a
+}
+
+func NewTrustedAdvisorResourcesSummary(b *supportTypes.TrustedAdvisorResourcesSummary) TrustedAdvisorResourcesSummary {
+	a := TrustedAdvisorResourcesSummary{}
+	a.ResourcesFlagged = b.ResourcesFlagged
+	a.ResourcesIgnored = b.ResourcesIgnored
+	a.ResourcesProcessed = b.ResourcesProcessed
+	a.ResourcesSuppressed = b.ResourcesSuppressed
+	return a
+}
+
+func NewTrustedAdvisorCheckResult(b *supportTypes.TrustedAdvisorCheckResult, checkName, checkDescription, checkCategory string, checkMetadata []string) *TrustedAdvisorCheckResult {
+	a := &TrustedAdvisorCheckResult{
+		CheckName:        checkName,
+		CheckDescription: checkDescription,
+		CheckCategory:    checkCategory,
+	}
+	if b.CategorySpecificSummary != nil {
+		a.CategorySpecificSummary = NewTrustedAdvisorCategorySpecificSummary(b.CategorySpecificSummary)
+	}
+	a.CheckId = deref(b.CheckId)
+	a.FlaggedResources = NewTrustedAdvisorResourceDetailList(b.FlaggedResources, checkMetadata)
+	a.Status = deref(b.Status)
+	a.Timestamp = deref(b.Timestamp)
+	if b.ResourcesSummary != nil {
+		a.ResourcesSummary = NewTrustedAdvisorResourcesSummary(b.ResourcesSummary)
+	}
+	return a
+}
+
+// list1 creates the keys for the map while list2 makes up the volume
+func createMapFromLists(list1 []string, list2 []string) map[string]string {
+	m := make(map[string]string)
+	for i, v := range list1 {
+		m[v] = list2[i]
+	}
+	return m
 }
