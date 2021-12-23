@@ -1,10 +1,15 @@
 package aws
 
 import (
+	"strconv"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
 	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
 )
@@ -52,6 +57,7 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 
 		EC2 := ec2.NewFromConfig(*session)
 		SSM := ssm.NewFromConfig(*session)
+
 		describeInput := &ec2.DescribeInstancesInput{}
 
 		describeOutput, err := EC2.DescribeInstances(ctx, describeInput)
@@ -141,9 +147,103 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 				}
 			}
 		}
+		trustedAdvisorCheckResults, err := getTrustedAdvisorCheckResults(ctx, session)
+		if err != nil {
+			logger.Errorf("Failed to get trusted advisor check results: %s", err)
+		}
 		for _, instance := range instances {
+			trustedAdvisorChecks := []TrustedAdvisorCheck{}
+			for _, checkResult := range trustedAdvisorCheckResults {
+				check := checkResult.TrustedAdvisorCheckFromCheckResult(instance)
+				if check != nil {
+					trustedAdvisorChecks = append(trustedAdvisorChecks, *check)
+				}
+				instance.TrsutedAdvisorChecks = trustedAdvisorChecks
+			}
 			results = append(results, v1.ScrapeResult{Config: instance, Type: "EC2Instance", Id: instance.InstanceId})
+
 		}
 	}
 	return results
+}
+
+func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instance *Instance) *TrustedAdvisorCheck {
+	for _, resource := range t.FlaggedResources {
+		if resource.Metadata["Instance ID"] == instance.InstanceId {
+			delete(resource.Metadata, "Instance ID")
+			delete(resource.Metadata, "Region/AZ")
+			delete(resource.Metadata, "Instance Name")
+			delete(resource.Metadata, "Instance Type")
+
+			estimatedMonthlySavingsUSD, err := strconv.ParseFloat(strings.TrimPrefix(resource.Metadata["Estimated Monthly Savings"], "$"), 64)
+			if err != nil {
+				logger.Errorf("error parsing estimated monthly savings: %s", err)
+			}
+			delete(resource.Metadata, "Estimated Monthly Savings")
+			return &TrustedAdvisorCheck{
+				Metdata:                 resource.Metadata,
+				CheckId:                 t.CheckId,
+				CheckName:               t.CheckName,
+				CheckCategory:           t.CheckCategory,
+				CheckStatus:             t.Status,
+				EstimatedMonthlySavings: estimatedMonthlySavingsUSD,
+			}
+		}
+		if strings.Contains(resource.Metadata["Volume Attachment"], instance.InstanceId) {
+			delete(resource.Metadata, "Region")
+			delete(resource.Metadata, "Volume Name")
+			delete(resource.Metadata, "Volume ID")
+			resource.Metadata["volume_attachment"] = strings.TrimSuffix(resource.Metadata["Volume Attachment"], ":"+instance.InstanceId)
+			delete(resource.Metadata, "Volume Attachment")
+			return &TrustedAdvisorCheck{
+				Metdata:       resource.Metadata,
+				CheckId:       t.CheckId,
+				CheckName:     t.CheckName,
+				CheckCategory: t.CheckCategory,
+				CheckStatus:   t.Status,
+			}
+		}
+		for key := range instance.SecurityGroups {
+			if strings.Contains(resource.Metadata["Security Group ID"], key) {
+				delete(resource.Metadata, "Region")
+				return &TrustedAdvisorCheck{
+					Metdata:       resource.Metadata,
+					CheckId:       t.CheckId,
+					CheckName:     t.CheckName,
+					CheckCategory: t.CheckCategory,
+					CheckStatus:   t.Status,
+				}
+			}
+		}
+	}
+	logger.Tracef("No mappings found for the present resources with the checkID: %v", t.CheckId)
+	return nil
+}
+
+func getTrustedAdvisorCheckResults(ctx v1.ScrapeContext, session *aws.Config) (results []*TrustedAdvisorCheckResult, err error) {
+	session.Region = "us-east-1"
+	Support := support.NewFromConfig(*session)
+	trustAdvidorChecksDescribeInput := &support.DescribeTrustedAdvisorChecksInput{
+		Language: strPtr("en"),
+	}
+	trustAdvidorChecksDescribeOutput, err := Support.DescribeTrustedAdvisorChecks(ctx, trustAdvidorChecksDescribeInput)
+	if err != nil {
+		return nil, err
+	}
+	for _, check := range trustAdvidorChecksDescribeOutput.Checks {
+		// Support.DescribeTrustedAdvisorCheckResult()
+		trustedAdvisorCheckResultInput := &support.DescribeTrustedAdvisorCheckResultInput{
+			Language: strPtr("en"),
+			CheckId:  check.Id,
+		}
+		trustedAdvisorCheckResultOutput, err := Support.DescribeTrustedAdvisorCheckResult(ctx, trustedAdvisorCheckResultInput)
+		if err != nil {
+			return nil, err
+		}
+		//Passing check.Metadata as it desrcibes the order of the heading in the Check Result field.
+		trustAdvisorCheckResult := NewTrustedAdvisorCheckResult(trustedAdvisorCheckResultOutput.Result, *check.Name, *check.Description, *check.Category, check.Metadata)
+
+		results = append(results, trustAdvisorCheckResult)
+	}
+	return results, nil
 }
