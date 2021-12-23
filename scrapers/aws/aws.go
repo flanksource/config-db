@@ -154,7 +154,7 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 		for _, instance := range instances {
 			trustedAdvisorChecks := []TrustedAdvisorCheck{}
 			for _, checkResult := range trustedAdvisorCheckResults {
-				check := checkResult.TrustedAdvisorCheckFromCheckResult(instance.InstanceId, instance.SecurityGroups)
+				check := checkResult.TrustedAdvisorCheckFromCheckResult(instance)
 				if check != nil {
 					trustedAdvisorChecks = append(trustedAdvisorChecks, *check)
 				}
@@ -167,9 +167,9 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 	return results
 }
 
-func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instanceId string, securityGroups map[string]string) *TrustedAdvisorCheck {
+func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instance *Instance) *TrustedAdvisorCheck {
 	for _, resource := range t.FlaggedResources {
-		if resource.Metadata["Instance ID"] == instanceId {
+		if resource.Metadata["Instance ID"] == instance.InstanceId {
 			delete(resource.Metadata, "Instance ID")
 			delete(resource.Metadata, "Region/AZ")
 			delete(resource.Metadata, "Instance Name")
@@ -189,11 +189,11 @@ func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instanceI
 				EstimatedMonthlySavings: estimatedMonthlySavingsUSD,
 			}
 		}
-		if strings.Contains(resource.Metadata["Volume Attachment"], instanceId) {
+		if strings.Contains(resource.Metadata["Volume Attachment"], instance.InstanceId) {
 			delete(resource.Metadata, "Region")
 			delete(resource.Metadata, "Volume Name")
 			delete(resource.Metadata, "Volume ID")
-			resource.Metadata["volume_attachment"] = strings.TrimSuffix(resource.Metadata["Volume Attachment"], ":"+instanceId)
+			resource.Metadata["volume_attachment"] = strings.TrimSuffix(resource.Metadata["Volume Attachment"], ":"+instance.InstanceId)
 			delete(resource.Metadata, "Volume Attachment")
 			return &TrustedAdvisorCheck{
 				Metdata:       resource.Metadata,
@@ -203,7 +203,7 @@ func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instanceI
 				CheckStatus:   t.Status,
 			}
 		}
-		for key := range securityGroups {
+		for key := range instance.SecurityGroups {
 			if strings.Contains(resource.Metadata["Security Group ID"], key) {
 				delete(resource.Metadata, "Region")
 				return &TrustedAdvisorCheck{
