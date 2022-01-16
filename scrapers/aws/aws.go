@@ -56,6 +56,27 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 		logger.Infof("Scraping AWS account=%s user=%s", *caller.Account, *caller.UserId)
 
 		EC2 := ec2.NewFromConfig(*session)
+
+		subnets, err := EC2.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{})
+		if err != nil {
+			return errorf(err, "failed to describe subnets")
+		}
+		subnetZoneMapping := make(map[string]v1.ScrapeResult)
+		for _, subnet := range subnets.Subnets {
+			az := *subnet.AvailabilityZone
+			result := v1.ScrapeResult{
+				Type:    "Subnet",
+				Id:      *subnet.SubnetId,
+				Subnet:  *subnet.SubnetId,
+				Config:  subnet,
+				Account: *caller.Account,
+				Network: *subnet.VpcId,
+				Zone:    az,
+				Region:  az[0 : len(az)-1],
+			}
+			subnetZoneMapping[*subnet.SubnetId] = result
+			results = append(results, result)
+		}
 		SSM := ssm.NewFromConfig(*session)
 
 		describeInput := &ec2.DescribeInstancesInput{}
@@ -117,7 +138,6 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 		}
 		for _, instance := range instances {
 			if awsConfig.PatchDetails {
-
 				patches, err := SSM.DescribeInstancePatches(ctx, &ssm.DescribeInstancePatchesInput{
 					InstanceId: &instance.InstanceId,
 				})
@@ -146,22 +166,34 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 					instance.Compliance[result.Id] = result
 				}
 			}
-		}
-		trustedAdvisorCheckResults, err := getTrustedAdvisorCheckResults(ctx, session)
-		if err != nil {
-			logger.Errorf("Failed to get trusted advisor check results: %s", err)
-		}
-		for _, instance := range instances {
-			trustedAdvisorChecks := []TrustedAdvisorCheck{}
-			for _, checkResult := range trustedAdvisorCheckResults {
-				check := checkResult.TrustedAdvisorCheckFromCheckResult(instance)
-				if check != nil {
-					trustedAdvisorChecks = append(trustedAdvisorChecks, *check)
+			if awsConfig.TrustedAdvisorCheck {
+				trustedAdvisorCheckResults, err := getTrustedAdvisorCheckResults(ctx, session)
+				if err != nil {
+					return errorf("Failed to get trusted advisor check results: %s", err)
 				}
-				instance.TrsutedAdvisorChecks = trustedAdvisorChecks
-			}
-			results = append(results, v1.ScrapeResult{Config: instance, Type: "EC2Instance", Id: instance.InstanceId})
+				for _, instance := range instances {
+					trustedAdvisorChecks := []TrustedAdvisorCheck{}
+					for _, checkResult := range trustedAdvisorCheckResults {
+						check := checkResult.TrustedAdvisorCheckFromCheckResult(instance)
+						if check != nil {
+							trustedAdvisorChecks = append(trustedAdvisorChecks, *check)
+						}
+						instance.TrsutedAdvisorChecks = trustedAdvisorChecks
+					}
 
+				}
+			}
+
+			results = append(results, v1.ScrapeResult{
+				Config:  instance,
+				Type:    "EC2Instance",
+				Network: instance.VpcId,
+				Subnet:  instance.SubnetId,
+				Zone:    subnetZoneMapping[instance.SubnetId].Zone,
+				Region:  subnetZoneMapping[instance.SubnetId].Region,
+				Name:    instance.GetHostname(),
+				Account: *caller.Account,
+				Id:      instance.InstanceId})
 		}
 	}
 	return results

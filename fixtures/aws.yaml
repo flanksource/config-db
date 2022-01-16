@@ -1,0 +1,6 @@
+aws:
+  - region: eu-west-2
+    compliance: true
+    patch_states: true
+    patch_details: true
+    inventory: true

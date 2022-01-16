@@ -15,19 +15,35 @@ type Scraper interface {
 type Analyzer func(configs []ScrapeResult) AnalysisResult
 
 type AnalysisResult struct {
+	Analyzer string
 	Messages []string
 }
 
 type ScrapeResult struct {
-	LastModified time.Time
-	Type, Id     string
-	Config       interface{}
+	LastModified time.Time   `json:"last_modified,omitempty"`
+	Type         string      `json:"type,omitempty"`
+	Account      string      `json:"account,omitempty"`
+	Network      string      `json:"network,omitempty"`
+	Subnet       string      `json:"subnet,omitempty"`
+	Region       string      `json:"region,omitempty"`
+	Zone         string      `json:"zone,omitempty"`
+	Name         string      `json:"name,omitempty"`
+	Namespace    string      `json:"namespace,omitempty"`
+	Id           string      `json:"id,omitempty"`
+	Config       interface{} `json:"config,omitempty"`
 }
 
 type ScrapeContext struct {
 	context.Context
 	Namespace string
 	Kommons   *kommons.Client
+	Scraper   *ConfigScraper
+}
+
+func (ctx ScrapeContext) WithScraper(config *ConfigScraper) ScrapeContext {
+	ctx.Scraper = config
+	return ctx
+
 }
 
 func (ctx ScrapeContext) GetNamespace() string {

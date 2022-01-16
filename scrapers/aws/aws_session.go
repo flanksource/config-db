@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/kommons"
 	"github.com/henvic/httpretty"
@@ -38,10 +37,8 @@ func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, erro
 			Formatters:     []httpretty.Formatter{&httpretty.JSONFormatter{}},
 		}
 		tr = httplogger.RoundTripper(tr)
-
 	}
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithHTTPClient(&http.Client{Transport: tr}))
-	logger.Tracef("Configured AWS region=%s %v", cfg.Region, cfg.ConfigSources)
 
 	if !isEmpty(conn.AccessKey) {
 		_, accessKey, err := ctx.Kommons.GetEnvValue(conn.AccessKey, namespace)
