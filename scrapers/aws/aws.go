@@ -169,7 +169,7 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 			if awsConfig.TrustedAdvisorCheck {
 				trustedAdvisorCheckResults, err := getTrustedAdvisorCheckResults(ctx, session)
 				if err != nil {
-					return errorf("Failed to get trusted advisor check results: %s", err)
+					return errorf(err, "Failed to get trusted advisor check results")
 				}
 				for _, instance := range instances {
 					trustedAdvisorChecks := []TrustedAdvisorCheck{}
@@ -248,7 +248,6 @@ func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instance 
 			}
 		}
 	}
-	logger.Tracef("No mappings found for the present resources with the checkID: %v", t.CheckId)
 	return nil
 }
 

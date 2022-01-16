@@ -2,5 +2,6 @@ aws:
   - region: eu-west-2
     compliance: true
     patch_states: true
+    trusted_advisor_check: true
     patch_details: true
     inventory: true
