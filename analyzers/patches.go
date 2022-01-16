@@ -1,6 +1,8 @@
 package analyzers
 
 import (
+	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/flanksource/commons/logger"
@@ -9,7 +11,9 @@ import (
 
 func PatchAnalyzer(configs []v1.ScrapeResult) v1.AnalysisResult {
 
-	result := v1.AnalysisResult{}
+	result := v1.AnalysisResult{
+		Analyzer: "patch",
+	}
 
 	var platforms = make(map[string][]v1.Host)
 	var hostIndex = make(map[string]v1.Host)
@@ -50,6 +54,8 @@ func PatchAnalyzer(configs []v1.ScrapeResult) v1.AnalysisResult {
 		}
 
 		commonPatches := []string{}
+		appliedByHost := map[string][]string{}
+		notAppliedByHost := map[string][]string{}
 		for patch, common := range allPatches {
 			if common {
 				commonPatches = append(commonPatches, patch)
@@ -69,17 +75,26 @@ func PatchAnalyzer(configs []v1.ScrapeResult) v1.AnalysisResult {
 				}
 			}
 
-			if len(notApplied) > len(appliedHosts) {
-				logger.Infof("%s is only applied to %s", patch, strings.Join(appliedHosts, ","))
+			if len(notApplied) == 1 {
+				notAppliedByHost[notApplied[0]] = append(notAppliedByHost[notApplied[0]], patch)
+			} else if len(appliedHosts) == 1 {
+				appliedByHost[appliedHosts[0]] = append(appliedByHost[appliedHosts[0]], patch)
+			} else if len(notApplied) > len(appliedHosts) {
+				result.Messages = append(result.Messages, fmt.Sprintf("%s is only applied to %s", patch, strings.Join(appliedHosts, ",")))
 			} else {
-				logger.Infof("%s is not applied to %s", patch, strings.Join(notApplied, ","))
+				result.Messages = append(result.Messages, fmt.Sprintf("%s is not applied to %s", patch, strings.Join(notApplied, ",")))
 			}
-
+		}
+		for host, patches := range notAppliedByHost {
+			sort.Strings(patches)
+			result.Messages = append(result.Messages, fmt.Sprintf("%s has not applied\n\t%s", host, strings.Join(patches, "\n\t")))
+		}
+		for host, patches := range appliedByHost {
+			sort.Strings(patches)
+			result.Messages = append(result.Messages, fmt.Sprintf("%s has only applied \n\t%s", host, strings.Join(patches, "\n\t")))
 		}
 	}
-
 	return result
-
 }
 
 func inSlice(v string, in []string) bool {
