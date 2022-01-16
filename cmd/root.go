@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/confighub/db"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -22,7 +23,8 @@ var Root = &cobra.Command{
 var dev bool
 var httpPort, metricsPort, devGuiPort int
 var configFiles []string
-
+var publicEndpoint = "http://localhost:8080"
+var defaultSchedule string
 var (
 	version = "dev"
 	commit  = "none"
@@ -34,6 +36,8 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.IntVar(&devGuiPort, "devGuiPort", 3004, "Port used by a local npm server in development mode")
 	flags.IntVar(&metricsPort, "metricsPort", 8081, "Port to expose a health dashboard ")
 	flags.BoolVar(&dev, "dev", false, "Run in development mode")
+	flags.StringVar(&defaultSchedule, "default-schedule", "@every 5m", "Default schedule for configs that don't specfiy one")
+	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
 }
 
 func init() {
@@ -51,5 +55,7 @@ func init() {
 		},
 	})
 
-	Root.AddCommand(Run, Analyze)
+	db.Flags(Root.PersistentFlags())
+
+	Root.AddCommand(Run, Analyze, Serve, GoOffline)
 }
