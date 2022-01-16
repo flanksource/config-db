@@ -95,16 +95,10 @@ test-e2e: bin
 	./test/e2e.sh
 
 .bin/upx: .bin
-	wget -nv -O upx.tar.xz https://github.com/upx/upx/releases/download/v3.96/upx-3.96-$(OS)_$(ARCH).xz
+	wget -nv -O upx.tar.xz https://github.com/upx/upx/releases/download/v3.96/upx-3.96-$(ARCH)_$(OS).xz
 	tar xf upx.tar.xz
-	mv upx-3.96-$(OS)_$(ARCH)/upx .bin
-	rm -rf upx-3.96-$(OS)_$(ARCH)
+	mv upx-3.96-$(ARCH)_$(OS)/upx .bin
+	rm -rf upx-3.96-$(ARCH)_$(OS)
 
 .bin:
 	mkdir -p .bin
-
-.bin/octopilot:
-	curl -sSLo .bin/octopilot https://github.com/dailymotion-oss/octopilot/releases/download/v1.0.7/octopilot_1.0.7_$(OS)_$(ARCH) && \
-	chmod +x .bin/octopilot
-
-bin: .bin .bin/wait4x .bin/yq .bin/karina .bin/go-junit-report .bin/restic .bin/jmeter telepresence .bin/octopilot .bin/kustomize
