@@ -1,0 +1,12 @@
+on: pull_request
+name: Build
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Build Container
+        run: make docker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

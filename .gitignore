@@ -1,3 +1,4 @@
 *.json
 .vscode
 _DS_Store
+.bin/
