@@ -16,13 +16,13 @@ plugins:
   - "@semantic-release/release-notes-generator"
   - - "@semantic-release/github"
     - assets:
-        - path: ./.bin/confighub-amd64
-          name: confighub-amd64
-        - path: ./.bin/confighub.exe
-          name: confighub.exe
-        - path: ./.bin/confighub_osx-amd64
-          name: confighub_osx-amd64
-        - path: ./.bin/confighub_osx-arm64
-          name: confighub_osx-arm64
+        - path: ./.bin/config-db-amd64
+          name: config-db-amd64
+        - path: ./.bin/config-db.exe
+          name: config-db.exe
+        - path: ./.bin/config-db_osx-amd64
+          name: config-db_osx-amd64
+        - path: ./.bin/config-db_osx-arm64
+          name: config-db_osx-arm64
       # - path: ./.bin/release.yaml
       #   name: release.yaml

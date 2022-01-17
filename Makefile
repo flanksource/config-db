@@ -1,5 +1,5 @@
 
-NAME=confighub
+NAME=config-db
 OS   = $(shell uname -s | tr '[:upper:]' '[:lower:]')
 ARCH = $(shell uname -m | sed 's/x86_64/amd64/')
 KUSTOMIZE=$(PWD)/.bin/kustomize
@@ -67,7 +67,7 @@ binaries: linux darwin windows compress
 .PHONY: release
 release: binaries
 	mkdir -p .release
-	cp .bin/incident-commander* .release/
+	cp .bin/$(NAME)* .release/
 
 .PHONY: lint
 lint:
