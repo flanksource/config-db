@@ -20,8 +20,8 @@ RUN apt-get update && \
   rm -Rf /usr/share/doc && rm -Rf /usr/share/man  && \
   apt-get clean
 
-COPY --from=builder /app/.bin/changehub /app
+COPY --from=builder /app/.bin/config-db /app
 
-RUN /app/changehub go-offline
+RUN /app/config-db go-offline
 
-ENTRYPOINT ["/app/changehub"]
+ENTRYPOINT ["/app/config-db"]
