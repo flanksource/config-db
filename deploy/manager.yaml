@@ -1,0 +1,54 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-db
+  labels:
+    control-plane: config-db
+spec:
+  selector:
+    matchLabels:
+      control-plane: config-db
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        control-plane: config-db
+    spec:
+      serviceAccountName: config-db-sa
+      containers:
+        - name: config-db
+          image: docker.io/flanksource/config-db:latest
+          command:
+            - /app/config-db
+          args:
+            - serve
+            - -vvv
+          env:
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-connection-string
+                  key: connection-string
+          resources:
+            requests:
+              cpu: 200m
+              memory: 200Mi
+            limits:
+              memory: 512Mi
+              cpu: 500m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    control-plane: config-db
+  name: config-db
+  namespace: config-db
+spec:
+  ports:
+    - port: 8080
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    control-plane: config-db
