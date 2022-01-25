@@ -1,0 +1,5 @@
+namespace: config-db
+resources:
+  - "namespace.yaml"
+  - "rbac.yaml"
+  - "manager.yaml"
