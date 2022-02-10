@@ -21,7 +21,6 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 Selector labels
 */}}
 {{- define "config-db.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "config-db.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 control-plane: {{ .Chart.Name }}
 {{- end }}
