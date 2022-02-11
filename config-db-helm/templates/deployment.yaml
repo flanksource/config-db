@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Chart.Name }}
+  name: {{ include "config-db.name" . }}
   labels:
     {{- include "config-db.labels" . | nindent 4 }}
 spec:
@@ -22,13 +22,13 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ .Chart.Name }}-sa
+      serviceAccountName: {{ include "config-db.name" . }}-sa
       {{- with .Values.extra.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: {{ .Chart.Name }}
+        - name: {{ include "config-db.name" . }}
           {{- with .Values.extra.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}

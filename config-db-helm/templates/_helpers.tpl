@@ -1,4 +1,11 @@
 {{/*
+Expand the name of the chart.
+*/}}
+{{- define "config-db.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "config-db.chart" -}}
@@ -21,8 +28,8 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 Selector labels
 */}}
 {{- define "config-db.selectorLabels" -}}
-app.kubernetes.io/name: {{ .Chart.Name }}
+app.kubernetes.io/name: {{ include "config-db.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-control-plane: {{ .Chart.Name }}
+control-plane: {{ include "config-db.name" . }}
 {{- end }}
 
