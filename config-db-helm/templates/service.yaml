@@ -6,7 +6,7 @@ metadata:
     {{- include "config-db.labels" . | nindent 4 }}
 spec:
   ports:
-    - port: 8080
+    - port: {{ .Values.service.port }}
       targetPort: 8080
       protocol: TCP
   selector:
