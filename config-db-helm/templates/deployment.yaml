@@ -11,28 +11,20 @@ spec:
       {{- include "config-db.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.extra.podAnnotations }}
+      {{- with .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
         {{- include "config-db.selectorLabels" . | nindent 8 }}
     spec:
-      {{- with .Values.extra.imagePullSecrets }}
+      {{- with .Values.image.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "config-db.name" . }}-sa
-      {{- with .Values.extra.podSecurityContext }}
-      securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       containers:
         - name: {{ include "config-db.name" . }}
-          {{- with .Values.extra.securityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
@@ -48,15 +40,6 @@ spec:
                   key: connection-string
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      {{- with .Values.extra.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.extra.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.extra.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
+      {{- with .Values.extra }}
+      {{- toYaml . | nindent 6 }}
       {{- end }}

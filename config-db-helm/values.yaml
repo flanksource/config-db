@@ -12,6 +12,9 @@ image:
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
+  imagePullSecrets: []
+
+podAnnotations: {}
 
 ingress:
   enabled: false
@@ -32,18 +35,21 @@ resources:
     memory: 512Mi
     cpu: 500m
 
-extra: 
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  imagePullSecrets: []
-  podAnnotations: {}
-  podSecurityContext: {}
-    # fsGroup: 2000
-  securityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
+extra:
+  # nodeSelector:
+  #   key: value
+  # tolerations:
+  #   - key: "key1"
+  #     operator: "Equal"
+  #     value: "value1"
+  #     effect: "NoSchedule"
+  # affinity: 
+  #   nodeAffinity:
+  #       requiredDuringSchedulingIgnoredDuringExecution:
+  #         nodeSelectorTerms:
+  #         - matchExpressions:
+  #           - key: kubernetes.io/e2e-az-name
+  #             operator: In
+  #             values:
+  #             - e2e-az1
+  #             - e2e-az2
