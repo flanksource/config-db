@@ -2,7 +2,7 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
+replicas: 1
 
 # Use this only if you want to replace the default that is .Chart.Name as the name of all the objects.
 nameOverride: ""
@@ -12,9 +12,6 @@ image:
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
-  imagePullSecrets: []
-
-podAnnotations: {}
 
 ingress:
   enabled: false
