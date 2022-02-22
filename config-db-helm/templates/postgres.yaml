@@ -63,9 +63,9 @@ data:
   {{- $secretObj := (lookup "v1" "Secret" .Release.Namespace "postgres-connection") | default dict }}
   {{ $releaseNamespace := .Release.Namespace }}
   {{- $secretData := (get $secretObj "data") | default dict }}
-  {{- $pgDb := (get $secretData "POSTGRES_DB") | default ("config-db" | b64enc) }}
+  {{- $pgDb := (get $secretData "POSTGRES_DB") | default ("config_db" | b64enc) }}
   POSTGRES_DB: {{ $pgDb | quote }}
-  {{- $pgUser := (get $secretData "POSTGRES_USER") | default ("config-db-user" | b64enc) }}
+  {{- $pgUser := (get $secretData "POSTGRES_USER") | default ("postgres" | b64enc) }}
   POSTGRES_USER: {{ $pgUser | quote }}
   {{- $pgPassword := (get $secretData "POSTGRES_PASSWORD") | default (randAlphaNum 32 | b64enc) }}
   POSTGRES_PASSWORD: {{ $pgPassword | quote }}
