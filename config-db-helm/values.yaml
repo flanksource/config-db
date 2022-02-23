@@ -16,6 +16,8 @@ image:
 db:
   enabled: false
   secretKeyRef: 
+  storageClass: 
+  storage: 
 
 ingress:
   enabled: false

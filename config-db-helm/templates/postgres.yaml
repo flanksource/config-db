@@ -3,36 +3,36 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: postgresql-db
+  name: postgresql
 spec:
-  serviceName: postgresql-db
+  serviceName: postgresql
   selector:
     matchLabels:
-      app: postgresql-db
+      app: postgresql
   replicas: 1
   template:
     metadata:
       labels:
-        app: postgresql-db
+        app: postgresql
     spec:
       containers:
-      - name: postgresql-db
-        image: postgres:latest
+      - name: postgresql
+        image: postgres:14
         volumeMounts:
-          - name: postgresql-db-disk
+          - name: postgresql
             mountPath: /data
         envFrom:
           - secretRef:
               name: {{ .Values.db.secretKeyRef }}
     volumeClaimTemplates:
     - metadata:
-        name: postgresql-db-disk
+        name: postgresql
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: ""
+        storageClassName: {{ .Values.db.storageClass }}
         resources:
           requests:
-            storage: 25Gi
+            storage: {{ .Values.db.storage }}
 
 ---
 
@@ -40,11 +40,10 @@ spec:
 apiVersion: v1
 kind: Service
   metadata:
-    name: postgres-db
+    name: postgres
 spec:
   selector:
-    app: postgresql-db
-  type: LoadBalancer
+    app: postgresql
   ports:
   - port: 5432
   targetPort: 5432
@@ -63,16 +62,12 @@ data:
   {{- $secretObj := (lookup "v1" "Secret" .Release.Namespace "postgres-connection") | default dict }}
   {{ $releaseNamespace := .Release.Namespace }}
   {{- $secretData := (get $secretObj "data") | default dict }}
-  {{- $pgDb := (get $secretData "POSTGRES_DB") | default ("config_db" | b64enc) }}
-  POSTGRES_DB: {{ $pgDb | quote }}
-  {{- $pgUser := (get $secretData "POSTGRES_USER") | default ("postgres" | b64enc) }}
-  POSTGRES_USER: {{ $pgUser | quote }}
-  {{- $pgPassword := (get $secretData "POSTGRES_PASSWORD") | default (randAlphaNum 32 | b64enc) }}
-  POSTGRES_PASSWORD: {{ $pgPassword | quote }}
-  {{- $pgData := (get $secretData "PGDATA") | default ("/data/pgdata" | b64enc) }}
-  PGDATA: {{ $pgData | quote }}
-  {{- $dbUrl := (get $secretData "DB_URL") | default ( ( print "postgresql://" $pgUser ":" $pgPassword "@postgres-db." $releaseNamespace ".svc.cluster.local:5432/" $pgDb ) | b64enc ) }}
-  DB_URL: {{ $dbUrl | quote }}
+  {{- $user := (get $secretData "POSTGRES_USER") | default ("postgres" | b64enc) }}
+  POSTGRES_USER: {{ $user | quote }}
+  {{- $password := (get $secretData "POSTGRES_PASSWORD") | default (randAlphaNum 32 | b64enc) }}
+  POSTGRES_PASSWORD: {{ $password | quote }}
+  {{- $configDbUrl := (get $secretData "DB_URL_CONFIG_DB") | default ( ( print "postgresql://" $user ":" $password "@postgres." $releaseNamespace ".svc.cluster.local:5432/config_db" ) | b64enc ) }}
+  DB_URL_CONFIG_DB: {{ $configDbUrl | quote }}
 {{- end }}
 
 {{- end }}

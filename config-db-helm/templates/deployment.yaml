@@ -29,7 +29,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.db.secretKeyRef | default "postgres-connection" }}
-                  key: DB_URL
+                  key: DB_URL_CONFIG_DB
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.extra }}
