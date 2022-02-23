@@ -1,5 +1,7 @@
 {{- if eq .Values.db.enabled true }}
-# PostgreSQL StatefulSet - ConfigMap
+
+---
+# PostgreSQL StatefulSet
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -46,7 +48,7 @@ spec:
     app: postgresql
   ports:
   - port: 5432
-  targetPort: 5432
+    targetPort: 5432
 
 ---
 
@@ -68,6 +70,10 @@ data:
   POSTGRES_PASSWORD: {{ $password | quote }}
   {{- $configDbUrl := (get $secretData "DB_URL_CONFIG_DB") | default ( ( print "postgresql://" $user ":" $password "@postgres." $releaseNamespace ".svc.cluster.local:5432/config_db" ) | b64enc ) }}
   DB_URL_CONFIG_DB: {{ $configDbUrl | quote }}
+  {{- $incidentCommanderDbUrl := (get $secretData "DB_URL_INCIDENT_COMMANDER") | default ( ( print "postgresql://" $user ":" $password "@postgres-db." $releaseNamespace ".svc.cluster.local:5432/incident_commander" ) | b64enc ) }}
+  DB_URL_INCIDENT_COMMANDER: {{ $incidentCommanderDbUrl | quote }}
 {{- end }}
+
+---
 
 {{- end }}
