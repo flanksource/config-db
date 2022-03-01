@@ -16,6 +16,8 @@ image:
 db:
   enabled: false
   secretKeyRef: 
+    name:
+    key: 
   storageClass: 
   storage: 
 

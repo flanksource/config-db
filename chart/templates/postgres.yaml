@@ -25,7 +25,7 @@ spec:
             mountPath: /data
         envFrom:
           - secretRef:
-              name: {{ .Values.db.secretKeyRef }}
+              name: {{ .Values.db.secretKeyRef.name }}
     volumeClaimTemplates:
     - metadata:
         name: postgresql
@@ -52,7 +52,7 @@ spec:
 
 ---
 
-{{- if empty .Values.db.secretKeyRef }}
+{{- if empty .Values.db.secretKeyRef.name }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -69,9 +69,7 @@ data:
   {{- $password := (get $secretData "POSTGRES_PASSWORD") | default (randAlphaNum 32 | b64enc) }}
   POSTGRES_PASSWORD: {{ $password | quote }}
   {{- $configDbUrl := (get $secretData "DB_URL_CONFIG_DB") | default ( ( print "postgresql://" $user ":" $password "@postgres." $releaseNamespace ".svc.cluster.local:5432/config_db" ) | b64enc ) }}
-  DB_URL_CONFIG_DB: {{ $configDbUrl | quote }}
-  {{- $incidentCommanderDbUrl := (get $secretData "DB_URL_INCIDENT_COMMANDER") | default ( ( print "postgresql://" $user ":" $password "@postgres-db." $releaseNamespace ".svc.cluster.local:5432/incident_commander" ) | b64enc ) }}
-  DB_URL_INCIDENT_COMMANDER: {{ $incidentCommanderDbUrl | quote }}
+  {{ .Values.db.secretKeyRef.key | default 'DB_URL'}}: {{ $configDbUrl | quote }}
 {{- end }}
 
 ---
