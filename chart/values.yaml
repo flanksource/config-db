@@ -17,7 +17,7 @@ db:
   enabled: false
   secretKeyRef: 
     name:
-    key: 
+    key: "DB_URL"
   storageClass: 
   storage: 
 

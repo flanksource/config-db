@@ -69,7 +69,7 @@ data:
   {{- $password := (get $secretData "POSTGRES_PASSWORD") | default (randAlphaNum 32 | b64enc) }}
   POSTGRES_PASSWORD: {{ $password | quote }}
   {{- $configDbUrl := (get $secretData "DB_URL_CONFIG_DB") | default ( ( print "postgresql://" $user ":" $password "@postgres." $releaseNamespace ".svc.cluster.local:5432/config_db" ) | b64enc ) }}
-  {{ .Values.db.secretKeyRef.key | default 'DB_URL'}}: {{ $configDbUrl | quote }}
+  {{ .Values.db.secretKeyRef.key }}: {{ $configDbUrl | quote }}
 {{- end }}
 
 ---
