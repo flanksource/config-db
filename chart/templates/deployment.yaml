@@ -28,8 +28,8 @@ spec:
             - name: DB_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.db.secretKeyRef.name | default "postgres-connection" }}
-                  key: {{ .Values.db.secretKeyRef.key | default 'DB_URL' }}
+                  name: {{ .Values.db.secretKeyRef.name }}
+                  key: {{ .Values.db.secretKeyRef.key }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.extra }}
