@@ -15,11 +15,12 @@ image:
 
 db:
   enabled: false
-  secretKeyRef: 
-    name:
-    key: "DB_URL"
   storageClass: 
   storage: 
+  secretKeyRef: 
+    name:
+    # The name of the key is mandatory to set.
+    key: DB_URL
 
 ingress:
   enabled: false
