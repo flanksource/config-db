@@ -14,10 +14,13 @@ image:
   tag: "latest"
 
 db:
+  # Setting this to true will create a postgres stateful set for config-db to connect to.
   enabled: false
   storageClass: 
   storage: 
   secretKeyRef: 
+    # Setting the name of the secret will disable secret creation in this chart and look for an existing secret (whose name is specified in this field) to mount.
+    # When setting this up in a fresh environment as a standalone app, it's best to leave the value empty.
     name:
     # The name of the key is mandatory to set.
     key: DB_URL
