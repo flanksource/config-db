@@ -14,12 +14,15 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/volatiletech/sqlboiler/v4/boil"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 var ConnectionString string
 var Schema = "public"
 var LogLevel = "info"
 var HttpEndpoint = "http://localhost:8080/db"
+var defaultDB *gorm.DB
 
 func Flags(flags *pflag.FlagSet) {
 	flags.StringVar(&ConnectionString, "db", "DB_URL", "Connection string for the postgres database")
@@ -83,6 +86,17 @@ func Init(connection string) error {
 	if err != nil {
 		return err
 	}
+
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{
+		Conn: db,
+	}), &gorm.Config{})
+
+	if err != nil {
+		return err
+	}
+
+	defaultDB = gormDB
+
 	boil.SetDB(db)
 	logger.Infof("Initialized DB: %s", boil.GetDB())
 
@@ -105,4 +119,14 @@ func Migrate() error {
 
 func GetDB() (*sql.DB, error) {
 	return sql.Open("pgx", pgxConnectionString)
+}
+
+// Ping pings the database for health check
+func Ping() error {
+	d, _ := defaultDB.DB() // returns *sql.DB
+	return d.Ping()
+}
+
+func DefaultDB() *gorm.DB {
+	return defaultDB
 }
