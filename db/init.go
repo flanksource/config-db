@@ -13,7 +13,6 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
-	"github.com/volatiletech/sqlboiler/v4/boil"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -97,8 +96,7 @@ func Init(connection string) error {
 
 	defaultDB = gormDB
 
-	boil.SetDB(db)
-	logger.Infof("Initialized DB: %s", boil.GetDB())
+	logger.Infof("Initialized DB: %s", defaultDB)
 
 	return nil
 }
@@ -127,6 +125,7 @@ func Ping() error {
 	return d.Ping()
 }
 
+// DefaultDB returns the default database connection instance
 func DefaultDB() *gorm.DB {
 	return defaultDB
 }

@@ -12,11 +12,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.17.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.11.1
 	github.com/aws/aws-sdk-go-v2/service/support v1.8.2
-	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.9.0+incompatible
 	github.com/flanksource/commons v1.5.11
 	github.com/flanksource/kommons v0.26.0
-	github.com/friendsofgo/errors v0.9.2
 	github.com/google/uuid v1.3.0
 	github.com/henvic/httpretty v0.0.6
 	github.com/jackc/pgx/v4 v4.14.1
@@ -29,9 +27,6 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
-	github.com/volatiletech/null/v8 v8.1.2
-	github.com/volatiletech/sqlboiler/v4 v4.8.3
-	github.com/volatiletech/strmangle v0.0.1
 	gopkg.in/flanksource/yaml.v3 v3.1.1
 	gorm.io/driver/postgres v1.3.1
 	gorm.io/gorm v1.23.2
@@ -65,6 +60,7 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/libkv v0.2.1 // indirect
 	github.com/docker/spdystream v0.0.0-20160310174837-449fdfce4d96 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
@@ -72,6 +68,7 @@ require (
 	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
 	github.com/fatih/color v1.9.0 // indirect
+	github.com/friendsofgo/errors v0.9.2 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-logr/logr v0.2.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.3 // indirect
@@ -154,7 +151,10 @@ require (
 	github.com/valyala/fasttemplate v1.2.1 // indirect
 	github.com/vbauerster/mpb/v5 v5.0.3 // indirect
 	github.com/volatiletech/inflect v0.0.1 // indirect
+	github.com/volatiletech/null/v8 v8.1.2 // indirect
 	github.com/volatiletech/randomize v0.0.1 // indirect
+	github.com/volatiletech/sqlboiler/v4 v4.8.3 // indirect
+	github.com/volatiletech/strmangle v0.0.1 // indirect
 	github.com/xanzy/ssh-agent v0.2.1 // indirect
 	github.com/zealic/xignore v0.3.3 // indirect
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489 // indirect
