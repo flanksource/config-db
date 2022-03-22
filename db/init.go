@@ -17,12 +17,16 @@ import (
 	"gorm.io/gorm"
 )
 
-var ConnectionString string
-var Schema = "public"
-var LogLevel = "info"
-var HttpEndpoint = "http://localhost:8080/db"
-var defaultDB *gorm.DB
+// connection variables
+var (
+	ConnectionString string
+	Schema           = "public"
+	LogLevel         = "info"
+	HTTPEndpoint     = "http://localhost:8080/db"
+	defaultDB        *gorm.DB
+)
 
+// Flags ...
 func Flags(flags *pflag.FlagSet) {
 	flags.StringVar(&ConnectionString, "db", "DB_URL", "Connection string for the postgres database")
 	flags.StringVar(&Schema, "db-schema", "public", "")
@@ -31,6 +35,8 @@ func Flags(flags *pflag.FlagSet) {
 
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
+
+// Pool ...
 var Pool *pgxpool.Pool
 var pgxConnectionString string
 
@@ -42,6 +48,7 @@ func readFromEnv(v string) string {
 	return v
 }
 
+// Init ...
 func Init(connection string) error {
 	ConnectionString = readFromEnv(connection)
 	Schema = readFromEnv(Schema)
@@ -101,6 +108,7 @@ func Init(connection string) error {
 	return nil
 }
 
+// Migrate ...
 func Migrate() error {
 	goose.SetBaseFS(embedMigrations)
 	db, err := GetDB()
@@ -115,6 +123,7 @@ func Migrate() error {
 	return nil
 }
 
+// GetDB ...
 func GetDB() (*sql.DB, error) {
 	return sql.Open("pgx", pgxConnectionString)
 }

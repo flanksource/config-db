@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Serve ...
 var Serve = &cobra.Command{
 	Use: "serve",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -29,7 +30,7 @@ var Serve = &cobra.Command{
 			return c.String(http.StatusOK, "Hello, World!")
 		})
 		// PostgREST needs to know how it is exposed to create the correct links
-		db.HttpEndpoint = publicEndpoint + "/db"
+		db.HTTPEndpoint = publicEndpoint + "/db"
 		go db.StartPostgrest()
 
 		url, err := url.Parse("http://localhost:3000")

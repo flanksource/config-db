@@ -8,7 +8,6 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/confighub/db/models"
-	. "github.com/flanksource/confighub/db/models"
 	"github.com/flanksource/confighub/db/repository"
 	"github.com/flanksource/confighub/db/ulid"
 	cmap "github.com/orcaman/concurrent-map"
@@ -17,8 +16,9 @@ import (
 
 var idCache = cmap.New()
 
-func NewConfigItemFromResult(result v1.ScrapeResult) ConfigItem {
-	return ConfigItem{
+// NewConfigItemFromResult creates a new config item instance from result
+func NewConfigItemFromResult(result v1.ScrapeResult) models.ConfigItem {
+	return models.ConfigItem{
 		ConfigType: result.Type,
 		ExternalID: &result.Id,
 		Account:    &result.Account,
@@ -30,6 +30,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) ConfigItem {
 	}
 }
 
+// Update creates or update a configuartion with config changes
 func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 	// boil.DebugMode = true
 	for _, result := range results {
@@ -42,16 +43,15 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 		dataStr := string(data)
 		ci.Config = &dataStr
 
-		ciRepo := repository.NewConfigItem(DefaultDB())
-		ccRepo := repository.NewConfigChange(DefaultDB())
+		repo := repository.NewRepo(DefaultDB())
 
-		existing, err := ciRepo.GetOne(result.Id)
+		existing, err := repo.GetOneConfigItem(result.Id)
 		if err != nil && err != sql.ErrNoRows {
 			return err
 		}
 		if err == gorm.ErrRecordNotFound {
 			ci.ID = ulid.MustNew().AsUUID()
-			if err := ciRepo.Create(&ci); err != nil {
+			if err := repo.CreateConfigItem(&ci); err != nil {
 				return err
 			}
 			continue
@@ -59,7 +59,7 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 
 		ci.ID = existing.ID
-		if err := ciRepo.UpdateAllFields(&ci); err != nil {
+		if err := repo.UpdateAllFieldsConfigItem(&ci); err != nil {
 			return err
 		}
 		changes, err := compare(ci, *existing)
@@ -69,7 +69,7 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 
 		if changes != nil {
 			logger.Infof("[%s/%s] detected changes", ci.ConfigType, *ci.ExternalID)
-			if err := ccRepo.Create(changes); err != nil {
+			if err := repo.CreateConfigChange(changes); err != nil {
 				return err
 			}
 		}

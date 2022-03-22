@@ -7,47 +7,59 @@ import (
 	"gorm.io/gorm"
 )
 
-// ConfigItemRepo should satisfy the config item repository interface
-type ConfigItemRepo struct {
+// DBRepo should satisfy the database repository interface
+type DBRepo struct {
 	db *gorm.DB
 }
 
-// NewConfigItem is the factory function for the config item repo instance
-func NewConfigItem(db *gorm.DB) ConfigItem {
-	return &ConfigItemRepo{
+// NewRepo is the factory function for the database repo instance
+func NewRepo(db *gorm.DB) Database {
+	return &DBRepo{
 		db: db,
 	}
 }
 
-// GetOne returns a single config item result
-func (c *ConfigItemRepo) GetOne(extID string) (*models.ConfigItem, error) {
+// GetOneConfigItem returns a single config item result
+func (d *DBRepo) GetOneConfigItem(extID string) (*models.ConfigItem, error) {
 
 	ci := models.ConfigItem{}
-	if err := c.db.First(&ci, "external_id = ?", extID).Error; err != nil {
+	if err := d.db.First(&ci, "external_id = ?", extID).Error; err != nil {
 		return nil, err
 	}
 
 	return &ci, nil
 }
 
-// Create inserts a new config item row in the db
-func (c *ConfigItemRepo) Create(ci *models.ConfigItem) error {
+// CreateConfigItem inserts a new config item row in the db
+func (d *DBRepo) CreateConfigItem(ci *models.ConfigItem) error {
 
 	ci.CreatedAt = time.Now().UTC()
 
-	if err := c.db.Create(ci).Error; err != nil {
+	if err := d.db.Create(ci).Error; err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// UpdateAllFields updates all the fields of a given config item row
-func (c *ConfigItemRepo) UpdateAllFields(ci *models.ConfigItem) error {
+// UpdateAllFieldsConfigItem updates all the fields of a given config item row
+func (d *DBRepo) UpdateAllFieldsConfigItem(ci *models.ConfigItem) error {
 
 	ci.UpdatedAt = time.Now().UTC()
 
-	if err := c.db.Save(ci).Error; err != nil {
+	if err := d.db.Save(ci).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// CreateConfigChange inserts a new config change row in the db
+func (d *DBRepo) CreateConfigChange(cc *models.ConfigChange) error {
+
+	cc.CreatedAt = time.Now().UTC()
+
+	if err := d.db.Create(cc).Error; err != nil {
 		return err
 	}
 
