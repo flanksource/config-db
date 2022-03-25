@@ -1,7 +1,6 @@
 package db
 
 import (
-	"database/sql"
 	"encoding/json"
 
 	jsonpatch "github.com/evanphx/json-patch"
@@ -46,7 +45,7 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 		repo := repository.NewRepo(DefaultDB())
 
 		existing, err := repo.GetConfigItem(result.Id)
-		if err != nil && err != sql.ErrNoRows {
+		if err != nil && err != gorm.ErrRecordNotFound {
 			return err
 		}
 		if err == gorm.ErrRecordNotFound {

@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"time"
-
 	"github.com/flanksource/confighub/db/models"
 	"gorm.io/gorm"
 )
@@ -33,8 +31,6 @@ func (d *DBRepo) GetConfigItem(extID string) (*models.ConfigItem, error) {
 // CreateConfigItem inserts a new config item row in the db
 func (d *DBRepo) CreateConfigItem(ci *models.ConfigItem) error {
 
-	ci.CreatedAt = time.Now().UTC()
-
 	if err := d.db.Create(ci).Error; err != nil {
 		return err
 	}
@@ -45,8 +41,6 @@ func (d *DBRepo) CreateConfigItem(ci *models.ConfigItem) error {
 // UpdateConfigItem updates all the fields of a given config item row
 func (d *DBRepo) UpdateConfigItem(ci *models.ConfigItem) error {
 
-	ci.UpdatedAt = time.Now().UTC()
-
 	if err := d.db.Save(ci).Error; err != nil {
 		return err
 	}
@@ -56,8 +50,6 @@ func (d *DBRepo) UpdateConfigItem(ci *models.ConfigItem) error {
 
 // CreateConfigChange inserts a new config change row in the db
 func (d *DBRepo) CreateConfigChange(cc *models.ConfigChange) error {
-
-	cc.CreatedAt = time.Now().UTC()
 
 	if err := d.db.Create(cc).Error; err != nil {
 		return err

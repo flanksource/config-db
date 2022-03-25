@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"os"
+	"time"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/jackc/pgx/v4/log/logrusadapter"
@@ -95,7 +96,11 @@ func Init(connection string) error {
 
 	gormDB, err := gorm.Open(postgres.New(postgres.Config{
 		Conn: db,
-	}), &gorm.Config{})
+	}), &gorm.Config{
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+	})
 
 	if err != nil {
 		return err
