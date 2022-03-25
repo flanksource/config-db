@@ -19,8 +19,8 @@ func NewRepo(db *gorm.DB) Database {
 	}
 }
 
-// GetOneConfigItem returns a single config item result
-func (d *DBRepo) GetOneConfigItem(extID string) (*models.ConfigItem, error) {
+// GetConfigItem returns a single config item result
+func (d *DBRepo) GetConfigItem(extID string) (*models.ConfigItem, error) {
 
 	ci := models.ConfigItem{}
 	if err := d.db.First(&ci, "external_id = ?", extID).Error; err != nil {
@@ -42,8 +42,8 @@ func (d *DBRepo) CreateConfigItem(ci *models.ConfigItem) error {
 	return nil
 }
 
-// UpdateAllFieldsConfigItem updates all the fields of a given config item row
-func (d *DBRepo) UpdateAllFieldsConfigItem(ci *models.ConfigItem) error {
+// UpdateConfigItem updates all the fields of a given config item row
+func (d *DBRepo) UpdateConfigItem(ci *models.ConfigItem) error {
 
 	ci.UpdatedAt = time.Now().UTC()
 

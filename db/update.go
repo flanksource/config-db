@@ -45,7 +45,7 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 
 		repo := repository.NewRepo(DefaultDB())
 
-		existing, err := repo.GetOneConfigItem(result.Id)
+		existing, err := repo.GetConfigItem(result.Id)
 		if err != nil && err != sql.ErrNoRows {
 			return err
 		}
@@ -59,7 +59,7 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 
 		ci.ID = existing.ID
-		if err := repo.UpdateAllFieldsConfigItem(&ci); err != nil {
+		if err := repo.UpdateConfigItem(&ci); err != nil {
 			return err
 		}
 		changes, err := compare(ci, *existing)
