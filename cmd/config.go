@@ -12,6 +12,7 @@ import (
 	"github.com/flanksource/commons/text"
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/pkg/errors"
+	"github.com/ryanuber/go-glob"
 
 	"gopkg.in/flanksource/yaml.v3"
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
@@ -89,6 +90,13 @@ func ParseConfig(configfile string, datafile string) ([]v1.ConfigScraper, error)
 	}
 
 	var scrapers []v1.ConfigScraper
+
+	if glob.Glob("config/*.json", configfile) {
+		scrapers = append(scrapers, v1.ConfigScraper{
+			File: configs,
+		})
+	}
+
 	re := regexp.MustCompile(`(?m)^---\n`)
 	for _, chunk := range re.Split(configs, -1) {
 		if strings.TrimSpace(chunk) == "" {
