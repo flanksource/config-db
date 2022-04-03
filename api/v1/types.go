@@ -4,7 +4,7 @@ package v1
 type ConfigScraper struct {
 	Schedule string `json:"schedule,omitempty"`
 	AWS      []AWS  `json:"aws,omitempty" yaml:"aws,omitempty"`
-	File     string `json:"file,omitempty" yaml:"file,omitempty"`
+	File     []File `json:"file,omitempty" yaml:"file,omitempty"`
 }
 
 // IsEmpty ...
