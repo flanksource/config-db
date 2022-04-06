@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// GoOffline ...
 var GoOffline = &cobra.Command{
 	Use:  "go-offline",
 	Long: "Download all dependencies so that confighub can work without an internet connection",

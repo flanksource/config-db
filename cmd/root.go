@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// Root ...
 var Root = &cobra.Command{
 	Use: "confighub",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -31,6 +32,7 @@ var (
 	date    = "unknown"
 )
 
+// ServerFlags ...
 func ServerFlags(flags *pflag.FlagSet) {
 	flags.IntVar(&httpPort, "httpPort", 8080, "Port to expose a health dashboard ")
 	flags.IntVar(&devGuiPort, "devGuiPort", 3004, "Port used by a local npm server in development mode")

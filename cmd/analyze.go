@@ -13,10 +13,13 @@ import (
 
 var outputFile, outputFormat string
 
+// Analyzers ...
 var Analyzers = []v1.Analyzer{
 	analyzers.PatchAnalyzer,
 	aws.EC2InstanceAnalyzer,
 }
+
+// Analyze ...
 var Analyze = &cobra.Command{
 	Use:   "analyze <resources>",
 	Short: "Analyze configuration items and report discrepencies/issues.",

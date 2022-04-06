@@ -8,6 +8,8 @@ import (
 
 var outputDir string
 var filename string
+
+// Run ...
 var Run = &cobra.Command{
 	Use:   "run <scraper.yaml>",
 	Short: "Run scrapers and return",
