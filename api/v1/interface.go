@@ -33,6 +33,17 @@ type ScrapeResult struct {
 	Config       interface{} `json:"config,omitempty"`
 }
 
+type QueryColumn struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+type QueryResult struct {
+	Count int `json:"count"`
+	Columns []QueryColumn `json:"columns"`
+	Results []map[string]interface{} `json:"results"`
+}
+
 type ScrapeContext struct {
 	context.Context
 	Namespace string
