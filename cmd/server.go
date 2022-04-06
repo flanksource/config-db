@@ -3,13 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/confighub/db"
-	"github.com/flanksource/confighub/kube"
+	"github.com/flanksource/confighub/query"
 
 	"github.com/flanksource/confighub/scrapers"
 	"github.com/labstack/echo/v4"
@@ -22,13 +21,12 @@ import (
 var Serve = &cobra.Command{
 	Use: "serve",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := db.Init(db.ConnectionString); err != nil {
-			logger.Errorf("Failed to initialize the db: %v", err)
+
+		if db.ConnectionString == "" {
+			logger.Fatalf("must specify --db argument")
 		}
+
 		e := echo.New()
-		e.GET("/", func(c echo.Context) error {
-			return c.String(http.StatusOK, "Hello, World!")
-		})
 		// PostgREST needs to know how it is exposed to create the correct links
 		db.HTTPEndpoint = publicEndpoint + "/db"
 		go db.StartPostgrest()
@@ -38,7 +36,11 @@ var Serve = &cobra.Command{
 			e.Logger.Fatal(err)
 		}
 
-		e.Use(middleware.Logger())
+		if logger.IsTraceEnabled() {
+			e.Use(middleware.Logger())
+		}
+
+		e.GET("/query", query.Handler)
 
 		e.Group("/db").Use(middleware.ProxyWithConfig(middleware.ProxyConfig{
 			Rewrite: map[string]string{
@@ -59,10 +61,6 @@ var Serve = &cobra.Command{
 
 func serve(configFiles []string) {
 
-	kommonsClient, err := kube.NewKommonsClient()
-	if err != nil {
-		logger.Errorf("failed to get kubernetes client: %v", err)
-	}
 	scraperConfigs, err := getConfigs(configFiles)
 	if err != nil {
 		logger.Fatalf(err.Error())

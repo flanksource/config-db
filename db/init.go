@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
+	repoimpl "github.com/flanksource/confighub/db/repository"
 	"github.com/jackc/pgx/v4/log/logrusadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
@@ -39,6 +40,7 @@ var embedMigrations embed.FS
 
 // Pool ...
 var Pool *pgxpool.Pool
+var repository repoimpl.Database
 var pgxConnectionString string
 
 func readFromEnv(v string) string {
@@ -107,8 +109,7 @@ func Init(connection string) error {
 	}
 
 	defaultDB = gormDB
-
-	logger.Infof("Initialized DB: %s", defaultDB)
+	repository = repoimpl.NewRepo(defaultDB)
 
 	return nil
 }

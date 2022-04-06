@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/flanksource/commons/logger"
@@ -33,15 +34,23 @@ type ScrapeResult struct {
 	Config       interface{} `json:"config,omitempty"`
 }
 
+func (s ScrapeResult) String() string {
+	return fmt.Sprintf("%s/%s", s.Type, s.Id)
+}
+
 type QueryColumn struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 }
 
 type QueryResult struct {
-	Count int `json:"count"`
-	Columns []QueryColumn `json:"columns"`
+	Count   int                      `json:"count"`
+	Columns []QueryColumn            `json:"columns"`
 	Results []map[string]interface{} `json:"results"`
+}
+
+type QueryRequest struct {
+	Query string `json:"query"`
 }
 
 type ScrapeContext struct {
