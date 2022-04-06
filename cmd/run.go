@@ -1,7 +1,18 @@
 package cmd
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+
+	"github.com/antonmedv/expr"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/commons/text"
+	v1 "github.com/flanksource/confighub/api/v1"
+	"github.com/flanksource/confighub/db"
 	"github.com/flanksource/confighub/scrapers"
 	"github.com/spf13/cobra"
 )
@@ -20,10 +31,53 @@ var Run = &cobra.Command{
 			logger.Fatalf(err.Error())
 		}
 
-		if err := scrapers.RunScrapers(scraperConfigs, filename, outputDir); err != nil {
+		ctx := v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient}
+
+		results, err := scrapers.Run(ctx, scraperConfigs...)
+		if err != nil {
 			logger.Fatalf(err.Error())
 		}
+
+		if db.ConnectionString != "" {
+			if err = db.Update(ctx, results); err != nil {
+				logger.Errorf("Failed to update db: %+v", err)
+			}
+		} else if outputDir != "" {
+			for _, result := range results {
+				exportResource(result, filename, outputDir)
+			}
+
+		} else {
+			logger.Infof("skipping export: neither --output-dir or --db is specified")
+		}
+
 	},
+}
+
+func exportResource(resource v1.ScrapeResult, filename, outputDir string) error {
+	os.MkdirAll(path.Join(outputDir, resource.Type), 0755)
+	data, err := json.MarshalIndent(resource, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	var _data map[string]interface{}
+	if err := json.Unmarshal(data, &_data); err != nil {
+		return err
+	}
+
+	program, err := expr.Compile(filename, text.MakeExpressionOptions(_data)...)
+	if err != nil {
+		return err
+	}
+	output, err := expr.Run(program, text.MakeExpressionEnvs(_data))
+	if err != nil {
+		return err
+	}
+	outputPath := path.Join(outputDir, resource.Type, fmt.Sprint(output)+".json")
+
+	logger.Debugf("Exporting %s", outputPath)
+	return ioutil.WriteFile(outputPath, data, 0644)
 }
 
 func init() {
