@@ -9,12 +9,12 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// FScrapper ...
-type FScrapper struct {
+// JSONScrapper ...
+type JSONScrapper struct {
 }
 
 // Scrape ...
-func (file FScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1.ScrapeResult {
+func (file JSONScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1.ScrapeResult {
 
 	results := []v1.ScrapeResult{}
 
@@ -27,7 +27,7 @@ func (file FScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 		for _, path := range fileConfig.Glob {
 			matches, err := filepath.Glob(path)
 			if err != nil {
-				logger.Errorf("failed to match glob patter: %v", err)
+				logger.Tracef("could not match glob pattern(%s): %v", path, err)
 				continue
 			}
 
@@ -43,16 +43,16 @@ func (file FScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 
 			jsonContent := string(contentByte)
 
-			instanceID := gjson.Get(jsonContent, "Config.InstanceId")
-			instanceType := gjson.Get(jsonContent, "Config.InstanceType")
+			resultID := gjson.Get(jsonContent, fileConfig.ID)
+			resultType := gjson.Get(jsonContent, fileConfig.Type)
 
-			if !(instanceID.Exists() && instanceType.Exists()) {
-				return results
+			if !(resultID.Exists() && resultType.Exists()) {
+				continue
 			}
 			results = append(results, v1.ScrapeResult{
 				Config: jsonContent,
-				Type:   instanceID.String(),
-				Id:     instanceType.String(),
+				Type:   resultID.String(),
+				Id:     resultType.String(),
 			})
 
 		}

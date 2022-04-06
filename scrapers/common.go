@@ -6,7 +6,8 @@ import (
 	"github.com/flanksource/confighub/scrapers/file"
 )
 
+// All is the scrappers registry
 var All = []v1.Scraper{
 	aws.AWSScraper{},
-	file.FScrapper{},
+	file.JSONScrapper{},
 }

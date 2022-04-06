@@ -14,6 +14,7 @@ import (
 	v1 "github.com/flanksource/confighub/api/v1"
 )
 
+// Run ...
 func Run(ctx v1.ScrapeContext, config v1.ConfigScraper) ([]v1.ScrapeResult, error) {
 	results := []v1.ScrapeResult{}
 	for _, scraper := range All {
@@ -22,6 +23,7 @@ func Run(ctx v1.ScrapeContext, config v1.ConfigScraper) ([]v1.ScrapeResult, erro
 	return results, nil
 }
 
+// RunScrapers ...
 func RunScrapers(scraperConfigs []v1.ConfigScraper, filename, outputDir string) error {
 	ctx := v1.ScrapeContext{Context: context.Background()}
 	results := []v1.ScrapeResult{}
