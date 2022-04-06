@@ -44,7 +44,9 @@ var Run = &cobra.Command{
 			}
 		} else if outputDir != "" {
 			for _, result := range results {
-				exportResource(result, filename, outputDir)
+				if err := exportResource(result, filename, outputDir); err != nil {
+					logger.Fatalf("failed to export results %v", err)
+				}
 			}
 
 		} else {
@@ -55,7 +57,7 @@ var Run = &cobra.Command{
 }
 
 func exportResource(resource v1.ScrapeResult, filename, outputDir string) error {
-	os.MkdirAll(path.Join(outputDir, resource.Type), 0755)
+	_ = os.MkdirAll(path.Join(outputDir, resource.Type), 0755)
 	data, err := json.MarshalIndent(resource, "", "  ")
 	if err != nil {
 		return err

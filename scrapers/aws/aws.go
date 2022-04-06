@@ -22,11 +22,6 @@ func errorf(err error, msg string, args ...interface{}) []v1.ScrapeResult {
 	return nil
 }
 
-func failf(msg string, args ...interface{}) []v1.ScrapeResult {
-	logger.Errorf(msg, args...)
-	return nil
-}
-
 func getKeys(instances map[string]*Instance) []string {
 	ids := []string{}
 	for id := range instances {

@@ -15,7 +15,6 @@ var dev bool
 var httpPort, metricsPort, devGuiPort int
 var disableKubernetes bool
 var kommonsClient *kommons.Client
-var configFiles []string
 var publicEndpoint = "http://localhost:8080"
 var defaultSchedule string
 var (

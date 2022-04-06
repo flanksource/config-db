@@ -8,12 +8,9 @@ import (
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/confighub/db/models"
 	"github.com/flanksource/confighub/db/ulid"
-	cmap "github.com/orcaman/concurrent-map"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
-
-var idCache = cmap.New()
 
 // NewConfigItemFromResult creates a new config item instance from result
 func NewConfigItemFromResult(result v1.ScrapeResult) models.ConfigItem {

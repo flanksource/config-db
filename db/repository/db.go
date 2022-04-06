@@ -77,7 +77,9 @@ func (d *DBRepo) QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, err
 		if err != nil {
 			logger.Errorf("failed to get column details: %v", err)
 		}
-		results.ScanRows(rows, &response.Results)
+		if err := results.ScanRows(rows, &response.Results); err != nil {
+			return nil, fmt.Errorf("failed to run query: %s -> %s", request.Query, err)
+		}
 		for _, col := range columns {
 			response.Columns = append(response.Columns, v1.QueryColumn{
 				Name: col,

@@ -60,12 +60,12 @@ func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, erro
 	if conn.Region != "" {
 		cfg.Region = conn.Region
 	}
-	if conn.Endpoint != "" {
-		cfg.EndpointResolver = aws.EndpointResolverFunc(
-			func(service, region string) (aws.Endpoint, error) {
-				return aws.Endpoint{URL: conn.Endpoint}, nil
-			})
-	}
+	// if conn.Endpoint != "" {
+	// 	cfg.EndpointResolver = aws.EndpointResolverFunc(
+	// 		func(service, region string) (aws.Endpoint, error) {
+	// 			return aws.Endpoint{URL: conn.Endpoint}, nil
+	// 		})
+	// }
 
 	return &cfg, err
 }

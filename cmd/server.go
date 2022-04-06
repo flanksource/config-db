@@ -83,7 +83,9 @@ func serve(configFiles []string) {
 				logger.Errorf("Failed to update db: %v", err)
 			}
 		}
-		cron.AddFunc(schedule, fn)
+		if _, err := cron.AddFunc(schedule, fn); err != nil {
+			logger.Errorf("failed to schedule %s using %s: %v", scraper, scraper.Schedule, err)
+		}
 		fn()
 	}
 
