@@ -12,6 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 func isEmpty(val kommons.EnvVar) bool {
@@ -51,16 +53,19 @@ func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, erro
 		}
 
 		cfg.Credentials = credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
+	} else if conn.AssumeRole != "" {
+		creds := stscreds.NewAssumeRoleProvider(sts.NewFromConfig(cfg), conn.AssumeRole)
+		cfg.Credentials = aws.NewCredentialsCache(creds)
 	}
 	if conn.Region != "" {
 		cfg.Region = conn.Region
 	}
-	if conn.Endpoint != "" {
-		cfg.EndpointResolver = aws.EndpointResolverFunc(
-			func(service, region string) (aws.Endpoint, error) {
-				return aws.Endpoint{URL: conn.Endpoint}, nil
-			})
-	}
+	// if conn.Endpoint != "" {
+	// 	cfg.EndpointResolver = aws.EndpointResolverFunc(
+	// 		func(service, region string) (aws.Endpoint, error) {
+	// 			return aws.Endpoint{URL: conn.Endpoint}, nil
+	// 		})
+	// }
 
 	return &cfg, err
 }

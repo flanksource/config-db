@@ -7,13 +7,10 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/confighub/db/models"
-	"github.com/flanksource/confighub/db/repository"
 	"github.com/flanksource/confighub/db/ulid"
-	cmap "github.com/orcaman/concurrent-map"
+	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
-
-var idCache = cmap.New()
 
 // NewConfigItemFromResult creates a new config item instance from result
 func NewConfigItemFromResult(result v1.ScrapeResult) models.ConfigItem {
@@ -35,41 +32,41 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 	for _, result := range results {
 		data, err := json.Marshal(result.Config)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "Unable to marshal: %v", result.Config)
 		}
 
 		ci := NewConfigItemFromResult(result)
 		dataStr := string(data)
 		ci.Config = &dataStr
 
-		repo := repository.NewRepo(DefaultDB())
-
-		existing, err := repo.GetConfigItem(result.Id)
+		existing, err := GetConfigItem(result.Id)
 		if err != nil && err != gorm.ErrRecordNotFound {
-			return err
+			return errors.Wrapf(err, "unable to lookup existing config: %s", result)
 		}
 		if err == gorm.ErrRecordNotFound {
 			ci.ID = ulid.MustNew().AsUUID()
-			if err := repo.CreateConfigItem(&ci); err != nil {
-				return err
+			if err := CreateConfigItem(&ci); err != nil {
+				logger.Errorf("[%s] failed to create item %v", ci, err)
 			}
 			continue
-
 		}
 
 		ci.ID = existing.ID
-		if err := repo.UpdateConfigItem(&ci); err != nil {
-			return err
+		if err := UpdateConfigItem(&ci); err != nil {
+			if err := CreateConfigItem(&ci); err != nil {
+				logger.Errorf("[%s] failed to update item %v", ci, err)
+				continue
+			}
 		}
 		changes, err := compare(ci, *existing)
 		if err != nil {
-			return err
+			logger.Errorf("[%s] failed to check for changes: %v", ci, err)
 		}
 
 		if changes != nil {
 			logger.Infof("[%s/%s] detected changes", ci.ConfigType, *ci.ExternalID)
-			if err := repo.CreateConfigChange(changes); err != nil {
-				return err
+			if err := CreateConfigChange(changes); err != nil {
+				logger.Errorf("[%s] failed to update with changes %v", ci, err)
 			}
 		}
 	}
@@ -77,7 +74,7 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 }
 
 func compare(a, b models.ConfigItem) (*models.ConfigChange, error) {
-	patch, err := jsonpatch.CreateMergePatch(GetJSON(b), GetJSON(a))
+	patch, err := jsonpatch.CreateMergePatch([]byte(*a.Config), []byte(*b.Config))
 	if err != nil {
 		return nil, err
 	}

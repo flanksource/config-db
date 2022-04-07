@@ -32,16 +32,12 @@ func (auth Authentication) GetDomain() string {
 }
 
 type AWSConnection struct {
-	AccessKey kommons.EnvVar `yaml:"accessKey" json:"accessKey"`
-	SecretKey kommons.EnvVar `yaml:"secretKey" json:"secretKey"`
-	Region    string         `yaml:"region,omitempty" json:"region"`
-	Endpoint  string         `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
-	// Skip TLS verify when connecting to aws
-	SkipTLSVerify bool `yaml:"skipTLSVerify,omitempty" json:"skipTLSVerify,omitempty"`
-	// glob path to restrict matches to a subset
-	ObjectPath string `yaml:"objectPath,omitempty" json:"objectPath,omitempty"`
-	// Use path style path: http://s3.amazonaws.com/BUCKET/KEY instead of http://BUCKET.s3.amazonaws.com/KEY
-	UsePathStyle bool `yaml:"usePathStyle,omitempty" json:"usePathStyle,omitempty"`
+	AccessKey     kommons.EnvVar `yaml:"accessKey,omitempty" json:"accessKey,omitempty"`
+	SecretKey     kommons.EnvVar `yaml:"secretKey,omitempty" json:"secretKey,omitempty"`
+	Region        string         `yaml:"region,omitempty" json:"region"`
+	Endpoint      string         `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	SkipTLSVerify bool           `yaml:"skipTLSVerify,omitempty" json:"skipTLSVerify,omitempty"`
+	AssumeRole    string         `yaml:"assumeRole,omitempty" json:"assumeRole,omitempty"`
 }
 
 type GCPConnection struct {

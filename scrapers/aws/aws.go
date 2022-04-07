@@ -22,11 +22,6 @@ func errorf(err error, msg string, args ...interface{}) []v1.ScrapeResult {
 	return nil
 }
 
-func failf(msg string, args ...interface{}) []v1.ScrapeResult {
-	logger.Errorf(msg, args...)
-	return nil
-}
-
 func getKeys(instances map[string]*Instance) []string {
 	ids := []string{}
 	for id := range instances {
@@ -159,11 +154,9 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 				if err != nil {
 					return errorf(err, "cannot get compliance details")
 				}
-				instance.Compliance = make(map[string]ComplianceDetail)
 
 				for _, detail := range details.EvaluationResults {
-					result := NewComplianceDetail(detail)
-					instance.Compliance[result.Id] = result
+					instance.Compliance = append(instance.Compliance, NewComplianceDetail(detail))
 				}
 			}
 			if awsConfig.TrustedAdvisorCheck {
@@ -207,7 +200,11 @@ func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instance 
 			delete(resource.Metadata, "Instance Name")
 			delete(resource.Metadata, "Instance Type")
 
-			estimatedMonthlySavingsUSD, err := strconv.ParseFloat(strings.TrimPrefix(resource.Metadata["Estimated Monthly Savings"], "$"), 64)
+			savings := strings.TrimPrefix(resource.Metadata["Estimated Monthly Savings"], "$")
+			if savings == "" {
+				continue
+			}
+			estimatedMonthlySavingsUSD, err := strconv.ParseFloat(savings, 64)
 			if err != nil {
 				logger.Errorf("error parsing estimated monthly savings: %s", err)
 			}

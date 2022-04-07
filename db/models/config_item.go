@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // ConfigItem represents the config item database table
 type ConfigItem struct {
@@ -19,6 +22,10 @@ type ConfigItem struct {
 	Config      *string   `gorm:"column:config;default:null" json:"config,omitempty" toml:"config" yaml:"config,omitempty"`
 	CreatedAt   time.Time `gorm:"column:created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
 	UpdatedAt   time.Time `gorm:"column:updated_at" json:"updated_at" toml:"updated_at" yaml:"updated_at"`
+}
+
+func (ci ConfigItem) String() string {
+	return fmt.Sprintf("%s/%s", ci.ConfigType, ci.ID)
 }
 
 // TableName returns the corresponding table name of the model

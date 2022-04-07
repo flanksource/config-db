@@ -53,12 +53,10 @@ func PatchAnalyzer(configs []v1.ScrapeResult) v1.AnalysisResult {
 			}
 		}
 
-		commonPatches := []string{}
 		appliedByHost := map[string][]string{}
 		notAppliedByHost := map[string][]string{}
 		for patch, common := range allPatches {
 			if common {
-				commonPatches = append(commonPatches, patch)
 				continue
 			}
 			appliedHosts := []string{}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/flanksource/commons/logger"
+	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/confighub/db/models"
 )
 
@@ -14,4 +15,21 @@ func GetJSON(ci models.ConfigItem) []byte {
 		logger.Errorf("Failed to marshal config: %+v", err)
 	}
 	return data
+}
+
+func GetConfigItem(id string) (*models.ConfigItem, error) {
+	return repository.GetConfigItem(id)
+}
+
+func CreateConfigItem(item *models.ConfigItem) error {
+	return repository.CreateConfigItem(item)
+}
+func UpdateConfigItem(item *models.ConfigItem) error {
+	return repository.UpdateConfigItem(item)
+}
+func CreateConfigChange(change *models.ConfigChange) error {
+	return repository.CreateConfigChange(change)
+}
+func QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, error) {
+	return repository.QueryConfigItems(request)
 }

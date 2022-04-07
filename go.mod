@@ -4,13 +4,13 @@ go 1.17
 
 require (
 	github.com/antonmedv/expr v1.9.0
-	github.com/aws/aws-sdk-go-v2 v1.11.2
+	github.com/aws/aws-sdk-go-v2 v1.16.2
 	github.com/aws/aws-sdk-go-v2/config v1.11.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.6.4
+	github.com/aws/aws-sdk-go-v2/credentials v1.11.2
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.12.2
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.25.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.17.1
-	github.com/aws/aws-sdk-go-v2/service/sts v1.11.1
+	github.com/aws/aws-sdk-go-v2/service/sts v1.16.3
 	github.com/aws/aws-sdk-go-v2/service/support v1.8.2
 	github.com/evanphx/json-patch v4.9.0+incompatible
 	github.com/flanksource/commons v1.5.11
@@ -37,7 +37,6 @@ require (
 require (
 	cloud.google.com/go v0.93.3 // indirect
 	cloud.google.com/go/storage v1.10.0 // indirect
-	contrib.go.opencensus.io/integrations/ocsql v0.1.4 // indirect
 	github.com/AlekSi/pointer v1.1.0 // indirect
 	github.com/Masterminds/goutils v1.1.0 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
@@ -48,13 +47,13 @@ require (
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/armon/go-metrics v0.3.0 // indirect
 	github.com/aws/aws-sdk-go v1.29.25 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.8.2 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.2 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.0.2 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.3 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.9 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.5.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.6.2 // indirect
-	github.com/aws/smithy-go v1.9.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.11.3 // indirect
+	github.com/aws/smithy-go v1.11.2 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -68,14 +67,12 @@ require (
 	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
 	github.com/fatih/color v1.9.0 // indirect
-	github.com/friendsofgo/errors v0.9.2 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-logr/logr v0.2.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.3 // indirect
 	github.com/go-openapi/jsonreference v0.19.3 // indirect
 	github.com/go-openapi/spec v0.19.3 // indirect
 	github.com/go-openapi/swag v0.19.5 // indirect
-	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
@@ -128,7 +125,6 @@ require (
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/kr/text v0.1.0 // indirect
 	github.com/labstack/gommon v0.3.1 // indirect
-	github.com/lib/pq v1.10.3 // indirect
 	github.com/mailru/easyjson v0.7.0 // indirect
 	github.com/mattn/go-colorable v0.1.11 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
@@ -143,18 +139,12 @@ require (
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sergi/go-diff v1.0.0 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
-	github.com/spf13/cast v1.4.1 // indirect
 	github.com/src-d/gcfg v1.4.0 // indirect
 	github.com/ugorji/go/codec v1.1.7 // indirect
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.1 // indirect
 	github.com/vbauerster/mpb/v5 v5.0.3 // indirect
-	github.com/volatiletech/inflect v0.0.1 // indirect
-	github.com/volatiletech/null/v8 v8.1.2 // indirect
-	github.com/volatiletech/randomize v0.0.1 // indirect
-	github.com/volatiletech/sqlboiler/v4 v4.8.3 // indirect
-	github.com/volatiletech/strmangle v0.0.1 // indirect
 	github.com/xanzy/ssh-agent v0.2.1 // indirect
 	github.com/zealic/xignore v0.3.3 // indirect
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489 // indirect
@@ -199,5 +189,6 @@ replace (
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20210128214336-420b1d36250f+incompatible
 	github.com/go-logr/logr => github.com/go-logr/logr v0.2.1
 	google.golang.org/grpc => google.golang.org/grpc v1.29.1
+	gorm.io/gorm => gorm.io/gorm v1.23.2
 	k8s.io/client-go => k8s.io/client-go v0.20.4
 )

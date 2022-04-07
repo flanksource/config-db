@@ -15,15 +15,30 @@ spec:
         {{- include "config-db.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "config-db.name" . }}-sa
+      volumes:
+        {{- range .Values.scrapeRuleConfigMaps }}
+        - name: {{.}}
+          configMap:
+            name: {{.}}
+            optional: true
+        {{- end }}
       containers:
         - name: {{ include "config-db.name" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts:
+            {{- range .Values.scrapeRuleConfigMaps }}
+            - mountPath: /config/{{.}}
+              name: {{.}}
+            {{- end }}
           command:
             - /app/config-db
           args:
             - serve
             - -vvv
+            {{- range .Values.scrapeRuleConfigMaps }}
+            - /config/{{.}}/*.yaml
+            {{- end }}
           env:
             - name: DB_URL
               valueFrom:
