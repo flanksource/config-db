@@ -18,7 +18,7 @@
 
 * AWS
   * [x] EC2 (including trusted advisor, compliance and patch reporting)
-  * [ ] VPC
+  * [x] VPC
   * [ ] IAM
 * Kubernetes
   [ ] Pods
