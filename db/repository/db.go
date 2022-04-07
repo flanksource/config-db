@@ -60,7 +60,7 @@ func (d *DBRepo) CreateConfigChange(cc *models.ConfigChange) error {
 
 func (d *DBRepo) QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, error) {
 	results := d.db.Raw(request.Query)
-	logger.Debugf(request.Query)
+	logger.Tracef(request.Query)
 	if results.Error != nil {
 		return nil, fmt.Errorf("failed to parse query: %s -> %s", request.Query, results.Error)
 	}
@@ -77,18 +77,14 @@ func (d *DBRepo) QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, err
 		if err != nil {
 			logger.Errorf("failed to get column details: %v", err)
 		}
+		rows.Next()
 		if err := results.ScanRows(rows, &response.Results); err != nil {
-			return nil, fmt.Errorf("failed to run query: %s -> %s", request.Query, err)
+			return nil, fmt.Errorf("failed to scan rows: %s -> %s", request.Query, err)
 		}
 		for _, col := range columns {
 			response.Columns = append(response.Columns, v1.QueryColumn{
 				Name: col,
 			})
-		}
-
-		if len(response.Results) > 0 && isRowEmpty(response.Results[0]) {
-			//FIXME: why is an empty first row returned in the first place?
-			response.Results = response.Results[1:]
 		}
 	}
 	response.Count = len(response.Results)
