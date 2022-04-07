@@ -35,9 +35,9 @@ spec:
             - /app/config-db
           args:
             - serve
-            - -vvv
+            - -v
             {{- range .Values.scrapeRuleConfigMaps }}
-            - /config/{{.}}/*.yaml
+            - /config/{{.}}/config.yaml
             {{- end }}
           env:
             - name: DB_URL

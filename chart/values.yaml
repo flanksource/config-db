@@ -13,7 +13,7 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
-# a list of configmaps to load scrape rules from
+# a list of configmaps to load scrape rules from, the configmap should have a single entry called "config.yaml"
 scrapeRuleConfigMaps:
   - config-db-rules
 db:
