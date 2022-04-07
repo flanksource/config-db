@@ -32,11 +32,6 @@ var Root = &cobra.Command{
 		logger.StandardLogger().SetLogLevel(count)
 		logger.UseZap(cmd.Flags())
 		var err error
-		if db.ConnectionString != "" {
-			if err = db.Init(db.ConnectionString); err != nil {
-				logger.Fatalf("Failed to initialize db: %v", err.Error())
-			}
-		}
 
 		if kommonsClient, err = kube.NewKommonsClient(); err != nil {
 			logger.Errorf("failed to get kubernetes client: %v", err)

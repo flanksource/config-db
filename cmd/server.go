@@ -21,11 +21,7 @@ import (
 var Serve = &cobra.Command{
 	Use: "serve",
 	Run: func(cmd *cobra.Command, args []string) {
-
-		if db.ConnectionString == "" {
-			logger.Fatalf("must specify --db argument")
-		}
-
+		db.MustInit()
 		e := echo.New()
 		// PostgREST needs to know how it is exposed to create the correct links
 		db.HTTPEndpoint = publicEndpoint + "/db"

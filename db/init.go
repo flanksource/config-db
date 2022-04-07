@@ -51,6 +51,17 @@ func readFromEnv(v string) string {
 	return v
 }
 
+// MustInit initializes the database or fatally exits
+func MustInit() {
+	if ConnectionString == "" {
+		logger.Fatalf("must specify --db argument")
+	}
+
+	if err := Init(ConnectionString); err != nil {
+		logger.Fatalf("Failed to initialize db: %v", err.Error())
+	}
+}
+
 // Init ...
 func Init(connection string) error {
 	ConnectionString = readFromEnv(connection)
