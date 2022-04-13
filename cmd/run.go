@@ -26,8 +26,6 @@ var Run = &cobra.Command{
 	Short: "Run scrapers and return",
 	Run: func(cmd *cobra.Command, configFiles []string) {
 
-		db.MustInit()
-
 		logger.Infof("Scrapping %v", configFiles)
 		scraperConfigs, err := getConfigs(configFiles)
 		if err != nil {
@@ -40,8 +38,10 @@ var Run = &cobra.Command{
 		if err != nil {
 			logger.Fatalf(err.Error())
 		}
+		logger.Infof("Found %d resources", len(results))
 
 		if db.ConnectionString != "" {
+			db.MustInit()
 			if err = db.Update(ctx, results); err != nil {
 				logger.Errorf("Failed to update db: %+v", err)
 			}

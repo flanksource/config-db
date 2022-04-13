@@ -90,12 +90,3 @@ func (d *DBRepo) QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, err
 	response.Count = len(response.Results)
 	return &response, nil
 }
-
-func isRowEmpty(row map[string]interface{}) bool {
-	for _, v := range row {
-		if v == nil || fmt.Sprintf("%v", v) == "" {
-			return true
-		}
-	}
-	return false
-}

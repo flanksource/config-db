@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/confighub/db"
@@ -23,6 +24,14 @@ var (
 	date    = "unknown"
 )
 
+func readFromEnv(v string) string {
+	val := os.Getenv(v)
+	if val != "" {
+		return val
+	}
+	return v
+}
+
 // Root ...
 var Root = &cobra.Command{
 	Use: "confighub",
@@ -36,6 +45,13 @@ var Root = &cobra.Command{
 		if kommonsClient, err = kube.NewKommonsClient(); err != nil {
 			logger.Errorf("failed to get kubernetes client: %v", err)
 		}
+
+		db.ConnectionString = readFromEnv(db.ConnectionString)
+		if db.ConnectionString == "DB_URL" {
+			db.ConnectionString = ""
+		}
+		db.Schema = readFromEnv(db.Schema)
+		db.LogLevel = readFromEnv(db.LogLevel)
 
 	},
 }
