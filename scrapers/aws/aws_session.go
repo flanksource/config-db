@@ -32,6 +32,18 @@ func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, erro
 	return cfg, nil
 }
 
+type EndpointResolver struct {
+	Endpoint string
+}
+
+func (e EndpointResolver) ResolveEndpoint(service, region string, options ...interface{}) (aws.Endpoint, error) {
+	return aws.Endpoint{
+		URL:               e.Endpoint,
+		HostnameImmutable: true,
+		Source:            aws.EndpointSourceCustom,
+	}, nil
+}
+
 func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, error) {
 	namespace := ctx.GetNamespace()
 	var tr http.RoundTripper
@@ -55,17 +67,11 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, erro
 
 	options := []func(*config.LoadOptions) error{
 		config.WithRegion(conn.Region),
+		config.WithHTTPClient(&http.Client{Transport: tr}),
 	}
 
 	if conn.Endpoint != "" {
-		resolver := aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
-			return aws.Endpoint{
-				URL:               conn.Endpoint,
-				HostnameImmutable: true,
-				Source:            aws.EndpointSourceCustom,
-			}, nil
-		})
-		options = append(options, config.WithEndpointResolver(resolver))
+		options = append(options, config.WithEndpointResolverWithOptions(EndpointResolver{Endpoint: conn.Endpoint}))
 	}
 
 	if !isEmpty(conn.AccessKey) {

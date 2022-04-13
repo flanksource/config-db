@@ -43,20 +43,8 @@ var Pool *pgxpool.Pool
 var repository repoimpl.Database
 var pgxConnectionString string
 
-func readFromEnv(v string) string {
-	val := os.Getenv(v)
-	if val != "" {
-		return val
-	}
-	return v
-}
-
 // MustInit initializes the database or fatally exits
 func MustInit() {
-	if ConnectionString == "" {
-		logger.Fatalf("must specify --db argument")
-	}
-
 	if err := Init(ConnectionString); err != nil {
 		logger.Fatalf("Failed to initialize db: %v", err.Error())
 	}
@@ -64,10 +52,6 @@ func MustInit() {
 
 // Init ...
 func Init(connection string) error {
-	ConnectionString = readFromEnv(connection)
-	Schema = readFromEnv(Schema)
-	LogLevel = readFromEnv(LogLevel)
-
 	config, err := pgxpool.ParseConfig(ConnectionString)
 	if err != nil {
 		return err

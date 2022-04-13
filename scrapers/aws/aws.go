@@ -12,13 +12,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
+	"github.com/pkg/errors"
 )
 
 type AWSScraper struct {
 }
 
 func errorf(err error, msg string, args ...interface{}) []v1.ScrapeResult {
-	logger.Errorf(err.Error()+msg, args...)
+	logger.Errorf(msg+": "+err.Error(), args...)
 	return nil
 }
 
@@ -133,16 +134,11 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 		}
 		for _, instance := range instances {
 			if awsConfig.PatchDetails {
-				patches, err := SSM.DescribeInstancePatches(ctx, &ssm.DescribeInstancePatchesInput{
-					InstanceId: &instance.InstanceId,
-				})
+				patches, err := listPatches(SSM, ctx, instance.InstanceId, nil)
 				if err != nil {
 					return errorf(err, "failed to get patches for %s", instance.InstanceId)
 				}
-
-				for _, p := range patches.Patches {
-					instance.Patches = append(instance.Patches, NewPatchDetail(p))
-				}
+				instance.Patches = patches
 			}
 
 			if awsConfig.Compliance {
@@ -190,6 +186,34 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 		}
 	}
 	return results
+}
+
+func listPatches(SSM *ssm.Client, ctx v1.ScrapeContext, instanceId string, token *string) ([]PatchDetail, error) {
+	var list = []PatchDetail{}
+
+	patches, err := SSM.DescribeInstancePatches(ctx, &ssm.DescribeInstancePatchesInput{
+		InstanceId: &instanceId,
+		MaxResults: 100,
+		NextToken:  token,
+	})
+
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get patches for %s", instanceId)
+	}
+
+	for _, p := range patches.Patches {
+		if p.State != "NotApplicable" {
+			list = append(list, NewPatchDetail(p))
+		}
+	}
+	if patches.NextToken != nil {
+		nextList, err := listPatches(SSM, ctx, instanceId, patches.NextToken)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to get patches for %s", instanceId)
+		}
+		list = append(list, nextList...)
+	}
+	return list, nil
 }
 
 func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instance *Instance) *TrustedAdvisorCheck {
