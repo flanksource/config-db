@@ -13,6 +13,7 @@ import (
 	"github.com/flanksource/commons/text"
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/confighub/db"
+	"github.com/flanksource/confighub/matchers"
 	"github.com/flanksource/confighub/scrapers"
 	"github.com/spf13/cobra"
 )
@@ -32,7 +33,7 @@ var Run = &cobra.Command{
 			logger.Fatalf(err.Error())
 		}
 
-		ctx := v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient}
+		ctx := v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Matcher: matchers.NewFile()}
 
 		results, err := scrapers.Run(ctx, scraperConfigs...)
 		if err != nil {

@@ -1,9 +1,6 @@
 package file
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/tidwall/gjson"
@@ -18,6 +15,8 @@ func (file JSONScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) [
 
 	results := []v1.ScrapeResult{}
 
+	matcher := ctx.Matcher
+
 	for _, fileConfig := range config.File {
 
 		logger.Infof("Scraping JSON file id=%s type=%s", fileConfig.ID, fileConfig.Type)
@@ -25,7 +24,7 @@ func (file JSONScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) [
 		globMatches := []string{}
 
 		for _, path := range fileConfig.Glob {
-			matches, err := filepath.Glob(path)
+			matches, err := matcher.Match(path)
 			if err != nil {
 				logger.Tracef("could not match glob pattern(%s): %v", path, err)
 				continue
@@ -35,7 +34,7 @@ func (file JSONScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) [
 		}
 
 		for _, match := range globMatches {
-			contentByte, err := os.ReadFile(match)
+			contentByte, err := matcher.Read(match)
 			if err != nil {
 				logger.Errorf("failed to reading matched file: %v", err)
 				continue

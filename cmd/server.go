@@ -8,6 +8,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/confighub/db"
+	"github.com/flanksource/confighub/matchers"
 	"github.com/flanksource/confighub/query"
 
 	"github.com/flanksource/confighub/scrapers"
@@ -71,7 +72,8 @@ func serve(configFiles []string) {
 		}
 		_scraper := scraper
 		fn := func() {
-			ctx := v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &_scraper}
+			ctx := v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &_scraper,
+				Matcher: matchers.NewFile()}
 			if results, err := scrapers.Run(ctx, _scraper); err != nil {
 				logger.Errorf("Failed to run scraper %s: %v", _scraper, err)
 			} else if err = db.Update(ctx, results); err != nil {

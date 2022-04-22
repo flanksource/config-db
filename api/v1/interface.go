@@ -6,20 +6,25 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/confighub/matchers"
 	"github.com/flanksource/kommons"
 )
 
+// Scraper ...
 type Scraper interface {
 	Scrape(ctx ScrapeContext, config ConfigScraper) []ScrapeResult
 }
 
+// Analyzer ...
 type Analyzer func(configs []ScrapeResult) AnalysisResult
 
+// AnalysisResult ...
 type AnalysisResult struct {
 	Analyzer string
 	Messages []string
 }
 
+// ScrapeResult ...
 type ScrapeResult struct {
 	LastModified time.Time   `json:"last_modified,omitempty"`
 	Type         string      `json:"type,omitempty"`
@@ -38,38 +43,52 @@ func (s ScrapeResult) String() string {
 	return fmt.Sprintf("%s/%s", s.Type, s.Id)
 }
 
+// QueryColumn ...
 type QueryColumn struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 }
 
+// QueryResult ...
 type QueryResult struct {
 	Count   int                      `json:"count"`
 	Columns []QueryColumn            `json:"columns"`
 	Results []map[string]interface{} `json:"results"`
 }
 
+// QueryRequest ...
 type QueryRequest struct {
 	Query string `json:"query"`
 }
 
+// ScrapeContext ...
 type ScrapeContext struct {
 	context.Context
 	Namespace string
 	Kommons   *kommons.Client
 	Scraper   *ConfigScraper
+	Matcher   matchers.Matcher
 }
 
+// WithScraper ...
 func (ctx ScrapeContext) WithScraper(config *ConfigScraper) ScrapeContext {
 	ctx.Scraper = config
 	return ctx
 
 }
 
+// WithMatcher ...
+func (ctx ScrapeContext) WithMatcher(m matchers.Matcher) ScrapeContext {
+	ctx.Matcher = m
+	return ctx
+}
+
+// GetNamespace ...
 func (ctx ScrapeContext) GetNamespace() string {
 	return ctx.Namespace
 }
 
+// IsTrace ...
 func (ctx ScrapeContext) IsTrace() bool {
 	return logger.IsTraceEnabled()
 }
