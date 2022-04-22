@@ -3,13 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/confighub/db"
-	"github.com/flanksource/confighub/kube"
+	"github.com/flanksource/confighub/query"
 
 	"github.com/flanksource/confighub/scrapers"
 	"github.com/labstack/echo/v4"
@@ -18,18 +17,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Serve ...
 var Serve = &cobra.Command{
 	Use: "serve",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := db.Init(db.ConnectionString); err != nil {
-			logger.Errorf("Failed to initialize the db: %v", err)
-		}
+		db.MustInit()
 		e := echo.New()
-		e.GET("/", func(c echo.Context) error {
-			return c.String(http.StatusOK, "Hello, World!")
-		})
 		// PostgREST needs to know how it is exposed to create the correct links
-		db.HttpEndpoint = publicEndpoint + "/db"
+		db.HTTPEndpoint = publicEndpoint + "/db"
 		go db.StartPostgrest()
 
 		url, err := url.Parse("http://localhost:3000")
@@ -37,7 +32,11 @@ var Serve = &cobra.Command{
 			e.Logger.Fatal(err)
 		}
 
-		e.Use(middleware.Logger())
+		if logger.IsTraceEnabled() {
+			e.Use(middleware.Logger())
+		}
+
+		e.GET("/query", query.Handler)
 
 		e.Group("/db").Use(middleware.ProxyWithConfig(middleware.ProxyConfig{
 			Rewrite: map[string]string{
@@ -58,10 +57,6 @@ var Serve = &cobra.Command{
 
 func serve(configFiles []string) {
 
-	kommonsClient, err := kube.NewKommonsClient()
-	if err != nil {
-		logger.Errorf("failed to get kubernetes client: %v", err)
-	}
 	scraperConfigs, err := getConfigs(configFiles)
 	if err != nil {
 		logger.Fatalf(err.Error())
@@ -84,7 +79,9 @@ func serve(configFiles []string) {
 				logger.Errorf("Failed to update db: %v", err)
 			}
 		}
-		cron.AddFunc(schedule, fn)
+		if _, err := cron.AddFunc(schedule, fn); err != nil {
+			logger.Errorf("failed to schedule %s using %s: %v", scraper, scraper.Schedule, err)
+		}
 		fn()
 	}
 

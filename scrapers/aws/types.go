@@ -350,7 +350,7 @@ type Instance struct {
 	Inventory  map[string]string            `json:"Inventory,omitempty"`
 	PatchState *ssmTypes.InstancePatchState `json:"PatchState,omitempty"`
 	Patches    []PatchDetail                `json:"Patches,omitempty"`
-	Compliance map[string]ComplianceDetail  `json:"Compliance,omitempty"`
+	Compliance []ComplianceDetail           `json:"Compliance,omitempty"`
 	// The AMI launch index, which can be used to find this instance in the launch
 	// group.
 	AmiLaunchIndex *int32 `json:"ami_launch_index,omitempty"`

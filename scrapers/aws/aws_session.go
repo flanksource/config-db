@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 func isEmpty(val kommons.EnvVar) bool {
@@ -19,6 +22,29 @@ func isEmpty(val kommons.EnvVar) bool {
 }
 
 func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, error) {
+	cfg, err := loadConfig(ctx, conn)
+	if err != nil {
+		return nil, err
+	}
+	if conn.AssumeRole != "" {
+		cfg.Credentials = aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(sts.NewFromConfig(*cfg), conn.AssumeRole))
+	}
+	return cfg, nil
+}
+
+type EndpointResolver struct {
+	Endpoint string
+}
+
+func (e EndpointResolver) ResolveEndpoint(service, region string, options ...interface{}) (aws.Endpoint, error) {
+	return aws.Endpoint{
+		URL:               e.Endpoint,
+		HostnameImmutable: true,
+		Source:            aws.EndpointSourceCustom,
+	}, nil
+}
+
+func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, error) {
 	namespace := ctx.GetNamespace()
 	var tr http.RoundTripper
 	tr = &http.Transport{
@@ -38,7 +64,15 @@ func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, erro
 		}
 		tr = httplogger.RoundTripper(tr)
 	}
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithHTTPClient(&http.Client{Transport: tr}))
+
+	options := []func(*config.LoadOptions) error{
+		config.WithRegion(conn.Region),
+		config.WithHTTPClient(&http.Client{Transport: tr}),
+	}
+
+	if conn.Endpoint != "" {
+		options = append(options, config.WithEndpointResolverWithOptions(EndpointResolver{Endpoint: conn.Endpoint}))
+	}
 
 	if !isEmpty(conn.AccessKey) {
 		_, accessKey, err := ctx.Kommons.GetEnvValue(conn.AccessKey, namespace)
@@ -49,18 +83,9 @@ func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, erro
 		if err != nil {
 			return nil, fmt.Errorf(fmt.Sprintf("Could not parse EC2 secret key: %v", err))
 		}
-
-		cfg.Credentials = credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
-	}
-	if conn.Region != "" {
-		cfg.Region = conn.Region
-	}
-	if conn.Endpoint != "" {
-		cfg.EndpointResolver = aws.EndpointResolverFunc(
-			func(service, region string) (aws.Endpoint, error) {
-				return aws.Endpoint{URL: conn.Endpoint}, nil
-			})
+		options = append(options, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")))
 	}
 
+	cfg, err := config.LoadDefaultConfig(context.Background(), options...)
 	return &cfg, err
 }

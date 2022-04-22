@@ -13,6 +13,9 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
+# a list of configmaps to load scrape rules from, the configmap should have a single entry called "config.yaml"
+scrapeRuleConfigMaps:
+  - config-db-rules
 db:
   # Setting this to true will create a postgres stateful set for config-db to connect to.
   enabled: true
@@ -30,9 +33,10 @@ db:
 ingress:
   enabled: false
   annotations:
-    kubernetes.io/ingress.class: nginx
+    {}
+    #  kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
-  host: chart-example.local
+  host: config-db.local
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:
@@ -47,6 +51,7 @@ resources:
     cpu: 500m
 
 extra:
+  {}
   # nodeSelector:
   #   key: value
   # tolerations:
@@ -64,4 +69,3 @@ extra:
   #             values:
   #             - e2e-az1
   #             - e2e-az2
-  

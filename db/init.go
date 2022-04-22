@@ -5,22 +5,30 @@ import (
 	"database/sql"
 	"embed"
 	"os"
+	"time"
 
 	"github.com/flanksource/commons/logger"
+	repoimpl "github.com/flanksource/confighub/db/repository"
 	"github.com/jackc/pgx/v4/log/logrusadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
-	"github.com/volatiletech/sqlboiler/v4/boil"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-var ConnectionString string
-var Schema = "public"
-var LogLevel = "info"
-var HttpEndpoint = "http://localhost:8080/db"
+// connection variables
+var (
+	ConnectionString string
+	Schema           = "public"
+	LogLevel         = "info"
+	HTTPEndpoint     = "http://localhost:8080/db"
+	defaultDB        *gorm.DB
+)
 
+// Flags ...
 func Flags(flags *pflag.FlagSet) {
 	flags.StringVar(&ConnectionString, "db", "DB_URL", "Connection string for the postgres database")
 	flags.StringVar(&Schema, "db-schema", "public", "")
@@ -29,22 +37,21 @@ func Flags(flags *pflag.FlagSet) {
 
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
+
+// Pool ...
 var Pool *pgxpool.Pool
+var repository repoimpl.Database
 var pgxConnectionString string
 
-func readFromEnv(v string) string {
-	val := os.Getenv(v)
-	if val != "" {
-		return val
+// MustInit initializes the database or fatally exits
+func MustInit() {
+	if err := Init(ConnectionString); err != nil {
+		logger.Fatalf("Failed to initialize db: %v", err.Error())
 	}
-	return v
 }
 
+// Init ...
 func Init(connection string) error {
-	ConnectionString = readFromEnv(connection)
-	Schema = readFromEnv(Schema)
-	LogLevel = readFromEnv(LogLevel)
-
 	config, err := pgxpool.ParseConfig(ConnectionString)
 	if err != nil {
 		return err
@@ -83,12 +90,26 @@ func Init(connection string) error {
 	if err != nil {
 		return err
 	}
-	boil.SetDB(db)
-	logger.Infof("Initialized DB: %s", boil.GetDB())
+
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{
+		Conn: db,
+	}), &gorm.Config{
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	defaultDB = gormDB
+	repository = repoimpl.NewRepo(defaultDB)
 
 	return nil
 }
 
+// Migrate ...
 func Migrate() error {
 	goose.SetBaseFS(embedMigrations)
 	db, err := GetDB()
@@ -103,6 +124,18 @@ func Migrate() error {
 	return nil
 }
 
+// GetDB ...
 func GetDB() (*sql.DB, error) {
 	return sql.Open("pgx", pgxConnectionString)
+}
+
+// Ping pings the database for health check
+func Ping() error {
+	d, _ := defaultDB.DB() // returns *sql.DB
+	return d.Ping()
+}
+
+// DefaultDB returns the default database connection instance
+func DefaultDB() *gorm.DB {
+	return defaultDB
 }

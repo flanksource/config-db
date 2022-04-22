@@ -7,7 +7,7 @@ CREATE TABLE config_scraper (
   id UUID DEFAULT generate_ulid() PRIMARY KEY,
   description TEXT NULL,
   scraper_type text NOT NULL,
-  spec json,
+  spec jsonb,
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now()
 );
@@ -25,7 +25,7 @@ CREATE TABLE config_item (
   zone text,
   network text,
   subnet text,
-  config json null,
+  config jsonb null,
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now(),
   FOREIGN KEY (scraper_id) REFERENCES config_scraper(id)
@@ -36,7 +36,7 @@ CREATE TABLE config_change (
   config_id UUID NOT NULL,
   change_type text NOT NULL,
   summary text,
-  patches json null,
+  patches jsonb null,
   created_at timestamp NOT NULL DEFAULT now(),
   FOREIGN KEY (config_id) REFERENCES config_item(id)
 );
@@ -47,7 +47,7 @@ CREATE TABLE config_analysis (
   analyzer text NOT NULL,
   summary text,
   analysis_type text NOT NULL,
-  analysis json null,
+  analysis jsonb null,
   first_observed timestamp NOT NULL DEFAULT now(),
   last_observed timestamp,
   FOREIGN KEY (config_id) REFERENCES config_item(id)
