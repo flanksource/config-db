@@ -15,6 +15,7 @@ require (
 	github.com/evanphx/json-patch v4.9.0+incompatible
 	github.com/flanksource/commons v1.5.11
 	github.com/flanksource/kommons v0.26.0
+	github.com/gobwas/glob v0.2.3
 	github.com/google/uuid v1.3.0
 	github.com/henvic/httpretty v0.0.6
 	github.com/jackc/pgx/v4 v4.14.1
