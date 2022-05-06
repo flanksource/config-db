@@ -193,7 +193,7 @@ func listPatches(SSM *ssm.Client, ctx v1.ScrapeContext, instanceId string, token
 
 	patches, err := SSM.DescribeInstancePatches(ctx, &ssm.DescribeInstancePatchesInput{
 		InstanceId: &instanceId,
-		MaxResults: 100,
+		MaxResults: 50,
 		NextToken:  token,
 	})
 
