@@ -1,8 +1,8 @@
 package scrapers
 
 import (
-	"bytes"
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	v1 "github.com/flanksource/confighub/api/v1"
@@ -19,10 +19,7 @@ func TestRun(t *testing.T) {
 	}{
 		{
 			manager: v1.Manager{
-				Finder: fs.NewMock(map[string]string{
-					"config_test_1.json": `{"Config": {"InstanceId": "instance_id_1","InstanceType": "instance_type_1"}}`,
-					"test_2_config.json": `{"Config": {"InstanceId": "instance_id_2","InstanceType": "instance_type_2"}}`,
-				}),
+				Finder: fs.NewFileFinder(),
 			},
 			config: v1.ConfigScraper{
 				File: []v1.File{
@@ -30,8 +27,8 @@ func TestRun(t *testing.T) {
 						ID:   "Config.InstanceId",
 						Type: "Config.InstanceType",
 						Glob: []string{
-							"config*.json",
-							"test*.json",
+							"../fixtures/config*.json",
+							"../fixtures/test*.json",
 						},
 					},
 				},
@@ -58,11 +55,33 @@ func TestRun(t *testing.T) {
 			t.Errorf("Unexpected error:%s", err.Error())
 		}
 
-		gotBytes, _ := json.Marshal(results)
-		wantBytes, _ := json.Marshal(tc.expectedResult)
+		if len(results) != len(tc.expectedResult) {
+			t.Errorf("expected %d results, got: %d", len(tc.expectedResult), len(results))
+		}
 
-		if bytes.Compare(gotBytes, wantBytes) != 0 {
-			t.Errorf("expected: %v, got: %v", string(wantBytes), string(gotBytes))
+		for i := 0; i < len(results); i++ {
+			want := tc.expectedResult[i]
+			got := results[i]
+
+			if want.Id != got.Id {
+				t.Errorf("expected Id: %s, got Id: %s", want.Id, got.Id)
+			}
+
+			if want.Type != got.Type {
+				t.Errorf("expected Type: %s, got Type: %s", want.Type, got.Type)
+			}
+
+			wantConfig := map[string]interface{}{}
+
+			gotConfig := map[string]interface{}{}
+
+			json.Unmarshal([]byte(want.Config.(string)), &wantConfig)
+			json.Unmarshal([]byte(got.Config.(string)), &gotConfig)
+
+			if !reflect.DeepEqual(wantConfig, gotConfig) {
+				t.Errorf("expected Config: %v, got Config: %v", wantConfig, gotConfig)
+			}
+
 		}
 	}
 
