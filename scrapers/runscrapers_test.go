@@ -6,19 +6,20 @@ import (
 	"testing"
 
 	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/matchers"
+	fs "github.com/flanksource/confighub/filesystem"
 )
 
 func TestRun(t *testing.T) {
 
 	testTable := []struct {
 		ctx            v1.ScrapeContext
+		manager        v1.Manager
 		config         v1.ConfigScraper
 		expectedResult []v1.ScrapeResult
 	}{
 		{
-			ctx: v1.ScrapeContext{
-				Matcher: matchers.NewMock(map[string]string{
+			manager: v1.Manager{
+				Finder: fs.NewMock(map[string]string{
 					"config_test_1.json": `{"Config": {"InstanceId": "instance_id_1","InstanceType": "instance_type_1"}}`,
 					"test_2_config.json": `{"Config": {"InstanceId": "instance_id_2","InstanceType": "instance_type_2"}}`,
 				}),
@@ -51,7 +52,7 @@ func TestRun(t *testing.T) {
 	}
 
 	for _, tc := range testTable {
-		results, err := Run(tc.ctx, tc.config)
+		results, err := Run(tc.ctx, tc.manager, tc.config)
 
 		if err != nil {
 			t.Errorf("Unexpected error:%s", err.Error())

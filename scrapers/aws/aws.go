@@ -34,7 +34,7 @@ func strPtr(s string) *string {
 	return &s
 }
 
-func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1.ScrapeResult {
+func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, _ v1.Manager) []v1.ScrapeResult {
 	results := []v1.ScrapeResult{}
 
 	for _, awsConfig := range config.AWS {

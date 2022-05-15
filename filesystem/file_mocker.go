@@ -1,4 +1,4 @@
-package matchers
+package filesystem
 
 import (
 	"fmt"
@@ -12,13 +12,13 @@ type mockMatcher struct {
 }
 
 // NewMock is the factory function for the Mocker Matcher
-func NewMock(cfs map[string]string) Matcher {
+func NewMock(cfs map[string]string) Finder {
 	return &mockMatcher{
 		configFiles: cfs,
 	}
 }
 
-func (mm *mockMatcher) Match(path string) ([]string, error) {
+func (mm *mockMatcher) Find(path string) ([]string, error) {
 	g := glob.MustCompile(path)
 
 	matches := []string{}

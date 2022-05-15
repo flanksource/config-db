@@ -11,11 +11,11 @@ type JSONScrapper struct {
 }
 
 // Scrape ...
-func (file JSONScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1.ScrapeResult {
+func (file JSONScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, manager v1.Manager) []v1.ScrapeResult {
 
 	results := []v1.ScrapeResult{}
 
-	matcher := ctx.Matcher
+	finder := manager.Finder
 
 	for _, fileConfig := range config.File {
 
@@ -24,7 +24,7 @@ func (file JSONScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) [
 		globMatches := []string{}
 
 		for _, path := range fileConfig.Glob {
-			matches, err := matcher.Match(path)
+			matches, err := finder.Find(path)
 			if err != nil {
 				logger.Tracef("could not match glob pattern(%s): %v", path, err)
 				continue
@@ -34,7 +34,7 @@ func (file JSONScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) [
 		}
 
 		for _, match := range globMatches {
-			contentByte, err := matcher.Read(match)
+			contentByte, err := finder.Read(match)
 			if err != nil {
 				logger.Errorf("failed to reading matched file: %v", err)
 				continue

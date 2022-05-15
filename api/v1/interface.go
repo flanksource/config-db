@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/confighub/matchers"
+	fs "github.com/flanksource/confighub/filesystem"
 	"github.com/flanksource/kommons"
 )
 
 // Scraper ...
 type Scraper interface {
-	Scrape(ctx ScrapeContext, config ConfigScraper) []ScrapeResult
+	Scrape(ctx ScrapeContext, config ConfigScraper, manager Manager) []ScrapeResult
 }
 
 // Analyzer ...
@@ -22,6 +22,11 @@ type Analyzer func(configs []ScrapeResult) AnalysisResult
 type AnalysisResult struct {
 	Analyzer string
 	Messages []string
+}
+
+// Manager ...
+type Manager struct {
+	Finder fs.Finder
 }
 
 // ScrapeResult ...
@@ -67,7 +72,6 @@ type ScrapeContext struct {
 	Namespace string
 	Kommons   *kommons.Client
 	Scraper   *ConfigScraper
-	Matcher   matchers.Matcher
 }
 
 // WithScraper ...
@@ -75,12 +79,6 @@ func (ctx ScrapeContext) WithScraper(config *ConfigScraper) ScrapeContext {
 	ctx.Scraper = config
 	return ctx
 
-}
-
-// WithMatcher ...
-func (ctx ScrapeContext) WithMatcher(m matchers.Matcher) ScrapeContext {
-	ctx.Matcher = m
-	return ctx
 }
 
 // GetNamespace ...
