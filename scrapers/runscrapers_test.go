@@ -75,8 +75,12 @@ func TestRun(t *testing.T) {
 
 			gotConfig := map[string]interface{}{}
 
-			json.Unmarshal([]byte(want.Config.(string)), &wantConfig)
-			json.Unmarshal([]byte(got.Config.(string)), &gotConfig)
+			if err := json.Unmarshal([]byte(want.Config.(string)), &wantConfig); err != nil {
+				t.Error("failed decode wanted config body: ", err.Error())
+			}
+			if err := json.Unmarshal([]byte(got.Config.(string)), &gotConfig); err != nil {
+				t.Error("failed decode got config body: ", err.Error())
+			}
 
 			if !reflect.DeepEqual(wantConfig, gotConfig) {
 				t.Errorf("expected Config: %v, got Config: %v", wantConfig, gotConfig)
