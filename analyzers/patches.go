@@ -9,6 +9,7 @@ import (
 	v1 "github.com/flanksource/confighub/api/v1"
 )
 
+// PatchAnalyzer ...
 func PatchAnalyzer(configs []v1.ScrapeResult) v1.AnalysisResult {
 
 	result := v1.AnalysisResult{

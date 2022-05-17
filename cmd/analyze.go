@@ -40,7 +40,7 @@ var Analyze = &cobra.Command{
 				nested, _ := json.Marshal(obj.Config)
 				instance := aws.Instance{}
 				if err := json.Unmarshal(nested, &instance); err != nil {
-					logger.Fatalf("Failed to unmarshal object into ec2 instance %s", obj.Id)
+					logger.Fatalf("Failed to unmarshal object into ec2 instance %s", obj.ID)
 				}
 				obj.Config = instance
 			}

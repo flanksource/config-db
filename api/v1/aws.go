@@ -1,5 +1,6 @@
 package v1
 
+// AWS ...
 type AWS struct {
 	*AWSConnection
 	PatchStates         bool `json:"patch_states,omitempty"`

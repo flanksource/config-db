@@ -21,6 +21,7 @@ func isEmpty(val kommons.EnvVar) bool {
 	return val.Value == "" && val.ValueFrom == nil
 }
 
+// NewSession ...
 func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, error) {
 	cfg, err := loadConfig(ctx, conn)
 	if err != nil {
@@ -32,10 +33,12 @@ func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, erro
 	return cfg, nil
 }
 
+// EndpointResolver ...
 type EndpointResolver struct {
 	Endpoint string
 }
 
+// ResolveEndpoint ...
 func (e EndpointResolver) ResolveEndpoint(service, region string, options ...interface{}) (aws.Endpoint, error) {
 	return aws.Endpoint{
 		URL:               e.Endpoint,

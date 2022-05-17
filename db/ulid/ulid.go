@@ -10,8 +10,10 @@ import (
 	v2 "github.com/oklog/ulid/v2"
 )
 
+// ULID ...
 type ULID [16]byte
 
+// AsUUID ...
 func (u ULID) AsUUID() string {
 	return uuid.UUID(u).String()
 }
@@ -22,6 +24,7 @@ var pool = sync.Pool{
 	},
 }
 
+// New ...
 func New() (ULID, error) {
 	entropy := pool.Get()
 	result, err := v2.New(v2.Timestamp(time.Now()), entropy.(io.Reader))
@@ -29,6 +32,7 @@ func New() (ULID, error) {
 	return ULID(result), err
 }
 
+// MustNew ...
 func MustNew() ULID {
 	entropy := pool.Get()
 	defer pool.Put(entropy)

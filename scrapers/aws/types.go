@@ -25,10 +25,11 @@ func makeMap(m map[string]string) map[string]string {
 	return m
 }
 
+// NewENI ...
 func NewENI(b types.InstanceNetworkInterface) ENI {
 	a := ENI{}
 	if b.Attachment != nil {
-		a.AttachmentId = *b.Attachment.AttachmentId
+		a.AttachmentID = *b.Attachment.AttachmentId
 		a.AttachTime = b.Attachment.AttachTime
 		a.AttachmentStatus = string(b.Attachment.Status)
 		a.DeleteOnTermination = *b.Attachment.DeleteOnTermination
@@ -54,11 +55,11 @@ func NewENI(b types.InstanceNetworkInterface) ENI {
 		a.Ipv6Prefixes = append(a.Ipv6Prefixes, deref(prefix.Ipv6Prefix))
 	}
 	a.MacAddress = deref(b.MacAddress)
-	a.NetworkInterfaceId = deref(b.NetworkInterfaceId)
-	a.PrivateDnsName = deref(b.PrivateDnsName)
-	a.PrivateIpAddress = deref(b.PrivateIpAddress)
+	a.NetworkInterfaceID = deref(b.NetworkInterfaceId)
+	a.PrivateDNSName = deref(b.PrivateDnsName)
+	a.PrivateIPAddress = deref(b.PrivateIpAddress)
 	for _, ip := range b.PrivateIpAddresses {
-		a.PrivateIpAddresses = append(a.PrivateIpAddresses, deref(ip.PrivateIpAddress))
+		a.PrivateIPAddresses = append(a.PrivateIPAddresses, deref(ip.PrivateIpAddress))
 	}
 
 	a.SourceDestCheck = b.SourceDestCheck
@@ -66,13 +67,14 @@ func NewENI(b types.InstanceNetworkInterface) ENI {
 	return a
 }
 
+// ENI ...
 type ENI struct {
 
 	// The time stamp when the attachment initiated.
 	AttachTime *time.Time
 
 	// The ID of the network interface attachment.
-	AttachmentId string
+	AttachmentID string
 
 	// Indicates whether the network interface is deleted when the instance is
 	// terminated.
@@ -106,19 +108,19 @@ type ENI struct {
 	MacAddress string
 
 	// The ID of the network interface.
-	NetworkInterfaceId string
+	NetworkInterfaceID string
 
 	// The ID of the Amazon Web Services account that created the network interface.
-	OwnerId string
+	OwnerID string
 
 	// The private DNS name.
-	PrivateDnsName string
+	PrivateDNSName string
 
 	// The IPv4 address of the network interface within the subnet.
-	PrivateIpAddress string
+	PrivateIPAddress string
 
 	// One or more private IPv4 addresses associated with the network interface.
-	PrivateIpAddresses []string
+	PrivateIPAddresses []string
 
 	// Indicates whether source/destination checking is enabled.
 	SourceDestCheck *bool
@@ -126,8 +128,10 @@ type ENI struct {
 	// The status of the network interface.
 	Status string
 }
+
+// ComplianceDetail ...
 type ComplianceDetail struct {
-	Id string
+	ID string
 	// Supplementary information about how the evaluation determined the compliance.
 	Annotation string
 
@@ -144,9 +148,10 @@ type ComplianceDetail struct {
 	ResultRecordedTime *time.Time
 }
 
+// NewComplianceDetail ...
 func NewComplianceDetail(detail configservice.EvaluationResult) ComplianceDetail {
 	other := ComplianceDetail{
-		Id:                    *detail.EvaluationResultIdentifier.EvaluationResultQualifier.ConfigRuleName,
+		ID:                    *detail.EvaluationResultIdentifier.EvaluationResultQualifier.ConfigRuleName,
 		ComplianceType:        string(detail.ComplianceType),
 		ConfigRuleInvokedTime: detail.ConfigRuleInvokedTime,
 		ResultRecordedTime:    detail.ResultRecordedTime,
@@ -157,6 +162,7 @@ func NewComplianceDetail(detail configservice.EvaluationResult) ComplianceDetail
 	return other
 }
 
+// NewPatchDetail ...
 func NewPatchDetail(b ssmTypes.PatchComplianceData) PatchDetail {
 	a := PatchDetail{}
 	a.CVEIds = deref(b.CVEIds)
@@ -170,6 +176,7 @@ func NewPatchDetail(b ssmTypes.PatchComplianceData) PatchDetail {
 
 }
 
+// PatchDetail ...
 type PatchDetail struct {
 
 	// The classification of the patch, such as SecurityUpdates, Updates, and
@@ -209,15 +216,18 @@ type PatchDetail struct {
 	CVEIds string
 }
 
+// IsLinux ...
 func (p PatchDetail) IsLinux() bool {
 	parts := strings.Split(p.Title, ":") // e.g. git.x86_64:0:2.32.0-1.amzn2.0.1
 	return len(parts) == 3
 }
 
+// GetName ...
 func (p PatchDetail) GetName() string {
 	return p.KBId
 }
 
+// GetVersion ...
 func (p PatchDetail) GetVersion() string {
 	if p.IsLinux() {
 		return strings.ReplaceAll(p.Title, p.KBId+":", "")
@@ -225,6 +235,7 @@ func (p PatchDetail) GetVersion() string {
 	return ""
 }
 
+// GetTitle ...
 func (p PatchDetail) GetTitle() string {
 	if p.Title == "" {
 		return p.KBId
@@ -232,29 +243,34 @@ func (p PatchDetail) GetTitle() string {
 	return p.Title
 }
 
+// IsInstalled ...
 func (p PatchDetail) IsInstalled() bool {
 	return p.State == string(ssmTypes.PatchComplianceDataStateInstalled)
 }
 
+// IsMissing ...
 func (p PatchDetail) IsMissing() bool {
 	return p.State == string(ssmTypes.PatchComplianceDataStateMissing)
 }
 
+// IsPendingReboot ...
 func (p PatchDetail) IsPendingReboot() bool {
 	return p.State == string(ssmTypes.PatchComplianceDataStateInstalledPendingReboot)
 }
 
+// IsFailed ...
 func (p PatchDetail) IsFailed() bool {
 	return p.State == string(ssmTypes.PatchComplianceDataStateFailed)
 }
 
+// NewInstance ...
 func NewInstance(b types.Instance) *Instance {
 	a := Instance{}
 	a.AmiLaunchIndex = b.AmiLaunchIndex
 	a.Architecture = string(b.Architecture)
 	a.BlockDeviceMappings = b.BlockDeviceMappings
 	a.BootMode = b.BootMode
-	a.CapacityReservationId = deref(b.CapacityReservationId)
+	a.CapacityReservationID = deref(b.CapacityReservationId)
 	a.EbsOptimized = b.EbsOptimized
 	a.ElasticGpuAssociations = b.ElasticGpuAssociations
 	a.ElasticInferenceAcceleratorAssociations = b.ElasticInferenceAcceleratorAssociations
@@ -263,26 +279,26 @@ func NewInstance(b types.Instance) *Instance {
 	if b.IamInstanceProfile != nil {
 		a.IamInstanceProfile = deref(b.IamInstanceProfile.Arn)
 	}
-	a.ImageId = deref(b.ImageId)
-	a.InstanceId = deref(b.InstanceId)
+	a.ImageID = deref(b.ImageId)
+	a.InstanceID = deref(b.InstanceId)
 	a.InstanceLifecycle = string(b.InstanceLifecycle)
 	a.InstanceType = string(b.InstanceType)
 	a.Ipv6Address = deref(b.Ipv6Address)
-	a.KernelId = deref(b.KernelId)
+	a.KernelID = deref(b.KernelId)
 	a.KeyName = deref(b.KeyName)
 	a.LaunchTime = b.LaunchTime
 
 	a.OutpostArn = deref(b.OutpostArn)
 	// a.Placement = string(b.Placement)
 	a.PlatformDetails = deref(b.PlatformDetails)
-	a.PrivateDnsName = deref(b.PrivateDnsName)
-	a.PrivateIpAddress = deref(b.PrivateIpAddress)
+	a.PrivateDNSName = deref(b.PrivateDnsName)
+	a.PrivateIPAddress = deref(b.PrivateIpAddress)
 	for _, code := range b.ProductCodes {
 		a.ProductCodes = append(a.ProductCodes, *code.ProductCodeId)
 	}
-	a.PublicDnsName = deref(b.PublicDnsName)
-	a.PublicIpAddress = deref(b.PublicIpAddress)
-	a.RamdiskId = deref(b.RamdiskId)
+	a.PublicDNSName = deref(b.PublicDnsName)
+	a.PublicIPAddress = deref(b.PublicIpAddress)
+	a.RamdiskID = deref(b.RamdiskId)
 	a.RootDeviceName = deref(b.RootDeviceName)
 	a.RootDeviceType = string(b.RootDeviceType)
 	for _, sg := range b.SecurityGroups {
@@ -293,14 +309,14 @@ func NewInstance(b types.Instance) *Instance {
 		a.SourceDestCheck = *b.SourceDestCheck
 
 	}
-	a.SpotInstanceRequestId = deref(b.SpotInstanceRequestId)
+	a.SpotInstanceRequestID = deref(b.SpotInstanceRequestId)
 	a.SriovNetSupport = deref(b.SriovNetSupport)
 	a.State = string(b.State.Name)
 	if b.StateReason != nil {
 		a.StateReason = string(*b.StateReason.Message)
 	}
 	a.StateTransitionReason = deref(b.StateTransitionReason)
-	a.SubnetId = deref(b.SubnetId)
+	a.SubnetID = deref(b.SubnetId)
 	for _, tag := range b.Tags {
 		a.Tags = makeMap(a.Tags)
 		a.Tags[*tag.Key] = deref(tag.Value)
@@ -308,7 +324,7 @@ func NewInstance(b types.Instance) *Instance {
 	a.UsageOperation = deref(b.UsageOperation)
 	a.UsageOperationUpdateTime = b.UsageOperationUpdateTime
 	a.VirtualizationType = string(b.VirtualizationType)
-	a.VpcId = deref(b.VpcId)
+	a.VpcID = deref(b.VpcId)
 
 	for _, eni := range b.NetworkInterfaces {
 		a.NetworkInterfaces = append(a.NetworkInterfaces, NewENI(eni))
@@ -316,20 +332,25 @@ func NewInstance(b types.Instance) *Instance {
 	return &a
 }
 
+// GetHostname ...
 func (i Instance) GetHostname() string {
 	if name, ok := i.Tags["Name"]; ok {
 		return name
 	}
-	return i.PrivateDnsName
-}
-func (i Instance) GetId() string {
-	return i.InstanceId
+	return i.PrivateDNSName
 }
 
+// GetID ...
+func (i Instance) GetID() string {
+	return i.InstanceID
+}
+
+// GetIP ...
 func (i Instance) GetIP() string {
-	return i.PrivateIpAddress
+	return i.PrivateIPAddress
 }
 
+// GetPlatform ...
 func (i Instance) GetPlatform() string {
 	if i.Inventory != nil && i.Inventory["PlatformName"] != "" {
 		return i.Inventory["PlatformName"]
@@ -337,6 +358,7 @@ func (i Instance) GetPlatform() string {
 	return i.PlatformDetails
 }
 
+// GetPatches ...
 func (i Instance) GetPatches() []v1.Patch {
 	patches := []v1.Patch{}
 	for _, p := range i.Patches {
@@ -345,7 +367,7 @@ func (i Instance) GetPatches() []v1.Patch {
 	return patches
 }
 
-// +k8s:deepcopy-gen=true
+// Instance  +k8s:deepcopy-gen=true
 type Instance struct {
 	Inventory  map[string]string            `json:"Inventory,omitempty"`
 	PatchState *ssmTypes.InstancePatchState `json:"PatchState,omitempty"`
@@ -367,7 +389,7 @@ type Instance struct {
 	BootMode types.BootModeValues `json:"boot_mode,omitempty"`
 
 	// The ID of the Capacity Reservation.
-	CapacityReservationId string `json:"capacity_reservation_id,omitempty"`
+	CapacityReservationID string `json:"capacity_reservation_id,omitempty"`
 
 	// Information about the Capacity Reservation targeting option.
 	// CapacityReservationSpecification *CapacityReservationSpecificationResponse
@@ -406,10 +428,10 @@ type Instance struct {
 	IamInstanceProfile string `json:"iam_instance_profile,omitempty"`
 
 	// The ID of the AMI used to launch the instance.
-	ImageId string `json:"image_id,omitempty"`
+	ImageID string `json:"image_id,omitempty"`
 
 	// The ID of the instance.
-	InstanceId string `json:"instance_id,omitempty"`
+	InstanceID string `json:"instance_id,omitempty"`
 
 	// Indicates whether this is a Spot Instance or a Scheduled Instance.
 	InstanceLifecycle string `json:"instance_lifecycle,omitempty"`
@@ -421,7 +443,7 @@ type Instance struct {
 	Ipv6Address string `json:"ipv_6_address,omitempty"`
 
 	// The kernel associated with this instance, if applicable.
-	KernelId string `json:"kernel_id,omitempty"`
+	KernelID string `json:"kernel_id,omitempty"`
 
 	// The name of the key pair, if this instance was launched with an associated key
 	// pair.
@@ -464,13 +486,13 @@ type Instance struct {
 	// you've enabled DNS resolution and DNS hostnames in your VPC. If you are not
 	// using the Amazon-provided DNS server in your VPC, your custom domain name
 	// servers must resolve the hostname as appropriate.
-	PrivateDnsName string `json:"private_dns_name,omitempty"`
+	PrivateDNSName string `json:"private_dns_name,omitempty"`
 
 	// The options for the instance hostname.
 	// PrivateDnsNameOptions *PrivateDnsNameOptionsResponse
 
 	// The private IPv4 address assigned to the instance.
-	PrivateIpAddress string `json:"private_ip_address,omitempty"`
+	PrivateIPAddress string `json:"private_ip_address,omitempty"`
 
 	// The product codes attached to this instance, if applicable.
 	ProductCodes []string `json:"product_codes,omitempty"`
@@ -478,15 +500,15 @@ type Instance struct {
 	// (IPv4 only) The public DNS name assigned to the instance. This name is not
 	// available until the instance enters the running state. For EC2-VPC, this name is
 	// only available if you've enabled DNS hostnames for your VPC.
-	PublicDnsName string `json:"public_dns_name,omitempty"`
+	PublicDNSName string `json:"public_dns_name,omitempty"`
 
 	// The public IPv4 address, or the Carrier IP address assigned to the instance, if
 	// applicable. A Carrier IP address only applies to an instance launched in a
 	// subnet associated with a Wavelength Zone.
-	PublicIpAddress string `json:"public_ip_address,omitempty"`
+	PublicIPAddress string `json:"public_ip_address,omitempty"`
 
 	// The RAM disk associated with this instance, if applicable.
-	RamdiskId string `json:"ramdisk_id,omitempty"`
+	RamdiskID string `json:"ramdisk_id,omitempty"`
 
 	// The device name of the root device volume (for example, /dev/sda1).
 	RootDeviceName string `json:"root_device_name,omitempty"`
@@ -502,7 +524,7 @@ type Instance struct {
 	SourceDestCheck bool `json:"source_dest_check,omitempty"`
 
 	// If the request is a Spot Instance request, the ID of the request.
-	SpotInstanceRequestId string `json:"spot_instance_request_id,omitempty"`
+	SpotInstanceRequestID string `json:"spot_instance_request_id,omitempty"`
 
 	// Specifies whether enhanced networking with the Intel 82599 Virtual Function
 	// interface is enabled.
@@ -518,7 +540,7 @@ type Instance struct {
 	StateTransitionReason string `json:"state_transition_reason,omitempty"`
 
 	// [EC2-VPC] The ID of the subnet in which the instance is running.
-	SubnetId string `json:"subnet_id,omitempty"`
+	SubnetID string `json:"subnet_id,omitempty"`
 
 	// Any tags assigned to the instance.
 	Tags map[string]string `json:"tags,omitempty"`
@@ -536,14 +558,15 @@ type Instance struct {
 	VirtualizationType string `json:"virtualization_type,omitempty"`
 
 	// [EC2-VPC] The ID of the VPC in which the instance is running.
-	VpcId string `json:"vpc_id,omitempty"`
+	VpcID string `json:"vpc_id,omitempty"`
 
 	TrsutedAdvisorChecks []TrustedAdvisorCheck `json:"trusted_advisor_checks,omitempty"`
 }
 
+// TrustedAdvisorCheck ...
 type TrustedAdvisorCheck struct {
 	EstimatedMonthlySavings float64           `json:"estimated_monthly_savings,omitempty"`
-	CheckId                 string            `json:"check_id,omitempty"`
+	CheckID                 string            `json:"check_id,omitempty"`
 	CheckName               string            `json:"check_name,omitempty"`
 	CheckCategory           string            `json:"check_category,omitempty"`
 	CheckStatus             string            `json:"check_status,omitempty"`
@@ -551,7 +574,7 @@ type TrustedAdvisorCheck struct {
 	Metdata                 map[string]string `json:"metadata,omitempty"`
 }
 
-// The results of a Trusted Advisor check returned by
+// TrustedAdvisorCheckResult The results of a Trusted Advisor check returned by
 // DescribeTrustedAdvisorCheckResult.
 type TrustedAdvisorCheckResult struct {
 	CheckName        string `json:"check_name,omitempty"`
@@ -566,7 +589,7 @@ type TrustedAdvisorCheckResult struct {
 	// The unique identifier for the Trusted Advisor check.
 	//
 	// This member is required.
-	CheckId string `json:"check_id,omitempty"`
+	CheckID string `json:"check_id,omitempty"`
 
 	// The details about each resource listed in the check result.
 	//
@@ -591,7 +614,7 @@ type TrustedAdvisorCheckResult struct {
 	Timestamp string `json:"timestamp,omitempty"`
 }
 
-// The container for summary information that relates to the category of the
+// TrustedAdvisorCategorySpecificSummary The container for summary information that relates to the category of the
 // Trusted Advisor check.
 type TrustedAdvisorCategorySpecificSummary struct {
 
@@ -600,7 +623,7 @@ type TrustedAdvisorCategorySpecificSummary struct {
 	CostOptimizing TrustedAdvisorCostOptimizingSummary `json:"cost_optimizing,omitempty"`
 }
 
-// The estimated cost savings that might be realized if the recommended operations
+// TrustedAdvisorCostOptimizingSummary The estimated cost savings that might be realized if the recommended operations
 // are taken.
 type TrustedAdvisorCostOptimizingSummary struct {
 
@@ -617,7 +640,7 @@ type TrustedAdvisorCostOptimizingSummary struct {
 	EstimatedPercentMonthlySavings float64 `json:"estimated_percent_monthly_savings,omitempty"`
 }
 
-// Details about AWS resources that were analyzed in a call to Trusted Advisor
+// TrustedAdvisorResourcesSummary Details about AWS resources that were analyzed in a call to Trusted Advisor
 // DescribeTrustedAdvisorCheckSummaries.
 type TrustedAdvisorResourcesSummary struct {
 
@@ -645,7 +668,7 @@ type TrustedAdvisorResourcesSummary struct {
 	ResourcesSuppressed int64 `json:"resources_suppressed,omitempty"`
 }
 
-// Contains information about a resource identified by a Trusted Advisor check.
+// TrustedAdvisorResourceDetail Contains information about a resource identified by a Trusted Advisor check.
 type TrustedAdvisorResourceDetail struct {
 
 	// Additional information about the identified resource. The exact metadata and its
@@ -661,7 +684,7 @@ type TrustedAdvisorResourceDetail struct {
 	// The unique identifier for the identified resource.
 	//
 	// This member is required.
-	ResourceId string `json:"resource_id,omitempty"`
+	ResourceID string `json:"resource_id,omitempty"`
 
 	// The status code for the resource identified in the Trusted Advisor check.
 	//
@@ -676,6 +699,7 @@ type TrustedAdvisorResourceDetail struct {
 	Region string `json:"region,omitempty"`
 }
 
+// NewTrustedAdvisorCategorySpecificSummary ...
 func NewTrustedAdvisorCategorySpecificSummary(b *supportTypes.TrustedAdvisorCategorySpecificSummary) TrustedAdvisorCategorySpecificSummary {
 	a := TrustedAdvisorCategorySpecificSummary{}
 	if b.CostOptimizing != nil {
@@ -684,6 +708,7 @@ func NewTrustedAdvisorCategorySpecificSummary(b *supportTypes.TrustedAdvisorCate
 	return a
 }
 
+// NewTrustedAdvisorCostOptimizingSummary ...
 func NewTrustedAdvisorCostOptimizingSummary(b *supportTypes.TrustedAdvisorCostOptimizingSummary) TrustedAdvisorCostOptimizingSummary {
 	a := TrustedAdvisorCostOptimizingSummary{}
 	a.EstimatedMonthlySavings = b.EstimatedMonthlySavings
@@ -691,6 +716,7 @@ func NewTrustedAdvisorCostOptimizingSummary(b *supportTypes.TrustedAdvisorCostOp
 	return a
 }
 
+// NewTrustedAdvisorResourceDetailList ...
 func NewTrustedAdvisorResourceDetailList(b []supportTypes.TrustedAdvisorResourceDetail, checkMetadata []string) []TrustedAdvisorResourceDetail {
 	a := []TrustedAdvisorResourceDetail{}
 	for _, v := range b {
@@ -699,16 +725,18 @@ func NewTrustedAdvisorResourceDetailList(b []supportTypes.TrustedAdvisorResource
 	return a
 }
 
+// NewTrustedAdvisorResourceDetail ...
 func NewTrustedAdvisorResourceDetail(b supportTypes.TrustedAdvisorResourceDetail, checkMetadata []string) TrustedAdvisorResourceDetail {
 	a := TrustedAdvisorResourceDetail{}
 	a.Metadata = createMapFromLists(checkMetadata, b.Metadata)
-	a.ResourceId = deref(b.ResourceId)
+	a.ResourceID = deref(b.ResourceId)
 	a.Status = deref(b.Status)
 	a.IsSuppressed = b.IsSuppressed
 	a.Region = deref(b.Region)
 	return a
 }
 
+// NewTrustedAdvisorResourcesSummary ...
 func NewTrustedAdvisorResourcesSummary(b *supportTypes.TrustedAdvisorResourcesSummary) TrustedAdvisorResourcesSummary {
 	a := TrustedAdvisorResourcesSummary{}
 	a.ResourcesFlagged = b.ResourcesFlagged
@@ -718,6 +746,7 @@ func NewTrustedAdvisorResourcesSummary(b *supportTypes.TrustedAdvisorResourcesSu
 	return a
 }
 
+// NewTrustedAdvisorCheckResult ...
 func NewTrustedAdvisorCheckResult(b *supportTypes.TrustedAdvisorCheckResult, checkName, checkDescription, checkCategory string, checkMetadata []string) *TrustedAdvisorCheckResult {
 	a := &TrustedAdvisorCheckResult{
 		CheckName:        checkName,
@@ -727,7 +756,7 @@ func NewTrustedAdvisorCheckResult(b *supportTypes.TrustedAdvisorCheckResult, che
 	if b.CategorySpecificSummary != nil {
 		a.CategorySpecificSummary = NewTrustedAdvisorCategorySpecificSummary(b.CategorySpecificSummary)
 	}
-	a.CheckId = deref(b.CheckId)
+	a.CheckID = deref(b.CheckId)
 	a.FlaggedResources = NewTrustedAdvisorResourceDetailList(b.FlaggedResources, checkMetadata)
 	a.Status = deref(b.Status)
 	a.Timestamp = deref(b.Timestamp)

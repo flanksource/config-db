@@ -37,12 +37,12 @@ func TestRun(t *testing.T) {
 				{
 					Config: `{"Config": {"InstanceId": "instance_id_1","InstanceType": "instance_type_1"}}`,
 					Type:   "instance_type_1",
-					Id:     "instance_id_1",
+					ID:     "instance_id_1",
 				},
 				{
 					Config: `{"Config": {"InstanceId": "instance_id_2","InstanceType": "instance_type_2"}}`,
 					Type:   "instance_type_2",
-					Id:     "instance_id_2",
+					ID:     "instance_id_2",
 				},
 			},
 		},
@@ -63,8 +63,8 @@ func TestRun(t *testing.T) {
 			want := tc.expectedResult[i]
 			got := results[i]
 
-			if want.Id != got.Id {
-				t.Errorf("expected Id: %s, got Id: %s", want.Id, got.Id)
+			if want.ID != got.ID {
+				t.Errorf("expected Id: %s, got Id: %s", want.ID, got.ID)
 			}
 
 			if want.Type != got.Type {

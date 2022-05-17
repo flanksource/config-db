@@ -58,6 +58,7 @@ func (d *DBRepo) CreateConfigChange(cc *models.ConfigChange) error {
 	return nil
 }
 
+// QueryConfigItems ...
 func (d *DBRepo) QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, error) {
 	results := d.db.Raw(request.Query)
 	logger.Tracef(request.Query)
@@ -69,24 +70,25 @@ func (d *DBRepo) QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, err
 		Results: make([]map[string]interface{}, 0),
 	}
 
-	if rows, err := results.Rows(); err != nil {
+	rows, err := results.Rows()
+	if err != nil {
 		return nil, fmt.Errorf("failed to run query: %s -> %s", request.Query, err)
-	} else {
-
-		columns, err := rows.Columns()
-		if err != nil {
-			logger.Errorf("failed to get column details: %v", err)
-		}
-		rows.Next()
-		if err := results.ScanRows(rows, &response.Results); err != nil {
-			return nil, fmt.Errorf("failed to scan rows: %s -> %s", request.Query, err)
-		}
-		for _, col := range columns {
-			response.Columns = append(response.Columns, v1.QueryColumn{
-				Name: col,
-			})
-		}
 	}
+
+	columns, err := rows.Columns()
+	if err != nil {
+		logger.Errorf("failed to get column details: %v", err)
+	}
+	rows.Next()
+	if err := results.ScanRows(rows, &response.Results); err != nil {
+		return nil, fmt.Errorf("failed to scan rows: %s -> %s", request.Query, err)
+	}
+	for _, col := range columns {
+		response.Columns = append(response.Columns, v1.QueryColumn{
+			Name: col,
+		})
+	}
+
 	response.Count = len(response.Results)
 	return &response, nil
 }

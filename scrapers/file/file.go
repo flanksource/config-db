@@ -51,7 +51,7 @@ func (file JSONScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, m
 			results = append(results, v1.ScrapeResult{
 				Config: jsonContent,
 				Type:   resultType.String(),
-				Id:     resultID.String(),
+				ID:     resultID.String(),
 			})
 
 		}

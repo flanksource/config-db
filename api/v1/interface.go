@@ -40,12 +40,12 @@ type ScrapeResult struct {
 	Zone         string      `json:"zone,omitempty"`
 	Name         string      `json:"name,omitempty"`
 	Namespace    string      `json:"namespace,omitempty"`
-	Id           string      `json:"id,omitempty"`
+	ID           string      `json:"id,omitempty"`
 	Config       interface{} `json:"config,omitempty"`
 }
 
 func (s ScrapeResult) String() string {
-	return fmt.Sprintf("%s/%s", s.Type, s.Id)
+	return fmt.Sprintf("%s/%s", s.Type, s.ID)
 }
 
 // QueryColumn ...
