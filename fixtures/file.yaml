@@ -1,0 +1,6 @@
+file:
+    - type: Config.InstanceType
+      id: Config.InstanceId
+      path: 
+        - config*.json
+        - test*.json

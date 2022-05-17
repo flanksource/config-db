@@ -6,23 +6,28 @@ import (
 	"github.com/flanksource/kommons"
 )
 
+// Authentication ...
 type Authentication struct {
 	Username kommons.EnvVar `yaml:"username" json:"username"`
 	Password kommons.EnvVar `yaml:"password" json:"password"`
 }
 
+// IsEmpty ...
 func (auth Authentication) IsEmpty() bool {
 	return auth.Username.IsEmpty() && auth.Password.IsEmpty()
 }
 
+// GetUsername ...
 func (auth Authentication) GetUsername() string {
 	return auth.Username.Value
 }
 
+// GetPassword ...
 func (auth Authentication) GetPassword() string {
 	return auth.Password.Value
 }
 
+// GetDomain ...
 func (auth Authentication) GetDomain() string {
 	parts := strings.Split(auth.GetUsername(), "@")
 	if len(parts) == 2 {
@@ -31,6 +36,7 @@ func (auth Authentication) GetDomain() string {
 	return ""
 }
 
+// AWSConnection ...
 type AWSConnection struct {
 	AccessKey     kommons.EnvVar `yaml:"accessKey,omitempty" json:"accessKey,omitempty"`
 	SecretKey     kommons.EnvVar `yaml:"secretKey,omitempty" json:"secretKey,omitempty"`
@@ -40,6 +46,7 @@ type AWSConnection struct {
 	AssumeRole    string         `yaml:"assumeRole,omitempty" json:"assumeRole,omitempty"`
 }
 
+// GCPConnection ...
 type GCPConnection struct {
 	Endpoint    string          `yaml:"endpoint" json:"endpoint,omitempty"`
 	Credentials *kommons.EnvVar `yaml:"credentials" json:"credentials,omitempty"`

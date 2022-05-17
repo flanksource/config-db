@@ -15,7 +15,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-type AWSScraper struct {
+// Scraper ...
+type Scraper struct {
 }
 
 func errorf(err error, msg string, args ...interface{}) []v1.ScrapeResult {
@@ -34,7 +35,8 @@ func strPtr(s string) *string {
 	return &s
 }
 
-func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1.ScrapeResult {
+// Scrape ...
+func (aws Scraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, _ v1.Manager) []v1.ScrapeResult {
 	results := []v1.ScrapeResult{}
 
 	for _, awsConfig := range config.AWS {
@@ -62,7 +64,7 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 			az := *subnet.AvailabilityZone
 			result := v1.ScrapeResult{
 				Type:    "Subnet",
-				Id:      *subnet.SubnetId,
+				ID:      *subnet.SubnetId,
 				Subnet:  *subnet.SubnetId,
 				Config:  subnet,
 				Account: *caller.Account,
@@ -127,16 +129,16 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 					continue
 				}
 				if instance.PatchState != nil {
-					logger.Warnf("Duplicate patch found for %s, %v and %v", instance.InstanceId, instance.PatchState.OperationEndTime, patch.OperationEndTime)
+					logger.Warnf("Duplicate patch found for %s, %v and %v", instance.InstanceID, instance.PatchState.OperationEndTime, patch.OperationEndTime)
 				}
 				instance.PatchState = &patch
 			}
 		}
 		for _, instance := range instances {
 			if awsConfig.PatchDetails {
-				patches, err := listPatches(SSM, ctx, instance.InstanceId, nil)
+				patches, err := listPatches(SSM, ctx, instance.InstanceID, nil)
 				if err != nil {
-					return errorf(err, "failed to get patches for %s", instance.InstanceId)
+					return errorf(err, "failed to get patches for %s", instance.InstanceID)
 				}
 				instance.Patches = patches
 			}
@@ -144,7 +146,7 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 			if awsConfig.Compliance {
 				Config := configservice.NewFromConfig(*session)
 				details, err := Config.GetComplianceDetailsByResource(ctx, &configservice.GetComplianceDetailsByResourceInput{
-					ResourceId:   &instance.InstanceId,
+					ResourceId:   &instance.InstanceID,
 					ResourceType: strPtr("AWS::EC2::Instance"),
 				})
 				if err != nil {
@@ -176,29 +178,29 @@ func (aws AWSScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper) []v1
 			results = append(results, v1.ScrapeResult{
 				Config:  instance,
 				Type:    "EC2Instance",
-				Network: instance.VpcId,
-				Subnet:  instance.SubnetId,
-				Zone:    subnetZoneMapping[instance.SubnetId].Zone,
-				Region:  subnetZoneMapping[instance.SubnetId].Region,
+				Network: instance.VpcID,
+				Subnet:  instance.SubnetID,
+				Zone:    subnetZoneMapping[instance.SubnetID].Zone,
+				Region:  subnetZoneMapping[instance.SubnetID].Region,
 				Name:    instance.GetHostname(),
 				Account: *caller.Account,
-				Id:      instance.InstanceId})
+				ID:      instance.InstanceID})
 		}
 	}
 	return results
 }
 
-func listPatches(SSM *ssm.Client, ctx v1.ScrapeContext, instanceId string, token *string) ([]PatchDetail, error) {
+func listPatches(SSM *ssm.Client, ctx v1.ScrapeContext, instanceID string, token *string) ([]PatchDetail, error) {
 	var list = []PatchDetail{}
 
 	patches, err := SSM.DescribeInstancePatches(ctx, &ssm.DescribeInstancePatchesInput{
-		InstanceId: &instanceId,
+		InstanceId: &instanceID,
 		MaxResults: 50,
 		NextToken:  token,
 	})
 
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get patches for %s", instanceId)
+		return nil, errors.Wrapf(err, "failed to get patches for %s", instanceID)
 	}
 
 	for _, p := range patches.Patches {
@@ -207,18 +209,19 @@ func listPatches(SSM *ssm.Client, ctx v1.ScrapeContext, instanceId string, token
 		}
 	}
 	if patches.NextToken != nil {
-		nextList, err := listPatches(SSM, ctx, instanceId, patches.NextToken)
+		nextList, err := listPatches(SSM, ctx, instanceID, patches.NextToken)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get patches for %s", instanceId)
+			return nil, errors.Wrapf(err, "failed to get patches for %s", instanceID)
 		}
 		list = append(list, nextList...)
 	}
 	return list, nil
 }
 
+// TrustedAdvisorCheckFromCheckResult ...
 func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instance *Instance) *TrustedAdvisorCheck {
 	for _, resource := range t.FlaggedResources {
-		if resource.Metadata["Instance ID"] == instance.InstanceId {
+		if resource.Metadata["Instance ID"] == instance.InstanceID {
 			delete(resource.Metadata, "Instance ID")
 			delete(resource.Metadata, "Region/AZ")
 			delete(resource.Metadata, "Instance Name")
@@ -235,22 +238,22 @@ func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instance 
 			delete(resource.Metadata, "Estimated Monthly Savings")
 			return &TrustedAdvisorCheck{
 				Metdata:                 resource.Metadata,
-				CheckId:                 t.CheckId,
+				CheckID:                 t.CheckID,
 				CheckName:               t.CheckName,
 				CheckCategory:           t.CheckCategory,
 				CheckStatus:             t.Status,
 				EstimatedMonthlySavings: estimatedMonthlySavingsUSD,
 			}
 		}
-		if strings.Contains(resource.Metadata["Volume Attachment"], instance.InstanceId) {
+		if strings.Contains(resource.Metadata["Volume Attachment"], instance.InstanceID) {
 			delete(resource.Metadata, "Region")
 			delete(resource.Metadata, "Volume Name")
 			delete(resource.Metadata, "Volume ID")
-			resource.Metadata["volume_attachment"] = strings.TrimSuffix(resource.Metadata["Volume Attachment"], ":"+instance.InstanceId)
+			resource.Metadata["volume_attachment"] = strings.TrimSuffix(resource.Metadata["Volume Attachment"], ":"+instance.InstanceID)
 			delete(resource.Metadata, "Volume Attachment")
 			return &TrustedAdvisorCheck{
 				Metdata:       resource.Metadata,
-				CheckId:       t.CheckId,
+				CheckID:       t.CheckID,
 				CheckName:     t.CheckName,
 				CheckCategory: t.CheckCategory,
 				CheckStatus:   t.Status,
@@ -261,7 +264,7 @@ func (t *TrustedAdvisorCheckResult) TrustedAdvisorCheckFromCheckResult(instance 
 				delete(resource.Metadata, "Region")
 				return &TrustedAdvisorCheck{
 					Metdata:       resource.Metadata,
-					CheckId:       t.CheckId,
+					CheckID:       t.CheckID,
 					CheckName:     t.CheckName,
 					CheckCategory: t.CheckCategory,
 					CheckStatus:   t.Status,

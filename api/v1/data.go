@@ -1,5 +1,6 @@
 package v1
 
+// Host ...
 type Host interface {
 	GetHostname() string
 	GetPlatform() string
@@ -8,6 +9,7 @@ type Host interface {
 	GetPatches() []Patch
 }
 
+// Patch ...
 type Patch interface {
 	GetName() string
 	GetVersion() string
@@ -18,7 +20,10 @@ type Patch interface {
 	IsFailed() bool
 }
 
+// Properties ...
 type Properties []Property
+
+// Property ...
 type Property struct {
 	Name string `json:"name"`
 	// Line comments or description associated with this property
@@ -31,12 +36,14 @@ type Property struct {
 	OpenAPI *OpenAPIFieldRef `json:"openapiRef,omitempty"`
 }
 
+// FileLocation ...
 type FileLocation struct {
 	Host       string `json:"host,omitempty"`
 	FilePath   string `json:"filePath"`
 	LineNumber int    `json:"lineNumber"`
 }
 
+// GitLocation ...
 type GitLocation struct {
 	Repository string `json:"repository"`
 	FilePath   string `json:"filePath"`
@@ -44,6 +51,7 @@ type GitLocation struct {
 	GitRef     string `json:"gitRef"`
 }
 
+// OpenAPIFieldRef ...
 type OpenAPIFieldRef struct {
 	// Location of the OpenAPI spec
 	Location string `json:"location,omitempty"`

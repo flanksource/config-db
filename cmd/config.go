@@ -89,6 +89,7 @@ func ParseConfig(configfile string, datafile string) ([]v1.ConfigScraper, error)
 	}
 
 	var scrapers []v1.ConfigScraper
+
 	re := regexp.MustCompile(`(?m)^---\n`)
 	for _, chunk := range re.Split(configs, -1) {
 		if strings.TrimSpace(chunk) == "" {

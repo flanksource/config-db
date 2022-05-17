@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
+// NewK8sClient ...
 func NewK8sClient() (*kubernetes.Clientset, error) {
 	Client, err := NewKommonsClient()
 	if err != nil {
@@ -44,6 +45,7 @@ func NewK8sClient() (*kubernetes.Clientset, error) {
 	return clientset, nil
 }
 
+// NewKommonsClient ...
 func NewKommonsClient() (*kommons.Client, error) {
 	kubeConfig := GetKubeconfig()
 	config, err := clientcmd.BuildConfigFromFlags("", kubeConfig)
@@ -57,6 +59,7 @@ func NewKommonsClient() (*kommons.Client, error) {
 	return Client, nil
 }
 
+// GetClusterName ...
 func GetClusterName(config *rest.Config) string {
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
@@ -74,6 +77,7 @@ func GetClusterName(config *rest.Config) string {
 	return clusterConfiguration["clusterName"].(string)
 }
 
+// GetKubeconfig ...
 func GetKubeconfig() string {
 	var kubeConfig string
 	if os.Getenv("KUBECONFIG") != "" {

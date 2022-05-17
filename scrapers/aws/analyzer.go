@@ -9,6 +9,7 @@ import (
 	v1 "github.com/flanksource/confighub/api/v1"
 )
 
+// EC2InstanceAnalyzer ...
 func EC2InstanceAnalyzer(configs []v1.ScrapeResult) v1.AnalysisResult {
 
 	result := v1.AnalysisResult{
@@ -35,11 +36,11 @@ func EC2InstanceAnalyzer(configs []v1.ScrapeResult) v1.AnalysisResult {
 			} else {
 				state += console.Redf(" no patch state")
 			}
-			logger.Infof("[%s/%s] os=%s %s", host.GetHostname(), host.GetId(), host.GetPlatform(), state)
+			logger.Infof("[%s/%s] os=%s %s", host.GetHostname(), host.GetID(), host.GetPlatform(), state)
 
 			for _, compliance := range host.Compliance {
 				if compliance.ComplianceType != "COMPLIANT" {
-					result.Messages = append(result.Messages, fmt.Sprintf("[%s/%s] %s - %s: %s", host.GetHostname(), host.GetId(), compliance.Id, compliance.ComplianceType, compliance.Annotation))
+					result.Messages = append(result.Messages, fmt.Sprintf("[%s/%s] %s - %s: %s", host.GetHostname(), host.GetID(), compliance.ID, compliance.ComplianceType, compliance.Annotation))
 				}
 			}
 		}

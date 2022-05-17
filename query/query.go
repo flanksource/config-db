@@ -8,14 +8,16 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// Handler ...
 func Handler(c echo.Context) error {
 	request := v1.QueryRequest{
 		Query: c.QueryParam("query"),
 	}
 
-	if resp, err := db.QueryConfigItems(request); err != nil {
+	resp, err := db.QueryConfigItems(request)
+	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	} else {
-		return c.JSONPretty(http.StatusOK, resp, "  ")
 	}
+	return c.JSONPretty(http.StatusOK, resp, "  ")
+
 }

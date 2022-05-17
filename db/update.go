@@ -16,7 +16,7 @@ import (
 func NewConfigItemFromResult(result v1.ScrapeResult) models.ConfigItem {
 	return models.ConfigItem{
 		ConfigType: result.Type,
-		ExternalID: &result.Id,
+		ExternalID: &result.ID,
 		Account:    &result.Account,
 		Region:     &result.Region,
 		Zone:       &result.Zone,
@@ -39,7 +39,7 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 		dataStr := string(data)
 		ci.Config = &dataStr
 
-		existing, err := GetConfigItem(result.Id)
+		existing, err := GetConfigItem(result.ID)
 		if err != nil && err != gorm.ErrRecordNotFound {
 			return errors.Wrapf(err, "unable to lookup existing config: %s", result)
 		}
