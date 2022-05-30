@@ -16,6 +16,7 @@ require (
 	github.com/flanksource/commons v1.5.11
 	github.com/flanksource/kommons v0.26.0
 	github.com/google/uuid v1.3.0
+	github.com/hashicorp/go-getter v1.6.1
 	github.com/henvic/httpretty v0.0.6
 	github.com/jackc/pgx/v4 v4.14.1
 	github.com/labstack/echo/v4 v4.6.3
@@ -32,6 +33,7 @@ require (
 	gorm.io/gorm v1.23.2
 	k8s.io/apimachinery v0.20.4
 	k8s.io/client-go v11.0.0+incompatible
+	sigs.k8s.io/yaml v1.2.0
 )
 
 require (
@@ -56,6 +58,7 @@ require (
 	github.com/aws/smithy-go v1.11.2 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
+	github.com/cheggaaa/pb v1.0.27 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
@@ -90,8 +93,7 @@ require (
 	github.com/hairyhenderson/toml v0.3.1-0.20191004034452-2a4f3b6160f2 // indirect
 	github.com/hashicorp/consul/api v1.10.1 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
-	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
-	github.com/hashicorp/go-getter v1.4.1 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v0.12.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.0 // indirect
@@ -122,12 +124,14 @@ require (
 	github.com/joho/godotenv v1.3.0 // indirect
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20190725054713-01f96b0aa0cd // indirect
+	github.com/klauspost/compress v1.11.2 // indirect
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/kr/text v0.1.0 // indirect
 	github.com/labstack/gommon v0.3.1 // indirect
 	github.com/mailru/easyjson v0.7.0 // indirect
 	github.com/mattn/go-colorable v0.1.11 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
+	github.com/mattn/go-runewidth v0.0.8 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.2 // indirect
@@ -158,7 +162,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
 	golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
-	golang.org/x/sys v0.0.0-20211103235746-7861aae1554b // indirect
+	golang.org/x/sys v0.0.0-20220517195934-5e4e11fc645e // indirect
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
@@ -184,7 +188,6 @@ require (
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920 // indirect
 	sigs.k8s.io/kustomize v2.0.3+incompatible // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.0.2 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 replace (

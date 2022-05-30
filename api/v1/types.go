@@ -9,5 +9,5 @@ type ConfigScraper struct {
 
 // IsEmpty ...
 func (c ConfigScraper) IsEmpty() bool {
-	return len(c.AWS) == 0
+	return len(c.AWS) == 0 && len(c.File) == 0
 }

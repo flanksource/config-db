@@ -26,7 +26,7 @@ func TestRun(t *testing.T) {
 					{
 						ID:   "Config.InstanceId",
 						Type: "Config.InstanceType",
-						Glob: []string{
+						Paths: []string{
 							"../fixtures/config*.json",
 							"../fixtures/test*.json",
 						},
