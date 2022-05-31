@@ -14,15 +14,15 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// JSONScrapper ...
-type JSONScrapper struct {
+// FileScrapper ...
+type FileScrapper struct {
 }
 
 const charset = "abcdefghijklmnopqrstuvwxyz" +
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 // Scrape ...
-func (file JSONScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, manager v1.Manager) []v1.ScrapeResult {
+func (file FileScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, manager v1.Manager) []v1.ScrapeResult {
 	results := []v1.ScrapeResult{}
 	finder := manager.Finder
 	for _, fileConfig := range config.File {
