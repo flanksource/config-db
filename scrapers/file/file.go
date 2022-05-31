@@ -58,10 +58,8 @@ func (file FileScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, m
 			resultID := gjson.Get(jsonContent, fileConfig.ID).String()
 			resultType := gjson.Get(jsonContent, fileConfig.Type).String()
 			if resultID == "" {
-				resultID = fileConfig.ID + "-" + filename
-			}
-			if resultType == "" {
-				resultType = fileConfig.Type
+				logger.Errorf("failed to the specified gjson path: %s in file %s", fileConfig.ID, filename)
+				continue
 			}
 			results = append(results, v1.ScrapeResult{
 				Config: jsonContent,
