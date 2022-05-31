@@ -1,5 +1,5 @@
 file:
-  - type: "temo"
-    id: filename
+  - type: aws[0].region
+    id: aws[0].region
     paths: 
-      - test.yaml
+      - fixtures/test.yaml

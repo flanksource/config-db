@@ -65,6 +65,7 @@ func (file FileScrapper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, m
 				Config: jsonContent,
 				Type:   resultType,
 				ID:     resultID,
+				Source: filename,
 			})
 
 		}

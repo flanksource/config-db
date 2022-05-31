@@ -23,6 +23,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) models.ConfigItem {
 		Network:    &result.Network,
 		Subnet:     &result.Subnet,
 		Name:       &result.Name,
+		Source:     &result.Source,
 	}
 }
 
