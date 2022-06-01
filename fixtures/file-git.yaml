@@ -1,0 +1,6 @@
+file:
+  - type: kind
+    id: metadata.name
+    url: github.com/flanksource/canary-checker
+    paths: 
+      - fixtures/minimal/**.yaml

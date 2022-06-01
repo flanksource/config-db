@@ -19,6 +19,8 @@ func (fm *fileFinder) Find(path string) ([]string, error) {
 }
 
 // Read ...
-func (fm *fileFinder) Read(match string) ([]byte, error) {
-	return os.ReadFile(match)
+func (fm *fileFinder) Read(match string) ([]byte, string, error) {
+	content, err := os.ReadFile(match)
+	filename := filepath.Base(match)
+	return content, filename, err
 }

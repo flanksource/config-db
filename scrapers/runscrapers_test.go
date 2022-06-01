@@ -26,10 +26,18 @@ func TestRun(t *testing.T) {
 					{
 						ID:   "Config.InstanceId",
 						Type: "Config.InstanceType",
-						Glob: []string{
+						Paths: []string{
 							"../fixtures/config*.json",
 							"../fixtures/test*.json",
 						},
+					},
+					{
+						ID:   "metadata.name",
+						Type: "kind",
+						Paths: []string{
+							"fixtures/minimal/http_pass.yaml",
+						},
+						URL: "github.com/flanksource/canary-checker",
 					},
 				},
 			},
@@ -43,6 +51,54 @@ func TestRun(t *testing.T) {
 					Config: `{"Config": {"InstanceId": "instance_id_2","InstanceType": "instance_type_2"}}`,
 					Type:   "instance_type_2",
 					ID:     "instance_id_2",
+				},
+				{
+					Config: `{
+						"apiVersion": "canaries.flanksource.com/v1",
+						"kind": "Canary",
+						"metadata": {
+						  "name": "http-pass"
+						},
+						"spec": {
+						  "interval": 30,
+						  "http": [
+							{
+							  "endpoint": "http://status.savanttools.com/?code=200",
+							  "thresholdMillis": 3000,
+							  "responseCodes": [
+								201,
+								200,
+								301
+							  ],
+							  "responseContent": "",
+							  "maxSSLExpiry": 7,
+							  "test": {
+								"expr": "code == 200"
+							  }
+							},
+							{
+							  "endpoint": "http://status.savanttools.com/?code=404",
+							  "thresholdMillis": 3000,
+							  "responseCodes": [
+								404
+							  ],
+							  "responseContent": "",
+							  "maxSSLExpiry": 7
+							},
+							{
+							  "endpoint": "http://status.savanttools.com/?code=500",
+							  "thresholdMillis": 3000,
+							  "responseCodes": [
+								500
+							  ],
+							  "responseContent": "",
+							  "maxSSLExpiry": 7
+							}
+						  ]
+						}
+					  }`,
+					Type: "Canary",
+					ID:   "http-pass",
 				},
 			},
 		},

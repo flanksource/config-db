@@ -41,6 +41,7 @@ type ScrapeResult struct {
 	Name         string      `json:"name,omitempty"`
 	Namespace    string      `json:"namespace,omitempty"`
 	ID           string      `json:"id,omitempty"`
+	Source       string      `json:"source,omitempty"`
 	Config       interface{} `json:"config,omitempty"`
 }
 

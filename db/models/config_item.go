@@ -20,6 +20,7 @@ type ConfigItem struct {
 	Network     *string   `gorm:"column:network;default:null" json:"network,omitempty" toml:"network" yaml:"network,omitempty"`
 	Subnet      *string   `gorm:"column:subnet;default:null" json:"subnet,omitempty" toml:"subnet" yaml:"subnet,omitempty"`
 	Config      *string   `gorm:"column:config;default:null" json:"config,omitempty" toml:"config" yaml:"config,omitempty"`
+	Source      *string   `gorm:"column:source;default:null" json:"source,omitempty" toml:"source" yaml:"source,omitempty"`
 	CreatedAt   time.Time `gorm:"column:created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
 	UpdatedAt   time.Time `gorm:"column:updated_at" json:"updated_at" toml:"updated_at" yaml:"updated_at"`
 }

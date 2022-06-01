@@ -9,5 +9,5 @@ import (
 // All is the scrappers registry
 var All = []v1.Scraper{
 	aws.Scraper{},
-	file.JSONScrapper{},
+	file.FileScrapper{},
 }

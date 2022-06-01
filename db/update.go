@@ -23,6 +23,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) models.ConfigItem {
 		Network:    &result.Network,
 		Subnet:     &result.Subnet,
 		Name:       &result.Name,
+		Source:     &result.Source,
 	}
 }
 
@@ -30,13 +31,20 @@ func NewConfigItemFromResult(result v1.ScrapeResult) models.ConfigItem {
 func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 	// boil.DebugMode = true
 	for _, result := range results {
-		data, err := json.Marshal(result.Config)
-		if err != nil {
-			return errors.Wrapf(err, "Unable to marshal: %v", result.Config)
+		var dataStr string
+		switch data := result.Config.(type) {
+		case string:
+			dataStr = data
+		case []byte:
+			dataStr = string(data)
+		default:
+			bytes, err := json.Marshal(data)
+			if err != nil {
+				return errors.Wrapf(err, "Unable to marshal: %v", result.Config)
+			}
+			dataStr = string(bytes)
 		}
-
 		ci := NewConfigItemFromResult(result)
-		dataStr := string(data)
 		ci.Config = &dataStr
 
 		existing, err := GetConfigItem(result.ID)
