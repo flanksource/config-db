@@ -31,18 +31,19 @@ type Manager struct {
 
 // ScrapeResult ...
 type ScrapeResult struct {
-	LastModified time.Time   `json:"last_modified,omitempty"`
-	Type         string      `json:"type,omitempty"`
-	Account      string      `json:"account,omitempty"`
-	Network      string      `json:"network,omitempty"`
-	Subnet       string      `json:"subnet,omitempty"`
-	Region       string      `json:"region,omitempty"`
-	Zone         string      `json:"zone,omitempty"`
-	Name         string      `json:"name,omitempty"`
-	Namespace    string      `json:"namespace,omitempty"`
-	ID           string      `json:"id,omitempty"`
-	Source       string      `json:"source,omitempty"`
-	Config       interface{} `json:"config,omitempty"`
+	LastModified time.Time     `json:"last_modified,omitempty"`
+	Type         string        `json:"type,omitempty"`
+	Account      string        `json:"account,omitempty"`
+	Network      string        `json:"network,omitempty"`
+	Subnet       string        `json:"subnet,omitempty"`
+	Region       string        `json:"region,omitempty"`
+	Zone         string        `json:"zone,omitempty"`
+	Name         string        `json:"name,omitempty"`
+	Namespace    string        `json:"namespace,omitempty"`
+	ID           string        `json:"id,omitempty"`
+	Source       string        `json:"source,omitempty"`
+	Config       interface{}   `json:"config,omitempty"`
+	Tags         JSONStringMap `json:"tags,omitempty"`
 }
 
 func (s ScrapeResult) String() string {

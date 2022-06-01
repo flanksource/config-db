@@ -61,8 +61,17 @@ func (aws Scraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, _ v1.Ma
 		}
 		subnetZoneMapping := make(map[string]v1.ScrapeResult)
 		for _, subnet := range subnets.Subnets {
+
+			// Subnet tags are of the form [{Key: "<key>", Value:
+			// "<value>"}, ...]
+			tags := make(v1.JSONStringMap)
+			for _, tag := range subnet.Tags {
+				tags[*tag.Key] = *tag.Value
+			}
+
 			az := *subnet.AvailabilityZone
 			result := v1.ScrapeResult{
+				Tags:    tags,
 				Type:    "Subnet",
 				ID:      *subnet.SubnetId,
 				Subnet:  *subnet.SubnetId,
@@ -176,6 +185,7 @@ func (aws Scraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, _ v1.Ma
 			}
 
 			results = append(results, v1.ScrapeResult{
+				Tags:    instance.Tags,
 				Config:  instance,
 				Type:    "EC2Instance",
 				Network: instance.VpcID,
