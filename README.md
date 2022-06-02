@@ -14,13 +14,9 @@ export DB_URL=postgres://<username>@localhost:5432/config
 create database config
 ```
 
-```bash
-brew install goose
-```
-
 ### Scape config and serve
 
-Run scrapping script. See samples/ for config presets.
+Run scrapping script. See fixtures/ for example scrape configs.
 
 ```bash
 make
