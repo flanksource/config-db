@@ -1,7 +1,5 @@
 -- +goose Up
--- +goose StatementBegin
----
+alter table config_item add if not exists tags jsonb null;
 
-ALTER TABLE config_item  ADD tags jsonb null;
-
--- +goose StatementEnd
+-- +goose Down
+alter table config_item drop column if exists tags;
