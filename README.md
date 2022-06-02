@@ -16,12 +16,31 @@ create database config
 
 ### Scape config and serve
 
-Run scrapping script. See fixtures/ for example scrape configs.
+Starting server will run migrations and start scrapping in background (see default-schedule config).
 
 ```bash
-make
-confighub run <scrapper-config.yaml> -vvv
+make build
+
+./bin/config-db serve
+```
+
+To explicitly run scrapping.
+
+```bash
+./bin/config-db run <scrapper-config.yaml> -vvv
 confighub serve
+```
+
+See fixtures/ for example scrape configs.
+
+### Migrations
+
+Commands `./bin/config-db serve` or `./bin/config-db run` would run the migrations.
+
+Setup [goose](https://github.com/pressly/goose) for more option on migration. Goose commands need to be run from `db/migrations` directory.
+
+```bash
+GOOSE_DRIVER=postgres GOOSE_DBSTRING="user=postgres dbname=config sslmode=disable" goose down
 ```
 
 
