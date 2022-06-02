@@ -3,6 +3,8 @@ package models
 import (
 	"fmt"
 	"time"
+
+	v1 "github.com/flanksource/confighub/api/v1"
 )
 
 // ConfigItem represents the config item database table
@@ -21,7 +23,7 @@ type ConfigItem struct {
 	Subnet      *string   `gorm:"column:subnet;default:null" json:"subnet,omitempty" toml:"subnet" yaml:"subnet,omitempty"`
 	Config      *string   `gorm:"column:config;default:null" json:"config,omitempty" toml:"config" yaml:"config,omitempty"`
 	Source      *string   `gorm:"column:source;default:null" json:"source,omitempty" toml:"source" yaml:"source,omitempty"`
-	Tags        *string   `gorm:"column:tags;default:null" json:"tags,omitempty" toml:"tags" yaml:"tags,omitempty"`
+	Tags        *v1.JSONStringMap   `gorm:"column:tags;default:null" json:"tags,omitempty" toml:"tags" yaml:"tags,omitempty"`
 	CreatedAt   time.Time `gorm:"column:created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
 	UpdatedAt   time.Time `gorm:"column:updated_at" json:"updated_at" toml:"updated_at" yaml:"updated_at"`
 }

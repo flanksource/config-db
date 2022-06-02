@@ -24,6 +24,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) models.ConfigItem {
 		Subnet:     &result.Subnet,
 		Name:       &result.Name,
 		Source:     &result.Source,
+		Tags:       &result.Tags,
 	}
 }
 
@@ -45,15 +46,8 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 			dataStr = string(bytes)
 		}
 
-		tags, err := json.Marshal(result.Tags)
-		if err != nil {
-			return errors.Wrapf(err, "Unable to marshal: %v", result.Tags)
-		}
-
 		ci := NewConfigItemFromResult(result)
 		ci.Config = &dataStr
-		tagsStr := string(tags)
-		ci.Tags = &tagsStr
 
 		existing, err := GetConfigItem(result.ID)
 		if err != nil && err != gorm.ErrRecordNotFound {
