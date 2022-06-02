@@ -24,6 +24,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) models.ConfigItem {
 		Subnet:     &result.Subnet,
 		Name:       &result.Name,
 		Source:     &result.Source,
+		Tags:       &result.Tags,
 	}
 }
 
@@ -44,6 +45,7 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 			}
 			dataStr = string(bytes)
 		}
+
 		ci := NewConfigItemFromResult(result)
 		ci.Config = &dataStr
 
