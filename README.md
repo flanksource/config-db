@@ -2,6 +2,34 @@
 
 **config-db** is developer first, JSON based configuration management database (CMDB).
 
+## Setup
+
+### Setup local db link as environment variable.
+```bash
+export DB_URL=postgres://<username>@localhost:5432/config
+```
+
+### Create `config` database.
+```sql
+create database config
+```
+
+```bash
+brew install goose
+```
+
+### Scape config and serve
+
+Run scrapping script. See samples/ for config presets.
+
+```bash
+make
+confighub run <scrapper-config.yaml> -vvv
+confighub serve
+```
+
+
+
 ## Principles
 
 * **JSON Based** - Configuration is stored in JSON, with changes recorded as JSON patches that enables highly structured search.
