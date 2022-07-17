@@ -6,7 +6,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/confighub/db"
-	"github.com/flanksource/confighub/kube"
+	"github.com/flanksource/confighub/utils/kube"
 	"github.com/flanksource/kommons"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
