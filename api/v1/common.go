@@ -6,6 +6,23 @@ import (
 	"github.com/flanksource/kommons"
 )
 
+type Filter struct {
+	JSONPath string `json:"jsonpath,omitempty"`
+}
+
+type Transform struct {
+	Include []Filter `json:"include,omitempty"`
+	Exclude []Filter `json:"exclude,omitempty"`
+}
+
+type BaseScraper struct {
+	ID        string    `json:"id,omitempty"`
+	Name      string    `json:"name,omitempty"`
+	Items     string    `json:"items,omitempty"`
+	Type      string    `json:"type,omitempty"`
+	Transform Transform `json:"transform,omitempty"`
+}
+
 // Authentication ...
 type Authentication struct {
 	Username kommons.EnvVar `yaml:"username" json:"username"`
@@ -50,4 +67,12 @@ type AWSConnection struct {
 type GCPConnection struct {
 	Endpoint    string          `yaml:"endpoint" json:"endpoint,omitempty"`
 	Credentials *kommons.EnvVar `yaml:"credentials" json:"credentials,omitempty"`
+}
+
+type Template struct {
+	Template   string `yaml:"template,omitempty" json:"template,omitempty"`
+	JSONPath   string `yaml:"jsonPath,omitempty" json:"jsonPath,omitempty"`
+	GSONPath   string `yaml:"gsonPath,omitempty" json:"gsonPath,omitempty"`
+	Expression string `yaml:"expr,omitempty" json:"expr,omitempty"`
+	Javascript string `yaml:"javascript,omitempty" json:"javascript,omitempty"`
 }
