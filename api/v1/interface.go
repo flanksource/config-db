@@ -12,7 +12,7 @@ import (
 
 // Scraper ...
 type Scraper interface {
-	Scrape(ctx ScrapeContext, config ConfigScraper, manager Manager) []ScrapeResult
+	Scrape(ctx ScrapeContext, config ConfigScraper, manager Manager) ScrapeResults
 }
 
 // Analyzer ...
@@ -27,6 +27,14 @@ type AnalysisResult struct {
 // Manager ...
 type Manager struct {
 	Finder fs.Finder
+}
+
+type ScrapeResults []ScrapeResult
+
+func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeResults {
+	logger.Errorf(msg, args...)
+	*s = append(*s, ScrapeResult{Error: e})
+	return *s
 }
 
 // ScrapeResult ...
@@ -44,10 +52,43 @@ type ScrapeResult struct {
 	Source       string        `json:"source,omitempty"`
 	Config       interface{}   `json:"config,omitempty"`
 	Tags         JSONStringMap `json:"tags,omitempty"`
+	BaseScraper  BaseScraper   `json:"-"`
+	Error        error         `json:"-"`
+}
+
+func (s ScrapeResult) Success(config interface{}) ScrapeResult {
+	s.Config = config
+	return s
+}
+
+func (s ScrapeResult) Errorf(msg string, args ...interface{}) ScrapeResult {
+	s.Error = fmt.Errorf(msg, args...)
+	return s
+}
+
+func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
+	clone := ScrapeResult{
+		LastModified: s.LastModified,
+		Type:         s.Type,
+		Account:      s.Account,
+		Network:      s.Network,
+		Subnet:       s.Subnet,
+		Region:       s.Region,
+		Zone:         s.Zone,
+		Name:         s.Name,
+		Namespace:    s.Namespace,
+		ID:           s.ID,
+		Source:       s.Source,
+		Config:       config,
+		Tags:         s.Tags,
+		BaseScraper:  s.BaseScraper,
+		Error:        s.Error,
+	}
+	return clone
 }
 
 func (s ScrapeResult) String() string {
-	return fmt.Sprintf("%s/%s", s.Type, s.ID)
+	return fmt.Sprintf("%s/%s (%s)", s.Type, s.Name, s.ID)
 }
 
 // QueryColumn ...
