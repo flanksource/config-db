@@ -30,7 +30,6 @@ func NewConfigItemFromResult(result v1.ScrapeResult) models.ConfigItem {
 
 // Update creates or update a configuartion with config changes
 func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
-	// boil.DebugMode = true
 	for _, result := range results {
 		var dataStr string
 		switch data := result.Config.(type) {

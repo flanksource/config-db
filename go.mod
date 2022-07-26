@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/antonmedv/expr v1.9.0
-	github.com/aws/aws-sdk-go-v2 v1.16.2
+	github.com/aws/aws-sdk-go-v2 v1.16.7
 	github.com/aws/aws-sdk-go-v2/config v1.11.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.11.2
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.12.2
@@ -50,12 +50,16 @@ require (
 	github.com/armon/go-metrics v0.3.0 // indirect
 	github.com/aws/aws-sdk-go v1.29.25 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.9 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.3 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.14 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/efs v1.17.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.21.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/iam v1.18.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/rds v1.21.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.11.3 // indirect
-	github.com/aws/smithy-go v1.11.2 // indirect
+	github.com/aws/smithy-go v1.12.0 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/cheggaaa/pb v1.0.27 // indirect
@@ -76,6 +80,7 @@ require (
 	github.com/go-openapi/jsonreference v0.19.3 // indirect
 	github.com/go-openapi/spec v0.19.3 // indirect
 	github.com/go-openapi/swag v0.19.5 // indirect
+	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
@@ -137,6 +142,7 @@ require (
 	github.com/mitchellh/mapstructure v1.4.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
+	github.com/ohler55/ojg v1.14.3 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
 	github.com/rainycape/unidecode v0.0.0-20150907023854-cb7f23ec59be // indirect

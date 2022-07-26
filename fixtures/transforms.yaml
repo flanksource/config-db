@@ -1,0 +1,11 @@
+file:
+  - type: Transformed
+    id: $.id
+    paths:
+      - configs/Subnet/subnet-00023ad659ae1e065.json
+    transform:
+      exclude:
+        - jsonpath: "config.AvailableIpAddressCount"
+        - jsonpath: "$.AssignIpv6AddressOnCreation"
+        - jsonpath: config.AssignIpv6AddressOnCreation
+        - jsonpath: config.PrivateDnsNameOptionsOnLaunch

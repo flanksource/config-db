@@ -111,6 +111,7 @@ func Init(connection string) error {
 
 // Migrate ...
 func Migrate() error {
+	goose.SetTableName("config_db_version")
 	goose.SetBaseFS(embedMigrations)
 	db, err := GetDB()
 	if err != nil {
@@ -118,7 +119,7 @@ func Migrate() error {
 	}
 	defer db.Close()
 
-	if err := goose.Up(db, "migrations"); err != nil {
+	if err := goose.Up(db, "migrations", goose.WithAllowMissing()); err != nil {
 		return err
 	}
 	return nil

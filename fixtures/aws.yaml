@@ -1,7 +1,21 @@
 aws:
   - region: eu-west-2
     compliance: true
-    patch_states: true
-    trusted_advisor_check: true
-    patch_details: true
+    patch_states: false
+    trusted_advisor_check: false
+    patch_details: false
     inventory: true
+    include:
+      # - subnet
+      # - vpc
+      # - SecurityGroup
+    transform:
+      exclude:
+        - jsonpath: $.tags
+        - jsonpath: $.privateDnsNameOptionsOnLaunch
+        - jsonpath: availableIpAddressCount
+        - jsonpath: outpostArn
+        - jsonpath: mapCustomerOwnedIpOnLaunch
+        - jsonpath: subnetArn
+        - jsonpath: usageOperationUpdateTime
+        - jsonpath: $..privateIPAddresses

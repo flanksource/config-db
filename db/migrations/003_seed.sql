@@ -26,9 +26,24 @@ CREATE TABLE config_item (
   network text,
   subnet text,
   config jsonb null,
+  source TEXT null,
+  tags jsonb null,
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now(),
   FOREIGN KEY (scraper_id) REFERENCES config_scraper(id)
+);
+
+CREATE TABLE config_relationships(
+  config_id UUID NOT NULL,
+  related_id UUID NOT NULL,
+  property text NULL, -- The component property name that this config is for
+  created_at timestamp NOT NULL DEFAULT now(),
+  updated_at timestamp NOT NULL DEFAULT now(),
+  deleted_at TIMESTAMP DEFAULT NULL,
+  selector_id text, -- hash of the selector from the components
+  FOREIGN KEY(config_id) REFERENCES config_item(id),
+  FOREIGN KEY(related_id) REFERENCES config_item(id),
+	UNIQUE (related_id,config_id,selector_id)
 );
 
 CREATE TABLE config_change (
@@ -52,6 +67,19 @@ CREATE TABLE config_analysis (
   last_observed timestamp,
   FOREIGN KEY (config_id) REFERENCES config_item(id)
 );
+
+CREATE TABLE saved_query (
+  id UUID DEFAULT generate_ulid() PRIMARY KEY,
+  icon TEXT NULL,
+  description TEXT NULL,
+  query text NOT NULL,
+  columns jsonb null,
+  created_by TEXT NULL,
+  created_at timestamp NOT NULL DEFAULT now(),
+  updated_at timestamp NOT NULL DEFAULT now()
+);
+
+-- INSERT INTO config_db_version (version_id,is_applied,tstamp) values ('3',true, now())
 
 
 -- +goose StatementEnd

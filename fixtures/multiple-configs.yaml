@@ -1,0 +1,7 @@
+file:
+  - type: Config
+    id: $.id
+    name: $.name
+    items: "@"
+    paths:
+      - fixtures/multiple-configs.json
