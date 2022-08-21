@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/confighub/db/models"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
@@ -57,6 +58,9 @@ func (d *DBRepo) UpdateConfigItem(ci *models.ConfigItem) error {
 
 // CreateConfigChange inserts a new config change row in the db
 func (d *DBRepo) CreateConfigChange(cc *models.ConfigChange) error {
+	if cc.ID == "" {
+		cc.ID = uuid.New().String()
+	}
 	if err := d.Create(cc).Error; err != nil {
 		return err
 	}
@@ -72,7 +76,6 @@ func (d *DBRepo) GetAnalysis(analysis models.Analysis) (*models.Analysis, error)
 	}
 
 	return &existing, err
-
 }
 
 func (d *DBRepo) CreateAnalysis(analysis models.Analysis) error {

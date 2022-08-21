@@ -81,9 +81,19 @@ func updateCI(ctx v1.ScrapeContext, ci models.ConfigItem) error {
 
 }
 
-func updateChange(ctx v1.ScrapeContext, result *v1.ScrapeResult) error {
+func UpdateChange(ctx v1.ScrapeContext, result *v1.ScrapeResult) error {
 	change := models.NewConfigChangeFromV1(*result.ChangeResult)
-	return repository.CreateConfigChange(&change)
+
+	ci, err := repository.GetConfigItem(change.ExternalType, change.ExternalID)
+	if ci == nil {
+		logger.Warnf("[%s/%s] unable to find config item for change: %v", change.ExternalType, change.ExternalID, change)
+		return nil
+	} else if err != nil {
+		return err
+	}
+	change.ConfigID = ci.ID
+
+	return repository.CreateConfigChange(change)
 }
 
 func updateAnalysis(ctx v1.ScrapeContext, result *v1.ScrapeResult) error {
@@ -109,7 +119,6 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 	for _, result := range results {
 
 		if result.Config != nil {
-
 			ci, err := NewConfigItemFromResult(result)
 			if err != nil {
 				return errors.Wrapf(err, "unable to create config item: %s", result)
@@ -127,7 +136,7 @@ func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 
 		if result.ChangeResult != nil {
-			if err := updateChange(ctx, &result); err != nil {
+			if err := UpdateChange(ctx, &result); err != nil {
 				return err
 			}
 		}

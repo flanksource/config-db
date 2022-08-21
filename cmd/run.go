@@ -36,6 +36,9 @@ var Run = &cobra.Command{
 			Finder: fs.NewFileFinder(),
 		}
 
+		if db.ConnectionString != "" {
+			db.MustInit()
+		}
 		results, err := scrapers.Run(ctx, manager, scraperConfigs...)
 		if err != nil {
 			logger.Fatalf(err.Error())
@@ -43,7 +46,6 @@ var Run = &cobra.Command{
 		logger.Infof("Found %d resources", len(results))
 
 		if db.ConnectionString != "" {
-			db.MustInit()
 			if err = db.Update(ctx, results); err != nil {
 				logger.Errorf("Failed to update db: %+v", err)
 			}
@@ -62,6 +64,10 @@ var Run = &cobra.Command{
 }
 
 func exportResource(resource v1.ScrapeResult, filename, outputDir string) error {
+	if resource.Config == nil && resource.AnalysisResult != nil {
+		logger.Debugf("%s/%s => %s", resource.ExternalType, resource.ID, *resource.AnalysisResult)
+		return nil
+	}
 	outputPath := path.Join(outputDir, resource.Type, resource.Name+".json")
 	_ = os.MkdirAll(path.Dir(outputPath), 0755)
 	data, err := json.MarshalIndent(resource, "", "  ")

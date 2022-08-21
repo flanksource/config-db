@@ -27,8 +27,8 @@ func (c ConfigChange) String() string {
 	return fmt.Sprintf("[%s/%s] %s", c.ExternalType, c.ExternalID, c.ChangeType)
 }
 
-func NewConfigChangeFromV1(change v1.ChangeResult) ConfigChange {
-	return ConfigChange{
+func NewConfigChangeFromV1(change v1.ChangeResult) *ConfigChange {
+	return &ConfigChange{
 		ExternalID:   change.ExternalID,
 		ExternalType: change.ExternalType,
 		ChangeType:   change.ChangeType,
