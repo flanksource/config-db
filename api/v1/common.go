@@ -12,13 +12,20 @@ type Filter struct {
 
 type Transform struct {
 	Include []Filter `json:"include,omitempty"`
+	// Fields to remove from the config, useful for removing sensitive data and fields
+	// that change often without a material impact i.e. Last Scraped Time
 	Exclude []Filter `json:"exclude,omitempty"`
 }
 
 type BaseScraper struct {
-	ID        string    `json:"id,omitempty"`
-	Name      string    `json:"name,omitempty"`
-	Items     string    `json:"items,omitempty"`
+	// A static value or JSONPath expression to use as the ID for the resource.
+	ID string `json:"id,omitempty"`
+	// A static value or JSONPath expression to use as the ID for the resource.
+	Name string `json:"name,omitempty"`
+	// A JSONPath expression to use to extract individual items from the resource,
+	// items are extracted first and then the ID,Name,Type and transformations are applied for each item.
+	Items string `json:"items,omitempty"`
+	// A static value or JSONPath expression to use as the type for the resource.
 	Type      string    `json:"type,omitempty"`
 	Transform Transform `json:"transform,omitempty"`
 }
@@ -57,7 +64,7 @@ func (auth Authentication) GetDomain() string {
 type AWSConnection struct {
 	AccessKey     kommons.EnvVar `yaml:"accessKey,omitempty" json:"accessKey,omitempty"`
 	SecretKey     kommons.EnvVar `yaml:"secretKey,omitempty" json:"secretKey,omitempty"`
-	Region        string         `yaml:"region,omitempty" json:"region"`
+	Region        []string       `yaml:"region,omitempty" json:"region"`
 	Endpoint      string         `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
 	SkipTLSVerify bool           `yaml:"skipTLSVerify,omitempty" json:"skipTLSVerify,omitempty"`
 	AssumeRole    string         `yaml:"assumeRole,omitempty" json:"assumeRole,omitempty"`
