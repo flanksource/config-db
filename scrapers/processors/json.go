@@ -84,7 +84,6 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 		}
 		switch input.Config.(type) {
 		case string:
-			logger.Infof("parsing string")
 			o, err = oj.ParseString(input.Config.(string))
 			if err != nil {
 				return results, fmt.Errorf("failed to parse json: %v", err)
@@ -113,8 +112,6 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 				return results, fmt.Errorf("failed to exclude: %v", err)
 			}
 		}
-
-		// opts := oj.Options{Sort: true, OmitNil: true}
 
 		input.Config = o
 

@@ -61,7 +61,7 @@ func (file FileScrapper) Scrape(ctx v1.ScrapeContext, configs v1.ConfigScraper, 
 			file := strings.Replace(match, tempDir+"/", "", 1)
 			var result = v1.ScrapeResult{
 				BaseScraper: config.BaseScraper,
-				Source:      file,
+				Source:      config.RedactedString() + "/" + file,
 			}
 			if ignore, err := isIgnored(config, file); err != nil {
 				results = append(results, result.Errorf("failed to check if file %s is ignored: %v", file, err))

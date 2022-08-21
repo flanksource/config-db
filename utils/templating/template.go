@@ -12,7 +12,6 @@ import (
 	"github.com/antonmedv/expr"
 	"github.com/pkg/errors"
 	"github.com/robertkrimen/otto"
-	"github.com/tidwall/gjson"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/text"
@@ -89,9 +88,8 @@ func Template(environment map[string]interface{}, template v1.Template) (string,
 		return fmt.Sprint(output), nil
 	}
 
-	if template.GSONPath != "" {
-		gjson.
-		return gjson.Get(jsonContent, template.GSONPath).String()
-	}
+	// if template.GSONPath != "" {
+	// 	return gjson.Get(jsonContent, template.GSONPath).String()
+	// }
 	return "", nil
 }
