@@ -3,6 +3,7 @@ package aws
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
@@ -13,6 +14,7 @@ import (
 )
 
 func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan types.Event) error {
+	logger.Debugf("Looking up events from %s", input.StartTime)
 	CloudTrail := cloudtrail.NewFromConfig(*ctx.Session)
 	defer func() {
 		close(c)
@@ -37,6 +39,8 @@ func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan t
 	return nil
 }
 
+var LastEventTime = sync.Map{}
+
 func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
 	if config.Excludes("cloudtrail") {
 		return
@@ -48,16 +52,23 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 		d := 7 * 24 * time.Hour
 		config.CloudTrail.MaxAge = &d
 	}
-
+	var lastEventKey = ctx.Session.Region + *ctx.Caller.Account
 	c := make(chan types.Event)
 	go func() {
+		count := 0
+		ignored := 0
+		var maxTime time.Time
 		for event := range c {
+			if event.EventTime != nil && event.EventTime.After(maxTime) {
+				maxTime = *event.EventTime
+			}
+			count++
 			if containsAny(config.CloudTrail.Exclude, *event.EventName) {
+				ignored++
 				continue
 			}
 
 			for _, resource := range event.Resources {
-
 				change := v1.ChangeResult{
 					CreatedAt:  event.EventTime,
 					ChangeType: *event.EventName,
@@ -76,12 +87,16 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 					change.Details["User"] = *event.Username
 				}
 				results.AddChange(change)
-				logger.Infof("%s => %s", change, deref(event.CloudTrailEvent))
 			}
 		}
+		LastEventTime.Store(lastEventKey, maxTime)
+		logger.Debugf("Processed %d events, ignored %d", count, ignored)
 	}()
 
 	start := time.Now().Add(-1 * *config.CloudTrail.MaxAge).UTC()
+	if lastEventTime, ok := LastEventTime.Load(lastEventKey); ok {
+		start = lastEventTime.(time.Time)
+	}
 	err := lookupEvents(ctx, &cloudtrail.LookupEventsInput{
 		StartTime:  &start,
 		MaxResults: ptr.Int32(1000),
