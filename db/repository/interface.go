@@ -7,9 +7,10 @@ import (
 
 // Database holds all the repository function contracts
 type Database interface {
-	GetConfigItem(string) (*models.ConfigItem, error)
+	GetConfigItem(string, string) (*models.ConfigItem, error)
 	CreateConfigItem(*models.ConfigItem) error
 	UpdateConfigItem(*models.ConfigItem) error
 	CreateConfigChange(*models.ConfigChange) error
 	QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, error)
+	CreateAnalysis(models.Analysis) error
 }

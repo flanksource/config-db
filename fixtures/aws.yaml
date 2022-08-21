@@ -1,7 +1,32 @@
 aws:
-  - region: eu-west-2
+  - region:
+      - eu-west-2
+      - us-east-1
+      - af-south-1
+      - ap-south-1
+      - eu-central-1
     compliance: true
-    patch_states: true
-    trusted_advisor_check: true
-    patch_details: true
+    patch_states: false
+    trusted_advisor_check: false
+    patch_details: false
     inventory: true
+    exclude:
+      - Amazon EC2 Reserved Instances Optimization
+      - Savings Plan
+      # - trusted_advisor
+      # - cloudtrail
+    # include:
+    #   - vpc
+    #   # - subnet
+    # - vpc
+    # - SecurityGroup
+    transform:
+      exclude:
+        - jsonpath: $.tags
+        - jsonpath: $.privateDnsNameOptionsOnLaunch
+        # - jsonpath: availableIpAddressCount
+        - jsonpath: outpostArn
+        - jsonpath: mapCustomerOwnedIpOnLaunch
+        - jsonpath: subnetArn
+        # - jsonpath: usageOperationUpdateTime
+        # - jsonpath: $..privateIPAddresses

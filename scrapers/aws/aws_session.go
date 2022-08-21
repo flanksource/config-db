@@ -22,8 +22,8 @@ func isEmpty(val kommons.EnvVar) bool {
 }
 
 // NewSession ...
-func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, error) {
-	cfg, err := loadConfig(ctx, conn)
+func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*aws.Config, error) {
+	cfg, err := loadConfig(ctx, conn, region)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (e EndpointResolver) ResolveEndpoint(service, region string, options ...int
 	}, nil
 }
 
-func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, error) {
+func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*aws.Config, error) {
 	namespace := ctx.GetNamespace()
 	var tr http.RoundTripper
 	tr = &http.Transport{
@@ -69,7 +69,7 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection) (*aws.Config, erro
 	}
 
 	options := []func(*config.LoadOptions) error{
-		config.WithRegion(conn.Region),
+		config.WithRegion(region),
 		config.WithHTTPClient(&http.Client{Transport: tr}),
 	}
 

@@ -2,9 +2,9 @@ package scrapers
 
 import (
 	"encoding/json"
-	"reflect"
 	"testing"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	v1 "github.com/flanksource/confighub/api/v1"
 	fs "github.com/flanksource/confighub/filesystem"
 )
@@ -24,16 +24,22 @@ func TestRun(t *testing.T) {
 			config: v1.ConfigScraper{
 				File: []v1.File{
 					{
-						ID:   "Config.InstanceId",
-						Type: "Config.InstanceType",
+						BaseScraper: v1.BaseScraper{
+							ID:   "$.Config.InstanceId",
+							Type: "$.Config.InstanceType",
+						},
+
 						Paths: []string{
 							"../fixtures/config*.json",
 							"../fixtures/test*.json",
 						},
 					},
 					{
-						ID:   "metadata.name",
-						Type: "kind",
+						BaseScraper: v1.BaseScraper{
+							ID:   "$.metadata.name",
+							Type: "$.kind",
+						},
+
 						Paths: []string{
 							"fixtures/minimal/http_pass_single.yaml",
 						},
@@ -57,7 +63,10 @@ func TestRun(t *testing.T) {
                    	"apiVersion": "canaries.flanksource.com/v1",
                    	"kind": "Canary",
                    	"metadata": {
-                   		"name": "http-pass-single"
+                   		"name": "http-pass-single",
+											"labels": {
+												"canary": "http"
+											}
                    	},
                    	"spec": {
                    		"http": [
@@ -110,22 +119,34 @@ func TestRun(t *testing.T) {
 				t.Errorf("expected Type: %s, got Type: %s", want.Type, got.Type)
 			}
 
-			wantConfig := map[string]interface{}{}
-
-			gotConfig := map[string]interface{}{}
-
-			if err := json.Unmarshal([]byte(want.Config.(string)), &wantConfig); err != nil {
-				t.Error("failed decode wanted config body: ", err.Error())
+			if diff := compare(want.Config, got.Config); diff != "" {
+				t.Errorf("expected Config: \n%s got Config: \n%s diff:\n%s", want.Config, got.Config, diff)
 			}
-			if err := json.Unmarshal([]byte(got.Config.(string)), &gotConfig); err != nil {
-				t.Error("failed decode got config body: ", err.Error())
-			}
-
-			if !reflect.DeepEqual(wantConfig, gotConfig) {
-				t.Errorf("expected Config: %v, got Config: %v", wantConfig, gotConfig)
-			}
-
 		}
 	}
+}
 
+// nolint:gosimple
+func toJSON(v interface{}) []byte {
+	switch v.(type) {
+	case string:
+		s := v.(string)
+		return []byte(s)
+	}
+	b, _ := json.Marshal(v)
+	return b
+}
+
+func compare(a interface{}, b interface{}) string {
+
+	patch, err := jsonpatch.CreateMergePatch(toJSON(a), toJSON(b))
+	if err != nil {
+		return err.Error()
+	}
+
+	if len(patch) <= 2 { // no patch or empty array
+		return ""
+	}
+
+	return string(patch)
 }
