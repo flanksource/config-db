@@ -29,7 +29,7 @@ func (aws AWS) Includes(resource string) bool {
 		return true
 	}
 	for _, include := range aws.Include {
-		if strings.ToLower(include) == strings.ToLower(resource) {
+		if strings.EqualFold(include, resource) {
 			return true
 		}
 	}
@@ -41,7 +41,7 @@ func (aws AWS) Excludes(resource string) bool {
 		return false
 	}
 	for _, exclude := range aws.Exclude {
-		if strings.ToLower(exclude) == strings.ToLower(resource) {
+		if strings.EqualFold(exclude, resource) {
 			return true
 		}
 	}

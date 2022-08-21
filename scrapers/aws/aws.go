@@ -80,14 +80,6 @@ func (aws Scraper) getContext(ctx v1.ScrapeContext, awsConfig v1.AWS, region str
 	}, nil
 }
 
-func getKeys(instances map[string]*Instance) []string {
-	ids := []string{}
-	for id := range instances {
-		ids = append(ids, id)
-	}
-	return ids
-}
-
 func strPtr(s string) *string {
 	return &s
 }

@@ -90,7 +90,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			}
 		default:
 			opts := oj.Options{OmitNil: true, Sort: true, UseTags: true}
-			o, err = oj.ParseString(oj.JSON(input.Config.(interface{}), opts))
+			o, err = oj.ParseString(oj.JSON(input.Config, opts))
 			if err != nil {
 				return results, fmt.Errorf("failed to parse json: %v", err)
 			}

@@ -126,10 +126,12 @@ func TestRun(t *testing.T) {
 	}
 }
 
+// nolint:gosimple
 func toJSON(v interface{}) []byte {
 	switch v.(type) {
 	case string:
-		return []byte(v.(string))
+		s := v.(string)
+		return []byte(s)
 	}
 	b, _ := json.Marshal(v)
 	return b
