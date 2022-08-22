@@ -29,7 +29,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 		dataStr = string(bytes)
 	}
 
-	return &models.ConfigItem{
+	ci := &models.ConfigItem{
 		ExternalID:   append(result.Aliases, result.ID),
 		ID:           result.ID,
 		ConfigType:   result.Type,
@@ -43,7 +43,13 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 		Source:       &result.Source,
 		Tags:         &result.Tags,
 		Config:       &dataStr,
-	}, nil
+	}
+
+	if result.CreatedAt != nil {
+		ci.CreatedAt = *result.CreatedAt
+	}
+
+	return ci, nil
 
 }
 
