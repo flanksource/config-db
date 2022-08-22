@@ -93,6 +93,7 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 
 // ScrapeResult ...
 type ScrapeResult struct {
+	CreatedAt      *time.Time      `json:"created_at,omitempty"`
 	LastModified   time.Time       `json:"last_modified,omitempty"`
 	Type           string          `json:"type,omitempty"`
 	ExternalType   string          `json:"external_type,omitempty"`
@@ -112,6 +113,7 @@ type ScrapeResult struct {
 	Error          error           `json:"-"`
 	AnalysisResult *AnalysisResult `json:"analysis,omitempty"`
 	ChangeResult   *ChangeResult   `json:"change,omitempty"`
+	Ignore         []string        `json:"-"`
 }
 
 func (s ScrapeResult) Success(config interface{}) ScrapeResult {
