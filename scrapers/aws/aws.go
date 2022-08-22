@@ -8,15 +8,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
 	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-
-	"github.com/aws/aws-sdk-go-v2/service/eks"
-	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+
+	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
+	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
@@ -93,6 +97,35 @@ func getName(tags v1.JSONStringMap, def string) string {
 
 type Zone struct {
 	Region, Zone string
+}
+
+func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	if !config.Includes("ECR") {
+		return
+	}
+
+	ECR := ecr.NewFromConfig(*ctx.Session)
+	images, err := ECR.DescribeRepositories(ctx, &ecr.DescribeRepositoriesInput{})
+	if err != nil {
+		results.Errorf(err, "failed to get ecr")
+		return
+	}
+	for _, image := range images.Repositories {
+		*results = append(*results, v1.ScrapeResult{
+			CreatedAt:    image.CreatedAt,
+			ExternalType: "AWS::ECR::Repository",
+			BaseScraper:  config.BaseScraper,
+			Config:       image,
+			Type:         "Container",
+			Name:         *image.RepositoryName,
+			Aliases:      []string{*image.RepositoryArn},
+			Account:      *ctx.Caller.Account,
+			ID:           *image.RepositoryUri,
+			Ignore: []string{
+				"CreatedAt", "RepositoryArn", "RepositoryUri", "RegistryId", "ResposutoryName",
+			},
+		})
+	}
 }
 
 func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
@@ -449,10 +482,12 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	for _, bucket := range buckets.Buckets {
 		*results = append(*results, v1.ScrapeResult{
 			ExternalType: "AWS::S3::Bucket",
+			CreatedAt:    bucket.CreationDate,
 			BaseScraper:  config.BaseScraper,
 			Config:       bucket,
 			Type:         "S3Bucket",
 			Name:         *bucket.Name,
+			Ignore:       []string{"Name", "CreationDate"},
 			ID:           *bucket.Name})
 	}
 }
@@ -477,6 +512,48 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 			Account:      *ctx.Caller.Account,
 			Aliases:      []string{*zone.Id, *zone.Name},
 			ID:           strings.ReplaceAll(*zone.Id, "/hostedzone/", "")})
+	}
+}
+
+func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	if !config.Includes("LoadBalancer") {
+		return
+	}
+	elb := elasticloadbalancing.NewFromConfig(*ctx.Session)
+
+	loadbalancers, err := elb.DescribeLoadBalancers(ctx, nil)
+	if err != nil {
+		results.Errorf(err, "failed to describe load balancers")
+		return
+	}
+
+	for _, lb := range loadbalancers.LoadBalancerDescriptions {
+		*results = append(*results, v1.ScrapeResult{
+			ExternalType: "AWS::ElasticLoadBalancing::LoadBalancer",
+			BaseScraper:  config.BaseScraper,
+			Config:       lb,
+			Type:         "LoadBalancer",
+			Name:         *lb.LoadBalancerName,
+			Account:      *ctx.Caller.Account,
+			ID:           *lb.LoadBalancerName})
+	}
+
+	elbv2 := elasticloadbalancingv2.NewFromConfig(*ctx.Session)
+	loadbalancersv2, err := elbv2.DescribeLoadBalancers(ctx, &elasticloadbalancingv2.DescribeLoadBalancersInput{})
+	if err != nil {
+		results.Errorf(err, "failed to describe load balancers")
+		return
+	}
+
+	for _, lb := range loadbalancersv2.LoadBalancers {
+		*results = append(*results, v1.ScrapeResult{
+			ExternalType: "AWS::ElasticLoadBalancingV2::LoadBalancer",
+			BaseScraper:  config.BaseScraper,
+			Config:       lb,
+			Type:         "LoadBalancer",
+			Name:         *lb.LoadBalancerName,
+			Account:      *ctx.Caller.Account,
+			ID:           *lb.LoadBalancerArn})
 	}
 
 }
@@ -543,6 +620,8 @@ func (aws Scraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, _ v1.Ma
 			aws.rds(awsCtx, awsConfig, results)
 			aws.config(awsCtx, awsConfig, results)
 			aws.cloudtrail(awsCtx, awsConfig, results)
+			aws.loadBalancers(awsCtx, awsConfig, results)
+			aws.containerImages(awsCtx, awsConfig, results)
 		}
 
 		awsCtx, err := aws.getContext(ctx, awsConfig, "us-east-1")
