@@ -122,7 +122,7 @@ func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.S
 			Account:      *ctx.Caller.Account,
 			ID:           *image.RepositoryUri,
 			Ignore: []string{
-				"CreatedAt", "RepositoryArn", "RepositoryUri", "RegistryId", "ResposutoryName",
+				"CreatedAt", "RepositoryArn", "RepositoryUri", "RegistryId", "RepositoryName",
 			},
 		})
 	}
@@ -149,6 +149,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 
 		*results = append(*results, v1.ScrapeResult{
 			ExternalType: "AWS::EKS::Cluster",
+			CreatedAt:    cluster.Cluster.CreatedAt,
 			Tags:         cluster.Cluster.Tags,
 			BaseScraper:  config.BaseScraper,
 			Config:       cluster.Cluster,
@@ -157,7 +158,9 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Name:         getName(cluster.Cluster.Tags, clusterName),
 			Account:      *ctx.Caller.Account,
 			Aliases:      []string{*cluster.Cluster.Arn},
-			ID:           *cluster.Cluster.Name})
+			ID:           *cluster.Cluster.Name,
+			Ignore:       []string{"CreatedAt", "Name"},
+		})
 	}
 }
 
@@ -269,12 +272,14 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 	for _, user := range users.Users {
 		*results = append(*results, v1.ScrapeResult{
 			ExternalType: "AWS::IAM::User",
+			CreatedAt:    user.CreateDate,
 			BaseScraper:  config.BaseScraper,
 			Config:       user,
 			Type:         "User",
 			Name:         *user.UserName,
 			Account:      *ctx.Caller.Account,
-			Aliases:      []string{*user.UserId},
+			Aliases:      []string{*user.UserId, *user.Arn},
+			Ignore:       []string{"Arn", "UserId", "CreateDate", "UserName"},
 			ID:           *user.UserName, // UserId is not often referenced
 		})
 	}
@@ -530,6 +535,8 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 	for _, lb := range loadbalancers.LoadBalancerDescriptions {
 		*results = append(*results, v1.ScrapeResult{
 			ExternalType: "AWS::ElasticLoadBalancing::LoadBalancer",
+			CreatedAt:    lb.CreatedTime,
+			Ignore:       []string{"createdTime"},
 			BaseScraper:  config.BaseScraper,
 			Config:       lb,
 			Type:         "LoadBalancer",
