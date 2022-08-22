@@ -146,12 +146,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 
 		input.Config = o
 
-		results = append(results, input)
 		logger.Infof("Scraped %s", input)
-		if err != nil {
-			return results, err
-		}
-
 		results = append(results, input)
 	}
 	return results, nil
