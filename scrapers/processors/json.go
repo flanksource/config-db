@@ -55,7 +55,7 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 
 	if isJSONPath(config.Name) {
 		if x, err := jp.ParseString(config.Name); err != nil {
-			return extract, fmt.Errorf("failed to parse items: %s: %v", config.Name, err)
+			return extract, fmt.Errorf("failed to parse name: %s: %v", config.Name, err)
 		} else {
 			extract.Name = x
 		}
@@ -107,14 +107,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			}
 		}
 
-		for _, exclude := range e.Excludes {
-			if err := exclude.Del(o); err != nil {
-				return results, fmt.Errorf("failed to exclude: %v", err)
-			}
-		}
-
 		input.Config = o
-
 		if input.ID == "" {
 			input.ID, err = getString(e.ID, o, e.Config.ID)
 			if err != nil {
@@ -136,6 +129,24 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 		if input.Type == "" {
 			input.Type, err = getString(e.Type, o, e.Config.Type)
 		}
+
+		for _, exclude := range e.Excludes {
+			if err := exclude.Del(o); err != nil {
+				return results, fmt.Errorf("failed to exclude: %v", err)
+			}
+		}
+
+		for _, ignore := range input.Ignore {
+			if expr, err := jp.ParseString("$." + ignore); err != nil {
+				return results, fmt.Errorf("failed to parse  %s: %v", ignore, err)
+			} else if err := expr.Del(o); err != nil {
+				return results, fmt.Errorf("failed to ignore: %v", err)
+			}
+		}
+
+		input.Config = o
+
+		results = append(results, input)
 		logger.Infof("Scraped %s", input)
 		if err != nil {
 			return results, err

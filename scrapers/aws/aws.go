@@ -159,7 +159,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Account:      *ctx.Caller.Account,
 			Aliases:      []string{*cluster.Cluster.Arn},
 			ID:           *cluster.Cluster.Name,
-			Ignore:       []string{"CreatedAt", "Name"},
+			Ignore:       []string{"createdAt", "name"},
 		})
 	}
 }
@@ -279,7 +279,7 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 			Name:         *user.UserName,
 			Account:      *ctx.Caller.Account,
 			Aliases:      []string{*user.UserId, *user.Arn},
-			Ignore:       []string{"Arn", "UserId", "CreateDate", "UserName"},
+			Ignore:       []string{"arn", "userId", "createDate", "userName"},
 			ID:           *user.UserName, // UserId is not often referenced
 		})
 	}
@@ -492,7 +492,7 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			Config:       bucket,
 			Type:         "S3Bucket",
 			Name:         *bucket.Name,
-			Ignore:       []string{"Name", "CreationDate"},
+			Ignore:       []string{"name", "creationDate"},
 			ID:           *bucket.Name})
 	}
 }
@@ -556,6 +556,8 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 		*results = append(*results, v1.ScrapeResult{
 			ExternalType: "AWS::ElasticLoadBalancingV2::LoadBalancer",
 			BaseScraper:  config.BaseScraper,
+			Ignore:       []string{"createdTime", "loadBalancerArn", "loadBalancerName"},
+			CreatedAt:    lb.CreatedTime,
 			Config:       lb,
 			Type:         "LoadBalancer",
 			Name:         *lb.LoadBalancerName,
