@@ -128,6 +128,9 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 
 		if input.Type == "" {
 			input.Type, err = getString(e.Type, o, e.Config.Type)
+			if err != nil {
+				return results, err
+			}
 		}
 
 		for _, exclude := range e.Excludes {
