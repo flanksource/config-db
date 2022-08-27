@@ -33,7 +33,7 @@ func (ical ICalScrapper) Scrape(ctx v1.ScrapeContext, configs v1.ConfigScraper, 
 		events = append(events, transform(e))
 	}
 
-	results = append(results, result.Success(v1.ICalConfig{ChangeType: "ical", Events: events}))
+	results = append(results, result.ChResult(&v1.ChangeResult{ChangeType: "ical"}).Success(v1.ICalConfig{Events: events}))
 	return
 
 }

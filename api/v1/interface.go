@@ -123,6 +123,11 @@ func (s ScrapeResult) Success(config interface{}) ScrapeResult {
 	return s
 }
 
+func (s ScrapeResult) ChResult(c *ChangeResult) ScrapeResult {
+	s.ChangeResult = c
+	return s
+}
+
 func (s ScrapeResult) Errorf(msg string, args ...interface{}) ScrapeResult {
 	s.Error = fmt.Errorf(msg, args...)
 	return s
