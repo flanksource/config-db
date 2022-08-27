@@ -6,8 +6,7 @@ type ICal struct {
 }
 
 type ICalConfig struct {
-	ChangeType string  `json:"change_type"`
-	Events     []Event `json:"events"`
+	Events []Event `json:"events"`
 }
 
 type Event struct {
