@@ -5,6 +5,7 @@ type ConfigScraper struct {
 	Schedule string `json:"schedule,omitempty"`
 	AWS      []AWS  `json:"aws,omitempty" yaml:"aws,omitempty"`
 	File     []File `json:"file,omitempty" yaml:"file,omitempty"`
+	ICal     ICal   `json:"ical,omitempty" yaml:"ical,omitempty"`
 }
 
 // IsEmpty ...

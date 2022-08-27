@@ -11,6 +11,7 @@ import (
 	v1 "github.com/flanksource/confighub/api/v1"
 	"github.com/flanksource/confighub/db"
 	fs "github.com/flanksource/confighub/filesystem"
+	"github.com/flanksource/confighub/httprequest"
 	"github.com/flanksource/confighub/scrapers"
 	"github.com/spf13/cobra"
 )
@@ -33,7 +34,8 @@ var Run = &cobra.Command{
 		ctx := v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient}
 
 		manager := v1.Manager{
-			Finder: fs.NewFileFinder(),
+			Finder:    fs.NewFileFinder(),
+			Requester: httprequest.NewRequester(),
 		}
 
 		if db.ConnectionString != "" {

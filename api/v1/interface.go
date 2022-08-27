@@ -7,6 +7,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	fs "github.com/flanksource/confighub/filesystem"
+	"github.com/flanksource/confighub/httprequest"
 	"github.com/flanksource/kommons"
 )
 
@@ -61,7 +62,8 @@ type AnalysisResults []AnalysisResult
 
 // Manager ...
 type Manager struct {
-	Finder fs.Finder
+	Finder    fs.Finder
+	Requester httprequest.Requester
 }
 
 type ScrapeResults []ScrapeResult
