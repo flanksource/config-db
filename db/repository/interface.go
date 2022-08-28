@@ -1,8 +1,8 @@
 package repository
 
 import (
-	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/db/models"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db/models"
 )
 
 // Database holds all the repository function contracts

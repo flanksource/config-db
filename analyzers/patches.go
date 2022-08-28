@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/confighub/api/v1"
+	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 // PatchAnalyzer ...

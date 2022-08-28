@@ -15,7 +15,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/text"
-	v1 "github.com/flanksource/confighub/api/v1"
+	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/robertkrimen/otto/registry"
 	_ "github.com/robertkrimen/otto/underscore"
 )

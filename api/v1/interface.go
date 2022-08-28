@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	fs "github.com/flanksource/confighub/filesystem"
+	fs "github.com/flanksource/config-db/filesystem"
 	"github.com/flanksource/kommons"
 )
 

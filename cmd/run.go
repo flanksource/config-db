@@ -8,10 +8,10 @@ import (
 	"path"
 
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/db"
-	fs "github.com/flanksource/confighub/filesystem"
-	"github.com/flanksource/confighub/scrapers"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	fs "github.com/flanksource/config-db/filesystem"
+	"github.com/flanksource/config-db/scrapers"
 	"github.com/spf13/cobra"
 )
 

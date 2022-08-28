@@ -21,5 +21,4 @@ func (f File) RedactedString() string {
 	}
 
 	return url.Redacted()
-
 }

@@ -28,7 +28,7 @@ To explicitly run scrapping.
 
 ```bash
 ./bin/config-db run <scrapper-config.yaml> -vvv
-confighub serve
+config-db serve
 ```
 
 See fixtures/ for example scrape configs.

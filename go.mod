@@ -1,4 +1,4 @@
-module github.com/flanksource/confighub
+module github.com/flanksource/config-db
 
 go 1.17
 

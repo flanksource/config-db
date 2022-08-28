@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	v1 "github.com/flanksource/confighub/api/v1"
+	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/kommons"
 	"github.com/henvic/httpretty"
 

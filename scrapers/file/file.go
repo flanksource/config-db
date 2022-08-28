@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/filesystem"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/filesystem"
 	"github.com/gobwas/glob"
 	"github.com/hashicorp/go-getter"
 	"sigs.k8s.io/yaml"

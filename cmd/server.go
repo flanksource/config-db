@@ -6,12 +6,12 @@ import (
 	"net/url"
 
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/db"
-	fs "github.com/flanksource/confighub/filesystem"
-	"github.com/flanksource/confighub/query"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	fs "github.com/flanksource/config-db/filesystem"
+	"github.com/flanksource/config-db/query"
 
-	"github.com/flanksource/confighub/scrapers"
+	"github.com/flanksource/config-db/scrapers"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/robfig/cron/v3"

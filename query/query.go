@@ -3,8 +3,8 @@ package query
 import (
 	"net/http"
 
-	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/db"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/labstack/echo/v4"
 )
 

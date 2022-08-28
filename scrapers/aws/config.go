@@ -3,7 +3,7 @@ package aws
 import (
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
 	"github.com/aws/aws-sdk-go-v2/service/configservice/types"
-	v1 "github.com/flanksource/confighub/api/v1"
+	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 func (aws Scraper) config(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
@@ -37,6 +37,7 @@ func (aws Scraper) config(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResu
 			results.Analysis(*obj.ConfigRuleName, *obj.ResourceType, *obj.ResourceId).
 				Message(deref(rule.Description)).
 				Message(deref(compliance.Annotation))
+
 		}
 	}
 

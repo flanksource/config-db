@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	repoimpl "github.com/flanksource/confighub/db/repository"
+	repoimpl "github.com/flanksource/config-db/db/repository"
 	"github.com/jackc/pgx/v4/log/logrusadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"

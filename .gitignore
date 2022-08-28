@@ -3,5 +3,5 @@
 _DS_Store
 .bin/
 vendor
-confighub
+config-db
 scraped/
