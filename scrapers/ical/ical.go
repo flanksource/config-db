@@ -16,15 +16,11 @@ const EventType = "event"
 
 type ICalScrapper struct{}
 
-type ICalConfig struct {
-	URL string `json:"url,omitempty"`
-}
-
 func (ical ICalScrapper) Scrape(ctx v1.ScrapeContext, configs v1.ConfigScraper, manager v1.Manager) (results v1.ScrapeResults) {
 
 	url, now := configs.ICal.URL, time.Now()
 
-	icalConfig := ICalConfig{URL: url}
+	icalConfig := v1.ICalConfig{URL: url}
 
 	var result = v1.ScrapeResult{
 		LastModified: now,
