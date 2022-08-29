@@ -3,26 +3,39 @@ package ical
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
+	"net/http"
 	"time"
 
 	"github.com/apognu/gocal"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/httprequest"
 )
+
+const EventType = "event"
 
 type ICalScrapper struct{}
 
+type ICalConfig struct {
+	URL string `json:"url,omitempty"`
+}
+
 func (ical ICalScrapper) Scrape(ctx v1.ScrapeContext, configs v1.ConfigScraper, manager v1.Manager) (results v1.ScrapeResults) {
-	config := configs.ICal
+
+	url, now := configs.ICal.URL, time.Now()
+
+	icalConfig := ICalConfig{URL: url}
+
 	var result = v1.ScrapeResult{
-		BaseScraper: config.BaseScraper,
-		Source:      config.URL,
+		LastModified: now,
+		BaseScraper:  configs.ICal.BaseScraper,
+		Config:       icalConfig,
 	}
 
-	data, err := fetchData(config.URL, manager.Requester)
+	data, err := fetch(url)
 	if err != nil {
-		results = append(results, result.Errorf("failed to fetch data from url(%s): %s", config.URL, err.Error()))
+		results = append(results, result.Errorf("failed to fetch data from url(%s): %s", url, err.Error()))
+		logger.Tracef("could not fetch data url(%s): %s", url, err.Error())
 		return
 	}
 
@@ -32,29 +45,39 @@ func (ical ICalScrapper) Scrape(ctx v1.ScrapeContext, configs v1.ConfigScraper, 
 		return
 	}
 
-	events := make([]v1.Event, 0)
 	for _, e := range parsed {
-		events = append(events, transform(e))
+		results = append(results, v1.ScrapeResult{
+			LastModified: now,
+			BaseScraper:  configs.ICal.BaseScraper,
+			Config:       icalConfig,
+			ChangeResult: eventToChangeResult(e),
+		})
 	}
 
-	result = result.
-		ChResult(&v1.ChangeResult{ChangeType: "ical"}).
-		Success(v1.ICalConfig{Events: events})
-
-	results = append(results, result)
 	return
 
 }
 
-func fetchData(url string, requester httprequest.Requester) ([]byte, error) {
-
-	data, err := requester.Get(url)
+func fetch(url string) ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		logger.Tracef("could not fetch data url(%s): %s", url, err.Error())
 		return nil, err
 	}
-	return data, nil
 
+	client := http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }
 
 func parse(r io.Reader) ([]gocal.Event, error) {
@@ -75,9 +98,17 @@ func parse(r io.Reader) ([]gocal.Event, error) {
 
 }
 
-func transform(event gocal.Event) v1.Event {
-	return v1.Event{
-		Summary: event.Summary,
-		Date:    event.Start.Format("January 2, 2006"),
+func eventToChangeResult(event gocal.Event) *v1.ChangeResult {
+
+	details := map[string]string{
+		"description": event.Description,
+		"location":    event.Location,
+		"status":      event.Status,
 	}
+	changeResult := v1.ChangeResult{
+		ChangeType: EventType,
+		CreatedAt:  event.Created,
+		Details:    details,
+	}
+	return &changeResult
 }

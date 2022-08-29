@@ -7,7 +7,6 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	fs "github.com/flanksource/confighub/filesystem"
-	"github.com/flanksource/confighub/httprequest"
 	"github.com/flanksource/kommons"
 )
 
@@ -62,8 +61,7 @@ type AnalysisResults []AnalysisResult
 
 // Manager ...
 type Manager struct {
-	Finder    fs.Finder
-	Requester httprequest.Requester
+	Finder fs.Finder
 }
 
 type ScrapeResults []ScrapeResult
@@ -120,11 +118,6 @@ type ScrapeResult struct {
 
 func (s ScrapeResult) Success(config interface{}) ScrapeResult {
 	s.Config = config
-	return s
-}
-
-func (s ScrapeResult) ChResult(c *ChangeResult) ScrapeResult {
-	s.ChangeResult = c
 	return s
 }
 
