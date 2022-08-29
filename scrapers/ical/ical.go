@@ -20,7 +20,11 @@ func (ical ICalScrapper) Scrape(ctx v1.ScrapeContext, configs v1.ConfigScraper, 
 		Source:      config.URL,
 	}
 
-	data := fetchData(config.URL, manager.Requester)
+	data, err := fetchData(config.URL, manager.Requester)
+	if err != nil {
+		results = append(results, result.Errorf("failed to fetch data from url(%s): %s", config.URL, err.Error()))
+		return
+	}
 
 	parsed, err := parse(bytes.NewBuffer(data))
 	if err != nil {
@@ -42,19 +46,21 @@ func (ical ICalScrapper) Scrape(ctx v1.ScrapeContext, configs v1.ConfigScraper, 
 
 }
 
-func fetchData(url string, requester httprequest.Requester) []byte {
+func fetchData(url string, requester httprequest.Requester) ([]byte, error) {
 
 	data, err := requester.Get(url)
 	if err != nil {
 		logger.Tracef("could not fetch data url(%s): %s", url, err.Error())
+		return nil, err
 	}
-	return data
+	return data, nil
 
 }
 
 func parse(r io.Reader) ([]gocal.Event, error) {
 
 	// all events in 1 year
+	// TODO: unable to parse all the events if no start, end specified
 	start, end := time.Now(), time.Now().Add(12*30*24*time.Hour)
 
 	c := gocal.NewParser(r)
