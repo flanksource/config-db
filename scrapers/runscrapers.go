@@ -2,8 +2,9 @@ package scrapers
 
 import (
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/scrapers/processors"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/scrapers/analysis"
+	"github.com/flanksource/config-db/scrapers/processors"
 )
 
 // Run ...
@@ -13,6 +14,13 @@ func Run(ctx v1.ScrapeContext, manager v1.Manager, configs ...v1.ConfigScraper) 
 
 		for _, scraper := range All {
 			for _, result := range scraper.Scrape(ctx, config, manager) {
+
+				if result.AnalysisResult != nil {
+					if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
+						result.AnalysisResult.AnalysisType = rule.Category
+						result.AnalysisResult.Severity = rule.Severity
+					}
+				}
 
 				if result.Config == nil && result.AnalysisResult != nil {
 					results = append(results, result)

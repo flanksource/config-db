@@ -37,7 +37,6 @@ func (aws Scraper) config(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResu
 			results.Analysis(*obj.ConfigRuleName, *obj.ResourceType, *obj.ResourceId).
 				Message(deref(rule.Description)).
 				Message(deref(compliance.Annotation))
-
 		}
 	}
 
