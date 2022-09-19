@@ -192,5 +192,5 @@ func (ctx ScrapeContext) GetNamespace() string {
 
 // IsTrace ...
 func (ctx ScrapeContext) IsTrace() bool {
-	return logger.IsTraceEnabled()
+	return ctx.Scraper != nil && ctx.Scraper.IsTrace()
 }

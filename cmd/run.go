@@ -43,13 +43,15 @@ var Run = &cobra.Command{
 		if err != nil {
 			logger.Fatalf(err.Error())
 		}
-		logger.Infof("Found %d resources", len(results))
 
 		if db.ConnectionString != "" {
+			logger.Infof("Exporting %d resources to DB", len(results))
 			if err = db.Update(ctx, results); err != nil {
 				logger.Errorf("Failed to update db: %+v", err)
 			}
 		} else if outputDir != "" {
+			logger.Infof("Exporting %d resources to %s", outputDir)
+
 			for _, result := range results {
 				if err := exportResource(result, filename, outputDir); err != nil {
 					logger.Fatalf("failed to export results %v", err)
@@ -57,7 +59,7 @@ var Run = &cobra.Command{
 			}
 
 		} else {
-			logger.Infof("skipping export: neither --output-dir or --db is specified")
+			logger.Fatalf("skipping export: neither --output-dir or --db is specified")
 		}
 
 	},
