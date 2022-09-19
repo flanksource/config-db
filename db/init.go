@@ -38,7 +38,7 @@ func Flags(flags *pflag.FlagSet) {
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
-//go:embed all:migrations/_always/*.sql
+//go:embed migrations/_always/*.sql
 var embedScripts embed.FS
 
 // Pool ...
