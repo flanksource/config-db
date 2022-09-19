@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/db/models"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db/models"
 )
 
 func GetJSON(ci models.ConfigItem) []byte {

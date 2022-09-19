@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	repoimpl "github.com/flanksource/confighub/db/repository"
+	repoimpl "github.com/flanksource/config-db/db/repository"
 	"github.com/jackc/pgx/v4/log/logrusadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
@@ -37,6 +37,9 @@ func Flags(flags *pflag.FlagSet) {
 
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
+
+//go:embed migrations/_always/*.sql
+var embedScripts embed.FS
 
 // Pool ...
 var Pool *pgxpool.Pool
@@ -119,8 +122,26 @@ func Migrate() error {
 	}
 	defer db.Close()
 
-	if err := goose.Up(db, "migrations", goose.WithAllowMissing()); err != nil {
-		return err
+	for {
+		err = goose.UpByOne(db, "migrations", goose.WithAllowMissing())
+		if err == goose.ErrNoNextVersion {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	scripts, _ := embedScripts.ReadDir("migrations/_always")
+
+	for _, file := range scripts {
+		script, err := embedScripts.ReadFile("migrations/_always/" + file.Name())
+		if err != nil {
+			return err
+		}
+		if _, err := Pool.Exec(context.TODO(), string(script)); err != nil {
+			return err
+		}
 	}
 	return nil
 }

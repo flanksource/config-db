@@ -7,6 +7,7 @@ CREATE TABLE config_scrapers (
   description TEXT NULL,
   scraper_type text NOT NULL,
   spec jsonb,
+  created_by UUID null,
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now()
 );
@@ -28,6 +29,7 @@ CREATE TABLE config_items (
   config jsonb null,
   source TEXT null,
   tags jsonb null,
+  created_by UUID null,
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now(),
   FOREIGN KEY (scraper_id) REFERENCES config_scrapers(id)
@@ -52,12 +54,14 @@ CREATE TABLE config_changes (
   id UUID DEFAULT generate_ulid() PRIMARY KEY,
   config_id UUID NOT NULL,
   external_change_id text NULL,
+  external_created_by TEXT NULL,
   change_type text NULL,
   severity text  NULL,
   source text  NULL,
   summary text,
   patches jsonb null,
   details jsonb null,
+  created_by UUID null,
   created_at timestamp NOT NULL DEFAULT now(),
   FOREIGN KEY (config_id) REFERENCES config_items(id)
 );
@@ -88,8 +92,6 @@ CREATE TABLE saved_query (
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now()
 );
-
--- INSERT INTO config_db_version (version_id,is_applied,tstamp) values ('3',true, now())
 
 
 -- +goose StatementEnd

@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/aws/smithy-go/ptr"
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/confighub/api/v1"
+	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan types.Event) error {

@@ -6,9 +6,9 @@ import (
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/db/models"
-	"github.com/flanksource/confighub/db/ulid"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/config-db/db/ulid"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )

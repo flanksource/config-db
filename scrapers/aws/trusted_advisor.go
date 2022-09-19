@@ -5,8 +5,36 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/confighub/api/v1"
+	v1 "github.com/flanksource/config-db/api/v1"
 )
+
+func mapCategory(category string) string {
+	switch category {
+	case "cost_optimizing":
+		return "cost"
+	case "performance":
+		return "performance"
+	case "fault_tolerance":
+		return "reliability"
+	case "cost":
+		return "Cost"
+	case "recommendation":
+		return "Recommendation"
+	case "other":
+		return "Other"
+	}
+	return category
+}
+
+func mapSeverity(severity string) string {
+	switch severity {
+	case "Red":
+		return "critical"
+	case "Yellow":
+		return "warning"
+	}
+	return "info"
+}
 
 func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
 	if config.Excludes("trusted_advisor") {
@@ -72,7 +100,9 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 				}
 			}
 			analysis := results.Analysis(*check.Name, externalType, id)
-			analysis.AnalysisType = *check.Category
+			analysis.AnalysisType = mapCategory(*check.Category)
+			analysis.Severity = mapSeverity(metadata["Status"])
+			delete(metadata, "Status")
 			analysis.Message(deref(check.Description))
 			analysis.Analysis = metadata
 

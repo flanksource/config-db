@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/confighub/db"
-	"github.com/flanksource/confighub/utils/kube"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/kommons"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -34,7 +34,7 @@ func readFromEnv(v string) string {
 
 // Root ...
 var Root = &cobra.Command{
-	Use: "confighub",
+	Use: "config-db",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		count, _ := cmd.Flags().GetCount("loglevel")
 		// logger.StandardLogger().(logsrusapi.Logger).Out = os.Stderr
@@ -75,7 +75,7 @@ func init() {
 	}
 	Root.AddCommand(&cobra.Command{
 		Use:   "version",
-		Short: "Print the version of confighub",
+		Short: "Print the version of config-db",
 		Args:  cobra.MinimumNArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println(version)

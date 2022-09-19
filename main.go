@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/flanksource/confighub/cmd"
+	"github.com/flanksource/config-db/cmd"
 )
 
 func main() {

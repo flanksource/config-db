@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	jsonpatch "github.com/evanphx/json-patch"
-	v1 "github.com/flanksource/confighub/api/v1"
-	fs "github.com/flanksource/confighub/filesystem"
+	v1 "github.com/flanksource/config-db/api/v1"
+	fs "github.com/flanksource/config-db/filesystem"
 )
 
 func TestRun(t *testing.T) {
@@ -107,7 +107,7 @@ func TestRun(t *testing.T) {
 			t.Errorf("expected %d results, got: %d", len(tc.expectedResult), len(results))
 		}
 
-		for i := 0; i < len(results); i++ {
+		for i := 0; i < len(tc.expectedResult); i++ {
 			want := tc.expectedResult[i]
 			got := results[i]
 

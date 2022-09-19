@@ -5,9 +5,9 @@ import (
 	"io/ioutil"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/confighub/analyzers"
-	v1 "github.com/flanksource/confighub/api/v1"
-	"github.com/flanksource/confighub/scrapers/aws"
+	"github.com/flanksource/config-db/analyzers"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/scrapers/aws"
 	"github.com/spf13/cobra"
 )
 

@@ -1,0 +1,21 @@
+ec2-instance-no-public-ip:
+  category: security
+  severity: critical
+cloudtrail-enabled:
+  category: security
+  severity: critical
+iam-user-mfa-enabled:
+  category: security
+  severity: critical
+root-account-hardware-mfa-enabled:
+  category: security
+  severity: critical
+eks-endpoint-no-public-access:
+  category: security
+  severity: critical
+vpc-flow-logs-enabled:
+  category: security
+  severity: warning
+Exposed Access Keys:
+  category: security
+  severity: critical

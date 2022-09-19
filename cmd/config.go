@@ -10,7 +10,7 @@ import (
 	gotemplate "text/template"
 
 	"github.com/flanksource/commons/text"
-	v1 "github.com/flanksource/confighub/api/v1"
+	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/pkg/errors"
 
 	"gopkg.in/flanksource/yaml.v3"
