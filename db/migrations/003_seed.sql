@@ -18,6 +18,10 @@ CREATE TABLE config_items (
   config_type text NOT NULL, -- The standardized type e.g. Subnet, Network, Host, etc. that applies across platforms
   external_id text[],
   external_type text, -- The external type, that combined with external id forms the natural id
+  cost_per_minute numeric(16,4) NULL,
+  cost_total_1d numeric(16,4) NULL,
+  cost_total_7d numeric(16,4) NULL,
+  cost_total_30d numeric(16,4) NULL,
   name text,
   namespace text,
   description text,
