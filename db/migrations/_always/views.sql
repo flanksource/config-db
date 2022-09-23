@@ -2,7 +2,23 @@ DROP VIEW IF EXISTS configs;
 
 CREATE or REPLACE VIEW configs AS
   SELECT
-    ci.*,
+    ci.id,
+    ci.scraper_id,
+    ci.config_type,
+    ci.external_id,
+    ci.external_type,
+    ci.name,
+    ci.namespace,
+    ci.description,
+    ci.source,
+    ci.tags,
+    ci.created_by,
+    ci.created_at,
+    ci.updated_at,
+    ci.cost_per_minute,
+    ci.cost_total_1d,
+    ci.cost_total_7d,
+    ci.cost_total_30d,
     analysis,
     changes
   FROM config_items as ci
