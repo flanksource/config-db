@@ -13,23 +13,26 @@ import (
 	athena "github.com/uber/athenadriver/go"
 )
 
-const hourlyQueryTemplate = `
-    SELECT sum(cost) FROM $table
-    WHERE line_item_resource_id = @id AND line_item_product_code = @product_code AND line_item_usage_end_date = (
-        SELECT MAX(line_item_usage_end_date) FROM $table
-        WHERE line_item_resource_id = @id AND line_item_product_code = @product_code
-    );
-`
-
-const dayQueryTemplate = `
-    WITH max_end_date AS (
-        SELECT MAX(line_item_usage_end_date) as end_date FROM $table
-        WHERE line_item_resource_id = @id AND line_item_product_code = @product_code
-    )
-    SELECT sum(cost) FROM $table
-    WHERE line_item_resource_id = @id AND line_item_product_code = @product_code AND
-        line_item_usage_end_date = (SELECT end_date FROM max_end_date) AND
-        line_item_usage_start_date >= (SELECT date_add('day', -$days, end_date) FROM max_end_date)
+const costQueryTemplate = `
+    WITH
+        max_end_date AS (
+            SELECT MAX(line_item_usage_end_date) as end_date FROM $table
+            WHERE line_item_resource_id = @id AND line_item_product_code = @product_code
+        ),
+        results AS (
+            SELECT line_item_unblended_cost, line_item_usage_start_date FROM $table
+            WHERE line_item_resource_id = @id AND line_item_product_code = @product_code
+        )
+    SELECT
+        SUM(CASE WHEN line_item_usage_start_date >= (SELECT date_add('hour', -1, end_date) FROM max_end_date) THEN line_item_unblended_cost
+            ELSE 0 END) as hourly,
+        SUM(CASE WHEN line_item_usage_start_date >= (SELECT date_add('day', -1, end_date) FROM max_end_date) THEN line_item_unblended_cost
+            ELSE 0 END) as daily,
+        SUM(CASE WHEN line_item_usage_start_date >= (SELECT date_add('day', -7, end_date) FROM max_end_date) THEN line_item_unblended_cost
+            ELSE 0 END) as weekly,
+        SUM(CASE WHEN line_item_usage_start_date >= (SELECT date_add('day', -30, end_date) FROM max_end_date) THEN line_item_unblended_cost
+            ELSE 0 END) as monthly
+    FROM results
 `
 
 func getJSONKey(body, key string) (interface{}, error) {
@@ -123,39 +126,15 @@ func FetchCosts(ctx *v1.ScrapeContext, config v1.AWS, ci models.ConfigItem) (per
 	}
 
 	table := fmt.Sprintf("%s.%s", config.CostReporting.Database, config.CostReporting.Table)
-
+	query := strings.ReplaceAll(costQueryTemplate, "$table", table)
 	queryArgs := []interface{}{sql.Named("id", attrs.ResourceID), sql.Named("product_code", attrs.ProductCode)}
 
-	var hourlyCost float64
-	hourlyQuery := strings.ReplaceAll(hourlyQueryTemplate, "$table", table)
-	if err = athenaDB.QueryRow(hourlyQuery, queryArgs...).Scan(&hourlyCost); err != nil {
-		return periodicCosts{}, err
+	var costs periodicCosts
+	if err = athenaDB.QueryRow(query, queryArgs...).Scan(&costs.Hourly, &costs.Daily, &costs.Weekly, &costs.Monthly); err != nil {
+		return periodicCosts{}, nil
 	}
 
-	var dailyCost float64
-	dailyQuery := strings.ReplaceAll(strings.ReplaceAll(dayQueryTemplate, "$table", table), "$days", "1")
-	if err = athenaDB.QueryRow(dailyQuery, queryArgs...).Scan(&dailyCost); err != nil {
-		return periodicCosts{}, err
-	}
-
-	var weeklyCost float64
-	weeklyQuery := strings.ReplaceAll(strings.ReplaceAll(dayQueryTemplate, "$table", table), "$days", "7")
-	if err = athenaDB.QueryRow(weeklyQuery, queryArgs...).Scan(&weeklyCost); err != nil {
-		return periodicCosts{}, err
-	}
-
-	var monthlyCost float64
-	monthlyQuery := strings.ReplaceAll(strings.ReplaceAll(dayQueryTemplate, "$table", table), "$days", "30")
-	if err = athenaDB.QueryRow(monthlyQuery, queryArgs...).Scan(&monthlyCost); err != nil {
-		return periodicCosts{}, err
-	}
-
-	return periodicCosts{
-		Hourly:  hourlyCost,
-		Daily:   dailyCost,
-		Weekly:  weeklyCost,
-		Monthly: monthlyCost,
-	}, nil
+	return costs, nil
 }
 
 type CostScraper struct{}
