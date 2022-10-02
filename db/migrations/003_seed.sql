@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 ---
 
-CREATE TABLE config_scrapers (
+CREATE TABLE IF NOT EXISTS config_scrapers (
   id UUID DEFAULT generate_ulid() PRIMARY KEY,
   description TEXT NULL,
   scraper_type text NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE config_scrapers (
   updated_at timestamp NOT NULL DEFAULT now()
 );
 
-CREATE TABLE config_items (
+CREATE TABLE IF NOT EXISTS config_items (
   id UUID DEFAULT generate_ulid() PRIMARY KEY,
   scraper_id UUID NULL,
   config_type text NOT NULL, -- The standardized type e.g. Subnet, Network, Host, etc. that applies across platforms

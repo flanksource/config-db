@@ -35,3 +35,7 @@ func CreateConfigChange(change *models.ConfigChange) error {
 func QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, error) {
 	return repository.QueryConfigItems(request)
 }
+
+func QueryAWSResources(accountID string) ([]models.ConfigItem, error) {
+	return repository.QueryAWSResources(accountID)
+}

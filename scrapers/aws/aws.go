@@ -533,6 +533,8 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 	}
 
 	for _, lb := range loadbalancers.LoadBalancerDescriptions {
+		az := lb.AvailabilityZones[0]
+		region := az[:len(az)-1]
 		*results = append(*results, v1.ScrapeResult{
 			ExternalType: "AWS::ElasticLoadBalancing::LoadBalancer",
 			CreatedAt:    lb.CreatedTime,
@@ -542,6 +544,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Type:         "LoadBalancer",
 			Name:         *lb.LoadBalancerName,
 			Account:      *ctx.Caller.Account,
+			Region:       region,
 			ID:           *lb.LoadBalancerName})
 	}
 

@@ -110,6 +110,10 @@ type ScrapeResult struct {
 	AnalysisResult *AnalysisResult `json:"analysis,omitempty"`
 	ChangeResult   *ChangeResult   `json:"change,omitempty"`
 	Ignore         []string        `json:"-"`
+	CostPerMinute  float64         `json:"cost_per_minute,omitempty"`
+	CostTotal1d    float64         `json:"cost_total_1d,omitempty"`
+	CostTotal7d    float64         `json:"cost_total_7d,omitempty"`
+	CostTotal30d   float64         `json:"cost_total_30d,omitempty"`
 }
 
 func (s ScrapeResult) Success(config interface{}) ScrapeResult {
@@ -124,22 +128,26 @@ func (s ScrapeResult) Errorf(msg string, args ...interface{}) ScrapeResult {
 
 func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 	clone := ScrapeResult{
-		LastModified: s.LastModified,
-		Aliases:      s.Aliases,
-		Type:         s.Type,
-		Account:      s.Account,
-		Network:      s.Network,
-		Subnet:       s.Subnet,
-		Region:       s.Region,
-		Zone:         s.Zone,
-		Name:         s.Name,
-		Namespace:    s.Namespace,
-		ID:           s.ID,
-		Source:       s.Source,
-		Config:       config,
-		Tags:         s.Tags,
-		BaseScraper:  s.BaseScraper,
-		Error:        s.Error,
+		LastModified:  s.LastModified,
+		Aliases:       s.Aliases,
+		Type:          s.Type,
+		Account:       s.Account,
+		Network:       s.Network,
+		Subnet:        s.Subnet,
+		Region:        s.Region,
+		Zone:          s.Zone,
+		Name:          s.Name,
+		Namespace:     s.Namespace,
+		ID:            s.ID,
+		Source:        s.Source,
+		Config:        config,
+		Tags:          s.Tags,
+		BaseScraper:   s.BaseScraper,
+		Error:         s.Error,
+		CostPerMinute: s.CostPerMinute,
+		CostTotal1d:   s.CostTotal1d,
+		CostTotal7d:   s.CostTotal7d,
+		CostTotal30d:  s.CostTotal30d,
 	}
 	return clone
 }

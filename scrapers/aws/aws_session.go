@@ -48,7 +48,6 @@ func (e EndpointResolver) ResolveEndpoint(service, region string, options ...int
 }
 
 func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*aws.Config, error) {
-	namespace := ctx.GetNamespace()
 	var tr http.RoundTripper
 	tr = &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: conn.SkipTLSVerify},
@@ -78,17 +77,29 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 	}
 
 	if !isEmpty(conn.AccessKey) {
-		_, accessKey, err := ctx.Kommons.GetEnvValue(conn.AccessKey, namespace)
+		accessKey, secretKey, err := getAccessAndSecretKey(ctx, conn)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse EC2 access key: %v", err)
-		}
-		_, secretKey, err := ctx.Kommons.GetEnvValue(conn.SecretKey, namespace)
-		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("Could not parse EC2 secret key: %v", err))
+			return nil, err
 		}
 		options = append(options, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")))
 	}
 
 	cfg, err := config.LoadDefaultConfig(context.Background(), options...)
 	return &cfg, err
+}
+
+func getAccessAndSecretKey(ctx *v1.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
+	namespace := ctx.GetNamespace()
+	if isEmpty(conn.AccessKey) {
+		return "", "", nil
+	}
+	_, accessKey, err := ctx.Kommons.GetEnvValue(conn.AccessKey, namespace)
+	if err != nil {
+		return "", "", fmt.Errorf("could not parse EC2 access key: %v", err)
+	}
+	_, secretKey, err := ctx.Kommons.GetEnvValue(conn.SecretKey, namespace)
+	if err != nil {
+		return "", "", fmt.Errorf(fmt.Sprintf("could not parse EC2 secret key: %v", err))
+	}
+	return accessKey, secretKey, nil
 }

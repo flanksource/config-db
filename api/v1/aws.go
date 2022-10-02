@@ -17,12 +17,30 @@ type AWS struct {
 	Include             []string   `json:"include,omitempty"`
 	Exclude             []string   `json:"exclude,omitempty"`
 	BaseScraper         `json:",inline"`
+	CostReporting       CostReporting `json:"cost_reporting,omitempty"`
 }
 
 type CloudTrail struct {
 	Exclude []string       `json:"exclude,omitempty"`
 	MaxAge  *time.Duration `json:"max_age,omitempty"`
 }
+
+type CostReporting struct {
+	S3BucketPath string `json:"s3_bucket_path,omitempty"`
+	Table        string `json:"table,omitempty"`
+	Database     string `json:"database,omitempty"`
+	Region       string `json:"region,omitempty"`
+}
+
+const (
+	AWSEC2Instance    = "AWS::EC2::Instance"
+	AWSEKSCluster     = "AWS::EKS::Cluster"
+	AWSS3Bucket       = "AWS::S3::Bucket"
+	AWSLoadBalancer   = "AWS::ElasticLoadBalancing::LoadBalancer"
+	AWSLoadBalancerV2 = "AWS::ElasticLoadBalancingV2::LoadBalancer"
+	AWSEBSVolume      = "AWS::EBS::Volume"
+	AWSRDSInstance    = "AWS::RDS::DBInstance"
+)
 
 func (aws AWS) Includes(resource string) bool {
 	if len(aws.Include) == 0 {
