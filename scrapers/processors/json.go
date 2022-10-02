@@ -15,9 +15,21 @@ type Extract struct {
 	Items          *jp.Expr
 	Config         v1.BaseScraper
 	Excludes       []jp.Expr
+	Transform      v1.Script
 }
 
 func (e Extract) WithoutItems() Extract {
+	return Extract{
+		ID:        e.ID,
+		Type:      e.Type,
+		Name:      e.Name,
+		Config:    e.Config,
+		Excludes:  e.Excludes,
+		Transform: e.Transform,
+	}
+}
+
+func (e Extract) WithouTransform() Extract {
 	return Extract{
 		ID:       e.ID,
 		Type:     e.Type,
@@ -45,7 +57,7 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 			extract.Type = x
 		}
 	}
-	if isJSONPath(config.Items) {
+	if config.Items != "" {
 		if x, err := jp.ParseString(config.Items); err != nil {
 			return extract, fmt.Errorf("failed to parse items: %s: %v", config.Items, err)
 		} else {
@@ -69,7 +81,28 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 		}
 	}
 
+	extract.Transform = config.Transform.Script
 	return extract, nil
+}
+
+func (e Extract) String() string {
+	s := ""
+	if e.ID != nil {
+		s += fmt.Sprintf(" ID: %s", e.ID)
+	}
+	if e.Type != nil {
+		s += fmt.Sprintf(" Type: %s", e.Type)
+	}
+	if e.Name != nil {
+		s += fmt.Sprintf(" Name: %s", e.Name)
+	}
+	if e.Items != nil {
+		s += fmt.Sprintf(" Items: %s", e.Items)
+	}
+
+	s += fmt.Sprintf(" Transform: %s", e.Transform)
+
+	return s
 }
 
 func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
@@ -97,10 +130,12 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 		}
 
 		if e.Items != nil {
-			for _, item := range e.Items.Get(o) {
+			items := e.Items.Get(o)
+			logger.Debugf("Exctracted %d items with %s", len(items), *e.Items)
+			for _, item := range items {
 				extracted, err := e.WithoutItems().Extract(input.Clone(item))
 				if err != nil {
-					return results, fmt.Errorf("failed to extract: %v", err)
+					return results, fmt.Errorf("failed to extract items: %v", err)
 				}
 				results = append(results, extracted...)
 				continue
@@ -108,63 +143,88 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 		}
 
 		input.Config = o
-		if input.ID == "" {
-			input.ID, err = getString(e.ID, o, e.Config.ID)
+
+		if !input.BaseScraper.Transform.Script.IsEmpty() {
+			transformed, err := RunScript(input, input.BaseScraper.Transform.Script)
 			if err != nil {
-				return results, err
+				return results, fmt.Errorf("failed to run script: %v", err)
 			}
-		}
-
-		if input.Name == "" {
-			input.Name, err = getString(e.Name, o, input.Name)
-			if err != nil {
-				return results, err
+			for _, result := range transformed {
+				if extracted, err := e.extractAttributes(result); err != nil {
+					return results, fmt.Errorf("failed to extract attributes: %v", err)
+				} else {
+					logger.Debugf("Scraped %s", extracted)
+					results = append(results, extracted)
+				}
 			}
+			continue
 		}
 
-		if input.Name == "" {
-			input.Name = input.ID
+		if input, err := e.extractAttributes(input); err != nil {
+			return nil, fmt.Errorf("failed to extract attributes: %v", err)
+		} else {
+			logger.Debugf("Scraped %s", input)
+			results = append(results, input)
 		}
-
-		if input.Type == "" {
-			input.Type, err = getString(e.Type, o, e.Config.Type)
-			if err != nil {
-				return results, err
-			}
-		}
-
-		for _, exclude := range e.Excludes {
-			if err := exclude.Del(o); err != nil {
-				return results, fmt.Errorf("failed to exclude: %v", err)
-			}
-		}
-
-		for _, ignore := range input.Ignore {
-			if expr, err := jp.ParseString("$." + ignore); err != nil {
-				return results, fmt.Errorf("failed to parse  %s: %v", ignore, err)
-			} else if err := expr.Del(o); err != nil {
-				return results, fmt.Errorf("failed to ignore: %v", err)
-			}
-		}
-
-		input.Config = o
-
-		logger.Infof("Scraped %s", input)
-		results = append(results, input)
 	}
 	return results, nil
 }
 
-func getString(expr jp.Expr, data interface{}, def string) (string, error) {
+func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, error) {
+	var err error
+	if input.ID == "" {
+		input.ID, err = getString(e.ID, input.Config, e.Config.ID)
+		if err != nil {
+			return input, err
+		}
+	}
 
+	if input.Name == "" {
+		input.Name, err = getString(e.Name, input.Config, input.Name)
+		if err != nil {
+			return input, err
+		}
+	}
+
+	if input.Name == "" {
+		input.Name = input.ID
+	}
+
+	if input.Type == "" {
+		input.Type, err = getString(e.Type, input.Config, e.Config.Type)
+		if err != nil {
+			return input, err
+		}
+	}
+
+	for _, exclude := range e.Excludes {
+		if err := exclude.Del(input.Config); err != nil {
+			return input, err
+		}
+	}
+
+	for _, ignore := range input.Ignore {
+		if expr, err := jp.ParseString("$." + ignore); err != nil {
+			return input, fmt.Errorf("failed to parse  %s: %v", ignore, err)
+		} else if err := expr.Del(input.Config); err != nil {
+			return input, fmt.Errorf("failed to ignore: %v", err)
+		}
+	}
+
+	return input, nil
+}
+
+func getString(expr jp.Expr, data interface{}, def string) (string, error) {
 	if len(expr) == 0 {
 		return def, nil
 	}
 	o := expr.Get(data)
 	if len(o) == 0 {
+		logger.Tracef("failed to get %s from:\n %v", expr, data)
 		return "", fmt.Errorf("%s not found", expr)
 	}
-	return fmt.Sprintf("%v", o[0]), nil
+	s := fmt.Sprintf("%v", o[0])
+	return s, nil
 }
 
 func isJSONPath(path string) bool {

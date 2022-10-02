@@ -81,7 +81,7 @@ func Init(connection string) error {
 	if err := row.Scan(&size); err != nil {
 		return err
 	}
-	logger.Infof("Initialized DB: %s (%s)", config.ConnString(), size)
+	logger.Infof("Initialized DB: %s:%d/%s (%s)", config.ConnConfig.Host, config.ConnConfig.Port, config.ConnConfig.Database, size)
 
 	pgxConnectionString = stdlib.RegisterConnConfig(config.ConnConfig)
 

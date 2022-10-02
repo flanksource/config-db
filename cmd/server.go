@@ -8,7 +8,6 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	fs "github.com/flanksource/config-db/filesystem"
 	"github.com/flanksource/config-db/query"
 
 	"github.com/flanksource/config-db/scrapers"
@@ -57,8 +56,7 @@ var Serve = &cobra.Command{
 }
 
 func serve(configFiles []string) {
-
-	scraperConfigs, err := getConfigs(configFiles)
+	scraperConfigs, err := v1.ParseConfigs(configFiles...)
 	if err != nil {
 		logger.Fatalf(err.Error())
 	}
@@ -72,11 +70,8 @@ func serve(configFiles []string) {
 		}
 		_scraper := scraper
 		fn := func() {
-			ctx := v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &_scraper}
-			manager := v1.Manager{
-				Finder: fs.NewFileFinder(),
-			}
-			if results, err := scrapers.Run(ctx, manager, _scraper); err != nil {
+			ctx := &v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &_scraper}
+			if results, err := scrapers.Run(ctx, _scraper); err != nil {
 				logger.Errorf("Failed to run scraper %s: %v", _scraper, err)
 			} else if err = db.Update(ctx, results); err != nil {
 				//FIXME cache results to save to db later

@@ -56,8 +56,8 @@ func (ctx AWSContext) String() string {
 	return fmt.Sprintf("account=%s user=%s region=%s", *ctx.Caller.Account, *ctx.Caller.UserId, ctx.Session.Region)
 }
 
-func (aws Scraper) getContext(ctx v1.ScrapeContext, awsConfig v1.AWS, region string) (*AWSContext, error) {
-	session, err := NewSession(&ctx, *awsConfig.AWSConnection, region)
+func (aws Scraper) getContext(ctx *v1.ScrapeContext, awsConfig v1.AWS, region string) (*AWSContext, error) {
+	session, err := NewSession(ctx, *awsConfig.AWSConnection, region)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create AWS session")
 	}
@@ -71,7 +71,7 @@ func (aws Scraper) getContext(ctx v1.ScrapeContext, awsConfig v1.AWS, region str
 	usEast1.Region = "us-east-1"
 
 	return &AWSContext{
-		ScrapeContext: &ctx,
+		ScrapeContext: ctx,
 		Session:       session,
 		Caller:        caller,
 		STS:           STS,
@@ -607,7 +607,7 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 }
 
 // Scrape ...
-func (aws Scraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, _ v1.Manager) v1.ScrapeResults {
+func (aws Scraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.ScrapeResults {
 	results := &v1.ScrapeResults{}
 
 	for _, awsConfig := range config.AWS {

@@ -3,14 +3,12 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	fs "github.com/flanksource/config-db/filesystem"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/spf13/cobra"
 )
@@ -25,21 +23,17 @@ var Run = &cobra.Command{
 	Run: func(cmd *cobra.Command, configFiles []string) {
 
 		logger.Infof("Scrapping %v", configFiles)
-		scraperConfigs, err := getConfigs(configFiles)
+		scraperConfigs, err := v1.ParseConfigs(configFiles...)
 		if err != nil {
 			logger.Fatalf(err.Error())
 		}
 
-		ctx := v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient}
-
-		manager := v1.Manager{
-			Finder: fs.NewFileFinder(),
-		}
+		ctx := &v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient}
 
 		if db.ConnectionString != "" {
 			db.MustInit()
 		}
-		results, err := scrapers.Run(ctx, manager, scraperConfigs...)
+		results, err := scrapers.Run(ctx, scraperConfigs...)
 		if err != nil {
 			logger.Fatalf(err.Error())
 		}
@@ -50,7 +44,7 @@ var Run = &cobra.Command{
 				logger.Errorf("Failed to update db: %+v", err)
 			}
 		} else if outputDir != "" {
-			logger.Infof("Exporting %d resources to %s", outputDir)
+			logger.Infof("Exporting %d resources to %s", len(results), outputDir)
 
 			for _, result := range results {
 				if err := exportResource(result, filename, outputDir); err != nil {
@@ -78,7 +72,7 @@ func exportResource(resource v1.ScrapeResult, filename, outputDir string) error 
 	}
 
 	logger.Debugf("Exporting %s", outputPath)
-	return ioutil.WriteFile(outputPath, data, 0644)
+	return os.WriteFile(outputPath, data, 0644)
 }
 
 func init() {
