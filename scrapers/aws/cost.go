@@ -184,7 +184,8 @@ func (awsCost CostScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper,
 		for _, configItem := range configItems {
 			costs, err := FetchCosts(&ctx, awsConfig, configItem)
 			if err != nil {
-				// TODO Log
+				// TODO Log error
+				continue
 			}
 			results = append(results, v1.ScrapeResult{
 				ID:            configItem.ID,
@@ -199,14 +200,3 @@ func (awsCost CostScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper,
 
 	return results
 }
-
-/*
-Get latest line_item_usage_start_date - line_item_usage_end_date where cost > 0
-where line_item_resource_id = ? and line_item_product_code = ? (AmazonS3, AmazonEC2)
-group by
-line_item_usage_end_date
-
-
-Hourly cost of EC2 instance -> select sum(cost) from flanksource_report where line_item_resource_id = 'i-08b0205c8f05f0afd' and line_item_usage_end_date = (select max(line_item_usage_end_date) from flanksource_report where line_item_resource_id = 'i-08b0205c8f05f0afd')
-Hourly cost of S3 -> select * from flanksource_report where line_item_resource_id = 'config-bucket-745897381572' and line_item_usage_end_date = (select max(line_item_usage_end_date) from flanksource_report where line_item_resource_id = 'config-bucket-745897381572')
-*/

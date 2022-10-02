@@ -131,7 +131,6 @@ func (d *DBRepo) QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, err
 }
 
 func (d *DBRepo) QueryAWSResources(accountID string) ([]models.ConfigItem, error) {
-
 	var configItems []models.ConfigItem
 	awsResourceTypes := []string{v1.AWSEC2Instance, v1.AWSEKSCluster, v1.AWSS3Bucket, v1.AWSLoadBalancer, v1.AWSLoadBalancerV2, v1.AWSEBSVolume, v1.AWSRDSInstance}
 	if err := d.Where("account = ? AND external_type in ?", accountID, awsResourceTypes).Find(&configItems).Error; err != nil {
