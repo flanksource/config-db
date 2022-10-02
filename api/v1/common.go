@@ -10,7 +10,35 @@ type Filter struct {
 	JSONPath string `json:"jsonpath,omitempty"`
 }
 
+type Script struct {
+	GoTemplate string `yaml:"gotemplate,omitempty" json:"template,omitempty"`
+	JSONPath   string `yaml:"jsonpath,omitempty" json:"jsonpath,omitempty"`
+	Expression string `yaml:"expr,omitempty" json:"expr,omitempty"`
+	Javascript string `yaml:"javascript,omitempty" json:"javascript,omitempty"`
+}
+
+func (s Script) IsEmpty() bool {
+	return s.GoTemplate == "" && s.JSONPath == "" && s.Expression == "" && s.Javascript == ""
+}
+
+func (s Script) String() string {
+	if s.GoTemplate != "" {
+		return "go: " + s.GoTemplate
+	}
+	if s.JSONPath != "" {
+		return "jsonpath: " + s.JSONPath
+	}
+	if s.Expression != "" {
+		return "expr: " + s.Expression
+	}
+	if s.Javascript != "" {
+		return "js: " + s.Javascript
+	}
+	return ""
+}
+
 type Transform struct {
+	Script  Script   `yaml:",inline" json:",inline"`
 	Include []Filter `json:"include,omitempty"`
 	// Fields to remove from the config, useful for removing sensitive data and fields
 	// that change often without a material impact i.e. Last Scraped Time

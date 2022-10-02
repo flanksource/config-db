@@ -2,127 +2,74 @@ package scrapers
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	jsonpatch "github.com/evanphx/json-patch"
 	v1 "github.com/flanksource/config-db/api/v1"
-	fs "github.com/flanksource/config-db/filesystem"
 )
 
+func getConfig(t *testing.T, name string) v1.ConfigScraper {
+	configs, err := v1.ParseConfigs("fixtures/" + name + ".yaml")
+	if err != nil {
+		t.Errorf("Failed to parse config: %v", err)
+	}
+	return configs[0]
+}
+
+func getFixtureResult(t *testing.T, fixture string) []v1.ScrapeResult {
+	data, err := os.ReadFile("fixtures/expected/" + fixture + ".json")
+	if err != nil {
+		t.Errorf("Failed to read fixture: %v", err)
+	}
+	var results []v1.ScrapeResult
+
+	if err := json.Unmarshal(data, &results); err != nil {
+		t.Errorf("Failed to unmarshal fixture: %v", err)
+	}
+	return results
+}
+
 func TestRun(t *testing.T) {
-
-	testTable := []struct {
-		ctx            v1.ScrapeContext
-		manager        v1.Manager
-		config         v1.ConfigScraper
-		expectedResult []v1.ScrapeResult
-	}{
-		{
-			manager: v1.Manager{
-				Finder: fs.NewFileFinder(),
-			},
-			config: v1.ConfigScraper{
-				File: []v1.File{
-					{
-						BaseScraper: v1.BaseScraper{
-							ID:   "$.Config.InstanceId",
-							Type: "$.Config.InstanceType",
-						},
-
-						Paths: []string{
-							"../fixtures/config*.json",
-							"../fixtures/test*.json",
-						},
-					},
-					{
-						BaseScraper: v1.BaseScraper{
-							ID:   "$.metadata.name",
-							Type: "$.kind",
-						},
-
-						Paths: []string{
-							"fixtures/minimal/http_pass_single.yaml",
-						},
-						URL: "github.com/flanksource/canary-checker",
-					},
-				},
-			},
-			expectedResult: []v1.ScrapeResult{
-				{
-					Config: `{"Config": {"InstanceId": "instance_id_1","InstanceType": "instance_type_1"}}`,
-					Type:   "instance_type_1",
-					ID:     "instance_id_1",
-				},
-				{
-					Config: `{"Config": {"InstanceId": "instance_id_2","InstanceType": "instance_type_2"}}`,
-					Type:   "instance_type_2",
-					ID:     "instance_id_2",
-				},
-				{
-					Config: `{
-                   	"apiVersion": "canaries.flanksource.com/v1",
-                   	"kind": "Canary",
-                   	"metadata": {
-                   		"name": "http-pass-single",
-											"labels": {
-												"canary": "http"
-											}
-                   	},
-                   	"spec": {
-                   		"http": [
-                   			{
-                   				"endpoint": "http://status.savanttools.com/?code=200",
-                   				"maxSSLExpiry": 7,
-                   				"name": "sample-check",
-                   				"responseCodes": [
-                   					201,
-                   					200,
-                   					301
-                   				],
-                   				"responseContent": "",
-                   				"test": {
-                   					"expr": "code == 200"
-                   				},
-                   				"thresholdMillis": 3000
-                   			}
-                   		],
-                   		"interval": 30
-                   	}
-                   }`,
-					Type: "Canary",
-					ID:   "http-pass-single",
-				},
-			},
-		},
+	os.Chdir("..")
+	fixtures := []string{
+		"file-git",
+		"file-script",
 	}
 
-	for _, tc := range testTable {
-		results, err := Run(tc.ctx, tc.manager, tc.config)
+	for _, fixtureName := range fixtures {
+		fixture := fixtureName
+		t.Run(fixture, func(t *testing.T) {
+			config := getConfig(t, fixture)
+			expected := getFixtureResult(t, fixture)
+			results, err := Run(&v1.ScrapeContext{}, config)
 
-		if err != nil {
-			t.Errorf("Unexpected error:%s", err.Error())
-		}
-
-		if len(results) != len(tc.expectedResult) {
-			t.Errorf("expected %d results, got: %d", len(tc.expectedResult), len(results))
-		}
-
-		for i := 0; i < len(tc.expectedResult); i++ {
-			want := tc.expectedResult[i]
-			got := results[i]
-
-			if want.ID != got.ID {
-				t.Errorf("expected Id: %s, got Id: %s", want.ID, got.ID)
+			if err != nil {
+				t.Errorf("Unexpected error:%s", err.Error())
 			}
 
-			if want.Type != got.Type {
-				t.Errorf("expected Type: %s, got Type: %s", want.Type, got.Type)
+			if len(results) != len(expected) {
+				t.Errorf("expected %d results, got: %d", len(expected), len(results))
+				return
 			}
 
-			if diff := compare(want.Config, got.Config); diff != "" {
-				t.Errorf("expected Config: \n%s got Config: \n%s diff:\n%s", want.Config, got.Config, diff)
+			for i := 0; i < len(expected); i++ {
+				want := expected[i]
+				got := results[i]
+
+				if want.ID != got.ID {
+					t.Errorf("expected Id: %s, got Id: %s", want.ID, got.ID)
+				}
+
+				if want.Type != got.Type {
+					t.Errorf("expected Type: %s, got Type: %s", want.Type, got.Type)
+				}
+
+				if diff := compare(want.Config, got.Config); diff != "" {
+					t.Errorf("expected Config: \n%s got Config: \n%s diff:\n%s", want.Config, got.Config, diff)
+				}
 			}
-		}
+		})
 	}
 }
 

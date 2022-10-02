@@ -1,6 +1,8 @@
 package scrapers
 
 import (
+	"os"
+
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/scrapers/analysis"
@@ -8,12 +10,15 @@ import (
 )
 
 // Run ...
-func Run(ctx v1.ScrapeContext, manager v1.Manager, configs ...v1.ConfigScraper) ([]v1.ScrapeResult, error) {
+func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult, error) {
+	cwd, _ := os.Getwd()
+	logger.Infof("Scraping files from (PWD: %s)", cwd)
+
 	results := []v1.ScrapeResult{}
 	for _, config := range configs {
 
 		for _, scraper := range All {
-			for _, result := range scraper.Scrape(ctx, config, manager) {
+			for _, result := range scraper.Scrape(ctx, config) {
 
 				if result.AnalysisResult != nil {
 					if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {

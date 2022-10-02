@@ -1,0 +1,13 @@
+file:
+  - type: Config
+    id: $.id
+    name: $.name
+    transform:
+      script:
+        javascript: |+
+          for (var i = 0; i < config.length; i++) {
+            config[i].added ="a"
+          }
+          JSON.stringify(config)
+    paths:
+      - fixtures/multiple-configs.json
