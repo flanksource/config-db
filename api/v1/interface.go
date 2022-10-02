@@ -3,16 +3,17 @@ package v1
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	fs "github.com/flanksource/config-db/filesystem"
 	"github.com/flanksource/kommons"
 )
 
 // Scraper ...
 type Scraper interface {
-	Scrape(ctx ScrapeContext, config ConfigScraper, manager Manager) ScrapeResults
+	Scrape(ctx *ScrapeContext, config ConfigScraper) ScrapeResults
 }
 
 // Analyzer ...
@@ -58,11 +59,6 @@ func (result *AnalysisResult) Message(msg string) *AnalysisResult {
 }
 
 type AnalysisResults []AnalysisResult
-
-// Manager ...
-type Manager struct {
-	Finder fs.Finder
-}
 
 type ScrapeResults []ScrapeResult
 
@@ -176,6 +172,17 @@ type ScrapeContext struct {
 	Namespace string
 	Kommons   *kommons.Client
 	Scraper   *ConfigScraper
+}
+
+func (ctx ScrapeContext) Find(path string) ([]string, error) {
+	return filepath.Glob(path)
+}
+
+// Read returns the contents of a file, the base filename and an error
+func (ctx ScrapeContext) Read(path string) ([]byte, string, error) {
+	content, err := os.ReadFile(path)
+	filename := filepath.Base(path)
+	return content, filename, err
 }
 
 // WithScraper ...

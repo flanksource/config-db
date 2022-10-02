@@ -53,7 +53,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 
 }
 
-func updateCI(ctx v1.ScrapeContext, ci models.ConfigItem) error {
+func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 	existing, err := GetConfigItem(*ci.ExternalType, ci.ID)
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return errors.Wrapf(err, "unable to lookup existing config: %s", ci)
@@ -87,7 +87,7 @@ func updateCI(ctx v1.ScrapeContext, ci models.ConfigItem) error {
 
 }
 
-func UpdateChange(ctx v1.ScrapeContext, result *v1.ScrapeResult) error {
+func UpdateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	change := models.NewConfigChangeFromV1(*result.ChangeResult)
 
 	ci, err := repository.GetConfigItem(change.ExternalType, change.ExternalID)
@@ -102,7 +102,7 @@ func UpdateChange(ctx v1.ScrapeContext, result *v1.ScrapeResult) error {
 	return repository.CreateConfigChange(change)
 }
 
-func updateAnalysis(ctx v1.ScrapeContext, result *v1.ScrapeResult) error {
+func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := models.NewAnalysisFromV1(*result.AnalysisResult)
 	ci, err := repository.GetConfigItem(analysis.ExternalType, analysis.ExternalID)
 	if ci == nil {
@@ -121,7 +121,7 @@ func updateAnalysis(ctx v1.ScrapeContext, result *v1.ScrapeResult) error {
 }
 
 // Update creates or update a configuartion with config changes
-func Update(ctx v1.ScrapeContext, results []v1.ScrapeResult) error {
+func Update(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 	for _, result := range results {
 
 		if result.Config != nil {

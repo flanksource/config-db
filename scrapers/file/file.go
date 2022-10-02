@@ -9,7 +9,6 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/filesystem"
 	"github.com/gobwas/glob"
 	"github.com/hashicorp/go-getter"
 	"sigs.k8s.io/yaml"
@@ -45,17 +44,16 @@ func isIgnored(config v1.File, path string) (bool, error) {
 }
 
 // Scrape ...
-func (file FileScrapper) Scrape(ctx v1.ScrapeContext, configs v1.ConfigScraper, manager v1.Manager) v1.ScrapeResults {
+func (file FileScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	results := v1.ScrapeResults{}
-	finder := manager.Finder
 	var tempDir string
 	for _, config := range configs.File {
 		var globMatches []string
 		if config.URL != "" {
-			globMatches, tempDir = findFilesFromURL(config.URL, config.Paths, finder)
+			globMatches, tempDir = findFilesFromURL(ctx, config.URL, config.Paths)
 			defer os.RemoveAll(tempDir)
 		} else {
-			globMatches = findFiles("", config.Paths, finder)
+			globMatches = findFiles(ctx, "", config.Paths)
 		}
 		for _, match := range globMatches {
 			file := strings.Replace(match, tempDir+"/", "", 1)
@@ -69,7 +67,7 @@ func (file FileScrapper) Scrape(ctx v1.ScrapeContext, configs v1.ConfigScraper, 
 			} else if ignore {
 				continue
 			}
-			contentByte, _, err := finder.Read(match)
+			contentByte, _, err := ctx.Read(match)
 			if err != nil {
 				results = append(results, result.Errorf("failed to read file %s: %v", file, err))
 				continue
@@ -91,25 +89,27 @@ func (file FileScrapper) Scrape(ctx v1.ScrapeContext, configs v1.ConfigScraper, 
 	return results
 }
 
-func findFilesFromURL(url string, paths []string, finder filesystem.Finder) (matches []string, dirname string) {
+func findFilesFromURL(ctx *v1.ScrapeContext, url string, paths []string) (matches []string, dirname string) {
 	tempDir := GetTempDirName(10, charset)
 	if err := getter.GetAny(tempDir, url); err != nil {
 		logger.Errorf("Error downloading file: %s", err)
 	}
-	return findFiles(tempDir, paths, finder), tempDir
+	return findFiles(ctx, tempDir, paths), tempDir
 }
 
-func findFiles(dir string, paths []string, finder filesystem.Finder) []string {
+func findFiles(ctx *v1.ScrapeContext, dir string, paths []string) []string {
 	matches := []string{}
 	if paths == nil {
 		logger.Debugf("no paths specified, scrapping all json and yaml/yml files")
 		paths = append(paths, "**.json", "**.yaml", "**.yml")
 	}
 	for _, path := range paths {
-		match, err := finder.Find(filepath.Join(dir, path))
+		match, err := ctx.Find(filepath.Join(dir, path))
 		if err != nil {
-			logger.Tracef("could not match glob pattern(%s): %v", dir+"/"+path, err)
+			logger.Debugf("could not match glob pattern(%s): %v", dir+"/"+path, err)
 			continue
+		} else if len(match) == 0 {
+			logger.Debugf("no files found in: %s", filepath.Join(dir, path))
 		}
 		matches = append(matches, match...) // using a seperate slice to avoid nested loops and complexity
 	}
