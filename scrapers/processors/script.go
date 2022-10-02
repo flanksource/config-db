@@ -32,8 +32,12 @@ func RunScript(result v1.ScrapeResult, script v1.Script) ([]v1.ScrapeResult, err
 	// javascript
 	if script.Javascript != "" {
 		vm := otto.New()
-		vm.Set("config", result.Config)
-		vm.Set("result", result)
+		if err := vm.Set("config", result.Config); err != nil {
+			return nil, err
+		}
+		if err := vm.Set("result", result); err != nil {
+			return nil, err
+		}
 		_out, err := vm.Run(script.Javascript)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to run javascript")

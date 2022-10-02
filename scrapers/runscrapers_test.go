@@ -31,7 +31,7 @@ func getFixtureResult(t *testing.T, fixture string) []v1.ScrapeResult {
 }
 
 func TestRun(t *testing.T) {
-	os.Chdir("..")
+	_ = os.Chdir("..")
 	fixtures := []string{
 		"file-git",
 		"file-script",
