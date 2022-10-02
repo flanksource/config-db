@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/analyzers"
@@ -28,7 +28,7 @@ var Analyze = &cobra.Command{
 		objects := []v1.ScrapeResult{}
 		for _, path := range configs {
 			obj := v1.ScrapeResult{}
-			data, err := ioutil.ReadFile(path)
+			data, err := os.ReadFile(path)
 			if err != nil {
 				logger.Fatalf("could not read %s: %v", path, err)
 			}
@@ -52,7 +52,7 @@ var Analyze = &cobra.Command{
 		}
 		if outputFormat == "json" {
 			data, _ := json.Marshal(results)
-			if err := ioutil.WriteFile(outputFile, data, 0644); err != nil {
+			if err := os.WriteFile(outputFile, data, 0644); err != nil {
 				logger.Fatalf("Failed to write to %s: %v", outputFile, err)
 			}
 		}
