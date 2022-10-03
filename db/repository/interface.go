@@ -13,5 +13,4 @@ type Database interface {
 	CreateConfigChange(*models.ConfigChange) error
 	QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, error)
 	CreateAnalysis(models.Analysis) error
-	QueryAWSResources(string) ([]models.ConfigItem, error)
 }

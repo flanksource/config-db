@@ -130,13 +130,4 @@ func (d *DBRepo) QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, err
 	return &response, nil
 }
 
-func (d *DBRepo) QueryAWSResources(accountID string) ([]models.ConfigItem, error) {
-	var configItems []models.ConfigItem
-	awsResourceTypes := []string{v1.AWSEC2Instance, v1.AWSEKSCluster, v1.AWSS3Bucket, v1.AWSLoadBalancer, v1.AWSLoadBalancerV2, v1.AWSEBSVolume, v1.AWSRDSInstance}
-	if err := d.Where("account = ? AND external_type in ?", accountID, awsResourceTypes).Find(&configItems).Error; err != nil {
-		return configItems, err
-	}
-	return configItems, nil
-}
-
 // select id, external_type, external_id, analysis from config_items as ci full join (select config_id,array_agg(analyzer) as analysis from config_analysis group by config_id) as ca on ca.config_id = ci.id where analysis is not null limit 150

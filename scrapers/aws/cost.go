@@ -2,96 +2,49 @@ package aws
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/db/models"
 	athena "github.com/uber/athenadriver/go"
 )
 
 const costQueryTemplate = `
     WITH
-        max_end_date AS (
-            SELECT MAX(line_item_usage_end_date) as end_date FROM $table
-            WHERE line_item_resource_id = @id AND line_item_product_code = @product_code
-        ),
-        results AS (
-            SELECT line_item_unblended_cost, line_item_usage_start_date FROM $table
-            WHERE line_item_resource_id = @id AND line_item_product_code = @product_code
-        )
-    SELECT
-        SUM(CASE WHEN line_item_usage_start_date >= (SELECT date_add('hour', -1, end_date) FROM max_end_date) THEN line_item_unblended_cost
-            ELSE 0 END) as hourly,
-        SUM(CASE WHEN line_item_usage_start_date >= (SELECT date_add('day', -1, end_date) FROM max_end_date) THEN line_item_unblended_cost
-            ELSE 0 END) as daily,
-        SUM(CASE WHEN line_item_usage_start_date >= (SELECT date_add('day', -7, end_date) FROM max_end_date) THEN line_item_unblended_cost
-            ELSE 0 END) as weekly,
-        SUM(CASE WHEN line_item_usage_start_date >= (SELECT date_add('day', -30, end_date) FROM max_end_date) THEN line_item_unblended_cost
-            ELSE 0 END) as monthly
-    FROM results
+        max_end_date AS (SELECT MAX(line_item_usage_end_date) as end_date FROM $table
+    )
+
+    SELECT DISTINCT
+        items.line_item_product_code, items.line_item_resource_id, cost_1h.cost as cost_1h, cost_1d.cost as cost_1d, cost_7d.cost as cost_7d, cost_30d.cost as cost_30d
+    FROM $table as items
+
+    INNER JOIN (
+        SELECT SUM(line_item_unblended_cost) as cost, line_item_product_code, line_item_resource_id FROM $table
+        WHERE line_item_unblended_cost > 0 AND line_item_usage_start_date >= (SELECT date_add('hour', -1, end_date) FROM max_end_date)
+        GROUP BY line_item_product_code, line_item_resource_id) AS cost_1h
+    ON cost_1h.line_item_product_code = items.line_item_product_code AND items.line_item_resource_id = cost_1h.line_item_resource_id
+
+    INNER JOIN (
+        SELECT SUM(line_item_unblended_cost) as cost, line_item_product_code, line_item_resource_id FROM $table
+        WHERE line_item_unblended_cost > 0 AND line_item_usage_start_date >= (SELECT date_add('day', -1, end_date) FROM max_end_date)
+        GROUP BY line_item_product_code, line_item_resource_id) AS cost_1d
+    ON cost_1d.line_item_product_code = items.line_item_product_code AND items.line_item_resource_id = cost_1d.line_item_resource_id
+
+    INNER JOIN (
+        SELECT SUM(line_item_unblended_cost) as cost, line_item_product_code, line_item_resource_id FROM $table
+        WHERE line_item_unblended_cost > 0 AND line_item_usage_start_date >= (SELECT date_add('day', -7, end_date) FROM max_end_date)
+        GROUP BY line_item_product_code, line_item_resource_id) AS cost_7d
+    ON cost_7d.line_item_product_code = items.line_item_product_code AND items.line_item_resource_id = cost_7d.line_item_resource_id
+
+    INNER JOIN (
+        SELECT SUM(line_item_unblended_cost) as cost, line_item_product_code, line_item_resource_id FROM $table
+        WHERE line_item_unblended_cost > 0 AND line_item_usage_start_date >= (SELECT date_add('day', -30, end_date) FROM max_end_date)
+        GROUP BY line_item_product_code, line_item_resource_id) AS cost_30d
+    ON cost_30d.line_item_product_code = items.line_item_product_code AND items.line_item_resource_id = cost_30d.line_item_resource_id
 `
-
-func getJSONKey(body, key string) (interface{}, error) {
-	var j map[string]interface{}
-	if err := json.Unmarshal([]byte(body), &j); err != nil {
-		return nil, err
-	}
-	return j[key], nil
-}
-
-type productAttributes struct {
-	ResourceID  string
-	ProductCode string
-}
-
-func getProductAttributes(ci models.ConfigItem) (productAttributes, error) {
-	var resourceID, productCode string
-
-	switch *ci.ExternalType {
-	case v1.AWSEC2Instance:
-		resourceID = *ci.Name
-		productCode = "AmazonEC2"
-
-	case v1.AWSEKSCluster:
-		arn, err := getJSONKey(*ci.Config, "arn")
-		if err != nil {
-			return productAttributes{}, err
-		}
-		resourceID = arn.(string)
-		productCode = "AmazonEKS"
-
-	case v1.AWSS3Bucket:
-		resourceID = *ci.Name
-		productCode = "AmazonS3"
-
-	case v1.AWSLoadBalancer:
-		resourceID = fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", *ci.Region, *ci.Account, *ci.Name)
-		productCode = "AWSELB"
-
-	case v1.AWSLoadBalancerV2:
-		resourceID = ci.ExternalID[0]
-		// TODO: Check
-		productCode = "AWSELBV2"
-
-	case v1.AWSEBSVolume:
-		resourceID = *ci.Name
-		productCode = "AmazonEC2"
-
-	case v1.AWSRDSInstance:
-		// TODO: Check
-		resourceID = ci.ExternalID[0]
-		productCode = "AmazonRDS"
-	}
-
-	return productAttributes{
-		ResourceID:  resourceID,
-		ProductCode: productCode,
-	}, nil
-}
 
 func getAWSAthenaConfig(ctx *v1.ScrapeContext, awsConfig v1.AWS) (*athena.Config, error) {
 	accessKey, secretKey, err := getAccessAndSecretKey(ctx, *awsConfig.AWSConnection)
@@ -102,39 +55,46 @@ func getAWSAthenaConfig(ctx *v1.ScrapeContext, awsConfig v1.AWS) (*athena.Config
 	return conf, err
 }
 
-type periodicCosts struct {
-	Hourly  float64
-	Daily   float64
-	Weekly  float64
-	Monthly float64
+type LineItemRow struct {
+	ProductCode string
+	ResourceID  string
+	Cost1h      float64
+	Cost1d      float64
+	Cost7d      float64
+	Cost30d     float64
 }
 
-func FetchCosts(ctx *v1.ScrapeContext, config v1.AWS, ci models.ConfigItem) (periodicCosts, error) {
-	attrs, err := getProductAttributes(ci)
-	if err != nil {
-		return periodicCosts{}, err
-	}
+func FetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
+	var lineItemRows []LineItemRow
 
 	athenaConf, err := getAWSAthenaConfig(ctx, config)
 	if err != nil {
-		return periodicCosts{}, err
+		return lineItemRows, err
 	}
 
 	athenaDB, err := sql.Open(athena.DriverName, athenaConf.Stringify())
 	if err != nil {
-		return periodicCosts{}, err
+		return lineItemRows, err
 	}
 
 	table := fmt.Sprintf("%s.%s", config.CostReporting.Database, config.CostReporting.Table)
 	query := strings.ReplaceAll(costQueryTemplate, "$table", table)
-	queryArgs := []interface{}{sql.Named("id", attrs.ResourceID), sql.Named("product_code", attrs.ProductCode)}
 
-	var costs periodicCosts
-	if err = athenaDB.QueryRow(query, queryArgs...).Scan(&costs.Hourly, &costs.Daily, &costs.Weekly, &costs.Monthly); err != nil {
-		return periodicCosts{}, nil
+	rows, err := athenaDB.Query(query)
+	if err != nil {
+		return lineItemRows, err
 	}
 
-	return costs, nil
+	for rows.Next() {
+		var row LineItemRow
+		if err := rows.Scan(&row.ProductCode, &row.ResourceID, &row.Cost1h, &row.Cost1d, &row.Cost7d, &row.Cost30d); err != nil {
+			logger.Errorf("Error scanning athena database rows: %v", err)
+			continue
+		}
+		lineItemRows = append(lineItemRows, row)
+	}
+
+	return lineItemRows, nil
 }
 
 type CostScraper struct{}
@@ -147,34 +107,43 @@ func (awsCost CostScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper,
 		if err != nil {
 			return results.Errorf(err, "failed to create AWS session")
 		}
-		STS := sts.NewFromConfig(*session)
-		caller, err := STS.GetCallerIdentity(ctx, nil)
+		stsClient := sts.NewFromConfig(*session)
+		caller, err := stsClient.GetCallerIdentity(ctx, nil)
 		if err != nil {
 			return results.Errorf(err, "failed to get identity")
 		}
 		accountID := *caller.Account
 
-		// fetch config items which match aws resources and account
-		configItems, err := db.QueryAWSResources(accountID)
+		rows, err := FetchCosts(&ctx, awsConfig)
 		if err != nil {
-			return results.Errorf(err, "failed to query config items from db")
+			return results.Errorf(err, "failed to fetch costs")
 		}
 
-		for _, configItem := range configItems {
-			costs, err := FetchCosts(&ctx, awsConfig, configItem)
-			if err != nil {
-				// TODO Log error
+		gormDB := db.DefaultDB()
+		var accountTotal1h, accountTotal1d, accountTotal7d, accountTotal30d float64
+		for _, row := range rows {
+			tx := gormDB.Exec(`
+                UPDATE config_items SET cost_per_minute = ?, cost_total_1d = ?, cost_total_7d = ?, cost_total_30d = ?
+                WHERE ? = ANY(external_id)`, row.Cost1h/60, row.Cost1d, row.Cost7d, row.Cost30d, fmt.Sprintf("%s/%s", row.ProductCode, row.ResourceID))
+
+			if tx.Error != nil {
+				logger.Errorf("Error updating costs for config_item: %v", err)
 				continue
 			}
-			results = append(results, v1.ScrapeResult{
-				ID:            configItem.ID,
-				CostPerMinute: costs.Hourly / 60,
-				CostTotal1d:   costs.Daily,
-				CostTotal7d:   costs.Weekly,
-				CostTotal30d:  costs.Monthly,
-			})
+
+			if tx.RowsAffected == 0 {
+				accountTotal1h += row.Cost1h
+				accountTotal1d += row.Cost1d
+				accountTotal7d += row.Cost7d
+				accountTotal30d += row.Cost30d
+			}
 		}
 
+		err = gormDB.Exec(`
+            UPDATE config_items SET cost_per_minute = ?, cost_total_1d = ?, cost_total_7d = ?, cost_total_30d = ?
+            WHERE external_type = 'AWS::::Account' AND ? = ANY(external_id)`,
+			accountTotal1h/60, accountTotal1d, accountTotal7d, accountTotal30d, accountID,
+		).Error
 	}
 
 	return results
