@@ -14,7 +14,7 @@ import (
 
 const costQueryTemplate = `
     WITH
-        max_end_date AS (SELECT MAX(line_item_usage_end_date) as end_date FROM $table
+        max_end_date AS (SELECT MAX(line_item_usage_end_date) as end_date FROM $table WHERE line_item_usage_end_date <= now()
     )
 
     SELECT DISTINCT
@@ -47,12 +47,28 @@ const costQueryTemplate = `
 `
 
 func getAWSAthenaConfig(ctx *v1.ScrapeContext, awsConfig v1.AWS) (*athena.Config, error) {
+	conf := athena.NewNoOpsConfig()
+
+	if err := conf.SetRegion(awsConfig.CostReporting.Region); err != nil {
+		return nil, err
+	}
+	if err := conf.SetOutputBucket(awsConfig.CostReporting.S3BucketPath); err != nil {
+		return nil, err
+	}
+
 	accessKey, secretKey, err := getAccessAndSecretKey(ctx, *awsConfig.AWSConnection)
 	if err != nil {
 		return nil, err
 	}
-	conf, err := athena.NewDefaultConfig(awsConfig.CostReporting.S3BucketPath, awsConfig.CostReporting.Region, accessKey, secretKey)
-	return conf, err
+	if len(accessKey) > 0 && len(secretKey) > 0 {
+		if err = conf.SetAccessID(accessKey); err != nil {
+			return nil, err
+		}
+		if err = conf.SetSecretAccessKey(secretKey); err != nil {
+			return nil, err
+		}
+	}
+	return conf, nil
 }
 
 type LineItemRow struct {
@@ -136,7 +152,9 @@ func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper
 				accountTotal1d += row.Cost1d
 				accountTotal7d += row.Cost7d
 				accountTotal30d += row.Cost30d
+				continue
 			}
+			logger.Infof("Updated cost for AWS Resource: %s/%s", row.ProductCode, row.ResourceID)
 		}
 
 		err = gormDB.Exec(`
@@ -147,6 +165,7 @@ func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper
 		if err != nil {
 			logger.Errorf("Error updating costs for account: %v", err)
 		}
+		logger.Infof("Updated cost for AWS Account: %s", accountID)
 	}
 
 	return results
