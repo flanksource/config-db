@@ -144,6 +144,9 @@ func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper
             WHERE external_type = 'AWS::::Account' AND ? = ANY(external_id)`,
 			accountTotal1h/60, accountTotal1d, accountTotal7d, accountTotal30d, accountID,
 		).Error
+		if err != nil {
+			logger.Errorf("Error updating costs for account: %v", err)
+		}
 	}
 
 	return results
