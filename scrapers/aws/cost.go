@@ -99,11 +99,11 @@ func FetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
 
 type CostScraper struct{}
 
-func (awsCost CostScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper, _ v1.Manager) v1.ScrapeResults {
+func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
 	for _, awsConfig := range config.AWS {
-		session, err := NewSession(&ctx, *awsConfig.AWSConnection, awsConfig.Region[0])
+		session, err := NewSession(ctx, *awsConfig.AWSConnection, awsConfig.Region[0])
 		if err != nil {
 			return results.Errorf(err, "failed to create AWS session")
 		}
@@ -114,7 +114,7 @@ func (awsCost CostScraper) Scrape(ctx v1.ScrapeContext, config v1.ConfigScraper,
 		}
 		accountID := *caller.Account
 
-		rows, err := FetchCosts(&ctx, awsConfig)
+		rows, err := FetchCosts(ctx, awsConfig)
 		if err != nil {
 			return results.Errorf(err, "failed to fetch costs")
 		}
