@@ -7,16 +7,16 @@ import (
 
 // AWS ...
 type AWS struct {
+	BaseScraper `json:",inline"`
 	*AWSConnection
-	PatchStates         bool       `json:"patch_states,omitempty"`
-	PatchDetails        bool       `json:"patch_details,omitempty"`
-	Inventory           bool       `json:"inventory,omitempty"`
-	Compliance          bool       `json:"compliance,omitempty"`
-	CloudTrail          CloudTrail `json:"cloudtrail,omitempty"`
-	TrustedAdvisorCheck bool       `json:"trusted_advisor_check,omitempty"`
-	Include             []string   `json:"include,omitempty"`
-	Exclude             []string   `json:"exclude,omitempty"`
-	BaseScraper         `json:",inline"`
+	PatchStates         bool          `json:"patch_states,omitempty"`
+	PatchDetails        bool          `json:"patch_details,omitempty"`
+	Inventory           bool          `json:"inventory,omitempty"`
+	Compliance          bool          `json:"compliance,omitempty"`
+	CloudTrail          CloudTrail    `json:"cloudtrail,omitempty"`
+	TrustedAdvisorCheck bool          `json:"trusted_advisor_check,omitempty"`
+	Include             []string      `json:"include,omitempty"`
+	Exclude             []string      `json:"exclude,omitempty"`
 	CostReporting       CostReporting `json:"cost_reporting,omitempty"`
 }
 
