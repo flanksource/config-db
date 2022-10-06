@@ -7,22 +7,40 @@ import (
 
 // AWS ...
 type AWS struct {
+	BaseScraper `json:",inline"`
 	*AWSConnection
-	PatchStates         bool       `json:"patch_states,omitempty"`
-	PatchDetails        bool       `json:"patch_details,omitempty"`
-	Inventory           bool       `json:"inventory,omitempty"`
-	Compliance          bool       `json:"compliance,omitempty"`
-	CloudTrail          CloudTrail `json:"cloudtrail,omitempty"`
-	TrustedAdvisorCheck bool       `json:"trusted_advisor_check,omitempty"`
-	Include             []string   `json:"include,omitempty"`
-	Exclude             []string   `json:"exclude,omitempty"`
-	BaseScraper         `json:",inline"`
+	PatchStates         bool          `json:"patch_states,omitempty"`
+	PatchDetails        bool          `json:"patch_details,omitempty"`
+	Inventory           bool          `json:"inventory,omitempty"`
+	Compliance          bool          `json:"compliance,omitempty"`
+	CloudTrail          CloudTrail    `json:"cloudtrail,omitempty"`
+	TrustedAdvisorCheck bool          `json:"trusted_advisor_check,omitempty"`
+	Include             []string      `json:"include,omitempty"`
+	Exclude             []string      `json:"exclude,omitempty"`
+	CostReporting       CostReporting `json:"cost_reporting,omitempty"`
 }
 
 type CloudTrail struct {
 	Exclude []string       `json:"exclude,omitempty"`
 	MaxAge  *time.Duration `json:"max_age,omitempty"`
 }
+
+type CostReporting struct {
+	S3BucketPath string `json:"s3_bucket_path,omitempty"`
+	Table        string `json:"table,omitempty"`
+	Database     string `json:"database,omitempty"`
+	Region       string `json:"region,omitempty"`
+}
+
+const (
+	AWSEC2Instance    = "AWS::EC2::Instance"
+	AWSEKSCluster     = "AWS::EKS::Cluster"
+	AWSS3Bucket       = "AWS::S3::Bucket"
+	AWSLoadBalancer   = "AWS::ElasticLoadBalancing::LoadBalancer"
+	AWSLoadBalancerV2 = "AWS::ElasticLoadBalancingV2::LoadBalancer"
+	AWSEBSVolume      = "AWS::EBS::Volume"
+	AWSRDSInstance    = "AWS::RDS::DBInstance"
+)
 
 func (aws AWS) Includes(resource string) bool {
 	if len(aws.Include) == 0 {

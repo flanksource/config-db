@@ -118,7 +118,7 @@ func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.S
 			Config:       image,
 			Type:         "Container",
 			Name:         *image.RepositoryName,
-			Aliases:      []string{*image.RepositoryArn},
+			Aliases:      []string{*image.RepositoryArn, "AmazonECR/" + *image.RepositoryArn},
 			Account:      *ctx.Caller.Account,
 			ID:           *image.RepositoryUri,
 			Ignore: []string{
@@ -157,7 +157,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Network:      *cluster.Cluster.ResourcesVpcConfig.VpcId,
 			Name:         getName(cluster.Cluster.Tags, clusterName),
 			Account:      *ctx.Caller.Account,
-			Aliases:      []string{*cluster.Cluster.Arn},
+			Aliases:      []string{*cluster.Cluster.Arn, "AmazonEKS/+" + *cluster.Cluster.Arn},
 			ID:           *cluster.Cluster.Name,
 			Ignore:       []string{"createdAt", "name"},
 		})
@@ -303,10 +303,10 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			BaseScraper:  config.BaseScraper,
 			Config:       volume,
 			Type:         "EBS",
-
-			Name:    getName(tags, *volume.VolumeId),
-			Account: *ctx.Caller.Account,
-			ID:      *volume.VolumeId,
+			Aliases:      []string{"AmazonEC2/" + *volume.VolumeId},
+			Name:         getName(tags, *volume.VolumeId),
+			Account:      *ctx.Caller.Account,
+			ID:           *volume.VolumeId,
 		})
 	}
 }
@@ -336,6 +336,7 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Name:         getName(tags, *instance.DBInstanceIdentifier),
 			Account:      *ctx.Caller.Account,
 			ID:           *instance.DBInstanceIdentifier,
+			Aliases:      []string{"AmazonRDS/" + *instance.DBInstanceArn},
 		})
 	}
 }
@@ -362,6 +363,7 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			Name:         getName(tags, *vpc.VpcId),
 			Account:      *ctx.Caller.Account,
 			ID:           *vpc.VpcId,
+			Aliases:      []string{"AmazonEC2/" + *vpc.VpcId},
 		})
 	}
 }
@@ -395,7 +397,9 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				Region:       ctx.Subnets[instance.SubnetID].Region,
 				Name:         instance.GetHostname(),
 				Account:      *ctx.Caller.Account,
-				ID:           instance.InstanceID})
+				Aliases:      []string{"AmazonEC2/" + instance.InstanceID},
+				ID:           instance.InstanceID,
+			})
 		}
 	}
 }
@@ -493,6 +497,7 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			Type:         "S3Bucket",
 			Name:         *bucket.Name,
 			Ignore:       []string{"name", "creationDate"},
+			Aliases:      []string{"AmazonS3/" + *bucket.Name},
 			ID:           *bucket.Name})
 	}
 }
@@ -515,7 +520,7 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 			Type:         "DNSZone",
 			Name:         *zone.Name,
 			Account:      *ctx.Caller.Account,
-			Aliases:      []string{*zone.Id, *zone.Name},
+			Aliases:      []string{*zone.Id, *zone.Name, "AmazonRoute53/arn:aws:route53:::hostedzone/" + *zone.Id},
 			ID:           strings.ReplaceAll(*zone.Id, "/hostedzone/", "")})
 	}
 }
@@ -533,6 +538,9 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 	}
 
 	for _, lb := range loadbalancers.LoadBalancerDescriptions {
+		az := lb.AvailabilityZones[0]
+		region := az[:len(az)-1]
+		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, *ctx.Caller.Account, *lb.LoadBalancerName)
 		*results = append(*results, v1.ScrapeResult{
 			ExternalType: "AWS::ElasticLoadBalancing::LoadBalancer",
 			CreatedAt:    lb.CreatedTime,
@@ -542,6 +550,8 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Type:         "LoadBalancer",
 			Name:         *lb.LoadBalancerName,
 			Account:      *ctx.Caller.Account,
+			Region:       region,
+			Aliases:      []string{"AWSELB/" + arn},
 			ID:           *lb.LoadBalancerName})
 	}
 
@@ -562,6 +572,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Type:         "LoadBalancer",
 			Name:         *lb.LoadBalancerName,
 			Account:      *ctx.Caller.Account,
+			Aliases:      []string{"AWSELB/" + *lb.LoadBalancerArn},
 			ID:           *lb.LoadBalancerArn})
 	}
 
