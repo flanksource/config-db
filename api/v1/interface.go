@@ -82,7 +82,7 @@ func (s *ScrapeResults) Analysis(analyzer string, externalType string, id string
 }
 
 func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeResults {
-	logger.Errorf(msg, args...)
+	logger.Errorf("%s: %v", fmt.Sprintf(msg, args...), e)
 	*s = append(*s, ScrapeResult{Error: e})
 	return *s
 }
