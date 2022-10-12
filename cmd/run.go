@@ -37,7 +37,6 @@ var Run = &cobra.Command{
 		if err != nil {
 			logger.Fatalf(err.Error())
 		}
-
 		if db.ConnectionString != "" {
 			logger.Infof("Exporting %d resources to DB", len(results))
 			if err = db.Update(ctx, results); err != nil {
