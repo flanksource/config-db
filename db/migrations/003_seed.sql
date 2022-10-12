@@ -39,9 +39,9 @@ CREATE TABLE IF NOT EXISTS config_items (
   FOREIGN KEY (scraper_id) REFERENCES config_scrapers(id)
 );
 
-CREATE INDEX idx_config_items_external_id ON config_items USING GIN(external_id);
+CREATE INDEX IF NOT EXISTS idx_config_items_external_id ON config_items USING GIN(external_id);
 
-CREATE TABLE config_relationships(
+CREATE TABLE IF NOT EXISTS config_relationships(
   config_id UUID NOT NULL,
   related_id UUID NOT NULL,
   property text NULL, -- The component property name that this config is for
@@ -54,7 +54,7 @@ CREATE TABLE config_relationships(
 	UNIQUE (related_id,config_id,selector_id)
 );
 
-CREATE TABLE config_changes (
+CREATE TABLE IF NOT EXISTS config_changes (
   id UUID DEFAULT generate_ulid() PRIMARY KEY,
   config_id UUID NOT NULL,
   external_change_id text NULL,
@@ -71,7 +71,7 @@ CREATE TABLE config_changes (
 );
 
 
-CREATE TABLE config_analysis (
+CREATE TABLE IF NOT EXISTS config_analysis (
   id UUID DEFAULT generate_ulid() PRIMARY KEY,
   config_id uuid NOT NULL,
   analyzer text NOT NULL,
@@ -86,7 +86,7 @@ CREATE TABLE config_analysis (
   FOREIGN KEY (config_id) REFERENCES config_items(id)
 );
 
-CREATE TABLE saved_query (
+CREATE TABLE IF NOT EXISTS saved_query (
   id UUID DEFAULT generate_ulid() PRIMARY KEY,
   icon TEXT NULL,
   description TEXT NULL,

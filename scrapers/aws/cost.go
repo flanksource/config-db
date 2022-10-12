@@ -147,8 +147,6 @@ func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper
 				continue
 			}
 
-			logger.Debugf("Setting costs: %f,%f,%f,%f for %s. Updated Rows: %d", row.Cost1h/60, row.Cost1d, row.Cost7d, row.Cost30d, fmt.Sprintf("%s/%s", row.ProductCode, row.ResourceID), tx.RowsAffected)
-
 			if tx.RowsAffected == 0 {
 				accountTotal1h += row.Cost1h
 				accountTotal1d += row.Cost1d
