@@ -49,7 +49,7 @@ func (d *DBRepo) CreateConfigItem(ci *models.ConfigItem) error {
 
 // UpdateConfigItem updates all the fields of a given config item row
 func (d *DBRepo) UpdateConfigItem(ci *models.ConfigItem) error {
-	if err := d.Save(ci).Error; err != nil {
+	if err := d.Updates(ci).Error; err != nil {
 		return err
 	}
 
