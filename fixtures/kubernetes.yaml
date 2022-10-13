@@ -5,11 +5,11 @@ kubernetes:
        - APIService
        - events
        - endpoints.discovery.k8s.io
-       - endpointslice.discovery.k8s.io
-       - lease.coordination.k8s.io
+       - endpointslices.discovery.k8s.io
+       - leases.coordination.k8s.io
        - podmetrics.metrics.k8s.io
        - nodemetrics.metrics.k8s.io
        - customresourcedefinition
        - controllerrevision
        - certificaterequest
-       - order.acme.cert-manager.io
+       - orders.acme.cert-manager.io
