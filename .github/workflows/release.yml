@@ -26,7 +26,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: v1.17.x
+          go-version: v1.18.x
       - uses: actions/cache@v2
         with:
           path: |
@@ -63,19 +63,27 @@ jobs:
           tags: "latest,v${{ needs.semantic-release.outputs.release-version }}"
   helm:
     runs-on: ubuntu-latest
-    needs: semantic-release
+    needs: [semantic-release, docker]
     steps:
       - uses: actions/checkout@v2
       - name: Download yq
         run: |
           wget -nv -nc -O yq https://github.com/mikefarah/yq/releases/download/v4.20.2/yq_linux_amd64
           chmod +x yq
+      - name: Set version
+        run: |
+          if ${{ needs.semantic-release.outputs.new-release-published }}; then
+            echo "RELEASE_VERSION=${{ needs.semantic-release.outputs.release-version }}" >> $GITHUB_ENV
+          else
+            export VERSION=$(git describe --abbrev=0 --tags | sed -e 's/^v//')
+            echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+          fi
       - name: Update chart version
-        run: ./yq -i e '.version = "${{ needs.semantic-release.outputs.release-version }}"' chart/Chart.yaml
+        run: ./yq -i e '.version = "${{ env.RELEASE_VERSION }}"' chart/Chart.yaml
       - name: Update app version
-        run: ./yq -i e '.appVersion = "${{ needs.semantic-release.outputs.release-version }}"' chart/Chart.yaml
+        run: ./yq -i e '.appVersion = "${{ env.RELEASE_VERSION }}"' chart/Chart.yaml
       - name: Update image tags
-        run: ./yq -i e '.image.tag = "v${{ needs.semantic-release.outputs.release-version }}"' chart/values.yaml
+        run: ./yq -i e '.image.tag = "v${{ env.RELEASE_VERSION }}"' chart/values.yaml
       - name: Set up Helm
         uses: azure/setup-helm@v1
         with:
