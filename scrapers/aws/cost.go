@@ -3,6 +3,7 @@ package aws
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -21,25 +22,25 @@ const costQueryTemplate = `
         items.line_item_product_code, items.line_item_resource_id, cost_1h.cost as cost_1h, cost_1d.cost as cost_1d, cost_7d.cost as cost_7d, cost_30d.cost as cost_30d
     FROM $table as items
 
-    INNER JOIN (
+    FULL JOIN (
         SELECT SUM(line_item_unblended_cost) as cost, line_item_product_code, line_item_resource_id FROM $table
         WHERE line_item_unblended_cost > 0 AND line_item_usage_start_date >= (SELECT date_add('hour', -1, end_date) FROM max_end_date)
         GROUP BY line_item_product_code, line_item_resource_id) AS cost_1h
     ON cost_1h.line_item_product_code = items.line_item_product_code AND items.line_item_resource_id = cost_1h.line_item_resource_id
 
-    INNER JOIN (
+    FULL JOIN (
         SELECT SUM(line_item_unblended_cost) as cost, line_item_product_code, line_item_resource_id FROM $table
         WHERE line_item_unblended_cost > 0 AND line_item_usage_start_date >= (SELECT date_add('day', -1, end_date) FROM max_end_date)
         GROUP BY line_item_product_code, line_item_resource_id) AS cost_1d
     ON cost_1d.line_item_product_code = items.line_item_product_code AND items.line_item_resource_id = cost_1d.line_item_resource_id
 
-    INNER JOIN (
+    FULL JOIN (
         SELECT SUM(line_item_unblended_cost) as cost, line_item_product_code, line_item_resource_id FROM $table
         WHERE line_item_unblended_cost > 0 AND line_item_usage_start_date >= (SELECT date_add('day', -7, end_date) FROM max_end_date)
         GROUP BY line_item_product_code, line_item_resource_id) AS cost_7d
     ON cost_7d.line_item_product_code = items.line_item_product_code AND items.line_item_resource_id = cost_7d.line_item_resource_id
 
-    INNER JOIN (
+    FULL JOIN (
         SELECT SUM(line_item_unblended_cost) as cost, line_item_product_code, line_item_resource_id FROM $table
         WHERE line_item_unblended_cost > 0 AND line_item_usage_start_date >= (SELECT date_add('day', -30, end_date) FROM max_end_date)
         GROUP BY line_item_product_code, line_item_resource_id) AS cost_30d
@@ -102,12 +103,25 @@ func FetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
 	}
 
 	for rows.Next() {
-		var row LineItemRow
-		if err := rows.Scan(&row.ProductCode, &row.ResourceID, &row.Cost1h, &row.Cost1d, &row.Cost7d, &row.Cost30d); err != nil {
+		var productCode, resourceID, cost1h, cost1d, cost7d, cost30d string
+		if err := rows.Scan(&productCode, &resourceID, &cost1h, &cost1d, &cost7d, &cost30d); err != nil {
 			logger.Errorf("Error scanning athena database rows: %v", err)
 			continue
 		}
-		lineItemRows = append(lineItemRows, row)
+
+		cost1hFloat, _ := strconv.ParseFloat(cost1h, 64)
+		cost1dFloat, _ := strconv.ParseFloat(cost1d, 64)
+		cost7dFloat, _ := strconv.ParseFloat(cost7d, 64)
+		cost30dFloat, _ := strconv.ParseFloat(cost30d, 64)
+
+		lineItemRows = append(lineItemRows, LineItemRow{
+			ProductCode: productCode,
+			ResourceID:  resourceID,
+			Cost1h:      cost1hFloat,
+			Cost1d:      cost1dFloat,
+			Cost7d:      cost7dFloat,
+			Cost30d:     cost30dFloat,
+		})
 	}
 
 	return lineItemRows, nil

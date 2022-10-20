@@ -157,7 +157,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Network:      *cluster.Cluster.ResourcesVpcConfig.VpcId,
 			Name:         getName(cluster.Cluster.Tags, clusterName),
 			Account:      *ctx.Caller.Account,
-			Aliases:      []string{*cluster.Cluster.Arn, "AmazonEKS/+" + *cluster.Cluster.Arn},
+			Aliases:      []string{*cluster.Cluster.Arn, "AmazonEKS/" + *cluster.Cluster.Arn},
 			ID:           *cluster.Cluster.Name,
 			Ignore:       []string{"createdAt", "name"},
 		})
