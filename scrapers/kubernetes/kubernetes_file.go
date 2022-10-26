@@ -196,7 +196,7 @@ func findPods(ctx *v1.ScrapeContext, client *kubernetes.Clientset, config v1.Res
 
 func stripLabels(labels map[string]string, strip ...string) map[string]string {
 	var toDelete []string
-	for k, _ := range labels {
+	for k := range labels {
 		for _, s := range strip {
 			if strings.HasSuffix(k, s) || strings.HasPrefix(k, s) {
 				toDelete = append(toDelete, k)

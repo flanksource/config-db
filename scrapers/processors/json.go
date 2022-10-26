@@ -116,8 +116,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 		if input.Format == "properties" {
 			props, err := properties.LoadString(input.Config.(string))
 			if err != nil {
-				return results, errors.Wrapf(err, "Failed to properties %s", input)
-				continue
+				return results, errors.Wrapf(err, "Failed parse properties %s", input)
 			}
 			input.Config = props.Map()
 		}
