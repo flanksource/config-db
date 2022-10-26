@@ -28,7 +28,7 @@ func deleteChangeHandler(ctx *v1.ScrapeContext, change v1.ChangeResult) error {
 		Update("deleted_at", deletedAt)
 
 	if tx.Error != nil {
-		return errors.Wrapf(tx.Error, "unable to delete config item: %s", change.ExternalType, change.ExternalID)
+		return errors.Wrapf(tx.Error, "unable to delete config item %s/%s", change.ExternalType, change.ExternalID)
 	}
 	if tx.RowsAffected == 0 || len(configs) == 0 {
 		logger.Warnf("Attempt to delete non-existent config item %s/%s", change.ExternalType, change.ExternalID)
