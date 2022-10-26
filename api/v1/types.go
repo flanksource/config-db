@@ -2,11 +2,12 @@ package v1
 
 // ConfigScraper ...
 type ConfigScraper struct {
-	LogLevel   string       `json:"logLevel,omitempty"`
-	Schedule   string       `json:"schedule,omitempty"`
-	AWS        []AWS        `json:"aws,omitempty" yaml:"aws,omitempty"`
-	File       []File       `json:"file,omitempty" yaml:"file,omitempty"`
-	Kubernetes []Kubernetes `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
+	LogLevel       string           `json:"logLevel,omitempty"`
+	Schedule       string           `json:"schedule,omitempty"`
+	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
+	File           []File           `json:"file,omitempty" yaml:"file,omitempty"`
+	Kubernetes     []Kubernetes     `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
+	KubernetesFile []KubernetesFile `json:"kubernetesFile,omitempty" yaml:"kubernetesFile,omitempty"`
 }
 
 // IsEmpty ...
