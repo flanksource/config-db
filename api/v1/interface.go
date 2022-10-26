@@ -96,33 +96,31 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 
 // ScrapeResult ...
 type ScrapeResult struct {
-	CreatedAt      *time.Time      `json:"created_at,omitempty"`
-	LastModified   time.Time       `json:"last_modified,omitempty"`
-	Type           string          `json:"type,omitempty"`
-	ExternalType   string          `json:"external_type,omitempty"`
-	Account        string          `json:"account,omitempty"`
-	Network        string          `json:"network,omitempty"`
-	Subnet         string          `json:"subnet,omitempty"`
-	Region         string          `json:"region,omitempty"`
-	Zone           string          `json:"zone,omitempty"`
-	Name           string          `json:"name,omitempty"`
-	Namespace      string          `json:"namespace,omitempty"`
-	ID             string          `json:"id,omitempty"`
-	Aliases        []string        `json:"aliases,omitempty"`
-	Source         string          `json:"source,omitempty"`
-	Config         interface{}     `json:"config,omitempty"`
-	Format         string          `json:"format,omitempty"`
-	Tags           JSONStringMap   `json:"tags,omitempty"`
-	BaseScraper    BaseScraper     `json:"-"`
-	Error          error           `json:"-"`
-	AnalysisResult *AnalysisResult `json:"analysis,omitempty"`
-	ChangeResult   *ChangeResult   `json:"change,omitempty"`
-	Ignore         []string        `json:"-"`
-	Action         string          `json:",omitempty"`
-	CostPerMinute  float64         `json:"cost_per_minute,omitempty"`
-	CostTotal1d    float64         `json:"cost_total_1d,omitempty"`
-	CostTotal7d    float64         `json:"cost_total_7d,omitempty"`
-	CostTotal30d   float64         `json:"cost_total_30d,omitempty"`
+	CreatedAt          *time.Time      `json:"created_at,omitempty"`
+	LastModified       time.Time       `json:"last_modified,omitempty"`
+	Type               string          `json:"type,omitempty"`
+	ExternalType       string          `json:"external_type,omitempty"`
+	Account            string          `json:"account,omitempty"`
+	Network            string          `json:"network,omitempty"`
+	Subnet             string          `json:"subnet,omitempty"`
+	Region             string          `json:"region,omitempty"`
+	Zone               string          `json:"zone,omitempty"`
+	Name               string          `json:"name,omitempty"`
+	Namespace          string          `json:"namespace,omitempty"`
+	ID                 string          `json:"id,omitempty"`
+	Aliases            []string        `json:"aliases,omitempty"`
+	Source             string          `json:"source,omitempty"`
+	Config             interface{}     `json:"config,omitempty"`
+	Format             string          `json:"format,omitempty"`
+	Tags               JSONStringMap   `json:"tags,omitempty"`
+	BaseScraper        BaseScraper     `json:"-"`
+	Error              error           `json:"-"`
+	AnalysisResult     *AnalysisResult `json:"analysis,omitempty"`
+	ChangeResult       *ChangeResult   `json:"change,omitempty"`
+	Ignore             []string        `json:"-"`
+	Action             string          `json:",omitempty"`
+	ParentExternalID   string          `json:"-"`
+	ParentExternalType string          `json:"-"`
 }
 
 func (s ScrapeResult) Success(config interface{}) ScrapeResult {
@@ -137,26 +135,22 @@ func (s ScrapeResult) Errorf(msg string, args ...interface{}) ScrapeResult {
 
 func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 	clone := ScrapeResult{
-		LastModified:  s.LastModified,
-		Aliases:       s.Aliases,
-		Type:          s.Type,
-		Account:       s.Account,
-		Network:       s.Network,
-		Subnet:        s.Subnet,
-		Region:        s.Region,
-		Zone:          s.Zone,
-		Name:          s.Name,
-		Namespace:     s.Namespace,
-		ID:            s.ID,
-		Source:        s.Source,
-		Config:        config,
-		Tags:          s.Tags,
-		BaseScraper:   s.BaseScraper,
-		Error:         s.Error,
-		CostPerMinute: s.CostPerMinute,
-		CostTotal1d:   s.CostTotal1d,
-		CostTotal7d:   s.CostTotal7d,
-		CostTotal30d:  s.CostTotal30d,
+		LastModified: s.LastModified,
+		Aliases:      s.Aliases,
+		Type:         s.Type,
+		Account:      s.Account,
+		Network:      s.Network,
+		Subnet:       s.Subnet,
+		Region:       s.Region,
+		Zone:         s.Zone,
+		Name:         s.Name,
+		Namespace:    s.Namespace,
+		ID:           s.ID,
+		Source:       s.Source,
+		Config:       config,
+		Tags:         s.Tags,
+		BaseScraper:  s.BaseScraper,
+		Error:        s.Error,
 	}
 	return clone
 }

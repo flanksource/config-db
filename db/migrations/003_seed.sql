@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS config_items (
   config jsonb null,
   source TEXT null,
   tags jsonb null,
+  parent_id UUID DEFAULT NULL,
+  path text NULL,
   created_by UUID null,
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now(),

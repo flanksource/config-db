@@ -54,6 +54,9 @@ const (
 	AWSLoadBalancerV2 = "AWS::ElasticLoadBalancingV2::LoadBalancer"
 	AWSEBSVolume      = "AWS::EBS::Volume"
 	AWSRDSInstance    = "AWS::RDS::DBInstance"
+	AWSEC2VPC         = "AWS::EC2::VPC"
+	AWSEC2Subnet      = "AWS::EC2::Subnet"
+	AWSAccount        = "AWS::::Account"
 )
 
 func (aws AWS) Includes(resource string) bool {

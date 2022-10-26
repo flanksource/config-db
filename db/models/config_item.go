@@ -25,6 +25,8 @@ type ConfigItem struct {
 	Subnet        *string           `gorm:"column:subnet;default:null" json:"subnet,omitempty"  `
 	Config        *string           `gorm:"column:config;default:null" json:"config,omitempty"  `
 	Source        *string           `gorm:"column:source;default:null" json:"source,omitempty"  `
+	ParentID      *string           `gorm:"column:parent_id;default:null" json:"parent_id,omitempty"`
+	Path          string            `gorm:"column:path;default:null" json:"path,omitempty"`
 	CostPerMinute float64           `gorm:"column:cost_per_minute;default:null" json:"cost_per_minute,omitempty"`
 	CostTotal1d   float64           `gorm:"column:cost_total_1d;default:null" json:"cost_total_1d,omitempty"`
 	CostTotal7d   float64           `gorm:"column:cost_total_7d;default:null" json:"cost_total_7d,omitempty"`
