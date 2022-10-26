@@ -36,20 +36,27 @@ type AnalysisResult struct {
 }
 
 type ChangeResult struct {
-	ExternalID   string
-	ExternalType string
-	ChangeType   string
-	Patches      string
-	Summary      string
-	Severity     string
-	Source       string
-	CreatedAt    *time.Time
-	Details      map[string]string
+	ExternalID       string
+	ExternalType     string
+	ExternalChangeID string
+	Action           ChangeAction
+	ChangeType       string
+	Patches          string
+	Summary          string
+	Severity         string
+	Source           string
+	CreatedAt        *time.Time
+	Details          map[string]string
+}
+
+func (c ChangeResult) String() string {
+	return fmt.Sprintf("%s/%s: %s", c.ExternalType, c.ExternalID, c.ChangeType)
 }
 
 func (result AnalysisResult) String() string {
 	return fmt.Sprintf("%s: %s", result.Analyzer, result.Messages)
 }
+
 func (result *AnalysisResult) Message(msg string) *AnalysisResult {
 	if msg == "" {
 		return result
@@ -104,12 +111,14 @@ type ScrapeResult struct {
 	Aliases        []string        `json:"aliases,omitempty"`
 	Source         string          `json:"source,omitempty"`
 	Config         interface{}     `json:"config,omitempty"`
+	Format         string          `json:"format,omitempty"`
 	Tags           JSONStringMap   `json:"tags,omitempty"`
 	BaseScraper    BaseScraper     `json:"-"`
 	Error          error           `json:"-"`
 	AnalysisResult *AnalysisResult `json:"analysis,omitempty"`
 	ChangeResult   *ChangeResult   `json:"change,omitempty"`
 	Ignore         []string        `json:"-"`
+	Action         string          `json:",omitempty"`
 	CostPerMinute  float64         `json:"cost_per_minute,omitempty"`
 	CostTotal1d    float64         `json:"cost_total_1d,omitempty"`
 	CostTotal7d    float64         `json:"cost_total_7d,omitempty"`

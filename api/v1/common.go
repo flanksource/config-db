@@ -56,6 +56,8 @@ type BaseScraper struct {
 	// A static value or JSONPath expression to use as the type for the resource.
 	Type      string    `json:"type,omitempty"`
 	Transform Transform `json:"transform,omitempty"`
+	// Format of config item, defaults to JSON, available options are JSON, properties
+	Format string `json:"format,omitempty"`
 }
 
 // Authentication ...
