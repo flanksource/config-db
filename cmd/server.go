@@ -73,7 +73,7 @@ func serve(configFiles []string) {
 			ctx := &v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &_scraper}
 			if results, err := scrapers.Run(ctx, _scraper); err != nil {
 				logger.Errorf("Failed to run scraper %s: %v", _scraper, err)
-			} else if err = db.Update(ctx, results); err != nil {
+			} else if err = db.SaveResults(ctx, results); err != nil {
 				//FIXME cache results to save to db later
 				logger.Errorf("Failed to update db: %v", err)
 			}

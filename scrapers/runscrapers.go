@@ -6,6 +6,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/scrapers/analysis"
+	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/scrapers/processors"
 )
 
@@ -27,7 +28,13 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 					}
 				}
 
-				if result.Config == nil && result.AnalysisResult != nil {
+				if result.ChangeResult != nil {
+					if rule, ok := changes.Rules[result.ChangeResult.ChangeType]; ok {
+						result.ChangeResult.Action = rule.Action
+					}
+				}
+
+				if result.Config == nil && (result.AnalysisResult != nil || result.ChangeResult != nil) {
 					results = append(results, result)
 				} else if result.Config != nil {
 					extractor, err := processors.NewExtractor(result.BaseScraper)

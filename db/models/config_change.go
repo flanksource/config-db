@@ -29,14 +29,15 @@ func (c ConfigChange) String() string {
 
 func NewConfigChangeFromV1(change v1.ChangeResult) *ConfigChange {
 	return &ConfigChange{
-		ExternalID:   change.ExternalID,
-		ExternalType: change.ExternalType,
-		ChangeType:   change.ChangeType,
-		Source:       change.Source,
-		Severity:     change.Severity,
-		Details:      v1.JSONStringMap(change.Details),
-		Summary:      change.Summary,
-		Patches:      change.Patches,
-		CreatedAt:    change.CreatedAt,
+		ExternalID:       change.ExternalID,
+		ExternalType:     change.ExternalType,
+		ExternalChangeId: change.ExternalChangeID,
+		ChangeType:       change.ChangeType,
+		Source:           change.Source,
+		Severity:         change.Severity,
+		Details:          v1.JSONStringMap(change.Details),
+		Summary:          change.Summary,
+		Patches:          change.Patches,
+		CreatedAt:        change.CreatedAt,
 	}
 }

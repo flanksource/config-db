@@ -3,6 +3,8 @@ package v1
 import (
 	"strings"
 	"time"
+
+	"github.com/flanksource/commons/logger"
 )
 
 // AWS ...
@@ -21,8 +23,20 @@ type AWS struct {
 }
 
 type CloudTrail struct {
-	Exclude []string       `json:"exclude,omitempty"`
-	MaxAge  *time.Duration `json:"max_age,omitempty"`
+	Exclude []string `json:"exclude,omitempty"`
+	MaxAge  string   `json:"max_age,omitempty"`
+}
+
+func (c CloudTrail) GetMaxAge() time.Duration {
+	if c.MaxAge == "" {
+		return 7 * 24 * time.Hour
+	}
+	d, err := time.ParseDuration(c.MaxAge)
+	if err != nil {
+		logger.Warnf("Invalid cloudtrail max age %s: %v", c.MaxAge, err)
+		return 7 * 24 * time.Hour
+	}
+	return d
 }
 
 type CostReporting struct {

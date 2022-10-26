@@ -39,7 +39,7 @@ var Run = &cobra.Command{
 		}
 		if db.ConnectionString != "" {
 			logger.Infof("Exporting %d resources to DB", len(results))
-			if err = db.Update(ctx, results); err != nil {
+			if err = db.SaveResults(ctx, results); err != nil {
 				logger.Errorf("Failed to update db: %+v", err)
 			}
 		} else if outputDir != "" {

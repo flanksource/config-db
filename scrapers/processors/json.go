@@ -6,8 +6,10 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/magiconair/properties"
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
+	"github.com/pkg/errors"
 )
 
 type Extract struct {
@@ -111,10 +113,19 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 
 	for _, input := range inputs {
 		var o interface{}
+		if input.Format == "properties" {
+			props, err := properties.LoadString(input.Config.(string))
+			if err != nil {
+				return results, errors.Wrapf(err, "Failed parse properties %s", input)
+			}
+			input.Config = props.Map()
+		}
+
 		if input.Config == nil {
-			logger.Errorf("failed to extract %s: %v", input, input.Error)
+			logger.Errorf("nothing extracted %s: %v", input, input.Error)
 			continue
 		}
+
 		switch input.Config.(type) {
 		case string:
 			o, err = oj.ParseString(input.Config.(string))

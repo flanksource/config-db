@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	repoimpl "github.com/flanksource/config-db/db/repository"
 	"github.com/jackc/pgx/v4/log/logrusadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
@@ -25,7 +24,7 @@ var (
 	Schema           = "public"
 	LogLevel         = "info"
 	HTTPEndpoint     = "http://localhost:8080/db"
-	defaultDB        *gorm.DB
+	db               *gorm.DB
 )
 
 // Flags ...
@@ -43,7 +42,6 @@ var embedScripts embed.FS
 
 // Pool ...
 var Pool *pgxpool.Pool
-var repository repoimpl.Database
 var pgxConnectionString string
 
 // MustInit initializes the database or fatally exits
@@ -89,13 +87,13 @@ func Init(connection string) error {
 		return err
 	}
 
-	db, err := GetDB()
+	connPool, err := GetDB()
 	if err != nil {
 		return err
 	}
 
 	gormDB, err := gorm.Open(postgres.New(postgres.Config{
-		Conn: db,
+		Conn: connPool,
 	}), &gorm.Config{
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -106,9 +104,7 @@ func Init(connection string) error {
 		return err
 	}
 
-	defaultDB = gormDB
-	repository = repoimpl.NewRepo(defaultDB)
-
+	db = gormDB
 	return nil
 }
 
@@ -153,11 +149,11 @@ func GetDB() (*sql.DB, error) {
 
 // Ping pings the database for health check
 func Ping() error {
-	d, _ := defaultDB.DB() // returns *sql.DB
+	d, _ := db.DB() // returns *sql.DB
 	return d.Ping()
 }
 
 // DefaultDB returns the default database connection instance
 func DefaultDB() *gorm.DB {
-	return defaultDB
+	return db
 }
