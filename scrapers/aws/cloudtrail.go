@@ -48,12 +48,11 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 	if len(config.CloudTrail.Exclude) == 0 {
 		config.CloudTrail.Exclude = []string{"AssumeRole"}
 	}
-	if config.CloudTrail.MaxAge == nil {
-		d := 7 * 24 * time.Hour
-		config.CloudTrail.MaxAge = &d
-	}
+
 	var lastEventKey = ctx.Session.Region + *ctx.Caller.Account
 	c := make(chan types.Event)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		count := 0
 		ignored := 0
@@ -70,10 +69,11 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 
 			for _, resource := range event.Resources {
 				change := v1.ChangeResult{
-					CreatedAt:  event.EventTime,
-					ChangeType: *event.EventName,
-					Details:    make(map[string]string),
-					Source:     fmt.Sprintf("AWS::CloudTrail::%s:%s", ctx.Session.Region, *ctx.Caller.Account),
+					CreatedAt:        event.EventTime,
+					ExternalChangeID: *event.EventId,
+					ChangeType:       *event.EventName,
+					Details:          make(map[string]string),
+					Source:           fmt.Sprintf("AWS::CloudTrail::%s:%s", ctx.Session.Region, *ctx.Caller.Account),
 				}
 
 				if resource.ResourceName != nil {
@@ -90,10 +90,11 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 			}
 		}
 		LastEventTime.Store(lastEventKey, maxTime)
-		logger.Debugf("Processed %d events, ignored %d", count, ignored)
+		logger.Infof("Processed %d events, changes=%d ignored=%d", count, len(*results), ignored)
+		wg.Done()
 	}()
 
-	start := time.Now().Add(-1 * *config.CloudTrail.MaxAge).UTC()
+	start := time.Now().Add(-1 * config.CloudTrail.GetMaxAge()).UTC()
 	if lastEventTime, ok := LastEventTime.Load(lastEventKey); ok {
 		start = lastEventTime.(time.Time)
 	}
@@ -105,16 +106,13 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 				AttributeKey:   types.LookupAttributeKeyReadOnly,
 				AttributeValue: strPtr("false"),
 			},
-			{
-				AttributeKey:   types.LookupAttributeKeyEventName,
-				AttributeValue: strPtr("AttachVolume"),
-			},
 		},
 	}, c)
 
 	if err != nil {
 		results.Errorf(err, "Failed to describe cloudtrail events")
 	}
+	wg.Wait()
 }
 
 func containsAny(a []string, v string) bool {
