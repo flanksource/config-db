@@ -1,7 +1,6 @@
 package db
 
 import (
-	"encoding/json"
 	"fmt"
 
 	jsonpatch "github.com/evanphx/json-patch"
@@ -9,48 +8,35 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/db/ulid"
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-// NewConfigItemFromResult creates a new config item instance from result
-func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error) {
-	var dataStr string
-	switch data := result.Config.(type) {
-	case string:
-		dataStr = data
-	case []byte:
-		dataStr = string(data)
-	default:
-		bytes, err := json.Marshal(data)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Unable to marshal: %v", result.Config)
-		}
-		dataStr = string(bytes)
+func deleteChangeHandler(ctx *v1.ScrapeContext, change v1.ChangeResult) error {
+	var deletedAt interface{}
+	if change.CreatedAt != nil {
+		deletedAt = change.CreatedAt
+	} else {
+		deletedAt = gorm.Expr("NOW()")
+	}
+	configs := []models.ConfigItem{}
+	tx := db.Model(&configs).
+		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
+		Where("external_type = ? and external_id  @> ?", change.ExternalType, pq.StringArray{change.ExternalID}).
+		Update("deleted_at", deletedAt)
+
+	if tx.Error != nil {
+		return errors.Wrapf(tx.Error, "unable to delete config item: %s", change.ExternalType, change.ExternalID)
+	}
+	if tx.RowsAffected == 0 || len(configs) == 0 {
+		logger.Warnf("Attempt to delete non-existent config item %s/%s", change.ExternalType, change.ExternalID)
+		return nil
 	}
 
-	ci := &models.ConfigItem{
-		ExternalID:   append(result.Aliases, result.ID),
-		ID:           result.ID,
-		ConfigType:   result.Type,
-		ExternalType: &result.ExternalType,
-		Account:      &result.Account,
-		Region:       &result.Region,
-		Zone:         &result.Zone,
-		Network:      &result.Network,
-		Subnet:       &result.Subnet,
-		Name:         &result.Name,
-		Source:       &result.Source,
-		Tags:         &result.Tags,
-		Config:       &dataStr,
-	}
-
-	if result.CreatedAt != nil {
-		ci.CreatedAt = *result.CreatedAt
-	}
-
-	return ci, nil
-
+	logger.Infof("Deleted %s from change %s", configs[0].ID, change)
+	return nil
 }
 
 func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
@@ -72,7 +58,7 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 			return fmt.Errorf("[%s] failed to update item %v", ci, err)
 		}
 	}
-	changes, err := compare(ci, *existing)
+	changes, err := generateDiff(ci, *existing)
 	if err != nil {
 		logger.Errorf("[%s] failed to check for changes: %v", ci, err)
 	}
@@ -87,24 +73,25 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 
 }
 
-func UpdateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
+func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	change := models.NewConfigChangeFromV1(*result.ChangeResult)
 
-	ci, err := repository.GetConfigItem(change.ExternalType, change.ExternalID)
+	ci, err := GetConfigItem(change.ExternalType, change.ExternalID)
 	if ci == nil {
-		logger.Warnf("[%s/%s] unable to find config item for change: %v", change.ExternalType, change.ExternalID, change)
+		logger.Warnf("[%s/%s] unable to find config item for change: %v", change.ExternalType, change.ExternalID, change.ChangeType)
 		return nil
 	} else if err != nil {
 		return err
 	}
+
 	change.ConfigID = ci.ID
 
-	return repository.CreateConfigChange(change)
+	return CreateConfigChange(change)
 }
 
 func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := models.NewAnalysisFromV1(*result.AnalysisResult)
-	ci, err := repository.GetConfigItem(analysis.ExternalType, analysis.ExternalID)
+	ci, err := GetConfigItem(analysis.ExternalType, analysis.ExternalID)
 	if ci == nil {
 		logger.Warnf("[%s/%s] unable to find config item for analysis: %+v", analysis.ExternalType, analysis.ExternalID, analysis)
 		return nil
@@ -116,12 +103,12 @@ func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis.ConfigID = ci.ID
 	analysis.ID = ulid.MustNew().AsUUID()
 
-	return repository.CreateAnalysis(analysis)
+	return CreateAnalysis(analysis)
 
 }
 
-// Update creates or update a configuartion with config changes
-func Update(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
+// SaveResults creates or update a configuartion with config changes
+func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 	for _, result := range results {
 
 		if result.Config != nil {
@@ -142,7 +129,16 @@ func Update(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 
 		if result.ChangeResult != nil {
-			if err := UpdateChange(ctx, &result); err != nil {
+			if result.ChangeResult.Action == v1.Ignore {
+				continue
+			}
+
+			if result.ChangeResult.Action == v1.Delete {
+				if err := deleteChangeHandler(ctx, *result.ChangeResult); err != nil {
+					return err
+				}
+			}
+			if err := updateChange(ctx, &result); err != nil {
 				return err
 			}
 		}
@@ -151,7 +147,7 @@ func Update(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 	return nil
 }
 
-func compare(a, b models.ConfigItem) (*models.ConfigChange, error) {
+func generateDiff(a, b models.ConfigItem) (*models.ConfigChange, error) {
 	patch, err := jsonpatch.CreateMergePatch([]byte(*a.Config), []byte(*b.Config))
 	if err != nil {
 		return nil, err

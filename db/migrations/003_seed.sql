@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS config_scrapers (
 
 CREATE TABLE IF NOT EXISTS config_items (
   id UUID DEFAULT generate_ulid() PRIMARY KEY,
+  parent_id UUID NULL,
+  path text NULL,
   scraper_id UUID NULL,
   config_type text NOT NULL, -- The standardized type e.g. Subnet, Network, Host, etc. that applies across platforms
   external_id text[],
@@ -36,7 +38,9 @@ CREATE TABLE IF NOT EXISTS config_items (
   created_by UUID null,
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now(),
-  FOREIGN KEY (scraper_id) REFERENCES config_scrapers(id)
+  deleted_at timestamp NULL,
+  FOREIGN KEY (scraper_id) REFERENCES config_scrapers(id),
+  FOREIGN KEY (parent_id) REFERENCES config_items(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_config_items_external_id ON config_items USING GIN(external_id);
@@ -57,7 +61,7 @@ CREATE TABLE IF NOT EXISTS config_relationships(
 CREATE TABLE IF NOT EXISTS config_changes (
   id UUID DEFAULT generate_ulid() PRIMARY KEY,
   config_id UUID NOT NULL,
-  external_change_id text NULL,
+  external_change_id TEXT NULL,
   external_created_by TEXT NULL,
   change_type text NULL,
   severity text  NULL,
@@ -67,7 +71,8 @@ CREATE TABLE IF NOT EXISTS config_changes (
   details jsonb null,
   created_by UUID null,
   created_at timestamp NOT NULL DEFAULT now(),
-  FOREIGN KEY (config_id) REFERENCES config_items(id)
+  FOREIGN KEY (config_id) REFERENCES config_items(id),
+  UNIQUE (config_id, external_change_id)
 );
 
 
