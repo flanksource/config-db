@@ -81,7 +81,7 @@ func serve(configFiles []string) {
 		if _, err := cron.AddFunc(schedule, fn); err != nil {
 			logger.Errorf("failed to schedule %s using %s: %v", scraper, scraper.Schedule, err)
 		}
-		fn()
+		defer fn()
 	}
 
 	cron.Start()

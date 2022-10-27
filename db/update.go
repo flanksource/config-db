@@ -65,7 +65,7 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 
 	if changes != nil {
 		logger.Infof("[%s/%s] detected changes", ci.ConfigType, ci.ExternalID[0])
-		if err := CreateConfigChange(changes); err != nil {
+		if err := db.Create(changes).Error; err != nil {
 			logger.Errorf("[%s] failed to update with changes %v", ci, err)
 		}
 	}
@@ -86,7 +86,7 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 
 	change.ConfigID = ci.ID
 
-	return CreateConfigChange(change)
+	return db.Create(change).Error
 }
 
 func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
