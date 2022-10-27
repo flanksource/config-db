@@ -5,6 +5,9 @@ import (
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ConfigChange represents the config change database table
@@ -20,7 +23,7 @@ type ConfigChange struct {
 	Summary          string           `gorm:"column:summary;default:null" json:"summary,omitempty"`
 	Patches          string           `gorm:"column:patches;default:null" json:"patches,omitempty"`
 	Details          v1.JSONStringMap `gorm:"column:details" json:"details,omitempty"`
-	CreatedAt        *time.Time       `gorm:"column:created_at;;<-:false" json:"created_at"`
+	CreatedAt        *time.Time       `gorm:"column:created_at" json:"created_at"`
 }
 
 func (c ConfigChange) String() string {
@@ -40,4 +43,17 @@ func NewConfigChangeFromV1(change v1.ChangeResult) *ConfigChange {
 		Patches:          change.Patches,
 		CreatedAt:        change.CreatedAt,
 	}
+}
+
+func (c *ConfigChange) BeforeCreate(tx *gorm.DB) (err error) {
+	if c.ID == "" {
+		c.ID = uuid.New().String()
+	}
+
+	if c.CreatedAt == nil {
+		now := time.Now()
+		c.CreatedAt = &now
+	}
+	tx.Statement.AddClause(clause.OnConflict{DoNothing: true})
+	return
 }
