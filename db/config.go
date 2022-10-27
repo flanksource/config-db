@@ -25,6 +25,13 @@ func GetConfigItem(extType, extID string) (*models.ConfigItem, error) {
 	return &ci, nil
 }
 
+// GetConfigItemFromID returns a single config item result
+func GetConfigItemFromID(id string) (*models.ConfigItem, error) {
+	var ci models.ConfigItem
+	err := db.Limit(1).Find(&ci, "id = ?", id).Error
+	return &ci, err
+}
+
 // CreateConfigItem inserts a new config item row in the db
 func CreateConfigItem(ci *models.ConfigItem) error {
 	if err := db.Create(ci).Error; err != nil {
@@ -113,6 +120,15 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 
 	if result.CreatedAt != nil {
 		ci.CreatedAt = *result.CreatedAt
+	}
+
+	if result.ParentExternalID != "" && result.ParentExternalType != "" {
+		ci.ParentID = getCIParentIDFromExternal(result.ParentExternalType, result.ParentExternalID)
+
+		// Path will be correct after second iteration of scraping since
+		// the first iteration will populate the parent_ids
+		// in a non deterministic order
+		ci.Path = getParentPath(result.ParentExternalType, result.ParentExternalID)
 	}
 
 	return ci, nil
