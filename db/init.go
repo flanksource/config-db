@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v4/log/logrusadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
-	"github.com/patrickmn/go-cache"
 	"github.com/pressly/goose/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -26,7 +25,6 @@ var (
 	LogLevel         = "info"
 	HTTPEndpoint     = "http://localhost:8080/db"
 	db               *gorm.DB
-	cacheStore       *cache.Cache
 )
 
 // Flags ...
@@ -109,7 +107,7 @@ func Init(connection string) error {
 	db = gormDB
 
 	// initialize cache
-	cacheStore = cache.New(1*time.Hour, 6*time.Hour)
+	initCache()
 	return nil
 }
 

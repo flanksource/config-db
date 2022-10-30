@@ -26,10 +26,27 @@ func GetConfigItem(extType, extID string) (*models.ConfigItem, error) {
 }
 
 // GetConfigItemFromID returns a single config item result
-func GetConfigItemFromID(id string) (*models.ConfigItem, error) {
+func GetConfigItemFromID(id string, withConfig bool) (*models.ConfigItem, error) {
 	var ci models.ConfigItem
-	err := db.Limit(1).Find(&ci, "id = ?", id).Error
+	tx := db.Limit(1)
+	if !withConfig {
+		tx = tx.Omit("config")
+	}
+	err := tx.Find(&ci, "id = ?", id).Error
 	return &ci, err
+}
+
+// FindConfigItemID returns the uuid of config_item which matches the externalUID
+func FindConfigItemID(externalUID models.CIExternalUID) (*string, error) {
+	var ci models.ConfigItem
+	tx := db.Select("id").Limit(1).Find(&ci, "external_type = ? and external_id  @> ?", externalUID.ExternalType, pq.StringArray(externalUID.ExternalID))
+	if tx.RowsAffected == 0 {
+		return nil, nil
+	}
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return &ci.ID, nil
 }
 
 // CreateConfigItem inserts a new config item row in the db
@@ -123,12 +140,16 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	}
 
 	if result.ParentExternalID != "" && result.ParentExternalType != "" {
-		ci.ParentID = getCIParentIDFromExternal(result.ParentExternalType, result.ParentExternalID)
+		parentExternalUID := models.CIExternalUID{
+			ExternalType: result.ParentExternalType,
+			ExternalID:   []string{result.ParentExternalID},
+		}
+		ci.ParentID = getCIParentIDFromExternalUID(parentExternalUID)
 
 		// Path will be correct after second iteration of scraping since
 		// the first iteration will populate the parent_ids
 		// in a non deterministic order
-		ci.Path = getParentPath(result.ParentExternalType, result.ParentExternalID)
+		ci.Path = getParentPath(parentExternalUID)
 	}
 
 	return ci, nil

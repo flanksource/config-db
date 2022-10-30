@@ -39,3 +39,15 @@ type ConfigItem struct {
 func (ci ConfigItem) String() string {
 	return fmt.Sprintf("%s/%s", ci.ConfigType, ci.ID)
 }
+
+type CIExternalUID struct {
+	ExternalType string
+	ExternalID   []string
+}
+
+func (ci ConfigItem) ExternalUID() CIExternalUID {
+	return CIExternalUID{
+		ExternalType: *ci.ExternalType,
+		ExternalID:   ci.ExternalID,
+	}
+}
