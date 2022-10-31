@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 
@@ -48,8 +49,15 @@ func FindConfigItemID(externalID models.ExternalID) (*string, error) {
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
+
 	cacheStore.Set(externalID.CacheKey(), &ci.ID, cache.DefaultExpiration)
 	return &ci.ID, nil
+}
+
+func FindConfigItemFromType(configType string) ([]models.ConfigItem, error) {
+	var ci []models.ConfigItem
+	err := db.Find(&ci, "external_type = @type OR config_type = @type", sql.Named("type", configType)).Error
+	return ci, err
 }
 
 // CreateConfigItem inserts a new config item row in the db
@@ -57,7 +65,6 @@ func CreateConfigItem(ci *models.ConfigItem) error {
 	if err := db.Create(ci).Error; err != nil {
 		return err
 	}
-
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -40,6 +41,12 @@ type ConfigItem struct {
 
 func (ci ConfigItem) String() string {
 	return fmt.Sprintf("%s/%s", ci.ConfigType, ci.ID)
+}
+
+func (ci ConfigItem) ConfigJSONStringMap() (map[string]interface{}, error) {
+	var m map[string]interface{}
+	err := json.Unmarshal([]byte(*ci.Config), &m)
+	return m, err
 }
 
 type ExternalID struct {
