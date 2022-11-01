@@ -40,23 +40,7 @@ func deleteChangeHandler(ctx *v1.ScrapeContext, change v1.ChangeResult) error {
 	return nil
 }
 
-func getCIParentIDFromExternalUID(parentExternalUID models.CIExternalUID) *string {
-	cacheKey := parentIDExternalCacheKey(parentExternalUID)
-
-	if parentID, exists := cacheStore.Get(cacheKey); exists {
-		return parentID.(*string)
-	}
-
-	ciID, err := FindConfigItemID(parentExternalUID)
-	if err != nil {
-		logger.Errorf("Error fetching parent for %v", parentExternalUID)
-		return nil
-	}
-	cacheStore.Set(cacheKey, ciID, cache.DefaultExpiration)
-	return ciID
-}
-
-func getCIParentID(id string) string {
+func getConfigItemParentID(id string) string {
 	cacheKey := parentIDCacheKey(id)
 	if parentID, exists := cacheStore.Get(cacheKey); exists {
 		return parentID.(string)
@@ -74,9 +58,9 @@ func getCIParentID(id string) string {
 	return *ci.ParentID
 }
 
-func getParentPath(parentExternalUID models.CIExternalUID) string {
+func getParentPath(parentExternalUID models.ExternalID) string {
 	var path string
-	parentID := getCIParentIDFromExternalUID(parentExternalUID)
+	parentID, _ := FindConfigItemID(parentExternalUID)
 	if parentID == nil {
 		return ""
 	}
@@ -84,7 +68,7 @@ func getParentPath(parentExternalUID models.CIExternalUID) string {
 	id := *parentID
 	path += id
 	for {
-		id = getCIParentID(id)
+		id = getConfigItemParentID(id)
 		if id == "" {
 			break
 		}

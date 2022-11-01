@@ -2,10 +2,12 @@ package models
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/lib/pq"
+	"gorm.io/gorm"
 )
 
 // ConfigItem represents the config item database table
@@ -40,14 +42,15 @@ func (ci ConfigItem) String() string {
 	return fmt.Sprintf("%s/%s", ci.ConfigType, ci.ID)
 }
 
-type CIExternalUID struct {
+type ExternalID struct {
 	ExternalType string
 	ExternalID   []string
 }
 
-func (ci ConfigItem) ExternalUID() CIExternalUID {
-	return CIExternalUID{
-		ExternalType: *ci.ExternalType,
-		ExternalID:   ci.ExternalID,
-	}
+func (e ExternalID) CacheKey() string {
+	return fmt.Sprintf("external_id:%s:%s", e.ExternalType, strings.Join(e.ExternalID, ","))
+}
+
+func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
+	return db.Where("external_type = ? and external_id  @> ?", e.ExternalType, pq.StringArray(e.ExternalID))
 }

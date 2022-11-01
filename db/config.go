@@ -8,6 +8,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/lib/pq"
+	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 )
 
@@ -37,15 +38,21 @@ func GetConfigItemFromID(id string, withConfig bool) (*models.ConfigItem, error)
 }
 
 // FindConfigItemID returns the uuid of config_item which matches the externalUID
-func FindConfigItemID(externalUID models.CIExternalUID) (*string, error) {
+func FindConfigItemID(externalID models.ExternalID) (*string, error) {
+	if ciID, exists := cacheStore.Get(externalID.CacheKey()); exists {
+		return ciID.(*string), nil
+	}
+
 	var ci models.ConfigItem
-	tx := db.Select("id").Limit(1).Find(&ci, "external_type = ? and external_id  @> ?", externalUID.ExternalType, pq.StringArray(externalUID.ExternalID))
+	queryDB := externalID.WhereClause(db)
+	tx := queryDB.Select("id").Limit(1).Find(&ci)
 	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
+	cacheStore.Set(externalID.CacheKey(), &ci.ID, cache.DefaultExpiration)
 	return &ci.ID, nil
 }
 
@@ -140,16 +147,21 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	}
 
 	if result.ParentExternalID != "" && result.ParentExternalType != "" {
-		parentExternalUID := models.CIExternalUID{
+		parentExternalID := models.ExternalID{
 			ExternalType: result.ParentExternalType,
 			ExternalID:   []string{result.ParentExternalID},
 		}
-		ci.ParentID = getCIParentIDFromExternalUID(parentExternalUID)
+
+		var err error
+		ci.ParentID, err = FindConfigItemID(parentExternalID)
+		if err != nil {
+			logger.Errorf("Error fetching parent for %v", parentExternalID)
+		}
 
 		// Path will be correct after second iteration of scraping since
 		// the first iteration will populate the parent_ids
 		// in a non deterministic order
-		ci.Path = getParentPath(parentExternalUID)
+		ci.Path = getParentPath(parentExternalID)
 	}
 
 	return ci, nil
