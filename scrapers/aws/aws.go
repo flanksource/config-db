@@ -24,7 +24,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db/models"
 	"github.com/pkg/errors"
 )
 
@@ -398,11 +397,11 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			// SecurityGroup relationships
 			for _, sg := range i.SecurityGroups {
 				relationships = append(relationships, v1.RelationshipResult{
-					ParentExternalID: models.ExternalID{
+					ParentExternalID: v1.ExternalID{
 						ExternalID:   []string{*i.InstanceId},
 						ExternalType: v1.AWSEC2Instance,
 					},
-					ChildExternalID: models.ExternalID{
+					ChildExternalID: v1.ExternalID{
 						ExternalID:   []string{*sg.GroupId},
 						ExternalType: v1.AWSEC2SecurityGroup,
 					},
@@ -414,11 +413,11 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			for _, tag := range i.Tags {
 				if *tag.Key == "aws:eks:cluster-name" {
 					relationships = append(relationships, v1.RelationshipResult{
-						ParentExternalID: models.ExternalID{
+						ParentExternalID: v1.ExternalID{
 							ExternalID:   []string{*tag.Value},
 							ExternalType: v1.AWSEKSCluster,
 						},
-						ChildExternalID: models.ExternalID{
+						ChildExternalID: v1.ExternalID{
 							ExternalID:   []string{*i.InstanceId},
 							ExternalType: v1.AWSEC2Instance,
 						},
@@ -597,11 +596,11 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 		var relationships []v1.RelationshipResult
 		for _, instance := range lb.Instances {
 			relationships = append(relationships, v1.RelationshipResult{
-				ParentExternalID: models.ExternalID{
+				ParentExternalID: v1.ExternalID{
 					ExternalID:   []string{*lb.LoadBalancerName},
 					ExternalType: v1.AWSLoadBalancer,
 				},
-				ChildExternalID: models.ExternalID{
+				ChildExternalID: v1.ExternalID{
 					ExternalID:   []string{*instance.InstanceId},
 					ExternalType: v1.AWSEC2Instance,
 				},
