@@ -427,21 +427,22 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			}
 			instance := NewInstance(i)
 			*results = append(*results, v1.ScrapeResult{
-				ExternalType:       v1.AWSEC2Instance,
-				Tags:               instance.Tags,
-				BaseScraper:        config.BaseScraper,
-				Config:             instance,
-				Type:               "EC2Instance",
-				Network:            instance.VpcID,
-				Subnet:             instance.SubnetID,
-				Zone:               ctx.Subnets[instance.SubnetID].Zone,
-				Region:             ctx.Subnets[instance.SubnetID].Region,
-				Name:               instance.GetHostname(),
-				Account:            *ctx.Caller.Account,
-				Aliases:            []string{"AmazonEC2/" + instance.InstanceID},
-				ID:                 instance.InstanceID,
-				ParentExternalID:   instance.SubnetID,
-				ParentExternalType: v1.AWSEC2Subnet,
+				ExternalType:        v1.AWSEC2Instance,
+				Tags:                instance.Tags,
+				BaseScraper:         config.BaseScraper,
+				Config:              instance,
+				Type:                "EC2Instance",
+				Network:             instance.VpcID,
+				Subnet:              instance.SubnetID,
+				Zone:                ctx.Subnets[instance.SubnetID].Zone,
+				Region:              ctx.Subnets[instance.SubnetID].Region,
+				Name:                instance.GetHostname(),
+				Account:             *ctx.Caller.Account,
+				Aliases:             []string{"AmazonEC2/" + instance.InstanceID},
+				ID:                  instance.InstanceID,
+				ParentExternalID:    instance.SubnetID,
+				ParentExternalType:  v1.AWSEC2Subnet,
+				RelationshipResults: relationships,
 			})
 		}
 	}
