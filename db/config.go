@@ -11,6 +11,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
+	"gorm.io/gorm/clause"
 )
 
 // GetConfigItem returns a single config item result
@@ -35,7 +36,7 @@ func GetConfigItemFromID(id string) (*models.ConfigItem, error) {
 }
 
 // FindConfigItemID returns the uuid of config_item which matches the externalUID
-func FindConfigItemID(externalID models.ExternalID) (*string, error) {
+func FindConfigItemID(externalID v1.ExternalID) (*string, error) {
 	if ciID, exists := cacheStore.Get(externalID.CacheKey()); exists {
 		return ciID.(*string), nil
 	}
@@ -150,7 +151,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	}
 
 	if result.ParentExternalID != "" && result.ParentExternalType != "" {
-		parentExternalID := models.ExternalID{
+		parentExternalID := v1.ExternalID{
 			ExternalType: result.ParentExternalType,
 			ExternalID:   []string{result.ParentExternalID},
 		}
@@ -176,4 +177,12 @@ func GetJSON(ci models.ConfigItem) []byte {
 		logger.Errorf("Failed to marshal config: %+v", err)
 	}
 	return data
+}
+
+func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
+	tx := db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "parent_id"}, {Name: "child_id"}, {Name: "relation"}},
+		UpdateAll: true,
+	}).Create(&relationships)
+	return tx.Error
 }

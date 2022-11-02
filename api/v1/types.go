@@ -1,5 +1,13 @@
 package v1
 
+import (
+	"fmt"
+	"github.com/lib/pq"
+	"strings"
+
+	"gorm.io/gorm"
+)
+
 // ConfigScraper ...
 type ConfigScraper struct {
 	LogLevel       string           `json:"logLevel,omitempty"`
@@ -17,4 +25,17 @@ func (c ConfigScraper) IsEmpty() bool {
 
 func (c ConfigScraper) IsTrace() bool {
 	return c.LogLevel == "trace"
+}
+
+type ExternalID struct {
+	ExternalType string
+	ExternalID   []string
+}
+
+func (e ExternalID) CacheKey() string {
+	return fmt.Sprintf("external_id:%s:%s", e.ExternalType, strings.Join(e.ExternalID, ","))
+}
+
+func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
+	return db.Where("external_type = ? and external_id  @> ?", e.ExternalType, pq.StringArray(e.ExternalID))
 }

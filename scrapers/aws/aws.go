@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db/models"
 	"github.com/pkg/errors"
 )
 
@@ -390,8 +391,41 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 		return
 	}
 
+	var relationships v1.RelationshipResults
 	for _, r := range describeOutput.Reservations {
 		for _, i := range r.Instances {
+
+			// SecurityGroup relationships
+			for _, sg := range i.SecurityGroups {
+				relationships = append(relationships, v1.RelationshipResult{
+					ParentExternalID: models.ExternalID{
+						ExternalID:   []string{*i.InstanceId},
+						ExternalType: v1.AWSEC2Instance,
+					},
+					ChildExternalID: models.ExternalID{
+						ExternalID:   []string{*sg.GroupId},
+						ExternalType: v1.AWSEC2SecurityGroup,
+					},
+					Relationship: "InstanceSecurityGroup",
+				})
+			}
+
+			// Cluster node relationships
+			for _, tag := range i.Tags {
+				if *tag.Key == "aws:eks:cluster-name" {
+					relationships = append(relationships, v1.RelationshipResult{
+						ParentExternalID: models.ExternalID{
+							ExternalID:   []string{*tag.Value},
+							ExternalType: v1.AWSEKSCluster,
+						},
+						ChildExternalID: models.ExternalID{
+							ExternalID:   []string{*i.InstanceId},
+							ExternalType: v1.AWSEC2Instance,
+						},
+						Relationship: "EKSNode",
+					})
+				}
+			}
 			instance := NewInstance(i)
 			*results = append(*results, v1.ScrapeResult{
 				ExternalType:       v1.AWSEC2Instance,
@@ -560,23 +594,38 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 	}
 
 	for _, lb := range loadbalancers.LoadBalancerDescriptions {
+		var relationships []v1.RelationshipResult
+		for _, instance := range lb.Instances {
+			relationships = append(relationships, v1.RelationshipResult{
+				ParentExternalID: models.ExternalID{
+					ExternalID:   []string{*lb.LoadBalancerName},
+					ExternalType: v1.AWSLoadBalancer,
+				},
+				ChildExternalID: models.ExternalID{
+					ExternalID:   []string{*instance.InstanceId},
+					ExternalType: v1.AWSEC2Instance,
+				},
+				Relationship: "LoadBalancerInstance",
+			})
+		}
 		az := lb.AvailabilityZones[0]
 		region := az[:len(az)-1]
 		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, *ctx.Caller.Account, *lb.LoadBalancerName)
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType:       v1.AWSLoadBalancer,
-			CreatedAt:          lb.CreatedTime,
-			Ignore:             []string{"createdTime"},
-			BaseScraper:        config.BaseScraper,
-			Config:             lb,
-			Type:               "LoadBalancer",
-			Name:               *lb.LoadBalancerName,
-			Account:            *ctx.Caller.Account,
-			Region:             region,
-			Aliases:            []string{"AWSELB/" + arn},
-			ID:                 *lb.LoadBalancerName,
-			ParentExternalID:   *lb.VPCId,
-			ParentExternalType: v1.AWSEC2VPC,
+			ExternalType:        v1.AWSLoadBalancer,
+			CreatedAt:           lb.CreatedTime,
+			Ignore:              []string{"createdTime"},
+			BaseScraper:         config.BaseScraper,
+			Config:              lb,
+			Type:                "LoadBalancer",
+			Name:                *lb.LoadBalancerName,
+			Account:             *ctx.Caller.Account,
+			Region:              region,
+			Aliases:             []string{"AWSELB/" + arn},
+			ID:                  *lb.LoadBalancerName,
+			ParentExternalID:    *lb.VPCId,
+			ParentExternalType:  v1.AWSEC2VPC,
+			RelationshipResults: relationships,
 		})
 	}
 

@@ -3,12 +3,10 @@ package models
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/lib/pq"
-	"gorm.io/gorm"
 )
 
 // ConfigItem represents the config item database table
@@ -47,17 +45,4 @@ func (ci ConfigItem) ConfigJSONStringMap() (map[string]interface{}, error) {
 	var m map[string]interface{}
 	err := json.Unmarshal([]byte(*ci.Config), &m)
 	return m, err
-}
-
-type ExternalID struct {
-	ExternalType string
-	ExternalID   []string
-}
-
-func (e ExternalID) CacheKey() string {
-	return fmt.Sprintf("external_id:%s:%s", e.ExternalType, strings.Join(e.ExternalID, ","))
-}
-
-func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
-	return db.Where("external_type = ? and external_id  @> ?", e.ExternalType, pq.StringArray(e.ExternalID))
 }
