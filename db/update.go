@@ -212,7 +212,7 @@ func generateDiff(a, b models.ConfigItem) (*models.ConfigChange, error) {
 }
 
 func relationshipResultHandler(relationships v1.RelationshipResults) error {
-	var configItemRelationships []models.ConfigRelationship
+	var configItemRelationships []models.ConfigItemRelationship
 	for _, relationship := range relationships {
 		parentID, err := FindConfigItemID(relationship.ParentExternalID)
 		if err != nil {
@@ -226,7 +226,7 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 			continue
 		}
 
-		configItemRelationships = append(configItemRelationships, models.ConfigRelationship{
+		configItemRelationships = append(configItemRelationships, models.ConfigItemRelationship{
 			ParentID: *parentID,
 			ChildID:  *childID,
 			Relation: relationship.Relationship,

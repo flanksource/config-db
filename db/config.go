@@ -179,7 +179,7 @@ func GetJSON(ci models.ConfigItem) []byte {
 	return data
 }
 
-func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
+func UpdateConfigRelatonships(relationships []models.ConfigItemRelationship) error {
 	tx := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "parent_id"}, {Name: "child_id"}, {Name: "relation"}},
 		UpdateAll: true,
