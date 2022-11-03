@@ -115,9 +115,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: "${{ github.repository_owner }}/incident-commander"
+          repository: "${{ github.repository_owner }}/incident-commander-chart"
           token: ${{ secrets.FLANKBOT }}
-          path: ./incident-commander
+          path: ./incident-commander-chart
       - name: Install yq
         run: |
           wget https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY}.tar.gz -O - |\
@@ -125,12 +125,12 @@ jobs:
         env:
           VERSION: v4.25.1
           BINARY: yq_linux_amd64
-      - name: Update config-db version in Incident-commander
+      - name: Update config-db version in Incident-commander-chart
         run: |
-          cd incident-commander
+          cd incident-commander-chart
           yq eval-all -i  '(.dependencies[] | select(.name == "config-db")) ref $d | $d.version = "${{ needs.semantic-release.outputs.release-version }}"' chart/Chart.yaml
       - name: Push changes to chart repo
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
           commit_message: "chore: update config-db chart dependency to ${{ needs.semantic-release.outputs.release-version }}"
-          repository: ./incident-commander
+          repository: ./incident-commander-chart
