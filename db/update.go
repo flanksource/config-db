@@ -46,7 +46,7 @@ func getConfigItemParentID(id string) string {
 		return parentID.(string)
 	}
 
-	ci, err := GetConfigItemFromID(id, false)
+	ci, err := GetConfigItemFromID(id)
 	if err != nil {
 		logger.Errorf("Error fetching config item with id: %s", id)
 		return ""

@@ -27,13 +27,9 @@ func GetConfigItem(extType, extID string) (*models.ConfigItem, error) {
 }
 
 // GetConfigItemFromID returns a single config item result
-func GetConfigItemFromID(id string, withConfig bool) (*models.ConfigItem, error) {
+func GetConfigItemFromID(id string) (*models.ConfigItem, error) {
 	var ci models.ConfigItem
-	tx := db.Limit(1)
-	if !withConfig {
-		tx = tx.Omit("config")
-	}
-	err := tx.Find(&ci, "id = ?", id).Error
+	err := db.Limit(1).Omit("config").Find(&ci, "id = ?", id).Error
 	return &ci, err
 }
 
