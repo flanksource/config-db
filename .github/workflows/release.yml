@@ -127,7 +127,7 @@ jobs:
           BINARY: yq_linux_amd64
       - name: Update config-db version in Incident-commander-chart
         run: |
-          cd incident-commander
+          cd incident-commander-chart
           yq eval-all -i  '(.dependencies[] | select(.name == "config-db")) ref $d | $d.version = "${{ needs.semantic-release.outputs.release-version }}"' chart/Chart.yaml
       - name: Push changes to chart repo
         uses: stefanzweifel/git-auto-commit-action@v4
