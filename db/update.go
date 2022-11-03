@@ -9,6 +9,7 @@ import (
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/db/ulid"
 	"github.com/lib/pq"
+	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -37,6 +38,43 @@ func deleteChangeHandler(ctx *v1.ScrapeContext, change v1.ChangeResult) error {
 
 	logger.Infof("Deleted %s from change %s", configs[0].ID, change)
 	return nil
+}
+
+func getConfigItemParentID(id string) string {
+	cacheKey := parentIDCacheKey(id)
+	if parentID, exists := cacheStore.Get(cacheKey); exists {
+		return parentID.(string)
+	}
+
+	ci, err := GetConfigItemFromID(id)
+	if err != nil {
+		logger.Errorf("Error fetching config item with id: %s", id)
+		return ""
+	}
+	if ci.ParentID == nil {
+		return ""
+	}
+	cacheStore.Set(cacheKey, *ci.ParentID, cache.DefaultExpiration)
+	return *ci.ParentID
+}
+
+func getParentPath(parentExternalUID models.ExternalID) string {
+	var path string
+	parentID, _ := FindConfigItemID(parentExternalUID)
+	if parentID == nil {
+		return ""
+	}
+
+	id := *parentID
+	path += id
+	for {
+		id = getConfigItemParentID(id)
+		if id == "" {
+			break
+		}
+		path += "." + id
+	}
+	return path
 }
 
 func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
@@ -70,7 +108,6 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 		}
 	}
 	return nil
-
 }
 
 func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {

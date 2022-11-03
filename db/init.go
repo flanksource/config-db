@@ -105,6 +105,9 @@ func Init(connection string) error {
 	}
 
 	db = gormDB
+
+	// initialize cache
+	initCache()
 	return nil
 }
 

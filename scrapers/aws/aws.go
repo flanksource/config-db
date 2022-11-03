@@ -124,6 +124,8 @@ func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.S
 			Ignore: []string{
 				"CreatedAt", "RepositoryArn", "RepositoryUri", "RegistryId", "RepositoryName",
 			},
+			ParentExternalID:   *ctx.Caller.Account,
+			ParentExternalType: v1.AWSAccount,
 		})
 	}
 }
@@ -148,18 +150,20 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 		}
 
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType: "AWS::EKS::Cluster",
-			CreatedAt:    cluster.Cluster.CreatedAt,
-			Tags:         cluster.Cluster.Tags,
-			BaseScraper:  config.BaseScraper,
-			Config:       cluster.Cluster,
-			Type:         "EKS",
-			Network:      *cluster.Cluster.ResourcesVpcConfig.VpcId,
-			Name:         getName(cluster.Cluster.Tags, clusterName),
-			Account:      *ctx.Caller.Account,
-			Aliases:      []string{*cluster.Cluster.Arn, "AmazonEKS/" + *cluster.Cluster.Arn},
-			ID:           *cluster.Cluster.Name,
-			Ignore:       []string{"createdAt", "name"},
+			ExternalType:       v1.AWSEKSCluster,
+			CreatedAt:          cluster.Cluster.CreatedAt,
+			Tags:               cluster.Cluster.Tags,
+			BaseScraper:        config.BaseScraper,
+			Config:             cluster.Cluster,
+			Type:               "EKS",
+			Network:            *cluster.Cluster.ResourcesVpcConfig.VpcId,
+			Name:               getName(cluster.Cluster.Tags, clusterName),
+			Account:            *ctx.Caller.Account,
+			Aliases:            []string{*cluster.Cluster.Arn, "AmazonEKS/" + *cluster.Cluster.Arn},
+			ID:                 *cluster.Cluster.Name,
+			Ignore:             []string{"createdAt", "name"},
+			ParentExternalID:   *cluster.Cluster.ResourcesVpcConfig.VpcId,
+			ParentExternalType: v1.AWSEC2VPC,
 		})
 	}
 }
@@ -217,7 +221,7 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 	}
 
 	*results = append(*results, v1.ScrapeResult{
-		ExternalType: "AWS::::Account",
+		ExternalType: v1.AWSAccount,
 		BaseScraper:  config.BaseScraper,
 		Config:       summary.SummaryMap,
 		Type:         "Account",
@@ -328,15 +332,17 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			tags[*tag.Key] = *tag.Value
 		}
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType: "AWS::RDS::DBInstance",
-			Tags:         tags,
-			BaseScraper:  config.BaseScraper,
-			Config:       instance,
-			Type:         "RDS",
-			Name:         getName(tags, *instance.DBInstanceIdentifier),
-			Account:      *ctx.Caller.Account,
-			ID:           *instance.DBInstanceIdentifier,
-			Aliases:      []string{"AmazonRDS/" + *instance.DBInstanceArn},
+			ExternalType:       v1.AWSRDSInstance,
+			Tags:               tags,
+			BaseScraper:        config.BaseScraper,
+			Config:             instance,
+			Type:               "RDS",
+			Name:               getName(tags, *instance.DBInstanceIdentifier),
+			Account:            *ctx.Caller.Account,
+			ID:                 *instance.DBInstanceIdentifier,
+			Aliases:            []string{"AmazonRDS/" + *instance.DBInstanceArn},
+			ParentExternalID:   *instance.DBSubnetGroup.VpcId,
+			ParentExternalType: v1.AWSEC2VPC,
 		})
 	}
 }
@@ -354,16 +360,18 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 	for _, vpc := range describeOutput.Vpcs {
 		tags := getTags(vpc.Tags)
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType: "AWS::EC2::VPC",
-			Tags:         tags,
-			BaseScraper:  config.BaseScraper,
-			Config:       vpc,
-			Type:         "VPC",
-			Network:      *vpc.VpcId,
-			Name:         getName(tags, *vpc.VpcId),
-			Account:      *ctx.Caller.Account,
-			ID:           *vpc.VpcId,
-			Aliases:      []string{"AmazonEC2/" + *vpc.VpcId},
+			ExternalType:       v1.AWSEC2VPC,
+			Tags:               tags,
+			BaseScraper:        config.BaseScraper,
+			Config:             vpc,
+			Type:               "VPC",
+			Network:            *vpc.VpcId,
+			Name:               getName(tags, *vpc.VpcId),
+			Account:            *ctx.Caller.Account,
+			ID:                 *vpc.VpcId,
+			Aliases:            []string{"AmazonEC2/" + *vpc.VpcId},
+			ParentExternalID:   *ctx.Caller.Account,
+			ParentExternalType: v1.AWSAccount,
 		})
 	}
 }
@@ -386,19 +394,21 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 		for _, i := range r.Instances {
 			instance := NewInstance(i)
 			*results = append(*results, v1.ScrapeResult{
-				ExternalType: "AWS::EC2::Instance",
-				Tags:         instance.Tags,
-				BaseScraper:  config.BaseScraper,
-				Config:       instance,
-				Type:         "EC2Instance",
-				Network:      instance.VpcID,
-				Subnet:       instance.SubnetID,
-				Zone:         ctx.Subnets[instance.SubnetID].Zone,
-				Region:       ctx.Subnets[instance.SubnetID].Region,
-				Name:         instance.GetHostname(),
-				Account:      *ctx.Caller.Account,
-				Aliases:      []string{"AmazonEC2/" + instance.InstanceID},
-				ID:           instance.InstanceID,
+				ExternalType:       v1.AWSEC2Instance,
+				Tags:               instance.Tags,
+				BaseScraper:        config.BaseScraper,
+				Config:             instance,
+				Type:               "EC2Instance",
+				Network:            instance.VpcID,
+				Subnet:             instance.SubnetID,
+				Zone:               ctx.Subnets[instance.SubnetID].Zone,
+				Region:             ctx.Subnets[instance.SubnetID].Region,
+				Name:               instance.GetHostname(),
+				Account:            *ctx.Caller.Account,
+				Aliases:            []string{"AmazonEC2/" + instance.InstanceID},
+				ID:                 instance.InstanceID,
+				ParentExternalID:   instance.SubnetID,
+				ParentExternalType: v1.AWSEC2Subnet,
 			})
 		}
 	}
@@ -417,15 +427,18 @@ func (aws Scraper) securityGroups(ctx *AWSContext, config v1.AWS, results *v1.Sc
 	for _, sg := range describeOutput.SecurityGroups {
 		tags := getTags(sg.Tags)
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType: "AWS::EC2::SecurityGroup",
-			Tags:         tags,
-			BaseScraper:  config.BaseScraper,
-			Config:       sg,
-			Type:         "SecurityGroup",
-			Network:      *sg.VpcId,
-			Name:         getName(tags, *sg.GroupId),
-			Account:      *ctx.Caller.Account,
-			ID:           *sg.GroupId})
+			ExternalType:       "AWS::EC2::SecurityGroup",
+			Tags:               tags,
+			BaseScraper:        config.BaseScraper,
+			Config:             sg,
+			Type:               "SecurityGroup",
+			Network:            *sg.VpcId,
+			Name:               getName(tags, *sg.GroupId),
+			Account:            *ctx.Caller.Account,
+			ID:                 *sg.GroupId,
+			ParentExternalID:   *sg.VpcId,
+			ParentExternalType: v1.AWSEC2VPC,
+		})
 	}
 }
 
@@ -442,15 +455,18 @@ func (aws Scraper) routes(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResu
 	for _, r := range describeOutput.RouteTables {
 		tags := getTags(r.Tags)
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType: "AWS::EC2::RouteTable",
-			Tags:         tags,
-			BaseScraper:  config.BaseScraper,
-			Config:       r,
-			Type:         "Route",
-			Network:      *r.VpcId,
-			Name:         getName(tags, *r.RouteTableId),
-			Account:      *ctx.Caller.Account,
-			ID:           *r.RouteTableId})
+			ExternalType:       "AWS::EC2::RouteTable",
+			Tags:               tags,
+			BaseScraper:        config.BaseScraper,
+			Config:             r,
+			Type:               "Route",
+			Network:            *r.VpcId,
+			Name:               getName(tags, *r.RouteTableId),
+			Account:            *ctx.Caller.Account,
+			ID:                 *r.RouteTableId,
+			ParentExternalID:   *r.VpcId,
+			ParentExternalType: v1.AWSEC2VPC,
+		})
 	}
 }
 
@@ -490,15 +506,18 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	}
 	for _, bucket := range buckets.Buckets {
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType: "AWS::S3::Bucket",
-			CreatedAt:    bucket.CreationDate,
-			BaseScraper:  config.BaseScraper,
-			Config:       bucket,
-			Type:         "S3Bucket",
-			Name:         *bucket.Name,
-			Ignore:       []string{"name", "creationDate"},
-			Aliases:      []string{"AmazonS3/" + *bucket.Name},
-			ID:           *bucket.Name})
+			ExternalType:       v1.AWSS3Bucket,
+			CreatedAt:          bucket.CreationDate,
+			BaseScraper:        config.BaseScraper,
+			Config:             bucket,
+			Type:               "S3Bucket",
+			Name:               *bucket.Name,
+			Ignore:             []string{"name", "creationDate"},
+			Aliases:            []string{"AmazonS3/" + *bucket.Name},
+			ID:                 *bucket.Name,
+			ParentExternalID:   *ctx.Caller.Account,
+			ParentExternalType: v1.AWSAccount,
+		})
 	}
 }
 
@@ -514,14 +533,17 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 	}
 	for _, zone := range zones.HostedZones {
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType: "AWS::Route53::HostedZone",
-			BaseScraper:  config.BaseScraper,
-			Config:       zone,
-			Type:         "DNSZone",
-			Name:         *zone.Name,
-			Account:      *ctx.Caller.Account,
-			Aliases:      []string{*zone.Id, *zone.Name, "AmazonRoute53/arn:aws:route53:::hostedzone/" + *zone.Id},
-			ID:           strings.ReplaceAll(*zone.Id, "/hostedzone/", "")})
+			ExternalType:       "AWS::Route53::HostedZone",
+			BaseScraper:        config.BaseScraper,
+			Config:             zone,
+			Type:               "DNSZone",
+			Name:               *zone.Name,
+			Account:            *ctx.Caller.Account,
+			Aliases:            []string{*zone.Id, *zone.Name, "AmazonRoute53/arn:aws:route53:::hostedzone/" + *zone.Id},
+			ID:                 strings.ReplaceAll(*zone.Id, "/hostedzone/", ""),
+			ParentExternalID:   *ctx.Caller.Account,
+			ParentExternalType: v1.AWSAccount,
+		})
 	}
 }
 
@@ -542,17 +564,20 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 		region := az[:len(az)-1]
 		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, *ctx.Caller.Account, *lb.LoadBalancerName)
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType: "AWS::ElasticLoadBalancing::LoadBalancer",
-			CreatedAt:    lb.CreatedTime,
-			Ignore:       []string{"createdTime"},
-			BaseScraper:  config.BaseScraper,
-			Config:       lb,
-			Type:         "LoadBalancer",
-			Name:         *lb.LoadBalancerName,
-			Account:      *ctx.Caller.Account,
-			Region:       region,
-			Aliases:      []string{"AWSELB/" + arn},
-			ID:           *lb.LoadBalancerName})
+			ExternalType:       v1.AWSLoadBalancer,
+			CreatedAt:          lb.CreatedTime,
+			Ignore:             []string{"createdTime"},
+			BaseScraper:        config.BaseScraper,
+			Config:             lb,
+			Type:               "LoadBalancer",
+			Name:               *lb.LoadBalancerName,
+			Account:            *ctx.Caller.Account,
+			Region:             region,
+			Aliases:            []string{"AWSELB/" + arn},
+			ID:                 *lb.LoadBalancerName,
+			ParentExternalID:   *lb.VPCId,
+			ParentExternalType: v1.AWSEC2VPC,
+		})
 	}
 
 	elbv2 := elasticloadbalancingv2.NewFromConfig(*ctx.Session)
@@ -564,16 +589,19 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 
 	for _, lb := range loadbalancersv2.LoadBalancers {
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType: "AWS::ElasticLoadBalancingV2::LoadBalancer",
-			BaseScraper:  config.BaseScraper,
-			Ignore:       []string{"createdTime", "loadBalancerArn", "loadBalancerName"},
-			CreatedAt:    lb.CreatedTime,
-			Config:       lb,
-			Type:         "LoadBalancer",
-			Name:         *lb.LoadBalancerName,
-			Account:      *ctx.Caller.Account,
-			Aliases:      []string{"AWSELB/" + *lb.LoadBalancerArn},
-			ID:           *lb.LoadBalancerArn})
+			ExternalType:       v1.AWSLoadBalancerV2,
+			BaseScraper:        config.BaseScraper,
+			Ignore:             []string{"createdTime", "loadBalancerArn", "loadBalancerName"},
+			CreatedAt:          lb.CreatedTime,
+			Config:             lb,
+			Type:               "LoadBalancer",
+			Name:               *lb.LoadBalancerName,
+			Account:            *ctx.Caller.Account,
+			Aliases:            []string{"AWSELB/" + *lb.LoadBalancerArn},
+			ID:                 *lb.LoadBalancerArn,
+			ParentExternalID:   *lb.VpcId,
+			ParentExternalType: v1.AWSEC2VPC,
+		})
 	}
 
 }
@@ -601,17 +629,19 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			return
 		}
 		result := v1.ScrapeResult{
-			ExternalType: "AWS::EC2::Subnet",
-			BaseScraper:  config.BaseScraper,
-			Tags:         tags,
-			Type:         "Subnet",
-			ID:           *subnet.SubnetId,
-			Subnet:       *subnet.SubnetId,
-			Config:       subnet,
-			Account:      *ctx.Caller.Account,
-			Network:      *subnet.VpcId,
-			Zone:         az,
-			Region:       az[0 : len(az)-1],
+			ExternalType:       "AWS::EC2::Subnet",
+			BaseScraper:        config.BaseScraper,
+			Tags:               tags,
+			Type:               "Subnet",
+			ID:                 *subnet.SubnetId,
+			Subnet:             *subnet.SubnetId,
+			Config:             subnet,
+			Account:            *ctx.Caller.Account,
+			Network:            *subnet.VpcId,
+			Zone:               az,
+			Region:             az[0 : len(az)-1],
+			ParentExternalID:   *subnet.VpcId,
+			ParentExternalType: v1.AWSEC2VPC,
 		}
 		*results = append(*results, result)
 	}

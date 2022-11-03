@@ -2,10 +2,12 @@ package models
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/lib/pq"
+	"gorm.io/gorm"
 )
 
 // ConfigItem represents the config item database table
@@ -25,6 +27,8 @@ type ConfigItem struct {
 	Subnet        *string           `gorm:"column:subnet;default:null" json:"subnet,omitempty"  `
 	Config        *string           `gorm:"column:config;default:null" json:"config,omitempty"  `
 	Source        *string           `gorm:"column:source;default:null" json:"source,omitempty"  `
+	ParentID      *string           `gorm:"column:parent_id;default:null" json:"parent_id,omitempty"`
+	Path          string            `gorm:"column:path;default:null" json:"path,omitempty"`
 	CostPerMinute float64           `gorm:"column:cost_per_minute;default:null" json:"cost_per_minute,omitempty"`
 	CostTotal1d   float64           `gorm:"column:cost_total_1d;default:null" json:"cost_total_1d,omitempty"`
 	CostTotal7d   float64           `gorm:"column:cost_total_7d;default:null" json:"cost_total_7d,omitempty"`
@@ -36,4 +40,17 @@ type ConfigItem struct {
 
 func (ci ConfigItem) String() string {
 	return fmt.Sprintf("%s/%s", ci.ConfigType, ci.ID)
+}
+
+type ExternalID struct {
+	ExternalType string
+	ExternalID   []string
+}
+
+func (e ExternalID) CacheKey() string {
+	return fmt.Sprintf("external_id:%s:%s", e.ExternalType, strings.Join(e.ExternalID, ","))
+}
+
+func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
+	return db.Where("external_type = ? and external_id  @> ?", e.ExternalType, pq.StringArray(e.ExternalID))
 }
