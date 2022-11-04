@@ -390,25 +390,58 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 		return
 	}
 
+	var relationships v1.RelationshipResults
 	for _, r := range describeOutput.Reservations {
 		for _, i := range r.Instances {
+			// SecurityGroup relationships
+			for _, sg := range i.SecurityGroups {
+				relationships = append(relationships, v1.RelationshipResult{
+					ConfigExternalID: v1.ExternalID{
+						ExternalID:   []string{*i.InstanceId},
+						ExternalType: v1.AWSEC2Instance,
+					},
+					RelatedExternalID: v1.ExternalID{
+						ExternalID:   []string{*sg.GroupId},
+						ExternalType: v1.AWSEC2SecurityGroup,
+					},
+					Relationship: "InstanceSecurityGroup",
+				})
+			}
+
+			// Cluster node relationships
+			for _, tag := range i.Tags {
+				if *tag.Key == "aws:eks:cluster-name" {
+					relationships = append(relationships, v1.RelationshipResult{
+						ConfigExternalID: v1.ExternalID{
+							ExternalID:   []string{*tag.Value},
+							ExternalType: v1.AWSEKSCluster,
+						},
+						RelatedExternalID: v1.ExternalID{
+							ExternalID:   []string{*i.InstanceId},
+							ExternalType: v1.AWSEC2Instance,
+						},
+						Relationship: "EKSNode",
+					})
+				}
+			}
 			instance := NewInstance(i)
 			*results = append(*results, v1.ScrapeResult{
-				ExternalType:       v1.AWSEC2Instance,
-				Tags:               instance.Tags,
-				BaseScraper:        config.BaseScraper,
-				Config:             instance,
-				Type:               "EC2Instance",
-				Network:            instance.VpcID,
-				Subnet:             instance.SubnetID,
-				Zone:               ctx.Subnets[instance.SubnetID].Zone,
-				Region:             ctx.Subnets[instance.SubnetID].Region,
-				Name:               instance.GetHostname(),
-				Account:            *ctx.Caller.Account,
-				Aliases:            []string{"AmazonEC2/" + instance.InstanceID},
-				ID:                 instance.InstanceID,
-				ParentExternalID:   instance.SubnetID,
-				ParentExternalType: v1.AWSEC2Subnet,
+				ExternalType:        v1.AWSEC2Instance,
+				Tags:                instance.Tags,
+				BaseScraper:         config.BaseScraper,
+				Config:              instance,
+				Type:                "EC2Instance",
+				Network:             instance.VpcID,
+				Subnet:              instance.SubnetID,
+				Zone:                ctx.Subnets[instance.SubnetID].Zone,
+				Region:              ctx.Subnets[instance.SubnetID].Region,
+				Name:                instance.GetHostname(),
+				Account:             *ctx.Caller.Account,
+				Aliases:             []string{"AmazonEC2/" + instance.InstanceID},
+				ID:                  instance.InstanceID,
+				ParentExternalID:    instance.SubnetID,
+				ParentExternalType:  v1.AWSEC2Subnet,
+				RelationshipResults: relationships,
 			})
 		}
 	}
@@ -560,23 +593,38 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 	}
 
 	for _, lb := range loadbalancers.LoadBalancerDescriptions {
+		var relationships []v1.RelationshipResult
+		for _, instance := range lb.Instances {
+			relationships = append(relationships, v1.RelationshipResult{
+				ConfigExternalID: v1.ExternalID{
+					ExternalID:   []string{*lb.LoadBalancerName},
+					ExternalType: v1.AWSLoadBalancer,
+				},
+				RelatedExternalID: v1.ExternalID{
+					ExternalID:   []string{*instance.InstanceId},
+					ExternalType: v1.AWSEC2Instance,
+				},
+				Relationship: "LoadBalancerInstance",
+			})
+		}
 		az := lb.AvailabilityZones[0]
 		region := az[:len(az)-1]
 		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, *ctx.Caller.Account, *lb.LoadBalancerName)
 		*results = append(*results, v1.ScrapeResult{
-			ExternalType:       v1.AWSLoadBalancer,
-			CreatedAt:          lb.CreatedTime,
-			Ignore:             []string{"createdTime"},
-			BaseScraper:        config.BaseScraper,
-			Config:             lb,
-			Type:               "LoadBalancer",
-			Name:               *lb.LoadBalancerName,
-			Account:            *ctx.Caller.Account,
-			Region:             region,
-			Aliases:            []string{"AWSELB/" + arn},
-			ID:                 *lb.LoadBalancerName,
-			ParentExternalID:   *lb.VPCId,
-			ParentExternalType: v1.AWSEC2VPC,
+			ExternalType:        v1.AWSLoadBalancer,
+			CreatedAt:           lb.CreatedTime,
+			Ignore:              []string{"createdTime"},
+			BaseScraper:         config.BaseScraper,
+			Config:              lb,
+			Type:                "LoadBalancer",
+			Name:                *lb.LoadBalancerName,
+			Account:             *ctx.Caller.Account,
+			Region:              region,
+			Aliases:             []string{"AWSELB/" + arn},
+			ID:                  *lb.LoadBalancerName,
+			ParentExternalID:    *lb.VPCId,
+			ParentExternalType:  v1.AWSEC2VPC,
+			RelationshipResults: relationships,
 		})
 	}
 

@@ -69,6 +69,14 @@ type AnalysisResults []AnalysisResult
 
 type ScrapeResults []ScrapeResult
 
+type RelationshipResult struct {
+	ConfigExternalID  ExternalID
+	RelatedExternalID ExternalID
+	Relationship      string
+}
+
+type RelationshipResults []RelationshipResult
+
 func (s *ScrapeResults) AddChange(change ChangeResult) *ScrapeResults {
 	*s = append(*s, ScrapeResult{
 		ChangeResult: &change,
@@ -96,31 +104,32 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 
 // ScrapeResult ...
 type ScrapeResult struct {
-	CreatedAt          *time.Time      `json:"created_at,omitempty"`
-	LastModified       time.Time       `json:"last_modified,omitempty"`
-	Type               string          `json:"type,omitempty"`
-	ExternalType       string          `json:"external_type,omitempty"`
-	Account            string          `json:"account,omitempty"`
-	Network            string          `json:"network,omitempty"`
-	Subnet             string          `json:"subnet,omitempty"`
-	Region             string          `json:"region,omitempty"`
-	Zone               string          `json:"zone,omitempty"`
-	Name               string          `json:"name,omitempty"`
-	Namespace          string          `json:"namespace,omitempty"`
-	ID                 string          `json:"id,omitempty"`
-	Aliases            []string        `json:"aliases,omitempty"`
-	Source             string          `json:"source,omitempty"`
-	Config             interface{}     `json:"config,omitempty"`
-	Format             string          `json:"format,omitempty"`
-	Tags               JSONStringMap   `json:"tags,omitempty"`
-	BaseScraper        BaseScraper     `json:"-"`
-	Error              error           `json:"-"`
-	AnalysisResult     *AnalysisResult `json:"analysis,omitempty"`
-	ChangeResult       *ChangeResult   `json:"change,omitempty"`
-	Ignore             []string        `json:"-"`
-	Action             string          `json:",omitempty"`
-	ParentExternalID   string          `json:"-"`
-	ParentExternalType string          `json:"-"`
+	CreatedAt           *time.Time          `json:"created_at,omitempty"`
+	LastModified        time.Time           `json:"last_modified,omitempty"`
+	Type                string              `json:"type,omitempty"`
+	ExternalType        string              `json:"external_type,omitempty"`
+	Account             string              `json:"account,omitempty"`
+	Network             string              `json:"network,omitempty"`
+	Subnet              string              `json:"subnet,omitempty"`
+	Region              string              `json:"region,omitempty"`
+	Zone                string              `json:"zone,omitempty"`
+	Name                string              `json:"name,omitempty"`
+	Namespace           string              `json:"namespace,omitempty"`
+	ID                  string              `json:"id,omitempty"`
+	Aliases             []string            `json:"aliases,omitempty"`
+	Source              string              `json:"source,omitempty"`
+	Config              interface{}         `json:"config,omitempty"`
+	Format              string              `json:"format,omitempty"`
+	Tags                JSONStringMap       `json:"tags,omitempty"`
+	BaseScraper         BaseScraper         `json:"-"`
+	Error               error               `json:"-"`
+	AnalysisResult      *AnalysisResult     `json:"analysis,omitempty"`
+	ChangeResult        *ChangeResult       `json:"change,omitempty"`
+	RelationshipResults RelationshipResults `json:"-"`
+	Ignore              []string            `json:"-"`
+	Action              string              `json:",omitempty"`
+	ParentExternalID    string              `json:"-"`
+	ParentExternalType  string              `json:"-"`
 }
 
 func (s ScrapeResult) Success(config interface{}) ScrapeResult {

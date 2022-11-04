@@ -58,7 +58,7 @@ func getConfigItemParentID(id string) string {
 	return *ci.ParentID
 }
 
-func getParentPath(parentExternalUID models.ExternalID) string {
+func getParentPath(parentExternalUID v1.ExternalID) string {
 	var path string
 	parentID, _ := FindConfigItemID(parentExternalUID)
 	if parentID == nil {
@@ -179,6 +179,12 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 				return err
 			}
 		}
+
+		if result.RelationshipResults != nil {
+			if err := relationshipResultHandler(result.RelationshipResults); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -203,4 +209,29 @@ func generateDiff(a, b models.ConfigItem) (*models.ConfigChange, error) {
 		Patches:    patchStr,
 	}, nil
 
+}
+
+func relationshipResultHandler(relationships v1.RelationshipResults) error {
+	var configItemRelationships []models.ConfigRelationship
+	for _, relationship := range relationships {
+		configID, err := FindConfigItemID(relationship.ConfigExternalID)
+		if err != nil {
+			logger.Errorf("Error fetching config item id: %v", err)
+			continue
+		}
+
+		relatedID, err := FindConfigItemID(relationship.RelatedExternalID)
+		if err != nil {
+			logger.Errorf("Error fetching config item id: %v", err)
+			continue
+		}
+
+		configItemRelationships = append(configItemRelationships, models.ConfigRelationship{
+			ConfigID:  *configID,
+			RelatedID: *relatedID,
+			Relation:  relationship.Relationship,
+		})
+	}
+
+	return UpdateConfigRelatonships(configItemRelationships)
 }

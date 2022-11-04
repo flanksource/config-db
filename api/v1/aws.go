@@ -47,16 +47,17 @@ type CostReporting struct {
 }
 
 const (
-	AWSEC2Instance    = "AWS::EC2::Instance"
-	AWSEKSCluster     = "AWS::EKS::Cluster"
-	AWSS3Bucket       = "AWS::S3::Bucket"
-	AWSLoadBalancer   = "AWS::ElasticLoadBalancing::LoadBalancer"
-	AWSLoadBalancerV2 = "AWS::ElasticLoadBalancingV2::LoadBalancer"
-	AWSEBSVolume      = "AWS::EBS::Volume"
-	AWSRDSInstance    = "AWS::RDS::DBInstance"
-	AWSEC2VPC         = "AWS::EC2::VPC"
-	AWSEC2Subnet      = "AWS::EC2::Subnet"
-	AWSAccount        = "AWS::::Account"
+	AWSEC2Instance      = "AWS::EC2::Instance"
+	AWSEKSCluster       = "AWS::EKS::Cluster"
+	AWSS3Bucket         = "AWS::S3::Bucket"
+	AWSLoadBalancer     = "AWS::ElasticLoadBalancing::LoadBalancer"
+	AWSLoadBalancerV2   = "AWS::ElasticLoadBalancingV2::LoadBalancer"
+	AWSEBSVolume        = "AWS::EBS::Volume"
+	AWSRDSInstance      = "AWS::RDS::DBInstance"
+	AWSEC2VPC           = "AWS::EC2::VPC"
+	AWSEC2Subnet        = "AWS::EC2::Subnet"
+	AWSAccount          = "AWS::::Account"
+	AWSEC2SecurityGroup = "AWS::EC2::SecurityGroup"
 )
 
 func (aws AWS) Includes(resource string) bool {

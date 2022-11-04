@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
+	"gorm.io/gorm/clause"
 )
 
 // GetConfigItem returns a single config item result
@@ -34,7 +36,7 @@ func GetConfigItemFromID(id string) (*models.ConfigItem, error) {
 }
 
 // FindConfigItemID returns the uuid of config_item which matches the externalUID
-func FindConfigItemID(externalID models.ExternalID) (*string, error) {
+func FindConfigItemID(externalID v1.ExternalID) (*string, error) {
 	if ciID, exists := cacheStore.Get(externalID.CacheKey()); exists {
 		return ciID.(*string), nil
 	}
@@ -48,8 +50,15 @@ func FindConfigItemID(externalID models.ExternalID) (*string, error) {
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
+
 	cacheStore.Set(externalID.CacheKey(), &ci.ID, cache.DefaultExpiration)
 	return &ci.ID, nil
+}
+
+func FindConfigItemFromType(configType string) ([]models.ConfigItem, error) {
+	var ci []models.ConfigItem
+	err := db.Find(&ci, "external_type = @type OR config_type = @type", sql.Named("type", configType)).Error
+	return ci, err
 }
 
 // CreateConfigItem inserts a new config item row in the db
@@ -57,7 +66,6 @@ func CreateConfigItem(ci *models.ConfigItem) error {
 	if err := db.Create(ci).Error; err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -143,7 +151,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	}
 
 	if result.ParentExternalID != "" && result.ParentExternalType != "" {
-		parentExternalID := models.ExternalID{
+		parentExternalID := v1.ExternalID{
 			ExternalType: result.ParentExternalType,
 			ExternalID:   []string{result.ParentExternalID},
 		}
@@ -169,4 +177,12 @@ func GetJSON(ci models.ConfigItem) []byte {
 		logger.Errorf("Failed to marshal config: %+v", err)
 	}
 	return data
+}
+
+func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
+	tx := db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
+		UpdateAll: true,
+	}).Create(&relationships)
+	return tx.Error
 }
