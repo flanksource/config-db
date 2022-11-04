@@ -212,24 +212,24 @@ func generateDiff(a, b models.ConfigItem) (*models.ConfigChange, error) {
 }
 
 func relationshipResultHandler(relationships v1.RelationshipResults) error {
-	var configItemRelationships []models.ConfigItemRelationship
+	var configItemRelationships []models.ConfigRelationship
 	for _, relationship := range relationships {
-		parentID, err := FindConfigItemID(relationship.ParentExternalID)
+		configID, err := FindConfigItemID(relationship.ConfigExternalID)
 		if err != nil {
 			logger.Errorf("Error fetching config item id: %v", err)
 			continue
 		}
 
-		childID, err := FindConfigItemID(relationship.ChildExternalID)
+		relatedID, err := FindConfigItemID(relationship.RelatedExternalID)
 		if err != nil {
 			logger.Errorf("Error fetching config item id: %v", err)
 			continue
 		}
 
-		configItemRelationships = append(configItemRelationships, models.ConfigItemRelationship{
-			ParentID: *parentID,
-			ChildID:  *childID,
-			Relation: relationship.Relationship,
+		configItemRelationships = append(configItemRelationships, models.ConfigRelationship{
+			ConfigID:  *configID,
+			RelatedID: *relatedID,
+			Relation:  relationship.Relationship,
 		})
 	}
 

@@ -393,15 +393,14 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	var relationships v1.RelationshipResults
 	for _, r := range describeOutput.Reservations {
 		for _, i := range r.Instances {
-
 			// SecurityGroup relationships
 			for _, sg := range i.SecurityGroups {
 				relationships = append(relationships, v1.RelationshipResult{
-					ParentExternalID: v1.ExternalID{
+					ConfigExternalID: v1.ExternalID{
 						ExternalID:   []string{*i.InstanceId},
 						ExternalType: v1.AWSEC2Instance,
 					},
-					ChildExternalID: v1.ExternalID{
+					RelatedExternalID: v1.ExternalID{
 						ExternalID:   []string{*sg.GroupId},
 						ExternalType: v1.AWSEC2SecurityGroup,
 					},
@@ -413,11 +412,11 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			for _, tag := range i.Tags {
 				if *tag.Key == "aws:eks:cluster-name" {
 					relationships = append(relationships, v1.RelationshipResult{
-						ParentExternalID: v1.ExternalID{
+						ConfigExternalID: v1.ExternalID{
 							ExternalID:   []string{*tag.Value},
 							ExternalType: v1.AWSEKSCluster,
 						},
-						ChildExternalID: v1.ExternalID{
+						RelatedExternalID: v1.ExternalID{
 							ExternalID:   []string{*i.InstanceId},
 							ExternalType: v1.AWSEC2Instance,
 						},
@@ -597,11 +596,11 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 		var relationships []v1.RelationshipResult
 		for _, instance := range lb.Instances {
 			relationships = append(relationships, v1.RelationshipResult{
-				ParentExternalID: v1.ExternalID{
+				ConfigExternalID: v1.ExternalID{
 					ExternalID:   []string{*lb.LoadBalancerName},
 					ExternalType: v1.AWSLoadBalancer,
 				},
-				ChildExternalID: v1.ExternalID{
+				RelatedExternalID: v1.ExternalID{
 					ExternalID:   []string{*instance.InstanceId},
 					ExternalType: v1.AWSEC2Instance,
 				},

@@ -1,7 +1,8 @@
 package models
 
-type ConfigItemRelationship struct {
-	ParentID string `gorm:"column:parent_id" json:"parent_id"`
-	ChildID  string `gorm:"column:child_id" json:"child_id"`
-	Relation string `gorm:"column:relation" json:"relation"`
+type ConfigRelationship struct {
+	ConfigID   string `gorm:"column:config_id" json:"config_id"`
+	RelatedID  string `gorm:"column:related_id" json:"related_id"`
+	Relation   string `gorm:"column:relation" json:"relation"`
+	SelectorID string `gorm:"selector_id" json:"selector_id"`
 }

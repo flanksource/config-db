@@ -70,9 +70,9 @@ type AnalysisResults []AnalysisResult
 type ScrapeResults []ScrapeResult
 
 type RelationshipResult struct {
-	ParentExternalID ExternalID
-	ChildExternalID  ExternalID
-	Relationship     string
+	ConfigExternalID  ExternalID
+	RelatedExternalID ExternalID
+	Relationship      string
 }
 
 type RelationshipResults []RelationshipResult

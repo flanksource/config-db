@@ -50,14 +50,14 @@ CREATE INDEX IF NOT EXISTS idx_config_items_external_id ON config_items USING GI
 CREATE TABLE IF NOT EXISTS config_relationships(
   config_id UUID NOT NULL,
   related_id UUID NOT NULL,
-  property text NULL, -- The component property name that this config is for
+  relation text NULL,
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now(),
   deleted_at TIMESTAMP DEFAULT NULL,
   selector_id text, -- hash of the selector from the components
   FOREIGN KEY(config_id) REFERENCES config_items(id),
   FOREIGN KEY(related_id) REFERENCES config_items(id),
-	UNIQUE (related_id,config_id,selector_id)
+  UNIQUE (related_id,config_id,selector_id)
 );
 
 CREATE TABLE IF NOT EXISTS config_changes (
@@ -102,18 +102,6 @@ CREATE TABLE IF NOT EXISTS saved_query (
   created_by TEXT NULL,
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS config_item_relationships (
-  parent_id UUID NOT NULL,
-  child_id UUID NOT NULL,
-  relation TEXT NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT now(),
-  updated_at TIMESTAMP NOT NULL DEFAULT now(),
-  deleted_at TIMESTAMP DEFAULT NULL,
-  FOREIGN KEY (parent_id) REFERENCES config_items(id),
-  FOREIGN KEY (child_id) REFERENCES config_items(id),
-  UNIQUE (parent_id, child_id, relation)
 );
 
 -- +goose StatementEnd
