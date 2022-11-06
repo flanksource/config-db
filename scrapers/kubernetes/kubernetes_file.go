@@ -95,16 +95,7 @@ func findDeployments(ctx *v1.ScrapeContext, client *kubernetes.Clientset, config
 	return deployments, nil
 }
 
-func findStatefulsets(ctx *v1.ScrapeContext, client *kubernetes.Clientset, config v1.ResourceSelector) ([]appsv1.Deployment, error) {
-	return nil, nil
-}
-
-func findDaemonsets(ctx *v1.ScrapeContext, client *kubernetes.Clientset, config v1.ResourceSelector) ([]appsv1.Deployment, error) {
-	return nil, nil
-}
-
 func findBySelector(ctx *v1.ScrapeContext, client *kubernetes.Clientset, config v1.KubernetesFile, namespace, selector, id string, count int) ([]pod, error) {
-
 	podsList, err := findPods(ctx, client, v1.ResourceSelector{
 		Namespace:     namespace,
 		LabelSelector: selector,

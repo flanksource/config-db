@@ -3,14 +3,12 @@ package file
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"math/rand"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -22,12 +20,6 @@ import (
 // FileScrapper ...
 type FileScrapper struct {
 }
-
-const charset = "abcdefghijklmnopqrstuvwxyz" +
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-var seededRand *rand.Rand = rand.New(
-	rand.NewSource(time.Now().UnixNano()))
 
 func isIgnored(config v1.File, path string) (bool, error) {
 	if !isYaml(path) && !isJson(path) {
@@ -58,18 +50,22 @@ func stripSecrets(uri string) string {
 }
 
 func stripPrefix(filename string) string {
-	return regexp.MustCompile("^\\w+::").ReplaceAllString(filename, "")
+	filename = regexp.MustCompile(`^\w+::`).ReplaceAllString(filename, "")
 	return strings.Replace(filename, "file://", "", 1)
 }
 
-// convert url into a local path supported on linx filesystems
+// convert url into a local path supported on linux filesystems
 func convertToLocalPath(uri string) string {
 	_uri, err := url.Parse(stripPrefix(uri))
 	if err != nil {
 		return uri
 	}
 	hash := md5.Sum([]byte(uri))
-	return path.Base(_uri.Path) + "-" + hex.EncodeToString(hash[:])
+	p := ""
+	if _uri.Host != "" {
+		p = _uri.Host + "-"
+	}
+	return p + path.Base(_uri.Path) + "-" + hex.EncodeToString(hash[:])[0:8]
 }
 
 // Scrape ...
