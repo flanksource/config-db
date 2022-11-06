@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS config_items (
   id UUID DEFAULT generate_ulid() PRIMARY KEY,
   parent_id UUID NULL,
   path text NULL,
+  icon text NULL,
   scraper_id UUID NULL,
   config_type text NOT NULL, -- The standardized type e.g. Subnet, Network, Host, etc. that applies across platforms
   external_id text[],
