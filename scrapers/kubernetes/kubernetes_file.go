@@ -183,7 +183,7 @@ func (kubernetes KubernetesFileScrapper) Scrape(ctx *v1.ScrapeContext, configs v
 				if errors.IsNotFound(err) {
 					continue
 				} else if err != nil {
-					results.Errorf(err, "failed to get statefukset")
+					results.Errorf(err, "failed to get %s", config.Selector)
 					continue
 				}
 
@@ -192,7 +192,7 @@ func (kubernetes KubernetesFileScrapper) Scrape(ctx *v1.ScrapeContext, configs v
 					LabelSelector: metav1.FormatLabelSelector(statefulset.Spec.Selector),
 				})
 				if err != nil {
-					results.Errorf(err, "failed to find pods for statefulset %s/%s", config.Selector.Namespace, config.Selector.Name)
+					results.Errorf(err, "failed to find pods for %s", config.Selector)
 					continue
 				}
 				if len(podsList) == 0 {
