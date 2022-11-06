@@ -171,7 +171,7 @@ func (kubernetes KubernetesFileScrapper) Scrape(ctx *v1.ScrapeContext, configs v
 					fmt.Sprintf("%s/%s/%s", deployment.Namespace, "deployment", deployment.Name),
 					1)
 				if err != nil {
-					results.Errorf(err, "failed to find pods for deployment", kommons.GetName(deployment).String())
+					results.Errorf(err, "failed to find pods for deployment %s", kommons.GetName(deployment).String())
 				} else {
 					pods = append(pods, _pods...)
 				}
