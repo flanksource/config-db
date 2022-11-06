@@ -5,8 +5,13 @@ import (
 	"path"
 	"strings"
 
+	perrors "github.com/pkg/errors"
+
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/kommons"
+
+	appsv1 "k8s.io/api/apps/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,6 +45,78 @@ func startsWith(name, prefix string) bool {
 	return strings.HasPrefix(strings.ToLower(name), prefix)
 }
 
+func findDeployments(ctx *v1.ScrapeContext, client *kubernetes.Clientset, config v1.ResourceSelector) ([]appsv1.Deployment, error) {
+	namespaces := []string{}
+	var deployments []appsv1.Deployment
+	if config.Namespace == "*" {
+		namespaceList, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		for _, ns := range namespaceList.Items {
+			namespaces = append(namespaces, ns.Name)
+		}
+	} else {
+		namespaces = append(namespaces, config.Namespace)
+	}
+
+	for _, namespace := range namespaces {
+		if config.Name != "" {
+			deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, config.Name, metav1.GetOptions{})
+			if ctx.IsTrace() {
+				logger.Debugf("%s => %d", config, deployment)
+			}
+			if errors.IsNotFound(err) {
+				continue
+			} else if err != nil {
+				return nil, err
+			}
+			deployments = append(deployments, *deployment)
+			continue
+		}
+
+		deploymentList, err := client.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: config.LabelSelector,
+			FieldSelector: config.FieldSelector,
+		})
+
+		if ctx.IsTrace() {
+			logger.Debugf("%s => %d", config, deploymentList.Size())
+		}
+
+		if errors.IsNotFound(err) {
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+		deployments = append(deployments, deploymentList.Items...)
+	}
+
+	return deployments, nil
+}
+
+func findBySelector(ctx *v1.ScrapeContext, client *kubernetes.Clientset, config v1.KubernetesFile, namespace, selector, id string, count int) ([]pod, error) {
+	podsList, err := findPods(ctx, client, v1.ResourceSelector{
+		Namespace:     namespace,
+		LabelSelector: selector,
+	})
+	if err != nil {
+		return nil, perrors.Wrapf(err, "failed to find pods for statefulset %s/%s", namespace, selector)
+	}
+
+	var pods []pod
+	for _, _pod := range podsList {
+		pod := newPod(_pod, config, _pod.Labels)
+		pod.ID = id
+		pods = append(pods, pod)
+		if len(pods) == count {
+			break
+		}
+
+	}
+	return pods, nil
+}
+
 // Scrape ...
 func (kubernetes KubernetesFileScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 
@@ -61,6 +138,8 @@ func (kubernetes KubernetesFileScrapper) Scrape(ctx *v1.ScrapeContext, configs v
 			config.Selector.Kind = "Pod"
 		}
 
+		logger.Debugf("Scrapping %s => %s", config.Selector, config.Files)
+
 		if startsWith(config.Selector.Kind, "pod") {
 			podList, err := findPods(ctx, client, config.Selector)
 			if err != nil {
@@ -71,41 +150,31 @@ func (kubernetes KubernetesFileScrapper) Scrape(ctx *v1.ScrapeContext, configs v
 				pods = append(pods, newPod(p, config, p.Labels))
 			}
 		} else if startsWith(config.Selector.Kind, "deployment") {
-			if config.Selector.Name != "" {
-				deployment, err := client.AppsV1().Deployments(config.Selector.Namespace).Get(ctx, config.Selector.Name, metav1.GetOptions{})
-				if errors.IsNotFound(err) {
-					continue
-				} else if err != nil {
-					results.Errorf(err, "failed to get deployment")
-					continue
-				}
-
-				podsList, err := findPods(ctx, client, v1.ResourceSelector{
-					Namespace:     config.Selector.Namespace,
-					LabelSelector: metav1.FormatLabelSelector(deployment.Spec.Selector),
-				})
-				if err != nil {
-					results.Errorf(err, "failed to find pods for deployment %s/%s", config.Selector.Namespace, config.Selector.Name)
-					continue
-				}
-				if len(podsList) == 0 {
-					continue
-				}
-
-				pod := newPod(podsList[0], config, podsList[0].Labels)
-				pod.ID = config.Selector.Namespace + "/deployment/" + config.Selector.Name
-				pods = append(pods, pod)
-			} else {
-				results.Errorf(fmt.Errorf("deployment name is required"), "failed to get deployment")
-				continue
+			deployments, err := findDeployments(ctx, client, config.Selector)
+			if err != nil {
+				results.Errorf(err, "failed to find deployments")
 			}
+
+			for _, deployment := range deployments {
+				_pods, err := findBySelector(ctx, client, config,
+					deployment.Namespace,
+					metav1.FormatLabelSelector(deployment.Spec.Selector),
+					fmt.Sprintf("%s/%s/%s", deployment.Namespace, "deployment", deployment.Name),
+					1)
+				if err != nil {
+					results.Errorf(err, "failed to find pods for deployment %s", kommons.GetName(deployment).String())
+				} else {
+					pods = append(pods, _pods...)
+				}
+			}
+
 		} else if startsWith(config.Selector.Kind, "statefulset") {
 			if config.Selector.Name != "" {
 				statefulset, err := client.AppsV1().StatefulSets(config.Selector.Namespace).Get(ctx, config.Selector.Name, metav1.GetOptions{})
 				if errors.IsNotFound(err) {
 					continue
 				} else if err != nil {
-					results.Errorf(err, "failed to get statefukset")
+					results.Errorf(err, "failed to get %s", config.Selector)
 					continue
 				}
 
@@ -114,7 +183,7 @@ func (kubernetes KubernetesFileScrapper) Scrape(ctx *v1.ScrapeContext, configs v
 					LabelSelector: metav1.FormatLabelSelector(statefulset.Spec.Selector),
 				})
 				if err != nil {
-					results.Errorf(err, "failed to find pods for statefulset %s/%s", config.Selector.Namespace, config.Selector.Name)
+					results.Errorf(err, "failed to find pods for %s", config.Selector)
 					continue
 				}
 				if len(podsList) == 0 {
@@ -150,7 +219,7 @@ func (kubernetes KubernetesFileScrapper) Scrape(ctx *v1.ScrapeContext, configs v
 				if _, ok := pod.Labels["pod"]; !ok {
 					pod.Labels["pod"] = pod.Name
 				}
-				pod.Labels = stripLabels(pod.Labels, "-hash")
+				pod.Labels = stripLabels(pod.Labels, "-hash", "pod", "eks.amazonaws.com/fargate-profile")
 				results = append(results, v1.ScrapeResult{
 					BaseScraper: pod.Config.BaseScraper,
 					Tags:        pod.Labels,

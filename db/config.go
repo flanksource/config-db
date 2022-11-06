@@ -9,8 +9,8 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/lib/pq"
+	"github.com/ohler55/ojg/oj"
 	"github.com/patrickmn/go-cache"
-	"github.com/pkg/errors"
 	"gorm.io/gorm/clause"
 )
 
@@ -123,11 +123,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	case []byte:
 		dataStr = string(data)
 	default:
-		bytes, err := json.Marshal(data)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Unable to marshal: %v", result.Config)
-		}
-		dataStr = string(bytes)
+		dataStr = oj.JSON(data, &oj.Options{Sort: true, OmitNil: true, Indent: 2, TimeFormat: "2006-01-02T15:04:05Z07:00"})
 	}
 
 	ci := &models.ConfigItem{

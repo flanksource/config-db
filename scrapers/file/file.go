@@ -1,11 +1,14 @@
 package file
 
 import (
-	"math/rand"
+	"crypto/md5"
+	"encoding/hex"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
-	"time"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -17,12 +20,6 @@ import (
 // FileScrapper ...
 type FileScrapper struct {
 }
-
-const charset = "abcdefghijklmnopqrstuvwxyz" +
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-var seededRand *rand.Rand = rand.New(
-	rand.NewSource(time.Now().UnixNano()))
 
 func isIgnored(config v1.File, path string) (bool, error) {
 	if !isYaml(path) && !isJson(path) {
@@ -43,15 +40,49 @@ func isIgnored(config v1.File, path string) (bool, error) {
 	return false, nil
 }
 
+// stripSecrets returns the url with the password removed
+func stripSecrets(uri string) string {
+	_uri, _ := url.Parse(stripPrefix(uri))
+	if _uri == nil {
+		return uri
+	}
+	return _uri.Redacted()
+}
+
+func stripPrefix(filename string) string {
+	filename = regexp.MustCompile(`^\w+::`).ReplaceAllString(filename, "")
+	return strings.Replace(filename, "file://", "", 1)
+}
+
+// convert url into a local path supported on linux filesystems
+func convertToLocalPath(uri string) string {
+	_uri, err := url.Parse(stripPrefix(uri))
+	if err != nil {
+		return uri
+	}
+	hash := md5.Sum([]byte(uri))
+	p := ""
+	if _uri.Host != "" {
+		p = _uri.Host + "-"
+	}
+	return p + path.Base(_uri.Path) + "-" + hex.EncodeToString(hash[:])[0:8]
+}
+
 // Scrape ...
 func (file FileScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+	pwd, _ := os.Getwd()
+	cacheDir := path.Join(pwd, ".config-db", "cache", "files")
 	results := v1.ScrapeResults{}
-	var tempDir string
 	for _, config := range configs.File {
+		url := stripSecrets(config.URL)
+		tempDir := path.Join(cacheDir, convertToLocalPath(url))
+		if err := os.MkdirAll(cacheDir, 0755); err != nil {
+			return results.Errorf(err, "failed to create cache dir: %v", tempDir)
+		}
+		logger.Debugf("Scraping file %s ==> %s", stripSecrets(config.URL), tempDir)
 		var globMatches []string
 		if config.URL != "" {
-			globMatches, tempDir = findFilesFromURL(ctx, config.URL, config.Paths)
-			defer os.RemoveAll(tempDir)
+			globMatches = getFiles(ctx, tempDir, config.URL, config.Paths)
 		} else {
 			globMatches = findFiles(ctx, "", config.Paths)
 		}
@@ -89,12 +120,12 @@ func (file FileScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper)
 	return results
 }
 
-func findFilesFromURL(ctx *v1.ScrapeContext, url string, paths []string) (matches []string, dirname string) {
-	tempDir := GetTempDirName(10, charset)
-	if err := getter.GetAny(tempDir, url); err != nil {
+func getFiles(ctx *v1.ScrapeContext, dst, url string, paths []string) (matches []string) {
+	logger.Debugf("Downloading files from %s to %s", stripSecrets(url), dst)
+	if err := getter.GetAny(dst, url); err != nil {
 		logger.Errorf("Error downloading file: %s", err)
 	}
-	return findFiles(ctx, tempDir, paths), tempDir
+	return findFiles(ctx, dst, paths)
 }
 
 func findFiles(ctx *v1.ScrapeContext, dir string, paths []string) []string {
@@ -122,12 +153,4 @@ func isYaml(filename string) bool {
 
 func isJson(filename string) bool {
 	return filepath.Ext(filename) == ".json"
-}
-
-func GetTempDirName(length int, charset string) string {
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[seededRand.Intn(len(charset))]
-	}
-	return string(b)
 }

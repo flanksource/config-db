@@ -1,6 +1,10 @@
 package v1
 
-import "github.com/flanksource/kommons"
+import (
+	"strings"
+
+	"github.com/flanksource/kommons"
+)
 
 type Kubernetes struct {
 	BaseScraper     `json:",inline"`
@@ -28,6 +32,10 @@ type PodFile struct {
 	Format string   `json:"format,omitempty"`
 }
 
+func (p PodFile) String() string {
+	return strings.Join(p.Path, ",")
+}
+
 type ResourceSelector struct {
 	Namespace     string `json:"namespace,omitempty"`
 	Kind          string `json:"kind,omitempty"`
@@ -41,11 +49,18 @@ func (r ResourceSelector) IsEmpty() bool {
 }
 
 func (r ResourceSelector) String() string {
+	s := r.Kind
+	if r.Namespace != "" {
+		s += "/" + r.Namespace
+	}
 	if r.Name != "" {
-		return r.Name
+		return s + "/" + r.Name
 	}
 	if r.LabelSelector != "" {
-		return r.LabelSelector
+		s += " labels=" + r.LabelSelector
 	}
-	return r.FieldSelector
+	if r.FieldSelector != "" {
+		s += " fields=" + r.FieldSelector
+	}
+	return s
 }

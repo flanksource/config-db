@@ -119,6 +119,11 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 				return results, errors.Wrapf(err, "Failed parse properties %s", input)
 			}
 			input.Config = props.Map()
+		} else if input.Format != "" {
+			input.Config = map[string]interface{}{
+				"format":  input.Format,
+				"content": input.Config,
+			}
 		}
 
 		if input.Config == nil {
