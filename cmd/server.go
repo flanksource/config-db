@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	"github.com/flanksource/commons/logger"
@@ -36,6 +37,9 @@ var Serve = &cobra.Command{
 			e.Use(middleware.Logger())
 		}
 
+		e.GET("/health", func(c echo.Context) error {
+			return c.String(http.StatusOK, "OK")
+		})
 		e.GET("/query", query.Handler)
 
 		e.Group("/db").Use(middleware.ProxyWithConfig(middleware.ProxyConfig{
