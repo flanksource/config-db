@@ -52,14 +52,17 @@ var Serve = &cobra.Command{
 				},
 			}),
 		}))
-		serve(args)
+
+		// Run this in a goroutine to make it non-blocking for server start
+		go startScraperCron(args)
+
 		if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil {
 			e.Logger.Fatal(err)
 		}
 	},
 }
 
-func serve(configFiles []string) {
+func startScraperCron(configFiles []string) {
 	scraperConfigs, err := v1.ParseConfigs(configFiles...)
 	if err != nil {
 		logger.Fatalf(err.Error())
