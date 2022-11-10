@@ -28,30 +28,14 @@ var Serve = &cobra.Command{
 		db.HTTPEndpoint = publicEndpoint + "/db"
 		go db.StartPostgrest()
 
-		url, err := url.Parse("http://localhost:3000")
-		if err != nil {
-			e.Logger.Fatal(err)
-		}
-
 		if logger.IsTraceEnabled() {
 			e.Use(middleware.Logger())
 		}
-
+		forward(e, "/db", db.PostgRESTEndpoint())
 		e.GET("/health", func(c echo.Context) error {
 			return c.String(http.StatusOK, "OK")
 		})
 		e.GET("/query", query.Handler)
-
-		e.Group("/db").Use(middleware.ProxyWithConfig(middleware.ProxyConfig{
-			Rewrite: map[string]string{
-				"^/db/*": "/$1",
-			},
-			Balancer: middleware.NewRoundRobinBalancer([]*middleware.ProxyTarget{
-				{
-					URL: url,
-				},
-			}),
-		}))
 
 		// Run this in a goroutine to make it non-blocking for server start
 		go startScraperCron(args)
@@ -93,6 +77,23 @@ func startScraperCron(configFiles []string) {
 
 	cron.Start()
 
+}
+
+func forward(e *echo.Echo, prefix string, target string) {
+	targetURL, err := url.Parse(target)
+	if err != nil {
+		e.Logger.Fatal(err)
+	}
+	e.Group(prefix).Use(middleware.ProxyWithConfig(middleware.ProxyConfig{
+		Rewrite: map[string]string{
+			fmt.Sprintf("^%s/*", prefix): "/$1",
+		},
+		Balancer: middleware.NewRoundRobinBalancer([]*middleware.ProxyTarget{
+			{
+				URL: targetURL,
+			},
+		}),
+	}))
 }
 
 func init() {
