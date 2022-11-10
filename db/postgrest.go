@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/flanksource/commons/deps"
@@ -13,7 +14,7 @@ var PostgRESTVersion = "v9.0.0"
 var PostgRESTServerPort = 3000
 
 func PostgRESTEndpoint() string {
-	return "http://localhost:" + strconv.Itoa(PostgRESTServerPort)
+	return fmt.Sprintf("http://localhost:%d", PostgRESTServerPort)
 }
 
 // GoOffline ...
