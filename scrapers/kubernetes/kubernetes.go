@@ -28,6 +28,7 @@ func (kubernetes KubernetesScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.Co
 				Type:        obj.GetKind(),
 				CreatedAt:   &createdAt,
 				Config:      *obj,
+				ID:          string(obj.GetUID()),
 			})
 		}
 	}
