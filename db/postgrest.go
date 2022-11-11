@@ -8,13 +8,18 @@ import (
 	"github.com/flanksource/commons/logger"
 )
 
-// PostgRESTVersion ...
-var PostgRESTVersion = "v9.0.0"
-
-var PostgRESTServerPort = 3000
+var (
+	PostgRESTVersion         = "v10.0.0"
+	PostgRESTServerPort      = 3000
+	PostgRESTAdminServerPort = 3001
+)
 
 func PostgRESTEndpoint() string {
 	return fmt.Sprintf("http://localhost:%d", PostgRESTServerPort)
+}
+
+func PostgRESTAdminEndpoint() string {
+	return fmt.Sprintf("http://localhost:%d", PostgRESTAdminServerPort)
 }
 
 // GoOffline ...
@@ -30,6 +35,7 @@ func getBinary() deps.BinaryFunc {
 		"PGRST_OPENAPI_SERVER_PROXY_URI": HTTPEndpoint,
 		"PGRST_DB_PORT":                  strconv.Itoa(PostgRESTServerPort),
 		"PGRST_LOG_LEVEL":                LogLevel,
+		"PGRST_ADMIN_SERVER_PORT":        strconv.Itoa(PostgRESTAdminServerPort),
 	})
 }
 

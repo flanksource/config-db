@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 
 	"github.com/flanksource/commons/logger"
@@ -32,9 +31,8 @@ var Serve = &cobra.Command{
 			e.Use(middleware.Logger())
 		}
 		forward(e, "/db", db.PostgRESTEndpoint())
-		e.GET("/health", func(c echo.Context) error {
-			return c.String(http.StatusOK, "OK")
-		})
+		forward(e, "/live", db.PostgRESTAdminEndpoint())
+		forward(e, "/ready", db.PostgRESTAdminEndpoint())
 		e.GET("/query", query.Handler)
 
 		// Run this in a goroutine to make it non-blocking for server start
