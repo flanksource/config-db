@@ -7,6 +7,9 @@ replicas: 1
 # Use this only if you want to replace the default that is .Chart.Name as the name of all the objects.
 nameOverride: ""
 
+# Set to true if you want to disable the postgrest service
+disablePostgrest: false 
+
 image:
   repository: docker.io/flanksource/config-db
   pullPolicy: IfNotPresent
