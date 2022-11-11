@@ -18,6 +18,7 @@ var disableKubernetes bool
 var kommonsClient *kommons.Client
 var publicEndpoint = "http://localhost:8080"
 var defaultSchedule string
+var disablePostgrest bool
 var (
 	version = "dev"
 	commit  = "none"
@@ -63,6 +64,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.IntVar(&metricsPort, "metricsPort", 8081, "Port to expose a health dashboard ")
 	flags.BoolVar(&disableKubernetes, "disable-kubernetes", false, "Disable all functionality that requires a kubernetes connection")
 	flags.BoolVar(&dev, "dev", false, "Run in development mode")
+	flags.BoolVar(&disablePostgrest, "disable-postgrest", false, "Disable the postgrest server")
 	flags.StringVar(&defaultSchedule, "default-schedule", "@every 60m", "Default schedule for configs that don't specfiy one")
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
 }

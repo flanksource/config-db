@@ -57,6 +57,7 @@ spec:
             {{- range .Values.scrapeRuleConfigMaps }}
             - /config/{{.}}/config.yaml
             {{- end }}
+            - --disable-postgrest={{ .Values.disablePostgrest }}
           env:
             - name: DB_URL
               valueFrom:

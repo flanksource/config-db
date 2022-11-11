@@ -25,14 +25,24 @@ var Serve = &cobra.Command{
 		e := echo.New()
 		// PostgREST needs to know how it is exposed to create the correct links
 		db.HTTPEndpoint = publicEndpoint + "/db"
-		go db.StartPostgrest()
 
 		if logger.IsTraceEnabled() {
 			e.Use(middleware.Logger())
 		}
-		forward(e, "/db", db.PostgRESTEndpoint())
-		forward(e, "/live", db.PostgRESTAdminEndpoint())
-		forward(e, "/ready", db.PostgRESTAdminEndpoint())
+		if !disablePostgrest {
+			go db.StartPostgrest()
+			forward(e, "/db", db.PostgRESTEndpoint())
+			forward(e, "/live", db.PostgRESTAdminEndpoint())
+			forward(e, "/ready", db.PostgRESTAdminEndpoint())
+		} else {
+			e.GET("/live", func(c echo.Context) error {
+				return c.String(200, "OK")
+			})
+
+			e.GET("/ready", func(c echo.Context) error {
+				return c.String(200, "OK")
+			})
+		}
 		e.GET("/query", query.Handler)
 
 		// Run this in a goroutine to make it non-blocking for server start
