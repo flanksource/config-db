@@ -46,7 +46,7 @@ type ChangeResult struct {
 	Severity         string
 	Source           string
 	CreatedAt        *time.Time
-	Details          map[string]string
+	Details          map[string]interface{}
 }
 
 func (c ChangeResult) String() string {
@@ -79,7 +79,7 @@ type RelationshipResults []RelationshipResult
 
 func (s *ScrapeResults) AddChange(change ChangeResult) *ScrapeResults {
 	*s = append(*s, ScrapeResult{
-		ChangeResult: &change,
+		Changes: []ChangeResult{change},
 	})
 	return s
 }
@@ -124,7 +124,7 @@ type ScrapeResult struct {
 	BaseScraper         BaseScraper         `json:"-"`
 	Error               error               `json:"-"`
 	AnalysisResult      *AnalysisResult     `json:"analysis,omitempty"`
-	ChangeResult        *ChangeResult       `json:"change,omitempty"`
+	Changes             []ChangeResult      `json:"-"`
 	RelationshipResults RelationshipResults `json:"-"`
 	Ignore              []string            `json:"-"`
 	Action              string              `json:",omitempty"`
@@ -164,8 +164,19 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 	return clone
 }
 
-func (s ScrapeResult) String() string {
-	return fmt.Sprintf("%s/%s (%s)", s.Type, s.Name, s.ID)
+func (r ScrapeResult) String() string {
+	s := fmt.Sprintf("%s/%s (%s)", r.Type, r.Name, r.ID)
+
+	if len(r.Changes) > 0 {
+		s += fmt.Sprintf(" changes=%d", len(r.Changes))
+	}
+	if len(r.RelationshipResults) > 0 {
+		s += fmt.Sprintf(" relationships=%d", len(r.RelationshipResults))
+	}
+	if r.AnalysisResult != nil {
+		s += fmt.Sprintf(" analysis=1")
+	}
+	return s
 }
 
 // QueryColumn ...

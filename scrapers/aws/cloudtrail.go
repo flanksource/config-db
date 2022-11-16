@@ -72,7 +72,7 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 					CreatedAt:        event.EventTime,
 					ExternalChangeID: *event.EventId,
 					ChangeType:       *event.EventName,
-					Details:          make(map[string]string),
+					Details:          v1.NewJSON(*event.CloudTrailEvent),
 					Source:           fmt.Sprintf("AWS::CloudTrail::%s:%s", ctx.Session.Region, *ctx.Caller.Account),
 				}
 
@@ -83,9 +83,6 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 					change.ExternalType = *resource.ResourceType
 				}
 
-				if event.Username != nil {
-					change.Details["User"] = *event.Username
-				}
 				results.AddChange(change)
 			}
 		}
