@@ -226,6 +226,12 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 			continue
 		}
 
+		// In first iteration, the database is not completely populated
+		// so there can be missing references to config items
+		if relatedID == nil || configID == nil {
+			continue
+		}
+
 		configItemRelationships = append(configItemRelationships, models.ConfigRelationship{
 			ConfigID:  *configID,
 			RelatedID: *relatedID,
