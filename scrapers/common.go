@@ -2,8 +2,10 @@ package scrapers
 
 import (
 	"time"
+
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/scrapers/aws"
+	"github.com/flanksource/config-db/scrapers/azure/devops"
 	"github.com/flanksource/config-db/scrapers/file"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/scrapers/sql"
@@ -17,6 +19,7 @@ var All = []v1.Scraper{
 	aws.CostScraper{},
 	file.FileScrapper{},
 	kubernetes.KubernetesScrapper{},
+	devops.AzureDevopsScrapper{},
 	sql.SqlScrapper{},
 }
 
