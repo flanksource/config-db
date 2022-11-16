@@ -16,6 +16,7 @@ type ConfigScraper struct {
 	File           []File           `json:"file,omitempty" yaml:"file,omitempty"`
 	Kubernetes     []Kubernetes     `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
 	KubernetesFile []KubernetesFile `json:"kubernetesFile,omitempty" yaml:"kubernetesFile,omitempty"`
+	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
 }
 
 // IsEmpty ...

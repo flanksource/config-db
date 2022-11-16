@@ -106,6 +106,40 @@ type GCPConnection struct {
 	Credentials *kommons.EnvVar `yaml:"credentials" json:"credentials,omitempty"`
 }
 
+type Connection struct {
+	Connection     string         `yaml:"connection" json:"connection" template:"true"`
+	Authentication Authentication `yaml:"auth,omitempty" json:"auth,omitempty"`
+}
+
+// +k8s:deepcopy-gen=false
+type Connectable interface {
+	GetConnection() string
+}
+
+func (c Connection) GetConnection() string {
+	return c.Connection
+}
+
+func (c Connection) GetEndpoint() string {
+	return sanitizeEndpoints(c.Connection)
+}
+
+// Obfuscate passwords of the form ' password=xxxxx ' from connectionString since
+// connectionStrings are used as metric labels and we don't want to leak passwords
+// Returns the Connection string with the password replaced by '###'
+func sanitizeEndpoints(connection string) string {
+	if _url, err := url.Parse(connection); err == nil {
+		if _url.User != nil {
+			_url.User = nil
+			connection = _url.String()
+		}
+	}
+	//looking for a substring that starts with a space,
+	//'password=', then any non-whitespace characters,
+	//until an ending space
+	re := regexp.MustCompile(`password=([^;]*)`)
+	return re.ReplaceAllString(connection, "password=###")
+}
 type Template struct {
 	Template   string `yaml:"template,omitempty" json:"template,omitempty"`
 	JSONPath   string `yaml:"jsonPath,omitempty" json:"jsonPath,omitempty"`
