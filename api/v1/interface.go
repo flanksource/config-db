@@ -174,7 +174,7 @@ func (r ScrapeResult) String() string {
 		s += fmt.Sprintf(" relationships=%d", len(r.RelationshipResults))
 	}
 	if r.AnalysisResult != nil {
-		s += fmt.Sprintf(" analysis=1")
+		s += " analysis=1"
 	}
 	return s
 }

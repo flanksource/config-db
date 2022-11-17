@@ -16,11 +16,11 @@ type JSON map[string]interface{}
 
 func NewJSON(v interface{}) JSON {
 	j := JSON{}
-	switch v.(type) {
+	switch v := v.(type) {
 	case string:
-		_ = json.Unmarshal([]byte(v.(string)), &j)
+		_ = json.Unmarshal([]byte(v), &j)
 	case []byte:
-		_ = json.Unmarshal(v.([]byte), &j)
+		_ = json.Unmarshal(v, &j)
 	default:
 		data, _ := json.Marshal(v)
 		_ = json.Unmarshal(data, &j)
