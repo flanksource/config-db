@@ -1,6 +1,9 @@
 package v1
 
 import (
+	"fmt"
+	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/flanksource/kommons"
@@ -45,6 +48,25 @@ type Transform struct {
 	Exclude []Filter `json:"exclude,omitempty"`
 }
 
+func (t Transform) IsEmpty() bool {
+	return t.Script.IsEmpty() && len(t.Include) == 0 && len(t.Exclude) == 0
+}
+
+func (t Transform) String() string {
+	s := ""
+	if !t.Script.IsEmpty() {
+		s += fmt.Sprintf("script=%s", t.Script)
+	}
+	if len(t.Include) > 0 {
+		s += fmt.Sprintf(" include=%s", t.Include)
+	}
+
+	if len(t.Exclude) > 0 {
+		s += fmt.Sprintf(" exclude=%s", t.Exclude)
+	}
+	return s
+}
+
 type BaseScraper struct {
 	// A static value or JSONPath expression to use as the ID for the resource.
 	ID string `json:"id,omitempty"`
@@ -58,6 +80,24 @@ type BaseScraper struct {
 	Transform Transform `json:"transform,omitempty"`
 	// Format of config item, defaults to JSON, available options are JSON, properties
 	Format string `json:"format,omitempty"`
+}
+
+func (base BaseScraper) String() string {
+	s := fmt.Sprintf("id=%s name=%s type=%s", base.ID, base.Name, base.Type)
+
+	if base.Format != "" {
+		s += fmt.Sprintf(" format=%s", base.Format)
+	}
+
+	if base.Items != "" {
+		s += fmt.Sprintf(" items=%s", base.Items)
+	}
+
+	if !base.Transform.IsEmpty() {
+		s += fmt.Sprintf(" transform=%s", base.Transform)
+	}
+
+	return s
 }
 
 // Authentication ...
@@ -104,6 +144,41 @@ type AWSConnection struct {
 type GCPConnection struct {
 	Endpoint    string          `yaml:"endpoint" json:"endpoint,omitempty"`
 	Credentials *kommons.EnvVar `yaml:"credentials" json:"credentials,omitempty"`
+}
+
+type Connection struct {
+	Connection     string         `yaml:"connection" json:"connection" template:"true"`
+	Authentication Authentication `yaml:"auth,omitempty" json:"auth,omitempty"`
+}
+
+// +k8s:deepcopy-gen=false
+type Connectable interface {
+	GetConnection() string
+}
+
+func (c Connection) GetConnection() string {
+	return c.Connection
+}
+
+func (c Connection) GetEndpoint() string {
+	return sanitizeEndpoints(c.Connection)
+}
+
+// Obfuscate passwords of the form ' password=xxxxx ' from connectionString since
+// connectionStrings are used as metric labels and we don't want to leak passwords
+// Returns the Connection string with the password replaced by '###'
+func sanitizeEndpoints(connection string) string {
+	if _url, err := url.Parse(connection); err == nil {
+		if _url.User != nil {
+			_url.User = nil
+			connection = _url.String()
+		}
+	}
+	//looking for a substring that starts with a space,
+	//'password=', then any non-whitespace characters,
+	//until an ending space
+	re := regexp.MustCompile(`password=([^;]*)`)
+	return re.ReplaceAllString(connection, "password=###")
 }
 
 type Template struct {
