@@ -76,6 +76,7 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 					Source:           fmt.Sprintf("AWS::CloudTrail::%s:%s", ctx.Session.Region, *ctx.Caller.Account),
 				}
 
+				change.Details["Event"] = *event.CloudTrailEvent
 				if resource.ResourceName != nil {
 					change.ExternalID = *resource.ResourceName
 				}

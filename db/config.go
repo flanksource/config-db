@@ -179,6 +179,7 @@ func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
 	if len(relationships) == 0 {
 		return nil
 	}
+
 	tx := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
 		UpdateAll: true,
