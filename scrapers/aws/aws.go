@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/ptr"
 
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
@@ -470,14 +471,16 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				})
 			}
 
-			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID: selfExternalID,
-				RelatedExternalID: v1.ExternalID{
-					ExternalID:   []string{*i.IamInstanceProfile.Id},
-					ExternalType: v1.AWSIAMInstanceProfile,
-				},
-				Relationship: "IAMInstanceProfile",
-			})
+			if i.IamInstanceProfile != nil {
+				relationships = append(relationships, v1.RelationshipResult{
+					ConfigExternalID: selfExternalID,
+					RelatedExternalID: v1.ExternalID{
+						ExternalID:   []string{*i.IamInstanceProfile.Id},
+						ExternalType: v1.AWSIAMInstanceProfile,
+					},
+					Relationship: "IAMInstanceProfile",
+				})
+			}
 
 			relationships = append(relationships, v1.RelationshipResult{
 				ConfigExternalID: selfExternalID,
@@ -890,7 +893,7 @@ func (aws Scraper) ami(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			BaseScraper:  config.BaseScraper,
 			Config:       image,
 			Type:         "Image",
-			Name:         *image.Name,
+			Name:         ptr.ToString(image.Name),
 			Account:      *ctx.Caller.Account,
 			ID:           *image.ImageId,
 		})
