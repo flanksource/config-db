@@ -111,19 +111,36 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 }
 
 func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
-	change := models.NewConfigChangeFromV1(*result.ChangeResult)
+	for _, change := range result.Changes {
 
-	ci, err := GetConfigItem(change.ExternalType, change.ExternalID)
-	if ci == nil {
-		logger.Warnf("[%s/%s] unable to find config item for change: %v", change.ExternalType, change.ExternalID, change.ChangeType)
-		return nil
-	} else if err != nil {
-		return err
+		if change.Action == v1.Ignore {
+			continue
+		}
+
+		if change.Action == v1.Delete {
+			if err := deleteChangeHandler(ctx, change); err != nil {
+				return err
+			}
+			continue
+		}
+
+		change := models.NewConfigChangeFromV1(*result, change)
+
+		id, err := FindConfigItemID(change.GetExternalID())
+		if id == nil {
+			logger.Warnf("[%s/%s] unable to find config item for change: %v", change.ExternalType, change.ExternalID, change.ChangeType)
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		change.ConfigID = *id
+
+		if err := db.Create(change).Error; err != nil {
+			return err
+		}
 	}
-
-	change.ConfigID = ci.ID
-
-	return db.Create(change).Error
+	return nil
 }
 
 func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
@@ -165,19 +182,8 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 			}
 		}
 
-		if result.ChangeResult != nil {
-			if result.ChangeResult.Action == v1.Ignore {
-				continue
-			}
-
-			if result.ChangeResult.Action == v1.Delete {
-				if err := deleteChangeHandler(ctx, *result.ChangeResult); err != nil {
-					return err
-				}
-			}
-			if err := updateChange(ctx, &result); err != nil {
-				return err
-			}
+		if err := updateChange(ctx, &result); err != nil {
+			return err
 		}
 
 		if result.RelationshipResults != nil {

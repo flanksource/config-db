@@ -2,8 +2,9 @@ package v1
 
 import (
 	"fmt"
-	"github.com/lib/pq"
 	"strings"
+
+	"github.com/lib/pq"
 
 	"gorm.io/gorm"
 )
@@ -16,6 +17,8 @@ type ConfigScraper struct {
 	File           []File           `json:"file,omitempty" yaml:"file,omitempty"`
 	Kubernetes     []Kubernetes     `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
 	KubernetesFile []KubernetesFile `json:"kubernetesFile,omitempty" yaml:"kubernetesFile,omitempty"`
+	AzureDevops    []AzureDevops    `json:"azureDevops,omitempty" yaml:"azureDevops,omitempty"`
+	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
 }
 
 // IsEmpty ...
@@ -30,6 +33,14 @@ func (c ConfigScraper) IsTrace() bool {
 type ExternalID struct {
 	ExternalType string
 	ExternalID   []string
+}
+
+func (e ExternalID) String() string {
+	return fmt.Sprintf("%s/%s", e.ExternalType, strings.Join(e.ExternalID, ","))
+}
+
+func (e ExternalID) IsEmpty() bool {
+	return e.ExternalType == "" && len(e.ExternalID) == 0
 }
 
 func (e ExternalID) CacheKey() string {

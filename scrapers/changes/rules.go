@@ -23,3 +23,19 @@ func init() {
 	}
 	logger.Infof("Loaded %d change rules", len(Rules))
 }
+
+func ProcessRules(result v1.ScrapeResult) []v1.ChangeResult {
+	changes := []v1.ChangeResult{}
+outer:
+	for _, change := range result.Changes {
+
+		if rule, ok := Rules[change.ChangeType]; ok {
+			change.Action = rule.Action
+			changes = append(changes, change)
+			continue outer
+		}
+
+		changes = append(changes, change)
+	}
+	return changes
+}

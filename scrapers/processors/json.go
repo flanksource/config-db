@@ -195,6 +195,10 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 		}
 	}
 
+	if input.ID == "" {
+		return input, fmt.Errorf("no id defined for: %s: %v", input, e.Config)
+	}
+
 	if input.Name == "" {
 		input.Name, err = getString(e.Name, input.Config, input.Name)
 		if err != nil {
@@ -211,6 +215,10 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 		if err != nil {
 			return input, err
 		}
+	}
+
+	if input.Type == "" {
+		return input, fmt.Errorf("no type defined for: %s", input)
 	}
 
 	for _, exclude := range e.Excludes {

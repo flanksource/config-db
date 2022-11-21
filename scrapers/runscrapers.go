@@ -28,13 +28,9 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 					}
 				}
 
-				if result.ChangeResult != nil {
-					if rule, ok := changes.Rules[result.ChangeResult.ChangeType]; ok {
-						result.ChangeResult.Action = rule.Action
-					}
-				}
+				result.Changes = changes.ProcessRules(result)
 
-				if result.Config == nil && (result.AnalysisResult != nil || result.ChangeResult != nil) {
+				if result.Config == nil && (result.AnalysisResult != nil || len(result.Changes) > 0) {
 					results = append(results, result)
 				} else if result.Config != nil {
 					extractor, err := processors.NewExtractor(result.BaseScraper)
