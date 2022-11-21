@@ -3,6 +3,7 @@ package aws
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
@@ -878,16 +879,20 @@ func (aws Scraper) ami(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	}
 
 	for _, image := range amis.Images {
+		createdAt, err := time.Parse(time.RFC3339, *image.CreationDate)
+		if err != nil {
+			createdAt = time.Now()
+		}
+
 		*results = append(*results, v1.ScrapeResult{
 			ExternalType: v1.AWSEC2AMI,
-			// TODO: Find format
-			//CreatedAt:    image.CreationDate,
-			BaseScraper: config.BaseScraper,
-			Config:      image,
-			Type:        "Image",
-			Name:        *image.Name,
-			Account:     *ctx.Caller.Account,
-			ID:          *image.ImageId,
+			CreatedAt:    &createdAt,
+			BaseScraper:  config.BaseScraper,
+			Config:       image,
+			Type:         "Image",
+			Name:         *image.Name,
+			Account:      *ctx.Caller.Account,
+			ID:           *image.ImageId,
 		})
 	}
 }
