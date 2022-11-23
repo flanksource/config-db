@@ -925,7 +925,8 @@ func (aws Scraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.Scr
 			aws.cloudtrail(awsCtx, awsConfig, results)
 			aws.loadBalancers(awsCtx, awsConfig, results)
 			aws.containerImages(awsCtx, awsConfig, results)
-			aws.ami(awsCtx, awsConfig, results)
+			// We are querying half a million amis, need to optimize for this
+			// aws.ami(awsCtx, awsConfig, results)
 		}
 
 		awsCtx, err := aws.getContext(ctx, awsConfig, "us-east-1")
