@@ -871,6 +871,7 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	}
 }
 
+//nolint:all
 func (aws Scraper) ami(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
 	if !config.Includes("Images") {
 		return
