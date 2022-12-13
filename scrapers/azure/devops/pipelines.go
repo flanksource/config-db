@@ -74,7 +74,7 @@ func (ado AzureDevopsScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigSc
 					delete(run.Links, "pipeline")
 					delete(run.Links, "pipeline.web")
 					severity := "info"
-					if run.Result == "succeeded" {
+					if run.Result != "succeeded" {
 						severity = "failed"
 					}
 					pipeline.Runs = append(pipeline.Runs, v1.ChangeResult{
@@ -91,14 +91,16 @@ func (ado AzureDevopsScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigSc
 				}
 
 				for id, pipeline := range uniquePipelines {
-
+					var changes = pipeline.Runs
+					pipeline.Runs = nil
 					results = append(results, v1.ScrapeResult{
 						Type:         "Deployment",
 						Config:       pipeline,
 						ExternalType: PipelineRun,
 						ID:           id,
+						Tags:         pipeline.GetTags(),
 						Name:         pipeline.Name,
-						Changes:      pipeline.Runs,
+						Changes:      changes,
 						Aliases:      []string{fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},
 					})
 				}

@@ -225,10 +225,18 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 			logger.Errorf("Error fetching config item id: %v", err)
 			continue
 		}
+		if configID == nil {
+			logger.Warnf("Failed to find config %s", relationship.ConfigExternalID)
+			continue
+		}
 
 		relatedID, err := FindConfigItemID(relationship.RelatedExternalID)
 		if err != nil {
 			logger.Errorf("Error fetching config item id: %v", err)
+			continue
+		}
+		if relatedID == nil {
+			logger.Warnf("Relationship not found %s", relationship.RelatedExternalID)
 			continue
 		}
 
