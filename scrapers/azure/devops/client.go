@@ -42,6 +42,14 @@ type Pipeline struct {
 	Runs               []v1.ChangeResult   `json:"-"`
 }
 
+func (p Pipeline) GetTags() map[string]string {
+	var tags = p.TemplateParameters
+	for k, v := range p.Variables {
+		tags[k] = v.Value
+	}
+	return tags
+}
+
 // GetID returns a repeatable ID for a pipeline with variables / parameters
 func (p Pipeline) GetID() string {
 
@@ -81,6 +89,14 @@ type Run struct {
 	URL      string `json:"url"`
 	ID       int    `json:"id"`
 	Name     string `json:"name"`
+}
+
+func (r Run) GetTags() map[string]string {
+	var tags = r.TemplateParameters
+	for k, v := range r.Variables {
+		tags[k] = v.Value
+	}
+	return tags
 }
 
 type Runs struct {
