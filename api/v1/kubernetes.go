@@ -8,6 +8,7 @@ import (
 
 type Kubernetes struct {
 	BaseScraper     `json:",inline"`
+	ClusterName     string          `json:"clusterName,omitempty"`
 	Namespace       string          `json:"namespace,omitempty"`
 	UseCache        bool            `json:"useCache,omitempty"`
 	AllowIncomplete bool            `json:"allowIncomplete,omitempty"`
