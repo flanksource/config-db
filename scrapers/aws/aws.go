@@ -496,7 +496,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				ConfigExternalID: selfExternalID,
 				RelatedExternalID: v1.ExternalID{
 					ExternalID:   []string{"Kubernetes/Node//" + instance.GetHostname()},
-					ExternalType: v1.AWSEC2AMI,
+					ExternalType: "Node",
 				},
 				Relationship: "Instance-KuberenetesNode",
 			})
