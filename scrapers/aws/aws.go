@@ -428,6 +428,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	var relationships v1.RelationshipResults
 	for _, r := range describeOutput.Reservations {
 		for _, i := range r.Instances {
+			instance := NewInstance(i)
 
 			selfExternalID := v1.ExternalID{
 				ExternalID:   []string{*i.InstanceId},
@@ -491,7 +492,15 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				Relationship: "InstanceAMI",
 			})
 
-			instance := NewInstance(i)
+			relationships = append(relationships, v1.RelationshipResult{
+				ConfigExternalID: selfExternalID,
+				RelatedExternalID: v1.ExternalID{
+					ExternalID:   []string{"Kubernetes/Node//" + instance.GetHostname()},
+					ExternalType: v1.AWSEC2AMI,
+				},
+				Relationship: "Instance-KuberenetesNode",
+			})
+
 			*results = append(*results, v1.ScrapeResult{
 				ExternalType:        v1.AWSEC2Instance,
 				Tags:                instance.Tags,
