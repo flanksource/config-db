@@ -11,10 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-type KubernetesScrapper struct{}
+type KubernetesScraper struct {
+}
 
 // Scrape ...
-func (kubernetes KubernetesScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 
 	results := v1.ScrapeResults{}
 	for _, config := range configs.Kubernetes {

@@ -9,11 +9,11 @@ import (
 
 const PipelineRun = "AzureDevops::PipelineRun"
 
-type AzureDevopsScrapper struct {
+type AzureDevopsScraper struct {
 }
 
 // Scrape ...
-func (ado AzureDevopsScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+func (ado AzureDevopsScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 
 	results := v1.ScrapeResults{}
 	for _, config := range configs.AzureDevops {
