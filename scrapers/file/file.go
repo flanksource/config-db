@@ -17,8 +17,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// FileScrapper ...
-type FileScrapper struct {
+// FileScraper ...
+type FileScraper struct {
 }
 
 func isIgnored(config v1.File, path string) (bool, error) {
@@ -69,7 +69,7 @@ func convertToLocalPath(uri string) string {
 }
 
 // Scrape ...
-func (file FileScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	pwd, _ := os.Getwd()
 	cacheDir := path.Join(pwd, ".config-db", "cache", "files")
 	results := v1.ScrapeResults{}

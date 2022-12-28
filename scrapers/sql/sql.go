@@ -13,11 +13,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type SqlScrapper struct {
+type SqlScraper struct {
 }
 
 // Scrape ...
-func (s SqlScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+func (s SqlScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, _config := range configs.SQL {
 

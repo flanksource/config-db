@@ -1,5 +1,6 @@
 kubernetes:
-  - exclusions:
+  - clusterName: local-kind-cluster
+    exclusions:
        - Secret
        - ReplicaSet
        - APIService

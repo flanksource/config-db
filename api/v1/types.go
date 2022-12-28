@@ -48,5 +48,5 @@ func (e ExternalID) CacheKey() string {
 }
 
 func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
-	return db.Where("external_type = ? and external_id  @> ?", e.ExternalType, pq.StringArray(e.ExternalID))
+	return db.Where("external_type = ? AND external_id  @> ?", e.ExternalType, pq.StringArray(e.ExternalID))
 }
