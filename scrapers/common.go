@@ -17,10 +17,11 @@ import (
 var All = []v1.Scraper{
 	aws.Scraper{},
 	aws.CostScraper{},
-	file.FileScraper{},
-	kubernetes.KubernetesScraper{},
-	devops.AzureDevopsScraper{},
-	sql.SqlScraper{},
+	file.FileScrapper{},
+	kubernetes.KubernetesScrapper{},
+	kubernetes.KubernetesFileScrapper{},
+	devops.AzureDevopsScrapper{},
+	sql.SqlScrapper{},
 }
 
 func GetConnection(ctx *v1.ScrapeContext, conn *v1.Connection) (string, error) {
