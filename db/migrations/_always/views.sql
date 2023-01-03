@@ -15,6 +15,7 @@ CREATE or REPLACE VIEW configs AS
     ci.created_by,
     ci.created_at,
     ci.updated_at,
+    ci.deleted_at,
     ci.cost_per_minute,
     ci.cost_total_1d,
     ci.cost_total_7d,
