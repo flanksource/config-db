@@ -19,6 +19,7 @@ var All = []v1.Scraper{
 	aws.CostScraper{},
 	file.FileScraper{},
 	kubernetes.KubernetesScraper{},
+	kubernetes.KubernetesFileScraper{},
 	devops.AzureDevopsScraper{},
 	sql.SqlScraper{},
 }

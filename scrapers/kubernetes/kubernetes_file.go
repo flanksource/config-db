@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-type KubernetesFileScrapper struct {
+type KubernetesFileScraper struct {
 }
 
 type pod struct {
@@ -118,8 +118,7 @@ func findBySelector(ctx *v1.ScrapeContext, client *kubernetes.Clientset, config 
 }
 
 // Scrape ...
-func (kubernetes KubernetesFileScrapper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
-
+func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 	if len(configs.KubernetesFile) == 0 {
 		return results
@@ -138,7 +137,7 @@ func (kubernetes KubernetesFileScrapper) Scrape(ctx *v1.ScrapeContext, configs v
 			config.Selector.Kind = "Pod"
 		}
 
-		logger.Debugf("Scrapping %s => %s", config.Selector, config.Files)
+		logger.Debugf("Scrapping pods %s => %s", config.Selector, config.Files)
 
 		if startsWith(config.Selector.Kind, "pod") {
 			podList, err := findPods(ctx, client, config.Selector)
