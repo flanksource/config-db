@@ -1,6 +1,8 @@
 package processors
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -12,12 +14,23 @@ import (
 	"github.com/pkg/errors"
 )
 
+type Mask struct {
+	SelectorType string
+	JSONPath     *jp.Expr
+	Value        string
+}
+
+type Transform struct {
+	Script v1.Script
+	Masks  []Mask
+}
+
 type Extract struct {
 	ID, Type, Name jp.Expr
 	Items          *jp.Expr
 	Config         v1.BaseScraper
 	Excludes       []jp.Expr
-	Transform      v1.Script
+	Transform      Transform
 }
 
 func (e Extract) WithoutItems() Extract {
@@ -83,7 +96,25 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 		}
 	}
 
-	extract.Transform = config.Transform.Script
+	extract.Transform.Script = config.Transform.Script
+
+	for _, mask := range config.Transform.Masks {
+		if mask.Selector.IsEmpty() {
+			continue
+		}
+
+		x, err := jp.ParseString(mask.JSONPath)
+		if err != nil {
+			return extract, fmt.Errorf("failed to parse mask jsonpath: %s: %v", mask.JSONPath, err)
+		}
+
+		extract.Transform.Masks = append(extract.Transform.Masks, Mask{
+			SelectorType: mask.Selector.Type,
+			Value:        mask.Value,
+			JSONPath:     &x,
+		})
+	}
+
 	return extract, nil
 }
 
@@ -112,7 +143,6 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 	var err error
 
 	for _, input := range inputs {
-		var o interface{}
 		if input.Format == "properties" {
 			props, err := properties.LoadString(input.Config.(string))
 			if err != nil {
@@ -131,6 +161,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			continue
 		}
 
+		var o interface{}
 		switch input.Config.(type) {
 		case string:
 			o, err = oj.ParseString(input.Config.(string))
@@ -160,29 +191,35 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 
 		input.Config = o
 
+		var ongoingInput v1.ScrapeResults = []v1.ScrapeResult{input}
 		if !input.BaseScraper.Transform.Script.IsEmpty() {
+			logger.Debugf("Applying script transformation")
 			transformed, err := RunScript(input, input.BaseScraper.Transform.Script)
 			if err != nil {
 				return results, fmt.Errorf("failed to run script: %v", err)
 			}
-			for _, result := range transformed {
-				if extracted, err := e.extractAttributes(result); err != nil {
-					return results, fmt.Errorf("failed to extract attributes: %v", err)
-				} else {
-					logger.Debugf("Scraped %s", extracted)
-					results = append(results, extracted)
-				}
-			}
-			continue
+
+			ongoingInput = transformed
 		}
 
-		if input, err := e.extractAttributes(input); err != nil {
-			return nil, fmt.Errorf("failed to extract attributes: %v", err)
-		} else {
-			logger.Debugf("Scraped %s", input)
-			results = append(results, input)
+		for _, result := range ongoingInput {
+			if extracted, err := e.extractAttributes(result); err != nil {
+				return results, fmt.Errorf("failed to extract attributes: %v", err)
+			} else {
+				logger.Debugf("Scraped %s", extracted)
+				results = append(results, extracted)
+			}
+		}
+
+		if !input.BaseScraper.Transform.Masks.IsEmpty() {
+			logger.Debugf("Applying mask transformation")
+			results, err = e.applyMask(results)
+			if err != nil {
+				return results, fmt.Errorf("e.applyMask(); %w", err)
+			}
 		}
 	}
+
 	return results, nil
 }
 
@@ -238,6 +275,33 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 	return input, nil
 }
 
+func (e Extract) applyMask(results []v1.ScrapeResult) ([]v1.ScrapeResult, error) {
+	for _, m := range e.Transform.Masks {
+		for i, input := range results {
+			if input.Type != m.SelectorType {
+				continue
+			}
+
+			identified := m.JSONPath.Get(input.Config)
+			for _, y := range identified {
+				switch m.Value {
+				case "md5sum":
+					md5SumHex := md5SumHex(y)
+					if err := m.JSONPath.Set(results[i].Config, md5SumHex); err != nil {
+						return nil, fmt.Errorf("m.JSONPath.Set(); %w", err)
+					}
+				default:
+					if err := m.JSONPath.Set(results[i].Config, m.Value); err != nil {
+						return nil, fmt.Errorf("m.JSONPath.Set(); %w", err)
+					}
+				}
+			}
+		}
+	}
+
+	return results, nil
+}
+
 func getString(expr jp.Expr, data interface{}, def string) (string, error) {
 	if len(expr) == 0 {
 		return def, nil
@@ -253,4 +317,19 @@ func getString(expr jp.Expr, data interface{}, def string) (string, error) {
 
 func isJSONPath(path string) bool {
 	return strings.HasPrefix(path, "$") || strings.HasPrefix(path, "@")
+}
+
+func md5SumHex(i interface{}) string {
+	var dataStr string
+	switch data := i.(type) {
+	case string:
+		dataStr = data
+	case []byte:
+		dataStr = string(data)
+	default:
+		dataStr = oj.JSON(data, &oj.Options{Sort: true, OmitNil: true, Indent: 2, TimeFormat: "2006-01-02T15:04:05Z07:00"})
+	}
+
+	h := md5.Sum([]byte(dataStr))
+	return hex.EncodeToString(h[:])
 }

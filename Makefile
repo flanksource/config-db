@@ -85,6 +85,10 @@ build:
 install:
 	cp ./.bin/$(NAME) /usr/local/bin/
 
+# produce a build that's debuggable
+.PHONY: dev
+dev:
+	go build -o ./.bin/$(NAME) -v -x -gcflags="all=-N -l" main.go
 
 .PHONY: watch
 watch:
