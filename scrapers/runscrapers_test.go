@@ -35,6 +35,7 @@ func TestRun(t *testing.T) {
 	fixtures := []string{
 		"file-git",
 		"file-script",
+		"file-mask",
 	}
 
 	for _, fixtureName := range fixtures {
