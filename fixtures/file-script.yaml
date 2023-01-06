@@ -3,15 +3,6 @@ file:
     id: $.id
     name: $.name
     transform:
-      mask:
-        - selector:
-            type: Config
-          jsonpath: $.password
-          value: md5sum
-        - selector:
-            type: Config
-          jsonpath: $.secret
-          value: '***'
       script:
         javascript: |+
           for (var i = 0; i < config.length; i++) {
