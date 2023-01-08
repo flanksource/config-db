@@ -5,6 +5,11 @@ import (
 )
 
 func SaveJobHistories(histories models.JobHistories) error {
+	// For tests
+	if db == nil {
+		return nil
+	}
+
 	if len(histories) == 0 {
 		return nil
 	}
