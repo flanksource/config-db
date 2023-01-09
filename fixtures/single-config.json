@@ -1,0 +1,6 @@
+{
+  "name": "Config1",
+  "id": 1,
+  "password": "p1",
+  "secret": "secret_1"
+}

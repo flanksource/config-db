@@ -40,16 +40,63 @@ func (s Script) String() string {
 	return ""
 }
 
+type MaskSelector struct {
+	// Type is the config type to apply the mask
+	Type string `json:"type,omitempty"`
+}
+
+func (s MaskSelector) IsEmpty() bool {
+	return s.Type == ""
+}
+
+func (s MaskSelector) String() string {
+	return fmt.Sprintf("type=%s", s.Type)
+}
+
+type Mask struct {
+	Selector MaskSelector `json:"selector,omitempty"`
+	JSONPath string       `json:"jsonpath,omitempty"`
+	// Value can be a hash function name or just a string
+	Value string `json:"value,omitempty"`
+}
+
+func (s Mask) IsEmpty() bool {
+	return s.Selector.IsEmpty() && s.JSONPath == "" && s.Value == ""
+}
+
+func (s Mask) String() string {
+	return fmt.Sprintf("selector=%s json_path=%s value=%s", s.Selector, s.JSONPath, s.Value)
+}
+
+type MaskList []Mask
+
+func (s MaskList) IsEmpty() bool {
+	for _, m := range s {
+		if !m.IsEmpty() {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (s MaskList) String() string {
+	return fmt.Sprintf("total_masks=%d", len(s))
+}
+
 type Transform struct {
 	Script  Script   `yaml:",inline" json:",inline"`
 	Include []Filter `json:"include,omitempty"`
 	// Fields to remove from the config, useful for removing sensitive data and fields
 	// that change often without a material impact i.e. Last Scraped Time
 	Exclude []Filter `json:"exclude,omitempty"`
+	// Masks consist of configurations to replace sensitive fields
+	// with hash functions or static string.
+	Masks MaskList `json:"mask,omitempty"`
 }
 
 func (t Transform) IsEmpty() bool {
-	return t.Script.IsEmpty() && len(t.Include) == 0 && len(t.Exclude) == 0
+	return t.Script.IsEmpty() && len(t.Include) == 0 && len(t.Exclude) == 0 && t.Masks.IsEmpty()
 }
 
 func (t Transform) String() string {
@@ -57,6 +104,11 @@ func (t Transform) String() string {
 	if !t.Script.IsEmpty() {
 		s += fmt.Sprintf("script=%s", t.Script)
 	}
+
+	if !t.Masks.IsEmpty() {
+		s += fmt.Sprintf("masks=%s", t.Masks)
+	}
+
 	if len(t.Include) > 0 {
 		s += fmt.Sprintf(" include=%s", t.Include)
 	}

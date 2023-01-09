@@ -35,6 +35,7 @@ func TestRun(t *testing.T) {
 	fixtures := []string{
 		"file-git",
 		"file-script",
+		"file-mask",
 	}
 
 	for _, fixtureName := range fixtures {
@@ -73,14 +74,13 @@ func TestRun(t *testing.T) {
 	}
 }
 
-// nolint:gosimple
-func toJSON(v interface{}) []byte {
-	switch v.(type) {
+func toJSON(i interface{}) []byte {
+	switch v := i.(type) {
 	case string:
-		s := v.(string)
-		return []byte(s)
+		return []byte(v)
 	}
-	b, _ := json.Marshal(v)
+
+	b, _ := json.Marshal(i)
 	return b
 }
 

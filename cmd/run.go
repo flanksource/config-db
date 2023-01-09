@@ -21,7 +21,6 @@ var Run = &cobra.Command{
 	Use:   "run <scraper.yaml>",
 	Short: "Run scrapers and return",
 	Run: func(cmd *cobra.Command, configFiles []string) {
-
 		logger.Infof("Scrapping %v", configFiles)
 		scraperConfigs, err := v1.ParseConfigs(configFiles...)
 		if err != nil {

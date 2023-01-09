@@ -1,12 +1,14 @@
 [
-
   {
     "name": "Config1",
-    "id": 1
+    "id": 1,
+    "password": "p1",
+    "secret": "secret_1"
   },
   {
     "name": "Config2",
-    "id": 2
+    "id": 2,
+    "password": "p2",
+    "secret": "secret_2"
   }
-
 ]

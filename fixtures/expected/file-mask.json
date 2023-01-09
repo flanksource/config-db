@@ -1,0 +1,12 @@
+[{
+  "last_modified": "0001-01-01T00:00:00Z",
+  "type": "Config",
+  "name": "Config1",
+  "id": "1",
+  "config": {
+    "id": 1,
+    "name": "Config1",
+    "password": "ec6ef230f1828039ee794566b9c58adc",
+    "secret": "***"
+  }
+}]

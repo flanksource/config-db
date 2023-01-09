@@ -17,10 +17,8 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 
 	results := []v1.ScrapeResult{}
 	for _, config := range configs {
-
 		for _, scraper := range All {
 			for _, result := range scraper.Scrape(ctx, config) {
-
 				if result.AnalysisResult != nil {
 					if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
 						result.AnalysisResult.AnalysisType = rule.Category
@@ -38,16 +36,18 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 						logger.Errorf("failed to create extractor: %v", err)
 						continue
 					}
+
 					scraped, err := extractor.Extract(result)
 					if err != nil {
 						logger.Errorf("failed to extract: %v", err)
 						continue
 					}
+
 					results = append(results, scraped...)
 				}
-
 			}
 		}
 	}
+
 	return results, nil
 }
