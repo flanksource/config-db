@@ -9,9 +9,12 @@ CREATE TABLE IF NOT EXISTS job_history (
   error_count int,
   details jsonb,
   hostname text,
-  time_taken_ms int,
+  duration_millis int,
   resource_type text,
   resource_id text,
+  status text,
+  time_start timestamp,
+  time_end timestamp NULL,
   created_at timestamp NOT NULL DEFAULT now()
 );
 

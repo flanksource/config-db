@@ -3,15 +3,14 @@ package scrapers
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/scrapers/analysis"
 	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/scrapers/processors"
+	"github.com/flanksource/duty/models"
 )
 
 // Run ...
@@ -20,12 +19,14 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	logger.Infof("Scraping files from (PWD: %s)", cwd)
 
 	results := []v1.ScrapeResult{}
-	var histories models.JobHistories
 	for _, config := range configs {
 		for _, scraper := range All {
 			jobHistory := models.JobHistory{
-				Name:      fmt.Sprintf("scraper:%T", scraper),
-				TimeStart: time.Now(),
+				Name: fmt.Sprintf("scraper:%T", scraper),
+			}
+			jobHistory.Start()
+			if err := db.PersistJobHistory(&jobHistory); err != nil {
+				logger.Errorf("Error persisting job history: %v", err)
 			}
 			for _, result := range scraper.Scrape(ctx, config) {
 				if result.AnalysisResult != nil {
@@ -43,36 +44,30 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 					extractor, err := processors.NewExtractor(result.BaseScraper)
 					if err != nil {
 						logger.Errorf("failed to create extractor: %v", err)
-						jobHistory.ErrorCount += 1
-						jobHistory.Errors = append(jobHistory.Errors, err.Error())
+						jobHistory.AddError(err.Error())
 						continue
 					}
 
 					scraped, err := extractor.Extract(result)
 					if err != nil {
 						logger.Errorf("failed to extract: %v", err)
-						jobHistory.ErrorCount += 1
-						jobHistory.Errors = append(jobHistory.Errors, err.Error())
+						jobHistory.AddError(err.Error())
 						continue
 					}
 
 					results = append(results, scraped...)
 				}
 				if result.Error != nil {
-					jobHistory.ErrorCount += 1
-					jobHistory.Errors = append(jobHistory.Errors, result.Error.Error())
+					jobHistory.AddError(result.Error.Error())
 				} else {
-					jobHistory.SuccessCount += 1
+					jobHistory.IncrSuccess()
 				}
 			}
-			jobHistory.TimeEnd = time.Now()
-			if jobHistory.SuccessCount+jobHistory.ErrorCount > 0 {
-				histories = append(histories, jobHistory)
+			jobHistory.End()
+			if err := db.PersistJobHistory(&jobHistory); err != nil {
+				logger.Errorf("Error persisting job history: %v", err)
 			}
 		}
-	}
-	if err := db.SaveJobHistories(histories); err != nil {
-		logger.Errorf("Failed to save job histories: %v", err)
 	}
 	return results, nil
 }

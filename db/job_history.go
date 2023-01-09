@@ -1,17 +1,19 @@
 package db
 
 import (
-	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 )
 
-func SaveJobHistories(histories models.JobHistories) error {
-	// For tests
+func PersistJobHistory(h *models.JobHistory) error {
 	if db == nil {
 		return nil
 	}
 
-	if len(histories) == 0 {
-		return nil
+	// Delete jobs which did not process anything
+	if h.ID != uuid.Nil && (h.SuccessCount+h.ErrorCount) == 0 {
+		return db.Table("job_history").Delete(h).Error
 	}
-	return db.Table("job_history").Create(histories.Prepare()).Error
+
+	return db.Table("job_history").Save(h).Error
 }
