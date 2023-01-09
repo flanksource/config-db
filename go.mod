@@ -23,6 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.19
 	github.com/aws/aws-sdk-go-v2/service/support v1.8.2
 	github.com/aws/smithy-go v1.13.3
+	github.com/dop251/goja v0.0.0-20221229151140-b95230a9dbad
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/flanksource/commons v1.6.0
 	github.com/flanksource/ketall v1.1.1
@@ -38,7 +39,6 @@ require (
 	github.com/oklog/ulid/v2 v2.0.2
 	github.com/pkg/errors v0.9.1
 	github.com/pressly/goose/v3 v3.5.0
-	github.com/robertkrimen/otto v0.0.0-20211024170158-b87d35c0b86f
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.4.0
@@ -55,6 +55,8 @@ require (
 )
 
 require (
+	github.com/dlclark/regexp2 v1.7.0 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang-sql/sqlexp v0.0.0-20170517235910-f1bb20e5a188 // indirect
 	github.com/gomarkdown/markdown v0.0.0-20210820032736-385812cbea76 // indirect
@@ -217,7 +219,6 @@ require (
 	google.golang.org/grpc v1.49.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	inet.af/netaddr v0.0.0-20220811202034-502d2d690317 // indirect

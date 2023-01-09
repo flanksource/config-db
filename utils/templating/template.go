@@ -10,24 +10,26 @@ import (
 	gotemplate "text/template"
 
 	"github.com/antonmedv/expr"
+	"github.com/dop251/goja"
 	"github.com/pkg/errors"
-	"github.com/robertkrimen/otto"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/text"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/robertkrimen/otto/registry"
-	_ "github.com/robertkrimen/otto/underscore"
 )
 
-func LoadSharedLibrary(source string) error {
+func LoadSharedLibrary(vm *goja.Runtime, source string) error {
 	source = strings.TrimSpace(source)
 	data, err := os.ReadFile(source)
 	if err != nil {
-		return fmt.Errorf("failed to read shared library %s: %s", source, err)
+		return fmt.Errorf("failed to read shared library %s: %w", source, err)
 	}
 	logger.Tracef("Loaded %s: \n%s", source, string(data))
-	registry.Register(func() string { return string(data) })
+
+	_, err = vm.RunScript(source, string(data))
+	if err != nil {
+		return fmt.Errorf("vm.RunScript(); %w", err)
+	}
 	return nil
 }
 
@@ -35,19 +37,19 @@ func Template(environment map[string]interface{}, template v1.Template) (string,
 	// javascript
 	if template.Javascript != "" {
 		// FIXME: whitelist allowed files
-		vm := otto.New()
+		vm := goja.New()
 		for k, v := range environment {
 			if err := vm.Set(k, v); err != nil {
 				return "", errors.Wrapf(err, "error setting %s", k)
 			}
 		}
-		out, err := vm.Run(template.Javascript)
+		vmOut, err := vm.RunString(template.Javascript)
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to run javascript")
 		}
 
-		if s, err := out.ToString(); err != nil {
-			return "", errors.Wrapf(err, "failed to cast output to string")
+		if s, ok := vmOut.Export().(string); !ok {
+			return "", fmt.Errorf("failed to cast output to string; it is of type %s", vmOut.ExportType().Name())
 		} else {
 			return s, nil
 		}
