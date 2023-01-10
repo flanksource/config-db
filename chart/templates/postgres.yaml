@@ -1,4 +1,4 @@
-{{- if eq .Values.db.enabled true }}
+{{- if eq .Values.db.create true }}
 
 ---
 # PostgreSQL StatefulSet
@@ -52,7 +52,6 @@ spec:
 
 ---
 
-{{- if .Values.db.secretKeyRef.create }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -61,7 +60,7 @@ metadata:
     "helm.sh/resource-policy": "keep"
 type: Opaque
 stringData:
-  {{- $secretObj := ( lookup "v1" "Secret" .Release.Namespace "postgres-connection" ) }}
+  {{- $secretObj := ( lookup "v1" "Secret" .Release.Namespace "postgres-connection" }}
   {{- $secretData := ( get $secretObj "data" ) }}
   {{- $user := (( get $secretData "POSTGRES_USER" ) | b64dec ) | default "postgres" }}
   {{- $password := (( get $secretData "POSTGRES_PASSWORD" ) | b64dec ) | default randAlphaNum 32 }}
@@ -73,8 +72,6 @@ stringData:
   POSTGRES_PASSWORD: {{ $password | quote }}
   POSTGRES_HOST: {{ $host | quote }}
   {{ .Values.db.secretKeyRef.key }}: {{ $configDbUrl | quote }}
-
-{{- end }}
 
 ---
 
