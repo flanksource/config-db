@@ -389,8 +389,8 @@ github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYF
 github.com/felixge/httpsnoop v1.0.1/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/flanksource/commons v1.6.0 h1:QrgoG8fWemNW9xjf2gUk2f78VRa6FsU7/egvOXiNj8g=
 github.com/flanksource/commons v1.6.0/go.mod h1:zOpjd+7WeF691Gsx30+v8X+05BXeBmA4uUK+7CSwNo4=
-github.com/flanksource/duty v1.0.1 h1:pesv/4x0B2XNqh5uJnS/mQbe1yAP7o3d+eirkmWbZFQ=
-github.com/flanksource/duty v1.0.1/go.mod h1:w3DIFeKHDHwZzuw3oqoIUQVnMyqyC76oFG4ToD9YOhk=
+github.com/flanksource/duty v1.0.3 h1:EVzGki4jvFYi7WDD3fNy/oTQkI4YNlJFZ1nVsvxCzqM=
+github.com/flanksource/duty v1.0.3/go.mod h1:w3DIFeKHDHwZzuw3oqoIUQVnMyqyC76oFG4ToD9YOhk=
 github.com/flanksource/gomplate/v3 v3.20.1 h1:aFVvR7gw534ReoEXVUtZm+lWlVq3RMRqF3GhRN3okgM=
 github.com/flanksource/gomplate/v3 v3.20.1/go.mod h1:LPpzujBIg9HBXRUngDKK/zNmEjHpEUieKa/2oRjkCzI=
 github.com/flanksource/ketall v1.1.1 h1:eIHI7FNAG0qC9W7adYzafPUqjQD3Ev/z23x4+tsXLFI=
