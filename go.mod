@@ -25,6 +25,7 @@ require (
 	github.com/aws/smithy-go v1.13.3
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/flanksource/commons v1.6.0
+	github.com/flanksource/duty v1.0.3
 	github.com/flanksource/ketall v1.1.1
 	github.com/flanksource/kommons v0.31.1
 	github.com/gobwas/glob v0.2.3
@@ -48,7 +49,7 @@ require (
 	gopkg.in/flanksource/yaml.v3 v3.2.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.3.1
-	gorm.io/gorm v1.23.2
+	gorm.io/gorm v1.24.3
 	k8s.io/apimachinery v0.24.4
 	k8s.io/client-go v11.0.0+incompatible
 	sigs.k8s.io/yaml v1.3.0
