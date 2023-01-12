@@ -450,8 +450,8 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 					relationships = append(relationships, v1.RelationshipResult{
 						ConfigExternalID: selfExternalID,
 						RelatedExternalID: v1.ExternalID{
-							ExternalID:   []string{*i.InstanceId},
-							ExternalType: v1.AWSEC2Instance,
+							ExternalID:   []string{*tag.Value},
+							ExternalType: v1.AWSEKSCluster,
 						},
 						Relationship: "EKSNode",
 					})
