@@ -7,7 +7,7 @@
 ### Setup local db link as environment variable.
 
 ```bash
-export DB_URL=postgres://<username>@localhost:5432/config
+export DB_URL=postgres://<username>:<password>@localhost:5432/config
 ```
 
 ### Create `config` database.
