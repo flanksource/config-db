@@ -1,6 +1,6 @@
 file:
   - type: $.Config.InstanceType
     id: $.Config.InstanceId
-    path:
+    paths:
       - config*.json
       - test*.json
