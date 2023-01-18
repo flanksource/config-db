@@ -9,8 +9,8 @@ import (
 
 // AWS ...
 type AWS struct {
-	BaseScraper `json:",inline"`
-	*AWSConnection
+	BaseScraper         `json:",inline"`
+	*AWSConnection      `json:",inline"`
 	PatchStates         bool          `json:"patch_states,omitempty"`
 	PatchDetails        bool          `json:"patch_details,omitempty"`
 	Inventory           bool          `json:"inventory,omitempty"`

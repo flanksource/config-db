@@ -1,0 +1,12 @@
+apiVersion: configs.flanksource.com/v1
+kind: AWSScraper
+metadata:
+  labels:
+    app.kubernetes.io/name: awsscraper
+    app.kubernetes.io/instance: awsscraper-sample
+    app.kubernetes.io/part-of: operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: operator
+  name: awsscraper-sample
+spec:
+  # TODO(user): Add fields here
