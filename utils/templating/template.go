@@ -9,7 +9,7 @@ import (
 
 	gotemplate "text/template"
 
-	"github.com/antonmedv/expr"
+	"github.com/google/cel-go/cel"
 	"github.com/pkg/errors"
 	"github.com/robertkrimen/otto"
 
@@ -77,19 +77,40 @@ func Template(environment map[string]interface{}, template v1.Template) (string,
 
 	// exprv
 	if template.Expression != "" {
-		program, err := expr.Compile(template.Expression, text.MakeExpressionOptions(environment)...)
+		env, err := cel.NewEnv(makeCelEnv(environment)...)
 		if err != nil {
 			return "", err
 		}
-		output, err := expr.Run(program, text.MakeExpressionEnvs(environment))
+
+		ast, issues := env.Compile(template.Expression)
+		if issues != nil && issues.Err() != nil {
+			return "", fmt.Errorf("compile error: %s", issues.Err())
+		}
+
+		prg, err := env.Program(ast)
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprint(output), nil
+
+		out, _, err := prg.Eval(environment)
+		if err != nil {
+			return "", err
+		}
+
+		return fmt.Sprint(out), nil
 	}
 
 	// if template.GSONPath != "" {
 	// 	return gjson.Get(jsonContent, template.GSONPath).String()
 	// }
 	return "", nil
+}
+
+func makeCelEnv(env map[string]interface{}) []cel.EnvOption {
+	opts := make([]cel.EnvOption, 0, len(env))
+	for k := range env {
+		opts = append(opts, cel.Variable(k, cel.DynType))
+	}
+
+	return opts
 }
