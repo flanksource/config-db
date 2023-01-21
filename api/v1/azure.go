@@ -494,11 +494,11 @@ type VirtualNetwork struct {
 
 // VirtualMachine - Virtual machine information.
 type VirtualMachine struct {
-	Location   string           `json:"location,omitempty"`
-	Properties ResourceProperty `json:"properties,omitempty"`
-	ID         string           `json:"id,omitempty"`
-	Name       string           `json:"name,omitempty"`
-	Type       string           `json:"type,omitempty"`
+	Name     string `json:"name,omitempty"`
+	ID       string `json:"id,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Location string `json:"location,omitempty"`
+	//Properties ResourceProperty `json:"properties,omitempty"`
 }
 
 // LoadBalancer - LoadBalancer information.

@@ -45,7 +45,6 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 			results.Errorf(err, "failed to get resource groups for %s", subscriptionId)
 			continue
 		}
-
 		for _, resourceGroup := range resourceGroups {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper: config.BaseScraper,
@@ -63,13 +62,13 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				results.Errorf(err, "failed to get load balancers for %s", subscriptionId)
 				continue
 			}
-			for _, loadBalance := range loadBalancers {
+			for _, loadBalancer := range loadBalancers {
 				results = append(results, v1.ScrapeResult{
 					BaseScraper: config.BaseScraper,
-					Type:        loadBalance.Type,
-					ID:          loadBalance.ID,
-					Tags:        loadBalance.Tags,
-					Name:        loadBalance.Name,
+					Type:        loadBalancer.Type,
+					ID:          loadBalancer.ID,
+					Tags:        loadBalancer.Tags,
+					Name:        loadBalancer.Name,
 				})
 			}
 
@@ -191,8 +190,6 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 		}
 		log.Infow("databases", "status", "scrape complete")
 	}
-	fmt.Println(results)
-
 	return results
 
 }
