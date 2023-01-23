@@ -15,6 +15,9 @@ import (
 )
 
 type AzureScraper struct {
+	ctx    context.Context
+	cred   *azidentity.DefaultAzureCredential
+	config v1.Azure
 }
 
 // Scrape ...
@@ -28,43 +31,46 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 		// Build credential. AZURE_CLIENT_ID, AZURE_CLIENT_SECRET and AZURE_TENANT_ID environment variables must be
 		//set for this to work.
 
-		ct := context.Background()
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
 			logger.Fatalf(errors.Verbose(err))
 		}
 
+		azure.ctx = context.Background()
+		azure.config = config
+		azure.cred = cred
+
 		// Get resource groups in the subscription.
 		logger.Debugf("resource groups", "status", "scrape started", config.SubscriptionId)
-		resourceGroups := fetchResourceGroups(ct, config, cred)
+		resourceGroups := azure.fetchResourceGroups()
 		results = append(results, resourceGroups...)
 
 		// Get virtual machines in the subscription.
-		virtualMachines := fetchVirtualMachines(ct, config, cred)
+		virtualMachines := azure.fetchVirtualMachines()
 		results = append(results, virtualMachines...)
 
 		// Get load balancers in the subscription.
-		loadBalancers := fetchLoadBalancers(ct, config, cred)
+		loadBalancers := azure.fetchLoadBalancers()
 		results = append(results, loadBalancers...)
 
 		// Get virtual networks in the subscription.
-		virtualNetworks := fetchVirtualNetworks(ct, config, cred)
+		virtualNetworks := azure.fetchVirtualNetworks()
 		results = append(results, virtualNetworks...)
 
 		// Get container registries in the subscription.
-		containerRegistries := fetchContainerRegistries(ct, config, cred)
+		containerRegistries := azure.fetchContainerRegistries()
 		results = append(results, containerRegistries...)
 
 		// Get firewalls in the subscription.
-		firewalls := fetchFirewalls(ct, config, cred)
+		firewalls := azure.fetchFirewalls()
 		results = append(results, firewalls...)
 
 		// Get K8s managed clusters in the subscription.
-		k8s := fetchK8s(ct, config, cred)
+		k8s := azure.fetchK8s()
 		results = append(results, k8s...)
 
 		// Get databases in the subscription.
-		databases := fetchDatabases(ct, config, cred)
+		databases := azure.fetchDatabases()
 		results = append(results, databases...)
 
 	}
@@ -73,10 +79,10 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 }
 
 // fetchDatabases gets all databases in a subscription.
-func fetchDatabases(ct context.Context, config v1.Azure, cred *azidentity.DefaultAzureCredential) v1.ScrapeResults {
+func (azure AzureScraper) fetchDatabases() v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
-	databases, err := armresources.NewClient(config.SubscriptionId, cred, nil)
+	databases, err := armresources.NewClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
 		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate databases client: %w", err))
 	}
@@ -85,13 +91,13 @@ func fetchDatabases(ct context.Context, config v1.Azure, cred *azidentity.Defaul
 	}
 	dbs := databases.NewListPager(options)
 	for dbs.More() {
-		nextPage, err := dbs.NextPage(ct)
+		nextPage, err := dbs.NextPage(azure.ctx)
 		if err != nil {
 			results = append(results, v1.ScrapeResult{}.Errorf("failed to read databases page: %w", err))
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
-				BaseScraper: config.BaseScraper,
+				BaseScraper: azure.config.BaseScraper,
 				Type:        *v.Type,
 				ID:          *v.ID,
 				Name:        *v.Name,
@@ -102,22 +108,22 @@ func fetchDatabases(ct context.Context, config v1.Azure, cred *azidentity.Defaul
 }
 
 // fetchK8s gets all kubernetes clusters in a subscription.
-func fetchK8s(ct context.Context, config v1.Azure, cred *azidentity.DefaultAzureCredential) v1.ScrapeResults {
+func (azure AzureScraper) fetchK8s() v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
-	managedClustersClient, err := armcontainerservice.NewManagedClustersClient(config.SubscriptionId, cred, nil)
+	managedClustersClient, err := armcontainerservice.NewManagedClustersClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
 		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate k8s client: %w", err))
 	}
 	k8sPager := managedClustersClient.NewListPager(nil)
 	for k8sPager.More() {
-		nextPage, err := k8sPager.NextPage(ct)
+		nextPage, err := k8sPager.NextPage(azure.ctx)
 		if err != nil {
 			results = append(results, v1.ScrapeResult{}.Errorf("failed to read k8s page: %w", err))
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
-				BaseScraper: config.BaseScraper,
+				BaseScraper: azure.config.BaseScraper,
 				Type:        *v.Type,
 				ID:          *v.ID,
 				Name:        *v.Name,
@@ -128,22 +134,22 @@ func fetchK8s(ct context.Context, config v1.Azure, cred *azidentity.DefaultAzure
 }
 
 // fetchFirewalls gets all firewalls in a subscription.
-func fetchFirewalls(ctx context.Context, config v1.Azure, cred *azidentity.DefaultAzureCredential) v1.ScrapeResults {
+func (azure AzureScraper) fetchFirewalls() v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
-	firewallClient, err := armnetwork.NewAzureFirewallsClient(config.SubscriptionId, cred, nil)
+	firewallClient, err := armnetwork.NewAzureFirewallsClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
 		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate firewall client: %w", err))
 	}
 	firewallsPager := firewallClient.NewListAllPager(nil)
 	for firewallsPager.More() {
-		nextPage, err := firewallsPager.NextPage(ctx)
+		nextPage, err := firewallsPager.NextPage(azure.ctx)
 		if err != nil {
 			results = append(results, v1.ScrapeResult{}.Errorf("failed to read firewall page: %w", err))
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
-				BaseScraper: config.BaseScraper,
+				BaseScraper: azure.config.BaseScraper,
 				Type:        *v.Type,
 				ID:          *v.ID,
 				Name:        *v.Name,
@@ -154,22 +160,22 @@ func fetchFirewalls(ctx context.Context, config v1.Azure, cred *azidentity.Defau
 }
 
 // fetchContainerRegistries gets container registries in a subscription.
-func fetchContainerRegistries(ctx context.Context, config v1.Azure, cred *azidentity.DefaultAzureCredential) v1.ScrapeResults {
+func (azure AzureScraper) fetchContainerRegistries() v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
-	registriesClient, err := armcontainerregistry.NewRegistriesClient(config.SubscriptionId, cred, nil)
+	registriesClient, err := armcontainerregistry.NewRegistriesClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
 		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate container registry client: %w", err))
 	}
 	registriesPager := registriesClient.NewListPager(nil)
 	for registriesPager.More() {
-		nextPage, err := registriesPager.NextPage(ctx)
+		nextPage, err := registriesPager.NextPage(azure.ctx)
 		if err != nil {
 			results = append(results, v1.ScrapeResult{}.Errorf("failed to read container registry page: %w", err))
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
-				BaseScraper: config.BaseScraper,
+				BaseScraper: azure.config.BaseScraper,
 				Type:        *v.Type,
 				ID:          *v.ID,
 				Name:        *v.Name,
@@ -180,23 +186,23 @@ func fetchContainerRegistries(ctx context.Context, config v1.Azure, cred *aziden
 }
 
 // fetchVirtualNetworks gets virtual machines in a subscription.
-func fetchVirtualNetworks(ctx context.Context, config v1.Azure, cred *azidentity.DefaultAzureCredential) v1.ScrapeResults {
+func (azure AzureScraper) fetchVirtualNetworks() v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
-	virtualNetworksClient, err := armnetwork.NewVirtualNetworksClient(config.SubscriptionId, cred, nil)
+	virtualNetworksClient, err := armnetwork.NewVirtualNetworksClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
 		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate virtual networks client: %w", err))
 	}
 	if virtualNetworksClient != nil {
 		virtualNetworksPager := virtualNetworksClient.NewListAllPager(nil)
 		for virtualNetworksPager.More() {
-			nextPage, err := virtualNetworksPager.NextPage(ctx)
+			nextPage, err := virtualNetworksPager.NextPage(azure.ctx)
 			if err != nil {
 				results = append(results, v1.ScrapeResult{}.Errorf("failed to read virtual network page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
+					BaseScraper: azure.config.BaseScraper,
 					Type:        *v.Type,
 					ID:          *v.ID,
 					Name:        *v.Name,
@@ -208,23 +214,23 @@ func fetchVirtualNetworks(ctx context.Context, config v1.Azure, cred *azidentity
 }
 
 // fetchLoadBalancers gets load balancers in a subscription.
-func fetchLoadBalancers(ctx context.Context, config v1.Azure, cred *azidentity.DefaultAzureCredential) v1.ScrapeResults {
+func (azure AzureScraper) fetchLoadBalancers() v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
-	lbClient, err := armnetwork.NewLoadBalancersClient(config.SubscriptionId, cred, nil)
+	lbClient, err := armnetwork.NewLoadBalancersClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
 		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate load balancer client: %w", err))
 	}
 	if lbClient != nil {
 		loadBalancersPager := lbClient.NewListAllPager(nil)
 		for loadBalancersPager.More() {
-			nextPage, err := loadBalancersPager.NextPage(ctx)
+			nextPage, err := loadBalancersPager.NextPage(azure.ctx)
 			if err != nil {
 				results = append(results, v1.ScrapeResult{}.Errorf("failed to read load balancer page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
+					BaseScraper: azure.config.BaseScraper,
 					Type:        *v.Type,
 					ID:          *v.ID,
 					Name:        *v.Name,
@@ -237,23 +243,23 @@ func fetchLoadBalancers(ctx context.Context, config v1.Azure, cred *azidentity.D
 }
 
 // fetchVirtualMachines gets virtual machines in a subscription.
-func fetchVirtualMachines(ctx context.Context, config v1.Azure, cred *azidentity.DefaultAzureCredential) v1.ScrapeResults {
+func (azure AzureScraper) fetchVirtualMachines() v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
-	virtualMachineClient, err := armcompute.NewVirtualMachinesClient(config.SubscriptionId, cred, nil)
+	virtualMachineClient, err := armcompute.NewVirtualMachinesClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
 		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate virtual machine client: %w", err))
 	}
 	if virtualMachineClient != nil {
 		virtualMachinePager := virtualMachineClient.NewListAllPager(nil)
 		for virtualMachinePager.More() {
-			nextPage, err := virtualMachinePager.NextPage(ctx)
+			nextPage, err := virtualMachinePager.NextPage(azure.ctx)
 			if err != nil {
 				results = append(results, v1.ScrapeResult{}.Errorf("failed to read virtual machines page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
+					BaseScraper: azure.config.BaseScraper,
 					Type:        *v.Type,
 					ID:          *v.ID,
 					Name:        *v.Name,
@@ -265,23 +271,23 @@ func fetchVirtualMachines(ctx context.Context, config v1.Azure, cred *azidentity
 }
 
 // fetchResourceGroups gets resource groups in a subscription.
-func fetchResourceGroups(ctx context.Context, config v1.Azure, cred *azidentity.DefaultAzureCredential) v1.ScrapeResults {
+func (azure AzureScraper) fetchResourceGroups() v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
-	resourceClient, err := armresources.NewResourceGroupsClient(config.SubscriptionId, cred, nil)
+	resourceClient, err := armresources.NewResourceGroupsClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
 		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate resource group client: %w", err))
 	}
 	if resourceClient != nil {
 		resourcePager := resourceClient.NewListPager(nil)
 		for resourcePager.More() {
-			nextPage, er := resourcePager.NextPage(ctx)
+			nextPage, er := resourcePager.NextPage(azure.ctx)
 			if er != nil {
 				results = append(results, v1.ScrapeResult{}.Errorf("failed to read resource group page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
+					BaseScraper: azure.config.BaseScraper,
 					Type:        *v.Type,
 					ID:          *v.ID,
 					Name:        *v.Name,
