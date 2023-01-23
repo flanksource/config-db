@@ -12,7 +12,6 @@ func DeleteScrapeConfig(scrapeConfig *v1.ScrapeConfig) error {
 		ID: uuid.MustParse(string(scrapeConfig.GetUID())),
 	}
 	return db.
-		Debug().
 		Delete(&configScraper).
 		Error
 }
