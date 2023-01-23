@@ -30,7 +30,8 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 		// =========================================================================
 		// Build Azure management client.
 
-		client, err := NewAzureManagementClient(ctx, log, subscriptionId)
+		baseUrl := "https://management.azure.com/subscriptions/{subscriptionId}"
+		client, err := NewAzureManagementClient(ctx, log, subscriptionId, baseUrl)
 		if err != nil {
 			results.Errorf(err, "failed to create azure management client for %s", subscriptionId)
 			continue
@@ -40,7 +41,8 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 		// Get resource groups in the subscription.
 
 		log.Infow("resource groups, load balances and virtual machines", "status", "scrape started")
-		resourceGroups, er := client.ListResourceGroups()
+		accessToken := client.GetToken()
+		resourceGroups, er := client.ListResourceGroups(accessToken)
 		if er != nil {
 			results.Errorf(err, "failed to get resource groups for %s", subscriptionId)
 			continue
@@ -56,8 +58,8 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 
 			// =========================================================================
 			// Get load balancers in this resource group.
-
-			loadBalancers, er := client.ListLoadBalancers(resourceGroup.Name)
+			accessToken = client.GetToken()
+			loadBalancers, er := client.ListLoadBalancers(accessToken, resourceGroup.Name)
 			if er != nil {
 				results.Errorf(err, "failed to get load balancers for %s", subscriptionId)
 				continue
@@ -74,8 +76,8 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 
 			// =========================================================================
 			// Get load virtual machines in this resource group.
-
-			virtualMachines, er := client.ListVirtualMachines(resourceGroup.Name)
+			accessToken = client.GetToken()
+			virtualMachines, er := client.ListVirtualMachines(accessToken, resourceGroup.Name)
 			if er != nil {
 				results.Errorf(err, "failed to get load balancers for %s", subscriptionId)
 				continue
@@ -93,9 +95,9 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 
 		// =========================================================================
 		// Get kubernetes clusters in the subscription.
-
 		log.Infow("kubernetes", "status", "scrape started")
-		k8Clusters, er := client.ListKubernetesClusters()
+		accessToken = client.GetToken()
+		k8Clusters, er := client.ListKubernetesClusters(accessToken)
 		if er != nil {
 			results.Errorf(err, "failed to get kubernetes clusters for %s", subscriptionId)
 			continue
@@ -113,9 +115,9 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 
 		// =========================================================================
 		// Get Container registries in the subscription.
-
 		log.Infow("container registries", "status", "scrape started")
-		containerRegistries, er := client.ListContainerRegistries()
+		accessToken = client.GetToken()
+		containerRegistries, er := client.ListContainerRegistries(accessToken)
 		if er != nil {
 			results.Errorf(err, "failed to get container registries for %s", subscriptionId)
 			continue
@@ -135,7 +137,8 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 		// Get Virtual networks in the subscription.
 
 		log.Infow("virtual networks", "status", "scrape started")
-		virtualNetworks, er := client.ListVirtualNetworks()
+		accessToken = client.GetToken()
+		virtualNetworks, er := client.ListVirtualNetworks(accessToken)
 		if er != nil {
 			results.Errorf(err, "failed to get virtual networks for %s", subscriptionId)
 			continue
@@ -154,7 +157,8 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 		// Get firewalls in the subscription.
 
 		log.Infow("firewalls", "status", "scrape started")
-		firewalls, er := client.ListFirewalls()
+		accessToken = client.GetToken()
+		firewalls, er := client.ListFirewalls(accessToken)
 		if er != nil {
 			results.Errorf(err, "failed to get firewalls for %s", subscriptionId)
 			continue
@@ -174,7 +178,8 @@ func (azure AzureManagementScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 		// Get databases in the subscription.
 
 		log.Infow("databases", "status", "scrape started")
-		databases, er := client.ListDatabases()
+		accessToken = client.GetToken()
+		databases, er := client.ListDatabases(accessToken)
 		if er != nil {
 			results.Errorf(err, "failed to get firewalls for %s", subscriptionId)
 			continue

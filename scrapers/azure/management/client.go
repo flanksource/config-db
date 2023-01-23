@@ -20,6 +20,18 @@ type AzureManagementClient struct {
 	*v1.ScrapeContext
 }
 
+// NewAzureManagementClient creates a new AzureManagement Client.
+func NewAzureManagementClient(ctx *v1.ScrapeContext, log *zap.SugaredLogger, subscriptionId string, baseUrl string) (*AzureManagementClient, error) {
+	client := resty.New().
+		SetBaseURL(baseUrl).
+		SetPathParam("subscriptionId", subscriptionId)
+	return &AzureManagementClient{
+		Log:           log,
+		ScrapeContext: ctx,
+		Client:        client,
+	}, nil
+}
+
 // GetToken gives us a token for accessing the azure management API.
 func (azure *AzureManagementClient) GetToken() string {
 	clientID := os.Getenv("AZURE_CLIENT_ID")
@@ -62,25 +74,15 @@ func (azure *AzureManagementClient) GetToken() string {
 	return accessToken
 }
 
-// NewAzureManagementClient creates a new AzureManagement Client.
-func NewAzureManagementClient(ctx *v1.ScrapeContext, log *zap.SugaredLogger, subscriptionId string) (*AzureManagementClient, error) {
-	client := resty.New().
-		SetBaseURL(fmt.Sprintf("https://management.azure.com/subscriptions/%s", subscriptionId))
-	return &AzureManagementClient{
-		Log:           log,
-		ScrapeContext: ctx,
-		Client:        client,
-	}, nil
-}
-
 // ListResourceGroups returns a list of resource groups.
-func (azure *AzureManagementClient) ListResourceGroups() ([]*v1.ResourceGroup, error) {
+func (azure *AzureManagementClient) ListResourceGroups(token string) ([]*v1.ResourceGroup, error) {
 	var response v1.ResourceGroupListResult
 
-	accessToken := azure.GetToken()
-	azure.Client.Header.Set("Authorization", "Bearer "+accessToken)
-
-	res, err := azure.R().SetResult(&response).Get("/resourcegroups?api-version=2020-09-01")
+	res, err := azure.R().
+		SetAuthToken(token).
+		SetQueryString("api-version=2020-09-01").
+		SetResult(&response).
+		Get("/resourcegroups")
 	if err != nil && res.StatusCode() != http.StatusOK {
 		return nil, err
 	}
@@ -88,13 +90,14 @@ func (azure *AzureManagementClient) ListResourceGroups() ([]*v1.ResourceGroup, e
 }
 
 // ListKubernetesClusters returns a list of kubernetes clusters.
-func (azure *AzureManagementClient) ListKubernetesClusters() ([]*v1.KubernetesCluster, error) {
+func (azure *AzureManagementClient) ListKubernetesClusters(token string) ([]*v1.KubernetesCluster, error) {
 	var response v1.KubernetesClusterListResult
 
-	accessToken := azure.GetToken()
-	azure.Client.Header.Set("Authorization", "Bearer "+accessToken)
-
-	res, err := azure.R().SetResult(&response).Get("/providers/Microsoft.ContainerService/managedClusters?api-version=2022-11-01")
+	res, err := azure.R().
+		SetAuthToken(token).
+		SetQueryString("api-version=2022-11-01").
+		SetResult(&response).
+		Get("/providers/Microsoft.ContainerService/managedClusters")
 	if err != nil && res.StatusCode() != http.StatusOK {
 		return nil, err
 	}
@@ -102,13 +105,14 @@ func (azure *AzureManagementClient) ListKubernetesClusters() ([]*v1.KubernetesCl
 }
 
 // ListContainerRegistries returns a list of container registries.
-func (azure *AzureManagementClient) ListContainerRegistries() ([]*v1.ContainerRegistry, error) {
+func (azure *AzureManagementClient) ListContainerRegistries(token string) ([]*v1.ContainerRegistry, error) {
 	var response v1.ContainerRegistryListResult
 
-	accessToken := azure.GetToken()
-	azure.Client.Header.Set("Authorization", "Bearer "+accessToken)
-
-	res, err := azure.R().SetResult(&response).Get("/providers/Microsoft.ContainerRegistry/registries?api-version=2019-05-01")
+	res, err := azure.R().
+		SetAuthToken(token).
+		SetQueryString("api-version=2019-05-01").
+		SetResult(&response).
+		Get("/providers/Microsoft.ContainerRegistry/registries")
 	if err != nil && res.StatusCode() != http.StatusOK {
 		return nil, err
 	}
@@ -116,13 +120,14 @@ func (azure *AzureManagementClient) ListContainerRegistries() ([]*v1.ContainerRe
 }
 
 // ListVirtualMachines returns a list of virtual machines in a resource group.
-func (azure *AzureManagementClient) ListVirtualMachines(resourceGroup string) ([]*v1.VirtualMachine, error) {
+func (azure *AzureManagementClient) ListVirtualMachines(token string, resourceGroup string) ([]*v1.VirtualMachine, error) {
 	var response v1.VirtualMachineListResult
 
-	accessToken := azure.GetToken()
-	azure.Client.Header.Set("Authorization", "Bearer "+accessToken)
-
-	res, err := azure.R().SetResult(&response).Get(fmt.Sprintf("/resourcegroups/%s/providers/Microsoft.Compute/virtualMachines?api-version=2022-11-01", resourceGroup))
+	res, err := azure.R().
+		SetAuthToken(token).
+		SetQueryString("api-version=2022-11-01").
+		SetResult(&response).
+		Get(fmt.Sprintf("/resourcegroups/%s/providers/Microsoft.Compute/virtualMachines", resourceGroup))
 	if err != nil && res.StatusCode() != http.StatusOK {
 		return nil, err
 	}
@@ -130,13 +135,14 @@ func (azure *AzureManagementClient) ListVirtualMachines(resourceGroup string) ([
 }
 
 // ListLoadBalancers returns a list of load balancers in a resource group.
-func (azure *AzureManagementClient) ListLoadBalancers(resourceGroup string) ([]*v1.LoadBalancer, error) {
+func (azure *AzureManagementClient) ListLoadBalancers(token string, resourceGroup string) ([]*v1.LoadBalancer, error) {
 	var response v1.LoadBalancerListResult
 
-	accessToken := azure.GetToken()
-	azure.Client.Header.Set("Authorization", "Bearer "+accessToken)
-
-	res, err := azure.R().SetResult(&response).Get(fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Network/loadBalancers?api-version=2022-07-01", resourceGroup))
+	res, err := azure.R().
+		SetAuthToken(token).
+		SetQueryString("api-version=2022-07-01").
+		SetResult(&response).
+		Get(fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Network/loadBalancers", resourceGroup))
 	if err != nil && res.StatusCode() != http.StatusOK {
 		return nil, err
 	}
@@ -144,13 +150,14 @@ func (azure *AzureManagementClient) ListLoadBalancers(resourceGroup string) ([]*
 }
 
 // ListVirtualNetworks returns a list of virtual networks.
-func (azure *AzureManagementClient) ListVirtualNetworks() ([]*v1.VirtualMachine, error) {
-	var response v1.VirtualMachineListResult
+func (azure *AzureManagementClient) ListVirtualNetworks(token string) ([]*v1.VirtualNetwork, error) {
+	var response v1.VirtualNetworkListResult
 
-	accessToken := azure.GetToken()
-	azure.Client.Header.Set("Authorization", "Bearer "+accessToken)
-
-	res, err := azure.R().SetResult(&response).Get("/providers/Microsoft.Network/virtualNetworks?api-version=2022-07-01")
+	res, err := azure.R().
+		SetAuthToken(token).
+		SetQueryString("api-version=2022-07-01").
+		SetResult(&response).
+		Get("/providers/Microsoft.Network/virtualNetworks")
 	if err != nil && res.StatusCode() != http.StatusOK {
 		return nil, err
 	}
@@ -158,13 +165,14 @@ func (azure *AzureManagementClient) ListVirtualNetworks() ([]*v1.VirtualMachine,
 }
 
 // ListFirewalls returns a list of firewalls.
-func (azure *AzureManagementClient) ListFirewalls() ([]*v1.Firewall, error) {
+func (azure *AzureManagementClient) ListFirewalls(token string) ([]*v1.Firewall, error) {
 	var response v1.FirewallListResult
 
-	accessToken := azure.GetToken()
-	azure.Client.Header.Set("Authorization", "Bearer "+accessToken)
-
-	res, err := azure.R().SetResult(&response).Get("/providers/Microsoft.Network/azureFirewalls?api-version=2022-07-01")
+	res, err := azure.R().
+		SetAuthToken(token).
+		SetQueryString("api-version=2022-07-01").
+		SetResult(&response).
+		Get("/providers/Microsoft.Network/azureFirewalls")
 	if err != nil && res.StatusCode() != http.StatusOK {
 		return nil, err
 	}
@@ -172,14 +180,16 @@ func (azure *AzureManagementClient) ListFirewalls() ([]*v1.Firewall, error) {
 }
 
 // ListDatabases returns a list of databases.
-func (azure *AzureManagementClient) ListDatabases() ([]*v1.Database, error) {
+func (azure *AzureManagementClient) ListDatabases(token string) ([]*v1.Database, error) {
 	//We are only filtering 2 databases here.
-	accessToken := azure.GetToken()
-	azure.Client.Header.Set("Authorization", "Bearer "+accessToken)
 
 	filter := "ResourceType eq 'Microsoft.DBforPostgreSQL/servers' or ResourceType eq 'Microsoft.Sql"
 	var response v1.DatabaseListResult
-	res, err := azure.R().SetResult(&response).Get(fmt.Sprintf("/resources?$filter=%s/servers/databases'&api-version=2022-11-01-preview", filter))
+	res, err := azure.R().
+		SetAuthToken(token).
+		SetQueryString("api-version=2022-11-01-preview").
+		SetResult(&response).
+		Get(fmt.Sprintf("/resources?$filter=%s/servers/databases", filter))
 	if err != nil && res.StatusCode() != http.StatusOK {
 		return nil, err
 	}

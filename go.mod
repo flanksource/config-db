@@ -24,6 +24,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.19
 	github.com/aws/aws-sdk-go-v2/service/support v1.8.2
 	github.com/aws/smithy-go v1.13.3
+	github.com/dimfeld/httptreemux/v5 v5.5.0
 	github.com/dop251/goja v0.0.0-20221229151140-b95230a9dbad
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/flanksource/commons v1.6.0
