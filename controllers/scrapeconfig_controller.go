@@ -70,12 +70,12 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Check if it is deleted, remove scrape config
-	logger.Info("DeletionTimestamp", "a", scrapeConfig.DeletionTimestamp.IsZero())
 	if !scrapeConfig.DeletionTimestamp.IsZero() {
 		logger.Info("Deleting scrape config", "id", scrapeConfig.GetUID())
 		if err := db.DeleteScrapeConfig(scrapeConfig); err != nil {
 			logger.Error(err, "failed to delete scrape config")
 		}
+		scrapers.RemoveFromCron(string(scrapeConfig.GetUID()))
 		controllerutil.RemoveFinalizer(scrapeConfig, ScrapeConfigFinalizerName)
 		return ctrl.Result{}, r.Update(ctx, scrapeConfig)
 	}
@@ -84,12 +84,14 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if !controllerutil.ContainsFinalizer(scrapeConfig, ScrapeConfigFinalizerName) {
 		logger.Info("adding finalizer", "finalizers", scrapeConfig.GetFinalizers())
 		controllerutil.AddFinalizer(scrapeConfig, ScrapeConfigFinalizerName)
-		// TODO: Doing here because status update and patch are failing
-		r.Update(ctx, scrapeConfig)
+		if err := r.Update(ctx, scrapeConfig); err != nil {
+			logger.Error(err, "failed to update finalizers")
+		}
 	}
 
 	changed, err := db.PersistScrapeConfig(scrapeConfig)
 	if err != nil {
+		logger.Error(err, "failed to persist scrape config")
 		return ctrl.Result{}, err
 	}
 
@@ -102,24 +104,7 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		scrapers.AddToCron(scrapeConfig.Spec.ConfigScraper, string(scrapeConfig.GetUID()))
 	}
 
-	// TODO: Why is status not working ?
-	scrapeConfigStatus := &v1.ScrapeConfig{}
-	err = r.Get(ctx, req.NamespacedName, scrapeConfigStatus)
-	scrapeConfigStatus.Status.ObservedGeneration = scrapeConfig.Generation
-	r.patch(scrapeConfigStatus)
-
 	return ctrl.Result{}, nil
-}
-
-func (r *ScrapeConfigReconciler) patch(scrapeConfig *v1.ScrapeConfig) error {
-	r.Log.V(3).Info("patching", "systemTemplate", scrapeConfig.Name, "namespace", scrapeConfig.Namespace)
-	if err := r.Update(context.Background(), scrapeConfig, &client.UpdateOptions{}); err != nil {
-		r.Log.Error(err, "failed to patch", "systemTemplate", scrapeConfig.Name)
-	}
-	if err := r.Status().Update(context.Background(), scrapeConfig); err != nil {
-		r.Log.Error(err, "failed to update status", "systemTemplate", scrapeConfig.Name)
-	}
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

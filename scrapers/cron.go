@@ -23,10 +23,9 @@ func AddToCron(scraper v1.ConfigScraper, id string) {
 		schedule = DefaultSchedule
 	}
 
-	// If id already exists, remove the old cron job
-	if entryID, exists := cronIDFunctionMap[id]; exists {
-		cronManger.Remove(entryID)
-	}
+	// Remove existing cronjob
+	RemoveFromCron(id)
+
 	// Schedule a new job
 	entryID, err := cronManger.AddFunc(schedule, fn)
 	if err != nil {
@@ -37,6 +36,12 @@ func AddToCron(scraper v1.ConfigScraper, id string) {
 	// Add non empty ids to the map
 	if id != "" {
 		cronIDFunctionMap[id] = entryID
+	}
+}
+
+func RemoveFromCron(id string) {
+	if entryID, exists := cronIDFunctionMap[id]; exists {
+		cronManger.Remove(entryID)
 	}
 }
 
