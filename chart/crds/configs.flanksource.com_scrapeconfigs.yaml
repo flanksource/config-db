@@ -1,0 +1,833 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.10.0
+  creationTimestamp: null
+  name: scrapeconfigs.configs.flanksource.com
+spec:
+  group: configs.flanksource.com
+  names:
+    kind: ScrapeConfig
+    listKind: ScrapeConfigList
+    plural: scrapeconfigs
+    singular: scrapeconfig
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: ScrapeConfig is the Schema for the scrapeconfigs API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ScrapeConfigSpec defines the desired state of ScrapeConfig
+            properties:
+              aws:
+                items:
+                  description: AWS ...
+                  properties:
+                    accessKey:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                          type: object
+                      type: object
+                    assumeRole:
+                      type: string
+                    cloudtrail:
+                      properties:
+                        exclude:
+                          items:
+                            type: string
+                          type: array
+                        max_age:
+                          type: string
+                      type: object
+                    compliance:
+                      type: boolean
+                    cost_reporting:
+                      properties:
+                        database:
+                          type: string
+                        region:
+                          type: string
+                        s3_bucket_path:
+                          type: string
+                        table:
+                          type: string
+                      type: object
+                    endpoint:
+                      type: string
+                    exclude:
+                      items:
+                        type: string
+                      type: array
+                    format:
+                      description: Format of config item, defaults to JSON, available
+                        options are JSON, properties
+                      type: string
+                    id:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    include:
+                      items:
+                        type: string
+                      type: array
+                    inventory:
+                      type: boolean
+                    items:
+                      description: A JSONPath expression to use to extract individual
+                        items from the resource, items are extracted first and then
+                        the ID,Name,Type and transformations are applied for each
+                        item.
+                      type: string
+                    name:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    patch_details:
+                      type: boolean
+                    patch_states:
+                      type: boolean
+                    region:
+                      items:
+                        type: string
+                      type: array
+                    secretKey:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                          type: object
+                      type: object
+                    skipTLSVerify:
+                      type: boolean
+                    transform:
+                      properties:
+                        exclude:
+                          description: Fields to remove from the config, useful for
+                            removing sensitive data and fields that change often without
+                            a material impact i.e. Last Scraped Time
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        expr:
+                          type: string
+                        include:
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        javascript:
+                          type: string
+                        jsonpath:
+                          type: string
+                        mask:
+                          description: Masks consist of configurations to replace
+                            sensitive fields with hash functions or static string.
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                              selector:
+                                properties:
+                                  type:
+                                    description: Type is the config type to apply
+                                      the mask
+                                    type: string
+                                type: object
+                              value:
+                                description: Value can be a hash function name or
+                                  just a string
+                                type: string
+                            type: object
+                          type: array
+                        template:
+                          type: string
+                      type: object
+                    trusted_advisor_check:
+                      type: boolean
+                    type:
+                      description: A static value or JSONPath expression to use as
+                        the type for the resource.
+                      type: string
+                  required:
+                  - region
+                  type: object
+                type: array
+              azureDevops:
+                items:
+                  properties:
+                    format:
+                      description: Format of config item, defaults to JSON, available
+                        options are JSON, properties
+                      type: string
+                    id:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    items:
+                      description: A JSONPath expression to use to extract individual
+                        items from the resource, items are extracted first and then
+                        the ID,Name,Type and transformations are applied for each
+                        item.
+                      type: string
+                    name:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    organization:
+                      type: string
+                    personalAccessToken:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                          type: object
+                      type: object
+                    pipelines:
+                      items:
+                        type: string
+                      type: array
+                    projects:
+                      items:
+                        type: string
+                      type: array
+                    transform:
+                      properties:
+                        exclude:
+                          description: Fields to remove from the config, useful for
+                            removing sensitive data and fields that change often without
+                            a material impact i.e. Last Scraped Time
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        expr:
+                          type: string
+                        include:
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        javascript:
+                          type: string
+                        jsonpath:
+                          type: string
+                        mask:
+                          description: Masks consist of configurations to replace
+                            sensitive fields with hash functions or static string.
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                              selector:
+                                properties:
+                                  type:
+                                    description: Type is the config type to apply
+                                      the mask
+                                    type: string
+                                type: object
+                              value:
+                                description: Value can be a hash function name or
+                                  just a string
+                                type: string
+                            type: object
+                          type: array
+                        template:
+                          type: string
+                      type: object
+                    type:
+                      description: A static value or JSONPath expression to use as
+                        the type for the resource.
+                      type: string
+                  required:
+                  - organization
+                  - personalAccessToken
+                  - pipelines
+                  - projects
+                  type: object
+                type: array
+              file:
+                items:
+                  description: File ...
+                  properties:
+                    format:
+                      description: Format of config item, defaults to JSON, available
+                        options are JSON, properties
+                      type: string
+                    id:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    ignore:
+                      items:
+                        type: string
+                      type: array
+                    items:
+                      description: A JSONPath expression to use to extract individual
+                        items from the resource, items are extracted first and then
+                        the ID,Name,Type and transformations are applied for each
+                        item.
+                      type: string
+                    name:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    paths:
+                      items:
+                        type: string
+                      type: array
+                    transform:
+                      properties:
+                        exclude:
+                          description: Fields to remove from the config, useful for
+                            removing sensitive data and fields that change often without
+                            a material impact i.e. Last Scraped Time
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        expr:
+                          type: string
+                        include:
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        javascript:
+                          type: string
+                        jsonpath:
+                          type: string
+                        mask:
+                          description: Masks consist of configurations to replace
+                            sensitive fields with hash functions or static string.
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                              selector:
+                                properties:
+                                  type:
+                                    description: Type is the config type to apply
+                                      the mask
+                                    type: string
+                                type: object
+                              value:
+                                description: Value can be a hash function name or
+                                  just a string
+                                type: string
+                            type: object
+                          type: array
+                        template:
+                          type: string
+                      type: object
+                    type:
+                      description: A static value or JSONPath expression to use as
+                        the type for the resource.
+                      type: string
+                    url:
+                      type: string
+                  type: object
+                type: array
+              kubernetes:
+                items:
+                  properties:
+                    allowIncomplete:
+                      type: boolean
+                    clusterName:
+                      type: string
+                    exclusions:
+                      items:
+                        type: string
+                      type: array
+                    fieldSelector:
+                      type: string
+                    format:
+                      description: Format of config item, defaults to JSON, available
+                        options are JSON, properties
+                      type: string
+                    id:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    items:
+                      description: A JSONPath expression to use to extract individual
+                        items from the resource, items are extracted first and then
+                        the ID,Name,Type and transformations are applied for each
+                        item.
+                      type: string
+                    kubeconfig:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                          type: object
+                      type: object
+                    maxInflight:
+                      format: int64
+                      type: integer
+                    name:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    namespace:
+                      type: string
+                    scope:
+                      type: string
+                    selector:
+                      type: string
+                    since:
+                      type: string
+                    transform:
+                      properties:
+                        exclude:
+                          description: Fields to remove from the config, useful for
+                            removing sensitive data and fields that change often without
+                            a material impact i.e. Last Scraped Time
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        expr:
+                          type: string
+                        include:
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        javascript:
+                          type: string
+                        jsonpath:
+                          type: string
+                        mask:
+                          description: Masks consist of configurations to replace
+                            sensitive fields with hash functions or static string.
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                              selector:
+                                properties:
+                                  type:
+                                    description: Type is the config type to apply
+                                      the mask
+                                    type: string
+                                type: object
+                              value:
+                                description: Value can be a hash function name or
+                                  just a string
+                                type: string
+                            type: object
+                          type: array
+                        template:
+                          type: string
+                      type: object
+                    type:
+                      description: A static value or JSONPath expression to use as
+                        the type for the resource.
+                      type: string
+                    useCache:
+                      type: boolean
+                  type: object
+                type: array
+              kubernetesFile:
+                items:
+                  properties:
+                    container:
+                      type: string
+                    fieldSelector:
+                      type: string
+                    files:
+                      items:
+                        properties:
+                          format:
+                            type: string
+                          path:
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      type: array
+                    format:
+                      description: Format of config item, defaults to JSON, available
+                        options are JSON, properties
+                      type: string
+                    id:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    items:
+                      description: A JSONPath expression to use to extract individual
+                        items from the resource, items are extracted first and then
+                        the ID,Name,Type and transformations are applied for each
+                        item.
+                      type: string
+                    kind:
+                      type: string
+                    labelSelector:
+                      type: string
+                    name:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    namespace:
+                      type: string
+                    transform:
+                      properties:
+                        exclude:
+                          description: Fields to remove from the config, useful for
+                            removing sensitive data and fields that change often without
+                            a material impact i.e. Last Scraped Time
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        expr:
+                          type: string
+                        include:
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        javascript:
+                          type: string
+                        jsonpath:
+                          type: string
+                        mask:
+                          description: Masks consist of configurations to replace
+                            sensitive fields with hash functions or static string.
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                              selector:
+                                properties:
+                                  type:
+                                    description: Type is the config type to apply
+                                      the mask
+                                    type: string
+                                type: object
+                              value:
+                                description: Value can be a hash function name or
+                                  just a string
+                                type: string
+                            type: object
+                          type: array
+                        template:
+                          type: string
+                      type: object
+                    type:
+                      description: A static value or JSONPath expression to use as
+                        the type for the resource.
+                      type: string
+                  type: object
+                type: array
+              logLevel:
+                type: string
+              schedule:
+                type: string
+              sql:
+                items:
+                  properties:
+                    auth:
+                      description: Authentication ...
+                      properties:
+                        password:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                secretKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                              type: object
+                          type: object
+                        username:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                secretKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                              type: object
+                          type: object
+                      required:
+                      - password
+                      - username
+                      type: object
+                    connection:
+                      type: string
+                    driver:
+                      type: string
+                    format:
+                      description: Format of config item, defaults to JSON, available
+                        options are JSON, properties
+                      type: string
+                    id:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    items:
+                      description: A JSONPath expression to use to extract individual
+                        items from the resource, items are extracted first and then
+                        the ID,Name,Type and transformations are applied for each
+                        item.
+                      type: string
+                    name:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    query:
+                      type: string
+                    transform:
+                      properties:
+                        exclude:
+                          description: Fields to remove from the config, useful for
+                            removing sensitive data and fields that change often without
+                            a material impact i.e. Last Scraped Time
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        expr:
+                          type: string
+                        include:
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        javascript:
+                          type: string
+                        jsonpath:
+                          type: string
+                        mask:
+                          description: Masks consist of configurations to replace
+                            sensitive fields with hash functions or static string.
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                              selector:
+                                properties:
+                                  type:
+                                    description: Type is the config type to apply
+                                      the mask
+                                    type: string
+                                type: object
+                              value:
+                                description: Value can be a hash function name or
+                                  just a string
+                                type: string
+                            type: object
+                          type: array
+                        template:
+                          type: string
+                      type: object
+                    type:
+                      description: A static value or JSONPath expression to use as
+                        the type for the resource.
+                      type: string
+                  required:
+                  - connection
+                  - query
+                  type: object
+                type: array
+            type: object
+          status:
+            description: ScrapeConfigStatus defines the observed state of ScrapeConfig
+            properties:
+              observedGeneration:
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
