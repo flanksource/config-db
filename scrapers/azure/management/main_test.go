@@ -17,7 +17,6 @@ var client *AzureManagementClient
 
 func TestMain(m *testing.M) {
 	router := httptreemux.NewContextMux()
-	handler := http.NewServeMux()
 	group := router.NewGroup("/subscriptions/:subscriptionid")
 	group.GET("/providers/Microsoft.ContainerService/managedClusters", listKubernetesClusters)
 	group.GET("/providers/Microsoft.ContainerRegistry/registries", listContainerRegistries)
@@ -27,7 +26,6 @@ func TestMain(m *testing.M) {
 	group.GET("/providers/Microsoft.Network/virtualNetworks", listVirtualNetworks)
 	group.GET("/providers/Microsoft.Network/azureFirewalls", listFirewalls)
 	group.GET("/resources?$filter=:filter/servers/databases", listDatabases)
-	handler.HandleFunc("/v2.0/.well-known/openid-configuration", token)
 
 	srv := httptest.NewServer(router)
 
@@ -255,11 +253,4 @@ func listDatabases(w http.ResponseWriter, r *http.Request) {
 		client.Log.Fatal(er)
 	}
 	_, _ = w.Write(res)
-}
-
-func token(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r)
-}
-func myHandlerFunc(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(`hello world`))
 }
