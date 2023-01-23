@@ -15,6 +15,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	configsv1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/controllers"
+	"github.com/flanksource/config-db/db"
 	"github.com/go-logr/zapr"
 	"github.com/spf13/cobra"
 )
@@ -37,6 +38,7 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) {
+	db.MustInit()
 	zapLogger := logger.GetZapLogger()
 	if zapLogger == nil {
 		logger.Fatalf("failed to get zap logger")
@@ -58,23 +60,15 @@ func run(cmd *cobra.Command, args []string) {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(configsv1.AddToScheme(scheme))
 
+	// Start the server
+	go serve(args)
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: fmt.Sprintf("0.0.0.0:%d", metricsPort),
 		Port:               9443,
 		LeaderElection:     enableLeaderElection,
 		LeaderElectionID:   "ca62cd4d.flanksource.com",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -84,6 +78,7 @@ func run(cmd *cobra.Command, args []string) {
 	if err = (&controllers.ScrapeConfigReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    ctrl.Log.WithName("controllers").WithName("scrape_config"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Scraper")
 		os.Exit(1)

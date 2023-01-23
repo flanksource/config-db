@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 )
 
@@ -21,70 +19,76 @@ import (
 var Serve = &cobra.Command{
 	Use: "serve",
 	Run: func(cmd *cobra.Command, args []string) {
-		db.MustInit()
-		e := echo.New()
-		// PostgREST needs to know how it is exposed to create the correct links
-		db.HTTPEndpoint = publicEndpoint + "/db"
-
-		if logger.IsTraceEnabled() {
-			e.Use(middleware.Logger())
-		}
-		if !disablePostgrest {
-			go db.StartPostgrest()
-			forward(e, "/db", db.PostgRESTEndpoint())
-			forward(e, "/live", db.PostgRESTAdminEndpoint())
-			forward(e, "/ready", db.PostgRESTAdminEndpoint())
-		} else {
-			e.GET("/live", func(c echo.Context) error {
-				return c.String(200, "OK")
-			})
-
-			e.GET("/ready", func(c echo.Context) error {
-				return c.String(200, "OK")
-			})
-		}
-		e.GET("/query", query.Handler)
-
-		// Run this in a goroutine to make it non-blocking for server start
-		go startScraperCron(args)
-
-		if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil {
-			e.Logger.Fatal(err)
-		}
+		serve(args)
 	},
 }
 
+func serve(configFiles []string) {
+	db.MustInit()
+	e := echo.New()
+	// PostgREST needs to know how it is exposed to create the correct links
+	db.HTTPEndpoint = publicEndpoint + "/db"
+
+	if logger.IsTraceEnabled() {
+		e.Use(middleware.Logger())
+	}
+	if !disablePostgrest {
+		go db.StartPostgrest()
+		forward(e, "/db", db.PostgRESTEndpoint())
+		forward(e, "/live", db.PostgRESTAdminEndpoint())
+		forward(e, "/ready", db.PostgRESTAdminEndpoint())
+	} else {
+		e.GET("/live", func(c echo.Context) error {
+			return c.String(200, "OK")
+		})
+
+		e.GET("/ready", func(c echo.Context) error {
+			return c.String(200, "OK")
+		})
+	}
+	e.GET("/query", query.Handler)
+
+	// Run this in a goroutine to make it non-blocking for server start
+	go startScraperCron(configFiles)
+
+	if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil {
+		e.Logger.Fatal(err)
+	}
+}
+
 func startScraperCron(configFiles []string) {
-	scraperConfigs, err := v1.ParseConfigs(configFiles...)
+	scraperConfigsFiles, err := v1.ParseConfigs(configFiles...)
 	if err != nil {
 		logger.Fatalf(err.Error())
 	}
-
-	cron := cron.New()
-
-	for _, scraper := range scraperConfigs {
-		schedule := scraper.Schedule
-		if schedule == "" {
-			schedule = defaultSchedule
-		}
+	for _, scraper := range scraperConfigsFiles {
 		_scraper := scraper
+		scrapers.AddToCron(_scraper, "")
 		fn := func() {
-			ctx := &v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &_scraper}
-			if results, err := scrapers.Run(ctx, _scraper); err != nil {
-				logger.Errorf("Failed to run scraper %s: %v", _scraper, err)
-			} else if err = db.SaveResults(ctx, results); err != nil {
-				//FIXME cache results to save to db later
-				logger.Errorf("Failed to update db: %v", err)
+			if err := scrapers.RunScraper(_scraper); err != nil {
+				logger.Errorf("Error running scraper: %v", err)
 			}
-		}
-		if _, err := cron.AddFunc(schedule, fn); err != nil {
-			logger.Errorf("failed to schedule %s using %s: %v", scraper, scraper.Schedule, err)
 		}
 		defer fn()
 	}
 
-	cron.Start()
-
+	scraperConfigsDB, err := db.GetScrapeConfigs()
+	if err != nil {
+		logger.Fatalf(err.Error())
+	}
+	for _, scraper := range scraperConfigsDB {
+		_scraper, err := scraper.V1ConfigScraper()
+		if err != nil {
+			logger.Fatalf("Error parsing config scraper: %v", err)
+		}
+		scrapers.AddToCron(_scraper, scraper.ID.String())
+		fn := func() {
+			if err := scrapers.RunScraper(_scraper); err != nil {
+				logger.Errorf("Error running scraper: %v", err)
+			}
+		}
+		defer fn()
+	}
 }
 
 func forward(e *echo.Echo, prefix string, target string) {

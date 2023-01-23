@@ -6,6 +6,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/kommons"
 	"github.com/spf13/cobra"
@@ -17,7 +18,6 @@ var httpPort, metricsPort, devGuiPort int
 var disableKubernetes bool
 var kommonsClient *kommons.Client
 var publicEndpoint = "http://localhost:8080"
-var defaultSchedule string
 var disablePostgrest bool
 var (
 	version = "dev"
@@ -65,7 +65,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.BoolVar(&disableKubernetes, "disable-kubernetes", false, "Disable all functionality that requires a kubernetes connection")
 	flags.BoolVar(&dev, "dev", false, "Run in development mode")
 	flags.BoolVar(&disablePostgrest, "disable-postgrest", false, "Disable the postgrest server")
-	flags.StringVar(&defaultSchedule, "default-schedule", "@every 60m", "Default schedule for configs that don't specfiy one")
+	flags.StringVar(&scrapers.DefaultSchedule, "default-schedule", "@every 60m", "Default schedule for configs that don't specfiy one")
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
 }
 
@@ -86,5 +86,5 @@ func init() {
 
 	db.Flags(Root.PersistentFlags())
 
-	Root.AddCommand(Run, Analyze, Serve, GoOffline)
+	Root.AddCommand(Run, Analyze, Serve, GoOffline, Operator)
 }
