@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm/schema"
 )
 
+// +kubebuilder:object:generate=false
 type JSON map[string]interface{}
 
 func NewJSON(v interface{}) JSON {
@@ -81,6 +82,7 @@ func (m JSON) GormDataType() string {
 }
 
 // JSONMap defiend JSON data type, need to implements driver.Valuer, sql.Scanner interface
+// +kubebuilder:object:generate=false
 type JSONMap map[string]interface{}
 
 // Value return json value, implement driver.Valuer interface
