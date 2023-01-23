@@ -27,7 +27,7 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 
 	results := v1.ScrapeResults{}
 	for _, config := range configs.Azure {
-
+		logger.Debugf("azure scraper", "status", "started", config.SubscriptionId)
 		// Build credential. AZURE_CLIENT_ID, AZURE_CLIENT_SECRET and AZURE_TENANT_ID environment variables must be
 		//set for this to work.
 
@@ -41,7 +41,6 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 		azure.cred = cred
 
 		// Get resource groups in the subscription.
-		logger.Debugf("resource groups", "status", "scrape started", config.SubscriptionId)
 		resourceGroups := azure.fetchResourceGroups()
 		results = append(results, resourceGroups...)
 
@@ -73,6 +72,8 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 		databases := azure.fetchDatabases()
 		results = append(results, databases...)
 
+		logger.Debugf("azure scraper", "status", "complete", config.SubscriptionId)
+
 	}
 	return results
 
@@ -80,6 +81,9 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 
 // fetchDatabases gets all databases in a subscription.
 func (azure AzureScraper) fetchDatabases() v1.ScrapeResults {
+	logger.Debugf("databases scraper", "status", "started", azure.config.SubscriptionId)
+	defer logger.Debugf("databases scraper", "status", "complete", azure.config.SubscriptionId)
+
 	results := v1.ScrapeResults{}
 
 	databases, err := armresources.NewClient(azure.config.SubscriptionId, azure.cred, nil)
@@ -109,6 +113,9 @@ func (azure AzureScraper) fetchDatabases() v1.ScrapeResults {
 
 // fetchK8s gets all kubernetes clusters in a subscription.
 func (azure AzureScraper) fetchK8s() v1.ScrapeResults {
+	logger.Debugf("k8s scraper", "status", "started", azure.config.SubscriptionId)
+	defer logger.Debugf("k8s scraper", "status", "complete", azure.config.SubscriptionId)
+
 	results := v1.ScrapeResults{}
 
 	managedClustersClient, err := armcontainerservice.NewManagedClustersClient(azure.config.SubscriptionId, azure.cred, nil)
@@ -135,6 +142,9 @@ func (azure AzureScraper) fetchK8s() v1.ScrapeResults {
 
 // fetchFirewalls gets all firewalls in a subscription.
 func (azure AzureScraper) fetchFirewalls() v1.ScrapeResults {
+	logger.Debugf("firewalls scraper", "status", "started", azure.config.SubscriptionId)
+	defer logger.Debugf("firewalls scraper", "status", "complete", azure.config.SubscriptionId)
+
 	results := v1.ScrapeResults{}
 
 	firewallClient, err := armnetwork.NewAzureFirewallsClient(azure.config.SubscriptionId, azure.cred, nil)
@@ -161,6 +171,9 @@ func (azure AzureScraper) fetchFirewalls() v1.ScrapeResults {
 
 // fetchContainerRegistries gets container registries in a subscription.
 func (azure AzureScraper) fetchContainerRegistries() v1.ScrapeResults {
+	logger.Debugf("container registries scraper", "status", "started", azure.config.SubscriptionId)
+	defer logger.Debugf("container registries scraper", "status", "complete", azure.config.SubscriptionId)
+
 	results := v1.ScrapeResults{}
 
 	registriesClient, err := armcontainerregistry.NewRegistriesClient(azure.config.SubscriptionId, azure.cred, nil)
@@ -187,6 +200,9 @@ func (azure AzureScraper) fetchContainerRegistries() v1.ScrapeResults {
 
 // fetchVirtualNetworks gets virtual machines in a subscription.
 func (azure AzureScraper) fetchVirtualNetworks() v1.ScrapeResults {
+	logger.Debugf("virtual networks scraper", "status", "started", azure.config.SubscriptionId)
+	defer logger.Debugf("virtual networks scraper", "status", "complete", azure.config.SubscriptionId)
+
 	results := v1.ScrapeResults{}
 
 	virtualNetworksClient, err := armnetwork.NewVirtualNetworksClient(azure.config.SubscriptionId, azure.cred, nil)
@@ -215,6 +231,9 @@ func (azure AzureScraper) fetchVirtualNetworks() v1.ScrapeResults {
 
 // fetchLoadBalancers gets load balancers in a subscription.
 func (azure AzureScraper) fetchLoadBalancers() v1.ScrapeResults {
+	logger.Debugf("load balancers scraper", "status", "started", azure.config.SubscriptionId)
+	defer logger.Debugf("load balancers scraper", "status", "complete", azure.config.SubscriptionId)
+
 	results := v1.ScrapeResults{}
 
 	lbClient, err := armnetwork.NewLoadBalancersClient(azure.config.SubscriptionId, azure.cred, nil)
@@ -244,6 +263,9 @@ func (azure AzureScraper) fetchLoadBalancers() v1.ScrapeResults {
 
 // fetchVirtualMachines gets virtual machines in a subscription.
 func (azure AzureScraper) fetchVirtualMachines() v1.ScrapeResults {
+	logger.Debugf("virtual machines scraper", "status", "started", azure.config.SubscriptionId)
+	defer logger.Debugf("virtual machines scraper", "status", "complete", azure.config.SubscriptionId)
+
 	results := v1.ScrapeResults{}
 
 	virtualMachineClient, err := armcompute.NewVirtualMachinesClient(azure.config.SubscriptionId, azure.cred, nil)
@@ -272,6 +294,9 @@ func (azure AzureScraper) fetchVirtualMachines() v1.ScrapeResults {
 
 // fetchResourceGroups gets resource groups in a subscription.
 func (azure AzureScraper) fetchResourceGroups() v1.ScrapeResults {
+	logger.Debugf("resource groups scraper", "status", "started", azure.config.SubscriptionId)
+	defer logger.Debugf("resource groups scraper", "status", "complete", azure.config.SubscriptionId)
+
 	results := v1.ScrapeResults{}
 
 	resourceClient, err := armresources.NewResourceGroupsClient(azure.config.SubscriptionId, azure.cred, nil)
