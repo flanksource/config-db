@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
@@ -12,8 +13,6 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
-
-const MicrosoftAuthorityHost = "https://login.microsoftonline.com/"
 
 type AzureScraper struct {
 }
@@ -43,21 +42,23 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 		logger.Debugf("resource groups", "status", "scrape started", config.SubscriptionId)
 		resourceClient, err := armresources.NewResourceGroupsClient(config.SubscriptionId, cred, nil)
 		if err != nil {
-			logger.Fatalf(errors.Verbose(err))
+			results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate resource group client: %w", err))
 		}
-		resourcePager := resourceClient.NewListPager(nil)
-		for resourcePager.More() {
-			nextPage, err := resourcePager.NextPage(ct)
-			if err != nil {
-				logger.Fatalf(errors.Verbose(err))
-			}
-			for _, v := range nextPage.Value {
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
-					Type:        *v.Type,
-					ID:          *v.ID,
-					Name:        *v.Name,
-				})
+		if resourceClient != nil {
+			resourcePager := resourceClient.NewListPager(nil)
+			for resourcePager.More() {
+				nextPage, err := resourcePager.NextPage(ct)
+				if err != nil {
+					results = append(results, v1.ScrapeResult{}.Errorf("failed to read resource group page: %w", err))
+				}
+				for _, v := range nextPage.Value {
+					results = append(results, v1.ScrapeResult{
+						BaseScraper: config.BaseScraper,
+						Type:        *v.Type,
+						ID:          *v.ID,
+						Name:        *v.Name,
+					}.Success(nextPage.Value))
+				}
 			}
 		}
 
@@ -66,21 +67,23 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 
 		virtualMachineClient, err := armcompute.NewVirtualMachinesClient(config.SubscriptionId, cred, nil)
 		if err != nil {
-			// handle error
+			results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate virtual machine client: %w", err))
 		}
-		virtualMachinePager := virtualMachineClient.NewListAllPager(nil)
-		for virtualMachinePager.More() {
-			nextPage, err := virtualMachinePager.NextPage(ct)
-			if err != nil {
-				logger.Fatalf(errors.Verbose(err))
-			}
-			for _, v := range nextPage.Value {
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
-					Type:        *v.Type,
-					ID:          *v.ID,
-					Name:        *v.Name,
-				})
+		if virtualMachineClient != nil {
+			virtualMachinePager := virtualMachineClient.NewListAllPager(nil)
+			for virtualMachinePager.More() {
+				nextPage, err := virtualMachinePager.NextPage(ct)
+				if err != nil {
+					results = append(results, v1.ScrapeResult{}.Errorf("failed to read virtual machines page: %w", err))
+				}
+				for _, v := range nextPage.Value {
+					results = append(results, v1.ScrapeResult{
+						BaseScraper: config.BaseScraper,
+						Type:        *v.Type,
+						ID:          *v.ID,
+						Name:        *v.Name,
+					}.Success(nextPage.Value))
+				}
 			}
 		}
 
@@ -89,21 +92,24 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 
 		lbClient, err := armnetwork.NewLoadBalancersClient(config.SubscriptionId, cred, nil)
 		if err != nil {
-			logger.Fatalf(errors.Verbose(err))
+			results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate load balancer client: %w", err))
 		}
-		loadBalancersPager := lbClient.NewListAllPager(nil)
-		for loadBalancersPager.More() {
-			nextPage, err := loadBalancersPager.NextPage(ct)
-			if err != nil {
-				logger.Fatalf(errors.Verbose(err))
-			}
-			for _, v := range nextPage.Value {
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
-					Type:        *v.Type,
-					ID:          *v.ID,
-					Name:        *v.Name,
-				})
+		if lbClient != nil {
+			loadBalancersPager := lbClient.NewListAllPager(nil)
+			for loadBalancersPager.More() {
+				nextPage, err := loadBalancersPager.NextPage(ct)
+				if err != nil {
+					results = append(results, v1.ScrapeResult{}.Errorf("failed to read load balancer page: %w", err))
+				}
+				for _, v := range nextPage.Value {
+					results = append(results, v1.ScrapeResult{
+						BaseScraper: config.BaseScraper,
+						Type:        *v.Type,
+						ID:          *v.ID,
+						Name:        *v.Name,
+					}.Success(nextPage.Value))
+
+				}
 			}
 		}
 
@@ -112,21 +118,23 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 
 		virtualNetworksClient, err := armnetwork.NewVirtualNetworksClient(config.SubscriptionId, cred, nil)
 		if err != nil {
-			logger.Fatalf(errors.Verbose(err))
+			results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate virtual networks client: %w", err))
 		}
-		virtualNetworksPager := virtualNetworksClient.NewListAllPager(nil)
-		for virtualNetworksPager.More() {
-			nextPage, err := virtualNetworksPager.NextPage(ct)
-			if err != nil {
-				logger.Fatalf(errors.Verbose(err))
-			}
-			for _, v := range nextPage.Value {
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
-					Type:        *v.Type,
-					ID:          *v.ID,
-					Name:        *v.Name,
-				})
+		if virtualMachineClient != nil {
+			virtualNetworksPager := virtualNetworksClient.NewListAllPager(nil)
+			for virtualNetworksPager.More() {
+				nextPage, err := virtualNetworksPager.NextPage(ct)
+				if err != nil {
+					results = append(results, v1.ScrapeResult{}.Errorf("failed to read virtual network page: %w", err))
+				}
+				for _, v := range nextPage.Value {
+					results = append(results, v1.ScrapeResult{
+						BaseScraper: config.BaseScraper,
+						Type:        *v.Type,
+						ID:          *v.ID,
+						Name:        *v.Name,
+					}.Success(nextPage.Value))
+				}
 			}
 		}
 
@@ -135,13 +143,13 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 
 		registriesClient, err := armcontainerregistry.NewRegistriesClient(config.SubscriptionId, cred, nil)
 		if err != nil {
-			logger.Fatalf(errors.Verbose(err))
+			results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate container registry client: %w", err))
 		}
 		registriesPager := registriesClient.NewListPager(nil)
 		for registriesPager.More() {
 			nextPage, err := registriesPager.NextPage(ct)
 			if err != nil {
-				logger.Fatalf(errors.Verbose(err))
+				results = append(results, v1.ScrapeResult{}.Errorf("failed to read container registry page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
@@ -149,7 +157,7 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 					Type:        *v.Type,
 					ID:          *v.ID,
 					Name:        *v.Name,
-				})
+				}.Success(nextPage.Value))
 			}
 		}
 
@@ -158,13 +166,13 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 
 		firewallClient, err := armnetwork.NewAzureFirewallsClient(config.SubscriptionId, cred, nil)
 		if err != nil {
-			logger.Fatalf("failed to create client: %v", err)
+			results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate firewall client: %w", err))
 		}
 		firewallsPager := firewallClient.NewListAllPager(nil)
 		for firewallsPager.More() {
 			nextPage, err := firewallsPager.NextPage(ct)
 			if err != nil {
-				logger.Fatalf(errors.Verbose(err))
+				results = append(results, v1.ScrapeResult{}.Errorf("failed to read firewall page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
@@ -172,7 +180,7 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 					Type:        *v.Type,
 					ID:          *v.ID,
 					Name:        *v.Name,
-				})
+				}.Success(nextPage.Value))
 			}
 		}
 
@@ -181,13 +189,13 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 
 		managedClustersClient, err := armcontainerservice.NewManagedClustersClient(config.SubscriptionId, cred, nil)
 		if err != nil {
-			logger.Fatalf("failed to create client: %v", err)
+			results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate k8s client: %w", err))
 		}
 		k8sPager := managedClustersClient.NewListPager(nil)
 		for k8sPager.More() {
 			nextPage, err := k8sPager.NextPage(ct)
 			if err != nil {
-				logger.Fatalf(errors.Verbose(err))
+				results = append(results, v1.ScrapeResult{}.Errorf("failed to read k8s page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
@@ -195,9 +203,36 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 					Type:        *v.Type,
 					ID:          *v.ID,
 					Name:        *v.Name,
-				})
+				}.Success(nextPage.Value))
 			}
 		}
+
+		// =========================================================================
+		// Get databases in the subscription.
+
+		databases, err := armresources.NewClient(config.SubscriptionId, cred, nil)
+		if err != nil {
+			results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate databases client: %w", err))
+		}
+		options := &armresources.ClientListOptions{
+			Filter: to.Ptr("ResourceType eq 'Microsoft.DBforPostgreSQL/servers' or ResourceType eq 'Microsoft.Sql/servers/databases'"),
+		}
+		dbs := databases.NewListPager(options)
+		for dbs.More() {
+			nextPage, err := dbs.NextPage(ct)
+			if err != nil {
+				results = append(results, v1.ScrapeResult{}.Errorf("failed to read databases page: %w", err))
+			}
+			for _, v := range nextPage.Value {
+				results = append(results, v1.ScrapeResult{
+					BaseScraper: config.BaseScraper,
+					Type:        *v.Type,
+					ID:          *v.ID,
+					Name:        *v.Name,
+				}.Success(nextPage.Value))
+			}
+		}
+
 	}
 	return results
 
