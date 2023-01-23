@@ -87,15 +87,11 @@ build:
 install:
 	cp ./.bin/$(NAME) /usr/local/bin/
 
-install-crd: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+install-crd: manifests
+	kubectl apply -f chart/crds
 
-uninstall-crd: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=true -f -
-
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | kubectl apply -f -
+uninstall-crd: manifests
+	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=true -f chart/crds
 
 # produce a build that's debuggable
 .PHONY: dev
