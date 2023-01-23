@@ -87,16 +87,17 @@ func (azure AzureScraper) fetchDatabases() v1.ScrapeResults {
 
 	databases, err := armresources.NewClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
-		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate databases client: %w", err))
+		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate database client: %w", err))
 	}
 	options := &armresources.ClientListOptions{
+		Expand: nil,
 		Filter: to.Ptr("ResourceType eq 'Microsoft.DBforPostgreSQL/servers' or ResourceType eq 'Microsoft.Sql/servers/databases'"),
 	}
 	dbs := databases.NewListPager(options)
 	for dbs.More() {
 		nextPage, err := dbs.NextPage(azure.ctx)
 		if err != nil {
-			results = append(results, v1.ScrapeResult{}.Errorf("failed to read databases page: %w", err))
+			return append(results, v1.ScrapeResult{}.Errorf("failed to read database page: %w", err))
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
@@ -119,13 +120,13 @@ func (azure AzureScraper) fetchK8s() v1.ScrapeResults {
 
 	managedClustersClient, err := armcontainerservice.NewManagedClustersClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
-		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate k8s client: %w", err))
+		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate k8s client: %w", err))
 	}
 	k8sPager := managedClustersClient.NewListPager(nil)
 	for k8sPager.More() {
 		nextPage, err := k8sPager.NextPage(azure.ctx)
 		if err != nil {
-			results = append(results, v1.ScrapeResult{}.Errorf("failed to read k8s page: %w", err))
+			return append(results, v1.ScrapeResult{}.Errorf("failed to read k8s page: %w", err))
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
@@ -148,13 +149,13 @@ func (azure AzureScraper) fetchFirewalls() v1.ScrapeResults {
 
 	firewallClient, err := armnetwork.NewAzureFirewallsClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
-		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate firewall client: %w", err))
+		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate firewall client: %w", err))
 	}
 	firewallsPager := firewallClient.NewListAllPager(nil)
 	for firewallsPager.More() {
 		nextPage, err := firewallsPager.NextPage(azure.ctx)
 		if err != nil {
-			results = append(results, v1.ScrapeResult{}.Errorf("failed to read firewall page: %w", err))
+			return append(results, v1.ScrapeResult{}.Errorf("failed to read firewall page: %w", err))
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
@@ -177,13 +178,13 @@ func (azure AzureScraper) fetchContainerRegistries() v1.ScrapeResults {
 
 	registriesClient, err := armcontainerregistry.NewRegistriesClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
-		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate container registry client: %w", err))
+		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate container registries client: %w", err))
 	}
 	registriesPager := registriesClient.NewListPager(nil)
 	for registriesPager.More() {
 		nextPage, err := registriesPager.NextPage(azure.ctx)
 		if err != nil {
-			results = append(results, v1.ScrapeResult{}.Errorf("failed to read container registry page: %w", err))
+			return append(results, v1.ScrapeResult{}.Errorf("failed to read container registries page: %w", err))
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
@@ -206,14 +207,14 @@ func (azure AzureScraper) fetchVirtualNetworks() v1.ScrapeResults {
 
 	virtualNetworksClient, err := armnetwork.NewVirtualNetworksClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
-		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate virtual networks client: %w", err))
+		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate virtual network client: %w", err))
 	}
 	if virtualNetworksClient != nil {
 		virtualNetworksPager := virtualNetworksClient.NewListAllPager(nil)
 		for virtualNetworksPager.More() {
 			nextPage, err := virtualNetworksPager.NextPage(azure.ctx)
 			if err != nil {
-				results = append(results, v1.ScrapeResult{}.Errorf("failed to read virtual network page: %w", err))
+				return append(results, v1.ScrapeResult{}.Errorf("failed to read virtual network page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
@@ -237,14 +238,14 @@ func (azure AzureScraper) fetchLoadBalancers() v1.ScrapeResults {
 
 	lbClient, err := armnetwork.NewLoadBalancersClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
-		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate load balancer client: %w", err))
+		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate load balancer client: %w", err))
 	}
 	if lbClient != nil {
 		loadBalancersPager := lbClient.NewListAllPager(nil)
 		for loadBalancersPager.More() {
 			nextPage, err := loadBalancersPager.NextPage(azure.ctx)
 			if err != nil {
-				results = append(results, v1.ScrapeResult{}.Errorf("failed to read load balancer page: %w", err))
+				return append(results, v1.ScrapeResult{}.Errorf("failed to read load balancer page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
@@ -269,14 +270,14 @@ func (azure AzureScraper) fetchVirtualMachines() v1.ScrapeResults {
 
 	virtualMachineClient, err := armcompute.NewVirtualMachinesClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
-		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate virtual machine client: %w", err))
+		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate virtual machine client: %w", err))
 	}
 	if virtualMachineClient != nil {
 		virtualMachinePager := virtualMachineClient.NewListAllPager(nil)
 		for virtualMachinePager.More() {
 			nextPage, err := virtualMachinePager.NextPage(azure.ctx)
 			if err != nil {
-				results = append(results, v1.ScrapeResult{}.Errorf("failed to read virtual machines page: %w", err))
+				return append(results, v1.ScrapeResult{}.Errorf("failed read virtual machine page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
@@ -300,14 +301,14 @@ func (azure AzureScraper) fetchResourceGroups() v1.ScrapeResults {
 
 	resourceClient, err := armresources.NewResourceGroupsClient(azure.config.SubscriptionId, azure.cred, nil)
 	if err != nil {
-		results = append(results, v1.ScrapeResult{}.Errorf("failed to initiate resource group client: %w", err))
+		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate resource group client: %w", err))
 	}
 	if resourceClient != nil {
 		resourcePager := resourceClient.NewListPager(nil)
 		for resourcePager.More() {
-			nextPage, er := resourcePager.NextPage(azure.ctx)
-			if er != nil {
-				results = append(results, v1.ScrapeResult{}.Errorf("failed to read resource group page: %w", err))
+			nextPage, err := resourcePager.NextPage(azure.ctx)
+			if err != nil {
+				return append(results, v1.ScrapeResult{}.Errorf("failed reading resource group page: %w", err))
 			}
 			for _, v := range nextPage.Value {
 				results = append(results, v1.ScrapeResult{
