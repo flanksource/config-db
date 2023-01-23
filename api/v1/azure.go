@@ -13,17 +13,11 @@ type AzureDevops struct {
 	Projects            []string       `yaml:"projects" json:"projects"`
 	Pipelines           []string       `yaml:"pipelines" json:"pipelines"`
 }
-type AzureManagement struct {
-	BaseScraper        `json:",inline"`
-	SubscriptionId     string              `yaml:"subscriptionId" json:"subscriptionId"`
-	ResourceGroups     []ResourceGroup     `json:"resourceGroups,omitempty"`
-	VirtualMachines    []VirtualMachine    `json:"virtualMachines,omitempty"`
-	KubernetesClusters []KubernetesCluster `json:"kubernetesClusters,omitempty"`
-	ContainerRegistry  []ContainerRegistry `json:"containerRegistry,omitempty"`
-	VirtualNetwork     []VirtualNetwork    `json:"VirtualNetwork,omitempty"`
-	Firewall           []Firewall          `json:"firewall,omitempty"`
-	LoadBalancer       []LoadBalancer      `json:"loadBalancer,omitempty"`
-	Databases          []Database          `json:"databases,omitempty"`
+type Azure struct {
+	BaseScraper    `json:",inline"`
+	SubscriptionId string   `yaml:"subscriptionId" json:"subscriptionId"`
+	Organisation   string   `yaml:"organisation" json:"organisation"`
+	Region         []string `yaml:"region" json:"region"`
 }
 
 // =========================================================================

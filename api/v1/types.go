@@ -11,15 +11,15 @@ import (
 
 // ConfigScraper ...
 type ConfigScraper struct {
-	LogLevel        string            `json:"logLevel,omitempty"`
-	Schedule        string            `json:"schedule,omitempty"`
-	AWS             []AWS             `json:"aws,omitempty" yaml:"aws,omitempty"`
-	File            []File            `json:"file,omitempty" yaml:"file,omitempty"`
-	Kubernetes      []Kubernetes      `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
-	KubernetesFile  []KubernetesFile  `json:"kubernetesFile,omitempty" yaml:"kubernetesFile,omitempty"`
-	AzureDevops     []AzureDevops     `json:"azureDevops,omitempty" yaml:"azureDevops,omitempty"`
-	AzureManagement []AzureManagement `json:"azureManagement,omitempty" yaml:"azureManagement,omitempty"`
-	SQL             []SQL             `json:"sql,omitempty" yaml:"sql,omitempty"`
+	LogLevel       string           `json:"logLevel,omitempty"`
+	Schedule       string           `json:"schedule,omitempty"`
+	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
+	File           []File           `json:"file,omitempty" yaml:"file,omitempty"`
+	Kubernetes     []Kubernetes     `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
+	KubernetesFile []KubernetesFile `json:"kubernetesFile,omitempty" yaml:"kubernetesFile,omitempty"`
+	AzureDevops    []AzureDevops    `json:"azureDevops,omitempty" yaml:"azureDevops,omitempty"`
+	Azure          []Azure          `json:"azure,omitempty" yaml:"azure,omitempty"`
+	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
 }
 
 // IsEmpty ...

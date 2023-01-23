@@ -1,7 +1,7 @@
 package scrapers
 
 import (
-	"github.com/flanksource/config-db/scrapers/azure/management"
+	"github.com/flanksource/config-db/scrapers/azure/core"
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -16,7 +16,7 @@ import (
 
 // All is the scrappers registry
 var All = []v1.Scraper{
-	management.AzureManagementScraper{},
+	core.AzureScraper{},
 	aws.Scraper{},
 	aws.Scraper{},
 	aws.CostScraper{},
