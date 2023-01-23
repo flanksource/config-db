@@ -17,7 +17,7 @@ import (
 type AzureScraper struct {
 	ctx    context.Context
 	cred   *azidentity.DefaultAzureCredential
-	config v1.Azure
+	config *v1.Azure
 }
 
 // Scrape ...
@@ -37,7 +37,7 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 		}
 
 		azure.ctx = context.Background()
-		azure.config = config
+		azure.config = &config
 		azure.cred = cred
 
 		// Get resource groups in the subscription.
@@ -71,7 +71,6 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 		// Get databases in the subscription.
 		databases := azure.fetchDatabases()
 		results = append(results, databases...)
-
 		logger.Debugf("azure scraper", "status", "complete", config.SubscriptionId)
 
 	}
