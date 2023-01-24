@@ -1,7 +1,7 @@
 domain: flanksource.com
 layout:
 - go.kubebuilder.io/v3
-projectName: operator
+projectName: config-db
 repo: github.com/flanksource/config-db
 resources:
 - api:

@@ -11,9 +11,7 @@ func DeleteScrapeConfig(scrapeConfig *v1.ScrapeConfig) error {
 	configScraper := models.ConfigScraper{
 		ID: uuid.MustParse(string(scrapeConfig.GetUID())),
 	}
-	return db.
-		Delete(&configScraper).
-		Error
+	return db.Delete(&configScraper).Error
 }
 
 func PersistScrapeConfig(scrapeConfig *v1.ScrapeConfig) (bool, error) {

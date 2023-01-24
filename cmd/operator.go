@@ -34,7 +34,6 @@ func init() {
 	Operator.Flags().BoolVar(&operatorExecutor, "executor", true, "If false, only serve the UI and sync the configs")
 	Operator.Flags().IntVar(&webhookPort, "webhookPort", 8082, "Port for webhooks ")
 	Operator.Flags().BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enabling this will ensure there is only one active controller manager")
-	// +kubebuilder:scaffold:scheme
 }
 
 func run(cmd *cobra.Command, args []string) {
@@ -83,7 +82,6 @@ func run(cmd *cobra.Command, args []string) {
 		setupLog.Error(err, "unable to create controller", "controller", "Scraper")
 		os.Exit(1)
 	}
-	//+kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

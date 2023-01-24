@@ -36,7 +36,7 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 
 .PHONY: resources
-resources: fmt static manifests
+resources: fmt manifests
 
 test: manifests generate fmt vet envtest ## Run tests.
 	go test ./... -coverprofile cover.out
@@ -91,7 +91,7 @@ install-crd: manifests
 	kubectl apply -f chart/crds
 
 uninstall-crd: manifests
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=true -f chart/crds
+	kubectl delete --ignore-not-found=true -f chart/crds
 
 # produce a build that's debuggable
 .PHONY: dev
