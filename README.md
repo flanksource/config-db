@@ -16,9 +16,9 @@
 
 ## Quick Start
 
-Before installing the Canary Checker, please ensure you have the [prerequisites installed](docs/prereqs.md) on your Kubernetes cluster.
+Before installing Config-DB , please ensure you have the [prerequisites installed](docs/prereqs.md) on your Kubernetes cluster.
 
-The recommded method for installing Canary Checker is using [helm](https://helm.sh/)
+The recommended method for installing Config-DB is using [helm](https://helm.sh/)
 
 ### Install Helm
 
@@ -47,6 +47,8 @@ ConfigDB requires a Postgres server to function.  A basic postgres server can be
 
 #### Chart-managed Server
 
+|                     |        |
+|---------------------|--------|
 | db.external.create  | `true` |
 | db.external.storageClass | Set to name of a storageclass available in the cluster |
 | db.external.storage | Set to volume of storage to request |
@@ -59,6 +61,8 @@ To specify a username and password for the chart-managed Postgres server, create
 
 In order to connect to an existing Postgres server, a database must be created on the server, along with a user that has admin permissions
 
+|                     |         |
+|---------------------|---------|
 | db.external.create  | `false` |
 | db.external.secretKeyRef.name | Set to name of name of secret that contains a key containging the postgres connection URI |
 | db.external.secretKeyRef.key | Set to the name of the key in the secret that contains the postgres connection URI |
