@@ -30,5 +30,5 @@ func CreateAnalysis(analysis models.Analysis) error {
 			"message":       analysis.Message,
 			"status":        analysis.Status}).Error
 	}
-	return db.Create(analysis).Error
+	return db.Create(&analysis).Error
 }
