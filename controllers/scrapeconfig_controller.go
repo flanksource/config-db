@@ -62,8 +62,7 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	err := r.Get(ctx, req.NamespacedName, scrapeConfig)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// log
-			logger.Error(err, "msg")
+			logger.Error(err, "ScrapeConfig not found")
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
