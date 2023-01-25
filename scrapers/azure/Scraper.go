@@ -1,4 +1,4 @@
-package core
+package azure
 
 import (
 	"context"
@@ -14,14 +14,14 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
-type AzureScraper struct {
+type Scraper struct {
 	ctx    context.Context
 	cred   *azidentity.DefaultAzureCredential
 	config *v1.Azure
 }
 
 // Scrape ...
-func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 
 	// Begin scraping.
 
@@ -79,7 +79,7 @@ func (azure AzureScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper
 }
 
 // fetchDatabases gets all databases in a subscription.
-func (azure AzureScraper) fetchDatabases() v1.ScrapeResults {
+func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 	logger.Debugf("databases scraper", "status", "started", azure.config.SubscriptionId)
 	defer logger.Debugf("databases scraper", "status", "complete", azure.config.SubscriptionId)
 
@@ -112,7 +112,7 @@ func (azure AzureScraper) fetchDatabases() v1.ScrapeResults {
 }
 
 // fetchK8s gets all kubernetes clusters in a subscription.
-func (azure AzureScraper) fetchK8s() v1.ScrapeResults {
+func (azure Scraper) fetchK8s() v1.ScrapeResults {
 	logger.Debugf("k8s scraper", "status", "started", azure.config.SubscriptionId)
 	defer logger.Debugf("k8s scraper", "status", "complete", azure.config.SubscriptionId)
 
@@ -141,7 +141,7 @@ func (azure AzureScraper) fetchK8s() v1.ScrapeResults {
 }
 
 // fetchFirewalls gets all firewalls in a subscription.
-func (azure AzureScraper) fetchFirewalls() v1.ScrapeResults {
+func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 	logger.Debugf("firewalls scraper", "status", "started", azure.config.SubscriptionId)
 	defer logger.Debugf("firewalls scraper", "status", "complete", azure.config.SubscriptionId)
 
@@ -170,7 +170,7 @@ func (azure AzureScraper) fetchFirewalls() v1.ScrapeResults {
 }
 
 // fetchContainerRegistries gets container registries in a subscription.
-func (azure AzureScraper) fetchContainerRegistries() v1.ScrapeResults {
+func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 	logger.Debugf("container registries scraper", "status", "started", azure.config.SubscriptionId)
 	defer logger.Debugf("container registries scraper", "status", "complete", azure.config.SubscriptionId)
 
@@ -199,7 +199,7 @@ func (azure AzureScraper) fetchContainerRegistries() v1.ScrapeResults {
 }
 
 // fetchVirtualNetworks gets virtual machines in a subscription.
-func (azure AzureScraper) fetchVirtualNetworks() v1.ScrapeResults {
+func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 	logger.Debugf("virtual networks scraper", "status", "started", azure.config.SubscriptionId)
 	defer logger.Debugf("virtual networks scraper", "status", "complete", azure.config.SubscriptionId)
 
@@ -209,28 +209,26 @@ func (azure AzureScraper) fetchVirtualNetworks() v1.ScrapeResults {
 	if err != nil {
 		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate virtual network client: %w", err))
 	}
-	if virtualNetworksClient != nil {
-		virtualNetworksPager := virtualNetworksClient.NewListAllPager(nil)
-		for virtualNetworksPager.More() {
-			nextPage, err := virtualNetworksPager.NextPage(azure.ctx)
-			if err != nil {
-				return append(results, v1.ScrapeResult{}.Errorf("failed to read virtual network page: %w", err))
-			}
-			for _, v := range nextPage.Value {
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: azure.config.BaseScraper,
-					Type:        *v.Type,
-					ID:          *v.ID,
-					Name:        *v.Name,
-				}.Success(nextPage.Value))
-			}
+	virtualNetworksPager := virtualNetworksClient.NewListAllPager(nil)
+	for virtualNetworksPager.More() {
+		nextPage, err := virtualNetworksPager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{}.Errorf("failed to read virtual network page: %w", err))
+		}
+		for _, v := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper: azure.config.BaseScraper,
+				Type:        *v.Type,
+				ID:          *v.ID,
+				Name:        *v.Name,
+			}.Success(nextPage.Value))
 		}
 	}
 	return results
 }
 
 // fetchLoadBalancers gets load balancers in a subscription.
-func (azure AzureScraper) fetchLoadBalancers() v1.ScrapeResults {
+func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 	logger.Debugf("load balancers scraper", "status", "started", azure.config.SubscriptionId)
 	defer logger.Debugf("load balancers scraper", "status", "complete", azure.config.SubscriptionId)
 
@@ -240,29 +238,27 @@ func (azure AzureScraper) fetchLoadBalancers() v1.ScrapeResults {
 	if err != nil {
 		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate load balancer client: %w", err))
 	}
-	if lbClient != nil {
-		loadBalancersPager := lbClient.NewListAllPager(nil)
-		for loadBalancersPager.More() {
-			nextPage, err := loadBalancersPager.NextPage(azure.ctx)
-			if err != nil {
-				return append(results, v1.ScrapeResult{}.Errorf("failed to read load balancer page: %w", err))
-			}
-			for _, v := range nextPage.Value {
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: azure.config.BaseScraper,
-					Type:        *v.Type,
-					ID:          *v.ID,
-					Name:        *v.Name,
-				}.Success(nextPage.Value))
+	loadBalancersPager := lbClient.NewListAllPager(nil)
+	for loadBalancersPager.More() {
+		nextPage, err := loadBalancersPager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{}.Errorf("failed to read load balancer page: %w", err))
+		}
+		for _, v := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper: azure.config.BaseScraper,
+				Type:        *v.Type,
+				ID:          *v.ID,
+				Name:        *v.Name,
+			}.Success(nextPage.Value))
 
-			}
 		}
 	}
 	return results
 }
 
 // fetchVirtualMachines gets virtual machines in a subscription.
-func (azure AzureScraper) fetchVirtualMachines() v1.ScrapeResults {
+func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 	logger.Debugf("virtual machines scraper", "status", "started", azure.config.SubscriptionId)
 	defer logger.Debugf("virtual machines scraper", "status", "complete", azure.config.SubscriptionId)
 
@@ -272,28 +268,26 @@ func (azure AzureScraper) fetchVirtualMachines() v1.ScrapeResults {
 	if err != nil {
 		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate virtual machine client: %w", err))
 	}
-	if virtualMachineClient != nil {
-		virtualMachinePager := virtualMachineClient.NewListAllPager(nil)
-		for virtualMachinePager.More() {
-			nextPage, err := virtualMachinePager.NextPage(azure.ctx)
-			if err != nil {
-				return append(results, v1.ScrapeResult{}.Errorf("failed read virtual machine page: %w", err))
-			}
-			for _, v := range nextPage.Value {
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: azure.config.BaseScraper,
-					Type:        *v.Type,
-					ID:          *v.ID,
-					Name:        *v.Name,
-				}.Success(nextPage.Value))
-			}
+	virtualMachinePager := virtualMachineClient.NewListAllPager(nil)
+	for virtualMachinePager.More() {
+		nextPage, err := virtualMachinePager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{}.Errorf("failed read virtual machine page: %w", err))
+		}
+		for _, v := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper: azure.config.BaseScraper,
+				Type:        *v.Type,
+				ID:          *v.ID,
+				Name:        *v.Name,
+			}.Success(nextPage.Value))
 		}
 	}
 	return results
 }
 
 // fetchResourceGroups gets resource groups in a subscription.
-func (azure AzureScraper) fetchResourceGroups() v1.ScrapeResults {
+func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 	logger.Debugf("resource groups scraper", "status", "started", azure.config.SubscriptionId)
 	defer logger.Debugf("resource groups scraper", "status", "complete", azure.config.SubscriptionId)
 
@@ -303,21 +297,19 @@ func (azure AzureScraper) fetchResourceGroups() v1.ScrapeResults {
 	if err != nil {
 		return append(results, v1.ScrapeResult{}.Errorf("failed to initiate resource group client: %w", err))
 	}
-	if resourceClient != nil {
-		resourcePager := resourceClient.NewListPager(nil)
-		for resourcePager.More() {
-			nextPage, err := resourcePager.NextPage(azure.ctx)
-			if err != nil {
-				return append(results, v1.ScrapeResult{}.Errorf("failed reading resource group page: %w", err))
-			}
-			for _, v := range nextPage.Value {
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: azure.config.BaseScraper,
-					Type:        *v.Type,
-					ID:          *v.ID,
-					Name:        *v.Name,
-				}.Success(nextPage.Value))
-			}
+	resourcePager := resourceClient.NewListPager(nil)
+	for resourcePager.More() {
+		nextPage, err := resourcePager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{}.Errorf("failed reading resource group page: %w", err))
+		}
+		for _, v := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper: azure.config.BaseScraper,
+				Type:        *v.Type,
+				ID:          *v.ID,
+				Name:        *v.Name,
+			}.Success(nextPage.Value))
 		}
 	}
 	return results
