@@ -45,7 +45,7 @@ See the [values file](chart/values.yaml) for the full list of configurable field
 
 ConfigDB requires a Postgres server to function.  A basic postgres server can be installed by the helm chart.
 
-#### Chart-managed Server
+##### Chart-managed Server
 
 |                     |        |
 |---------------------|--------|
@@ -53,11 +53,11 @@ ConfigDB requires a Postgres server to function.  A basic postgres server can be
 | db.external.storageClass | Set to name of a storageclass available in the cluster |
 | db.external.storage | Set to volume of storage to request |
 
-The helm chart will create a postgres server statefulset, with a random password and default port, along with a canarychecker database hosted on the server.
+The helm chart will create a postgres server statefulset, with a random password and default port, along with a configdb database hosted on the server.
 
-To specify a username and password for the chart-managed Postgres server, create a secret in the namespace that the chart will install to, named `postgres-connection`, which contains `POSTGRES_USER` and `POSTGRES_PASSWORD` keys.  If no pre-existing secret is created, a user call'ed 'postgres' will be given a random password.
+To specify a username and password for the chart-managed Postgres server, create a secret in the namespace that the chart will install to, named `postgres-connection`, which contains `POSTGRES_USER` and `POSTGRES_PASSWORD` keys.  If no pre-existing secret is created, a user called 'postgres' will be given a random password.
 
-#### Prexisting Server
+##### Prexisting Server
 
 In order to connect to an existing Postgres server, a database must be created on the server, along with a user that has admin permissions
 
