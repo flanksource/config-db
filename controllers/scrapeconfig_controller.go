@@ -73,6 +73,7 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logger.Info("Deleting scrape config", "id", scrapeConfig.GetUID())
 		if err := db.DeleteScrapeConfig(scrapeConfig); err != nil {
 			logger.Error(err, "failed to delete scrape config")
+			return ctrl.Result{Requeue: true, RequeueAfter: 2 * time.Minute}, err
 		}
 		scrapers.RemoveFromCron(string(scrapeConfig.GetUID()))
 		controllerutil.RemoveFinalizer(scrapeConfig, ScrapeConfigFinalizerName)
