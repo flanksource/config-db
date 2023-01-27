@@ -1,6 +1,7 @@
 package v1
 
 // Host ...
+// +kubebuilder:object:generate=false
 type Host interface {
 	GetHostname() string
 	GetPlatform() string
@@ -10,6 +11,7 @@ type Host interface {
 }
 
 // Patch ...
+// +kubebuilder:object:generate=false
 type Patch interface {
 	GetName() string
 	GetVersion() string

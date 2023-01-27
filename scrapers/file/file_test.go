@@ -2,7 +2,7 @@ package file
 
 import "testing"
 
-//test stripPrefix
+// test stripPrefix
 func TestStripPrefix(t *testing.T) {
 	cases := []struct {
 		input    string

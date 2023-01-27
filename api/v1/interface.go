@@ -12,14 +12,17 @@ import (
 )
 
 // Scraper ...
+// +kubebuilder:object:generate=false
 type Scraper interface {
 	Scrape(ctx *ScrapeContext, config ConfigScraper) ScrapeResults
 }
 
 // Analyzer ...
+// +kubebuilder:object:generate=false
 type Analyzer func(configs []ScrapeResult) AnalysisResult
 
 // AnalysisResult ...
+// +kubebuilder:object:generate=false
 type AnalysisResult struct {
 	ExternalID    string
 	ExternalType  string
@@ -35,6 +38,7 @@ type AnalysisResult struct {
 	Error         error
 }
 
+// +kubebuilder:object:generate=false
 type ChangeResult struct {
 	ExternalID       string
 	ExternalType     string
@@ -65,8 +69,10 @@ func (result *AnalysisResult) Message(msg string) *AnalysisResult {
 	return result
 }
 
+// +kubebuilder:object:generate=false
 type AnalysisResults []AnalysisResult
 
+// +kubebuilder:object:generate=false
 type ScrapeResults []ScrapeResult
 
 type RelationshipResult struct {
@@ -103,6 +109,7 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 }
 
 // ScrapeResult ...
+// +kubebuilder:object:generate=false
 type ScrapeResult struct {
 	CreatedAt           *time.Time          `json:"created_at,omitempty"`
 	LastModified        time.Time           `json:"last_modified,omitempty"`
@@ -186,6 +193,7 @@ type QueryColumn struct {
 }
 
 // QueryResult ...
+// +kubebuilder:object:generate=false
 type QueryResult struct {
 	Count   int                      `json:"count"`
 	Columns []QueryColumn            `json:"columns"`
@@ -198,6 +206,7 @@ type QueryRequest struct {
 }
 
 // ScrapeContext ...
+// +kubebuilder:object:generate=false
 type ScrapeContext struct {
 	context.Context
 	Namespace string
