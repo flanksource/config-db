@@ -18,6 +18,7 @@ var (
 	LogLevel         = "info"
 	HTTPEndpoint     = "http://localhost:8080/db"
 	db               *gorm.DB
+	runMigrations    = false
 )
 
 // Flags ...
@@ -25,11 +26,11 @@ func Flags(flags *pflag.FlagSet) {
 	flags.StringVar(&ConnectionString, "db", "DB_URL", "Connection string for the postgres database")
 	flags.StringVar(&Schema, "db-schema", "public", "")
 	flags.StringVar(&LogLevel, "db-log-level", "warn", "")
+	flags.BoolVar(&runMigrations, "db-migrations", false, "Run database migrations")
 }
 
 // Pool ...
 var Pool *pgxpool.Pool
-var pgxConnectionString string
 
 // MustInit initializes the database or fatally exits
 func MustInit() {
@@ -41,7 +42,7 @@ func MustInit() {
 // Init ...
 func Init(connection string) error {
 	var err error
-	Pool, err := duty.NewPgxPool(connection)
+	Pool, err = duty.NewPgxPool(connection)
 	if err != nil {
 		return err
 	}
@@ -61,8 +62,10 @@ func Init(connection string) error {
 		return err
 	}
 
-	if err = duty.Migrate(connection); err != nil {
-		return err
+	if runMigrations {
+		if err = duty.Migrate(connection); err != nil {
+			return err
+		}
 	}
 
 	// initialize cache
