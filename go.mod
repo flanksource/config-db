@@ -26,7 +26,7 @@ require (
 	github.com/dop251/goja v0.0.0-20221229151140-b95230a9dbad
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/flanksource/commons v1.6.2
-	github.com/flanksource/duty v1.0.8
+	github.com/flanksource/duty v1.0.9
 	github.com/flanksource/ketall v1.1.1
 	github.com/flanksource/kommons v0.31.1
 	github.com/go-logr/zapr v1.2.3
@@ -42,16 +42,13 @@ require (
 	github.com/onsi/ginkgo/v2 v2.7.0
 	github.com/onsi/gomega v1.24.1
 	github.com/pkg/errors v0.9.1
-	github.com/pressly/goose/v3 v3.5.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/pflag v1.0.5
 	github.com/uber/athenadriver v1.1.14
 	github.com/xo/dburl v0.12.4
 	gopkg.in/flanksource/yaml.v3 v3.2.0
 	gopkg.in/yaml.v3 v3.0.1
-	gorm.io/driver/postgres v1.4.6
 	gorm.io/gorm v1.24.3
 	k8s.io/apimachinery v0.26.0
 	k8s.io/client-go v0.26.0
@@ -60,33 +57,29 @@ require (
 )
 
 require (
-	ariga.io/atlas v0.9.0 // indirect
-	github.com/agext/levenshtein v1.2.1 // indirect
-	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/dlclark/regexp2 v1.7.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/go-openapi/inflect v0.19.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang-sql/sqlexp v0.0.0-20170517235910-f1bb20e5a188 // indirect
 	github.com/gomarkdown/markdown v0.0.0-20210820032736-385812cbea76 // indirect
-	github.com/hashicorp/hcl/v2 v2.10.0 // indirect
 	github.com/jackc/pgx/v5 v5.2.0 // indirect
 	github.com/liamylian/jsontime/v2 v2.0.0 // indirect
+	github.com/matryer/is v1.4.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2 // indirect
-	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.14.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
+	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/tidwall/gjson v1.6.7 // indirect
 	github.com/tidwall/match v1.0.3 // indirect
 	github.com/tidwall/pretty v1.0.2 // indirect
-	github.com/zclconf/go-cty v1.8.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+	gorm.io/driver/postgres v1.4.6 // indirect
 	k8s.io/component-base v0.26.0 // indirect
 )
 
@@ -258,8 +251,4 @@ require (
 	sigs.k8s.io/kustomize/api v0.12.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.9 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
-)
-
-replace (
-    github.com/flanksource/duty => ../duty
 )
