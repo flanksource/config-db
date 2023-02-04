@@ -20,6 +20,7 @@ type ConfigScraper struct {
 	Kubernetes     []Kubernetes     `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
 	KubernetesFile []KubernetesFile `json:"kubernetesFile,omitempty" yaml:"kubernetesFile,omitempty"`
 	AzureDevops    []AzureDevops    `json:"azureDevops,omitempty" yaml:"azureDevops,omitempty"`
+	GithubActions  []GitHubActions  `json:"githubActions,omitempty" yaml:"githubActions,omitempty"`
 	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
 
 	// Full flag when set will try to extract out changes from the scraped config.
