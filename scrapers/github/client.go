@@ -2,6 +2,7 @@ package github
 
 import (
 	"fmt"
+	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/go-resty/resty/v2"
@@ -10,17 +11,21 @@ import (
 // Workflow represents a gitHub actions workflow object.
 // see https://docs.github.com/en/rest/actions/workflows?apiVersion=2022-11-28#get-a-workflow
 type Workflow struct {
-	ID        int    `json:"id"`
-	NodeID    string `json:"node_id"`
-	Name      string `json:"name"`
-	Path      string `json:"path"`
-	State     string `json:"state"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-	Url       string `json:"url"`
-	HtmlURL   string `json:"html_url"`
-	BadgeURL  string `json:"badge_url"`
+	ID        int               `json:"id"`
+	NodeID    string            `json:"node_id"`
+	Name      string            `json:"name"`
+	Path      string            `json:"path"`
+	State     string            `json:"state"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
+	Url       string            `json:"url"`
+	HtmlURL   string            `json:"html_url"`
+	BadgeURL  string            `json:"badge_url"`
+	Runs      []v1.ChangeResult `json:"-"`
 }
+
+// GetID returns a repeatable ID for a workflow with id / name
+func (w Workflow) GetID() string { return fmt.Sprintf("%d/%s", w.ID, w.Name) }
 
 // Workflows is a list of gitHub actions workflows
 type Workflows struct {
@@ -48,12 +53,12 @@ type Run struct {
 	URL                 string            `json:"url"`
 	HtmlURL             string            `json:"html_url"`
 	PullRequests        any               `json:"pull_requests"`
-	CreatedAt           string            `json:"created_at"`
-	UpdatedAt           string            `json:"updated_at"`
+	CreatedAt           time.Time         `json:"created_at"`
+	UpdatedAt           time.Time         `json:"updated_at"`
 	Actor               map[string]string `json:"actor"`
 	RunAttempt          int               `json:"run_attempt"`
 	ReferencedWorkflows any               `json:"referenced_workflows"`
-	RunStartedAt        string            `json:"run_started_at"`
+	RunStartedAt        time.Time         `json:"run_started_at"`
 	TriggeringActor     map[string]string `json:"triggering_actor"`
 	HeadCommit          map[string]string `json:"head_commit"`
 	Repository          map[string]string `json:"repository"`
@@ -91,7 +96,17 @@ func (gh *GitHubActionsClient) GetWorkflows() ([]Workflow, error) {
 	return response.Value, nil
 }
 
-func (gh *GitHubActionsClient) GetWorkflowRuns() ([]Run, error) {
+func (gh *GitHubActionsClient) GetWorkflowRuns(id int) ([]Run, error) {
+	var response Runs
+	_, err := gh.R().SetResult(&response).Get(fmt.Sprintf("/actions/runs/%v", id))
+	if err != nil {
+		return nil, err
+	}
+
+	return response.Value, nil
+}
+
+func (gh *GitHubActionsClient) GetAllWorkflowRuns() ([]Run, error) {
 	var response Runs
 	_, err := gh.R().SetResult(&response).Get("/actions/runs")
 	if err != nil {
