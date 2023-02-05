@@ -30,7 +30,7 @@ func (w Workflow) GetID() string { return fmt.Sprintf("%d/%s", w.ID, w.Name) }
 // Workflows is a list of gitHub actions workflows
 type Workflows struct {
 	Count int        `json:"total_count"`
-	Value []Workflow `json:"value"`
+	Value []Workflow `json:"workflows"`
 }
 
 // Run is a gitHub actions workflow runs for a repository.
@@ -67,7 +67,7 @@ type Run struct {
 
 type Runs struct {
 	Count int   `json:"total_count"`
-	Value []Run `json:"value"`
+	Value []Run `json:"workflow_runs"`
 }
 
 type GitHubActionsClient struct {
@@ -77,6 +77,7 @@ type GitHubActionsClient struct {
 
 func NewGitHubActionsClient(ctx *v1.ScrapeContext, gha v1.GitHubActions) (*GitHubActionsClient, error) {
 	client := resty.New().
+	 	SetHeader("Accept", "application/vnd.github+json").
 		SetBaseURL(fmt.Sprintf("https://api.github.com/repos/%s/%s", gha.Owner, gha.Repository)).
 		SetBasicAuth(gha.Owner, gha.PersonalAccessToken.Value)
 
