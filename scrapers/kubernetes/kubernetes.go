@@ -97,7 +97,6 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				tags["namespace"] = obj.GetNamespace()
 			}
 			tags["cluster"] = config.ClusterName
-			tags = stripLabels(tags, "-hash")
 
 			createdAt := obj.GetCreationTimestamp().Time
 			parentType, parentExternalID := getKubernetesParent(obj, resourceIDMap)
@@ -110,7 +109,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				CreatedAt:           &createdAt,
 				Config:              *&obj.Object,
 				ID:                  string(obj.GetUID()),
-				Tags:                convertStringInterfaceMapToStringMap(tags),
+				Tags:                stripLabels(convertStringInterfaceMapToStringMap(tags), "-hash"),
 				Aliases:             getKubernetesAlias(obj),
 				ParentExternalID:    parentExternalID,
 				ParentExternalType:  ExternalTypePrefix + parentType,
