@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/flanksource/commons/collections"
@@ -81,6 +82,22 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 					})
 				}
 			}
+			obj.SetManagedFields(nil)
+			annotations := obj.GetAnnotations()
+			if annotations != nil {
+				delete(annotations, "kubectl.kubernetes.io/last-applied-configuration")
+			}
+			obj.SetAnnotations(annotations)
+			metadata := obj.Object["metadata"].(map[string]interface{})
+			tags := make(map[string]interface{})
+			if metadata["labels"] != nil {
+				tags = metadata["labels"].(map[string]interface{})
+			}
+			if obj.GetNamespace() != "" {
+				tags["namespace"] = obj.GetNamespace()
+			}
+			tags["cluster"] = config.ClusterName
+
 			createdAt := obj.GetCreationTimestamp().Time
 			parentType, parentExternalID := getKubernetesParent(obj, resourceIDMap)
 			results = append(results, v1.ScrapeResult{
@@ -90,8 +107,9 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				Type:                obj.GetKind(),
 				ExternalType:        ExternalTypePrefix + obj.GetKind(),
 				CreatedAt:           &createdAt,
-				Config:              *obj,
+				Config:              obj.Object,
 				ID:                  string(obj.GetUID()),
+				Tags:                stripLabels(convertStringInterfaceMapToStringMap(tags), "-hash"),
 				Aliases:             getKubernetesAlias(obj),
 				ParentExternalID:    parentExternalID,
 				ParentExternalType:  ExternalTypePrefix + parentType,
@@ -101,6 +119,14 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 		}
 	}
 	return results
+}
+
+func convertStringInterfaceMapToStringMap(input map[string]interface{}) map[string]string {
+	output := make(map[string]string)
+	for key, value := range input {
+		output[key] = fmt.Sprintf("%v", value)
+	}
+	return output
 }
 
 func getKubernetesParent(obj *unstructured.Unstructured, resourceIDMap map[string]map[string]map[string]string) (string, string) {
