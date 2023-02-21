@@ -113,9 +113,6 @@ test-e2e: bin
 	mv upx-3.96-$(ARCH)_$(OS)/upx .bin
 	rm -rf upx-3.96-$(ARCH)_$(OS)
 
-.bin:
-	mkdir -p .bin
-
 ## Tool Binaries
 LOCALBIN ?= $(shell pwd)/.bin
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
@@ -127,6 +124,10 @@ KUSTOMIZE_VERSION ?= v3.8.7
 CONTROLLER_TOOLS_VERSION ?= v0.10.0
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
+
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary. If wrong version is installed, it will be removed before downloading.
 $(KUSTOMIZE): $(LOCALBIN)
