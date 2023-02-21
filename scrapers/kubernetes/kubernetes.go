@@ -107,7 +107,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				Type:                obj.GetKind(),
 				ExternalType:        ExternalTypePrefix + obj.GetKind(),
 				CreatedAt:           &createdAt,
-				Config:              *&obj.Object,
+				Config:              obj.Object,
 				ID:                  string(obj.GetUID()),
 				Tags:                stripLabels(convertStringInterfaceMapToStringMap(tags), "-hash"),
 				Aliases:             getKubernetesAlias(obj),
