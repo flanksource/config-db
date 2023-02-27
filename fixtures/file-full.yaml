@@ -1,0 +1,6 @@
+file:
+  - type: $.InstanceType
+    id: $.InstanceId
+    full: true
+    paths:
+      - fixtures/config_change.json

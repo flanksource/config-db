@@ -25,9 +25,11 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 				Name: fmt.Sprintf("scraper:%T", scraper),
 			}
 			jobHistory.Start()
+
 			if err := db.PersistJobHistory(&jobHistory); err != nil {
 				logger.Errorf("Error persisting job history: %v", err)
 			}
+
 			for _, result := range scraper.Scrape(ctx, config) {
 				if result.AnalysisResult != nil {
 					if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
@@ -63,11 +65,13 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 					jobHistory.IncrSuccess()
 				}
 			}
+
 			jobHistory.End()
 			if err := db.PersistJobHistory(&jobHistory); err != nil {
 				logger.Errorf("Error persisting job history: %v", err)
 			}
 		}
 	}
+
 	return results, nil
 }

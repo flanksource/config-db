@@ -1,0 +1,11 @@
+{
+  "InstanceId": "instance_id_1",
+  "InstanceType": "instance_type",
+  "change": {
+    "action": "speak",
+    "summary": "speaking right now",
+    "unrelated": 123,
+    "external_id": "incident_commander",
+    "external_type": ""
+  }
+}
