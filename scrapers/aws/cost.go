@@ -142,7 +142,7 @@ func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper
 		results = append(results, v1.ScrapeResult{
 			Costs: &v1.CostData{
 				LineItems:    rows,
-				ExternalType: "AWS::::Account",
+				ExternalType: v1.AWSAccount,
 				ExternalID:   accountID,
 			},
 		})
