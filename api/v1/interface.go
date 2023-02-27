@@ -108,6 +108,20 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 	return *s
 }
 
+type CostData struct {
+	ExternalID   string
+	ExternalType string
+	LineItems    []LineItem
+}
+
+type LineItem struct {
+	ExternalID string
+	CostPerMin float64
+	Cost1d     float64
+	Cost7d     float64
+	Cost30d    float64
+}
+
 // ScrapeResult ...
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
@@ -129,6 +143,7 @@ type ScrapeResult struct {
 	Format              string              `json:"format,omitempty"`
 	Tags                JSONStringMap       `json:"tags,omitempty"`
 	BaseScraper         BaseScraper         `json:"-"`
+	Costs               *CostData           `json:"-"`
 	Error               error               `json:"-"`
 	AnalysisResult      *AnalysisResult     `json:"analysis,omitempty"`
 	Changes             []ChangeResult      `json:"-"`

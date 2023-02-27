@@ -8,8 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
+	v1 "github.com/flanksource/config-db/api/v1"
 	athena "github.com/uber/athenadriver/go"
 )
 
@@ -72,26 +71,17 @@ func getAWSAthenaConfig(ctx *v1.ScrapeContext, awsConfig v1.AWS) (*athena.Config
 	return conf, nil
 }
 
-type LineItemRow struct {
-	ProductCode string
-	ResourceID  string
-	Cost1h      float64
-	Cost1d      float64
-	Cost7d      float64
-	Cost30d     float64
-}
-
-func FetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
-	var lineItemRows []LineItemRow
+func fetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]v1.LineItem, error) {
+	var lineItemRows []v1.LineItem
 
 	athenaConf, err := getAWSAthenaConfig(ctx, config)
 	if err != nil {
-		return lineItemRows, err
+		return nil, fmt.Errorf("failed to get athen conf: %w", err)
 	}
 
 	athenaDB, err := sql.Open(athena.DriverName, athenaConf.Stringify())
 	if err != nil {
-		return lineItemRows, err
+		return nil, fmt.Errorf("failed to open sql connection to %s: %w", athena.DriverName, err)
 	}
 
 	table := fmt.Sprintf("%s.%s", config.CostReporting.Database, config.CostReporting.Table)
@@ -99,13 +89,13 @@ func FetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
 
 	rows, err := athenaDB.Query(query)
 	if err != nil {
-		return lineItemRows, err
+		return nil, fmt.Errorf("failed to query athena: %w", err)
 	}
 
 	for rows.Next() {
 		var productCode, resourceID, cost1h, cost1d, cost7d, cost30d string
 		if err := rows.Scan(&productCode, &resourceID, &cost1h, &cost1d, &cost7d, &cost30d); err != nil {
-			logger.Errorf("Error scanning athena database rows: %v", err)
+			logger.Errorf("error scanning athena database rows: %v", err)
 			continue
 		}
 
@@ -114,13 +104,12 @@ func FetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
 		cost7dFloat, _ := strconv.ParseFloat(cost7d, 64)
 		cost30dFloat, _ := strconv.ParseFloat(cost30d, 64)
 
-		lineItemRows = append(lineItemRows, LineItemRow{
-			ProductCode: productCode,
-			ResourceID:  resourceID,
-			Cost1h:      cost1hFloat,
-			Cost1d:      cost1dFloat,
-			Cost7d:      cost7dFloat,
-			Cost30d:     cost30dFloat,
+		lineItemRows = append(lineItemRows, v1.LineItem{
+			ExternalID: fmt.Sprintf("%s/%s", productCode, resourceID),
+			CostPerMin: cost1hFloat / 60,
+			Cost1d:     cost1dFloat,
+			Cost7d:     cost7dFloat,
+			Cost30d:    cost30dFloat,
 		})
 	}
 
@@ -137,6 +126,7 @@ func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper
 		if err != nil {
 			return results.Errorf(err, "failed to create AWS session")
 		}
+
 		stsClient := sts.NewFromConfig(*session)
 		caller, err := stsClient.GetCallerIdentity(ctx, nil)
 		if err != nil {
@@ -144,42 +134,18 @@ func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper
 		}
 		accountID := *caller.Account
 
-		rows, err := FetchCosts(ctx, awsConfig)
+		rows, err := fetchCosts(ctx, awsConfig)
 		if err != nil {
 			return results.Errorf(err, "failed to fetch costs")
 		}
 
-		gormDB := db.DefaultDB()
-		var accountTotal1h, accountTotal1d, accountTotal7d, accountTotal30d float64
-		for _, row := range rows {
-			tx := gormDB.Exec(`
-                UPDATE config_items SET cost_per_minute = ?, cost_total_1d = ?, cost_total_7d = ?, cost_total_30d = ?
-                WHERE ? = ANY(external_id)`, row.Cost1h/60, row.Cost1d, row.Cost7d, row.Cost30d, fmt.Sprintf("%s/%s", row.ProductCode, row.ResourceID))
-
-			if tx.Error != nil {
-				logger.Errorf("Error updating costs for config_item: %v", err)
-				continue
-			}
-
-			if tx.RowsAffected == 0 {
-				accountTotal1h += row.Cost1h
-				accountTotal1d += row.Cost1d
-				accountTotal7d += row.Cost7d
-				accountTotal30d += row.Cost30d
-				continue
-			}
-			logger.Infof("Updated cost for AWS Resource: %s/%s", row.ProductCode, row.ResourceID)
-		}
-
-		err = gormDB.Exec(`
-            UPDATE config_items SET cost_per_minute = ?, cost_total_1d = ?, cost_total_7d = ?, cost_total_30d = ?
-            WHERE external_type = 'AWS::::Account' AND ? = ANY(external_id)`,
-			accountTotal1h/60, accountTotal1d, accountTotal7d, accountTotal30d, accountID,
-		).Error
-		if err != nil {
-			logger.Errorf("Error updating costs for account: %v", err)
-		}
-		logger.Infof("Updated cost for AWS Account: %s", accountID)
+		results = append(results, v1.ScrapeResult{
+			Costs: &v1.CostData{
+				LineItems:    rows,
+				ExternalType: "AWS::::Account",
+				ExternalID:   accountID,
+			},
+		})
 	}
 
 	return results
