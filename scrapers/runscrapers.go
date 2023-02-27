@@ -1,6 +1,7 @@
 package scrapers
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -59,6 +60,25 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 
 					results = append(results, scraped...)
 				}
+
+				if jsonContent, ok := result.Config.(string); ok && config.Full {
+					var res v1.FullResult
+					if err := json.Unmarshal([]byte(jsonContent), &res); err != nil {
+						results = append(results, result.Errorf("failed to extract changes from config: %v", err))
+						continue
+					}
+
+					if res.Change.ExternalID != "" {
+						configItem, err := db.GetConfigItem(res.Change.ExternalType, res.Change.ExternalID)
+						if err != nil {
+							logger.Errorf("failed to get config item id: %v", err)
+						} else {
+							res.Change.ConfigItemID = configItem.ID
+							result.Changes = append(result.Changes, res.Change)
+						}
+					}
+				}
+
 				if result.Error != nil {
 					jobHistory.AddError(result.Error.Error())
 				} else {
@@ -74,4 +94,13 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	}
 
 	return results, nil
+}
+
+func getConfigItemID(externalID, externalType string) (string, error) {
+	var configItemID string
+	if err := db.DefaultDB().Table("config_items").Select("id").Where("? = ANY(external_id) AND external_type = ?", externalID, externalType).Scan(&configItemID).Error; err != nil {
+		return "", err
+	}
+
+	return configItemID, nil
 }

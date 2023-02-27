@@ -132,8 +132,6 @@ type BaseScraper struct {
 	Transform Transform `json:"transform,omitempty"`
 	// Format of config item, defaults to JSON, available options are JSON, properties
 	Format string `json:"format,omitempty"`
-	// Full flag when set will try to extract out changes from the scraped config.
-	Full bool `json:"full,omitempty"`
 }
 
 func (base BaseScraper) String() string {

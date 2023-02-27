@@ -3,7 +3,6 @@ package file
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"encoding/json"
 	"net/url"
 	"os"
 	"path"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
 	"github.com/gobwas/glob"
 	"github.com/hashicorp/go-getter"
 	"sigs.k8s.io/yaml"
@@ -123,25 +121,6 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) 
 				jsonContent = string(contentByte)
 			}
 
-			if config.Full {
-				var res v1.FullResult
-				if err := json.Unmarshal([]byte(jsonContent), &res); err != nil {
-					results = append(results, result.Errorf("failed to extract changes from config: %v", err))
-					continue
-				}
-
-				if res.Change.ExternalID != "" {
-					configID, err := getConfigItemID(res.Change.ExternalID, res.Change.ExternalType)
-					if err != nil {
-						logger.Errorf("failed to get config item id: %v", err)
-					} else {
-						logger.Infof("%s", configID)
-						res.Change.ConfigItemID = configID
-						result.Changes = append(result.Changes, res.Change)
-					}
-				}
-			}
-
 			results = append(results, result.Success(jsonContent))
 		}
 	}
@@ -185,13 +164,4 @@ func isYaml(filename string) bool {
 
 func isJson(filename string) bool {
 	return filepath.Ext(filename) == ".json"
-}
-
-func getConfigItemID(externalID, externalType string) (string, error) {
-	var configItemID string
-	if err := db.DefaultDB().Table("config_items").Select("id").Where("? = ANY(external_id) AND external_type = ?", externalID, externalType).Scan(&configItemID).Error; err != nil {
-		return "", err
-	}
-
-	return configItemID, nil
 }
