@@ -76,7 +76,7 @@ func fetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]v1.LineItem, error) {
 
 	athenaConf, err := getAWSAthenaConfig(ctx, config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get athen conf: %w", err)
+		return nil, fmt.Errorf("failed to get athena conf: %w", err)
 	}
 
 	athenaDB, err := sql.Open(athena.DriverName, athenaConf.Stringify())
