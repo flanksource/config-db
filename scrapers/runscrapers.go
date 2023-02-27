@@ -95,12 +95,3 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 
 	return results, nil
 }
-
-func getConfigItemID(externalID, externalType string) (string, error) {
-	var configItemID string
-	if err := db.DefaultDB().Table("config_items").Select("id").Where("? = ANY(external_id) AND external_type = ?", externalID, externalType).Scan(&configItemID).Error; err != nil {
-		return "", err
-	}
-
-	return configItemID, nil
-}
