@@ -44,7 +44,7 @@ func (e Extract) WithoutItems() Extract {
 	}
 }
 
-func (e Extract) WithouTransform() Extract {
+func (e Extract) WithoutTransform() Extract {
 	return Extract{
 		ID:       e.ID,
 		Type:     e.Type,
@@ -178,7 +178,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 
 		if e.Items != nil {
 			items := e.Items.Get(o)
-			logger.Debugf("Exctracted %d items with %s", len(items), *e.Items)
+			logger.Debugf("Extracted %d items with %s", len(items), *e.Items)
 			for _, item := range items {
 				extracted, err := e.WithoutItems().Extract(input.Clone(item))
 				if err != nil {
