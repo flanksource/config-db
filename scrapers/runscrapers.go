@@ -61,19 +61,23 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 
 					if config.Full {
 						for i := range scraped {
-							changeRes, err := getChangesFromConfig(scraped[i].Config)
+							changeRes, err := extractChangesFromConfig(scraped[i].Config)
 							if err != nil {
-								logger.Errorf("failed to changes from config: %v", err)
+								logger.Errorf("failed to extract changes from config: %v", err)
 								continue
 							}
 
-							if changeRes.ExternalID != "" {
-								configItem, err := db.GetConfigItem(changeRes.ExternalType, changeRes.ExternalID)
+							for _, cr := range changeRes {
+								if cr.ExternalID == "" {
+									continue
+								}
+
+								configItem, err := db.GetConfigItem(cr.ExternalType, cr.ExternalID)
 								if err != nil {
 									logger.Errorf("failed to get config item id: %v", err)
 								} else if configItem != nil {
-									changeRes.ConfigItemID = configItem.ID
-									scraped[i].Changes = append(scraped[i].Changes, *changeRes)
+									cr.ConfigItemID = configItem.ID
+									scraped[i].Changes = append(scraped[i].Changes, cr)
 								}
 							}
 						}
@@ -99,26 +103,28 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	return results, nil
 }
 
-func getChangesFromConfig(conf any) (*v1.ChangeResult, error) {
-	configMap, ok := conf.(map[string]any)
-	if !ok {
-		return nil, errors.New("not a map")
-	}
-
-	changeMap, ok := configMap["change"].(map[string]any)
+// extractChangesFromConfig will attempt to extract changes from
+// the scraped config.
+func extractChangesFromConfig(config any) ([]v1.ChangeResult, error) {
+	configMap, ok := config.(map[string]any)
 	if !ok {
 		return nil, errors.New("config is not a map")
 	}
 
-	raw, err := json.Marshal(changeMap)
+	changes, ok := configMap["changes"].([]any)
+	if !ok {
+		return nil, errors.New("changes is not a slice of map")
+	}
+
+	raw, err := json.Marshal(changes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal changes map: %v", err)
+		return nil, fmt.Errorf("failed to marshal changes: %v", err)
 	}
 
-	var changeRes v1.ChangeResult
+	var changeRes []v1.ChangeResult
 	if err := json.Unmarshal(raw, &changeRes); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal changes map into v1.ChangeResult: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal changes map into []v1.ChangeResult: %v", err)
 	}
 
-	return &changeRes, nil
+	return changeRes, nil
 }
