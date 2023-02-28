@@ -38,6 +38,7 @@ type AnalysisResult struct {
 	Error         error
 }
 
+// +kubebuilder:object:generate=false
 type FullResult struct {
 	Change ChangeResult `json:"change"`
 }
