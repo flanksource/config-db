@@ -2,77 +2,153 @@ package scrapers
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 
 	jsonpatch "github.com/evanphx/json-patch"
+	epg "github.com/fergusstrange/embedded-postgres"
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/duty"
+	"github.com/flanksource/duty/models"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/lib/pq"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func getConfig(t *testing.T, name string) v1.ConfigScraper {
+func getConfig(name string) v1.ConfigScraper {
 	configs, err := v1.ParseConfigs("fixtures/" + name + ".yaml")
 	if err != nil {
-		t.Errorf("Failed to parse config: %v", err)
+		Fail(fmt.Sprintf("Failed to parse config: %v", err))
 	}
 	return configs[0]
 }
 
-func getFixtureResult(t *testing.T, fixture string) []v1.ScrapeResult {
+func getFixtureResult(fixture string) []v1.ScrapeResult {
 	data, err := os.ReadFile("fixtures/expected/" + fixture + ".json")
 	if err != nil {
-		t.Errorf("Failed to read fixture: %v", err)
+		Fail(fmt.Sprintf("Failed to read fixture: %v", err))
 	}
 	var results []v1.ScrapeResult
 
 	if err := json.Unmarshal(data, &results); err != nil {
-		t.Errorf("Failed to unmarshal fixture: %v", err)
+		Fail(fmt.Sprintf("Failed to unmarshal fixture: %v", err))
 	}
 	return results
 }
 
-func TestRun(t *testing.T) {
-	_ = os.Chdir("..")
-	fixtures := []string{
-		"file-git",
-		"file-script",
-		"file-mask",
+func TestSchema(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Schema Suite")
+}
+
+var (
+	postgres *epg.EmbeddedPostgres
+	pool     *pgxpool.Pool
+)
+
+const (
+	pgUrl  = "postgres://postgres:postgres@localhost:9876/test?sslmode=disable"
+	pgPort = 9876
+)
+
+var _ = BeforeSuite(func() {
+	postgres = epg.NewDatabase(epg.DefaultConfig().Database("test").Port(pgPort))
+	if err := postgres.Start(); err != nil {
+		Fail(err.Error())
 	}
 
-	for _, fixtureName := range fixtures {
-		fixture := fixtureName
-		t.Run(fixture, func(t *testing.T) {
-			config := getConfig(t, fixture)
-			expected := getFixtureResult(t, fixture)
-			results, err := Run(&v1.ScrapeContext{}, config)
+	logger.Infof("Started postgres on port %d", pgPort)
+	if _, err := duty.NewDB(pgUrl); err != nil {
+		Fail(err.Error())
+	}
+	if err := db.Init(pgUrl); err != nil {
+		Fail(err.Error())
+	}
+})
 
-			if err != nil {
-				t.Errorf("Unexpected error:%s", err.Error())
-			}
+var _ = AfterSuite(func() {
+	logger.Infof("Stopping postgres")
+	if err := postgres.Stop(); err != nil {
+		Fail(err.Error())
+	}
+})
 
-			if len(results) != len(expected) {
-				t.Errorf("expected %d results, got: %d", len(expected), len(results))
-				return
-			}
-
-			for i := 0; i < len(expected); i++ {
-				want := expected[i]
-				got := results[i]
-
-				if want.ID != got.ID {
-					t.Errorf("expected Id: %s, got Id: %s", want.ID, got.ID)
-				}
-
-				if want.Type != got.Type {
-					t.Errorf("expected Type: %s, got Type: %s", want.Type, got.Type)
-				}
-
-				if diff := compare(want.Config, got.Config); diff != "" {
-					t.Errorf("expected Config: \n%s got Config: \n%s diff:\n%s", want.Config, got.Config, diff)
-				}
+var _ = Describe("Scrapers test", func() {
+	Describe("Schema", func() {
+		It("should be able to run migrations", func() {
+			logger.Infof("Running migrations against %s", pgUrl)
+			if err := duty.Migrate(pgUrl); err != nil {
+				Fail(err.Error())
 			}
 		})
-	}
-}
+
+		It("Gorm can connect", func() {
+			gorm, err := duty.NewGorm(pgUrl, duty.DefaultGormConfig())
+			Expect(err).ToNot(HaveOccurred())
+			var people int64
+			Expect(gorm.Table("people").Count(&people).Error).ToNot(HaveOccurred())
+			Expect(people).To(Equal(int64(1)))
+		})
+
+		It("should insert a config item", func() {
+			external := "incident_commander"
+			ci := models.ConfigItem{
+				ID:           uuid.NewString(),
+				ExternalID:   pq.StringArray{external},
+				ExternalType: &external,
+			}
+			err := db.DefaultDB().Create(&ci).Error
+			Expect(err).To(BeNil())
+		})
+	})
+
+	Describe("Testing fixtures", func() {
+		fixtures := []string{
+			"file-full",
+			"file-git",
+			"file-script",
+			"file-mask",
+		}
+
+		_ = os.Chdir("..")
+		for _, fixtureName := range fixtures {
+			fixture := fixtureName
+			It(fixture, func() {
+				config := getConfig(fixture)
+				expected := getFixtureResult(fixture)
+				results, err := Run(&v1.ScrapeContext{}, config)
+				Expect(err).To(BeNil())
+
+				if len(results) != len(expected) {
+					Fail(fmt.Sprintf("expected %d results, got: %d", len(expected), len(results)))
+					return
+				}
+
+				for i := 0; i < len(expected); i++ {
+					want := expected[i]
+					got := results[i]
+
+					Expect(want.ID).To(Equal(got.ID))
+					Expect(want.Type).To(Equal(got.Type))
+					Expect(compare(want.Config, got.Config)).To(Equal(""))
+
+					if config.Full {
+						if changesDiff := cmp.Diff(want.Changes, got.Changes, cmpopts.IgnoreFields(v1.ChangeResult{}, "ConfigItemID")); changesDiff != "" {
+							Fail(fmt.Sprintf(changesDiff))
+						}
+					}
+				}
+			})
+		}
+	})
+})
 
 func toJSON(i interface{}) []byte {
 	switch v := i.(type) {

@@ -25,6 +25,7 @@ require (
 	github.com/aws/smithy-go v1.13.3
 	github.com/dop251/goja v0.0.0-20221229151140-b95230a9dbad
 	github.com/evanphx/json-patch v5.6.0+incompatible
+	github.com/fergusstrange/embedded-postgres v1.19.0
 	github.com/flanksource/commons v1.6.2
 	github.com/flanksource/duty v1.0.10
 	github.com/flanksource/ketall v1.1.1
@@ -84,6 +85,7 @@ require (
 	github.com/tidwall/gjson v1.6.7 // indirect
 	github.com/tidwall/match v1.0.3 // indirect
 	github.com/tidwall/pretty v1.0.2 // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/zclconf/go-cty v1.12.1 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gorm.io/driver/postgres v1.4.6 // indirect
@@ -148,7 +150,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/gnostic v0.6.9 // indirect
-	github.com/google/go-cmp v0.5.9 // indirect
+	github.com/google/go-cmp v0.5.9
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/wire v0.5.0 // indirect

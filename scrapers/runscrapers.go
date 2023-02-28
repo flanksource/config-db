@@ -2,6 +2,7 @@ package scrapers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -58,25 +59,27 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 						continue
 					}
 
-					results = append(results, scraped...)
-				}
+					if config.Full {
+						for i := range scraped {
+							changeRes, err := getChangesFromConfig(scraped[i].Config)
+							if err != nil {
+								logger.Errorf("failed to changes from config: %v", err)
+								continue
+							}
 
-				if jsonContent, ok := result.Config.(string); ok && config.Full {
-					var res v1.FullResult
-					if err := json.Unmarshal([]byte(jsonContent), &res); err != nil {
-						results = append(results, result.Errorf("failed to extract changes from config: %v", err))
-						continue
-					}
-
-					if res.Change.ExternalID != "" {
-						configItem, err := db.GetConfigItem(res.Change.ExternalType, res.Change.ExternalID)
-						if err != nil {
-							logger.Errorf("failed to get config item id: %v", err)
-						} else {
-							res.Change.ConfigItemID = configItem.ID
-							result.Changes = append(result.Changes, res.Change)
+							if changeRes.ExternalID != "" {
+								configItem, err := db.GetConfigItem(changeRes.ExternalType, changeRes.ExternalID)
+								if err != nil {
+									logger.Errorf("failed to get config item id: %v", err)
+								} else if configItem != nil {
+									changeRes.ConfigItemID = configItem.ID
+									scraped[i].Changes = append(scraped[i].Changes, *changeRes)
+								}
+							}
 						}
 					}
+
+					results = append(results, scraped...)
 				}
 
 				if result.Error != nil {
@@ -94,4 +97,28 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	}
 
 	return results, nil
+}
+
+func getChangesFromConfig(conf any) (*v1.ChangeResult, error) {
+	configMap, ok := conf.(map[string]any)
+	if !ok {
+		return nil, errors.New("not a map")
+	}
+
+	changeMap, ok := configMap["change"].(map[string]any)
+	if !ok {
+		return nil, errors.New("config is not a map")
+	}
+
+	raw, err := json.Marshal(changeMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal changes map: %v", err)
+	}
+
+	var changeRes v1.ChangeResult
+	if err := json.Unmarshal(raw, &changeRes); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal changes map into v1.ChangeResult: %v", err)
+	}
+
+	return &changeRes, nil
 }
