@@ -72,13 +72,7 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 									continue
 								}
 
-								configItem, err := db.GetConfigItem(cr.ExternalType, cr.ExternalID)
-								if err != nil {
-									logger.Errorf("failed to get config item id: %v", err)
-								} else if configItem != nil {
-									cr.ConfigItemID = configItem.ID
-									scraped[i].Changes = append(scraped[i].Changes, cr)
-								}
+								scraped[i].Changes = append(scraped[i].Changes, cr)
 							}
 						}
 					}

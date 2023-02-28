@@ -40,7 +40,6 @@ type AnalysisResult struct {
 
 // +kubebuilder:object:generate=false
 type ChangeResult struct {
-	ConfigItemID     string
 	ExternalID       string                 `json:"external_id"`
 	ExternalType     string                 `json:"external_type"`
 	ExternalChangeID string                 `json:"external_change_id"`

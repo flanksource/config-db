@@ -14,7 +14,6 @@ import (
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	. "github.com/onsi/ginkgo/v2"
@@ -119,7 +118,12 @@ var _ = Describe("Scrapers test", func() {
 			It(fixture, func() {
 				config := getConfig(fixture)
 				expected := getFixtureResult(fixture)
-				results, err := Run(&v1.ScrapeContext{}, config)
+				ctx := &v1.ScrapeContext{}
+
+				results, err := Run(ctx, config)
+				Expect(err).To(BeNil())
+
+				err = db.SaveResults(ctx, results)
 				Expect(err).To(BeNil())
 
 				if len(results) != len(expected) {
@@ -136,9 +140,7 @@ var _ = Describe("Scrapers test", func() {
 					Expect(compare(want.Config, got.Config)).To(Equal(""))
 
 					if config.Full {
-						if changesDiff := cmp.Diff(want.Changes, got.Changes, cmpopts.IgnoreFields(v1.ChangeResult{}, "ConfigItemID")); changesDiff != "" {
-							Fail(changesDiff)
-						}
+						Expect(cmp.Diff(want.Changes, got.Changes)).To(Equal(""))
 					}
 				}
 			})
