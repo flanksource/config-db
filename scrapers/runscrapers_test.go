@@ -16,7 +16,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/lib/pq"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -48,10 +47,7 @@ func TestSchema(t *testing.T) {
 	RunSpecs(t, "Schema Suite")
 }
 
-var (
-	postgres *epg.EmbeddedPostgres
-	pool     *pgxpool.Pool
-)
+var postgres *epg.EmbeddedPostgres
 
 const (
 	pgUrl  = "postgres://postgres:postgres@localhost:9876/test?sslmode=disable"
@@ -141,7 +137,7 @@ var _ = Describe("Scrapers test", func() {
 
 					if config.Full {
 						if changesDiff := cmp.Diff(want.Changes, got.Changes, cmpopts.IgnoreFields(v1.ChangeResult{}, "ConfigItemID")); changesDiff != "" {
-							Fail(fmt.Sprintf(changesDiff))
+							Fail(changesDiff)
 						}
 					}
 				}
