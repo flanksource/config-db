@@ -40,17 +40,17 @@ type AnalysisResult struct {
 
 // +kubebuilder:object:generate=false
 type ChangeResult struct {
-	ExternalID       string                 `json:"external_id"`
-	ExternalType     string                 `json:"external_type"`
-	ExternalChangeID string                 `json:"external_change_id"`
-	Action           ChangeAction           `json:"action"`
-	ChangeType       string                 `json:"change_type"`
-	Patches          string                 `json:"patches"`
-	Summary          string                 `json:"summary"`
-	Severity         string                 `json:"severity"`
-	Source           string                 `json:"source"`
-	CreatedAt        *time.Time             `json:"created_at"`
-	Details          map[string]interface{} `json:"details"`
+	ExternalID       string
+	ExternalType     string
+	ExternalChangeID string
+	Action           ChangeAction
+	ChangeType       string
+	Patches          string
+	Summary          string
+	Severity         string
+	Source           string
+	CreatedAt        *time.Time
+	Details          map[string]interface{}
 }
 
 func (c ChangeResult) String() string {
