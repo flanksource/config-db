@@ -61,19 +61,24 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 
 					if config.Full {
 						for i := range scraped {
-							changeRes, err := extractChangesFromConfig(scraped[i].Config)
+							extractedConfig, changeRes, err := extractConfigChangesFromConfig(scraped[i].Config)
 							if err != nil {
 								logger.Errorf("failed to extract changes from config: %v", err)
 								continue
 							}
 
 							for _, cr := range changeRes {
-								if cr.ExternalID == "" {
+								cr.ExternalID = scraped[i].ID
+								cr.ExternalType = scraped[i].ExternalType
+
+								if cr.ExternalID == "" && cr.ExternalType == "" {
 									continue
 								}
-
 								scraped[i].Changes = append(scraped[i].Changes, cr)
 							}
+
+							// The original config should be replaced by the extracted config (could also be nil)
+							scraped[i].Config = extractedConfig
 						}
 					}
 
@@ -97,28 +102,38 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	return results, nil
 }
 
-// extractChangesFromConfig will attempt to extract changes from
+// extractChangesFromConfig will attempt to extract config & changes from
 // the scraped config.
-func extractChangesFromConfig(config any) ([]v1.ChangeResult, error) {
+//
+// The scraped config is expected to have fields "config" & "changes".
+func extractConfigChangesFromConfig(config any) (any, []v1.ChangeResult, error) {
 	configMap, ok := config.(map[string]any)
 	if !ok {
-		return nil, errors.New("config is not a map")
+		return nil, nil, errors.New("config is not a map")
+	}
+
+	var (
+		extractedConfig  any
+		extractedChanges []v1.ChangeResult
+	)
+
+	if eConf, ok := configMap["config"]; ok {
+		extractedConfig = eConf
 	}
 
 	changes, ok := configMap["changes"].([]any)
 	if !ok {
-		return nil, errors.New("changes is not a slice of map")
+		return nil, nil, errors.New("changes is not a slice of map")
 	}
 
 	raw, err := json.Marshal(changes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal changes: %v", err)
+		return nil, nil, fmt.Errorf("failed to marshal changes: %v", err)
 	}
 
-	var changeRes []v1.ChangeResult
-	if err := json.Unmarshal(raw, &changeRes); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal changes map into []v1.ChangeResult: %v", err)
+	if err := json.Unmarshal(raw, &extractedChanges); err != nil {
+		return nil, nil, fmt.Errorf("failed to unmarshal changes map into []v1.ChangeResult: %v", err)
 	}
 
-	return changeRes, nil
+	return extractedConfig, extractedChanges, nil
 }

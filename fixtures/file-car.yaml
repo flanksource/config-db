@@ -1,0 +1,5 @@
+file:
+  - type: Car
+    id: $.reg_no
+    paths:
+      - fixtures/data/car.json

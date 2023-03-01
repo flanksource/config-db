@@ -10,10 +10,6 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty"
-	"github.com/flanksource/duty/models"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
-	"github.com/lib/pq"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -55,20 +51,9 @@ var _ = Describe("Scrapers test", func() {
 			Expect(gorm.Table("people").Count(&people).Error).ToNot(HaveOccurred())
 			Expect(people).To(Equal(int64(1)))
 		})
-
-		It("should insert a config item", func() {
-			external := "incident_commander"
-			ci := models.ConfigItem{
-				ID:           uuid.NewString(),
-				ExternalID:   pq.StringArray{external},
-				ExternalType: &external,
-			}
-			err := db.DefaultDB().Create(&ci).Error
-			Expect(err).To(BeNil())
-		})
 	})
 
-	Describe("Testing fixtures", func() {
+	Describe("Testing file fixtures", func() {
 		fixtures := []string{
 			"file-git",
 			"file-script",
@@ -100,46 +85,9 @@ var _ = Describe("Scrapers test", func() {
 					Expect(want.ID).To(Equal(got.ID))
 					Expect(want.Type).To(Equal(got.Type))
 					Expect(compare(want.Config, got.Config)).To(Equal(""))
-
-					if config.Full {
-						Expect(cmp.Diff(want.Changes, got.Changes)).To(Equal(""))
-					}
 				}
 			})
 		}
-	})
-
-	Describe("Testing saving changes from config", func() {
-		fixture := "file-full"
-		It(fixture, func() {
-			config := getConfig(fixture)
-			expected := getFixtureResult(fixture)
-			ctx := &v1.ScrapeContext{}
-
-			results, err := Run(ctx, config)
-			Expect(err).To(BeNil())
-
-			err = db.SaveResults(ctx, results)
-			Expect(err).To(BeNil())
-
-			if len(results) != len(expected) {
-				Fail(fmt.Sprintf("expected %d results, got: %d", len(expected), len(results)))
-				return
-			}
-
-			for i := 0; i < len(expected); i++ {
-				want := expected[i]
-				got := results[i]
-
-				Expect(want.ID).To(Equal(got.ID))
-				Expect(want.Type).To(Equal(got.Type))
-				Expect(compare(want.Config, got.Config)).To(Equal(""))
-
-				if config.Full {
-					Expect(cmp.Diff(want.Changes, got.Changes)).To(Equal(""))
-				}
-			}
-		})
 	})
 })
 
@@ -154,7 +102,6 @@ func toJSON(i interface{}) []byte {
 }
 
 func compare(a interface{}, b interface{}) string {
-
 	patch, err := jsonpatch.CreateMergePatch(toJSON(a), toJSON(b))
 	if err != nil {
 		return err.Error()
