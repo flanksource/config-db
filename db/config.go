@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
+	dutyModels "github.com/flanksource/duty/models"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
 	"github.com/patrickmn/go-cache"
@@ -185,4 +187,15 @@ func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
 		UpdateAll: true,
 	}).Create(&relationships)
 	return tx.Error
+}
+
+// FindConfigChangesByItemID returns all the changes of the given config item
+func FindConfigChangesByItemID(ctx context.Context, configItemID string) ([]dutyModels.ConfigChange, error) {
+	var ci []dutyModels.ConfigChange
+	tx := db.WithContext(ctx).Where("config_id = ?", configItemID).Find(&ci)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	return ci, nil
 }

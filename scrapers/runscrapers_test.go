@@ -1,6 +1,7 @@
 package scrapers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,31 +10,11 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-func getConfig(name string) v1.ConfigScraper {
-	configs, err := v1.ParseConfigs("fixtures/" + name + ".yaml")
-	if err != nil {
-		Fail(fmt.Sprintf("Failed to parse config: %v", err))
-	}
-	return configs[0]
-}
-
-func getFixtureResult(fixture string) []v1.ScrapeResult {
-	data, err := os.ReadFile("fixtures/expected/" + fixture + ".json")
-	if err != nil {
-		Fail(fmt.Sprintf("Failed to read fixture: %v", err))
-	}
-	var results []v1.ScrapeResult
-
-	if err := json.Unmarshal(data, &results); err != nil {
-		Fail(fmt.Sprintf("Failed to unmarshal fixture: %v", err))
-	}
-	return results
-}
 
 var _ = Describe("Scrapers test", func() {
 	Describe("DB initialization", func() {
@@ -89,7 +70,93 @@ var _ = Describe("Scrapers test", func() {
 			})
 		}
 	})
+
+	Describe("Test full: true", func() {
+		var storedConfigItem *models.ConfigItem
+
+		It("should create a new config item", func() {
+			config := getConfig("file-car")
+			ctx := &v1.ScrapeContext{}
+
+			results, err := Run(ctx, config)
+			Expect(err).To(BeNil())
+
+			err = db.SaveResults(ctx, results)
+			Expect(err).To(BeNil())
+
+			configItemID, err := db.FindConfigItemID(v1.ExternalID{
+				ExternalType: "",               // Comes from file-car.yaml
+				ExternalID:   []string{"A123"}, // Comes from the config mentioned in file-car.yaml
+			})
+			Expect(err).To(BeNil())
+			Expect(configItemID).ToNot(BeNil())
+
+			storedConfigItem, err = db.GetConfigItemFromID(*configItemID)
+			Expect(err).To(BeNil())
+			Expect(storedConfigItem).ToNot(BeNil())
+		})
+
+		It("should store the changes from the config", func() {
+			config := getConfig("file-car-change")
+			ctx := &v1.ScrapeContext{}
+
+			results, err := Run(ctx, config)
+			Expect(err).To(BeNil())
+
+			err = db.SaveResults(ctx, results)
+			Expect(err).To(BeNil())
+
+			configItemID, err := db.FindConfigItemID(v1.ExternalID{
+				ExternalType: "",               // Comes from file-car.yaml
+				ExternalID:   []string{"A123"}, // Comes from the config mentioned in file-car.yaml
+			})
+			Expect(err).To(BeNil())
+			Expect(configItemID).ToNot(BeNil())
+
+			// Expect the config_changes to be stored
+			items, err := db.FindConfigChangesByItemID(context.Background(), *configItemID)
+			Expect(err).To(BeNil())
+			Expect(len(items)).To(Equal(1))
+			Expect(items[0].ConfigID).To(Equal(storedConfigItem.ID))
+		})
+
+		It("should not change the original config", func() {
+			configItemID, err := db.FindConfigItemID(v1.ExternalID{
+				ExternalType: "",               // Comes from file-car.yaml
+				ExternalID:   []string{"A123"}, // Comes from the config mentioned in file-car.yaml
+			})
+			Expect(err).To(BeNil())
+			Expect(configItemID).ToNot(BeNil())
+
+			configItem, err := db.GetConfigItemFromID(*configItemID)
+			Expect(err).To(BeNil())
+			Expect(storedConfigItem).ToNot(BeNil())
+
+			Expect(configItem, storedConfigItem)
+		})
+	})
 })
+
+func getConfig(name string) v1.ConfigScraper {
+	configs, err := v1.ParseConfigs("fixtures/" + name + ".yaml")
+	if err != nil {
+		Fail(fmt.Sprintf("Failed to parse config: %v", err))
+	}
+	return configs[0]
+}
+
+func getFixtureResult(fixture string) []v1.ScrapeResult {
+	data, err := os.ReadFile("fixtures/expected/" + fixture + ".json")
+	if err != nil {
+		Fail(fmt.Sprintf("Failed to read fixture: %v", err))
+	}
+	var results []v1.ScrapeResult
+
+	if err := json.Unmarshal(data, &results); err != nil {
+		Fail(fmt.Sprintf("Failed to unmarshal fixture: %v", err))
+	}
+	return results
+}
 
 func toJSON(i interface{}) []byte {
 	switch v := i.(type) {

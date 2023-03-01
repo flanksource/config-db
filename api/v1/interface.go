@@ -131,7 +131,7 @@ type ScrapeResult struct {
 	BaseScraper         BaseScraper         `json:"-"`
 	Error               error               `json:"-"`
 	AnalysisResult      *AnalysisResult     `json:"analysis,omitempty"`
-	Changes             []ChangeResult      `json:"changes,omitempty"`
+	Changes             []ChangeResult      `json:"-"`
 	RelationshipResults RelationshipResults `json:"-"`
 	Ignore              []string            `json:"-"`
 	Action              string              `json:",omitempty"`
