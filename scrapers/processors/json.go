@@ -150,7 +150,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			}
 			input.Config = props.Map()
 		} else if input.Format != "" {
-			input.Config = map[string]interface{}{
+			input.Config = map[string]any{
 				"format":  input.Format,
 				"content": input.Config,
 			}
@@ -161,24 +161,24 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			continue
 		}
 
-		var o interface{}
-		switch input.Config.(type) {
+		var parsedConfig any
+		switch v := input.Config.(type) {
 		case string:
-			o, err = oj.ParseString(input.Config.(string))
+			parsedConfig, err = oj.ParseString(v)
 			if err != nil {
 				return results, fmt.Errorf("failed to parse json: %v", err)
 			}
 		default:
 			opts := oj.Options{OmitNil: true, Sort: true, UseTags: true}
-			o, err = oj.ParseString(oj.JSON(input.Config, opts))
+			parsedConfig, err = oj.ParseString(oj.JSON(v, opts))
 			if err != nil {
 				return results, fmt.Errorf("failed to parse json: %v", err)
 			}
 		}
 
 		if e.Items != nil {
-			items := e.Items.Get(o)
-			logger.Debugf("Exctracted %d items with %s", len(items), *e.Items)
+			items := e.Items.Get(parsedConfig)
+			logger.Debugf("extracted %d items with %s", len(items), *e.Items)
 			for _, item := range items {
 				extracted, err := e.WithoutItems().Extract(input.Clone(item))
 				if err != nil {
@@ -189,7 +189,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			}
 		}
 
-		input.Config = o
+		input.Config = parsedConfig
 
 		var ongoingInput v1.ScrapeResults = []v1.ScrapeResult{input}
 		if !input.BaseScraper.Transform.Script.IsEmpty() {
@@ -302,7 +302,7 @@ func (e Extract) applyMask(results []v1.ScrapeResult) ([]v1.ScrapeResult, error)
 	return results, nil
 }
 
-func getString(expr jp.Expr, data interface{}, def string) (string, error) {
+func getString(expr jp.Expr, data any, def string) (string, error) {
 	if len(expr) == 0 {
 		return def, nil
 	}
@@ -319,7 +319,7 @@ func isJSONPath(path string) bool {
 	return strings.HasPrefix(path, "$") || strings.HasPrefix(path, "@")
 }
 
-func md5SumHex(i interface{}) string {
+func md5SumHex(i any) string {
 	var dataStr string
 	switch data := i.(type) {
 	case string:
