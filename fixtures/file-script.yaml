@@ -10,4 +10,4 @@ file:
           }
           JSON.stringify(config)
     paths:
-      - fixtures/multiple-configs.json
+      - fixtures/data/multiple-configs.json
