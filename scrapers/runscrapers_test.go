@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"testing"
 
 	jsonpatch "github.com/evanphx/json-patch"
-	epg "github.com/fergusstrange/embedded-postgres"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -41,42 +39,8 @@ func getFixtureResult(fixture string) []v1.ScrapeResult {
 	return results
 }
 
-func TestSchema(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Schema Suite")
-}
-
-var postgres *epg.EmbeddedPostgres
-
-const (
-	pgUrl  = "postgres://postgres:postgres@localhost:9876/test?sslmode=disable"
-	pgPort = 9876
-)
-
-var _ = BeforeSuite(func() {
-	postgres = epg.NewDatabase(epg.DefaultConfig().Database("test").Port(pgPort))
-	if err := postgres.Start(); err != nil {
-		Fail(err.Error())
-	}
-
-	logger.Infof("Started postgres on port %d", pgPort)
-	if _, err := duty.NewDB(pgUrl); err != nil {
-		Fail(err.Error())
-	}
-	if err := db.Init(pgUrl); err != nil {
-		Fail(err.Error())
-	}
-})
-
-var _ = AfterSuite(func() {
-	logger.Infof("Stopping postgres")
-	if err := postgres.Stop(); err != nil {
-		Fail(err.Error())
-	}
-})
-
 var _ = Describe("Scrapers test", func() {
-	Describe("Schema", func() {
+	Describe("DB initialization", func() {
 		It("should be able to run migrations", func() {
 			logger.Infof("Running migrations against %s", pgUrl)
 			if err := duty.Migrate(pgUrl); err != nil {
@@ -106,13 +70,11 @@ var _ = Describe("Scrapers test", func() {
 
 	Describe("Testing fixtures", func() {
 		fixtures := []string{
-			"file-full",
 			"file-git",
 			"file-script",
 			"file-mask",
 		}
 
-		_ = os.Chdir("..")
 		for _, fixtureName := range fixtures {
 			fixture := fixtureName
 			It(fixture, func() {
@@ -145,6 +107,39 @@ var _ = Describe("Scrapers test", func() {
 				}
 			})
 		}
+	})
+
+	Describe("Testing saving changes from config", func() {
+		fixture := "file-full"
+		It(fixture, func() {
+			config := getConfig(fixture)
+			expected := getFixtureResult(fixture)
+			ctx := &v1.ScrapeContext{}
+
+			results, err := Run(ctx, config)
+			Expect(err).To(BeNil())
+
+			err = db.SaveResults(ctx, results)
+			Expect(err).To(BeNil())
+
+			if len(results) != len(expected) {
+				Fail(fmt.Sprintf("expected %d results, got: %d", len(expected), len(results)))
+				return
+			}
+
+			for i := 0; i < len(expected); i++ {
+				want := expected[i]
+				got := results[i]
+
+				Expect(want.ID).To(Equal(got.ID))
+				Expect(want.Type).To(Equal(got.Type))
+				Expect(compare(want.Config, got.Config)).To(Equal(""))
+
+				if config.Full {
+					Expect(cmp.Diff(want.Changes, got.Changes)).To(Equal(""))
+				}
+			}
+		})
 	})
 })
 
