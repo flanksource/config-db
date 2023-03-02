@@ -8,6 +8,8 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/db/ulid"
+	"github.com/flanksource/config-db/utils"
+	dutyModels "github.com/flanksource/duty/models"
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -82,6 +84,7 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return errors.Wrapf(err, "unable to lookup existing config: %s", ci)
 	}
+
 	if existing == nil {
 		ci.ID = ulid.MustNew().AsUUID()
 		if err := CreateConfigItem(&ci); err != nil {
@@ -96,6 +99,7 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 			return fmt.Errorf("[%s] failed to update item %v", ci, err)
 		}
 	}
+
 	changes, err := generateDiff(ci, *existing)
 	if err != nil {
 		logger.Errorf("[%s] failed to check for changes: %v", ci, err)
@@ -104,9 +108,14 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 	if changes != nil {
 		logger.Infof("[%s/%s] detected changes", ci.ConfigType, ci.ExternalID[0])
 		if err := db.Create(changes).Error; err != nil {
-			logger.Errorf("[%s] failed to update with changes %v", ci, err)
+			if IsUniqueConstraintPGErr(err) {
+				logger.Debugf("[%s] changes not stored. Another row with the same config_id & external_change_id exists.", ci)
+			} else {
+				logger.Errorf("[%s] failed to update with changes %v", ci, err)
+			}
 		}
 	}
+
 	return nil
 }
 
@@ -196,7 +205,7 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 	return nil
 }
 
-func generateDiff(a, b models.ConfigItem) (*models.ConfigChange, error) {
+func generateDiff(a, b models.ConfigItem) (*dutyModels.ConfigChange, error) {
 	patch, err := jsonpatch.CreateMergePatch([]byte(*a.Config), []byte(*b.Config))
 	if err != nil {
 		return nil, err
@@ -208,11 +217,12 @@ func generateDiff(a, b models.ConfigItem) (*models.ConfigChange, error) {
 
 	patchStr := string(patch)
 
-	return &models.ConfigChange{
-		ConfigID:   a.ID,
-		ChangeType: "diff",
-		ID:         ulid.MustNew().AsUUID(),
-		Patches:    patchStr,
+	return &dutyModels.ConfigChange{
+		ConfigID:         a.ID,
+		ChangeType:       "diff",
+		ExternalChangeId: utils.Sha256Hex(patchStr),
+		ID:               ulid.MustNew().AsUUID(),
+		Patches:          patchStr,
 	}, nil
 
 }
