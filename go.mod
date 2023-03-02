@@ -35,6 +35,7 @@ require (
 	github.com/hashicorp/go-getter v1.6.2
 	github.com/henvic/httpretty v0.0.6
 	github.com/jackc/pgx/v4 v4.17.2
+	github.com/jackc/pgx/v5 v5.2.0
 	github.com/labstack/echo/v4 v4.6.3
 	github.com/lib/pq v1.10.7
 	github.com/ohler55/ojg v1.14.3
@@ -71,7 +72,6 @@ require (
 	github.com/golang-sql/sqlexp v0.0.0-20170517235910-f1bb20e5a188 // indirect
 	github.com/gomarkdown/markdown v0.0.0-20210820032736-385812cbea76 // indirect
 	github.com/hashicorp/hcl/v2 v2.15.0 // indirect
-	github.com/jackc/pgx/v5 v5.2.0 // indirect
 	github.com/liamylian/jsontime/v2 v2.0.0 // indirect
 	github.com/matryer/is v1.4.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2 // indirect
