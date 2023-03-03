@@ -51,7 +51,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 
 		for _, obj := range objs {
 			if obj.GetKind() == "Event" {
-				change := getChangeFromEvent(obj)
+				change := getChangeFromEvent(obj, config.SeverityKeywords)
 				if change != nil {
 					changeResults = append(changeResults, v1.ScrapeResult{
 						Changes: []v1.ChangeResult{*change},
