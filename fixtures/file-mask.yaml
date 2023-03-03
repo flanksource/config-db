@@ -13,4 +13,4 @@ file:
           jsonpath: $.secret
           value: '***'
     paths:
-      - fixtures/single-config.json
+      - fixtures/data/single-config.json

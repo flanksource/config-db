@@ -2,4 +2,4 @@ file:
   - type: $.aws[0].region
     id: $.aws[0].region
     paths:
-      - fixtures/test.yaml
+      - fixtures/data/test.yaml

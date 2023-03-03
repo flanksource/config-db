@@ -433,6 +433,10 @@ spec:
                       type: string
                   type: object
                 type: array
+              full:
+                description: Full flag when set will try to extract out changes from
+                  the scraped config.
+                type: boolean
               kubernetes:
                 items:
                   properties:

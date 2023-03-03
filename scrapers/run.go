@@ -18,11 +18,13 @@ func RunScraper(scraper v1.ConfigScraper) error {
 	ctx := &v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &scraper}
 	var results []v1.ScrapeResult
 	if results, err = Run(ctx, scraper); err != nil {
-		return fmt.Errorf("Failed to run scraper %s: %v", scraper, err)
+		return fmt.Errorf("failed to run scraper %v: %v", scraper, err)
 	}
+
 	if err = db.SaveResults(ctx, results); err != nil {
 		//FIXME cache results to save to db later
-		return fmt.Errorf("Failed to update db: %v", err)
+		return fmt.Errorf("failed to update db: %v", err)
 	}
+
 	return nil
 }

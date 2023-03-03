@@ -1,6 +1,8 @@
 package scrapers
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -25,9 +27,11 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 				Name: fmt.Sprintf("scraper:%T", scraper),
 			}
 			jobHistory.Start()
+
 			if err := db.PersistJobHistory(&jobHistory); err != nil {
 				logger.Errorf("Error persisting job history: %v", err)
 			}
+
 			for _, result := range scraper.Scrape(ctx, config) {
 				if result.AnalysisResult != nil {
 					if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
@@ -55,19 +59,81 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 						continue
 					}
 
+					if config.Full {
+						for i := range scraped {
+							extractedConfig, changeRes, err := extractConfigChangesFromConfig(scraped[i].Config)
+							if err != nil {
+								logger.Errorf("failed to extract changes from config: %v", err)
+								continue
+							}
+
+							for _, cr := range changeRes {
+								cr.ExternalID = scraped[i].ID
+								cr.ExternalType = scraped[i].ExternalType
+
+								if cr.ExternalID == "" && cr.ExternalType == "" {
+									continue
+								}
+								scraped[i].Changes = append(scraped[i].Changes, cr)
+							}
+
+							// The original config should be replaced by the extracted config (could also be nil)
+							scraped[i].Config = extractedConfig
+						}
+					}
+
 					results = append(results, scraped...)
 				}
+
 				if result.Error != nil {
 					jobHistory.AddError(result.Error.Error())
 				} else {
 					jobHistory.IncrSuccess()
 				}
 			}
+
 			jobHistory.End()
 			if err := db.PersistJobHistory(&jobHistory); err != nil {
 				logger.Errorf("Error persisting job history: %v", err)
 			}
 		}
 	}
+
 	return results, nil
+}
+
+// extractChangesFromConfig will attempt to extract config & changes from
+// the scraped config.
+//
+// The scraped config is expected to have fields "config" & "changes".
+func extractConfigChangesFromConfig(config any) (any, []v1.ChangeResult, error) {
+	configMap, ok := config.(map[string]any)
+	if !ok {
+		return nil, nil, errors.New("config is not a map")
+	}
+
+	var (
+		extractedConfig  any
+		extractedChanges []v1.ChangeResult
+	)
+
+	if eConf, ok := configMap["config"]; ok {
+		extractedConfig = eConf
+	}
+
+	changes, ok := configMap["changes"].([]any)
+	if !ok {
+		return nil, nil, errors.New("changes is not a slice of map")
+	}
+
+	raw, err := json.Marshal(changes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal changes: %v", err)
+	}
+
+	if err := json.Unmarshal(raw, &extractedChanges); err != nil {
+		return nil, nil, fmt.Errorf("failed to unmarshal changes map into []v1.ChangeResult: %v", err)
+	}
+
+	return extractedConfig, extractedChanges, nil
 }

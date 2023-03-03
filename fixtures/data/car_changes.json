@@ -1,0 +1,10 @@
+{
+  "reg_no": "A123",
+  "changes": [
+    {
+      "action": "drive",
+      "summary": "car color changed to blue",
+      "unrelated_stuff": 123
+    }
+  ]
+}

@@ -73,12 +73,14 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) 
 	pwd, _ := os.Getwd()
 	cacheDir := path.Join(pwd, ".config-db", "cache", "files")
 	results := v1.ScrapeResults{}
+
 	for _, config := range configs.File {
 		url := stripSecrets(config.URL)
 		tempDir := path.Join(cacheDir, convertToLocalPath(url))
 		if err := os.MkdirAll(cacheDir, 0755); err != nil {
 			return results.Errorf(err, "failed to create cache dir: %v", tempDir)
 		}
+
 		logger.Debugf("Scraping file %s ==> %s", stripSecrets(config.URL), tempDir)
 		var globMatches []string
 		if config.URL != "" {
@@ -86,23 +88,27 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) 
 		} else {
 			globMatches = findFiles(ctx, "", config.Paths)
 		}
+
 		for _, match := range globMatches {
 			file := strings.Replace(match, tempDir+"/", "", 1)
 			var result = v1.ScrapeResult{
 				BaseScraper: config.BaseScraper,
 				Source:      config.RedactedString() + "/" + file,
 			}
+
 			if ignore, err := isIgnored(config, file); err != nil {
 				results = append(results, result.Errorf("failed to check if file %s is ignored: %v", file, err))
 				continue
 			} else if ignore {
 				continue
 			}
+
 			contentByte, _, err := ctx.Read(match)
 			if err != nil {
 				results = append(results, result.Errorf("failed to read file %s: %v", file, err))
 				continue
 			}
+
 			var jsonContent string
 			if isYaml(match) {
 				contentByte, err := yaml.YAMLToJSON(contentByte)
@@ -114,9 +120,11 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) 
 			} else {
 				jsonContent = string(contentByte)
 			}
+
 			results = append(results, result.Success(jsonContent))
 		}
 	}
+
 	return results
 }
 
@@ -134,6 +142,7 @@ func findFiles(ctx *v1.ScrapeContext, dir string, paths []string) []string {
 		logger.Debugf("no paths specified, scrapping all json and yaml/yml files")
 		paths = append(paths, "**.json", "**.yaml", "**.yml")
 	}
+
 	for _, path := range paths {
 		match, err := ctx.Find(filepath.Join(dir, path))
 		if err != nil {
@@ -142,8 +151,10 @@ func findFiles(ctx *v1.ScrapeContext, dir string, paths []string) []string {
 		} else if len(match) == 0 {
 			logger.Debugf("no files found in: %s", filepath.Join(dir, path))
 		}
+
 		matches = append(matches, match...) // using a seperate slice to avoid nested loops and complexity
 	}
+
 	return matches
 }
 

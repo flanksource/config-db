@@ -123,7 +123,6 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 
 func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	for _, change := range result.Changes {
-
 		if change.Action == v1.Ignore {
 			continue
 		}
@@ -151,6 +150,7 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 			return err
 		}
 	}
+
 	return nil
 }
 

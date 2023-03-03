@@ -1,77 +1,161 @@
 package scrapers
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
-	"testing"
 
 	jsonpatch "github.com/evanphx/json-patch"
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/duty"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func getConfig(t *testing.T, name string) v1.ConfigScraper {
+var _ = Describe("Scrapers test", func() {
+	Describe("DB initialization", func() {
+		It("should be able to run migrations", func() {
+			logger.Infof("Running migrations against %s", pgUrl)
+			if err := duty.Migrate(pgUrl); err != nil {
+				Fail(err.Error())
+			}
+		})
+
+		It("Gorm can connect", func() {
+			gorm, err := duty.NewGorm(pgUrl, duty.DefaultGormConfig())
+			Expect(err).ToNot(HaveOccurred())
+			var people int64
+			Expect(gorm.Table("people").Count(&people).Error).ToNot(HaveOccurred())
+			Expect(people).To(Equal(int64(1)))
+		})
+	})
+
+	Describe("Testing file fixtures", func() {
+		fixtures := []string{
+			"file-git",
+			"file-script",
+			"file-mask",
+		}
+
+		for _, fixtureName := range fixtures {
+			fixture := fixtureName
+			It(fixture, func() {
+				config := getConfig(fixture)
+				expected := getFixtureResult(fixture)
+				ctx := &v1.ScrapeContext{}
+
+				results, err := Run(ctx, config)
+				Expect(err).To(BeNil())
+
+				err = db.SaveResults(ctx, results)
+				Expect(err).To(BeNil())
+
+				if len(results) != len(expected) {
+					Fail(fmt.Sprintf("expected %d results, got: %d", len(expected), len(results)))
+					return
+				}
+
+				for i := 0; i < len(expected); i++ {
+					want := expected[i]
+					got := results[i]
+
+					Expect(want.ID).To(Equal(got.ID))
+					Expect(want.Type).To(Equal(got.Type))
+					Expect(compare(want.Config, got.Config)).To(Equal(""))
+				}
+			})
+		}
+	})
+
+	Describe("Test full: true", func() {
+		var storedConfigItem *models.ConfigItem
+
+		It("should create a new config item", func() {
+			config := getConfig("file-car")
+			ctx := &v1.ScrapeContext{}
+
+			results, err := Run(ctx, config)
+			Expect(err).To(BeNil())
+
+			err = db.SaveResults(ctx, results)
+			Expect(err).To(BeNil())
+
+			configItemID, err := db.FindConfigItemID(v1.ExternalID{
+				ExternalType: "",               // Comes from file-car.yaml
+				ExternalID:   []string{"A123"}, // Comes from the config mentioned in file-car.yaml
+			})
+			Expect(err).To(BeNil())
+			Expect(configItemID).ToNot(BeNil())
+
+			storedConfigItem, err = db.GetConfigItemFromID(*configItemID)
+			Expect(err).To(BeNil())
+			Expect(storedConfigItem).ToNot(BeNil())
+		})
+
+		It("should store the changes from the config", func() {
+			config := getConfig("file-car-change")
+			ctx := &v1.ScrapeContext{}
+
+			results, err := Run(ctx, config)
+			Expect(err).To(BeNil())
+
+			err = db.SaveResults(ctx, results)
+			Expect(err).To(BeNil())
+
+			configItemID, err := db.FindConfigItemID(v1.ExternalID{
+				ExternalType: "",               // Comes from file-car.yaml
+				ExternalID:   []string{"A123"}, // Comes from the config mentioned in file-car.yaml
+			})
+			Expect(err).To(BeNil())
+			Expect(configItemID).ToNot(BeNil())
+
+			// Expect the config_changes to be stored
+			items, err := db.FindConfigChangesByItemID(context.Background(), *configItemID)
+			Expect(err).To(BeNil())
+			Expect(len(items)).To(Equal(1))
+			Expect(items[0].ConfigID).To(Equal(storedConfigItem.ID))
+		})
+
+		It("should not change the original config", func() {
+			configItemID, err := db.FindConfigItemID(v1.ExternalID{
+				ExternalType: "",               // Comes from file-car.yaml
+				ExternalID:   []string{"A123"}, // Comes from the config mentioned in file-car.yaml
+			})
+			Expect(err).To(BeNil())
+			Expect(configItemID).ToNot(BeNil())
+
+			configItem, err := db.GetConfigItemFromID(*configItemID)
+			Expect(err).To(BeNil())
+			Expect(storedConfigItem).ToNot(BeNil())
+
+			Expect(configItem, storedConfigItem)
+		})
+	})
+})
+
+func getConfig(name string) v1.ConfigScraper {
 	configs, err := v1.ParseConfigs("fixtures/" + name + ".yaml")
 	if err != nil {
-		t.Errorf("Failed to parse config: %v", err)
+		Fail(fmt.Sprintf("Failed to parse config: %v", err))
 	}
 	return configs[0]
 }
 
-func getFixtureResult(t *testing.T, fixture string) []v1.ScrapeResult {
+func getFixtureResult(fixture string) []v1.ScrapeResult {
 	data, err := os.ReadFile("fixtures/expected/" + fixture + ".json")
 	if err != nil {
-		t.Errorf("Failed to read fixture: %v", err)
+		Fail(fmt.Sprintf("Failed to read fixture: %v", err))
 	}
 	var results []v1.ScrapeResult
 
 	if err := json.Unmarshal(data, &results); err != nil {
-		t.Errorf("Failed to unmarshal fixture: %v", err)
+		Fail(fmt.Sprintf("Failed to unmarshal fixture: %v", err))
 	}
 	return results
-}
-
-func TestRun(t *testing.T) {
-	_ = os.Chdir("..")
-	fixtures := []string{
-		"file-git",
-		"file-script",
-		"file-mask",
-	}
-
-	for _, fixtureName := range fixtures {
-		fixture := fixtureName
-		t.Run(fixture, func(t *testing.T) {
-			config := getConfig(t, fixture)
-			expected := getFixtureResult(t, fixture)
-			results, err := Run(&v1.ScrapeContext{}, config)
-
-			if err != nil {
-				t.Errorf("Unexpected error:%s", err.Error())
-			}
-
-			if len(results) != len(expected) {
-				t.Errorf("expected %d results, got: %d", len(expected), len(results))
-				return
-			}
-
-			for i := 0; i < len(expected); i++ {
-				want := expected[i]
-				got := results[i]
-
-				if want.ID != got.ID {
-					t.Errorf("expected Id: %s, got Id: %s", want.ID, got.ID)
-				}
-
-				if want.Type != got.Type {
-					t.Errorf("expected Type: %s, got Type: %s", want.Type, got.Type)
-				}
-
-				if diff := compare(want.Config, got.Config); diff != "" {
-					t.Errorf("expected Config: \n%s got Config: \n%s diff:\n%s", want.Config, got.Config, diff)
-				}
-			}
-		})
-	}
 }
 
 func toJSON(i interface{}) []byte {
@@ -85,7 +169,6 @@ func toJSON(i interface{}) []byte {
 }
 
 func compare(a interface{}, b interface{}) string {
-
 	patch, err := jsonpatch.CreateMergePatch(toJSON(a), toJSON(b))
 	if err != nil {
 		return err.Error()
