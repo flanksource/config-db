@@ -43,7 +43,17 @@ func getSourceFromEvent(obj *unstructured.Unstructured) string {
 		return ""
 	}
 
-	return fmt.Sprintf("kubernetes/%s/%s", val["host"], val["component"])
+	host, ok := val["host"]
+	if !ok {
+		host = "<unknown-host>"
+	}
+
+	component, ok := val["component"]
+	if !ok {
+		component = "<unknown-component>"
+	}
+
+	return fmt.Sprintf("kubernetes/%s/%s", host, component)
 }
 
 func getDetailsFromEvent(obj *unstructured.Unstructured) map[string]any {
@@ -67,7 +77,8 @@ func getChangeFromEvent(obj *unstructured.Unstructured, severityKeywords v1.Seve
 		return nil
 	}
 
-	reason := obj.Object["reason"].(string)
+	reason, _ := obj.Object["reason"].(string)
+	message, _ := obj.Object["message"].(string)
 
 	return &v1.ChangeResult{
 		ChangeType:       reason,
@@ -78,6 +89,6 @@ func getChangeFromEvent(obj *unstructured.Unstructured, severityKeywords v1.Seve
 		ExternalType:     ExternalTypePrefix + involvedObject["kind"].(string),
 		Severity:         getSeverityFromReason(reason, severityKeywords.Error, severityKeywords.Warn),
 		Source:           getSourceFromEvent(obj),
-		Summary:          obj.Object["message"].(string),
+		Summary:          message,
 	}
 }

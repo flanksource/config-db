@@ -14,10 +14,11 @@ kubernetes:
       - controllerrevision
       - certificaterequest
       - orders.acme.cert-manager.io
-    keywords:
-      error:
-        - failed
-        - error
-      warn:
-        - backoff
-        - nodeoutofmemory
+    event:
+      severityKeywords:
+        error:
+          - failed
+          - error
+        warn:
+          - backoff
+          - nodeoutofmemory
