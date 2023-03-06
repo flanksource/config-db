@@ -13,7 +13,7 @@ type SeverityKeywords struct {
 	Error []string `json:"error,omitempty"`
 }
 
-type Event struct {
+type KubernetesEvent struct {
 	SeverityKeywords SeverityKeywords `json:"severityKeywords,omitempty"`
 }
 
@@ -30,7 +30,7 @@ type Kubernetes struct {
 	MaxInflight     int64           `json:"maxInflight,omitempty"`
 	Exclusions      []string        `json:"exclusions,omitempty"`
 	Kubeconfig      *kommons.EnvVar `json:"kubeconfig,omitempty"`
-	Event           Event           `json:"event,omitempty"`
+	Event           KubernetesEvent `json:"event,omitempty"`
 }
 
 type KubernetesFile struct {

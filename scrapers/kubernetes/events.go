@@ -30,7 +30,7 @@ func getSeverityFromReason(reason string, errKeywords, warnKeywords []string) st
 
 	for _, k := range warnKeywords {
 		if strings.Contains(strings.ToLower(reason), k) {
-			return "error"
+			return "warn"
 		}
 	}
 
@@ -77,16 +77,20 @@ func getChangeFromEvent(obj *unstructured.Unstructured, severityKeywords v1.Seve
 		return nil
 	}
 
-	reason, _ := obj.Object["reason"].(string)
-	message, _ := obj.Object["message"].(string)
+	var (
+		reason, _             = obj.Object["reason"].(string)
+		message, _            = obj.Object["message"].(string)
+		uid, _                = involvedObject["uid"].(string)
+		involvedObjectKind, _ = involvedObject["kind"].(string)
+	)
 
 	return &v1.ChangeResult{
 		ChangeType:       reason,
 		CreatedAt:        &eventCreatedAt,
 		Details:          getDetailsFromEvent(obj),
 		ExternalChangeID: string(obj.GetUID()),
-		ExternalID:       involvedObject["uid"].(string),
-		ExternalType:     ExternalTypePrefix + involvedObject["kind"].(string),
+		ExternalID:       uid,
+		ExternalType:     ExternalTypePrefix + involvedObjectKind,
 		Severity:         getSeverityFromReason(reason, severityKeywords.Error, severityKeywords.Warn),
 		Source:           getSourceFromEvent(obj),
 		Summary:          message,
