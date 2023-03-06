@@ -12,6 +12,11 @@ var (
 	cronIDFunctionMap map[string]cron.EntryID
 )
 
+func AddFuncToCron(schedule string, fn func()) error {
+	_, err := cronManger.AddFunc(schedule, fn)
+	return err
+}
+
 func AddToCron(scraper v1.ConfigScraper, id string) {
 	fn := func() {
 		if err := RunScraper(scraper); err != nil {

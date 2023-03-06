@@ -89,6 +89,11 @@ func startScraperCron(configFiles []string) {
 		}
 		defer fn()
 	}
+
+	// Add stale marking job to cron
+	if err := scrapers.AddFuncToCron("@every 60m", scrapers.DeleteStaleConfigItems); err != nil {
+		logger.Errorf("Error running scraper: %v", err)
+	}
 }
 
 func forward(e *echo.Echo, prefix string, target string) {

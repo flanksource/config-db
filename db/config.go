@@ -73,8 +73,16 @@ func CreateConfigItem(ci *models.ConfigItem) error {
 
 // UpdateConfigItem updates all the fields of a given config item row
 func UpdateConfigItem(ci *models.ConfigItem) error {
+
 	if err := db.Updates(ci).Error; err != nil {
 		return err
+	}
+
+	// Since gorm ignores nil fields, we are setting deleted_at explicitly
+	if ci.DeletedAt != nil {
+		if err := db.Table("config_items").Where("id = ?", ci.ID).UpdateColumn("deleted_at", nil).Error; err != nil {
+			return err
+		}
 	}
 
 	return nil
