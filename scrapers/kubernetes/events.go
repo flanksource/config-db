@@ -53,7 +53,7 @@ func getSourceFromEvent(obj *unstructured.Unstructured) string {
 		component = "<unknown-component>"
 	}
 
-	return fmt.Sprintf("kubernetes/%s/%s", host, component)
+	return fmt.Sprintf("kubernetes/component=%s,host=%s", component, host)
 }
 
 func getDetailsFromEvent(obj *unstructured.Unstructured) map[string]any {
