@@ -46,6 +46,20 @@ func getSourceFromEvent(obj *unstructured.Unstructured) string {
 	return fmt.Sprintf("kubernetes/%s/%s", val["host"], val["component"])
 }
 
+func getDetailsFromEvent(obj *unstructured.Unstructured) map[string]any {
+	details := make(map[string]any)
+
+	for k, v := range obj.Object {
+		if k == "involvedObject" {
+			continue
+		}
+
+		details[k] = v
+	}
+
+	return details
+}
+
 func getChangeFromEvent(obj *unstructured.Unstructured, severityKeywords v1.SeverityKeywords) *v1.ChangeResult {
 	eventCreatedAt := obj.GetCreationTimestamp().Time
 	involvedObject, ok := obj.Object["involvedObject"].(map[string]any)
@@ -58,7 +72,7 @@ func getChangeFromEvent(obj *unstructured.Unstructured, severityKeywords v1.Seve
 	return &v1.ChangeResult{
 		ChangeType:       reason,
 		CreatedAt:        &eventCreatedAt,
-		Details:          involvedObject,
+		Details:          getDetailsFromEvent(obj),
 		ExternalChangeID: string(obj.GetUID()),
 		ExternalID:       involvedObject["uid"].(string),
 		ExternalType:     ExternalTypePrefix + involvedObject["kind"].(string),
