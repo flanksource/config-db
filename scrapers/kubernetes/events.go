@@ -2,36 +2,19 @@ package kubernetes
 
 import (
 	"fmt"
-	"strings"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-var (
-	defaultErrKeywords  = []string{"failed", "error"}
-	defaultWarnKeywords = []string{"backoff", "unhealthy", "nodeoutofdisk", "nodeoutofmemory", "nodeoutofpid"}
-)
-
 func getSeverityFromReason(reason string, errKeywords, warnKeywords []string) string {
-	if len(errKeywords) == 0 {
-		errKeywords = defaultErrKeywords
+	if utils.MatchItems(reason, errKeywords...) {
+		return "error"
 	}
 
-	if len(warnKeywords) == 0 {
-		warnKeywords = defaultWarnKeywords
-	}
-
-	for _, k := range errKeywords {
-		if strings.Contains(strings.ToLower(reason), k) {
-			return "error"
-		}
-	}
-
-	for _, k := range warnKeywords {
-		if strings.Contains(strings.ToLower(reason), k) {
-			return "warn"
-		}
+	if utils.MatchItems(reason, warnKeywords...) {
+		return "warn"
 	}
 
 	return ""
