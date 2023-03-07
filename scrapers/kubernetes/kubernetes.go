@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/ketall"
 	"github.com/flanksource/ketall/options"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -51,6 +52,12 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 
 		for _, obj := range objs {
 			if obj.GetKind() == "Event" {
+				reason, _ := obj.Object["reason"].(string)
+				if utils.MatchItems(reason, config.Event.Exclusions...) {
+					logger.Debugf("excluding event object for reason [%s].", reason)
+					continue
+				}
+
 				change := getChangeFromEvent(obj, config.Event.SeverityKeywords)
 				if change != nil {
 					changeResults = append(changeResults, v1.ScrapeResult{

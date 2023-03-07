@@ -15,6 +15,10 @@ kubernetes:
       - certificaterequest
       - orders.acme.cert-manager.io
     event:
+      exclusions:
+        - SuccessfulCreate
+        - Created
+        - DNSConfigForming
       severityKeywords:
         error:
           - failed

@@ -14,6 +14,9 @@ type SeverityKeywords struct {
 }
 
 type KubernetesEvent struct {
+	// Exclusions is a list of keywords that'll be used to exclude
+	// event objects based on the reason.
+	Exclusions       []string         `json:"exclusions,omitempty"`
 	SeverityKeywords SeverityKeywords `json:"severityKeywords,omitempty"`
 }
 
