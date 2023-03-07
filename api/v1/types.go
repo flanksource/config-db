@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/flanksource/config-db/utils"
-	"github.com/google/uuid"
 	"github.com/lib/pq"
 
 	"gorm.io/gorm"
@@ -13,7 +12,7 @@ import (
 
 // ConfigScraper ...
 type ConfigScraper struct {
-	ID             uuid.UUID        `json:"-"`
+	ID             string           `json:"-"`
 	LogLevel       string           `json:"logLevel,omitempty"`
 	Schedule       string           `json:"schedule,omitempty"`
 	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`

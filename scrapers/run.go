@@ -7,6 +7,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/utils/kube"
+	"github.com/google/uuid"
 )
 
 func RunScraper(scraper v1.ConfigScraper) error {
@@ -18,7 +19,10 @@ func RunScraper(scraper v1.ConfigScraper) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate id: %v", err)
 	}
-	id := scraper.ID
+	id, err := uuid.Parse(scraper.ID)
+	if err != nil {
+		return fmt.Errorf("failed to parse uuid[%s]: %v", scraper.ID, err)
+	}
 	ctx := &v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &scraper, ScraperID: id}
 	var results []v1.ScrapeResult
 	if results, err = Run(ctx, scraper); err != nil {
