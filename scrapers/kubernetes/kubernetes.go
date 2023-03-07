@@ -65,7 +65,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 					})
 				}
 
-				// this is all we need from an event objects
+				// this is all we need from an event object
 				continue
 			}
 
