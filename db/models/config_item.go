@@ -6,13 +6,14 @@ import (
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
 
 // ConfigItem represents the config item database table
 type ConfigItem struct {
 	ID            string            `gorm:"primaryKey;unique_index;not null;column:id" json:"id"  `
-	ScraperID     *string           `gorm:"column:scraper_id;default:null" json:"scraper_id,omitempty"  `
+	ScraperID     *uuid.UUID        `gorm:"column:scraper_id;default:null" json:"scraper_id,omitempty"`
 	ConfigType    string            `gorm:"column:config_type;default:''" json:"config_type"  `
 	ExternalID    pq.StringArray    `gorm:"column:external_id;type:[]text" json:"external_id,omitempty"  `
 	ExternalType  *string           `gorm:"column:external_type;default:null" json:"external_type,omitempty"  `

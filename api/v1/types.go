@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/flanksource/config-db/utils"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 
 	"gorm.io/gorm"
@@ -11,6 +13,7 @@ import (
 
 // ConfigScraper ...
 type ConfigScraper struct {
+	ID             uuid.UUID        `json:"-"`
 	LogLevel       string           `json:"logLevel,omitempty"`
 	Schedule       string           `json:"schedule,omitempty"`
 	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
@@ -22,6 +25,10 @@ type ConfigScraper struct {
 
 	// Full flag when set will try to extract out changes from the scraped config.
 	Full bool `json:"full,omitempty"`
+}
+
+func (c ConfigScraper) GenerateName() (string, error) {
+	return utils.Hash(c)
 }
 
 // IsEmpty ...

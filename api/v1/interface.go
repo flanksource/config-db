@@ -9,6 +9,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/kommons"
+	"github.com/google/uuid"
 )
 
 // Scraper ...
@@ -212,6 +213,7 @@ type ScrapeContext struct {
 	Namespace string
 	Kommons   *kommons.Client
 	Scraper   *ConfigScraper
+	ScraperID uuid.UUID
 }
 
 func (ctx ScrapeContext) Find(path string) ([]string, error) {

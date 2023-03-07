@@ -4,18 +4,18 @@ import (
 	"github.com/flanksource/commons/duration"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/db"
+	"github.com/google/uuid"
 )
 
 var (
 	StaleTimeout string
 )
 
-func DeleteStaleConfigItems() {
+func DeleteStaleConfigItems(scraperID uuid.UUID) error {
 	// Get stale timeout in relative terms
 	staleDuration, err := duration.ParseDuration(StaleTimeout)
 	if err != nil {
-		logger.Errorf("Error parsing duration %s: %v", StaleTimeout, err)
-		return
+		return err
 	}
 	staleHours := int(staleDuration.Hours())
 
@@ -24,14 +24,14 @@ func DeleteStaleConfigItems() {
         SET deleted_at = NOW()
         WHERE
             ((NOW() - updated_at) > INTERVAL '1 hour' * ?) AND
-            deleted_at IS NULL
-    `
+            deleted_at IS NULL AND
+            scraper_id = ?`
 
-	result := db.DefaultDB().Exec(query, staleHours)
+	result := db.DefaultDB().Exec(query, staleHours, scraperID)
 	if err := result.Error; err != nil {
-		logger.Errorf("Error marking config as stale: %v", err)
-		return
+		return err
 	}
 
 	logger.Infof("Marked %d items as deleted", result.RowsAffected)
+	return nil
 }

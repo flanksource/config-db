@@ -62,7 +62,13 @@ func startScraperCron(configFiles []string) {
 		logger.Fatalf(err.Error())
 	}
 	for _, scraper := range scraperConfigsFiles {
+		scraperDB, err := db.PersistScrapeConfigFromFile(scraper)
+		if err != nil {
+			logger.Fatalf("Error persisting scrape config to db: %v", err)
+			continue
+		}
 		_scraper := scraper
+		_scraper.ID = scraperDB.ID
 		scrapers.AddToCron(_scraper, "")
 		fn := func() {
 			if err := scrapers.RunScraper(_scraper); err != nil {
@@ -78,6 +84,7 @@ func startScraperCron(configFiles []string) {
 	}
 	for _, scraper := range scraperConfigsDB {
 		_scraper, err := scraper.V1ConfigScraper()
+		_scraper.ID = scraper.ID
 		if err != nil {
 			logger.Fatalf("Error parsing config scraper: %v", err)
 		}
@@ -88,11 +95,6 @@ func startScraperCron(configFiles []string) {
 			}
 		}
 		defer fn()
-	}
-
-	// Add stale marking job to cron
-	if err := scrapers.AddFuncToCron("@every 60m", scrapers.DeleteStaleConfigItems); err != nil {
-		logger.Errorf("Error running scraper: %v", err)
 	}
 }
 
