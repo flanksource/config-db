@@ -97,7 +97,7 @@ uninstall-crd: manifests
 # produce a build that's debuggable
 .PHONY: dev
 dev:
-	go build -o ./.bin/$(NAME) -v -x -gcflags="all=-N -l" main.go
+	go build -o ./.bin/$(NAME) -v -gcflags="all=-N -l" main.go
 
 .PHONY: watch
 watch:

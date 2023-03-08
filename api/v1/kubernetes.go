@@ -6,6 +6,20 @@ import (
 	"github.com/flanksource/kommons"
 )
 
+// SeverityKeywords is used to identify the severity
+// from the Kubernetes Event reason.
+type SeverityKeywords struct {
+	Warn  []string `json:"warn,omitempty"`
+	Error []string `json:"error,omitempty"`
+}
+
+type KubernetesEvent struct {
+	// Exclusions is a list of keywords that'll be used to exclude
+	// event objects based on the reason.
+	Exclusions       []string         `json:"exclusions,omitempty"`
+	SeverityKeywords SeverityKeywords `json:"severityKeywords,omitempty"`
+}
+
 type Kubernetes struct {
 	BaseScraper     `json:",inline"`
 	ClusterName     string          `json:"clusterName,omitempty"`
@@ -19,6 +33,7 @@ type Kubernetes struct {
 	MaxInflight     int64           `json:"maxInflight,omitempty"`
 	Exclusions      []string        `json:"exclusions,omitempty"`
 	Kubeconfig      *kommons.EnvVar `json:"kubeconfig,omitempty"`
+	Event           KubernetesEvent `json:"event,omitempty"`
 }
 
 type KubernetesFile struct {

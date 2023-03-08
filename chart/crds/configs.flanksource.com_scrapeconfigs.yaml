@@ -444,6 +444,28 @@ spec:
                       type: boolean
                     clusterName:
                       type: string
+                    event:
+                      properties:
+                        exclusions:
+                          description: Exclusions is a list of keywords that'll be
+                            used to exclude event objects based on the reason.
+                          items:
+                            type: string
+                          type: array
+                        severityKeywords:
+                          description: SeverityKeywords is used to identify the severity
+                            from the Kubernetes Event reason.
+                          properties:
+                            error:
+                              items:
+                                type: string
+                              type: array
+                            warn:
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                      type: object
                     exclusions:
                       items:
                         type: string

@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/ketall"
 	"github.com/flanksource/ketall/options"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -19,31 +20,14 @@ const ExternalTypePrefix = "Kubernetes::"
 
 // Scrape ...
 func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+	var (
+		results       v1.ScrapeResults
+		changeResults v1.ScrapeResults
+	)
 
-	results := v1.ScrapeResults{}
 	for _, config := range configs.Kubernetes {
 		if config.ClusterName == "" {
 			logger.Fatalf("clusterName missing from kubernetes configuration")
-		}
-
-		opts := options.NewDefaultCmdOptions()
-		opts = updateOptions(opts, config)
-
-		objs := ketall.KetAll(opts)
-
-		// {Namespace: {Kind: {Name: ID}}}
-		resourceIDMap := make(map[string]map[string]map[string]string)
-
-		for _, obj := range objs {
-			if collections.Contains([]string{"Namespace", "Deployment", "Node"}, obj.GetKind()) {
-				if resourceIDMap[obj.GetNamespace()] == nil {
-					resourceIDMap[obj.GetNamespace()] = make(map[string]map[string]string)
-				}
-				if resourceIDMap[obj.GetNamespace()][obj.GetKind()] == nil {
-					resourceIDMap[obj.GetNamespace()][obj.GetKind()] = make(map[string]string)
-				}
-				resourceIDMap[obj.GetNamespace()][obj.GetKind()][obj.GetName()] = string(obj.GetUID())
-			}
 		}
 
 		// Add Cluster object first
@@ -57,12 +41,34 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 			ID:           clusterID,
 		})
 
+		opts := options.NewDefaultCmdOptions()
+		opts = updateOptions(opts, config)
+		objs := ketall.KetAll(opts)
+
+		resourceIDMap := getResourceIDsFromObjs(objs)
 		resourceIDMap[""]["Cluster"] = make(map[string]string)
 		resourceIDMap[""]["Cluster"][config.ClusterName] = clusterID
-		// For shorthand
-		resourceIDMap[""]["Cluster"]["selfRef"] = clusterID
+		resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
 
 		for _, obj := range objs {
+			if obj.GetKind() == "Event" {
+				reason, _ := obj.Object["reason"].(string)
+				if utils.MatchItems(reason, config.Event.Exclusions...) {
+					logger.Debugf("excluding event object for reason [%s].", reason)
+					continue
+				}
+
+				change := getChangeFromEvent(obj, config.Event.SeverityKeywords)
+				if change != nil {
+					changeResults = append(changeResults, v1.ScrapeResult{
+						Changes: []v1.ChangeResult{*change},
+					})
+				}
+
+				// this is all we need from an event object
+				continue
+			}
+
 			var relationships v1.RelationshipResults
 			if obj.GetKind() == "Pod" {
 				spec := obj.Object["spec"].(map[string]interface{})
@@ -82,6 +88,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 					})
 				}
 			}
+
 			obj.SetManagedFields(nil)
 			annotations := obj.GetAnnotations()
 			if annotations != nil {
@@ -115,9 +122,10 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				ParentExternalType:  ExternalTypePrefix + parentType,
 				RelationshipResults: relationships,
 			})
-
 		}
 	}
+
+	results = append(results, changeResults...)
 	return results
 }
 
@@ -186,4 +194,23 @@ func extractDeployNameFromReplicaSet(rs string) string {
 	split := strings.Split(rs, "-")
 	split = split[:len(split)-1]
 	return strings.Join(split, "-")
+}
+
+func getResourceIDsFromObjs(objs []*unstructured.Unstructured) map[string]map[string]map[string]string {
+	// {Namespace: {Kind: {Name: ID}}}
+	resourceIDMap := make(map[string]map[string]map[string]string)
+
+	for _, obj := range objs {
+		if collections.Contains([]string{"Namespace", "Deployment", "Node"}, obj.GetKind()) {
+			if resourceIDMap[obj.GetNamespace()] == nil {
+				resourceIDMap[obj.GetNamespace()] = make(map[string]map[string]string)
+			}
+			if resourceIDMap[obj.GetNamespace()][obj.GetKind()] == nil {
+				resourceIDMap[obj.GetNamespace()][obj.GetKind()] = make(map[string]string)
+			}
+			resourceIDMap[obj.GetNamespace()][obj.GetKind()][obj.GetName()] = string(obj.GetUID())
+		}
+	}
+
+	return resourceIDMap
 }
