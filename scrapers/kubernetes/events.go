@@ -2,6 +2,8 @@ package kubernetes
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
@@ -26,17 +28,13 @@ func getSourceFromEvent(obj *unstructured.Unstructured) string {
 		return ""
 	}
 
-	host, ok := val["host"]
-	if !ok {
-		host = "<unknown-host>"
+	keyVals := make([]string, 0, len(val))
+	for k, v := range val {
+		keyVals = append(keyVals, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	component, ok := val["component"]
-	if !ok {
-		component = "<unknown-component>"
-	}
-
-	return fmt.Sprintf("kubernetes/component=%s,host=%s", component, host)
+	sort.Slice(keyVals, func(i, j int) bool { return keyVals[i] < keyVals[j] })
+	return fmt.Sprintf("kubernetes/%s", strings.Join(keyVals, ","))
 }
 
 func getDetailsFromEvent(obj *unstructured.Unstructured) map[string]any {
