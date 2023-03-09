@@ -20,10 +20,10 @@ type ConfigItem struct {
 	Namespace     *string           `gorm:"column:namespace;default:null" json:"namespace,omitempty"  `
 	Description   *string           `gorm:"column:description;default:null" json:"description,omitempty"  `
 	Account       *string           `gorm:"column:account;default:null" json:"account,omitempty"  `
-	Region        *string           `gorm:"column:region;default:null" json:"region,omitempty"  `
-	Zone          *string           `gorm:"column:zone;default:null" json:"zone,omitempty"  `
-	Network       *string           `gorm:"column:network;default:null" json:"network,omitempty"  `
-	Subnet        *string           `gorm:"column:subnet;default:null" json:"subnet,omitempty"  `
+	Region        *string           `gorm:"-" json:"region,omitempty"  `
+	Zone          *string           `gorm:"-" json:"zone,omitempty"  `
+	Network       *string           `gorm:"-" json:"network,omitempty"  `
+	Subnet        *string           `gorm:"-" json:"subnet,omitempty"  `
 	Config        *string           `gorm:"column:config;default:null" json:"config,omitempty"  `
 	Source        *string           `gorm:"column:source;default:null" json:"source,omitempty"  `
 	ParentID      *string           `gorm:"column:parent_id;default:null" json:"parent_id,omitempty"`
