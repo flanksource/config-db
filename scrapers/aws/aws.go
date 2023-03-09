@@ -500,9 +500,12 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			})
 
 			instance := NewInstance(i)
+			tags := instance.Tags
+			tags["zone"] = ctx.Subnets[instance.SubnetID].Zone
+			tags["region"] = ctx.Subnets[instance.SubnetID].Region
 			*results = append(*results, v1.ScrapeResult{
 				ExternalType:        v1.AWSEC2Instance,
-				Tags:                instance.Tags,
+				Tags:                tags,
 				BaseScraper:         config.BaseScraper,
 				Config:              instance,
 				Type:                "EC2Instance",
@@ -713,6 +716,10 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 
 		az := lb.AvailabilityZones[0]
 		region := az[:len(az)-1]
+		tags := make(map[string]string)
+		tags["zone"] = az
+		tags["region"] = region
+		tags["account"] = *ctx.Caller.Account
 		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, *ctx.Caller.Account, *lb.LoadBalancerName)
 		*results = append(*results, v1.ScrapeResult{
 			ExternalType:        v1.AWSLoadBalancer,
@@ -723,6 +730,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Type:                "LoadBalancer",
 			Name:                *lb.LoadBalancerName,
 			Account:             *ctx.Caller.Account,
+			Tags:                tags,
 			Region:              region,
 			Aliases:             []string{"AWSELB/" + arn, arn},
 			ID:                  *lb.LoadBalancerName,
@@ -804,8 +812,11 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		}
 
 		az := *subnet.AvailabilityZone
-
-		ctx.Subnets[*subnet.SubnetId] = Zone{Zone: az, Region: az[0 : len(az)-1]}
+		region := az[0 : len(az)-1]
+		ctx.Subnets[*subnet.SubnetId] = Zone{Zone: az, Region: region}
+		tags["zone"] = az
+		tags["region"] = region
+		tags["account"] = *ctx.Caller.Account
 
 		if !config.Includes("subnet") {
 			return
