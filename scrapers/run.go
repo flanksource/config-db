@@ -25,17 +25,20 @@ func RunScraper(scraper v1.ConfigScraper) error {
 	}
 	ctx := &v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &scraper, ScraperID: id}
 	var results []v1.ScrapeResult
-	if results, err = Run(ctx, scraper); err != nil {
-		return fmt.Errorf("failed to run scraper %v: %v", scraper, err)
+	var scraperErr, dbErr error
+	if results, scraperErr = Run(ctx, scraper); scraperErr != nil {
+		return fmt.Errorf("failed to run scraper %v: %v", scraper, scraperErr)
 	}
 
-	if err = db.SaveResults(ctx, results); err != nil {
+	if dbErr = db.SaveResults(ctx, results); dbErr != nil {
 		//FIXME cache results to save to db later
-		return fmt.Errorf("failed to update db: %v", err)
+		return fmt.Errorf("failed to update db: %v", dbErr)
 	}
 
-	if err = DeleteStaleConfigItems(id); err != nil {
-		return fmt.Errorf("error deleting stale config items: %v", err)
+	if scraperErr != nil && dbErr != nil && len(results) > 0 {
+		if err = DeleteStaleConfigItems(id); err != nil {
+			return fmt.Errorf("error deleting stale config items: %v", err)
+		}
 	}
 
 	return nil

@@ -17,21 +17,23 @@ func DeleteStaleConfigItems(scraperID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	staleHours := int(staleDuration.Hours())
+	staleMinutes := int(staleDuration.Minutes())
 
 	query := `
         UPDATE config_items
         SET deleted_at = NOW()
         WHERE
-            ((NOW() - updated_at) > INTERVAL '1 hour' * ?) AND
+            ((NOW() - updated_at) > INTERVAL '1 minute' * ?) AND
             deleted_at IS NULL AND
             scraper_id = ?`
 
-	result := db.DefaultDB().Exec(query, staleHours, scraperID)
+	result := db.DefaultDB().Exec(query, staleMinutes, scraperID)
 	if err := result.Error; err != nil {
 		return err
 	}
 
-	logger.Infof("Marked %d items as deleted", result.RowsAffected)
+	if result.RowsAffected > 0 {
+		logger.Infof("Marked %d items as deleted", result.RowsAffected)
+	}
 	return nil
 }
