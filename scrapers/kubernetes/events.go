@@ -1,14 +1,45 @@
 package kubernetes
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+// InvolvedObject represents a Kubernetes InvolvedObject object
+type InvolvedObject struct {
+	UID       string `json:"uid,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// Event represents a Kubernetes Event object
+type Event struct {
+	Reason         string          `json:"reason,omitempty"`
+	Message        string          `json:"message,omitempty"`
+	InvolvedObject *InvolvedObject `json:"involvedObject,omitempty"`
+}
+
+func (t *Event) FromObjMap(obj map[string]interface{}) error {
+	eventJSON, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event object: %v", err)
+	}
+
+	if err := json.Unmarshal(eventJSON, t); err != nil {
+		return fmt.Errorf("failed to unmarshal event object: %v", err)
+	}
+
+	return nil
+}
 
 func getSeverityFromReason(reason string, errKeywords, warnKeywords []string) string {
 	if utils.MatchItems(reason, errKeywords...) {
@@ -53,27 +84,32 @@ func getDetailsFromEvent(obj *unstructured.Unstructured) map[string]any {
 
 func getChangeFromEvent(obj *unstructured.Unstructured, severityKeywords v1.SeverityKeywords) *v1.ChangeResult {
 	eventCreatedAt := obj.GetCreationTimestamp().Time
-	involvedObject, ok := obj.Object["involvedObject"].(map[string]any)
-	if !ok {
+
+	var event Event
+	if err := event.FromObjMap(obj.Object); err != nil {
+		logger.Errorf("failed to parse event: %v", err)
 		return nil
 	}
 
-	var (
-		reason, _             = obj.Object["reason"].(string)
-		message, _            = obj.Object["message"].(string)
-		uid, _                = involvedObject["uid"].(string)
-		involvedObjectKind, _ = involvedObject["kind"].(string)
-	)
+	if event.InvolvedObject == nil {
+		logger.Debugf("event has no involved object: %v", event)
+		return nil
+	}
+
+	_, err := uuid.Parse(event.InvolvedObject.UID)
+	if err != nil {
+		event.InvolvedObject.UID = fmt.Sprintf("Kubernetes/%s/%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name)
+	}
 
 	return &v1.ChangeResult{
-		ChangeType:       reason,
+		ChangeType:       event.Reason,
 		CreatedAt:        &eventCreatedAt,
 		Details:          getDetailsFromEvent(obj),
 		ExternalChangeID: string(obj.GetUID()),
-		ExternalID:       uid,
-		ExternalType:     ExternalTypePrefix + involvedObjectKind,
-		Severity:         getSeverityFromReason(reason, severityKeywords.Error, severityKeywords.Warn),
+		ExternalID:       event.InvolvedObject.UID,
+		ExternalType:     ExternalTypePrefix + event.InvolvedObject.Kind,
+		Severity:         getSeverityFromReason(event.Reason, severityKeywords.Error, severityKeywords.Warn),
 		Source:           getSourceFromEvent(obj),
-		Summary:          message,
+		Summary:          event.Message,
 	}
 }
