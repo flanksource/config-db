@@ -35,7 +35,15 @@ func RunScraper(scraper v1.ConfigScraper) error {
 		return fmt.Errorf("failed to update db: %v", dbErr)
 	}
 
-	if scraperErr != nil && dbErr != nil && len(results) > 0 {
+	// If error in any of the scrape results, don't delete old items
+	var errInResults = false
+	for _, r := range results {
+		if r.Error != nil {
+			errInResults = true
+			break
+		}
+	}
+	if scraperErr != nil && dbErr != nil && len(results) > 0 && !errInResults {
 		if err = DeleteStaleConfigItems(id); err != nil {
 			return fmt.Errorf("error deleting stale config items: %v", err)
 		}
