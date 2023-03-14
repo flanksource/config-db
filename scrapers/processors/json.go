@@ -88,7 +88,6 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 				extract.CreatedAt = append(extract.CreatedAt, x)
 			}
 		}
-
 	}
 
 	for _, deletedField := range config.DeleteFields {
@@ -262,8 +261,12 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 		}
 	}
 
+	if input.BaseScraper.TimestampFormat == "" {
+		input.BaseScraper.TimestampFormat = time.RFC3339
+	}
+
 	for _, createdAtSelector := range e.CreatedAt {
-		createdAt, err := getTimestamp(createdAtSelector, input.Config, time.RFC3339)
+		createdAt, err := getTimestamp(createdAtSelector, input.Config, input.BaseScraper.TimestampFormat)
 		if nil == err {
 			input.CreatedAt = &createdAt
 			break
@@ -271,7 +274,7 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 	}
 
 	for _, deletedAtSelector := range e.DeletedAt {
-		deletedAt, err := getTimestamp(deletedAtSelector, input.Config, time.RFC3339)
+		deletedAt, err := getTimestamp(deletedAtSelector, input.Config, input.BaseScraper.TimestampFormat)
 		if nil == err {
 			input.DeletedAt = &deletedAt
 			break
