@@ -43,7 +43,7 @@ func RunScraper(scraper v1.ConfigScraper) error {
 			break
 		}
 	}
-	if scraperErr != nil && dbErr != nil && len(results) > 0 && !errInResults {
+	if scraperErr == nil && dbErr == nil && len(results) > 0 && !errInResults {
 		if err = DeleteStaleConfigItems(id); err != nil {
 			return fmt.Errorf("error deleting stale config items: %v", err)
 		}
