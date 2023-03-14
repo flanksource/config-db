@@ -132,6 +132,10 @@ type BaseScraper struct {
 	Transform Transform `json:"transform,omitempty"`
 	// Format of config item, defaults to JSON, available options are JSON, properties
 	Format string `json:"format,omitempty"`
+	// CreateField is a JSONPath expression used to identify the created time of the config.
+	CreateField string `json:"createField,omitempty"`
+	// DeleteField is a JSONPath expression used to identify the deleted time of the config.
+	DeleteField string `json:"deleteField,omitempty"`
 }
 
 func (base BaseScraper) String() string {

@@ -148,6 +148,10 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 		ci.CreatedAt = *result.CreatedAt
 	}
 
+	if result.DeletedAt != nil {
+		ci.DeletedAt = result.DeletedAt
+	}
+
 	if result.ParentExternalID != "" && result.ParentExternalType != "" {
 		parentExternalID := v1.ExternalID{
 			ExternalType: result.ParentExternalType,

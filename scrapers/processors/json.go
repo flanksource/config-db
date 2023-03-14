@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -26,11 +27,12 @@ type Transform struct {
 }
 
 type Extract struct {
-	ID, Type, Name jp.Expr
-	Items          *jp.Expr
-	Config         v1.BaseScraper
-	Excludes       []jp.Expr
-	Transform      Transform
+	ID, Type, Name       jp.Expr
+	CreatedAt, DeletedAt *jp.Expr
+	Items                *jp.Expr
+	Config               v1.BaseScraper
+	Excludes             []jp.Expr
+	Transform            Transform
 }
 
 func (e Extract) WithoutItems() Extract {
@@ -79,7 +81,20 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 			extract.Items = &x
 		}
 	}
-
+	if isJSONPath(config.CreateField) {
+		if x, err := jp.ParseString(config.CreateField); err != nil {
+			return extract, fmt.Errorf("failed to parse create field: %s: %v", config.CreateField, err)
+		} else {
+			extract.CreatedAt = &x
+		}
+	}
+	if isJSONPath(config.DeleteField) {
+		if x, err := jp.ParseString(config.DeleteField); err != nil {
+			return extract, fmt.Errorf("failed to parse delete field: %s: %v", config.DeleteField, err)
+		} else {
+			extract.DeletedAt = &x
+		}
+	}
 	if isJSONPath(config.Name) {
 		if x, err := jp.ParseString(config.Name); err != nil {
 			return extract, fmt.Errorf("failed to parse name: %s: %v", config.Name, err)
@@ -243,6 +258,24 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 		}
 	}
 
+	if e.CreatedAt != nil {
+		createdAt, err := getTimestamp(*e.CreatedAt, input.Config, time.RFC3339)
+		if err != nil {
+			return input, fmt.Errorf("failed to get created at timestamp: %w", err)
+		}
+
+		input.CreatedAt = &createdAt
+	}
+
+	if e.DeletedAt != nil {
+		deletedAt, err := getTimestamp(*e.DeletedAt, input.Config, time.RFC3339)
+		if err != nil {
+			return input, fmt.Errorf("failed to get deleted at timestamp: %w", err)
+		}
+
+		input.DeletedAt = &deletedAt
+	}
+
 	if input.Name == "" {
 		input.Name = input.ID
 	}
@@ -300,6 +333,20 @@ func (e Extract) applyMask(results []v1.ScrapeResult) ([]v1.ScrapeResult, error)
 	}
 
 	return results, nil
+}
+
+func getTimestamp(expr jp.Expr, data any, timeFormat string) (time.Time, error) {
+	timeStr, err := getString(expr, data, "")
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	parsedTime, err := time.Parse(timeFormat, timeStr)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return parsedTime, nil
 }
 
 func getString(expr jp.Expr, data any, def string) (string, error) {

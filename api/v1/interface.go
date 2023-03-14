@@ -112,6 +112,7 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
 	CreatedAt           *time.Time          `json:"created_at,omitempty"`
+	DeletedAt           *time.Time          `json:"deleted_at,omitempty"`
 	LastModified        time.Time           `json:"last_modified,omitempty"`
 	Type                string              `json:"type,omitempty"`
 	ExternalType        string              `json:"external_type,omitempty"`
