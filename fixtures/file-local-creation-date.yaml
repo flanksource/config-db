@@ -1,7 +1,11 @@
 file:
   - type: $.aws[0].region
     id: $.aws[0].region
-    createField: $.aws[0].made_at
-    deleteField: "$.aws[0].deleted_at"
+    createFields:
+      - $.aws[0].made_at
+      - $.aws[0].created_at
+    deleteFields:
+      - "$.aws[0].removed_at"
+      - "$.aws[0].deleted_at"
     paths:
       - fixtures/data/test.yaml

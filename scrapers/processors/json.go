@@ -28,7 +28,7 @@ type Transform struct {
 
 type Extract struct {
 	ID, Type, Name       jp.Expr
-	CreatedAt, DeletedAt *jp.Expr
+	CreatedAt, DeletedAt []jp.Expr
 	Items                *jp.Expr
 	Config               v1.BaseScraper
 	Excludes             []jp.Expr
@@ -81,20 +81,24 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 			extract.Items = &x
 		}
 	}
-	if isJSONPath(config.CreateField) {
-		if x, err := jp.ParseString(config.CreateField); err != nil {
-			return extract, fmt.Errorf("failed to parse create field: %s: %v", config.CreateField, err)
-		} else {
-			extract.CreatedAt = &x
+
+	for _, createdField := range config.CreateFields {
+		if isJSONPath(createdField) {
+			if x, err := jp.ParseString(createdField); nil == err {
+				extract.CreatedAt = append(extract.CreatedAt, x)
+			}
+		}
+
+	}
+
+	for _, deletedField := range config.DeleteFields {
+		if isJSONPath(deletedField) {
+			if x, err := jp.ParseString(deletedField); nil == err {
+				extract.DeletedAt = append(extract.DeletedAt, x)
+			}
 		}
 	}
-	if isJSONPath(config.DeleteField) {
-		if x, err := jp.ParseString(config.DeleteField); err != nil {
-			return extract, fmt.Errorf("failed to parse delete field: %s: %v", config.DeleteField, err)
-		} else {
-			extract.DeletedAt = &x
-		}
-	}
+
 	if isJSONPath(config.Name) {
 		if x, err := jp.ParseString(config.Name); err != nil {
 			return extract, fmt.Errorf("failed to parse name: %s: %v", config.Name, err)
@@ -258,22 +262,20 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 		}
 	}
 
-	if e.CreatedAt != nil {
-		createdAt, err := getTimestamp(*e.CreatedAt, input.Config, time.RFC3339)
-		if err != nil {
-			return input, fmt.Errorf("failed to get created at timestamp: %w", err)
+	for _, createdAtSelector := range e.CreatedAt {
+		createdAt, err := getTimestamp(createdAtSelector, input.Config, time.RFC3339)
+		if nil == err {
+			input.CreatedAt = &createdAt
+			break
 		}
-
-		input.CreatedAt = &createdAt
 	}
 
-	if e.DeletedAt != nil {
-		deletedAt, err := getTimestamp(*e.DeletedAt, input.Config, time.RFC3339)
-		if err != nil {
-			return input, fmt.Errorf("failed to get deleted at timestamp: %w", err)
+	for _, deletedAtSelector := range e.DeletedAt {
+		deletedAt, err := getTimestamp(deletedAtSelector, input.Config, time.RFC3339)
+		if nil == err {
+			input.DeletedAt = &deletedAt
+			break
 		}
-
-		input.DeletedAt = &deletedAt
 	}
 
 	if input.Name == "" {
