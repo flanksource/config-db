@@ -1,0 +1,17 @@
+file:
+  - type: Config
+    id: "$.id"
+    name: "scraped"
+    transform:
+      script:
+        gotemplate: |+
+          [
+            {
+              {{range $i := .config}}
+                "name-{{.id}}": "hi {{.name}}",
+              {{end}}
+              "id": "1"
+            }
+          ]
+    paths:
+      - fixtures/data/multiple-configs.json
