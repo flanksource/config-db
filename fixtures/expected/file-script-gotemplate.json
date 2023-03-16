@@ -1,0 +1,12 @@
+[
+  {
+    "type": "MyConfig",
+    "name": "scraped",
+    "id": "1",
+    "config": {
+      "name-1": "hi Config1",
+      "name-2": "hi Config2",
+      "id": "1"
+    }
+  }
+]

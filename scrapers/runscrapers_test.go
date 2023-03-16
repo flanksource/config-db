@@ -38,6 +38,7 @@ var _ = Describe("Scrapers test", func() {
 		fixtures := []string{
 			"file-git",
 			"file-script",
+			"file-script-gotemplate",
 			"file-mask",
 		}
 

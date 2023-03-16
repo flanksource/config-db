@@ -14,7 +14,7 @@ type Filter struct {
 }
 
 type Script struct {
-	GoTemplate string `yaml:"gotemplate,omitempty" json:"template,omitempty"`
+	GoTemplate string `yaml:"gotemplate,omitempty" json:"gotemplate,omitempty"`
 	JSONPath   string `yaml:"jsonpath,omitempty" json:"jsonpath,omitempty"`
 	Expression string `yaml:"expr,omitempty" json:"expr,omitempty"`
 	Javascript string `yaml:"javascript,omitempty" json:"javascript,omitempty"`
