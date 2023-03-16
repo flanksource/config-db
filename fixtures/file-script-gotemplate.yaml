@@ -1,5 +1,5 @@
 file:
-  - type: Config
+  - type: MyConfig
     id: "$.id"
     name: "scraped"
     transform:
