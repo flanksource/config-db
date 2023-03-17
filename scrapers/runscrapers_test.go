@@ -38,6 +38,7 @@ var _ = Describe("Scrapers test", func() {
 		fixtures := []string{
 			"file-git",
 			"file-script",
+			"file-script-gotemplate",
 			"file-mask",
 		}
 
@@ -76,11 +77,15 @@ var _ = Describe("Scrapers test", func() {
 
 		It("should create a new config item", func() {
 			config := getConfig("file-car")
-			ctx := &v1.ScrapeContext{}
+			configScraper, err := db.PersistScrapeConfigFromFile(config)
+			Expect(err).To(BeNil())
+
+			ctx := &v1.ScrapeContext{ScraperID: configScraper.ID}
 
 			results, err := Run(ctx, config)
 			Expect(err).To(BeNil())
 
+			logger.Infof("SCRAPER ID: %s", configScraper.ID)
 			err = db.SaveResults(ctx, results)
 			Expect(err).To(BeNil())
 

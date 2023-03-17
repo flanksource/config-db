@@ -181,6 +181,8 @@ spec:
                           type: array
                         expr:
                           type: string
+                        gotemplate:
+                          type: string
                         include:
                           items:
                             properties:
@@ -212,8 +214,6 @@ spec:
                                 type: string
                             type: object
                           type: array
-                        template:
-                          type: string
                       type: object
                     trusted_advisor_check:
                       type: boolean
@@ -302,6 +302,8 @@ spec:
                           type: array
                         expr:
                           type: string
+                        gotemplate:
+                          type: string
                         include:
                           items:
                             properties:
@@ -333,8 +335,6 @@ spec:
                                 type: string
                             type: object
                           type: array
-                        template:
-                          type: string
                       type: object
                     type:
                       description: A static value or JSONPath expression to use as
@@ -391,6 +391,8 @@ spec:
                           type: array
                         expr:
                           type: string
+                        gotemplate:
+                          type: string
                         include:
                           items:
                             properties:
@@ -422,8 +424,6 @@ spec:
                                 type: string
                             type: object
                           type: array
-                        template:
-                          type: string
                       type: object
                     type:
                       description: A static value or JSONPath expression to use as
@@ -547,6 +547,8 @@ spec:
                           type: array
                         expr:
                           type: string
+                        gotemplate:
+                          type: string
                         include:
                           items:
                             properties:
@@ -578,8 +580,6 @@ spec:
                                 type: string
                             type: object
                           type: array
-                        template:
-                          type: string
                       type: object
                     type:
                       description: A static value or JSONPath expression to use as
@@ -645,6 +645,8 @@ spec:
                           type: array
                         expr:
                           type: string
+                        gotemplate:
+                          type: string
                         include:
                           items:
                             properties:
@@ -676,8 +678,6 @@ spec:
                                 type: string
                             type: object
                           type: array
-                        template:
-                          type: string
                       type: object
                     type:
                       description: A static value or JSONPath expression to use as
@@ -801,6 +801,8 @@ spec:
                           type: array
                         expr:
                           type: string
+                        gotemplate:
+                          type: string
                         include:
                           items:
                             properties:
@@ -832,8 +834,6 @@ spec:
                                 type: string
                             type: object
                           type: array
-                        template:
-                          type: string
                       type: object
                     type:
                       description: A static value or JSONPath expression to use as

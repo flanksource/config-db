@@ -9,8 +9,9 @@ import (
 
 type ConfigScraper struct {
 	ID          uuid.UUID `json:"id,omitempty"`
+	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
-	ScraperType string    `json:"scraper_type,omitempty"`
+	ScraperType string    `json:"scraper_type,omitempty" gorm:"-"`
 	Spec        string    `json:"spec,omitempty"`
 }
 

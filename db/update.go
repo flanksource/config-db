@@ -94,6 +94,7 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 	}
 
 	ci.ID = existing.ID
+	ci.DeletedAt = existing.DeletedAt
 	if err := UpdateConfigItem(&ci); err != nil {
 		if err := CreateConfigItem(&ci); err != nil {
 			return fmt.Errorf("[%s] failed to update item %v", ci, err)
@@ -182,6 +183,7 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 				return errors.Wrapf(err, "unable to create config item: %s", result)
 			}
 
+			ci.ScraperID = &ctx.ScraperID
 			if err := updateCI(ctx, *ci); err != nil {
 				return err
 			}
