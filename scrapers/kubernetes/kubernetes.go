@@ -2,8 +2,10 @@ package kubernetes
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
+	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -114,7 +116,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				Type:                obj.GetKind(),
 				ExternalType:        ExternalTypePrefix + obj.GetKind(),
 				CreatedAt:           &createdAt,
-				Config:              obj.Object,
+				Config:              cleanKubernetesObject(obj.Object),
 				ID:                  string(obj.GetUID()),
 				Tags:                stripLabels(convertStringInterfaceMapToStringMap(tags), "-hash"),
 				Aliases:             getKubernetesAlias(obj),
@@ -213,4 +215,20 @@ func getResourceIDsFromObjs(objs []*unstructured.Unstructured) map[string]map[st
 	}
 
 	return resourceIDMap
+}
+
+//nolint:errcheck
+func cleanKubernetesObject(obj map[string]any) string {
+	o := gabs.Wrap(obj)
+	o.Delete("metadata", "generation")
+	o.Delete("metadata", "resourceVersion")
+	o.Delete("metadata", "annotations", "control-plane.alpha.kubernetes.io/leader")
+	o.Delete("status", "artifact", "lastUpdateTime")
+
+	c, _ := o.ArrayCount("status", "conditions")
+	for i := 0; i < c; i += 1 {
+		o.Delete("status", "conditions", strconv.Itoa(i), "lastTransitionTime")
+		o.Delete("status", "conditions", strconv.Itoa(i), "lastHeartbeatTime")
+	}
+	return o.String()
 }
