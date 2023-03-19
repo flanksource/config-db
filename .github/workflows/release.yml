@@ -71,13 +71,10 @@ jobs:
           wget -nv -nc -O yq https://github.com/mikefarah/yq/releases/download/v4.20.2/yq_linux_amd64
           chmod +x yq
       - name: Set version
+        # Always use git tags as semantic release can fail due to rate limit
         run: |
-          if ${{ needs.semantic-release.outputs.new-release-published }}; then
-            echo "RELEASE_VERSION=${{ needs.semantic-release.outputs.release-version }}" >> $GITHUB_ENV
-          else
-            export VERSION=$(git describe --abbrev=0 --tags | sed -e 's/^v//')
-            echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
-          fi
+          git fetch --prune --unshallow
+          echo "RELEASE_VERSION=$(git describe --abbrev=0 --tags | sed -e 's/^v//')" >> $GITHUB_ENV
       - name: Update chart version
         run: ./yq -i e '.version = "${{ env.RELEASE_VERSION }}"' chart/Chart.yaml
       - name: Update app version
