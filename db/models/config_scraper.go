@@ -11,12 +11,14 @@ type ConfigScraper struct {
 	ID          uuid.UUID `json:"id,omitempty"`
 	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
-	ScraperType string    `json:"scraper_type,omitempty" gorm:"-"`
 	Spec        string    `json:"spec,omitempty"`
 }
 
 func (cs ConfigScraper) V1ConfigScraper() (v1.ConfigScraper, error) {
 	var spec v1.ConfigScraper
-	err := json.Unmarshal([]byte(cs.Spec), &spec)
-	return spec, err
+	if err := json.Unmarshal([]byte(cs.Spec), &spec); err != nil {
+		return spec, err
+	}
+	spec.ID = cs.ID.String()
+	return spec, nil
 }
