@@ -1,6 +1,8 @@
- aws:
- -  region: eu-west-1
+aws:
+  - region: eu-west-1
     compliance: true
     patch_states: true
     patch_details: true
     inventory: true
+    made_at: "2017-03-06T21:04:11Z"
+    deleted_at: "2017-04-04T15:04:05Z"

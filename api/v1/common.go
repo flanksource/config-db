@@ -132,6 +132,19 @@ type BaseScraper struct {
 	Transform Transform `json:"transform,omitempty"`
 	// Format of config item, defaults to JSON, available options are JSON, properties
 	Format string `json:"format,omitempty"`
+
+	// TimestampFormat is a Go time format string used to
+	// parse timestamps in createFields and DeletedFields.
+	// If not specified, the default is RFC3339.
+	TimestampFormat string `json:"timestampFormat,omitempty"`
+
+	// CreateFields is a list of JSONPath expression used to identify the created time of the config.
+	// If multiple fields are specified, the first non-empty value will be used.
+	CreateFields []string `json:"createFields,omitempty"`
+
+	// DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+	// If multiple fields are specified, the first non-empty value will be used.
+	DeleteFields []string `json:"deleteFields,omitempty"`
 }
 
 func (base BaseScraper) String() string {

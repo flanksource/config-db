@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -26,11 +27,12 @@ type Transform struct {
 }
 
 type Extract struct {
-	ID, Type, Name jp.Expr
-	Items          *jp.Expr
-	Config         v1.BaseScraper
-	Excludes       []jp.Expr
-	Transform      Transform
+	ID, Type, Name       jp.Expr
+	CreatedAt, DeletedAt []jp.Expr
+	Items                *jp.Expr
+	Config               v1.BaseScraper
+	Excludes             []jp.Expr
+	Transform            Transform
 }
 
 func (e Extract) WithoutItems() Extract {
@@ -77,6 +79,22 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 			return extract, fmt.Errorf("failed to parse items: %s: %v", config.Items, err)
 		} else {
 			extract.Items = &x
+		}
+	}
+
+	for _, createdField := range config.CreateFields {
+		if isJSONPath(createdField) {
+			if x, err := jp.ParseString(createdField); nil == err {
+				extract.CreatedAt = append(extract.CreatedAt, x)
+			}
+		}
+	}
+
+	for _, deletedField := range config.DeleteFields {
+		if isJSONPath(deletedField) {
+			if x, err := jp.ParseString(deletedField); nil == err {
+				extract.DeletedAt = append(extract.DeletedAt, x)
+			}
 		}
 	}
 
@@ -243,6 +261,26 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 		}
 	}
 
+	if input.BaseScraper.TimestampFormat == "" {
+		input.BaseScraper.TimestampFormat = time.RFC3339
+	}
+
+	for _, createdAtSelector := range e.CreatedAt {
+		createdAt, err := getTimestamp(createdAtSelector, input.Config, input.BaseScraper.TimestampFormat)
+		if nil == err {
+			input.CreatedAt = &createdAt
+			break
+		}
+	}
+
+	for _, deletedAtSelector := range e.DeletedAt {
+		deletedAt, err := getTimestamp(deletedAtSelector, input.Config, input.BaseScraper.TimestampFormat)
+		if nil == err {
+			input.DeletedAt = &deletedAt
+			break
+		}
+	}
+
 	if input.Name == "" {
 		input.Name = input.ID
 	}
@@ -300,6 +338,20 @@ func (e Extract) applyMask(results []v1.ScrapeResult) ([]v1.ScrapeResult, error)
 	}
 
 	return results, nil
+}
+
+func getTimestamp(expr jp.Expr, data any, timeFormat string) (time.Time, error) {
+	timeStr, err := getString(expr, data, "")
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	parsedTime, err := time.Parse(timeFormat, timeStr)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return parsedTime, nil
 }
 
 func getString(expr jp.Expr, data any, def string) (string, error) {
