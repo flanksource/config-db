@@ -9,7 +9,6 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
-	"github.com/flanksource/config-db/utils"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"

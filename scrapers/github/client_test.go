@@ -46,7 +46,7 @@ func TestGetWorkFlows(t *testing.T) {
 
 func TestGetWorkFlowRuns(t *testing.T) {
 	for _, workflow := range workflows {
-		_, err := client.GetWorkflowRuns(workflow.ID)
+		_, err := client.GetWorkflowRuns(workflow.ID, 1)
 		if err != nil {
 			t.Fatalf("error was not expected %v", err)
 		}
