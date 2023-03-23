@@ -2,8 +2,10 @@ package github
 
 import (
 	"fmt"
+	"math"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/utils"
 )
 
@@ -32,49 +34,69 @@ func (gh GithubActionsScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigSc
 			if !utils.MatchItems(workflow.Name, config.Workflows...) {
 				continue
 			}
-			fmt.Printf("%v\n", workflow.Name)
-			var uniqueWorkflows = make(map[string]Workflow)
-			fmt.Printf("\t->%v\n", workflow.Name)
-
-			runs, err := client.GetWorkflowRuns(workflow.ID)
+			runs, err := getNewWorkflowRuns(client, workflow)
 			if err != nil {
-				results.Errorf(err, "failed to get workflow runs for %d/%s", workflow.ID, workflow.Name)
+				results.Errorf(err, "failed to get workflow runs for %s", workflow.GetID())
 				continue
 			}
-			var id string
-			var _workflow Workflow
-			for _, run := range runs {
-				id = workflow.GetID()
-				if _, ok := uniqueWorkflows[id]; !ok {
-					uniqueWorkflows[id] = workflow
-				} else {
-					_workflow = uniqueWorkflows[id]
-				}
-				workflow.Runs = append(workflow.Runs, v1.ChangeResult{
-					ChangeType:       "Dispatch",
-					CreatedAt:        &run.CreatedAt,
-					Severity:         run.Conclusion.(string),
-					ExternalID:       id,
-					ExternalType:     WorkflowRun,
-					Source:           run.Event,
-					Details:          v1.NewJSON(run),
-					ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.Name, workflow.ID, run.ID),
-				})
-				uniqueWorkflows[id] = _workflow
-			}
-
-			for id, workflow := range uniqueWorkflows {
-				results = append(results, v1.ScrapeResult{
-					Type:         "Deployment",
-					Config:       workflow,
-					ExternalType: WorkflowRun,
-					ID:           id,
-					Name:         workflow.Name,
-					Changes:      workflow.Runs,
-					Aliases:      []string{fmt.Sprintf("%s/%d", workflow.Name, workflow.ID)},
-				})
-			}
+			results = append(results, v1.ScrapeResult{
+				Type:         "GithubWorkflow",
+				Config:       workflow,
+				ExternalType: WorkflowRun,
+				ID:           workflow.GetID(),
+				Name:         workflow.Name,
+				Changes:      runs,
+				Aliases:      []string{fmt.Sprintf("%s/%d", workflow.Name, workflow.ID)},
+			})
 		}
 	}
 	return results
+}
+
+func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.ChangeResult, error) {
+	runs, err := client.GetWorkflowRuns(workflow.ID, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	var allRuns []v1.ChangeResult
+	for _, run := range runs.Value {
+		allRuns = append(allRuns, v1.ChangeResult{
+			ChangeType:       "GithubWorkflowRun",
+			CreatedAt:        &run.CreatedAt,
+			Severity:         run.Conclusion.(string),
+			ExternalID:       workflow.GetID(),
+			ExternalType:     WorkflowRun,
+			Source:           run.Event,
+			Details:          v1.NewJSON(run),
+			ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.Name, workflow.ID, run.ID),
+		})
+	}
+
+	// Get total runs from DB for that workflow
+	totalRunsInDB, err := db.GetWorkflowRunCount(workflow.GetID())
+	if err != nil {
+		return nil, err
+	}
+	delta := runs.Count - totalRunsInDB
+	pagesToFetch := int(math.Ceil(float64(delta) / 100))
+	for page := 2; page <= pagesToFetch; page += 1 {
+		runs, err := client.GetWorkflowRuns(workflow.ID, page)
+		if err != nil {
+			return nil, err
+		}
+		for _, run := range runs.Value {
+			allRuns = append(allRuns, v1.ChangeResult{
+				ChangeType:       "GithubWorkflowRun",
+				CreatedAt:        &run.CreatedAt,
+				Severity:         run.Conclusion.(string),
+				ExternalID:       workflow.GetID(),
+				ExternalType:     WorkflowRun,
+				Source:           run.Event,
+				Details:          v1.NewJSON(run),
+				ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.Name, workflow.ID, run.ID),
+			})
+		}
+	}
+	return allRuns, nil
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/config-db/utils"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
@@ -133,7 +134,13 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	case []byte:
 		dataStr = string(data)
 	default:
-		dataStr = oj.JSON(data, &oj.Options{Sort: true, OmitNil: true, Indent: 2, TimeFormat: "2006-01-02T15:04:05Z07:00"})
+		dataStr = oj.JSON(data, &oj.Options{
+			Sort:       true,
+			OmitNil:    true,
+			Indent:     2,
+			TimeFormat: "2006-01-02T15:04:05Z07:00",
+			UseTags:    true,
+		})
 	}
 
 	ci := &models.ConfigItem{

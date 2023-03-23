@@ -1,0 +1,5 @@
+githubActions:
+  - owner: flanksource
+    repository: config-db
+    personalAccessToken:
+      value: <pat>

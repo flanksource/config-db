@@ -38,7 +38,7 @@ require (
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/labstack/echo/v4 v4.6.3
 	github.com/lib/pq v1.10.7
-	github.com/ohler55/ojg v1.14.3
+	github.com/ohler55/ojg v1.18.1
 	github.com/oklog/ulid/v2 v2.0.2
 	github.com/onsi/ginkgo/v2 v2.7.0
 	github.com/onsi/gomega v1.24.1

@@ -170,7 +170,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			}
 		default:
 			opts := oj.Options{OmitNil: true, Sort: true, UseTags: true}
-			parsedConfig, err = oj.ParseString(oj.JSON(v, opts))
+			parsedConfig, err = oj.ParseString(oj.JSON(v, &opts))
 			if err != nil {
 				return results, fmt.Errorf("failed to parse json: %v", err)
 			}

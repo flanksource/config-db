@@ -12,7 +12,7 @@ var testGithubApiClient = func() (*GitHubActionsClient, error) {
 	textCtx := new(v1.ScrapeContext)
 	ghToken := os.Getenv("GH_ACCESS_TOKEN")
 	testGh := v1.GitHubActions{
-		Owner:               "basebandit",
+		Owner:               "flanksource",
 		Repository:          "config-db",
 		PersonalAccessToken: kommons.EnvVar{Value: ghToken},
 	}
