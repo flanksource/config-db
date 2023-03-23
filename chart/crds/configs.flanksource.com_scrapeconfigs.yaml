@@ -437,6 +437,126 @@ spec:
                 description: Full flag when set will try to extract out changes from
                   the scraped config.
                 type: boolean
+              githubActions:
+                items:
+                  properties:
+                    format:
+                      description: Format of config item, defaults to JSON, available
+                        options are JSON, properties
+                      type: string
+                    id:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    items:
+                      description: A JSONPath expression to use to extract individual
+                        items from the resource, items are extracted first and then
+                        the ID,Name,Type and transformations are applied for each
+                        item.
+                      type: string
+                    name:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    owner:
+                      type: string
+                    personalAccessToken:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                          type: object
+                      type: object
+                    repository:
+                      type: string
+                    transform:
+                      properties:
+                        exclude:
+                          description: Fields to remove from the config, useful for
+                            removing sensitive data and fields that change often without
+                            a material impact i.e. Last Scraped Time
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        expr:
+                          type: string
+                        gotemplate:
+                          type: string
+                        include:
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        javascript:
+                          type: string
+                        jsonpath:
+                          type: string
+                        mask:
+                          description: Masks consist of configurations to replace
+                            sensitive fields with hash functions or static string.
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                              selector:
+                                properties:
+                                  type:
+                                    description: Type is the config type to apply
+                                      the mask
+                                    type: string
+                                type: object
+                              value:
+                                description: Value can be a hash function name or
+                                  just a string
+                                type: string
+                            type: object
+                          type: array
+                      type: object
+                    type:
+                      description: A static value or JSONPath expression to use as
+                        the type for the resource.
+                      type: string
+                    workflows:
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - owner
+                  - personalAccessToken
+                  - repository
+                  - workflows
+                  type: object
+                type: array
               kubernetes:
                 items:
                   properties:
