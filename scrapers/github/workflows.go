@@ -64,7 +64,7 @@ func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.Ch
 		allRuns = append(allRuns, v1.ChangeResult{
 			ChangeType:       "GithubWorkflowRun",
 			CreatedAt:        &run.CreatedAt,
-			Severity:         run.Conclusion.(string),
+			Severity:         fmt.Sprint(run.Conclusion),
 			ExternalID:       workflow.GetID(),
 			ExternalType:     WorkflowRun,
 			Source:           run.Event,
