@@ -80,7 +80,7 @@ var _ = Describe("Scrapers test", func() {
 			configScraper, err := db.PersistScrapeConfigFromFile(config)
 			Expect(err).To(BeNil())
 
-			ctx := &v1.ScrapeContext{ScraperID: configScraper.ID}
+			ctx := &v1.ScrapeContext{ScraperID: &configScraper.ID}
 
 			results, err := Run(ctx, config)
 			Expect(err).To(BeNil())

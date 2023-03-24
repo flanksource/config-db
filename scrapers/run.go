@@ -23,7 +23,7 @@ func RunScraper(scraper v1.ConfigScraper) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse uuid[%s]: %v", scraper.ID, err)
 	}
-	ctx := &v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &scraper, ScraperID: id}
+	ctx := &v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient, Scraper: &scraper, ScraperID: &id}
 	var results []v1.ScrapeResult
 	var scraperErr, dbErr error
 	if results, scraperErr = Run(ctx, scraper); scraperErr != nil {

@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/aws"
 	"github.com/flanksource/config-db/scrapers/azure/devops"
 	"github.com/flanksource/config-db/scrapers/file"
+	"github.com/flanksource/config-db/scrapers/github"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/scrapers/sql"
 	"github.com/flanksource/kommons"
@@ -21,6 +22,7 @@ var All = []v1.Scraper{
 	kubernetes.KubernetesScraper{},
 	kubernetes.KubernetesFileScraper{},
 	devops.AzureDevopsScraper{},
+	github.GithubActionsScraper{},
 	sql.SqlScraper{},
 }
 

@@ -214,7 +214,7 @@ type ScrapeContext struct {
 	Namespace string
 	Kommons   *kommons.Client
 	Scraper   *ConfigScraper
-	ScraperID uuid.UUID
+	ScraperID *uuid.UUID
 }
 
 func (ctx ScrapeContext) Find(path string) ([]string, error) {

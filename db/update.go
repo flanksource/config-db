@@ -183,7 +183,7 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 				return errors.Wrapf(err, "unable to create config item: %s", result)
 			}
 
-			ci.ScraperID = &ctx.ScraperID
+			ci.ScraperID = ctx.ScraperID
 			if err := updateCI(ctx, *ci); err != nil {
 				return err
 			}

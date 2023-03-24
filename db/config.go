@@ -133,7 +133,13 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	case []byte:
 		dataStr = string(data)
 	default:
-		dataStr = oj.JSON(data, &oj.Options{Sort: true, OmitNil: true, Indent: 2, TimeFormat: "2006-01-02T15:04:05Z07:00"})
+		dataStr = oj.JSON(data, &oj.Options{
+			Sort:       true,
+			OmitNil:    true,
+			Indent:     2,
+			TimeFormat: "2006-01-02T15:04:05Z07:00",
+			UseTags:    true,
+		})
 	}
 
 	ci := &models.ConfigItem{
