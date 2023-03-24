@@ -13,7 +13,9 @@ type AzureDevops struct {
 }
 type Azure struct {
 	BaseScraper    `json:",inline"`
-	SubscriptionId string   `yaml:"subscriptionId" json:"subscriptionId"`
-	Organisation   string   `yaml:"organisation" json:"organisation"`
-	Region         []string `yaml:"region" json:"region"`
+	SubscriptionID string         `yaml:"subscriptionID" json:"subscriptionID"`
+	Organisation   string         `yaml:"organisation" json:"organisation"`
+	ClientID       kommons.EnvVar `yaml:"clientID,omitempty" json:"clientID,omitempty"`
+	ClientSecret   kommons.EnvVar `yaml:"clientSecret,omitempty" json:"clientSecret,omitempty"`
+	TenantID       string         `yaml:"tenantID" json:"tenantID"`
 }
