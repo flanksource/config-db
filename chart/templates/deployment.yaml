@@ -15,13 +15,6 @@ spec:
         {{- include "config-db.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "config-db.name" . }}-sa
-      volumes:
-        {{- range .Values.scrapeRuleConfigMaps }}
-        - name: {{.}}
-          configMap:
-            name: {{.}}
-            optional: true
-        {{- end }}
       containers:
         - name: {{ include "config-db.name" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -44,19 +37,11 @@ spec:
             periodSeconds: 10
             successThreshold: 1
             timeoutSeconds: 1
-          volumeMounts:
-            {{- range .Values.scrapeRuleConfigMaps }}
-            - mountPath: /config/{{.}}
-              name: {{.}}
-            {{- end }}
           command:
             - /app/config-db
           args:
-            - serve
+            - operator
             - -v
-            {{- range .Values.scrapeRuleConfigMaps }}
-            - /config/{{.}}/config.yaml
-            {{- end }}
             - --disable-postgrest={{ .Values.disablePostgrest }}
           env:
             - name: DB_URL

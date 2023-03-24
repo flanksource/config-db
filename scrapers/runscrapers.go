@@ -24,7 +24,11 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	for _, config := range configs {
 		for _, scraper := range All {
 			jobHistory := models.JobHistory{
-				Name: fmt.Sprintf("scraper:%T", scraper),
+				Name:         fmt.Sprintf("scraper:%T", scraper),
+				ResourceType: "config_scraper",
+			}
+			if ctx.ScraperID != nil {
+				jobHistory.ResourceID = ctx.ScraperID.String()
 			}
 			jobHistory.Start()
 
