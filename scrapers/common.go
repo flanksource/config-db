@@ -19,7 +19,6 @@ import (
 var All = []v1.Scraper{
 	azure.Scraper{},
 	aws.Scraper{},
-	aws.Scraper{},
 	aws.CostScraper{},
 	file.FileScraper{},
 	kubernetes.KubernetesScraper{},
