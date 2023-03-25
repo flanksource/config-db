@@ -26,9 +26,6 @@ type Scraper struct {
 func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, config := range configs.Azure {
-		// Build credential. AZURE_CLIENT_ID, AZURE_CLIENT_SECRET and AZURE_TENANT_ID environment variables must be
-		//set for this to work.
-
 		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID.Value, config.ClientSecret.Value, nil)
 		if err != nil {
 			logger.Fatalf(errors.Verbose(err))
@@ -39,23 +36,13 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		azure.cred = cred
 
 		results = append(results, azure.fetchResourceGroups()...)
-
 		results = append(results, azure.fetchVirtualMachines()...)
-
 		results = append(results, azure.fetchLoadBalancers()...)
-
 		results = append(results, azure.fetchVirtualNetworks()...)
-
 		results = append(results, azure.fetchContainerRegistries()...)
-
 		results = append(results, azure.fetchFirewalls()...)
-
 		results = append(results, azure.fetchDatabases()...)
-
 		results = append(results, azure.fetchK8s()...)
-
-		logger.Debugf("azure scraper", "status", "complete", config.SubscriptionID)
-
 	}
 	return results
 
@@ -84,11 +71,12 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
-				BaseScraper: azure.config.BaseScraper,
-				Type:        *v.Type,
-				ID:          *v.ID,
-				Name:        *v.Name,
-				Config:      v,
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           *v.ID,
+				Name:         *v.Name,
+				Config:       v,
+				Type:         "RelationalDatabase",
+				ExternalType: *v.Type,
 			})
 		}
 	}
@@ -111,11 +99,12 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
-				BaseScraper: azure.config.BaseScraper,
-				Type:        *v.Type,
-				ID:          *v.ID,
-				Name:        *v.Name,
-				Config:      v,
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           *v.ID,
+				Name:         *v.Name,
+				Config:       v,
+				Type:         "KubernetesCluster",
+				ExternalType: *v.Type,
 			})
 		}
 	}
