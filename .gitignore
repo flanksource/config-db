@@ -7,3 +7,7 @@ scraped/
 
 .config-db
 cover.out
+
+# Private fixtures (contains secret credentials)
+fixtures/.*yaml
+fixtures/.*yml

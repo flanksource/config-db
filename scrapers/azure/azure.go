@@ -270,6 +270,7 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           *v.ID,
 				Name:         *v.Name,
+				Config:       v,
 				Type:         "ResourceGroup",
 				ExternalType: *v.Type,
 			})
