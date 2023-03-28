@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -73,11 +74,11 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           strings.ToLower(deref(v.ID)),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "RelationalDatabase",
-				ExternalType: *v.Type,
+				ExternalType: strings.ToUpper(deref(v.Type)),
 			})
 		}
 	}
@@ -101,11 +102,11 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           strings.ToLower(deref(v.ID)),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "KubernetesCluster",
-				ExternalType: *v.Type,
+				ExternalType: strings.ToUpper(deref(v.Type)),
 			})
 		}
 	}
@@ -129,11 +130,11 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           strings.ToLower(deref(v.ID)),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "Firewall",
-				ExternalType: *v.Type,
+				ExternalType: strings.ToUpper(deref(v.Type)),
 			})
 		}
 	}
@@ -157,11 +158,11 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           strings.ToLower(deref(v.ID)),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "ContainerRegistry",
-				ExternalType: *v.Type,
+				ExternalType: strings.ToUpper(deref(v.Type)),
 			})
 		}
 	}
@@ -185,11 +186,11 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           strings.ToLower(deref(v.ID)),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "VirtualNetwork",
-				ExternalType: *v.Type,
+				ExternalType: strings.ToUpper(deref(v.Type)),
 			})
 		}
 	}
@@ -213,11 +214,11 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           strings.ToLower(deref(v.ID)),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "LoadBalancer",
-				ExternalType: *v.Type,
+				ExternalType: strings.ToUpper(deref(v.Type)),
 			})
 
 		}
@@ -241,11 +242,11 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           strings.ToLower(deref(v.ID)),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "VirtualMachine",
-				ExternalType: *v.Type,
+				ExternalType: strings.ToUpper(deref(v.Type)),
 			})
 		}
 	}
@@ -269,11 +270,11 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           strings.ToLower(deref(v.ID)),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "ResourceGroup",
-				ExternalType: *v.Type,
+				ExternalType: strings.ToUpper(deref(v.Type)),
 			})
 		}
 	}

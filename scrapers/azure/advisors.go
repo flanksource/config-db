@@ -23,13 +23,19 @@ func (azure Scraper) fetchAdvisorAnalysis() v1.ScrapeResults {
 			return v1.ScrapeResults{v1.ScrapeResult{Error: fmt.Errorf("failed to read advisor page: %w", err)}}
 		}
 
-		for _, check := range nextPage.Value {
-			externalType := check.Properties.ImpactedField
-			analysis := results.Analysis(deref(check.Name), deref(externalType), deref(check.ID))
-			analysis.Severity = mapSeverity(check.Properties.Impact)
-			analysis.AnalysisType = mapAnalysisType(check.Properties.Category)
-			analysis.Message(deref(check.Properties.Description))
-			analysis.Analysis = getMetadata(check.Properties.Metadata)
+		for _, recommendation := range nextPage.Value {
+			externalID := getResourceID(recommendation.Properties.ResourceMetadata)
+			if externalID == "" {
+				logger.Warnf("failed to get resource id for recommendation: %v", recommendation)
+				continue
+			}
+
+			externalType := recommendation.Properties.ImpactedField
+			analysis := results.Analysis(deref(recommendation.Type), deref(externalType), externalID)
+			analysis.Severity = mapSeverity(recommendation.Properties.Impact)
+			analysis.AnalysisType = mapAnalysisType(recommendation.Properties.Category)
+			analysis.Message(deref(recommendation.Properties.Description))
+			analysis.Analysis = getMetadata(recommendation.Properties.Metadata)
 		}
 	}
 
@@ -53,6 +59,14 @@ func getMetadata(input map[string]any) map[string]string {
 	}
 
 	return metadata
+}
+
+func getResourceID(input *armadvisor.ResourceMetadata) string {
+	if input == nil {
+		return ""
+	}
+
+	return deref(input.ResourceID)
 }
 
 func mapAnalysisType(impactLevel *armadvisor.Category) string {
