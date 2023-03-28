@@ -43,9 +43,10 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchFirewalls()...)
 		results = append(results, azure.fetchDatabases()...)
 		results = append(results, azure.fetchK8s()...)
+		results = append(results, azure.fetchAdvisorAnalysis()...)
 	}
-	return results
 
+	return results
 }
 
 // fetchDatabases gets all databases in a subscription.
