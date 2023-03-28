@@ -35,8 +35,8 @@ require (
 	github.com/dop251/goja v0.0.0-20221229151140-b95230a9dbad
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.19.0
-	github.com/flanksource/commons v1.6.3
-	github.com/flanksource/duty v1.0.34
+	github.com/flanksource/commons v1.6.4
+	github.com/flanksource/duty v1.0.44
 	github.com/flanksource/ketall v1.1.1
 	github.com/flanksource/kommons v0.31.1
 	github.com/go-logr/zapr v1.2.3
@@ -59,7 +59,7 @@ require (
 	github.com/xo/dburl v0.12.4
 	gopkg.in/flanksource/yaml.v3 v3.2.0
 	gopkg.in/yaml.v3 v3.0.1
-	gorm.io/gorm v1.24.6
+	gorm.io/gorm v1.24.7-0.20230306060331-85eaf9eeda11
 	k8s.io/apimachinery v0.26.0
 	k8s.io/client-go v0.26.0
 	sigs.k8s.io/controller-runtime v0.14.1
@@ -67,7 +67,7 @@ require (
 )
 
 require (
-	ariga.io/atlas v0.9.1 // indirect
+	ariga.io/atlas v0.10.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.1.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
@@ -82,7 +82,7 @@ require (
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang-sql/sqlexp v0.0.0-20170517235910-f1bb20e5a188 // indirect
 	github.com/gomarkdown/markdown v0.0.0-20210820032736-385812cbea76 // indirect
-	github.com/hashicorp/hcl/v2 v2.16.1 // indirect
+	github.com/hashicorp/hcl/v2 v2.16.2 // indirect
 	github.com/jackc/puddle/v2 v2.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/liamylian/jsontime/v2 v2.0.0 // indirect
@@ -99,9 +99,9 @@ require (
 	github.com/tidwall/match v1.0.3 // indirect
 	github.com/tidwall/pretty v1.0.2 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
-	github.com/zclconf/go-cty v1.13.0 // indirect
+	github.com/zclconf/go-cty v1.13.1 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
-	gorm.io/driver/postgres v1.4.8 // indirect
+	gorm.io/driver/postgres v1.5.0 // indirect
 	k8s.io/component-base v0.26.0 // indirect
 )
 
@@ -216,7 +216,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/rivo/uniseg v0.4.2 // indirect
-	github.com/rogpeppe/go-internal v1.9.0 // indirect
+	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/spf13/afero v1.9.2 // indirect
