@@ -69,6 +69,7 @@ func getResourceID(input *armadvisor.ResourceMetadata) string {
 	return deref(input.ResourceID)
 }
 
+// mapAnalysisType maps the advisor recommendation category to an analysis type.
 func mapAnalysisType(impactLevel *armadvisor.Category) string {
 	if impactLevel == nil {
 		return "other"
@@ -90,18 +91,19 @@ func mapAnalysisType(impactLevel *armadvisor.Category) string {
 	return string(*impactLevel)
 }
 
+// mapSeverity maps the advisor impact level to a severity.
 func mapSeverity(impactLevel *armadvisor.Impact) string {
 	if impactLevel == nil {
-		return "unknown"
+		return "Unknown"
 	}
 
 	switch *impactLevel {
 	case armadvisor.ImpactHigh:
-		return "critical"
+		return "High"
 	case armadvisor.ImpactMedium:
-		return "warning"
+		return "Medium"
 	default:
-		return "info"
+		return "Low"
 	}
 }
 
