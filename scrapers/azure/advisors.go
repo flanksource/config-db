@@ -71,7 +71,20 @@ func getResourceID(input *armadvisor.ResourceMetadata) string {
 
 func mapAnalysisType(impactLevel *armadvisor.Category) string {
 	if impactLevel == nil {
-		return "unknown"
+		return "other"
+	}
+
+	switch *impactLevel {
+	case armadvisor.CategoryCost:
+		return "cost"
+	case armadvisor.CategoryHighAvailability:
+		return "availability"
+	case armadvisor.CategoryOperationalExcellence:
+		return "recommendation"
+	case armadvisor.CategoryPerformance:
+		return "performance"
+	case armadvisor.CategorySecurity:
+		return "security"
 	}
 
 	return string(*impactLevel)
