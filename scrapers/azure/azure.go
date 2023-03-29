@@ -74,11 +74,11 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           strings.ToLower(deref(v.ID)),
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "RelationalDatabase",
-				ExternalType: strings.ToUpper(deref(v.Type)),
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -102,11 +102,11 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           strings.ToLower(deref(v.ID)),
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "KubernetesCluster",
-				ExternalType: strings.ToUpper(deref(v.Type)),
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -130,11 +130,11 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           strings.ToLower(deref(v.ID)),
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "Firewall",
-				ExternalType: strings.ToUpper(deref(v.Type)),
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -158,11 +158,11 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           strings.ToLower(deref(v.ID)),
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "ContainerRegistry",
-				ExternalType: strings.ToUpper(deref(v.Type)),
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -186,11 +186,11 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           strings.ToLower(deref(v.ID)),
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "VirtualNetwork",
-				ExternalType: strings.ToUpper(deref(v.Type)),
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -214,11 +214,11 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           strings.ToLower(deref(v.ID)),
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "LoadBalancer",
-				ExternalType: strings.ToUpper(deref(v.Type)),
+				ExternalType: getARMType(v.Type),
 			})
 
 		}
@@ -242,11 +242,11 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           strings.ToLower(deref(v.ID)),
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "VirtualMachine",
-				ExternalType: strings.ToUpper(deref(v.Type)),
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -270,13 +270,31 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           strings.ToLower(deref(v.ID)),
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "ResourceGroup",
-				ExternalType: strings.ToUpper(deref(v.Type)),
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
 	return results
+}
+
+// getARMID takes in an ID of a resource group
+// and returns it in a compatible format.
+func getARMID(id *string) string {
+	// Need to lowercase the ID in the config item because
+	// the azure advisor recommendation uses resource id in all lowercase.
+	// This is required to match config analysis with the config item.
+	return strings.ToLower(deref(id))
+}
+
+// getARMType takes in a type of a resource group
+// and returns it in a compatible format.
+func getARMType(rType *string) string {
+	// Need to uppercase the resource type in the config item because
+	// the azure advisor recommendation uses resource type in all uppercase.
+	// This is required to match config analysis with the config item.
+	return strings.ToUpper(deref(rType))
 }
