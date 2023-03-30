@@ -30,10 +30,20 @@ func (azure Scraper) fetchAdvisorAnalysis() v1.ScrapeResults {
 				continue
 			}
 
-			externalType := recommendation.Properties.ImpactedField
-			analysis := results.Analysis(deref(recommendation.Type), deref(externalType), externalID)
+			if recommendation.Properties == nil {
+				logger.Warnf("failed to get properties for recommendation: %v", recommendation)
+				continue
+			}
+
+			externalType := deref(recommendation.Properties.ImpactedField)
+			analysis := results.Analysis(deref(recommendation.Type), externalType, externalID)
 			analysis.Severity = mapSeverity(recommendation.Properties.Impact)
 			analysis.AnalysisType = mapAnalysisType(recommendation.Properties.Category)
+			if recommendation.Properties.ShortDescription != nil {
+				analysis.Summary = deref(recommendation.Properties.ShortDescription.Problem)
+				analysis.Message(deref(recommendation.Properties.ShortDescription.Problem))
+				analysis.Message(deref(recommendation.Properties.ShortDescription.Solution))
+			}
 			analysis.Message(deref(recommendation.Properties.Description))
 			analysis.Analysis = getMetadata(recommendation.Properties.Metadata)
 		}
