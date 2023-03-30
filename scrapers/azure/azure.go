@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -51,6 +52,7 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchStorageAccounts()...)
 		results = append(results, azure.fetchAppServices()...)
 		results = append(results, azure.fetchDNS()...)
+		results = append(results, azure.fetchTrafficManagerProfiles()...)
 	}
 
 	return results
@@ -422,6 +424,38 @@ func (azure Scraper) fetchDNS() v1.ScrapeResults {
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "DNSZone",
+				ExternalType: *v.Type,
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchTrafficManagerProfiles gets traffic manager profiles in a subscription.
+func (azure Scraper) fetchTrafficManagerProfiles() v1.ScrapeResults {
+	logger.Debugf("fetching traffic manager profiles for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armtrafficmanager.NewProfilesClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate traffic manager profile client: %w", err)})
+	}
+
+	pager := client.NewListBySubscriptionPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read traffic manager profile next page: %w", err)})
+		}
+
+		for _, v := range respPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           *v.ID,
+				Name:         *v.Name,
+				Config:       v,
+				Type:         "TrafficManagerProfile",
 				ExternalType: *v.Type,
 			})
 		}
