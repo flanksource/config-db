@@ -285,7 +285,7 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 // and returns it in a compatible format.
 func getARMID(id *string) string {
 	// Need to lowercase the ID in the config item because
-	// the azure advisor recommendation uses resource id in all lowercase.
+	// the azure advisor recommendation uses resource id in all lowercase; not always but most of the time.
 	// This is required to match config analysis with the config item.
 	return strings.ToLower(deref(id))
 }
@@ -294,7 +294,10 @@ func getARMID(id *string) string {
 // and returns it in a compatible format.
 func getARMType(rType *string) string {
 	// Need to uppercase the resource type in the config item because
-	// the azure advisor recommendation uses resource type in all uppercase.
+	// the azure advisor recommendation uses resource type in all uppercase; not always but most of the time.
+	// For example: It returns
+	// - MICROSOFT.COMPUTE/VIRTUALMACHINES (all caps)
+	// - Microsoft.ContainerService/ManagedClusters (case not enforced)
 	// This is required to match config analysis with the config item.
 	return strings.ToUpper(deref(rType))
 }
