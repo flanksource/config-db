@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/subscription/mgmt/subscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
@@ -12,7 +11,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -46,6 +46,7 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchDatabases()...)
 		results = append(results, azure.fetchK8s()...)
 		results = append(results, azure.fetchSubscriptions()...)
+		results = append(results, azure.fetchStorageAccounts()...)
 	}
 
 	return results
@@ -283,6 +284,7 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 		if err != nil {
 			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed reading resource group page: %w", err)})
 		}
+
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
@@ -296,27 +298,24 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 	return results
 }
 
-// fetchSubscriptions gets subscriptions in a subscription.
+// fetchSubscriptions gets Azure subscriptions.
 func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 	logger.Debugf("fetching subscriptions")
-
 	var results v1.ScrapeResults
-	cred := auth.NewClientCredentialsConfig(azure.config.ClientID.Value, azure.config.ClientSecret.Value, azure.config.TenantID)
-	client := subscription.NewSubscriptionsClient()
-	authorizer, err := cred.Authorizer()
+
+	client, err := armsubscription.NewSubscriptionsClient(azure.cred, nil)
 	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate authorizer: %w", err)})
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate subscriptions client: %w", err)})
 	}
 
-	client.Authorizer = authorizer
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read subscription next page: %w", err)})
+		}
 
-	respPage, err := client.List(azure.ctx)
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read subscription page: %w", err)})
-	}
-
-	for respPage.NotDone() {
-		for _, v := range respPage.Values() {
+		for _, v := range respPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           *v.ID,
@@ -326,9 +325,37 @@ func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 				ExternalType: "Subscription",
 			})
 		}
+	}
 
-		if err := respPage.NextWithContext(azure.ctx); err != nil {
-			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to get next subscription page: %w", err)})
+	return results
+}
+
+// fetchStorageAccounts gets storage accounts in a subscription.
+func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
+	logger.Debugf("fetching storage accounts for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+
+	client, err := armstorage.NewAccountsClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate resource group client: %w", err)})
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read storage account next page: %w", err)})
+		}
+		for _, v := range respPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           *v.ID,
+				Name:         *v.Name,
+				Config:       v,
+				Type:         "StorageAccount",
+				ExternalType: *v.Type,
+			})
 		}
 	}
 

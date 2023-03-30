@@ -3,16 +3,15 @@ module github.com/flanksource/config-db
 go 1.19
 
 require (
-	github.com/Azure/azure-sdk-for-go v59.3.0+incompatible
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.3.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry v0.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.0.0
-	github.com/Azure/go-autorest/autorest/azure/auth v0.5.9
-	github.com/AzureAD/microsoft-authentication-library-for-go v0.7.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.0.0
+	github.com/AzureAD/microsoft-authentication-library-for-go v0.8.1
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/antonmedv/expr v1.9.0
 	github.com/aws/aws-sdk-go-v2 v1.16.16
@@ -37,8 +36,8 @@ require (
 	github.com/dop251/goja v0.0.0-20221229151140-b95230a9dbad
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.19.0
-	github.com/flanksource/commons v1.6.3
-	github.com/flanksource/duty v1.0.34
+	github.com/flanksource/commons v1.6.5
+	github.com/flanksource/duty v1.0.44
 	github.com/flanksource/ketall v1.1.1
 	github.com/flanksource/kommons v0.31.1
 	github.com/go-logr/zapr v1.2.3
@@ -59,7 +58,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/uber/athenadriver v1.1.14
 	github.com/xo/dburl v0.12.4
-	gopkg.in/flanksource/yaml.v3 v3.2.0
+	gopkg.in/flanksource/yaml.v3 v3.2.2
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.24.6
 	k8s.io/apimachinery v0.26.0
@@ -69,22 +68,12 @@ require (
 )
 
 require (
-	ariga.io/atlas v0.9.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.1.1 // indirect
-	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
-	github.com/Azure/go-autorest/autorest v0.11.22 // indirect
-	github.com/Azure/go-autorest/autorest/adal v0.9.17 // indirect
-	github.com/Azure/go-autorest/autorest/azure/cli v0.4.2 // indirect
-	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
-	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
-	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
-	github.com/Azure/go-autorest/logger v0.2.1 // indirect
-	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
+	ariga.io/atlas v0.10.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.2.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
-	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.7.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
@@ -123,6 +112,7 @@ require (
 	cloud.google.com/go/iam v0.4.0 // indirect
 	cloud.google.com/go/storage v1.26.0 // indirect
 	github.com/AlekSi/pointer v1.1.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage v1.3.0
 	github.com/DATA-DOG/go-sqlmock v1.5.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
