@@ -16,7 +16,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
-	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
@@ -33,7 +32,8 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 	for _, config := range configs.Azure {
 		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID.Value, config.ClientSecret.Value, nil)
 		if err != nil {
-			logger.Fatalf(errors.Verbose(err))
+			logger.Errorf("failed to create credential: %v", err)
+			continue
 		}
 
 		azure.ctx = context.Background()
