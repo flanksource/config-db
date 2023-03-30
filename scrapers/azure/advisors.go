@@ -40,7 +40,12 @@ func (azure Scraper) fetchAdvisorAnalysis() v1.ScrapeResults {
 			analysis.Severity = mapSeverity(recommendation.Properties.Impact)
 			analysis.AnalysisType = mapAnalysisType(recommendation.Properties.Category)
 			if recommendation.Properties.ShortDescription != nil {
-				analysis.Summary = deref(recommendation.Properties.ShortDescription.Problem)
+				problemDesc := deref(recommendation.Properties.ShortDescription.Problem)
+				if problemDesc != "" {
+					analysis.Analyzer = problemDesc
+				}
+
+				analysis.Summary = problemDesc
 				analysis.Message(deref(recommendation.Properties.ShortDescription.Problem))
 				analysis.Message(deref(recommendation.Properties.ShortDescription.Solution))
 			}
