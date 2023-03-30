@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
@@ -32,7 +33,7 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 	for _, config := range configs.Azure {
 		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID.Value, config.ClientSecret.Value, nil)
 		if err != nil {
-			logger.Errorf("failed to create credential: %v", err)
+			logger.Errorf("failed to create client-secret credential: %v", err)
 			continue
 		}
 
@@ -52,7 +53,10 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchStorageAccounts()...)
 		results = append(results, azure.fetchAppServices()...)
 		results = append(results, azure.fetchDNS()...)
+		results = append(results, azure.fetchPrivateDNSZones()...)
 		results = append(results, azure.fetchTrafficManagerProfiles()...)
+		results = append(results, azure.fetchNetworkSecurityGroups()...)
+		results = append(results, azure.fetchPublicIPAddresses()...)
 	}
 
 	return results
@@ -432,6 +436,38 @@ func (azure Scraper) fetchDNS() v1.ScrapeResults {
 	return results
 }
 
+// fetchPrivateDNSZones gets Azure app services in a subscription.
+func (azure Scraper) fetchPrivateDNSZones() v1.ScrapeResults {
+	logger.Debugf("fetching private DNS zones for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armprivatedns.NewPrivateZonesClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate private DNS zones client: %w", err)})
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		nextPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read private DNS zones page: %w", err)})
+		}
+
+		for _, v := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           *v.ID,
+				Name:         *v.Name,
+				Config:       v,
+				Type:         "PrivateDNSZone",
+				ExternalType: *v.Type,
+			})
+		}
+	}
+
+	return results
+}
+
 // fetchTrafficManagerProfiles gets traffic manager profiles in a subscription.
 func (azure Scraper) fetchTrafficManagerProfiles() v1.ScrapeResults {
 	logger.Debugf("fetching traffic manager profiles for subscription %s", azure.config.SubscriptionID)
@@ -456,6 +492,70 @@ func (azure Scraper) fetchTrafficManagerProfiles() v1.ScrapeResults {
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "TrafficManagerProfile",
+				ExternalType: *v.Type,
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchNetworkSecurityGroups gets network security groups in a subscription.
+func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
+	logger.Debugf("fetching network security groups for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armnetwork.NewSecurityGroupsClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate network security groups client: %w", err)})
+	}
+
+	pager := client.NewListAllPager(nil)
+	for pager.More() {
+		nextPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read network security groups page: %w", err)})
+		}
+
+		for _, v := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           *v.ID,
+				Name:         *v.Name,
+				Config:       v,
+				Type:         "NetworkSecurityGroup",
+				ExternalType: *v.Type,
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchPublicIPAddresses gets Azure public IP addresses in a subscription.
+func (azure Scraper) fetchPublicIPAddresses() v1.ScrapeResults {
+	logger.Debugf("fetching public IP addresses for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armnetwork.NewPublicIPAddressesClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate public IP addresses client: %w", err)})
+	}
+
+	pager := client.NewListAllPager(nil)
+	for pager.More() {
+		nextPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read public IP addresses page: %w", err)})
+		}
+
+		for _, v := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           *v.ID,
+				Name:         *v.Name,
+				Config:       v,
+				Type:         "PublicIPAddress",
 				ExternalType: *v.Type,
 			})
 		}
