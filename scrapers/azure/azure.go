@@ -6,9 +6,11 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
@@ -47,6 +49,8 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchK8s()...)
 		results = append(results, azure.fetchSubscriptions()...)
 		results = append(results, azure.fetchStorageAccounts()...)
+		results = append(results, azure.fetchAppServices()...)
+		results = append(results, azure.fetchDNS()...)
 	}
 
 	return results
@@ -301,8 +305,8 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 // fetchSubscriptions gets Azure subscriptions.
 func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 	logger.Debugf("fetching subscriptions")
-	var results v1.ScrapeResults
 
+	var results v1.ScrapeResults
 	client, err := armsubscription.NewSubscriptionsClient(azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate subscriptions client: %w", err)})
@@ -335,10 +339,9 @@ func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
 	logger.Debugf("fetching storage accounts for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
-
 	client, err := armstorage.NewAccountsClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate resource group client: %w", err)})
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate storage account client: %w", err)})
 	}
 
 	pager := client.NewListPager(nil)
@@ -347,6 +350,7 @@ func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
 		if err != nil {
 			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read storage account next page: %w", err)})
 		}
+
 		for _, v := range respPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
@@ -354,6 +358,70 @@ func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "StorageAccount",
+				ExternalType: *v.Type,
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchAppServices gets Azure app services in a subscription.
+func (azure Scraper) fetchAppServices() v1.ScrapeResults {
+	logger.Debugf("fetching web services for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armappservice.NewWebAppsClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate app services client: %w", err)})
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read app services next page: %w", err)})
+		}
+
+		for _, v := range respPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           *v.ID,
+				Name:         *v.Name,
+				Config:       v,
+				Type:         "AppService",
+				ExternalType: *v.Type,
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchDNS gets Azure app services in a subscription.
+func (azure Scraper) fetchDNS() v1.ScrapeResults {
+	logger.Debugf("fetching dns zones for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armdns.NewZonesClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate dns zone client: %w", err)})
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read dns zone next page: %w", err)})
+		}
+
+		for _, v := range respPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           *v.ID,
+				Name:         *v.Name,
+				Config:       v,
+				Type:         "DNSZone",
 				ExternalType: *v.Type,
 			})
 		}
