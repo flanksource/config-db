@@ -24,18 +24,18 @@ func (azure Scraper) fetchAdvisorAnalysis() v1.ScrapeResults {
 		}
 
 		for _, recommendation := range nextPage.Value {
+			if recommendation.Properties == nil {
+				logger.Warnf("failed to get properties for recommendation: %v", recommendation)
+				continue
+			}
+
 			externalID := getResourceID(recommendation.Properties.ResourceMetadata)
 			if externalID == "" {
 				logger.Warnf("failed to get resource id for recommendation: %v", recommendation)
 				continue
 			}
 
-			if recommendation.Properties == nil {
-				logger.Warnf("failed to get properties for recommendation: %v", recommendation)
-				continue
-			}
-
-			externalType := deref(recommendation.Properties.ImpactedField)
+			externalType := getARMType(recommendation.Properties.ImpactedField)
 			analysis := results.Analysis(deref(recommendation.Type), externalType, externalID)
 			analysis.Severity = mapSeverity(recommendation.Properties.Impact)
 			analysis.AnalysisType = mapAnalysisType(recommendation.Properties.Category)
@@ -76,7 +76,7 @@ func getResourceID(input *armadvisor.ResourceMetadata) string {
 		return ""
 	}
 
-	return deref(input.ResourceID)
+	return getARMID(input.ResourceID)
 }
 
 // mapAnalysisType maps the advisor recommendation category to an analysis type.
