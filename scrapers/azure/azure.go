@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/profiles/latest/subscription/mgmt/subscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
@@ -11,6 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -43,15 +45,17 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchFirewalls()...)
 		results = append(results, azure.fetchDatabases()...)
 		results = append(results, azure.fetchK8s()...)
+		results = append(results, azure.fetchSubscriptions()...)
 	}
-	return results
 
+	return results
 }
 
 // fetchDatabases gets all databases in a subscription.
 func (azure Scraper) fetchDatabases() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching databases for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	databases, err := armresources.NewClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate database client: %w", err)})
@@ -85,12 +89,14 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 
 // fetchK8s gets all kubernetes clusters in a subscription.
 func (azure Scraper) fetchK8s() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching k8s for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	managedClustersClient, err := armcontainerservice.NewManagedClustersClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate k8s client: %w", err)})
 	}
+
 	k8sPager := managedClustersClient.NewListPager(nil)
 	for k8sPager.More() {
 		nextPage, err := k8sPager.NextPage(azure.ctx)
@@ -113,12 +119,14 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 
 // fetchFirewalls gets all firewalls in a subscription.
 func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching firewalls for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	firewallClient, err := armnetwork.NewAzureFirewallsClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate firewall client: %w", err)})
 	}
+
 	firewallsPager := firewallClient.NewListAllPager(nil)
 	for firewallsPager.More() {
 		nextPage, err := firewallsPager.NextPage(azure.ctx)
@@ -141,8 +149,9 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 
 // fetchContainerRegistries gets container registries in a subscription.
 func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching container registries for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	registriesClient, err := armcontainerregistry.NewRegistriesClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate container registries client: %w", err)})
@@ -169,12 +178,14 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 
 // fetchVirtualNetworks gets virtual machines in a subscription.
 func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching virtual networks for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	virtualNetworksClient, err := armnetwork.NewVirtualNetworksClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate virtual network client: %w", err)})
 	}
+
 	virtualNetworksPager := virtualNetworksClient.NewListAllPager(nil)
 	for virtualNetworksPager.More() {
 		nextPage, err := virtualNetworksPager.NextPage(azure.ctx)
@@ -197,12 +208,14 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 
 // fetchLoadBalancers gets load balancers in a subscription.
 func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching load balancers for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	lbClient, err := armnetwork.NewLoadBalancersClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate load balancer client: %w", err)})
 	}
+
 	loadBalancersPager := lbClient.NewListAllPager(nil)
 	for loadBalancersPager.More() {
 		nextPage, err := loadBalancersPager.NextPage(azure.ctx)
@@ -226,11 +239,14 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 
 // fetchVirtualMachines gets virtual machines in a subscription.
 func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
+	logger.Debugf("fetching virtual machines for subscription %s", azure.config.SubscriptionID)
+
 	var results v1.ScrapeResults
 	virtualMachineClient, err := armcompute.NewVirtualMachinesClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate virtual machine client: %w", err)})
 	}
+
 	virtualMachinePager := virtualMachineClient.NewListAllPager(nil)
 	for virtualMachinePager.More() {
 		nextPage, err := virtualMachinePager.NextPage(azure.ctx)
@@ -253,12 +269,14 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 
 // fetchResourceGroups gets resource groups in a subscription.
 func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching resource groups for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	resourceClient, err := armresources.NewResourceGroupsClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate resource group client: %w", err)})
 	}
+
 	resourcePager := resourceClient.NewListPager(nil)
 	for resourcePager.More() {
 		nextPage, err := resourcePager.NextPage(azure.ctx)
@@ -275,5 +293,44 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 			})
 		}
 	}
+	return results
+}
+
+// fetchSubscriptions gets subscriptions in a subscription.
+func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
+	logger.Debugf("fetching subscriptions")
+
+	var results v1.ScrapeResults
+	cred := auth.NewClientCredentialsConfig(azure.config.ClientID.Value, azure.config.ClientSecret.Value, azure.config.TenantID)
+	client := subscription.NewSubscriptionsClient()
+	authorizer, err := cred.Authorizer()
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate authorizer: %w", err)})
+	}
+
+	client.Authorizer = authorizer
+
+	respPage, err := client.List(azure.ctx)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read subscription page: %w", err)})
+	}
+
+	for respPage.NotDone() {
+		for _, v := range respPage.Values() {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           *v.ID,
+				Name:         *v.DisplayName,
+				Config:       v,
+				Type:         "Subscription",
+				ExternalType: "Subscription",
+			})
+		}
+
+		if err := respPage.NextWithContext(azure.ctx); err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to get next subscription page: %w", err)})
+		}
+	}
+
 	return results
 }
