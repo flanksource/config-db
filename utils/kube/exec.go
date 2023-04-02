@@ -5,8 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
@@ -20,18 +18,15 @@ func ExecutePodf(ctx context.Context, client *kubernetes.Clientset, rc *rest.Con
 		Name(pod).
 		Namespace(namespace).
 		SubResource("exec").
-		Param("container", container)
+		Param("container", container).
+		Param("stdin", fmt.Sprintf("%t", false)).
+		Param("stdout", fmt.Sprintf("%t", true)).
+		Param("stderr", fmt.Sprintf("%t", true)).
+		Param("tty", fmt.Sprintf("%t", tty))
 
-	scheme := runtime.NewScheme()
-	ParameterCodec := runtime.NewParameterCodec(scheme)
-	req.VersionedParams(&v1.PodExecOptions{
-		Container: container,
-		Command:   command,
-		Stdin:     false,
-		Stdout:    true,
-		Stderr:    true,
-		TTY:       tty,
-	}, ParameterCodec)
+	for _, c := range command {
+		req.Param("command", c)
+	}
 
 	exec, err := remotecommand.NewSPDYExecutor(rc, "POST", req.URL())
 	if err != nil {
@@ -47,8 +42,9 @@ func ExecutePodf(ctx context.Context, client *kubernetes.Clientset, rc *rest.Con
 
 	_stdout := safeString(&stdout)
 	_stderr := safeString(&stderr)
+
 	if err != nil {
-		return _stdout, _stderr, fmt.Errorf("exec returned an error: %+v", err)
+		return "", "", fmt.Errorf("failed to execute command: %v, stdout=%s stderr=%s", err, _stdout, _stderr)
 	}
 
 	return _stdout, _stderr, nil

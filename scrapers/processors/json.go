@@ -13,6 +13,7 @@ import (
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
 	"github.com/pkg/errors"
+	kyaml "sigs.k8s.io/yaml"
 )
 
 type Mask struct {
@@ -176,6 +177,12 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 				return results, errors.Wrapf(err, "Failed parse properties %s", input)
 			}
 			input.Config = props.Map()
+		} else if input.Format == "yaml" {
+			contentByte, err := kyaml.YAMLToJSON([]byte(input.Config.(string)))
+			if err != nil {
+				return results, errors.Wrapf(err, "Failed parse yaml %s", input)
+			}
+			input.Config = string(contentByte)
 		} else if input.Format != "" {
 			input.Config = map[string]any{
 				"format":  input.Format,
