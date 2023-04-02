@@ -3,7 +3,7 @@ package v1
 import (
 	"strings"
 
-	"github.com/flanksource/kommons"
+	"github.com/flanksource/duty/types"
 )
 
 // SeverityKeywords is used to identify the severity
@@ -32,7 +32,7 @@ type Kubernetes struct {
 	FieldSelector   string          `json:"fieldSelector,omitempty"`
 	MaxInflight     int64           `json:"maxInflight,omitempty"`
 	Exclusions      []string        `json:"exclusions,omitempty"`
-	Kubeconfig      *kommons.EnvVar `json:"kubeconfig,omitempty"`
+	Kubeconfig      *types.EnvVar   `json:"kubeconfig,omitempty"`
 	Event           KubernetesEvent `json:"event,omitempty"`
 }
 

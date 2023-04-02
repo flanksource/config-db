@@ -53,8 +53,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -64,8 +62,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -161,8 +157,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -172,8 +166,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -181,6 +173,12 @@ spec:
                       type: object
                     skipTLSVerify:
                       type: boolean
+                    tags:
+                      additionalProperties:
+                        type: string
+                      description: JSONStringMap defiend JSON data type, need to implements
+                        driver.Valuer, sql.Scanner interface
+                      type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
                         to parse timestamps in createFields and DeletedFields. If
@@ -261,8 +259,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -272,8 +268,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -293,8 +287,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -304,8 +296,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -347,6 +337,12 @@ spec:
                       type: string
                     subscriptionID:
                       type: string
+                    tags:
+                      additionalProperties:
+                        type: string
+                      description: JSONStringMap defiend JSON data type, need to implements
+                        driver.Valuer, sql.Scanner interface
+                      type: object
                     tenantID:
                       type: string
                     timestampFormat:
@@ -463,8 +459,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -474,8 +468,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -489,6 +481,12 @@ spec:
                       items:
                         type: string
                       type: array
+                    tags:
+                      additionalProperties:
+                        type: string
+                      description: JSONStringMap defiend JSON data type, need to implements
+                        driver.Valuer, sql.Scanner interface
+                      type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
                         to parse timestamps in createFields and DeletedFields. If
@@ -575,6 +573,8 @@ spec:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
                       type: string
+                    icon:
+                      type: string
                     id:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
@@ -597,6 +597,12 @@ spec:
                       items:
                         type: string
                       type: array
+                    tags:
+                      additionalProperties:
+                        type: string
+                      description: JSONStringMap defiend JSON data type, need to implements
+                        driver.Valuer, sql.Scanner interface
+                      type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
                         to parse timestamps in createFields and DeletedFields. If
@@ -713,8 +719,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -724,8 +728,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -733,6 +735,12 @@ spec:
                       type: object
                     repository:
                       type: string
+                    tags:
+                      additionalProperties:
+                        type: string
+                      description: JSONStringMap defiend JSON data type, need to implements
+                        driver.Valuer, sql.Scanner interface
+                      type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
                         to parse timestamps in createFields and DeletedFields. If
@@ -878,8 +886,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -889,8 +895,6 @@ spec:
                                   type: string
                                 name:
                                   type: string
-                                optional:
-                                  type: boolean
                               required:
                               - key
                               type: object
@@ -911,6 +915,12 @@ spec:
                       type: string
                     since:
                       type: string
+                    tags:
+                      additionalProperties:
+                        type: string
+                      description: JSONStringMap defiend JSON data type, need to implements
+                        driver.Valuer, sql.Scanner interface
+                      type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
                         to parse timestamps in createFields and DeletedFields. If
@@ -1028,6 +1038,12 @@ spec:
                       type: string
                     namespace:
                       type: string
+                    tags:
+                      additionalProperties:
+                        type: string
+                      description: JSONStringMap defiend JSON data type, need to implements
+                        driver.Valuer, sql.Scanner interface
+                      type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
                         to parse timestamps in createFields and DeletedFields. If
@@ -1111,8 +1127,6 @@ spec:
                                       type: string
                                     name:
                                       type: string
-                                    optional:
-                                      type: boolean
                                   required:
                                   - key
                                   type: object
@@ -1122,8 +1136,6 @@ spec:
                                       type: string
                                     name:
                                       type: string
-                                    optional:
-                                      type: boolean
                                   required:
                                   - key
                                   type: object
@@ -1143,8 +1155,6 @@ spec:
                                       type: string
                                     name:
                                       type: string
-                                    optional:
-                                      type: boolean
                                   required:
                                   - key
                                   type: object
@@ -1154,8 +1164,6 @@ spec:
                                       type: string
                                     name:
                                       type: string
-                                    optional:
-                                      type: boolean
                                   required:
                                   - key
                                   type: object
@@ -1203,6 +1211,12 @@ spec:
                       type: string
                     query:
                       type: string
+                    tags:
+                      additionalProperties:
+                        type: string
+                      description: JSONStringMap defiend JSON data type, need to implements
+                        driver.Valuer, sql.Scanner interface
+                      type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
                         to parse timestamps in createFields and DeletedFields. If

@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/kommons"
 	"github.com/google/uuid"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // Scraper ...
@@ -129,6 +130,7 @@ type ScrapeResult struct {
 	Source              string              `json:"source,omitempty"`
 	Config              interface{}         `json:"config,omitempty"`
 	Format              string              `json:"format,omitempty"`
+	Icon                string              `json:"icon,omitempty"`
 	Tags                JSONStringMap       `json:"tags,omitempty"`
 	BaseScraper         BaseScraper         `json:"-"`
 	Error               error               `json:"-"`
@@ -139,6 +141,14 @@ type ScrapeResult struct {
 	Action              string              `json:",omitempty"`
 	ParentExternalID    string              `json:"-"`
 	ParentExternalType  string              `json:"-"`
+}
+
+func NewScrapeResult(base BaseScraper) *ScrapeResult {
+	return &ScrapeResult{
+		BaseScraper: base,
+		Format:      base.Format,
+		Tags:        base.Tags,
+	}
 }
 
 func (s ScrapeResult) Success(config interface{}) ScrapeResult {
@@ -168,6 +178,7 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 		Config:       config,
 		Tags:         s.Tags,
 		BaseScraper:  s.BaseScraper,
+		Format:       s.Format,
 		Error:        s.Error,
 	}
 	return clone
@@ -211,10 +222,11 @@ type QueryRequest struct {
 // +kubebuilder:object:generate=false
 type ScrapeContext struct {
 	context.Context
-	Namespace string
-	Kommons   *kommons.Client
-	Scraper   *ConfigScraper
-	ScraperID *uuid.UUID
+	Namespace            string
+	Kubernetes           *kubernetes.Clientset
+	KubernetesRestConfig *rest.Config
+	Scraper              *ConfigScraper
+	ScraperID            *uuid.UUID
 }
 
 func (ctx ScrapeContext) Find(path string) ([]string, error) {

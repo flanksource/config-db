@@ -8,6 +8,8 @@ type File struct {
 	URL         string   `json:"url,omitempty"`
 	Paths       []string `json:"paths,omitempty"`
 	Ignore      []string `json:"ignore,omitempty"`
+	Format      string   `json:"format,omitempty"`
+	Icon        string   `json:"icon,omitempty"`
 }
 
 func (f File) RedactedString() string {

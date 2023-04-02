@@ -22,11 +22,6 @@ type FileScraper struct {
 }
 
 func isIgnored(config v1.File, path string) (bool, error) {
-	if !isYaml(path) && !isJson(path) {
-		logger.Tracef("skipping file %s, not a yaml or json file", path)
-		return true, nil
-	}
-
 	for _, ignore := range config.Ignore {
 		g, err := glob.Compile(ignore)
 		if err != nil {
@@ -91,10 +86,14 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) 
 
 		for _, match := range globMatches {
 			file := strings.Replace(match, tempDir+"/", "", 1)
-			var result = v1.ScrapeResult{
-				BaseScraper: config.BaseScraper,
-				Source:      config.RedactedString() + "/" + file,
+			var result = v1.NewScrapeResult(config.BaseScraper)
+			if config.Format != "" {
+				result.Format = config.Format
 			}
+			if config.Icon != "" {
+				result.Icon = config.Icon
+			}
+			result.Source = config.RedactedString() + "/" + file
 
 			if ignore, err := isIgnored(config, file); err != nil {
 				results = append(results, result.Errorf("failed to check if file %s is ignored: %v", file, err))
@@ -160,8 +159,4 @@ func findFiles(ctx *v1.ScrapeContext, dir string, paths []string) []string {
 
 func isYaml(filename string) bool {
 	return filepath.Ext(filename) == ".yaml" || filepath.Ext(filename) == ".yml"
-}
-
-func isJson(filename string) bool {
-	return filepath.Ext(filename) == ".json"
 }

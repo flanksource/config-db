@@ -11,9 +11,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors"
-	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty"
 )
 
 type Scraper struct {
@@ -26,9 +25,20 @@ type Scraper struct {
 func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, config := range configs.Azure {
-		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID.Value, config.ClientSecret.Value, nil)
+		clientId, err := duty.GetEnvValueFromCache(ctx.Kubernetes, config.ClientID, ctx.Namespace)
 		if err != nil {
-			logger.Fatalf(errors.Verbose(err))
+			results.Errorf(err, "failed to get client id")
+			continue
+		}
+		clientSecret, err := duty.GetEnvValueFromCache(ctx.Kubernetes, config.ClientSecret, ctx.Namespace)
+		if err != nil {
+			results.Errorf(err, "failed to get client secret")
+			continue
+		}
+		cred, err := azidentity.NewClientSecretCredential(config.TenantID, clientId, clientSecret, nil)
+		if err != nil {
+			results.Errorf(err, "failed to get credentials for azure")
+			continue
 		}
 
 		azure.ctx = context.Background()
