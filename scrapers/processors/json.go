@@ -161,6 +161,15 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 	var err error
 
 	for _, input := range inputs {
+		for k, v := range input.BaseScraper.Tags {
+			if input.Tags == nil {
+				input.Tags = map[string]string{}
+			}
+			if _, ok := input.Tags[k]; !ok {
+				input.Tags[k] = v
+			}
+		}
+
 		if input.Format == "properties" {
 			props, err := properties.LoadString(input.Config.(string))
 			if err != nil {
@@ -184,13 +193,13 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 		case string:
 			parsedConfig, err = oj.ParseString(v)
 			if err != nil {
-				return results, fmt.Errorf("failed to parse json: %v", err)
+				return results, fmt.Errorf("failed to parse json (format=%s,%s): %v", input.BaseScraper.Format, input.Source, err)
 			}
 		default:
 			opts := oj.Options{OmitNil: true, Sort: true, UseTags: true}
 			parsedConfig, err = oj.ParseString(oj.JSON(v, &opts))
 			if err != nil {
-				return results, fmt.Errorf("failed to parse json: %v", err)
+				return results, fmt.Errorf("failed to parse json format=%s,%s): %v", input.Format, input.Source, err)
 			}
 		}
 
