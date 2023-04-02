@@ -17,6 +17,7 @@ import (
 // +kubebuilder:object:generate=false
 type Scraper interface {
 	Scrape(ctx *ScrapeContext, config ConfigScraper) ScrapeResults
+	CanScrape(config ConfigScraper) bool
 }
 
 // Analyzer ...
