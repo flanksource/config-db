@@ -200,7 +200,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1
 		for _, file := range pod.Config.Files {
 			for _, p := range file.Path {
 				logger.Infof("Scraping %s/%s/%s/%s", pod.Namespace, pod.Name, pod.Container, p)
-				stdout, _, err := kube.ExecutePodf(ctx.Kubernetes, ctx.KubernetesRestConfig, pod.Namespace, pod.Name, pod.Container, "cat", p)
+				stdout, _, err := kube.ExecutePodf(ctx, ctx.Kubernetes, ctx.KubernetesRestConfig, pod.Namespace, pod.Name, pod.Container, "cat", p)
 				if err != nil {
 					results.Errorf(err, "Failed to fetch %s/%s/%s: %v", pod.Namespace, pod.Name, pod.Container, p)
 					continue

@@ -30,26 +30,22 @@ func (n Name) GetKind() string {
 func (n Name) GetNamespace() string {
 	return n.Namespace
 }
-
 func GetName(obj interface{}) Name {
 	name := Name{}
-	switch obj.(type) {
+	switch object := obj.(type) {
 	case *unstructured.Unstructured:
-		object := obj.(*unstructured.Unstructured)
 		if object == nil || object.Object == nil {
 			return name
 		}
 		name.Name = object.GetName()
 		name.Namespace = object.GetNamespace()
 	case metav1.ObjectMetaAccessor:
-		object := obj.(metav1.ObjectMetaAccessor).GetObjectMeta()
-		name.Name = object.GetName()
-		name.Namespace = object.GetNamespace()
+		name.Name = object.GetObjectMeta().GetName()
+		name.Namespace = object.GetObjectMeta().GetNamespace()
 	}
 
-	switch obj.(type) {
+	switch object := obj.(type) {
 	case *unstructured.Unstructured:
-		object := obj.(*unstructured.Unstructured)
 		if object == nil || object.Object == nil {
 			return name
 		}

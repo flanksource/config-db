@@ -160,7 +160,3 @@ func findFiles(ctx *v1.ScrapeContext, dir string, paths []string) []string {
 func isYaml(filename string) bool {
 	return filepath.Ext(filename) == ".yaml" || filepath.Ext(filename) == ".yml"
 }
-
-func isJson(filename string) bool {
-	return filepath.Ext(filename) == ".json"
-}

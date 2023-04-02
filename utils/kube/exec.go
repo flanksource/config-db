@@ -2,6 +2,7 @@ package kube
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
@@ -12,7 +13,7 @@ import (
 )
 
 // ExecutePodf runs the specified shell command inside a container of the specified pod
-func ExecutePodf(client *kubernetes.Clientset, rc *rest.Config, namespace, pod, container string, command ...string) (string, string, error) {
+func ExecutePodf(ctx context.Context, client *kubernetes.Clientset, rc *rest.Config, namespace, pod, container string, command ...string) (string, string, error) {
 	const tty = false
 	req := client.CoreV1().RESTClient().Post().
 		Resource("pods").
@@ -37,7 +38,7 @@ func ExecutePodf(client *kubernetes.Clientset, rc *rest.Config, namespace, pod, 
 		return "", "", fmt.Errorf("ExecutePodf: Failed to get SPDY Executor: %v", err)
 	}
 	var stdout, stderr bytes.Buffer
-	err = exec.Stream(remotecommand.StreamOptions{
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdin:  nil,
 		Stdout: &stdout,
 		Stderr: &stderr,
