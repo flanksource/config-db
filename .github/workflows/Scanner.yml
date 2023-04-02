@@ -1,0 +1,35 @@
+name: Trivy Vulnerability Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Install Trivy
+        run: |
+          wget https://github.com/aquasecurity/trivy/releases/download/v0.19.2/trivy_0.19.2_Linux-64bit.deb
+          sudo dpkg -i trivy_0.19.2_Linux-64bit.deb
+
+      - name: Generate SBOM
+        id: sbom
+        run: |
+          trivy sbom --artifact-type repo github.com/flanksource/config-db
+
+
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: flanksource/config-db@main
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL'
+
