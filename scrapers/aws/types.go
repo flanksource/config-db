@@ -767,10 +767,10 @@ func NewTrustedAdvisorCheckResult(b *supportTypes.TrustedAdvisorCheckResult, che
 }
 
 // list1 creates the keys for the map while list2 makes up the volume
-func createMapFromLists(list1 []string, list2 []string) map[string]string {
+func createMapFromLists(list1 []string, list2 []*string) map[string]string {
 	m := make(map[string]string)
 	for i, v := range list1 {
-		m[v] = list2[i]
+		m[v] = *list2[i]
 	}
 	return m
 }

@@ -27,7 +27,7 @@ var Run = &cobra.Command{
 			logger.Fatalf(err.Error())
 		}
 
-		ctx := api.NewContext(nil, nil)
+		ctx := api.NewScrapeContext(nil, nil)
 
 		if db.ConnectionString != "" {
 			db.MustInit()

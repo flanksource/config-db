@@ -143,13 +143,13 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1
 				pods = append(pods, newPod(p, config, p.Labels))
 			}
 		} else if startsWith(config.Selector.Kind, "deployment") {
-			deployments, err := findDeployments(ctx, client, config.Selector)
+			deployments, err := findDeployments(ctx, ctx.Kubernetes, config.Selector)
 			if err != nil {
 				results.Errorf(err, "failed to find deployments")
 			}
 
 			for _, deployment := range deployments {
-				_pods, err := findBySelector(ctx, client, config,
+				_pods, err := findBySelector(ctx, ctx.Kubernetes, config,
 					deployment.Namespace,
 					metav1.FormatLabelSelector(deployment.Spec.Selector),
 					fmt.Sprintf("%s/%s/%s", deployment.Namespace, "deployment", deployment.Name),
@@ -171,7 +171,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1
 					continue
 				}
 
-				podsList, err := findPods(ctx, client, v1.ResourceSelector{
+				podsList, err := findPods(ctx, ctx.Kubernetes, v1.ResourceSelector{
 					Namespace:     config.Selector.Namespace,
 					LabelSelector: metav1.FormatLabelSelector(statefulset.Spec.Selector),
 				})

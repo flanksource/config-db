@@ -22,7 +22,6 @@ type FileScraper struct {
 }
 
 func isIgnored(config v1.File, path string) (bool, error) {
-
 	for _, ignore := range config.Ignore {
 		g, err := glob.Compile(ignore)
 		if err != nil {

@@ -1,8 +1,6 @@
 package scrapers
 
 import (
-	"time"
-
 	"github.com/flanksource/commons/template"
 	"github.com/flanksource/config-db/scrapers/azure"
 	"github.com/flanksource/duty"
@@ -82,14 +80,14 @@ func GetAuthValues(ctx *v1.ScrapeContext, auth *v1.Authentication) (*v1.Authenti
 	if auth == nil {
 		return authentication, nil
 	}
-	username, err := duty.GetEnvValueFromCache(ctx.Kubernetes, auth.Username, ctx.Namespace, 5*time.Minute)
+	username, err := duty.GetEnvValueFromCache(ctx.Kubernetes, auth.Username, ctx.Namespace)
 	if err != nil {
 		return nil, err
 	}
 	authentication.Username = types.EnvVar{
 		ValueStatic: username,
 	}
-	password, err := duty.GetEnvValueFromCache(ctx.Kubernetes, auth.Password, ctx.Namespace, 120*time.Second)
+	password, err := duty.GetEnvValueFromCache(ctx.Kubernetes, auth.Password, ctx.Namespace)
 	if err != nil {
 		return nil, err
 	}

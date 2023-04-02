@@ -3,10 +3,10 @@ package aws
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net/http"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty"
 	"github.com/henvic/httpretty"
 
@@ -85,17 +85,9 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 }
 
 func getAccessAndSecretKey(ctx *v1.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
-	namespace := ctx.GetNamespace()
-	if conn.AccessKey.IsEmpty() {
-		return "", "", nil
-	}
-	accessKey, err := duty.GetEnvValueFromCache(ctx.Kubernetes, conn.AccessKey, namespace)
+	connection, err := duty.HydrateConnection(ctx, ctx.Kubernetes, db.DefaultDB(), conn.GetModel(), ctx.GetNamespace())
 	if err != nil {
-		return "", "", fmt.Errorf("could not parse EC2 access key: %v", err)
+		return "", "", err
 	}
-	secretKey, err := duty.GetEnvValueFromCache(ctx.Kubernetesconn.SecretKey, namespace)
-	if err != nil {
-		return "", "", fmt.Errorf(fmt.Sprintf("could not parse EC2 secret key: %v", err))
-	}
-	return accessKey, secretKey, nil
+	return connection.Username, connection.Password, nil
 }

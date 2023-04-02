@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 )
 
@@ -179,12 +180,12 @@ func (auth Authentication) IsEmpty() bool {
 
 // GetUsername ...
 func (auth Authentication) GetUsername() string {
-	return auth.Username.Value
+	return auth.Username.ValueStatic
 }
 
 // GetPassword ...
 func (auth Authentication) GetPassword() string {
-	return auth.Password.Value
+	return auth.Password.ValueStatic
 }
 
 // GetDomain ...
@@ -206,10 +207,30 @@ type AWSConnection struct {
 	AssumeRole    string       `yaml:"assumeRole,omitempty" json:"assumeRole,omitempty"`
 }
 
+func (aws AWSConnection) GetModel() *models.Connection {
+	return &models.Connection{
+		URL:      aws.Endpoint,
+		Username: aws.AccessKey.String(),
+		Password: aws.SecretKey.String(),
+		Properties: types.JSONStringMap{
+			"region":     strings.Join(aws.Region, ","),
+			"assumeRole": aws.AssumeRole,
+		},
+		InsecureTLS: aws.SkipTLSVerify,
+	}
+}
+
 // GCPConnection ...
 type GCPConnection struct {
 	Endpoint    string        `yaml:"endpoint" json:"endpoint,omitempty"`
 	Credentials *types.EnvVar `yaml:"credentials" json:"credentials,omitempty"`
+}
+
+func (gcp GCPConnection) GetModel() *models.Connection {
+	return &models.Connection{
+		URL:         gcp.Endpoint,
+		Certificate: gcp.Credentials.String(),
+	}
 }
 
 type Connection struct {
@@ -220,6 +241,14 @@ type Connection struct {
 // +k8s:deepcopy-gen=false
 type Connectable interface {
 	GetConnection() string
+}
+
+func (c Connection) GetModel() *models.Connection {
+	return &models.Connection{
+		URL:      c.Connection,
+		Username: c.Authentication.Username.String(),
+		Password: c.Authentication.Password.String(),
+	}
 }
 
 func (c Connection) GetConnection() string {

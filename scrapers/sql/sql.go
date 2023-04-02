@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/duty"
 	"github.com/xo/dburl"
 
 	//drivers
@@ -20,10 +22,14 @@ type SqlScraper struct {
 func (s SqlScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, _config := range configs.SQL {
-
 		var config = _config
 
-		db, err := dburl.Open(config.GetConnection())
+		connection := config.GetModel()
+		connection, err := duty.HydrateConnection(ctx, ctx.Kubernetes, db.DefaultDB(), connection, ctx.Namespace)
+		if err != nil {
+			results.Errorf(err, "failed to hydrate connection for %s", *connection)
+		}
+		db, err := dburl.Open(connection.URL)
 		if err != nil {
 			results.Errorf(err, "failed to open connection to %s", config.GetEndpoint())
 			continue
