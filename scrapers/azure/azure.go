@@ -21,7 +21,10 @@ type Scraper struct {
 	config *v1.Azure
 }
 
-// Scrape ...
+func (azure Scraper) CanScrape(configs v1.ConfigScraper) bool {
+	return len(configs.Azure) > 0
+}
+
 func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, config := range configs.Azure {

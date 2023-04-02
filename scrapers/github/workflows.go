@@ -14,6 +14,10 @@ const WorkflowRun = "GitHubActions::WorkflowRun"
 type GithubActionsScraper struct {
 }
 
+func (gh GithubActionsScraper) CanScrape(configs v1.ConfigScraper) bool {
+	return len(configs.GithubActions) > 0
+}
+
 // Scrape fetches github workflows and workflow runs from github API and converts the action executions (workflow runs) to change events.
 func (gh GithubActionsScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	results := v1.ScrapeResults{}
