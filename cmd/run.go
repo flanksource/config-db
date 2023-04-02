@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
@@ -27,7 +27,7 @@ var Run = &cobra.Command{
 			logger.Fatalf(err.Error())
 		}
 
-		ctx := &v1.ScrapeContext{Context: context.Background(), Kommons: kommonsClient}
+		ctx := api.NewContext(nil, nil)
 
 		if db.ConnectionString != "" {
 			db.MustInit()

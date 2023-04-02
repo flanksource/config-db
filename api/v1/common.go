@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/flanksource/kommons"
+	"github.com/flanksource/duty/types"
 )
 
 type Filter struct {
@@ -144,7 +144,8 @@ type BaseScraper struct {
 
 	// DeleteFields is a JSONPath expression used to identify the deleted time of the config.
 	// If multiple fields are specified, the first non-empty value will be used.
-	DeleteFields []string `json:"deleteFields,omitempty"`
+	DeleteFields []string      `json:"deleteFields,omitempty"`
+	Tags         JSONStringMap `json:"tags,omitempty"`
 }
 
 func (base BaseScraper) String() string {
@@ -167,8 +168,8 @@ func (base BaseScraper) String() string {
 
 // Authentication ...
 type Authentication struct {
-	Username kommons.EnvVar `yaml:"username" json:"username"`
-	Password kommons.EnvVar `yaml:"password" json:"password"`
+	Username types.EnvVar `yaml:"username" json:"username"`
+	Password types.EnvVar `yaml:"password" json:"password"`
 }
 
 // IsEmpty ...
@@ -197,18 +198,18 @@ func (auth Authentication) GetDomain() string {
 
 // AWSConnection ...
 type AWSConnection struct {
-	AccessKey     kommons.EnvVar `yaml:"accessKey,omitempty" json:"accessKey,omitempty"`
-	SecretKey     kommons.EnvVar `yaml:"secretKey,omitempty" json:"secretKey,omitempty"`
-	Region        []string       `yaml:"region,omitempty" json:"region"`
-	Endpoint      string         `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
-	SkipTLSVerify bool           `yaml:"skipTLSVerify,omitempty" json:"skipTLSVerify,omitempty"`
-	AssumeRole    string         `yaml:"assumeRole,omitempty" json:"assumeRole,omitempty"`
+	AccessKey     types.EnvVar `yaml:"accessKey,omitempty" json:"accessKey,omitempty"`
+	SecretKey     types.EnvVar `yaml:"secretKey,omitempty" json:"secretKey,omitempty"`
+	Region        []string     `yaml:"region,omitempty" json:"region"`
+	Endpoint      string       `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	SkipTLSVerify bool         `yaml:"skipTLSVerify,omitempty" json:"skipTLSVerify,omitempty"`
+	AssumeRole    string       `yaml:"assumeRole,omitempty" json:"assumeRole,omitempty"`
 }
 
 // GCPConnection ...
 type GCPConnection struct {
-	Endpoint    string          `yaml:"endpoint" json:"endpoint,omitempty"`
-	Credentials *kommons.EnvVar `yaml:"credentials" json:"credentials,omitempty"`
+	Endpoint    string        `yaml:"endpoint" json:"endpoint,omitempty"`
+	Credentials *types.EnvVar `yaml:"credentials" json:"credentials,omitempty"`
 }
 
 type Connection struct {

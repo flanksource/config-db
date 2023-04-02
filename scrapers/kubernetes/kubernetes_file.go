@@ -9,7 +9,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/kommons"
+	"github.com/flanksource/config-db/utils/kube"
 
 	appsv1 "k8s.io/api/apps/v1"
 	k8sv1 "k8s.io/api/core/v1"
@@ -124,12 +124,6 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1
 		return results
 	}
 
-	client, err := ctx.Kommons.GetClientset()
-	if err != nil {
-		results.Errorf(err, "failed to get clientset")
-		return results
-	}
-
 	var pods []pod
 
 	for _, config := range configs.KubernetesFile {
@@ -140,7 +134,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1
 		logger.Debugf("Scrapping pods %s => %s", config.Selector, config.Files)
 
 		if startsWith(config.Selector.Kind, "pod") {
-			podList, err := findPods(ctx, client, config.Selector)
+			podList, err := findPods(ctx, ctx.Kubernetes, config.Selector)
 			if err != nil {
 				results.Errorf(err, "failed to find pods")
 				continue
@@ -161,7 +155,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1
 					fmt.Sprintf("%s/%s/%s", deployment.Namespace, "deployment", deployment.Name),
 					1)
 				if err != nil {
-					results.Errorf(err, "failed to find pods for deployment %s", kommons.GetName(deployment).String())
+					results.Errorf(err, "failed to find pods for deployment %s", kube.GetName(deployment).String())
 				} else {
 					pods = append(pods, _pods...)
 				}
@@ -169,7 +163,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1
 
 		} else if startsWith(config.Selector.Kind, "statefulset") {
 			if config.Selector.Name != "" {
-				statefulset, err := client.AppsV1().StatefulSets(config.Selector.Namespace).Get(ctx, config.Selector.Name, metav1.GetOptions{})
+				statefulset, err := ctx.Kubernetes.AppsV1().StatefulSets(config.Selector.Namespace).Get(ctx, config.Selector.Name, metav1.GetOptions{})
 				if errors.IsNotFound(err) {
 					continue
 				} else if err != nil {
@@ -206,7 +200,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1
 		for _, file := range pod.Config.Files {
 			for _, p := range file.Path {
 				logger.Infof("Scraping %s/%s/%s/%s", pod.Namespace, pod.Name, pod.Container, p)
-				stdout, _, err := ctx.Kommons.ExecutePodf(pod.Namespace, pod.Name, pod.Container, "cat", p)
+				stdout, _, err := kube.ExecutePodf(ctx.Kubernetes, ctx.KubernetesRestConfig, pod.Namespace, pod.Name, pod.Container, "cat", p)
 				if err != nil {
 					results.Errorf(err, "Failed to fetch %s/%s/%s: %v", pod.Namespace, pod.Name, pod.Container, p)
 					continue
