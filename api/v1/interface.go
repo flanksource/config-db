@@ -9,11 +9,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-<<<<<<< HEAD
 	"github.com/flanksource/duty/models"
-	"github.com/flanksource/kommons"
-=======
->>>>>>> main
 	"github.com/google/uuid"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
