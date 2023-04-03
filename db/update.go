@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/config-db/db/ulid"
 	"github.com/flanksource/config-db/utils"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -156,7 +157,7 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 }
 
 func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
-	analysis := models.NewAnalysisFromV1(*result.AnalysisResult)
+	analysis := result.AnalysisResult.ToConfigAnalysis()
 	ci, err := GetConfigItem(analysis.ExternalType, analysis.ExternalID)
 	if ci == nil {
 		logger.Warnf("[%s/%s] unable to find config item for analysis: %+v", analysis.ExternalType, analysis.ExternalID, analysis)
@@ -166,11 +167,10 @@ func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	}
 
 	logger.Tracef("[%s/%s] ==> %s", analysis.ExternalType, analysis.ExternalID, analysis)
-	analysis.ConfigID = ci.ID
-	analysis.ID = ulid.MustNew().AsUUID()
+	analysis.ConfigID = uuid.MustParse(ci.ID)
+	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
 
 	return CreateAnalysis(analysis)
-
 }
 
 // SaveResults creates or update a configuartion with config changes
