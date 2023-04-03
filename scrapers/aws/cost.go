@@ -8,7 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	athena "github.com/uber/athenadriver/go"
 )
@@ -128,6 +128,15 @@ func FetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
 }
 
 type CostScraper struct{}
+
+func (awsCost CostScraper) CanScrape(config v1.ConfigScraper) bool {
+	for _, awsConfig := range config.AWS {
+		if awsConfig.CostReporting.S3BucketPath != "" || awsConfig.CostReporting.Table != "" {
+			return true
+		}
+	}
+	return false
+}
 
 func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults

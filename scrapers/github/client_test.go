@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/kommons"
+	"github.com/flanksource/duty/types"
 )
 
 var testGithubApiClient = func() (*GitHubActionsClient, error) {
@@ -14,7 +14,7 @@ var testGithubApiClient = func() (*GitHubActionsClient, error) {
 	testGh := v1.GitHubActions{
 		Owner:               "flanksource",
 		Repository:          "config-db",
-		PersonalAccessToken: kommons.EnvVar{Value: ghToken},
+		PersonalAccessToken: types.EnvVar{ValueStatic: ghToken},
 	}
 	client, err := NewGitHubActionsClient(textCtx, testGh)
 	if err != nil {

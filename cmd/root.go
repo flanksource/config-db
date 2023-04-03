@@ -5,10 +5,10 @@ import (
 	"os"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/utils/kube"
-	"github.com/flanksource/kommons"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -16,7 +16,6 @@ import (
 var dev bool
 var httpPort, metricsPort, devGuiPort int
 var disableKubernetes bool
-var kommonsClient *kommons.Client
 var publicEndpoint = "http://localhost:8080"
 var disablePostgrest bool
 var (
@@ -43,7 +42,7 @@ var Root = &cobra.Command{
 		logger.UseZap(cmd.Flags())
 		var err error
 
-		if kommonsClient, err = kube.NewKommonsClient(); err != nil {
+		if api.KubernetesClient, api.KubernetesRestConfig, err = kube.NewK8sClient(); err != nil {
 			logger.Errorf("failed to get kubernetes client: %v", err)
 		}
 
@@ -60,6 +59,7 @@ var Root = &cobra.Command{
 // ServerFlags ...
 func ServerFlags(flags *pflag.FlagSet) {
 	flags.IntVar(&httpPort, "httpPort", 8080, "Port to expose a health dashboard ")
+	flags.StringVar(&api.Namespace, "namespace", os.Getenv("NAMESPACE"), "Namespace to watch for config-db resources")
 	flags.IntVar(&devGuiPort, "devGuiPort", 3004, "Port used by a local npm server in development mode")
 	flags.IntVar(&metricsPort, "metricsPort", 8081, "Port to expose a health dashboard ")
 	flags.BoolVar(&disableKubernetes, "disable-kubernetes", false, "Disable all functionality that requires a kubernetes connection")

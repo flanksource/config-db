@@ -112,14 +112,14 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 	}
 }
 
-func getMetadata(columns []string, values []string) (map[string]string, string) {
+func getMetadata(columns []*string, values []*string) (map[string]string, string) {
 	metadata := make(map[string]string)
 	id := ""
 	for i, column := range columns {
-		if values[i] != "" && strings.Contains(strings.ToLower(column), "id") {
-			id = strings.Split(values[i], " ")[0] // e.g. sg-123 (vpc-123	)
-		} else if values[i] != "" {
-			metadata[column] = values[i]
+		if values[i] != nil && *values[i] != "" && strings.Contains(strings.ToLower(*column), "id") {
+			id = strings.Split(*values[i], " ")[0] // e.g. sg-123 (vpc-123	)
+		} else if values[i] != nil && *values[i] != "" {
+			metadata[*column] = *values[i]
 		}
 	}
 

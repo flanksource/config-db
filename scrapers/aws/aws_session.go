@@ -3,11 +3,11 @@ package aws
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net/http"
 
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/kommons"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/duty"
 	"github.com/henvic/httpretty"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -16,10 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
-
-func isEmpty(val kommons.EnvVar) bool {
-	return val.Value == "" && val.ValueFrom == nil
-}
 
 // NewSession ...
 func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*aws.Config, error) {
@@ -76,7 +72,7 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 		options = append(options, config.WithEndpointResolverWithOptions(EndpointResolver{Endpoint: conn.Endpoint}))
 	}
 
-	if !isEmpty(conn.AccessKey) {
+	if !conn.AccessKey.IsEmpty() {
 		accessKey, secretKey, err := getAccessAndSecretKey(ctx, conn)
 		if err != nil {
 			return nil, err
@@ -89,17 +85,9 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 }
 
 func getAccessAndSecretKey(ctx *v1.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
-	namespace := ctx.GetNamespace()
-	if isEmpty(conn.AccessKey) {
-		return "", "", nil
-	}
-	_, accessKey, err := ctx.Kommons.GetEnvValue(conn.AccessKey, namespace)
+	connection, err := duty.HydrateConnection(ctx, ctx.Kubernetes, db.DefaultDB(), conn.GetModel(), ctx.GetNamespace())
 	if err != nil {
-		return "", "", fmt.Errorf("could not parse EC2 access key: %v", err)
+		return "", "", err
 	}
-	_, secretKey, err := ctx.Kommons.GetEnvValue(conn.SecretKey, namespace)
-	if err != nil {
-		return "", "", fmt.Errorf(fmt.Sprintf("could not parse EC2 secret key: %v", err))
-	}
-	return accessKey, secretKey, nil
+	return connection.Username, connection.Password, nil
 }

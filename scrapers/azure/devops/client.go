@@ -9,6 +9,7 @@ import (
 	"github.com/go-resty/resty/v2"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty"
 )
 
 type Project struct {
@@ -110,9 +111,13 @@ type AzureDevopsClient struct {
 }
 
 func NewAzureDevopsClient(ctx *v1.ScrapeContext, ado v1.AzureDevops) (*AzureDevopsClient, error) {
+	token, err := duty.GetEnvValueFromCache(ctx.Kubernetes, ado.PersonalAccessToken, ctx.Namespace)
+	if err != nil {
+		return nil, err
+	}
 	client := resty.New().
 		SetBaseURL(fmt.Sprintf("https://dev.azure.com/%s", ado.Organization)).
-		SetBasicAuth(ado.Organization, ado.PersonalAccessToken.Value)
+		SetBasicAuth(ado.Organization, token)
 
 	return &AzureDevopsClient{
 		ScrapeContext: ctx,

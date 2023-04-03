@@ -22,7 +22,7 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/flanksource/kommons"
+	"github.com/flanksource/duty/types"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -156,6 +156,13 @@ func (in *BaseScraper) DeepCopyInto(out *BaseScraper) {
 		in, out := &in.DeleteFields, &out.DeleteFields
 		*out = make([]string, len(*in))
 		copy(*out, *in)
+	}
+	if in.Tags != nil {
+		in, out := &in.Tags, &out.Tags
+		*out = make(JSONStringMap, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
 	}
 }
 
@@ -372,7 +379,7 @@ func (in *GCPConnection) DeepCopyInto(out *GCPConnection) {
 	*out = *in
 	if in.Credentials != nil {
 		in, out := &in.Credentials, &out.Credentials
-		*out = new(kommons.EnvVar)
+		*out = new(types.EnvVar)
 		(*in).DeepCopyInto(*out)
 	}
 }
@@ -456,7 +463,7 @@ func (in *Kubernetes) DeepCopyInto(out *Kubernetes) {
 	}
 	if in.Kubeconfig != nil {
 		in, out := &in.Kubeconfig, &out.Kubeconfig
-		*out = new(kommons.EnvVar)
+		*out = new(types.EnvVar)
 		(*in).DeepCopyInto(*out)
 	}
 	in.Event.DeepCopyInto(&out.Event)
