@@ -15,13 +15,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-<<<<<<< HEAD
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/flanksource/commons/logger"
-=======
->>>>>>> main
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty"
 )
@@ -41,9 +38,6 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 	for _, config := range configs.Azure {
 		clientId, err := duty.GetEnvValueFromCache(ctx.Kubernetes, config.ClientID, ctx.Namespace)
 		if err != nil {
-<<<<<<< HEAD
-			logger.Errorf("failed to create client-secret credential: %v", err)
-=======
 			results.Errorf(err, "failed to get client id")
 			continue
 		}
@@ -55,7 +49,6 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		cred, err := azidentity.NewClientSecretCredential(config.TenantID, clientId, clientSecret, nil)
 		if err != nil {
 			results.Errorf(err, "failed to get credentials for azure")
->>>>>>> main
 			continue
 		}
 
@@ -71,7 +64,6 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchFirewalls()...)
 		results = append(results, azure.fetchDatabases()...)
 		results = append(results, azure.fetchK8s()...)
-<<<<<<< HEAD
 		results = append(results, azure.fetchSubscriptions()...)
 		results = append(results, azure.fetchStorageAccounts()...)
 		results = append(results, azure.fetchAppServices()...)
@@ -80,9 +72,7 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchTrafficManagerProfiles()...)
 		results = append(results, azure.fetchNetworkSecurityGroups()...)
 		results = append(results, azure.fetchPublicIPAddresses()...)
-=======
 		results = append(results, azure.fetchAdvisorAnalysis()...)
->>>>>>> main
 	}
 
 	return results
@@ -114,7 +104,7 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "RelationalDatabase",
 				ExternalType: getARMType(v.Type),
@@ -144,7 +134,7 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "KubernetesCluster",
 				ExternalType: getARMType(v.Type),
@@ -174,7 +164,7 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "Firewall",
 				ExternalType: getARMType(v.Type),
@@ -203,7 +193,7 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "ContainerRegistry",
 				ExternalType: getARMType(v.Type),
@@ -233,7 +223,7 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "VirtualNetwork",
 				ExternalType: getARMType(v.Type),
@@ -263,7 +253,7 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "LoadBalancer",
 				ExternalType: getARMType(v.Type),
@@ -294,7 +284,7 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "VirtualMachine",
 				ExternalType: getARMType(v.Type),
@@ -325,7 +315,7 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "ResourceGroup",
 				ExternalType: getARMType(v.Type),
@@ -335,7 +325,6 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 	return results
 }
 
-<<<<<<< HEAD
 // fetchSubscriptions gets Azure subscriptions.
 func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 	logger.Debugf("fetching subscriptions")
@@ -356,11 +345,11 @@ func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 		for _, v := range respPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           getARMID(v.ID),
 				Name:         *v.DisplayName,
 				Config:       v,
 				Type:         "Subscription",
-				ExternalType: "Subscription",
+				ExternalType: "Azure::SUBSCRIPTION",
 			})
 		}
 	}
@@ -388,11 +377,11 @@ func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
 		for _, v := range respPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
-				Name:         *v.Name,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "StorageAccount",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -420,11 +409,11 @@ func (azure Scraper) fetchAppServices() v1.ScrapeResults {
 		for _, v := range respPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
-				Name:         *v.Name,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "AppService",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -452,11 +441,11 @@ func (azure Scraper) fetchDNS() v1.ScrapeResults {
 		for _, v := range respPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
-				Name:         *v.Name,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "DNSZone",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -484,11 +473,11 @@ func (azure Scraper) fetchPrivateDNSZones() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
-				Name:         *v.Name,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "PrivateDNSZone",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -516,11 +505,11 @@ func (azure Scraper) fetchTrafficManagerProfiles() v1.ScrapeResults {
 		for _, v := range respPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
-				Name:         *v.Name,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "TrafficManagerProfile",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -548,11 +537,11 @@ func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
-				Name:         *v.Name,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "NetworkSecurityGroup",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -580,17 +569,18 @@ func (azure Scraper) fetchPublicIPAddresses() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
-				Name:         *v.Name,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "PublicIPAddress",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
 
 	return results
-=======
+}
+
 // getARMID takes in an ID of a resource group
 // and returns it in a compatible format.
 func getARMID(id *string) string {
@@ -609,6 +599,5 @@ func getARMType(rType *string) string {
 	// - MICROSOFT.COMPUTE/VIRTUALMACHINES (all caps)
 	// - Microsoft.ContainerService/ManagedClusters (case not enforced)
 	// This is required to match config analysis with the config item.
-	return strings.ToUpper(deref(rType))
->>>>>>> main
+	return "Azure::" + strings.ToUpper(deref(rType))
 }
