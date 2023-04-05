@@ -3,12 +3,12 @@ package db
 import (
 	"errors"
 
-	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/duty/models"
 	"gorm.io/gorm"
 )
 
-func GetAnalysis(analysis models.Analysis) (*models.Analysis, error) {
-	existing := models.Analysis{}
+func getAnalysis(analysis models.ConfigAnalysis) (*models.ConfigAnalysis, error) {
+	existing := models.ConfigAnalysis{}
 	err := db.First(&existing, "config_id = ? AND analyzer = ?", analysis.ConfigID, analysis.Analyzer).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
@@ -17,12 +17,13 @@ func GetAnalysis(analysis models.Analysis) (*models.Analysis, error) {
 	return &existing, err
 }
 
-func CreateAnalysis(analysis models.Analysis) error {
+func CreateAnalysis(analysis models.ConfigAnalysis) error {
 	// get analysis by config_id, and summary
-	existingAnalysis, err := GetAnalysis(analysis)
+	existingAnalysis, err := getAnalysis(analysis)
 	if err != nil {
 		return err
 	}
+
 	if existingAnalysis != nil {
 		analysis.ID = existingAnalysis.ID
 		return db.Model(&analysis).Updates(map[string]interface{}{
@@ -30,5 +31,6 @@ func CreateAnalysis(analysis models.Analysis) error {
 			"message":       analysis.Message,
 			"status":        analysis.Status}).Error
 	}
+
 	return db.Create(&analysis).Error
 }

@@ -23,6 +23,9 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	results := []v1.ScrapeResult{}
 	for _, config := range configs {
 		for _, scraper := range All {
+			if !scraper.CanScrape(config) {
+				continue
+			}
 			jobHistory := models.JobHistory{
 				Name:         fmt.Sprintf("scraper:%T", scraper),
 				ResourceType: "config_scraper",

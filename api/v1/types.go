@@ -41,6 +41,10 @@ func (c ConfigScraper) IsTrace() bool {
 	return c.LogLevel == "trace"
 }
 
+func (c ConfigScraper) IsDebug() bool {
+	return c.LogLevel == "debug"
+}
+
 type ExternalID struct {
 	ExternalType string
 	ExternalID   []string

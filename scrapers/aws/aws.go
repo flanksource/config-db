@@ -968,7 +968,10 @@ func (aws Scraper) ami(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	}
 }
 
-// Scrape ...
+func (aws Scraper) CanScrape(configs v1.ConfigScraper) bool {
+	return len(configs.AWS) > 0
+}
+
 func (aws Scraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.ScrapeResults {
 	results := &v1.ScrapeResults{}
 

@@ -5,17 +5,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/kommons"
+	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // Scraper ...
 // +kubebuilder:object:generate=false
 type Scraper interface {
 	Scrape(ctx *ScrapeContext, config ConfigScraper) ScrapeResults
+	CanScrape(config ConfigScraper) bool
 }
 
 // Analyzer ...
@@ -27,16 +31,35 @@ type Analyzer func(configs []ScrapeResult) AnalysisResult
 type AnalysisResult struct {
 	ExternalID    string
 	ExternalType  string
-	Summary       string
-	Analysis      map[string]string
-	AnalysisType  string
+	Summary       string            // Summary of the analysis
+	Analysis      map[string]string // Detailed metadata of the analysis
+	AnalysisType  string            // Type of analysis, e.g. availability, compliance, cost, security, performance.
+	Severity      string            // Severity of the analysis, e.g. critical, high, medium, low, info
+	Source        string            // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
+	Analyzer      string            // Name of the analyzer that generated the analysis
+	Messages      []string          // A detailed paragraphs of the analysis
 	Status        string
-	Severity      string
 	FirstObserved *time.Time
 	LastObserved  *time.Time
-	Analyzer      string
-	Messages      []string
 	Error         error
+}
+
+// ToConfigAnalysis converts this analysis result to a config analysis
+// db model.
+func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
+	return models.ConfigAnalysis{
+		ExternalID:    t.ExternalID,
+		ExternalType:  t.ExternalType,
+		Analyzer:      t.Analyzer,
+		Message:       strings.Join(t.Messages, ";"),
+		Severity:      t.Severity,
+		AnalysisType:  t.AnalysisType,
+		Summary:       t.Summary,
+		Status:        t.Status,
+		Source:        t.Source,
+		FirstObserved: t.FirstObserved,
+		LastObserved:  t.LastObserved,
+	}
 }
 
 // +kubebuilder:object:generate=false
@@ -129,6 +152,7 @@ type ScrapeResult struct {
 	Source              string              `json:"source,omitempty"`
 	Config              interface{}         `json:"config,omitempty"`
 	Format              string              `json:"format,omitempty"`
+	Icon                string              `json:"icon,omitempty"`
 	Tags                JSONStringMap       `json:"tags,omitempty"`
 	BaseScraper         BaseScraper         `json:"-"`
 	Error               error               `json:"-"`
@@ -139,6 +163,14 @@ type ScrapeResult struct {
 	Action              string              `json:",omitempty"`
 	ParentExternalID    string              `json:"-"`
 	ParentExternalType  string              `json:"-"`
+}
+
+func NewScrapeResult(base BaseScraper) *ScrapeResult {
+	return &ScrapeResult{
+		BaseScraper: base,
+		Format:      base.Format,
+		Tags:        base.Tags,
+	}
 }
 
 func (s ScrapeResult) Success(config interface{}) ScrapeResult {
@@ -168,6 +200,7 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 		Config:       config,
 		Tags:         s.Tags,
 		BaseScraper:  s.BaseScraper,
+		Format:       s.Format,
 		Error:        s.Error,
 	}
 	return clone
@@ -211,10 +244,11 @@ type QueryRequest struct {
 // +kubebuilder:object:generate=false
 type ScrapeContext struct {
 	context.Context
-	Namespace string
-	Kommons   *kommons.Client
-	Scraper   *ConfigScraper
-	ScraperID *uuid.UUID
+	Namespace            string
+	Kubernetes           *kubernetes.Clientset
+	KubernetesRestConfig *rest.Config
+	Scraper              *ConfigScraper
+	ScraperID            *uuid.UUID
 }
 
 func (ctx ScrapeContext) Find(path string) ([]string, error) {

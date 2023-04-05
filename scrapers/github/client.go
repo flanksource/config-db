@@ -5,6 +5,7 @@ import (
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -76,10 +77,14 @@ type GitHubActionsClient struct {
 }
 
 func NewGitHubActionsClient(ctx *v1.ScrapeContext, gha v1.GitHubActions) (*GitHubActionsClient, error) {
+	token, err := duty.GetEnvValueFromCache(ctx.Kubernetes, gha.PersonalAccessToken, ctx.Namespace)
+	if err != nil {
+		return nil, err
+	}
 	client := resty.New().
 		SetHeader("Accept", "application/vnd.github+json").
 		SetBaseURL(fmt.Sprintf("https://api.github.com/repos/%s/%s", gha.Owner, gha.Repository)).
-		SetBasicAuth(gha.Owner, gha.PersonalAccessToken.Value)
+		SetBasicAuth(gha.Owner, token)
 
 	return &GitHubActionsClient{
 		ScrapeContext: ctx,

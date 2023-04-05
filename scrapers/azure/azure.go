@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -14,11 +15,15 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+<<<<<<< HEAD
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/flanksource/commons/logger"
+=======
+>>>>>>> main
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty"
 )
 
 type Scraper struct {
@@ -27,13 +32,30 @@ type Scraper struct {
 	config *v1.Azure
 }
 
-// Scrape ...
+func (azure Scraper) CanScrape(configs v1.ConfigScraper) bool {
+	return len(configs.Azure) > 0
+}
+
 func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, config := range configs.Azure {
-		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID.Value, config.ClientSecret.Value, nil)
+		clientId, err := duty.GetEnvValueFromCache(ctx.Kubernetes, config.ClientID, ctx.Namespace)
 		if err != nil {
+<<<<<<< HEAD
 			logger.Errorf("failed to create client-secret credential: %v", err)
+=======
+			results.Errorf(err, "failed to get client id")
+			continue
+		}
+		clientSecret, err := duty.GetEnvValueFromCache(ctx.Kubernetes, config.ClientSecret, ctx.Namespace)
+		if err != nil {
+			results.Errorf(err, "failed to get client secret")
+			continue
+		}
+		cred, err := azidentity.NewClientSecretCredential(config.TenantID, clientId, clientSecret, nil)
+		if err != nil {
+			results.Errorf(err, "failed to get credentials for azure")
+>>>>>>> main
 			continue
 		}
 
@@ -49,6 +71,7 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchFirewalls()...)
 		results = append(results, azure.fetchDatabases()...)
 		results = append(results, azure.fetchK8s()...)
+<<<<<<< HEAD
 		results = append(results, azure.fetchSubscriptions()...)
 		results = append(results, azure.fetchStorageAccounts()...)
 		results = append(results, azure.fetchAppServices()...)
@@ -57,6 +80,9 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchTrafficManagerProfiles()...)
 		results = append(results, azure.fetchNetworkSecurityGroups()...)
 		results = append(results, azure.fetchPublicIPAddresses()...)
+=======
+		results = append(results, azure.fetchAdvisorAnalysis()...)
+>>>>>>> main
 	}
 
 	return results
@@ -87,11 +113,11 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "RelationalDatabase",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -117,11 +143,11 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "KubernetesCluster",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -147,11 +173,11 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "Firewall",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -176,11 +202,11 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "ContainerRegistry",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -206,11 +232,11 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "VirtualNetwork",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -236,11 +262,11 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "LoadBalancer",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 
 		}
@@ -267,11 +293,11 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
 				Config:       v,
 				Type:         "VirtualMachine",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
@@ -298,16 +324,18 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
-				ID:           *v.ID,
+				ID:           getARMID(v.ID),
 				Name:         *v.Name,
+				Config:       v,
 				Type:         "ResourceGroup",
-				ExternalType: *v.Type,
+				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
 	return results
 }
 
+<<<<<<< HEAD
 // fetchSubscriptions gets Azure subscriptions.
 func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 	logger.Debugf("fetching subscriptions")
@@ -562,4 +590,25 @@ func (azure Scraper) fetchPublicIPAddresses() v1.ScrapeResults {
 	}
 
 	return results
+=======
+// getARMID takes in an ID of a resource group
+// and returns it in a compatible format.
+func getARMID(id *string) string {
+	// Need to lowercase the ID in the config item because
+	// the azure advisor recommendation uses resource id in all lowercase; not always but most of the time.
+	// This is required to match config analysis with the config item.
+	return strings.ToLower(deref(id))
+}
+
+// getARMType takes in a type of a resource group
+// and returns it in a compatible format.
+func getARMType(rType *string) string {
+	// Need to uppercase the resource type in the config item because
+	// the azure advisor recommendation uses resource type in all uppercase; not always but most of the time.
+	// For example: It returns
+	// - MICROSOFT.COMPUTE/VIRTUALMACHINES (all caps)
+	// - Microsoft.ContainerService/ManagedClusters (case not enforced)
+	// This is required to match config analysis with the config item.
+	return strings.ToUpper(deref(rType))
+>>>>>>> main
 }

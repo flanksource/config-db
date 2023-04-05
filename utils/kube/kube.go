@@ -15,15 +15,13 @@ package kube
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/flanksource/commons/logger"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/flanksource/commons/files"
-	"github.com/flanksource/kommons"
-	"github.com/pkg/errors"
 	"gopkg.in/flanksource/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -32,31 +30,34 @@ import (
 )
 
 // NewK8sClient ...
-func NewK8sClient() (*kubernetes.Clientset, error) {
-	Client, err := NewKommonsClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "Could not create kommons client")
-	}
-	clientset, err := Client.GetClientset()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create k8s client")
+func NewK8sClient() (*kubernetes.Clientset, *rest.Config, error) {
+	kubeconfig := os.Getenv("KUBECONFIG")
+	if kubeconfig == "" {
+		kubeconfig = os.ExpandEnv("$HOME/.kube/config")
 	}
 
-	return clientset, nil
-}
+	var err error
+	var restConfig *rest.Config
 
-// NewKommonsClient ...
-func NewKommonsClient() (*kommons.Client, error) {
-	kubeConfig := GetKubeconfig()
-	config, err := clientcmd.BuildConfigFromFlags("", kubeConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to generate rest config")
+	if !files.Exists(kubeconfig) {
+		if restConfig, err = rest.InClusterConfig(); err != nil {
+			return nil, nil, fmt.Errorf("cannot find kubeconfig")
+		}
 	}
-	Client := kommons.NewClient(config, logger.StandardLogger())
-	if Client == nil {
-		return nil, errors.New("could not create kommons client")
+
+	if restConfig == nil {
+		data, err := os.ReadFile(kubeconfig)
+		if err != nil {
+			return nil, nil, err
+		}
+		restConfig, err = clientcmd.RESTConfigFromKubeConfig(data)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
-	return Client, nil
+
+	client, err := kubernetes.NewForConfig(restConfig)
+	return client, restConfig, err
 }
 
 // GetClusterName ...

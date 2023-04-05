@@ -1,8 +1,10 @@
 package scrapers
 
 import (
+	"github.com/flanksource/commons/template"
 	"github.com/flanksource/config-db/scrapers/azure"
-	"time"
+	"github.com/flanksource/duty"
+	"github.com/flanksource/duty/types"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/scrapers/aws"
@@ -11,8 +13,6 @@ import (
 	"github.com/flanksource/config-db/scrapers/github"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/scrapers/sql"
-	"github.com/flanksource/kommons"
-	"github.com/flanksource/kommons/ktemplate"
 )
 
 // All is the scrappers registry
@@ -35,10 +35,6 @@ func GetConnection(ctx *v1.ScrapeContext, conn *v1.Connection) (string, error) {
 	if conn.Authentication.IsEmpty() {
 		return conn.Connection, nil
 	}
-	client, err := ctx.Kommons.GetClientset()
-	if err != nil {
-		return "", err
-	}
 
 	auth, err := GetAuthValues(ctx, &conn.Authentication)
 	if err != nil {
@@ -53,13 +49,12 @@ func GetConnection(ctx *v1.ScrapeContext, conn *v1.Connection) (string, error) {
 		"password":  auth.GetPassword(),
 		"domain":    auth.GetDomain(),
 	}
-	templater := ktemplate.StructTemplater{
-		Clientset: client,
-		Values:    data,
+	templater := template.StructTemplater{
+		Values: data,
 		// access go values in template requires prefix everything with .
 		// to support $(username) instead of $(.username) we add a function for each var
 		ValueFunctions: true,
-		DelimSets: []ktemplate.Delims{
+		DelimSets: []template.Delims{
 			{Left: "{{", Right: "}}"},
 			{Left: "$(", Right: ")"},
 		},
@@ -74,30 +69,30 @@ func GetConnection(ctx *v1.ScrapeContext, conn *v1.Connection) (string, error) {
 
 func GetAuthValues(ctx *v1.ScrapeContext, auth *v1.Authentication) (*v1.Authentication, error) {
 	authentication := &v1.Authentication{
-		Username: kommons.EnvVar{
-			Value: "",
+		Username: types.EnvVar{
+			ValueStatic: "",
 		},
-		Password: kommons.EnvVar{
-			Value: "",
+		Password: types.EnvVar{
+			ValueStatic: "",
 		},
 	}
 	// in case nil we are sending empty string values for username and password
 	if auth == nil {
 		return authentication, nil
 	}
-	_, username, err := ctx.Kommons.GetEnvValueFromCache(auth.Username, ctx.Namespace, 5*time.Minute)
+	username, err := duty.GetEnvValueFromCache(ctx.Kubernetes, auth.Username, ctx.Namespace)
 	if err != nil {
 		return nil, err
 	}
-	authentication.Username = kommons.EnvVar{
-		Value: username,
+	authentication.Username = types.EnvVar{
+		ValueStatic: username,
 	}
-	_, password, err := ctx.Kommons.GetEnvValueFromCache(auth.Password, ctx.Namespace, 120*time.Second)
+	password, err := duty.GetEnvValueFromCache(ctx.Kubernetes, auth.Password, ctx.Namespace)
 	if err != nil {
 		return nil, err
 	}
-	authentication.Password = kommons.EnvVar{
-		Value: password,
+	authentication.Password = types.EnvVar{
+		ValueStatic: password,
 	}
 	return authentication, err
 }
