@@ -1,9 +1,9 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 
-	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
@@ -11,6 +11,8 @@ import (
 	"github.com/flanksource/config-db/utils"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
+	"github.com/hexops/gotextdiff"
+	"github.com/hexops/gotextdiff/myers"
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -209,26 +211,49 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 	return nil
 }
 
+// normalizeJSON returns an idented json string
+func normalizeJSON(jsonStr string) (string, error) {
+	var jsonStrMap map[string]any
+	if err := json.Unmarshal([]byte(jsonStr), &jsonStrMap); err != nil {
+		return "", err
+	}
+
+	jsonStrIndented, err := json.MarshalIndent(jsonStrMap, "", "\t")
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonStrIndented), nil
+}
+
 func generateDiff(a, b models.ConfigItem) (*dutyModels.ConfigChange, error) {
-	patch, err := jsonpatch.CreateMergePatch([]byte(*a.Config), []byte(*b.Config))
+	before, err := normalizeJSON(*b.Config)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(patch) <= 2 { // no patch or empty array
+	after, err := normalizeJSON(*a.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	edits := myers.ComputeEdits("", string(before), string(after))
+	if len(edits) == 0 { // no patch or empty array
 		return nil, nil
 	}
 
-	patchStr := string(patch)
+	diff := fmt.Sprint(gotextdiff.ToUnified("a", "b", string(before), edits))
+	if diff == "" {
+		return nil, nil
+	}
 
 	return &dutyModels.ConfigChange{
 		ConfigID:         a.ID,
 		ChangeType:       "diff",
-		ExternalChangeId: utils.Sha256Hex(patchStr),
+		ExternalChangeId: utils.Sha256Hex(diff),
 		ID:               ulid.MustNew().AsUUID(),
-		Patches:          patchStr,
+		Diff:             diff,
 	}, nil
-
 }
 
 func relationshipResultHandler(relationships v1.RelationshipResults) error {

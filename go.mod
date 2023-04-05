@@ -49,6 +49,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-getter v1.7.1
 	github.com/henvic/httpretty v0.1.0
+	github.com/hexops/gotextdiff v1.0.3
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/labstack/echo/v4 v4.10.2
 	github.com/lib/pq v1.10.7
@@ -278,4 +279,5 @@ require (
 replace (
 	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.12.1
 	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.13.9
+	github.com/flanksource/duty => /home/gunners/Projects/flanksource/duty
 )
