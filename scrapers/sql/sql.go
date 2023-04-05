@@ -30,7 +30,7 @@ func (s SqlScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.S
 		connection := config.GetModel()
 		connection, err := duty.HydrateConnection(ctx, ctx.Kubernetes, db.DefaultDB(), connection, ctx.Namespace)
 		if err != nil {
-			results.Errorf(err, "failed to hydrate connection for %s", *connection)
+			results.Errorf(err, "failed to hydrate connection for %s", config.Connection)
 		}
 		db, err := dburl.Open(connection.URL)
 		if err != nil {
