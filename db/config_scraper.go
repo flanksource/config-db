@@ -9,6 +9,15 @@ import (
 	"github.com/google/uuid"
 )
 
+func GetScraper(id string) (*models.ConfigScraper, error) {
+	var configScraper models.ConfigScraper
+	if err := db.Where("id = ?", id).First(&configScraper).Error; err != nil {
+		return nil, err
+	}
+
+	return &configScraper, nil
+}
+
 func DeleteScrapeConfig(scrapeConfig *v1.ScrapeConfig) error {
 	configScraper := models.ConfigScraper{
 		ID: uuid.MustParse(string(scrapeConfig.GetUID())),

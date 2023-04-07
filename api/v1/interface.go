@@ -240,6 +240,11 @@ type QueryRequest struct {
 	Query string `json:"query"`
 }
 
+// RunNowRequest represents the request body for a run now request
+type RunNowRequest struct {
+	ScraperID string `json:"id"`
+}
+
 // ScrapeContext ...
 // +kubebuilder:object:generate=false
 type ScrapeContext struct {

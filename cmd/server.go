@@ -46,7 +46,9 @@ func serve(configFiles []string) {
 			return c.String(200, "OK")
 		})
 	}
+
 	e.GET("/query", query.Handler)
+	e.POST("/run-now", query.RunNowHandler)
 
 	// Run this in a goroutine to make it non-blocking for server start
 	go startScraperCron(configFiles)
