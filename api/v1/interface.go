@@ -245,7 +245,7 @@ type RunNowRequest struct {
 	ScraperID string `json:"id"`
 }
 
-// RunNowRequest represents the response body for a run now request
+// RunNowResponse represents the response body for a run now request
 type RunNowResponse struct {
 	Total int `json:"total"`
 }
