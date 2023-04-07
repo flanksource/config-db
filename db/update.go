@@ -230,6 +230,9 @@ func normalizeJSON(jsonStr string) (string, error) {
 // generateDiff calculates the diff (git style) and patches between the
 // given 2 config items and returns a ConfigChange object if there are any changes.
 func generateDiff(newConf, prev models.ConfigItem) (*dutyModels.ConfigChange, error) {
+	// We want a nicely indented json config with each key-vals in new line
+	// because that gives us a better diff. A one-line json string config produces diff
+	// that's not very helpful.
 	before, err := normalizeJSON(*prev.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to normalize json for previous config: %w", err)
@@ -258,7 +261,7 @@ func generateDiff(newConf, prev models.ConfigItem) (*dutyModels.ConfigChange, er
 	return &dutyModels.ConfigChange{
 		ConfigID:         newConf.ID,
 		ChangeType:       "diff",
-		ExternalChangeId: utils.Sha256Hex(diff),
+		ExternalChangeId: utils.Sha256Hex(string(patch)),
 		ID:               ulid.MustNew().AsUUID(),
 		Diff:             diff,
 		Patches:          string(patch),
