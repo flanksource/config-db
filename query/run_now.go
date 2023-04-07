@@ -31,9 +31,13 @@ func RunNowHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to transform config scraper model.", err)
 	}
 
-	if err := scrapers.RunScraper(configScraper); err != nil {
+	results, err := scrapers.RunScraper(configScraper)
+	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to run scraper.", err)
 	}
 
-	return nil
+	res := v1.RunNowResponse{
+		Total: len(results),
+	}
+	return c.JSON(http.StatusOK, res)
 }

@@ -19,7 +19,7 @@ func AddFuncToCron(schedule string, fn func()) error {
 
 func AddToCron(scraper v1.ConfigScraper, id string) {
 	fn := func() {
-		if err := RunScraper(scraper); err != nil {
+		if _, err := RunScraper(scraper); err != nil {
 			logger.Errorf("Error running scraper: %v", err)
 		}
 	}
