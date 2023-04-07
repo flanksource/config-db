@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
@@ -226,33 +227,41 @@ func normalizeJSON(jsonStr string) (string, error) {
 	return string(jsonStrIndented), nil
 }
 
-func generateDiff(a, b models.ConfigItem) (*dutyModels.ConfigChange, error) {
-	before, err := normalizeJSON(*b.Config)
+// generateDiff calculates the diff (git style) and patches between the
+// given 2 config items and returns a ConfigChange object if there are any changes.
+func generateDiff(newConf, prev models.ConfigItem) (*dutyModels.ConfigChange, error) {
+	before, err := normalizeJSON(*prev.Config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to normalize json for previous config: %w", err)
 	}
 
-	after, err := normalizeJSON(*a.Config)
+	after, err := normalizeJSON(*newConf.Config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to normalize json for new config: %w", err)
 	}
 
-	edits := myers.ComputeEdits("", string(before), string(after))
-	if len(edits) == 0 { // no patch or empty array
+	edits := myers.ComputeEdits("", before, after)
+	if len(edits) == 0 {
 		return nil, nil
 	}
 
-	diff := fmt.Sprint(gotextdiff.ToUnified("a", "b", string(before), edits))
+	diff := fmt.Sprint(gotextdiff.ToUnified("a", "b", before, edits))
 	if diff == "" {
 		return nil, nil
 	}
 
+	patch, err := jsonpatch.CreateMergePatch([]byte(*newConf.Config), []byte(*prev.Config))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create merge patch: %w", err)
+	}
+
 	return &dutyModels.ConfigChange{
-		ConfigID:         a.ID,
+		ConfigID:         newConf.ID,
 		ChangeType:       "diff",
 		ExternalChangeId: utils.Sha256Hex(diff),
 		ID:               ulid.MustNew().AsUUID(),
 		Diff:             diff,
+		Patches:          string(patch),
 	}, nil
 }
 
