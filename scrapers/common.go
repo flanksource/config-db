@@ -18,7 +18,8 @@ import (
 
 // All is the scrappers registry
 var All = []v1.Scraper{
-	azure.Scraper{},
+	// azure.Scraper{},
+	azure.CostScraper{},
 	aws.Scraper{},
 	aws.CostScraper{},
 	file.FileScraper{},
