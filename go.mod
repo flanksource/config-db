@@ -271,4 +271,5 @@ require (
 replace (
 	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.12.1
 	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.13.9
+	github.com/flanksource/duty => ../duty
 )
