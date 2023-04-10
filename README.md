@@ -4,46 +4,28 @@
 
 ## Setup
 
-### Setup local db link as environment variable.
-
 ```bash
-export DB_URL=postgres://<username>@localhost:5432/config
+make build
 ```
 
-### Create `config` database.
-
-```sql
-create database config
-```
-
-### Scape config and serve
+### Run as server
 
 Starting the server will run the migrations and start scraping in background (The `default-schedule` configuration will run scraping every 60 minutes if configuration is not explicitly specified).
 
 ```bash
-make build
-
-./.bin/config-db serve
+DB_URL=postgres://<username>:<password>@localhost:5432/<db_name> ./.bin/config-db serve --run-migrations
 ```
+
+### Scape config
 
 To explicitly run scraping with a particular configuration:
 
 ```bash
 ./.bin/config-db run <scrapper-config.yaml> -vvv
-config-db serve
 ```
 
 See `fixtures/` for example scraping configurations.
 
-### Migrations
-
-Commands `./bin/config-db serve` or `./bin/config-db run` would run the migrations.
-
-Setup [goose](https://github.com/pressly/goose) for more options on migration. Goose commands need to be run from `db/migrations` directory.
-
-```bash
-GOOSE_DRIVER=postgres GOOSE_DBSTRING="user=postgres dbname=config sslmode=disable" goose down
-```
 ## Principles
 
 * **JSON Based** - Configuration is stored in JSON, with changes recorded as JSON patches that enables highly structured search.
@@ -61,12 +43,12 @@ GOOSE_DRIVER=postgres GOOSE_DBSTRING="user=postgres dbname=config sslmode=disabl
 * AWS
   * [x] EC2 (including trusted advisor, compliance and patch reporting)
   * [x] VPC
-  * [ ] IAM
+  * [x] IAM
 * Kubernetes
-  * [ ] Pods
-  * [ ] Secrets / ConfigMaps
-  * [ ] LoadBalancers / Ingress
-  * [ ] Nodes
+  * [x] Pods
+  * [x] Secrets / ConfigMaps
+  * [x] LoadBalancers / Ingress
+  * [x] Nodes
 * Configuration Files
   * [ ] YAML/JSON
   * [ ] Properties files
