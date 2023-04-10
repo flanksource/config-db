@@ -540,7 +540,7 @@ func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "NetworkSecurityGroup",
+				Type:         "SecurityGroup",
 				ExternalType: getARMType(v.Type),
 			})
 		}
