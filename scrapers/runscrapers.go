@@ -120,7 +120,7 @@ func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.Scr
 		return scraped
 	}
 
-	return []v1.ScrapeResult{result}
+	return scraped
 }
 
 // extractChangesFromConfig will attempt to extract config & changes from
