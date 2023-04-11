@@ -2,6 +2,7 @@ package query
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -20,7 +21,7 @@ func RunNowHandler(c echo.Context) error {
 	scraper, err := db.GetScraper(req.ScraperID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return echo.NewHTTPError(http.StatusNotFound, "scraper with that id was not found.")
+			return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("scraper with id: %s was not found.", req.ScraperID))
 		}
 
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error()) // could mean server errors as well, but there's no trivial way to find out...
@@ -33,7 +34,7 @@ func RunNowHandler(c echo.Context) error {
 
 	results, err := scrapers.RunScraper(configScraper)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to run scraper.", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to run scraper", err)
 	}
 
 	res := v1.RunNowResponse{

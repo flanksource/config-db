@@ -37,9 +37,9 @@ var _ = Describe("Scrapers test", func() {
 	Describe("Testing file fixtures", func() {
 		fixtures := []string{
 			"file-git",
-			// "file-script",
-			// "file-script-gotemplate",
-			// "file-mask",
+			"file-script",
+			"file-script-gotemplate",
+			"file-mask",
 		}
 
 		for _, fixtureName := range fixtures {
