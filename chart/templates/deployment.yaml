@@ -50,7 +50,7 @@ spec:
                   name: {{ .Values.db.secretKeyRef.name }}
                   key: {{ .Values.db.secretKeyRef.key }}
             - name: NAMESPACE
-              valueFrom: {{ .Values.namespace | default .Release.Namespace }}
+              value: {{ .Values.namespace | default .Release.Namespace }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.extra }}
