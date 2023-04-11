@@ -20,7 +20,7 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	cwd, _ := os.Getwd()
 	logger.Infof("Scraping files from (PWD: %s)", cwd)
 
-	results := []v1.ScrapeResult{}
+	var results v1.ScrapeResults
 	for _, config := range configs {
 		for _, scraper := range All {
 			if !scraper.CanScrape(config) {
@@ -40,63 +40,20 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 			}
 
 			for _, result := range scraper.Scrape(ctx, config) {
-				if result.AnalysisResult != nil {
-					if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
-						result.AnalysisResult.AnalysisType = rule.Category
-						result.AnalysisResult.Severity = rule.Severity
+				scraped := processScrapeResult(config, result)
+
+				for i := range scraped {
+					if scraped[i].Error != nil {
+						logger.Errorf("Error scraping %s: %v", scraped[i].ID, scraped[i].Error)
+						jobHistory.AddError(result.Error.Error())
 					}
 				}
 
-				result.Changes = changes.ProcessRules(result)
-
-				if result.Config == nil && (result.AnalysisResult != nil || len(result.Changes) > 0) {
-					results = append(results, result)
-				} else if result.Config != nil {
-					extractor, err := processors.NewExtractor(result.BaseScraper)
-					if err != nil {
-						logger.Errorf("failed to create extractor: %v", err)
-						jobHistory.AddError(err.Error())
-						continue
-					}
-
-					scraped, err := extractor.Extract(result)
-					if err != nil {
-						logger.Errorf("failed to extract: %v", err)
-						jobHistory.AddError(err.Error())
-						continue
-					}
-
-					if config.Full {
-						for i := range scraped {
-							extractedConfig, changeRes, err := extractConfigChangesFromConfig(scraped[i].Config)
-							if err != nil {
-								logger.Errorf("failed to extract changes from config: %v", err)
-								continue
-							}
-
-							for _, cr := range changeRes {
-								cr.ExternalID = scraped[i].ID
-								cr.ExternalType = scraped[i].ExternalType
-
-								if cr.ExternalID == "" && cr.ExternalType == "" {
-									continue
-								}
-								scraped[i].Changes = append(scraped[i].Changes, cr)
-							}
-
-							// The original config should be replaced by the extracted config (could also be nil)
-							scraped[i].Config = extractedConfig
-						}
-					}
-
-					results = append(results, scraped...)
-				}
-
-				if result.Error != nil {
-					jobHistory.AddError(result.Error.Error())
-				} else {
+				if !scraped.HasErr() {
 					jobHistory.IncrSuccess()
 				}
+
+				results = append(results, scraped...)
 			}
 
 			jobHistory.End()
@@ -107,6 +64,63 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	}
 
 	return results, nil
+}
+
+// processScrapeResult extracts possibly more configs from the result
+func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.ScrapeResults {
+	if result.AnalysisResult != nil {
+		if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
+			result.AnalysisResult.AnalysisType = rule.Category
+			result.AnalysisResult.Severity = rule.Severity
+		}
+	}
+
+	result.Changes = changes.ProcessRules(result)
+
+	// No config means we don't need to extract anything
+	if result.Config == nil {
+		return []v1.ScrapeResult{result}
+	}
+
+	extractor, err := processors.NewExtractor(result.BaseScraper)
+	if err != nil {
+		result.Error = err
+		return []v1.ScrapeResult{result}
+	}
+
+	scraped, err := extractor.Extract(result)
+	if err != nil {
+		result.Error = err
+		return []v1.ScrapeResult{result}
+	}
+
+	// In full mode, we extract all configs and changes from the result.
+	if config.Full {
+		for i := range scraped {
+			extractedConfig, changeRes, err := extractConfigChangesFromConfig(scraped[i].Config)
+			if err != nil {
+				scraped[i].Error = err
+				continue
+			}
+
+			for _, cr := range changeRes {
+				cr.ExternalID = scraped[i].ID
+				cr.ExternalType = scraped[i].ExternalType
+
+				if cr.ExternalID == "" && cr.ExternalType == "" {
+					continue
+				}
+				scraped[i].Changes = append(scraped[i].Changes, cr)
+			}
+
+			// The original config should be replaced by the extracted config (could also be nil)
+			scraped[i].Config = extractedConfig
+		}
+
+		return scraped
+	}
+
+	return []v1.ScrapeResult{result}
 }
 
 // extractChangesFromConfig will attempt to extract config & changes from

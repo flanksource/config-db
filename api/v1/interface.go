@@ -99,6 +99,27 @@ type AnalysisResults []AnalysisResult
 // +kubebuilder:object:generate=false
 type ScrapeResults []ScrapeResult
 
+func (t ScrapeResults) HasErr() bool {
+	for _, r := range t {
+		if r.Error != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (t ScrapeResults) Errors() []string {
+	var errs []string
+	for _, r := range t {
+		if r.Error != nil {
+			errs = append(errs, r.Error.Error())
+		}
+	}
+
+	return errs
+}
+
 type RelationshipResult struct {
 	ConfigExternalID  ExternalID
 	RelatedExternalID ExternalID
@@ -247,7 +268,10 @@ type RunNowRequest struct {
 
 // RunNowResponse represents the response body for a run now request
 type RunNowResponse struct {
-	Total int `json:"total"`
+	Total   int      `json:"total"`
+	Success int      `json:"success"`
+	Failed  int      `json:"failed"`
+	Errors  []string `json:"errors,omitempty"`
 }
 
 // ScrapeContext ...

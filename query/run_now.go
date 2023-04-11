@@ -37,7 +37,10 @@ func RunNowHandler(c echo.Context) error {
 	}
 
 	res := v1.RunNowResponse{
-		Total: len(results),
+		Total:  len(results),
+		Errors: results.Errors(),
 	}
+	res.Failed = len(res.Errors)
+	res.Success = res.Total - res.Failed
 	return c.JSON(http.StatusOK, res)
 }
