@@ -1,4 +1,4 @@
-package query
+package scrapers
 
 import (
 	"errors"
@@ -7,7 +7,6 @@ import (
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/scrapers"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
@@ -32,7 +31,7 @@ func RunNowHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to transform config scraper model.", err)
 	}
 
-	results, err := scrapers.RunScraper(configScraper)
+	results, err := RunScraper(configScraper)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to run scraper", err)
 	}
