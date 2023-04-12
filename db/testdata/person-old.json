@@ -1,0 +1,12 @@
+{
+  "address": {
+    "city": "Anytown",
+    "state": "CA",
+    "street": "123 Main St",
+    "zip": "12345"
+  },
+  "age": 30,
+  "email": "john.smith@example.com",
+  "isVerified": true,
+  "name": "John Smith"
+}

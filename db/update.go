@@ -105,7 +105,7 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 		}
 	}
 
-	changes, err := generateDiff(ci, *existing)
+	changes, err := generateConfigChange(ci, *existing)
 	if err != nil {
 		logger.Errorf("[%s] failed to check for changes: %v", ci, err)
 	}
@@ -212,7 +212,8 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 	return nil
 }
 
-// normalizeJSON returns an idented json string
+// normalizeJSON returns an indented json string.
+// The keys are sorted lexicographically.
 func normalizeJSON(jsonStr string) (string, error) {
 	var jsonStrMap map[string]any
 	if err := json.Unmarshal([]byte(jsonStr), &jsonStrMap); err != nil {
@@ -227,28 +228,38 @@ func normalizeJSON(jsonStr string) (string, error) {
 	return string(jsonStrIndented), nil
 }
 
-// generateDiff calculates the diff (git style) and patches between the
-// given 2 config items and returns a ConfigChange object if there are any changes.
-func generateDiff(newConf, prev models.ConfigItem) (*dutyModels.ConfigChange, error) {
+// generateDiff calculates the diff (git style) between the given 2 configs.
+func generateDiff(newConf, prevConfig string) (string, error) {
 	// We want a nicely indented json config with each key-vals in new line
 	// because that gives us a better diff. A one-line json string config produces diff
 	// that's not very helpful.
-	before, err := normalizeJSON(*prev.Config)
+	before, err := normalizeJSON(prevConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to normalize json for previous config: %w", err)
+		return "", fmt.Errorf("failed to normalize json for previous config: %w", err)
 	}
 
-	after, err := normalizeJSON(*newConf.Config)
+	after, err := normalizeJSON(newConf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to normalize json for new config: %w", err)
+		return "", fmt.Errorf("failed to normalize json for new config: %w", err)
 	}
 
 	edits := myers.ComputeEdits("", before, after)
 	if len(edits) == 0 {
-		return nil, nil
+		return "", nil
 	}
 
-	diff := fmt.Sprint(gotextdiff.ToUnified("a", "b", before, edits))
+	diff := fmt.Sprint(gotextdiff.ToUnified("before", "after", before, edits))
+	return diff, nil
+}
+
+// generateConfigChange calculates the diff (git style) and patches between the
+// given 2 config items and returns a ConfigChange object if there are any changes.
+func generateConfigChange(newConf, prev models.ConfigItem) (*dutyModels.ConfigChange, error) {
+	diff, err := generateDiff(*newConf.Config, *prev.Config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate diff: %w", err)
+	}
+
 	if diff == "" {
 		return nil, nil
 	}

@@ -1,0 +1,9 @@
+--- before
++++ after
+@@ -1,4 +1,4 @@
+ {
+-	"name": "Incident Commander",
++	"name": "Mission Control",
+ 	"stack": "Go"
+ }
+\ No newline at end of file
