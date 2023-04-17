@@ -1,17 +1,23 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/utils"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
-func GetScraper(id string) (*models.ConfigScraper, error) {
+func FindScraper(id string) (*models.ConfigScraper, error) {
 	var configScraper models.ConfigScraper
 	if err := db.Where("id = ?", id).First(&configScraper).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
 		return nil, err
 	}
 
