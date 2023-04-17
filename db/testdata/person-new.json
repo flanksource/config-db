@@ -1,0 +1,12 @@
+{
+  "address": {
+    "city": "Kathmandu",
+    "state": "Bagmati",
+    "street": "Baneshwor",
+    "zip": "44600"
+  },
+  "age": 31,
+  "email": "john.smith@example.com",
+  "isVerified": true,
+  "name": "John Smith"
+}

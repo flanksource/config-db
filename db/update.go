@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 
 	jsonpatch "github.com/evanphx/json-patch"
@@ -11,6 +12,8 @@ import (
 	"github.com/flanksource/config-db/utils"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
+	"github.com/hexops/gotextdiff"
+	"github.com/hexops/gotextdiff/myers"
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -102,7 +105,7 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 		}
 	}
 
-	changes, err := generateDiff(ci, *existing)
+	changes, err := generateConfigChange(ci, *existing)
 	if err != nil {
 		logger.Errorf("[%s] failed to check for changes: %v", ci, err)
 	}
@@ -209,26 +212,71 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 	return nil
 }
 
-func generateDiff(a, b models.ConfigItem) (*dutyModels.ConfigChange, error) {
-	patch, err := jsonpatch.CreateMergePatch([]byte(*a.Config), []byte(*b.Config))
-	if err != nil {
-		return nil, err
+// normalizeJSON returns an indented json string.
+// The keys are sorted lexicographically.
+func normalizeJSON(jsonStr string) (string, error) {
+	var jsonStrMap map[string]any
+	if err := json.Unmarshal([]byte(jsonStr), &jsonStrMap); err != nil {
+		return "", err
 	}
 
-	if len(patch) <= 2 { // no patch or empty array
+	jsonStrIndented, err := json.MarshalIndent(jsonStrMap, "", "\t")
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonStrIndented), nil
+}
+
+// generateDiff calculates the diff (git style) between the given 2 configs.
+func generateDiff(newConf, prevConfig string) (string, error) {
+	// We want a nicely indented json config with each key-vals in new line
+	// because that gives us a better diff. A one-line json string config produces diff
+	// that's not very helpful.
+	before, err := normalizeJSON(prevConfig)
+	if err != nil {
+		return "", fmt.Errorf("failed to normalize json for previous config: %w", err)
+	}
+
+	after, err := normalizeJSON(newConf)
+	if err != nil {
+		return "", fmt.Errorf("failed to normalize json for new config: %w", err)
+	}
+
+	edits := myers.ComputeEdits("", before, after)
+	if len(edits) == 0 {
+		return "", nil
+	}
+
+	diff := fmt.Sprint(gotextdiff.ToUnified("before", "after", before, edits))
+	return diff, nil
+}
+
+// generateConfigChange calculates the diff (git style) and patches between the
+// given 2 config items and returns a ConfigChange object if there are any changes.
+func generateConfigChange(newConf, prev models.ConfigItem) (*dutyModels.ConfigChange, error) {
+	diff, err := generateDiff(*newConf.Config, *prev.Config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate diff: %w", err)
+	}
+
+	if diff == "" {
 		return nil, nil
 	}
 
-	patchStr := string(patch)
+	patch, err := jsonpatch.CreateMergePatch([]byte(*newConf.Config), []byte(*prev.Config))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create merge patch: %w", err)
+	}
 
 	return &dutyModels.ConfigChange{
-		ConfigID:         a.ID,
+		ConfigID:         newConf.ID,
 		ChangeType:       "diff",
-		ExternalChangeId: utils.Sha256Hex(patchStr),
+		ExternalChangeId: utils.Sha256Hex(string(patch)),
 		ID:               ulid.MustNew().AsUUID(),
-		Patches:          patchStr,
+		Diff:             diff,
+		Patches:          string(patch),
 	}, nil
-
 }
 
 func relationshipResultHandler(relationships v1.RelationshipResults) error {
