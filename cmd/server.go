@@ -47,7 +47,9 @@ func serve(configFiles []string) {
 			return c.String(200, "OK")
 		})
 	}
+
 	e.GET("/query", query.Handler)
+	e.POST("/run/:id", scrapers.RunNowHandler)
 
 	// Run this in a goroutine to make it non-blocking for server start
 	go startScraperCron(configFiles)
@@ -72,7 +74,7 @@ func startScraperCron(configFiles []string) {
 		_scraper.ID = scraperDB.ID.String()
 		scrapers.AddToCron(_scraper, "")
 		fn := func() {
-			if err := scrapers.RunScraper(_scraper); err != nil {
+			if _, err := scrapers.RunScraper(_scraper); err != nil {
 				logger.Errorf("Error running scraper: %v", err)
 			}
 		}
@@ -90,7 +92,7 @@ func startScraperCron(configFiles []string) {
 		}
 		scrapers.AddToCron(_scraper, scraper.ID.String())
 		fn := func() {
-			if err := scrapers.RunScraper(_scraper); err != nil {
+			if _, err := scrapers.RunScraper(_scraper); err != nil {
 				logger.Errorf("Error running scraper: %v", err)
 			}
 		}
