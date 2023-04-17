@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/query"
 
 	"github.com/flanksource/config-db/scrapers"
@@ -83,7 +84,7 @@ func startScraperCron(configFiles []string) {
 		logger.Fatalf(err.Error())
 	}
 	for _, scraper := range scraperConfigsDB {
-		_scraper, err := scraper.V1ConfigScraper()
+		_scraper, err := models.V1ConfigScraper(scraper)
 		if err != nil {
 			logger.Fatalf("Error parsing config scraper: %v", err)
 		}

@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 )
 
