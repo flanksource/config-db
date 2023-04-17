@@ -7,11 +7,18 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty"
 )
@@ -57,6 +64,14 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 		results = append(results, azure.fetchFirewalls()...)
 		results = append(results, azure.fetchDatabases()...)
 		results = append(results, azure.fetchK8s()...)
+		results = append(results, azure.fetchSubscriptions()...)
+		results = append(results, azure.fetchStorageAccounts()...)
+		results = append(results, azure.fetchAppServices()...)
+		results = append(results, azure.fetchDNS()...)
+		results = append(results, azure.fetchPrivateDNSZones()...)
+		results = append(results, azure.fetchTrafficManagerProfiles()...)
+		results = append(results, azure.fetchNetworkSecurityGroups()...)
+		results = append(results, azure.fetchPublicIPAddresses()...)
 		results = append(results, azure.fetchAdvisorAnalysis()...)
 	}
 
@@ -65,8 +80,9 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 
 // fetchDatabases gets all databases in a subscription.
 func (azure Scraper) fetchDatabases() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching databases for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	databases, err := armresources.NewClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate database client: %w", err)})
@@ -88,7 +104,7 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "RelationalDatabase",
 				ExternalType: getARMType(v.Type),
@@ -100,12 +116,14 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 
 // fetchK8s gets all kubernetes clusters in a subscription.
 func (azure Scraper) fetchK8s() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching k8s for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	managedClustersClient, err := armcontainerservice.NewManagedClustersClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate k8s client: %w", err)})
 	}
+
 	k8sPager := managedClustersClient.NewListPager(nil)
 	for k8sPager.More() {
 		nextPage, err := k8sPager.NextPage(azure.ctx)
@@ -116,7 +134,7 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "KubernetesCluster",
 				ExternalType: getARMType(v.Type),
@@ -128,12 +146,14 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 
 // fetchFirewalls gets all firewalls in a subscription.
 func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching firewalls for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	firewallClient, err := armnetwork.NewAzureFirewallsClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate firewall client: %w", err)})
 	}
+
 	firewallsPager := firewallClient.NewListAllPager(nil)
 	for firewallsPager.More() {
 		nextPage, err := firewallsPager.NextPage(azure.ctx)
@@ -144,7 +164,7 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "Firewall",
 				ExternalType: getARMType(v.Type),
@@ -156,8 +176,9 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 
 // fetchContainerRegistries gets container registries in a subscription.
 func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching container registries for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	registriesClient, err := armcontainerregistry.NewRegistriesClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate container registries client: %w", err)})
@@ -172,7 +193,7 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "ContainerRegistry",
 				ExternalType: getARMType(v.Type),
@@ -184,12 +205,14 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 
 // fetchVirtualNetworks gets virtual machines in a subscription.
 func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching virtual networks for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	virtualNetworksClient, err := armnetwork.NewVirtualNetworksClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate virtual network client: %w", err)})
 	}
+
 	virtualNetworksPager := virtualNetworksClient.NewListAllPager(nil)
 	for virtualNetworksPager.More() {
 		nextPage, err := virtualNetworksPager.NextPage(azure.ctx)
@@ -200,7 +223,7 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "VirtualNetwork",
 				ExternalType: getARMType(v.Type),
@@ -212,12 +235,14 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 
 // fetchLoadBalancers gets load balancers in a subscription.
 func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching load balancers for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	lbClient, err := armnetwork.NewLoadBalancersClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate load balancer client: %w", err)})
 	}
+
 	loadBalancersPager := lbClient.NewListAllPager(nil)
 	for loadBalancersPager.More() {
 		nextPage, err := loadBalancersPager.NextPage(azure.ctx)
@@ -228,7 +253,7 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "LoadBalancer",
 				ExternalType: getARMType(v.Type),
@@ -241,11 +266,14 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 
 // fetchVirtualMachines gets virtual machines in a subscription.
 func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
+	logger.Debugf("fetching virtual machines for subscription %s", azure.config.SubscriptionID)
+
 	var results v1.ScrapeResults
 	virtualMachineClient, err := armcompute.NewVirtualMachinesClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate virtual machine client: %w", err)})
 	}
+
 	virtualMachinePager := virtualMachineClient.NewListAllPager(nil)
 	for virtualMachinePager.More() {
 		nextPage, err := virtualMachinePager.NextPage(azure.ctx)
@@ -256,7 +284,7 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "VirtualMachine",
 				ExternalType: getARMType(v.Type),
@@ -268,29 +296,288 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 
 // fetchResourceGroups gets resource groups in a subscription.
 func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
-	var results v1.ScrapeResults
+	logger.Debugf("fetching resource groups for subscription %s", azure.config.SubscriptionID)
 
+	var results v1.ScrapeResults
 	resourceClient, err := armresources.NewResourceGroupsClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate resource group client: %w", err)})
 	}
+
 	resourcePager := resourceClient.NewListPager(nil)
 	for resourcePager.More() {
 		nextPage, err := resourcePager.NextPage(azure.ctx)
 		if err != nil {
 			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed reading resource group page: %w", err)})
 		}
+
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:  azure.config.BaseScraper,
 				ID:           getARMID(v.ID),
-				Name:         *v.Name,
+				Name:         deref(v.Name),
 				Config:       v,
 				Type:         "ResourceGroup",
 				ExternalType: getARMType(v.Type),
 			})
 		}
 	}
+	return results
+}
+
+// fetchSubscriptions gets Azure subscriptions.
+func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
+	logger.Debugf("fetching subscriptions")
+
+	var results v1.ScrapeResults
+	client, err := armsubscription.NewSubscriptionsClient(azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate subscriptions client: %w", err)})
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read subscription next page: %w", err)})
+		}
+
+		for _, v := range respPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           getARMID(v.ID),
+				Name:         *v.DisplayName,
+				Config:       v,
+				Type:         "Subscription",
+				ExternalType: "Azure::SUBSCRIPTION",
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchStorageAccounts gets storage accounts in a subscription.
+func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
+	logger.Debugf("fetching storage accounts for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armstorage.NewAccountsClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate storage account client: %w", err)})
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read storage account next page: %w", err)})
+		}
+
+		for _, v := range respPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
+				Config:       v,
+				Type:         "StorageAccount",
+				ExternalType: getARMType(v.Type),
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchAppServices gets Azure app services in a subscription.
+func (azure Scraper) fetchAppServices() v1.ScrapeResults {
+	logger.Debugf("fetching web services for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armappservice.NewWebAppsClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate app services client: %w", err)})
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read app services next page: %w", err)})
+		}
+
+		for _, v := range respPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
+				Config:       v,
+				Type:         "AppService",
+				ExternalType: getARMType(v.Type),
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchDNS gets Azure app services in a subscription.
+func (azure Scraper) fetchDNS() v1.ScrapeResults {
+	logger.Debugf("fetching dns zones for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armdns.NewZonesClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate dns zone client: %w", err)})
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read dns zone next page: %w", err)})
+		}
+
+		for _, v := range respPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
+				Config:       v,
+				Type:         "DNSZone",
+				ExternalType: getARMType(v.Type),
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchPrivateDNSZones gets Azure app services in a subscription.
+func (azure Scraper) fetchPrivateDNSZones() v1.ScrapeResults {
+	logger.Debugf("fetching private DNS zones for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armprivatedns.NewPrivateZonesClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate private DNS zones client: %w", err)})
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		nextPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read private DNS zones page: %w", err)})
+		}
+
+		for _, v := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
+				Config:       v,
+				Type:         "PrivateDNSZone",
+				ExternalType: getARMType(v.Type),
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchTrafficManagerProfiles gets traffic manager profiles in a subscription.
+func (azure Scraper) fetchTrafficManagerProfiles() v1.ScrapeResults {
+	logger.Debugf("fetching traffic manager profiles for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armtrafficmanager.NewProfilesClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate traffic manager profile client: %w", err)})
+	}
+
+	pager := client.NewListBySubscriptionPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read traffic manager profile next page: %w", err)})
+		}
+
+		for _, v := range respPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
+				Config:       v,
+				Type:         "TrafficManagerProfile",
+				ExternalType: getARMType(v.Type),
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchNetworkSecurityGroups gets network security groups in a subscription.
+func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
+	logger.Debugf("fetching network security groups for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armnetwork.NewSecurityGroupsClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate network security groups client: %w", err)})
+	}
+
+	pager := client.NewListAllPager(nil)
+	for pager.More() {
+		nextPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read network security groups page: %w", err)})
+		}
+
+		for _, v := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
+				Config:       v,
+				Type:         "SecurityGroup",
+				ExternalType: getARMType(v.Type),
+			})
+		}
+	}
+
+	return results
+}
+
+// fetchPublicIPAddresses gets Azure public IP addresses in a subscription.
+func (azure Scraper) fetchPublicIPAddresses() v1.ScrapeResults {
+	logger.Debugf("fetching public IP addresses for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armnetwork.NewPublicIPAddressesClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate public IP addresses client: %w", err)})
+	}
+
+	pager := client.NewListAllPager(nil)
+	for pager.More() {
+		nextPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read public IP addresses page: %w", err)})
+		}
+
+		for _, v := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper:  azure.config.BaseScraper,
+				ID:           getARMID(v.ID),
+				Name:         deref(v.Name),
+				Config:       v,
+				Type:         "PublicIPAddress",
+				ExternalType: getARMType(v.Type),
+			})
+		}
+	}
+
 	return results
 }
 
@@ -312,5 +599,5 @@ func getARMType(rType *string) string {
 	// - MICROSOFT.COMPUTE/VIRTUALMACHINES (all caps)
 	// - Microsoft.ContainerService/ManagedClusters (case not enforced)
 	// This is required to match config analysis with the config item.
-	return strings.ToUpper(deref(rType))
+	return "Azure::" + strings.ToUpper(deref(rType))
 }
