@@ -48,7 +48,7 @@ func serve(configFiles []string) {
 	}
 
 	e.GET("/query", query.Handler)
-	e.POST("/run-now", scrapers.RunNowHandler)
+	e.POST("/run/:id", scrapers.RunNowHandler)
 
 	// Run this in a goroutine to make it non-blocking for server start
 	go startScraperCron(configFiles)

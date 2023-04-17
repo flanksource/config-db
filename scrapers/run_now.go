@@ -12,15 +12,12 @@ import (
 )
 
 func RunNowHandler(c echo.Context) error {
-	var req v1.RunNowRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
-	}
+	id := c.Param("id")
 
-	scraper, err := db.GetScraper(req.ScraperID)
+	scraper, err := db.GetScraper(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("scraper with id: %s was not found.", req.ScraperID))
+			return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("scraper with id: %s was not found.", id))
 		}
 
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error()) // could mean server errors as well, but there's no trivial way to find out...
