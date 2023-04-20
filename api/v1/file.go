@@ -1,6 +1,10 @@
 package v1
 
-import "net/url"
+import (
+	"net/url"
+
+	"github.com/flanksource/duty/models"
+)
 
 // File ...
 type File struct {
@@ -23,4 +27,10 @@ func (f File) RedactedString() string {
 	}
 
 	return url.Redacted()
+}
+
+func (t File) GetConnection() *models.Connection {
+	return &models.Connection{
+		URL: t.URL,
+	}
 }
