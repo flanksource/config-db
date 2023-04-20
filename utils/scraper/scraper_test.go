@@ -96,7 +96,7 @@ func TestGetConnectionNameType(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			name, connectionType, found := ExtractConnectionNameType(tc.connection)
+			name, connectionType, found := extractConnectionNameType(tc.connection)
 			if name != tc.expect.name {
 				t.Errorf("expected name %q, but got %q", tc.expect.name, name)
 			}

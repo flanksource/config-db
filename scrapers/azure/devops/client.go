@@ -118,12 +118,9 @@ func NewAzureDevopsClient(ctx *v1.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 		return nil, err
 	}
 
-	if name, connectionType, found := scraper.ExtractConnectionNameType(token); found {
-		_connection, err := duty.FindConnection(ctx, db.DefaultDB(), connectionType, name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find connection (type=%s, name=%s): %v", connectionType, name, err)
-		}
-
+	if _connection, err := scraper.FindConnectionFromConnectionString(ctx, db.DefaultDB(), token); err != nil {
+		return nil, fmt.Errorf("failed to find connection from (token=%s): %w", token, err)
+	} else if _connection != nil {
 		token = _connection.Password
 	}
 

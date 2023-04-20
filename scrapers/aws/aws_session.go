@@ -89,12 +89,9 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 func getAccessAndSecretKey(ctx *v1.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
 	connection := conn.GetModel()
 
-	if name, connectionType, found := scraper.ExtractConnectionNameType(connection.Username); found {
-		_connection, err := duty.FindConnection(ctx, db.DefaultDB(), connectionType, name)
-		if err != nil {
-			return "", "", fmt.Errorf("failed to find connection (type=%s, name=%s): %w", connectionType, name, err)
-		}
-
+	if _connection, err := scraper.FindConnectionFromConnectionString(ctx, db.DefaultDB(), connection.Username); err != nil {
+		return "", "", fmt.Errorf("failed to find connection from (username=%s): %w", connection.Username, err)
+	} else if _connection != nil {
 		connection = _connection
 	}
 

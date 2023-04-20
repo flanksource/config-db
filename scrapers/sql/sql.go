@@ -26,17 +26,15 @@ func (s SqlScraper) CanScrape(configs v1.ConfigScraper) bool {
 func (s SqlScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, _config := range configs.SQL {
-		var config = _config
+		var (
+			config     = _config
+			connection = config.Connection.GetModel()
+		)
 
-		connection := config.Connection.GetModel()
-
-		if name, connectionType, found := scraper.ExtractConnectionNameType(connection.URL); found {
-			_connection, err := duty.FindConnection(ctx, db.DefaultDB(), connectionType, name)
-			if err != nil {
-				results.Errorf(err, "failed to find connection (type=%s, name=%s)", connectionType, name)
-				continue
-			}
-
+		if _connection, err := scraper.FindConnectionFromConnectionString(ctx, db.DefaultDB(), connection.URL); err != nil {
+			results.Errorf(err, "failed to find connection from (url=%s)", connection.URL)
+			continue
+		} else if _connection != nil {
 			connection = _connection
 		}
 
