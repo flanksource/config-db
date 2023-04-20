@@ -6,6 +6,7 @@ import (
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/utils/scraper"
 	"github.com/flanksource/duty"
 	"github.com/xo/dburl"
 
@@ -27,7 +28,18 @@ func (s SqlScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.S
 	for _, _config := range configs.SQL {
 		var config = _config
 
-		connection := config.GetModel()
+		connection := config.Connection.GetModel()
+
+		if name, connectionType, found := scraper.ExtractConnectionNameType(connection.URL); found {
+			_connection, err := duty.FindConnection(ctx, db.DefaultDB(), connectionType, name)
+			if err != nil {
+				results.Errorf(err, "failed to find connection (type=%s, name=%s)", connectionType, name)
+				continue
+			}
+
+			connection = _connection
+		}
+
 		connection, err := duty.HydrateConnection(ctx, ctx.Kubernetes, db.DefaultDB(), connection, ctx.Namespace)
 		if err != nil {
 			results.Errorf(err, "failed to hydrate connection for %s", config.Connection)
