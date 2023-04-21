@@ -1,7 +1,6 @@
 package azure
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/advisor/armadvisor"
@@ -51,30 +50,11 @@ func (azure Scraper) fetchAdvisorAnalysis() v1.ScrapeResults {
 				analysis.Message(deref(recommendation.Properties.ShortDescription.Solution))
 			}
 			analysis.Message(deref(recommendation.Properties.Description))
-			analysis.Analysis = getMetadata(recommendation.Properties.Metadata)
+			analysis.Analysis = recommendation.Properties.Metadata
 		}
 	}
 
 	return results
-}
-
-func getMetadata(input map[string]any) map[string]string {
-	var metadata = make(map[string]string, len(input))
-	if input == nil {
-		return metadata
-	}
-
-	for k, v := range input {
-		b, err := json.Marshal(v)
-		if err != nil {
-			logger.Errorf("failed to marshal metadata: [%v] %v", v, err)
-			continue
-		}
-
-		metadata[k] = string(b)
-	}
-
-	return metadata
 }
 
 func getResourceID(input *armadvisor.ResourceMetadata) string {

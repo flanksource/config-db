@@ -31,13 +31,13 @@ type Analyzer func(configs []ScrapeResult) AnalysisResult
 type AnalysisResult struct {
 	ExternalID    string
 	ExternalType  string
-	Summary       string            // Summary of the analysis
-	Analysis      map[string]string // Detailed metadata of the analysis
-	AnalysisType  string            // Type of analysis, e.g. availability, compliance, cost, security, performance.
-	Severity      string            // Severity of the analysis, e.g. critical, high, medium, low, info
-	Source        string            // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
-	Analyzer      string            // Name of the analyzer that generated the analysis
-	Messages      []string          // A detailed paragraphs of the analysis
+	Summary       string         // Summary of the analysis
+	Analysis      map[string]any // Detailed metadata of the analysis
+	AnalysisType  string         // Type of analysis, e.g. availability, compliance, cost, security, performance.
+	Severity      string         // Severity of the analysis, e.g. critical, high, medium, low, info
+	Source        string         // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
+	Analyzer      string         // Very brief description of the analysis
+	Messages      []string       // A detailed paragraphs of the analysis
 	Status        string
 	FirstObserved *time.Time
 	LastObserved  *time.Time
@@ -55,6 +55,7 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 		Severity:      t.Severity,
 		AnalysisType:  t.AnalysisType,
 		Summary:       t.Summary,
+		Analysis:      t.Analysis,
 		Status:        t.Status,
 		Source:        t.Source,
 		FirstObserved: t.FirstObserved,

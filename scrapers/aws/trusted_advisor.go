@@ -104,7 +104,7 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 			analysis.Severity = mapSeverity(metadata["Status"])
 			delete(metadata, "Status")
 			analysis.Message(deref(check.Description))
-			analysis.Analysis = metadata
+			// analysis.Analysis = metadata TODO: Fix me
 			analysis.Source = "AWS Trusted Advisor"
 
 			logger.Infof("%s %s %s %v", *check.Name, externalType, id, metadata)

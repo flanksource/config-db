@@ -4,6 +4,7 @@ import "strings"
 
 type Trivy struct {
 	BaseScraper `json:",inline"`
+	Version     string        `json:"version,omitempty"` // Specify the version of Trivy to use
 	Kubernetes  *TrivyOptions `json:"kubernetes,omitempty"`
 }
 
