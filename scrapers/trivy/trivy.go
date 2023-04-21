@@ -2,6 +2,7 @@ package trivy
 
 import (
 	"encoding/json"
+	"fmt"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 )
@@ -39,8 +40,8 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 						results.Add(v1.ScrapeResult{
 							// TODO: complete this mapping
 							AnalysisResult: &v1.AnalysisResult{
-								ExternalType: vulnerability.Kind,
-								ExternalID:   vulnerability.Name,
+								ExternalType: fmt.Sprintf("Kubernetes::%s", vulnerability.Kind),
+								ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", vulnerability.Kind, vulnerability.Namespace, vulnerability.Name),
 								Analyzer:     "trivy",
 								Summary:      vulnerabilityDetail.Title,
 							},
