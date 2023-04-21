@@ -120,6 +120,10 @@ func (t ScrapeResults) Errors() []string {
 	return errs
 }
 
+func (t *ScrapeResults) Add(r ScrapeResult) {
+	*t = append(*t, r)
+}
+
 type RelationshipResult struct {
 	ConfigExternalID  ExternalID
 	RelatedExternalID ExternalID

@@ -1,0 +1,3 @@
+trivy:
+  - kubernetes:
+      namespace: default
