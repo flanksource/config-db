@@ -71,7 +71,7 @@ func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.Scr
 	if result.AnalysisResult != nil {
 		if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
 			result.AnalysisResult.AnalysisType = v1.AnalysisType(rule.Category)
-			result.AnalysisResult.Severity = rule.Severity
+			result.AnalysisResult.Severity = v1.Severity(rule.Severity)
 		}
 	}
 

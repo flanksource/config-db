@@ -88,18 +88,18 @@ func mapAnalysisType(impactLevel *armadvisor.Category) v1.AnalysisType {
 }
 
 // mapSeverity maps the advisor impact level to a severity.
-func mapSeverity(impactLevel *armadvisor.Impact) string {
+func mapSeverity(impactLevel *armadvisor.Impact) v1.Severity {
 	if impactLevel == nil {
-		return "Low"
+		return v1.SeverityLow
 	}
 
 	switch *impactLevel {
 	case armadvisor.ImpactHigh:
-		return "High"
+		return v1.SeverityHigh
 	case armadvisor.ImpactMedium:
-		return "Medium"
+		return v1.SeverityMedium
 	default:
-		return "Low"
+		return v1.SeverityLow
 	}
 }
 

@@ -50,25 +50,25 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 				continue
 			}
 
-			for _, vulnerability := range trivyResponse.Vulnerabilities {
-				for _, result := range vulnerability.Results {
-					for _, vulnerabilityDetail := range result.Vulnerabilities {
-						analysis, err := utils.ToJSONMap(vulnerabilityDetail)
+			for _, resource := range trivyResponse.Vulnerabilities {
+				for _, result := range resource.Results {
+					for _, vulnerability := range result.Vulnerabilities {
+						analysis, err := utils.ToJSONMap(vulnerability)
 						if err != nil {
 							logger.Errorf("failed to extract analysis: %v", err)
 						}
 
 						results.Add(v1.ScrapeResult{
 							AnalysisResult: &v1.AnalysisResult{
-								ExternalType: fmt.Sprintf("Kubernetes::%s", vulnerability.Kind),
-								ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", vulnerability.Kind, vulnerability.Namespace, vulnerability.Name),
+								ExternalType: fmt.Sprintf("Kubernetes::%s", resource.Kind),
+								ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
 								Analysis:     analysis,
 								AnalysisType: v1.AnalysisTypeSecurity, // It's always security related.
 								Analyzer:     result.Class,
-								Messages:     []string{vulnerabilityDetail.Description},
-								Severity:     vulnerabilityDetail.Severity,
+								Messages:     []string{vulnerability.Description},
+								Severity:     mapSeverity(vulnerability.Severity),
 								Source:       "Trivy",
-								Summary:      vulnerabilityDetail.Title,
+								Summary:      vulnerability.Title,
 							},
 						})
 					}
@@ -78,6 +78,21 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 	}
 
 	return results
+}
+
+func mapSeverity(severity string) v1.Severity {
+	switch severity {
+	case "CRITICAL":
+		return v1.SeverityCritical
+	case "HIGH":
+		return v1.SeverityHigh
+	case "MEDIUM":
+		return v1.SeverityMedium
+	case "LOW":
+		return v1.SeverityLow
+	default:
+		return v1.SeverityInfo
+	}
 }
 
 func runCommand(ctx context.Context, command string, args []string) ([]byte, error) {

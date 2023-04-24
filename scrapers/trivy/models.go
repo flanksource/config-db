@@ -3,23 +3,16 @@ package trivy
 import "time"
 
 type TrivyResponse struct {
-	ClusterName       string                   `json:"ClusterName"`
-	Vulnerabilities   []VulnerabilityReport    `json:"Vulnerabilities"`
-	Misconfigurations []MisconfigurationReport `json:"Misconfigurations"`
+	ClusterName       string     `json:"ClusterName"`
+	Vulnerabilities   []Resource `json:"Vulnerabilities"`
+	Misconfigurations []Resource `json:"Misconfigurations"`
 }
 
-type VulnerabilityReport struct {
+type Resource struct {
 	Namespace string   `json:"Namespace"`
 	Kind      string   `json:"Kind"`
 	Name      string   `json:"Name"`
 	Results   []Result `json:"Results,omitempty"`
-}
-
-type MisconfigurationReport struct {
-	Namespace string   `json:"Namespace"`
-	Kind      string   `json:"Kind"`
-	Name      string   `json:"Name"`
-	Results   []Result `json:"Results"`
 }
 
 type Result struct {

@@ -24,14 +24,15 @@ func mapCategoryToAnalysisType(category string) v1.AnalysisType {
 	}
 }
 
-func mapSeverity(severity string) string {
+func mapSeverity(severity string) v1.Severity {
 	switch severity {
 	case "Red":
-		return "critical"
+		return v1.SeverityCritical
 	case "Yellow":
-		return "warning"
+		return v1.SeverityLow
 	}
-	return "info"
+
+	return v1.SeverityInfo
 }
 
 func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {

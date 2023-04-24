@@ -39,6 +39,16 @@ const (
 	AnalysisTypeSecurity       AnalysisType = "security"
 )
 
+type Severity string
+
+const (
+	SeverityCritical Severity = "critical"
+	SeverityHigh     Severity = "high"
+	SeverityMedium   Severity = "medium"
+	SeverityLow      Severity = "low"
+	SeverityInfo     Severity = "info"
+)
+
 // AnalysisResult ...
 // +kubebuilder:object:generate=false
 type AnalysisResult struct {
@@ -47,7 +57,7 @@ type AnalysisResult struct {
 	Summary       string         // Summary of the analysis
 	Analysis      map[string]any // Detailed metadata of the analysis
 	AnalysisType  AnalysisType   // Type of analysis, e.g. availability, compliance, cost, security, performance.
-	Severity      string         // Severity of the analysis, e.g. critical, high, medium, low, info
+	Severity      Severity       // Severity of the analysis, e.g. critical, high, medium, low, info
 	Source        string         // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
 	Analyzer      string         // Very brief description of the analysis
 	Messages      []string       // A detailed paragraphs of the analysis
@@ -65,7 +75,7 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 		ExternalType:  t.ExternalType,
 		Analyzer:      t.Analyzer,
 		Message:       strings.Join(t.Messages, ";"),
-		Severity:      t.Severity,
+		Severity:      string(t.Severity),
 		AnalysisType:  string(t.AnalysisType),
 		Summary:       t.Summary,
 		Analysis:      t.Analysis,
