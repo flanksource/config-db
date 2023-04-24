@@ -38,7 +38,7 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 
 		if config.Kubernetes != nil {
 			var result = v1.NewScrapeResult(config.BaseScraper)
-			output, err := runCommand(ctx, trivyBinPath, config.GetKubernetesArgs())
+			output, err := runCommand(ctx, trivyBinPath, config.GetK8sArgs())
 			if err != nil {
 				results = append(results, result.Errorf("failed to run trivy: %w", err))
 				continue
@@ -64,7 +64,7 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 								ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
 								Analysis:     analysis,
 								AnalysisType: v1.AnalysisTypeSecurity, // It's always security related.
-								Analyzer:     fmt.Sprintf("%s/%s", vulnerability.PkgName, vulnerability.VulnerabilityID),
+								Analyzer:     fmt.Sprintf("%s [%s]", vulnerability.PkgName, vulnerability.VulnerabilityID),
 								Messages:     []string{vulnerability.Description},
 								Severity:     mapSeverity(vulnerability.Severity),
 								Source:       "Trivy",

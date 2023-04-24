@@ -8,13 +8,13 @@ type Trivy struct {
 	Kubernetes  *TrivyOptions `json:"kubernetes,omitempty"`
 }
 
-func (t Trivy) GetKubernetesArgs() []string {
+// GetK8sArgs returns a slice of arguments that Trivy uses to scan Kubernetes objects.
+func (t Trivy) GetK8sArgs() []string {
 	var args []string
 	args = append(args, "k8s")
 	args = append(args, "--format", "json") // hardcoded here. don't allow users this option.
-	args = append(args, "--offline-scan")   // Testing ... TODO: Remove this
 	args = append(args, t.Kubernetes.GetArgs()...)
-	args = append(args, "pods")
+	args = append(args, "all")
 	return args
 }
 
