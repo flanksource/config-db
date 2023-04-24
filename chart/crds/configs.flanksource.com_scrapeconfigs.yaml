@@ -1279,6 +1279,133 @@ spec:
                   - query
                   type: object
                 type: array
+              trivy:
+                items:
+                  properties:
+                    createFields:
+                      description: CreateFields is a list of JSONPath expression used
+                        to identify the created time of the config. If multiple fields
+                        are specified, the first non-empty value will be used.
+                      items:
+                        type: string
+                      type: array
+                    deleteFields:
+                      description: DeleteFields is a JSONPath expression used to identify
+                        the deleted time of the config. If multiple fields are specified,
+                        the first non-empty value will be used.
+                      items:
+                        type: string
+                      type: array
+                    format:
+                      description: Format of config item, defaults to JSON, available
+                        options are JSON, properties
+                      type: string
+                    id:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    items:
+                      description: A JSONPath expression to use to extract individual
+                        items from the resource, items are extracted first and then
+                        the ID,Name,Type and transformations are applied for each
+                        item.
+                      type: string
+                    kubernetes:
+                      properties:
+                        compliance:
+                          type: string
+                        components:
+                          items:
+                            type: string
+                          type: array
+                        ignoreUnfixed:
+                          type: boolean
+                        ignoredLicenses:
+                          items:
+                            type: string
+                          type: array
+                        kubeconfig:
+                          type: string
+                        licenseFull:
+                          type: boolean
+                        namespace:
+                          type: string
+                        severity:
+                          type: string
+                        vulnType:
+                          type: string
+                      type: object
+                    name:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    tags:
+                      additionalProperties:
+                        type: string
+                      description: JSONStringMap defiend JSON data type, need to implements
+                        driver.Valuer, sql.Scanner interface
+                      type: object
+                    timestampFormat:
+                      description: TimestampFormat is a Go time format string used
+                        to parse timestamps in createFields and DeletedFields. If
+                        not specified, the default is RFC3339.
+                      type: string
+                    transform:
+                      properties:
+                        exclude:
+                          description: Fields to remove from the config, useful for
+                            removing sensitive data and fields that change often without
+                            a material impact i.e. Last Scraped Time
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        expr:
+                          type: string
+                        gotemplate:
+                          type: string
+                        include:
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                            type: object
+                          type: array
+                        javascript:
+                          type: string
+                        jsonpath:
+                          type: string
+                        mask:
+                          description: Masks consist of configurations to replace
+                            sensitive fields with hash functions or static string.
+                          items:
+                            properties:
+                              jsonpath:
+                                type: string
+                              selector:
+                                properties:
+                                  type:
+                                    description: Type is the config type to apply
+                                      the mask
+                                    type: string
+                                type: object
+                              value:
+                                description: Value can be a hash function name or
+                                  just a string
+                                type: string
+                            type: object
+                          type: array
+                      type: object
+                    type:
+                      description: A static value or JSONPath expression to use as
+                        the type for the resource.
+                      type: string
+                    version:
+                      type: string
+                  type: object
+                type: array
             type: object
           status:
             description: ScrapeConfigStatus defines the observed state of ScrapeConfig
