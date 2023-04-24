@@ -53,7 +53,7 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 			for _, vulnerability := range trivyResponse.Vulnerabilities {
 				for _, result := range vulnerability.Results {
 					for _, vulnerabilityDetail := range result.Vulnerabilities {
-						analysis, err := utils.StructToMap(vulnerabilityDetail)
+						analysis, err := utils.ToJSONMap(vulnerabilityDetail)
 						if err != nil {
 							logger.Errorf("failed to extract analysis: %v", err)
 						}

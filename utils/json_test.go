@@ -52,7 +52,7 @@ func TestStructToMap(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resultMap, err := StructToMap(tc.input)
+			resultMap, err := ToJSONMap(tc.input)
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected an error, but got nil")

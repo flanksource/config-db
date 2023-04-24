@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 )
 
 func mapCategory(category string) string {
@@ -104,8 +105,11 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 			analysis.Severity = mapSeverity(metadata["Status"])
 			delete(metadata, "Status")
 			analysis.Message(deref(check.Description))
-			// analysis.Analysis = metadata TODO: Fix me
 			analysis.Source = "AWS Trusted Advisor"
+
+			if _analysis, err := utils.ToJSONMap(metadata); err != nil {
+				analysis.Analysis = _analysis
+			}
 
 			logger.Infof("%s %s %s %v", *check.Name, externalType, id, metadata)
 		}
