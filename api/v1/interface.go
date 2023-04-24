@@ -26,6 +26,19 @@ type Scraper interface {
 // +kubebuilder:object:generate=false
 type Analyzer func(configs []ScrapeResult) AnalysisResult
 
+type AnalysisType string
+
+const (
+	AnalysisTypeAvailability   AnalysisType = "availability"
+	AnalysisTypeCompliance     AnalysisType = "compliance"
+	AnalysisTypeCost           AnalysisType = "cost"
+	AnalysisTypeOther          AnalysisType = "other"
+	AnalysisTypePerformance    AnalysisType = "performance"
+	AnalysisTypeRecommendation AnalysisType = "recommendation"
+	AnalysisTypeReliability    AnalysisType = "reliability"
+	AnalysisTypeSecurity       AnalysisType = "security"
+)
+
 // AnalysisResult ...
 // +kubebuilder:object:generate=false
 type AnalysisResult struct {
@@ -33,7 +46,7 @@ type AnalysisResult struct {
 	ExternalType  string
 	Summary       string         // Summary of the analysis
 	Analysis      map[string]any // Detailed metadata of the analysis
-	AnalysisType  string         // Type of analysis, e.g. availability, compliance, cost, security, performance.
+	AnalysisType  AnalysisType   // Type of analysis, e.g. availability, compliance, cost, security, performance.
 	Severity      string         // Severity of the analysis, e.g. critical, high, medium, low, info
 	Source        string         // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
 	Analyzer      string         // Very brief description of the analysis
@@ -53,7 +66,7 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 		Analyzer:      t.Analyzer,
 		Message:       strings.Join(t.Messages, ";"),
 		Severity:      t.Severity,
-		AnalysisType:  t.AnalysisType,
+		AnalysisType:  string(t.AnalysisType),
 		Summary:       t.Summary,
 		Analysis:      t.Analysis,
 		Status:        t.Status,

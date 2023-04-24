@@ -70,7 +70,7 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.ScrapeResults {
 	if result.AnalysisResult != nil {
 		if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
-			result.AnalysisResult.AnalysisType = rule.Category
+			result.AnalysisResult.AnalysisType = v1.AnalysisType(rule.Category)
 			result.AnalysisResult.Severity = rule.Severity
 		}
 	}

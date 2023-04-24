@@ -63,7 +63,7 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 								ExternalType: fmt.Sprintf("Kubernetes::%s", vulnerability.Kind),
 								ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", vulnerability.Kind, vulnerability.Namespace, vulnerability.Name),
 								Analysis:     analysis,
-								AnalysisType: "security", // It's always security related.
+								AnalysisType: v1.AnalysisTypeSecurity, // It's always security related.
 								Analyzer:     result.Class,
 								Messages:     []string{vulnerabilityDetail.Description},
 								Severity:     vulnerabilityDetail.Severity,

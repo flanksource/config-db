@@ -66,25 +66,25 @@ func getResourceID(input *armadvisor.ResourceMetadata) string {
 }
 
 // mapAnalysisType maps the advisor recommendation category to an analysis type.
-func mapAnalysisType(impactLevel *armadvisor.Category) string {
+func mapAnalysisType(impactLevel *armadvisor.Category) v1.AnalysisType {
 	if impactLevel == nil {
-		return "other"
+		return v1.AnalysisTypeOther
 	}
 
 	switch *impactLevel {
 	case armadvisor.CategoryCost:
-		return "cost"
+		return v1.AnalysisTypeCost
 	case armadvisor.CategoryHighAvailability:
-		return "availability"
+		return v1.AnalysisTypeAvailability
 	case armadvisor.CategoryOperationalExcellence:
-		return "recommendation"
+		return v1.AnalysisTypeRecommendation
 	case armadvisor.CategoryPerformance:
-		return "performance"
+		return v1.AnalysisTypePerformance
 	case armadvisor.CategorySecurity:
-		return "security"
+		return v1.AnalysisTypeSecurity
+	default:
+		return v1.AnalysisTypeOther
 	}
-
-	return string(*impactLevel)
 }
 
 // mapSeverity maps the advisor impact level to a severity.
