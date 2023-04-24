@@ -8,7 +8,6 @@ import (
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/utils/scraper"
 	"github.com/flanksource/duty"
 	"github.com/henvic/httpretty"
 
@@ -89,7 +88,7 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 func getAccessAndSecretKey(ctx *v1.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
 	connection := conn.GetModel()
 
-	if _connection, err := scraper.FindConnectionFromConnectionString(ctx, db.DefaultDB(), connection.Username); err != nil {
+	if _connection, err := duty.FindConnectionFromConnectionString(ctx, db.DefaultDB(), connection.Username); err != nil {
 		return "", "", fmt.Errorf("failed to find connection from (username=%s): %w", connection.Username, err)
 	} else if _connection != nil {
 		connection = _connection

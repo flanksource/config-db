@@ -13,7 +13,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/utils/scraper"
+	"github.com/flanksource/duty"
 	"github.com/gobwas/glob"
 	"github.com/hashicorp/go-getter"
 	"sigs.k8s.io/yaml"
@@ -77,7 +77,7 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) 
 	for _, config := range configs.File {
 		connection := config.GetConnection()
 
-		if _connection, err := scraper.FindConnectionFromConnectionString(ctx, db.DefaultDB(), connection.URL); err != nil {
+		if _connection, err := duty.FindConnectionFromConnectionString(ctx, db.DefaultDB(), connection.URL); err != nil {
 			results.Errorf(err, "failed to find connection from (url=%s)", connection.URL)
 			continue
 		} else if _connection != nil {
