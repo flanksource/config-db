@@ -16,33 +16,67 @@ type Resource struct {
 }
 
 type Result struct {
-	Target            string             `json:"Target"`
-	Class             string             `json:"Class"`
-	Type              string             `json:"Type"`
-	Vulnerabilities   []Vulnerability    `json:"Vulnerabilities"`
-	MisconfSummary    MisconfSummary     `json:"MisconfSummary"`
-	Misconfigurations []Misconfiguration `json:"Misconfigurations"`
+	Target            string                  `json:"Target"`
+	Class             string                  `json:"Class"`
+	Type              string                  `json:"Type"`
+	Vulnerabilities   []DetectedVulnerability `json:"Vulnerabilities"`
+	MisconfSummary    *MisconfSummary         `json:"MisconfSummary"`
+	Misconfigurations []Misconfiguration      `json:"Misconfigurations"`
 }
+
+// SourceID represents data source such as NVD.
+type SourceID string
+
+type Severity int
+
+type VendorSeverity map[SourceID]Severity
+
+type CVSS struct {
+	V2Vector string  `json:"V2Vector,omitempty"`
+	V3Vector string  `json:"V3Vector,omitempty"`
+	V2Score  float64 `json:"V2Score,omitempty"`
+	V3Score  float64 `json:"V3Score,omitempty"`
+}
+
+type VendorCVSS map[SourceID]CVSS
 
 type Vulnerability struct {
-	VulnerabilityID  string          `json:"VulnerabilityID"`
-	PkgID            string          `json:"PkgID"`
-	PkgName          string          `json:"PkgName"`
-	InstalledVersion string          `json:"InstalledVersion"`
-	Layer            Layer           `json:"Layer"`
-	SeveritySource   string          `json:"SeveritySource"`
-	PrimaryURL       string          `json:"PrimaryURL"`
-	DataSource       DataSource      `json:"DataSource"`
-	Title            string          `json:"Title,omitempty"`
-	Description      string          `json:"Description"`
-	Severity         string          `json:"Severity"`
-	CweIDs           []string        `json:"CweIDs,omitempty"`
-	Cvss             map[string]Cvss `json:"CVSS,omitempty"`
-	References       []string        `json:"References"`
-	PublishedDate    time.Time       `json:"PublishedDate"`
-	LastModifiedDate time.Time       `json:"LastModifiedDate"`
+	Title            string         `json:",omitempty"`
+	Description      string         `json:",omitempty"`
+	Severity         string         `json:",omitempty"` // Selected from VendorSeverity, depending on a scan target
+	CweIDs           []string       `json:",omitempty"` // e.g. CWE-78, CWE-89
+	VendorSeverity   VendorSeverity `json:",omitempty"`
+	CVSS             VendorCVSS     `json:",omitempty"`
+	References       []string       `json:",omitempty"`
+	PublishedDate    *time.Time     `json:",omitempty"` // Take from NVD
+	LastModifiedDate *time.Time     `json:",omitempty"` // Take from NVD
+
+	// Custom is basically for extensibility and is not supposed to be used in OSS
+	Custom any `json:",omitempty"`
 }
 
+type DetectedVulnerability struct {
+	VulnerabilityID  string   `json:",omitempty"`
+	VendorIDs        []string `json:",omitempty"`
+	PkgID            string   `json:",omitempty"` // It is used to construct dependency graph.
+	PkgName          string   `json:",omitempty"`
+	PkgPath          string   `json:",omitempty"` // It will be filled in the case of language-specific packages such as egg/wheel and gemspec
+	InstalledVersion string   `json:",omitempty"`
+	FixedVersion     string   `json:",omitempty"`
+	Layer            Layer    `json:",omitempty"`
+	SeveritySource   string   `json:",omitempty"`
+	PrimaryURL       string   `json:",omitempty"`
+	Ref              string   `json:",omitempty"`
+
+	// DataSource holds where the advisory comes from
+	DataSource *DataSource `json:",omitempty"`
+
+	// Custom is for extensibility and not supposed to be used in OSS
+	Custom any `json:",omitempty"`
+
+	// Embed vulnerability details
+	Vulnerability
+}
 type Layer struct {
 	Digest string `json:"Digest"`
 	DiffID string `json:"DiffID"`
@@ -52,13 +86,6 @@ type DataSource struct {
 	ID   string `json:"ID"`
 	Name string `json:"Name"`
 	URL  string `json:"URL"`
-}
-
-type Cvss struct {
-	V2Vector string  `json:"V2Vector"`
-	V3Vector string  `json:"V3Vector"`
-	V2Score  float64 `json:"V2Score"`
-	V3Score  float64 `json:"V3Score"`
 }
 
 type MisconfSummary struct {

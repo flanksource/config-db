@@ -21,7 +21,7 @@ type Scanner struct {
 }
 
 func (t Scanner) CanScrape(config v1.ConfigScraper) bool {
-	return true // TODO:
+	return len(config.Trivy) > 0
 }
 
 func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
@@ -64,7 +64,7 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 								ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
 								Analysis:     analysis,
 								AnalysisType: v1.AnalysisTypeSecurity, // It's always security related.
-								Analyzer:     result.Class,
+								Analyzer:     fmt.Sprintf("%s/%s", vulnerability.PkgName, vulnerability.VulnerabilityID),
 								Messages:     []string{vulnerability.Description},
 								Severity:     mapSeverity(vulnerability.Severity),
 								Source:       "Trivy",
@@ -96,7 +96,7 @@ func mapSeverity(severity string) v1.Severity {
 }
 
 func runCommand(ctx context.Context, command string, args []string) ([]byte, error) {
-	logger.Infof("Running command: %s %s", command, args)
+	logger.Tracef("Running command: %s %s", command, args)
 
 	cmd := exec.CommandContext(ctx, command, args...)
 	var stderr bytes.Buffer
