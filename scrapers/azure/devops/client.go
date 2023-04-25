@@ -117,7 +117,7 @@ func NewAzureDevopsClient(ctx *v1.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 		return nil, err
 	}
 
-	if _connection, err := duty.FindConnectionFromConnectionString(ctx, db.DefaultDB(), token); err != nil {
+	if _connection, err := duty.FindConnectionByURL(ctx, db.DefaultDB(), token); err != nil {
 		return nil, fmt.Errorf("failed to find connection from (token=%s): %w", token, err)
 	} else if _connection != nil {
 		token = _connection.Password
