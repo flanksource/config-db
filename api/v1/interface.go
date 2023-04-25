@@ -26,18 +26,41 @@ type Scraper interface {
 // +kubebuilder:object:generate=false
 type Analyzer func(configs []ScrapeResult) AnalysisResult
 
+type AnalysisType string
+
+const (
+	AnalysisTypeAvailability   AnalysisType = "availability"
+	AnalysisTypeCompliance     AnalysisType = "compliance"
+	AnalysisTypeCost           AnalysisType = "cost"
+	AnalysisTypeOther          AnalysisType = "other"
+	AnalysisTypePerformance    AnalysisType = "performance"
+	AnalysisTypeRecommendation AnalysisType = "recommendation"
+	AnalysisTypeReliability    AnalysisType = "reliability"
+	AnalysisTypeSecurity       AnalysisType = "security"
+)
+
+type Severity string
+
+const (
+	SeverityCritical Severity = "critical"
+	SeverityHigh     Severity = "high"
+	SeverityMedium   Severity = "medium"
+	SeverityLow      Severity = "low"
+	SeverityInfo     Severity = "info"
+)
+
 // AnalysisResult ...
 // +kubebuilder:object:generate=false
 type AnalysisResult struct {
 	ExternalID    string
 	ExternalType  string
-	Summary       string            // Summary of the analysis
-	Analysis      map[string]string // Detailed metadata of the analysis
-	AnalysisType  string            // Type of analysis, e.g. availability, compliance, cost, security, performance.
-	Severity      string            // Severity of the analysis, e.g. critical, high, medium, low, info
-	Source        string            // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
-	Analyzer      string            // Name of the analyzer that generated the analysis
-	Messages      []string          // A detailed paragraphs of the analysis
+	Summary       string         // Summary of the analysis
+	Analysis      map[string]any // Detailed metadata of the analysis
+	AnalysisType  AnalysisType   // Type of analysis, e.g. availability, compliance, cost, security, performance.
+	Severity      Severity       // Severity of the analysis, e.g. critical, high, medium, low, info
+	Source        string         // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
+	Analyzer      string         // Very brief description of the analysis
+	Messages      []string       // A detailed paragraphs of the analysis
 	Status        string
 	FirstObserved *time.Time
 	LastObserved  *time.Time
@@ -52,9 +75,10 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 		ExternalType:  t.ExternalType,
 		Analyzer:      t.Analyzer,
 		Message:       strings.Join(t.Messages, ";"),
-		Severity:      t.Severity,
-		AnalysisType:  t.AnalysisType,
+		Severity:      string(t.Severity),
+		AnalysisType:  string(t.AnalysisType),
 		Summary:       t.Summary,
+		Analysis:      t.Analysis,
 		Status:        t.Status,
 		Source:        t.Source,
 		FirstObserved: t.FirstObserved,
@@ -118,6 +142,10 @@ func (t ScrapeResults) Errors() []string {
 	}
 
 	return errs
+}
+
+func (t *ScrapeResults) Add(r ScrapeResult) {
+	*t = append(*t, r)
 }
 
 type RelationshipResult struct {

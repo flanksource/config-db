@@ -1,0 +1,4 @@
+trivy:
+  - version: '0.40.0'
+    kubernetes:
+      namespace: default

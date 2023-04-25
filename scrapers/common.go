@@ -3,6 +3,7 @@ package scrapers
 import (
 	"github.com/flanksource/commons/template"
 	"github.com/flanksource/config-db/scrapers/azure"
+	"github.com/flanksource/config-db/scrapers/trivy"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/types"
 
@@ -26,6 +27,7 @@ var All = []v1.Scraper{
 	devops.AzureDevopsScraper{},
 	github.GithubActionsScraper{},
 	sql.SqlScraper{},
+	trivy.Scanner{},
 }
 
 func GetConnection(ctx *v1.ScrapeContext, conn *v1.Connection) (string, error) {

@@ -6,34 +6,33 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 )
 
-func mapCategory(category string) string {
+func mapCategoryToAnalysisType(category string) v1.AnalysisType {
 	switch category {
-	case "cost_optimizing":
-		return "cost"
+	case "cost_optimizing", "cost":
+		return v1.AnalysisTypeCost
 	case "performance":
-		return "performance"
+		return v1.AnalysisTypePerformance
 	case "fault_tolerance":
-		return "reliability"
-	case "cost":
-		return "Cost"
+		return v1.AnalysisTypeReliability
 	case "recommendation":
-		return "Recommendation"
-	case "other":
-		return "Other"
+		return v1.AnalysisTypeRecommendation
+	default:
+		return v1.AnalysisTypeOther
 	}
-	return category
 }
 
-func mapSeverity(severity string) string {
+func mapSeverity(severity string) v1.Severity {
 	switch severity {
 	case "Red":
-		return "critical"
+		return v1.SeverityCritical
 	case "Yellow":
-		return "warning"
+		return v1.SeverityLow
 	}
-	return "info"
+
+	return v1.SeverityInfo
 }
 
 func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
@@ -100,12 +99,15 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 				}
 			}
 			analysis := results.Analysis(*check.Name, externalType, id)
-			analysis.AnalysisType = mapCategory(*check.Category)
+			analysis.AnalysisType = mapCategoryToAnalysisType(*check.Category)
 			analysis.Severity = mapSeverity(metadata["Status"])
 			delete(metadata, "Status")
 			analysis.Message(deref(check.Description))
-			analysis.Analysis = metadata
 			analysis.Source = "AWS Trusted Advisor"
+
+			if _analysis, err := utils.ToJSONMap(metadata); err != nil {
+				analysis.Analysis = _analysis
+			}
 
 			logger.Infof("%s %s %s %v", *check.Name, externalType, id, metadata)
 		}

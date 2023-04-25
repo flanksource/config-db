@@ -23,6 +23,7 @@ type ConfigScraper struct {
 	GithubActions  []GitHubActions  `json:"githubActions,omitempty" yaml:"githubActions,omitempty"`
 	Azure          []Azure          `json:"azure,omitempty" yaml:"azure,omitempty"`
 	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
+	Trivy          []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
 
 	// Full flag when set will try to extract out changes from the scraped config.
 	Full bool `json:"full,omitempty"`
