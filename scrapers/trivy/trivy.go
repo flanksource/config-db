@@ -102,10 +102,5 @@ func runCommand(ctx context.Context, command string, args []string) ([]byte, err
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	stdout, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-
-	return stdout, nil
+	return cmd.Output()
 }
