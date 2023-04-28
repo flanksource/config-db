@@ -85,9 +85,13 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 }
 
 func getAccessAndSecretKey(ctx *v1.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
-	connection, err := duty.HydrateConnection(ctx, ctx.Kubernetes, db.DefaultDB(), conn.GetModel(), ctx.GetNamespace())
-	if err != nil {
+	connection := conn.GetModel()
+
+	if _connection, err := duty.HydratedConnectionByURL(ctx, db.DefaultDB(), ctx.Kubernetes, ctx.Namespace, connection.Username); err != nil {
 		return "", "", err
+	} else if _connection != nil {
+		connection = _connection
 	}
+
 	return connection.Username, connection.Password, nil
 }

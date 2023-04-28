@@ -25,14 +25,18 @@ func (s SqlScraper) CanScrape(configs v1.ConfigScraper) bool {
 func (s SqlScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, _config := range configs.SQL {
-		var config = _config
+		var (
+			config     = _config
+			connection = config.Connection.GetModel()
+		)
 
-		connection := config.GetModel()
-		connection, err := duty.HydrateConnection(ctx, ctx.Kubernetes, db.DefaultDB(), connection, ctx.Namespace)
-		if err != nil {
-			results.Errorf(err, "failed to hydrate connection for %s", config.Connection)
+		if _connection, err := duty.HydratedConnectionByURL(ctx, db.DefaultDB(), ctx.Kubernetes, ctx.Namespace, connection.URL); err != nil {
+			results.Errorf(err, "failed to find connection")
 			continue
+		} else if _connection != nil {
+			connection = _connection
 		}
+
 		db, err := dburl.Open(connection.URL)
 		if err != nil {
 			results.Errorf(err, "failed to open connection to %s", config.GetEndpoint())

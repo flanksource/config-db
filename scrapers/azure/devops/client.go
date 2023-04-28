@@ -9,6 +9,7 @@ import (
 	"github.com/go-resty/resty/v2"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty"
 )
 
@@ -115,6 +116,13 @@ func NewAzureDevopsClient(ctx *v1.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 	if err != nil {
 		return nil, err
 	}
+
+	if _connection, err := duty.FindConnectionByURL(ctx, db.DefaultDB(), token); err != nil {
+		return nil, fmt.Errorf("failed to find connection: %w", err)
+	} else if _connection != nil {
+		token = _connection.Password
+	}
+
 	client := resty.New().
 		SetBaseURL(fmt.Sprintf("https://dev.azure.com/%s", ado.Organization)).
 		SetBasicAuth(ado.Organization, token)

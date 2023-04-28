@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty"
 )
 
@@ -36,17 +37,32 @@ func (azure Scraper) CanScrape(configs v1.ConfigScraper) bool {
 func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, config := range configs.Azure {
-		clientId, err := duty.GetEnvValueFromCache(ctx.Kubernetes, config.ClientID, ctx.Namespace)
-		if err != nil {
-			results.Errorf(err, "failed to get client id")
+		var clientID, clientSecret, tenantID string
+
+		if connection, err := duty.HydratedConnectionByURL(ctx, db.DefaultDB(), ctx.Kubernetes, ctx.Namespace, config.ConnectionName); err != nil {
+			results.Errorf(err, "failed to get connection: %q", config.ConnectionName)
 			continue
+		} else if connection != nil {
+			clientID = connection.Username
+			clientSecret = connection.Password
+			tenantID = connection.Properties["tenant"]
+		} else {
+			clientID, err = duty.GetEnvValueFromCache(ctx.Kubernetes, config.ClientID, ctx.Namespace)
+			if err != nil {
+				results.Errorf(err, "failed to get client id")
+				continue
+			}
+
+			clientSecret, err = duty.GetEnvValueFromCache(ctx.Kubernetes, config.ClientSecret, ctx.Namespace)
+			if err != nil {
+				results.Errorf(err, "failed to get client secret")
+				continue
+			}
+
+			tenantID = config.TenantID
 		}
-		clientSecret, err := duty.GetEnvValueFromCache(ctx.Kubernetes, config.ClientSecret, ctx.Namespace)
-		if err != nil {
-			results.Errorf(err, "failed to get client secret")
-			continue
-		}
-		cred, err := azidentity.NewClientSecretCredential(config.TenantID, clientId, clientSecret, nil)
+
+		cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
 		if err != nil {
 			results.Errorf(err, "failed to get credentials for azure")
 			continue
