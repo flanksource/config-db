@@ -122,7 +122,7 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "RelationalDatabase",
+				ConfigClass:  "RelationalDatabase",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -152,7 +152,7 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "KubernetesCluster",
+				ConfigClass:  "KubernetesCluster",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -182,7 +182,7 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "Firewall",
+				ConfigClass:  "Firewall",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -211,7 +211,7 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "ContainerRegistry",
+				ConfigClass:  "ContainerRegistry",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -241,7 +241,7 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "VirtualNetwork",
+				ConfigClass:  "VirtualNetwork",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -271,7 +271,7 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "LoadBalancer",
+				ConfigClass:  "LoadBalancer",
 				ExternalType: getARMType(v.Type),
 			})
 
@@ -302,7 +302,7 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "VirtualMachine",
+				ConfigClass:  "VirtualMachine",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -333,7 +333,7 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "ResourceGroup",
+				ConfigClass:  "ResourceGroup",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -364,7 +364,7 @@ func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         *v.DisplayName,
 				Config:       v,
-				Type:         "Subscription",
+				ConfigClass:  "Subscription",
 				ExternalType: "Azure::SUBSCRIPTION",
 			})
 		}
@@ -396,7 +396,7 @@ func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "StorageAccount",
+				ConfigClass:  "StorageAccount",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -428,7 +428,7 @@ func (azure Scraper) fetchAppServices() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "AppService",
+				ConfigClass:  "AppService",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -460,7 +460,7 @@ func (azure Scraper) fetchDNS() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "DNSZone",
+				ConfigClass:  "DNSZone",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -492,7 +492,7 @@ func (azure Scraper) fetchPrivateDNSZones() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "PrivateDNSZone",
+				ConfigClass:  "PrivateDNSZone",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -524,7 +524,7 @@ func (azure Scraper) fetchTrafficManagerProfiles() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "TrafficManagerProfile",
+				ConfigClass:  "TrafficManagerProfile",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -556,7 +556,7 @@ func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "SecurityGroup",
+				ConfigClass:  "SecurityGroup",
 				ExternalType: getARMType(v.Type),
 			})
 		}
@@ -588,7 +588,7 @@ func (azure Scraper) fetchPublicIPAddresses() v1.ScrapeResults {
 				ID:           getARMID(v.ID),
 				Name:         deref(v.Name),
 				Config:       v,
-				Type:         "PublicIPAddress",
+				ConfigClass:  "PublicIPAddress",
 				ExternalType: getARMType(v.Type),
 			})
 		}

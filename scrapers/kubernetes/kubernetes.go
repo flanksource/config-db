@@ -40,7 +40,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 		results = append(results, v1.ScrapeResult{
 			BaseScraper:  config.BaseScraper,
 			Name:         config.ClusterName,
-			Type:         "Cluster",
+			ConfigClass:  "Cluster",
 			ExternalType: ExternalTypePrefix + "Cluster",
 			Config:       make(map[string]string),
 			ID:           clusterID,
@@ -116,7 +116,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				BaseScraper:         config.BaseScraper,
 				Name:                obj.GetName(),
 				Namespace:           obj.GetNamespace(),
-				Type:                obj.GetKind(),
+				ConfigClass:         obj.GetKind(),
 				ExternalType:        ExternalTypePrefix + obj.GetKind(),
 				CreatedAt:           &createdAt,
 				Config:              cleanKubernetesObject(obj.Object),

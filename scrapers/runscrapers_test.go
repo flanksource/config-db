@@ -65,7 +65,7 @@ var _ = Describe("Scrapers test", func() {
 					got := results[i]
 
 					Expect(want.ID).To(Equal(got.ID))
-					Expect(want.Type).To(Equal(got.Type))
+					Expect(want.ConfigClass).To(Equal(got.ConfigClass))
 					Expect(compare(want.Config, got.Config)).To(Equal(""))
 				}
 			})

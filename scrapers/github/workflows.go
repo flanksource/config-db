@@ -44,7 +44,7 @@ func (gh GithubActionsScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigSc
 				continue
 			}
 			results = append(results, v1.ScrapeResult{
-				Type:         "GithubWorkflow",
+				ConfigClass:  "GithubWorkflow",
 				Config:       workflow,
 				ExternalType: WorkflowRun,
 				ID:           workflow.GetID(),

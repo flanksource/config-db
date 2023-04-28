@@ -63,7 +63,7 @@ func exportResource(resource v1.ScrapeResult, filename, outputDir string) error 
 		logger.Debugf("%s/%s => %s", resource.ExternalType, resource.ID, *resource.AnalysisResult)
 		return nil
 	}
-	outputPath := path.Join(outputDir, resource.Type, resource.Name+".json")
+	outputPath := path.Join(outputDir, resource.ConfigClass, resource.Name+".json")
 	_ = os.MkdirAll(path.Dir(outputPath), 0755)
 	data, err := json.MarshalIndent(resource, "", "  ")
 	if err != nil {

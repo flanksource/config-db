@@ -59,7 +59,7 @@ func FindConfigItemID(externalID v1.ExternalID) (*string, error) {
 
 func FindConfigItemFromType(configType string) ([]models.ConfigItem, error) {
 	var ci []models.ConfigItem
-	err := db.Find(&ci, "external_type = @type OR config_type = @type", sql.Named("type", configType)).Error
+	err := db.Find(&ci, "external_type = @type OR config_class = @type", sql.Named("type", configType)).Error
 	return ci, err
 }
 
@@ -145,13 +145,8 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	ci := &models.ConfigItem{
 		ExternalID:   append(result.Aliases, result.ID),
 		ID:           result.ID,
-		ConfigType:   result.Type,
+		ConfigClass:  result.ConfigClass,
 		ExternalType: &result.ExternalType,
-		Account:      &result.Account,
-		Region:       &result.Region,
-		Zone:         &result.Zone,
-		Network:      &result.Network,
-		Subnet:       &result.Subnet,
 		Name:         &result.Name,
 		Source:       &result.Source,
 		Tags:         &result.Tags,

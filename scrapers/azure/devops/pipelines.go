@@ -98,7 +98,7 @@ func (ado AzureDevopsScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScr
 					var changes = pipeline.Runs
 					pipeline.Runs = nil
 					results = append(results, v1.ScrapeResult{
-						Type:         "Deployment",
+						ConfigClass:  "Deployment",
 						Config:       pipeline,
 						ExternalType: PipelineRun,
 						ID:           id,

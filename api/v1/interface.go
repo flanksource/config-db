@@ -187,13 +187,8 @@ type ScrapeResult struct {
 	CreatedAt           *time.Time          `json:"created_at,omitempty"`
 	DeletedAt           *time.Time          `json:"deleted_at,omitempty"`
 	LastModified        time.Time           `json:"last_modified,omitempty"`
-	Type                string              `json:"type,omitempty"`
+	ConfigClass         string              `json:"config_class,omitempty"`
 	ExternalType        string              `json:"external_type,omitempty"`
-	Account             string              `json:"account,omitempty"`
-	Network             string              `json:"network,omitempty"`
-	Subnet              string              `json:"subnet,omitempty"`
-	Region              string              `json:"region,omitempty"`
-	Zone                string              `json:"zone,omitempty"`
 	Name                string              `json:"name,omitempty"`
 	Namespace           string              `json:"namespace,omitempty"`
 	ID                  string              `json:"id,omitempty"`
@@ -236,12 +231,7 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 	clone := ScrapeResult{
 		LastModified: s.LastModified,
 		Aliases:      s.Aliases,
-		Type:         s.Type,
-		Account:      s.Account,
-		Network:      s.Network,
-		Subnet:       s.Subnet,
-		Region:       s.Region,
-		Zone:         s.Zone,
+		ConfigClass:  s.ConfigClass,
 		Name:         s.Name,
 		Namespace:    s.Namespace,
 		ID:           s.ID,
@@ -256,7 +246,7 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 }
 
 func (r ScrapeResult) String() string {
-	s := fmt.Sprintf("%s/%s (%s)", r.Type, r.Name, r.ID)
+	s := fmt.Sprintf("%s/%s (%s)", r.ConfigClass, r.Name, r.ID)
 
 	if len(r.Changes) > 0 {
 		s += fmt.Sprintf(" changes=%d", len(r.Changes))
