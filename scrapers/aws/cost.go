@@ -182,7 +182,7 @@ func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper
 
 		err = gormDB.Exec(`
             UPDATE config_items SET cost_per_minute = ?, cost_total_1d = ?, cost_total_7d = ?, cost_total_30d = ?
-            WHERE external_type = 'AWS::::Account' AND ? = ANY(external_id)`,
+            WHERE type = 'AWS::::Account' AND ? = ANY(external_id)`,
 			accountTotal1h/60, accountTotal1d, accountTotal7d, accountTotal30d, accountID,
 		).Error
 		if err != nil {

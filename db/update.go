@@ -31,14 +31,14 @@ func deleteChangeHandler(ctx *v1.ScrapeContext, change v1.ChangeResult) error {
 	configs := []models.ConfigItem{}
 	tx := db.Model(&configs).
 		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
-		Where("external_type = ? and external_id  @> ?", change.ExternalType, pq.StringArray{change.ExternalID}).
+		Where("type = ? and external_id  @> ?", change.ConfigType, pq.StringArray{change.ExternalID}).
 		Update("deleted_at", deletedAt)
 
 	if tx.Error != nil {
-		return errors.Wrapf(tx.Error, "unable to delete config item %s/%s", change.ExternalType, change.ExternalID)
+		return errors.Wrapf(tx.Error, "unable to delete config item %s/%s", change.ConfigType, change.ExternalID)
 	}
 	if tx.RowsAffected == 0 || len(configs) == 0 {
-		logger.Warnf("Attempt to delete non-existent config item %s/%s", change.ExternalType, change.ExternalID)
+		logger.Warnf("Attempt to delete non-existent config item %s/%s", change.ConfigType, change.ExternalID)
 		return nil
 	}
 
@@ -84,7 +84,7 @@ func getParentPath(parentExternalUID v1.ExternalID) string {
 }
 
 func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
-	existing, err := GetConfigItem(*ci.ExternalType, ci.ID)
+	existing, err := GetConfigItem(*ci.Type, ci.ID)
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return errors.Wrapf(err, "unable to lookup existing config: %s", ci)
 	}
@@ -143,7 +143,7 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 
 		id, err := FindConfigItemID(change.GetExternalID())
 		if id == nil {
-			logger.Warnf("[%s/%s] unable to find config item for change: %v", change.ExternalType, change.ExternalID, change.ChangeType)
+			logger.Warnf("[%s/%s] unable to find config item for change: %v", change.ConfigType, change.ExternalID, change.ChangeType)
 			return nil
 		} else if err != nil {
 			return err
@@ -161,15 +161,15 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 
 func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
-	ci, err := GetConfigItem(analysis.ExternalType, analysis.ExternalID)
+	ci, err := GetConfigItem(analysis.ConfigType, analysis.ExternalID)
 	if ci == nil {
-		logger.Warnf("[%s/%s] unable to find config item for analysis: %+v", analysis.ExternalType, analysis.ExternalID, analysis)
+		logger.Warnf("[%s/%s] unable to find config item for analysis: %+v", analysis.ConfigType, analysis.ExternalID, analysis)
 		return nil
 	} else if err != nil {
 		return err
 	}
 
-	logger.Tracef("[%s/%s] ==> %s", analysis.ExternalType, analysis.ExternalID, analysis)
+	logger.Tracef("[%s/%s] ==> %s", analysis.ConfigType, analysis.ExternalID, analysis)
 	analysis.ConfigID = uuid.MustParse(ci.ID)
 	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
 

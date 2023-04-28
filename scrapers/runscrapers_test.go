@@ -90,8 +90,8 @@ var _ = Describe("Scrapers test", func() {
 			Expect(err).To(BeNil())
 
 			configItemID, err := db.FindConfigItemID(v1.ExternalID{
-				ExternalType: "",               // Comes from file-car.yaml
-				ExternalID:   []string{"A123"}, // Comes from the config mentioned in file-car.yaml
+				ConfigType: "",               // Comes from file-car.yaml
+				ExternalID: []string{"A123"}, // Comes from the config mentioned in file-car.yaml
 			})
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
@@ -112,8 +112,8 @@ var _ = Describe("Scrapers test", func() {
 			Expect(err).To(BeNil())
 
 			configItemID, err := db.FindConfigItemID(v1.ExternalID{
-				ExternalType: "",               // Comes from file-car.yaml
-				ExternalID:   []string{"A123"}, // Comes from the config mentioned in file-car.yaml
+				ConfigType: "",               // Comes from file-car.yaml
+				ExternalID: []string{"A123"}, // Comes from the config mentioned in file-car.yaml
 			})
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
@@ -127,8 +127,8 @@ var _ = Describe("Scrapers test", func() {
 
 		It("should not change the original config", func() {
 			configItemID, err := db.FindConfigItemID(v1.ExternalID{
-				ExternalType: "",               // Comes from file-car.yaml
-				ExternalID:   []string{"A123"}, // Comes from the config mentioned in file-car.yaml
+				ConfigType: "",               // Comes from file-car.yaml
+				ExternalID: []string{"A123"}, // Comes from the config mentioned in file-car.yaml
 			})
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())

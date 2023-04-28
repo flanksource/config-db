@@ -60,7 +60,7 @@ var Run = &cobra.Command{
 
 func exportResource(resource v1.ScrapeResult, filename, outputDir string) error {
 	if resource.Config == nil && resource.AnalysisResult != nil {
-		logger.Debugf("%s/%s => %s", resource.ExternalType, resource.ID, *resource.AnalysisResult)
+		logger.Debugf("%s/%s => %s", resource.Type, resource.ID, *resource.AnalysisResult)
 		return nil
 	}
 	outputPath := path.Join(outputDir, resource.ConfigClass, resource.Name+".json")

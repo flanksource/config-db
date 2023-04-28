@@ -34,8 +34,8 @@ func (azure Scraper) fetchAdvisorAnalysis() v1.ScrapeResults {
 				continue
 			}
 
-			externalType := getARMType(recommendation.Properties.ImpactedField)
-			analysis := results.Analysis(deref(recommendation.Type), externalType, externalID)
+			configType := getARMType(recommendation.Properties.ImpactedField)
+			analysis := results.Analysis(deref(recommendation.Type), configType, externalID)
 			analysis.Severity = mapSeverity(recommendation.Properties.Impact)
 			analysis.Source = "Azure Advisor"
 			analysis.AnalysisType = mapAnalysisType(recommendation.Properties.Category)

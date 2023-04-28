@@ -86,7 +86,7 @@ func (ado AzureDevopsScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScr
 						CreatedAt:        &run.CreatedDate,
 						Severity:         severity,
 						ExternalID:       id,
-						ExternalType:     PipelineRun,
+						ConfigType:       PipelineRun,
 						Source:           run.Links["web"].Href,
 						Details:          v1.NewJSON(run),
 						ExternalChangeID: fmt.Sprintf("%s/%d/%d", project.Name, pipeline.ID, run.ID),
@@ -98,14 +98,14 @@ func (ado AzureDevopsScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScr
 					var changes = pipeline.Runs
 					pipeline.Runs = nil
 					results = append(results, v1.ScrapeResult{
-						ConfigClass:  "Deployment",
-						Config:       pipeline,
-						ExternalType: PipelineRun,
-						ID:           id,
-						Tags:         pipeline.GetTags(),
-						Name:         pipeline.Name,
-						Changes:      changes,
-						Aliases:      []string{fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},
+						ConfigClass: "Deployment",
+						Config:      pipeline,
+						Type:        PipelineRun,
+						ID:          id,
+						Tags:        pipeline.GetTags(),
+						Name:        pipeline.Name,
+						Changes:     changes,
+						Aliases:     []string{fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},
 					})
 				}
 			}

@@ -47,22 +47,22 @@ func (c ConfigScraper) IsDebug() bool {
 }
 
 type ExternalID struct {
-	ExternalType string
-	ExternalID   []string
+	ConfigType string
+	ExternalID []string
 }
 
 func (e ExternalID) String() string {
-	return fmt.Sprintf("%s/%s", e.ExternalType, strings.Join(e.ExternalID, ","))
+	return fmt.Sprintf("%s/%s", e.ConfigType, strings.Join(e.ExternalID, ","))
 }
 
 func (e ExternalID) IsEmpty() bool {
-	return e.ExternalType == "" && len(e.ExternalID) == 0
+	return e.ConfigType == "" && len(e.ExternalID) == 0
 }
 
 func (e ExternalID) CacheKey() string {
-	return fmt.Sprintf("external_id:%s:%s", e.ExternalType, strings.Join(e.ExternalID, ","))
+	return fmt.Sprintf("external_id:%s:%s", e.ConfigType, strings.Join(e.ExternalID, ","))
 }
 
 func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
-	return db.Where("external_type = ? AND external_id  @> ?", e.ExternalType, pq.StringArray(e.ExternalID))
+	return db.Where("type = ? AND external_id  @> ?", e.ConfigType, pq.StringArray(e.ExternalID))
 }

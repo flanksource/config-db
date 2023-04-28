@@ -44,13 +44,13 @@ func (gh GithubActionsScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigSc
 				continue
 			}
 			results = append(results, v1.ScrapeResult{
-				ConfigClass:  "GithubWorkflow",
-				Config:       workflow,
-				ExternalType: WorkflowRun,
-				ID:           workflow.GetID(),
-				Name:         workflow.Name,
-				Changes:      runs,
-				Aliases:      []string{fmt.Sprintf("%s/%d", workflow.Name, workflow.ID)},
+				ConfigClass: "GithubWorkflow",
+				Config:      workflow,
+				Type:        WorkflowRun,
+				ID:          workflow.GetID(),
+				Name:        workflow.Name,
+				Changes:     runs,
+				Aliases:     []string{fmt.Sprintf("%s/%d", workflow.Name, workflow.ID)},
 			})
 		}
 	}
@@ -70,7 +70,7 @@ func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.Ch
 			CreatedAt:        &run.CreatedAt,
 			Severity:         fmt.Sprint(run.Conclusion),
 			ExternalID:       workflow.GetID(),
-			ExternalType:     WorkflowRun,
+			ConfigType:       WorkflowRun,
 			Source:           run.Event,
 			Details:          v1.NewJSON(run),
 			ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.Name, workflow.ID, run.ID),
@@ -95,7 +95,7 @@ func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.Ch
 				CreatedAt:        &run.CreatedAt,
 				Severity:         run.Conclusion.(string),
 				ExternalID:       workflow.GetID(),
-				ExternalType:     WorkflowRun,
+				ConfigType:       WorkflowRun,
 				Source:           run.Event,
 				Details:          v1.NewJSON(run),
 				ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.Name, workflow.ID, run.ID),

@@ -71,34 +71,34 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 			}
 
 			metadata, id := getMetadata(check.Metadata, resource.Metadata)
-			externalType := getExternalTypeById(id)
-			if externalType == "" {
+			configType := getConfigTypeById(id)
+			if configType == "" {
 				if metadata["Bucket Name"] != "" {
 					id = metadata["Bucket Name"]
 					delete(metadata, "Bucket Name")
-					externalType = "AWS::S3::Bucket"
+					configType = "AWS::S3::Bucket"
 				} else if metadata["IAM User"] != "" {
 					id = metadata["IAM User"]
 					delete(metadata, "IAM User")
-					externalType = "AWS::IAM::User"
+					configType = "AWS::IAM::User"
 				} else if metadata["Hosted Zone Name"] != "" {
 					id = metadata["Hosted Zone Name"]
-					externalType = "AWS::Route53::HostedZone"
+					configType = "AWS::Route53::HostedZone"
 					delete(metadata, "Hosted Zone Name")
 				} else if metadata["User Name (IAM or Root)"] != "" {
 					id = metadata["User Name (IAM or Root)"]
-					externalType = "AWS::IAM::User"
+					configType = "AWS::IAM::User"
 					delete(metadata, "User Name (IAM or Root)")
 				} else if metadata["Region"] != "" {
 					id = metadata["Region"]
-					externalType = "AWS::Region"
+					configType = "AWS::Region"
 					delete(metadata, "Region")
 				} else {
 					id = *ctx.Caller.Account
-					externalType = "AWS::::Account"
+					configType = "AWS::::Account"
 				}
 			}
-			analysis := results.Analysis(*check.Name, externalType, id)
+			analysis := results.Analysis(*check.Name, configType, id)
 			analysis.AnalysisType = mapCategoryToAnalysisType(*check.Category)
 			analysis.Severity = mapSeverity(metadata["Status"])
 			delete(metadata, "Status")
@@ -109,7 +109,7 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 				analysis.Analysis = _analysis
 			}
 
-			logger.Infof("%s %s %s %v", *check.Name, externalType, id, metadata)
+			logger.Infof("%s %s %s %v", *check.Name, configType, id, metadata)
 		}
 	}
 }

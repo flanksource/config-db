@@ -16,7 +16,7 @@ type ConfigItem struct {
 	ScraperID     *uuid.UUID        `gorm:"column:scraper_id;default:null" json:"scraper_id,omitempty"`
 	ConfigClass   string            `gorm:"column:config_class;default:''" json:"config_class"  `
 	ExternalID    pq.StringArray    `gorm:"column:external_id;type:[]text" json:"external_id,omitempty"  `
-	ExternalType  *string           `gorm:"column:external_type;default:null" json:"external_type,omitempty"  `
+	Type          *string           `gorm:"column:type;default:null" json:"type,omitempty"  `
 	Name          *string           `gorm:"column:name;default:null" json:"name,omitempty"  `
 	Namespace     *string           `gorm:"column:namespace;default:null" json:"namespace,omitempty"  `
 	Description   *string           `gorm:"column:description;default:null" json:"description,omitempty"  `

@@ -105,9 +105,9 @@ func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.Scr
 
 			for _, cr := range changeRes {
 				cr.ExternalID = scraped[i].ID
-				cr.ExternalType = scraped[i].ExternalType
+				cr.ConfigType = scraped[i].Type
 
-				if cr.ExternalID == "" && cr.ExternalType == "" {
+				if cr.ExternalID == "" && cr.ConfigType == "" {
 					continue
 				}
 				scraped[i].Changes = append(scraped[i].Changes, cr)

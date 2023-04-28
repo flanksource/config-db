@@ -60,7 +60,7 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 
 						results.Add(v1.ScrapeResult{
 							AnalysisResult: &v1.AnalysisResult{
-								ExternalType: fmt.Sprintf("Kubernetes::%s", resource.Kind),
+								ConfigType:   fmt.Sprintf("Kubernetes::%s", resource.Kind),
 								ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
 								Analysis:     analysis,
 								AnalysisType: v1.AnalysisTypeSecurity, // It's always security related.
