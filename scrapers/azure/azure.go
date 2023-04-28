@@ -39,8 +39,8 @@ func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.
 	for _, config := range configs.Azure {
 		var clientID, clientSecret, tenantID string
 
-		if connection, err := duty.FindConnectionFromEnvVar(ctx, db.DefaultDB(), config.ClientID); err != nil {
-			results.Errorf(err, "failed to get connection")
+		if connection, err := duty.HydratedConnectionByURL(ctx, db.DefaultDB(), ctx.Kubernetes, ctx.Namespace, config.ConnectionName); err != nil {
+			results.Errorf(err, "failed to get connection: %q", config.ConnectionName)
 			continue
 		} else if connection != nil {
 			clientID = connection.Username

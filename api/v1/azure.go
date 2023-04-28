@@ -11,6 +11,7 @@ type AzureDevops struct {
 }
 type Azure struct {
 	BaseScraper    `json:",inline"`
+	ConnectionName string       `yaml:"connection,omitempty" json:"connection,omitempty"`
 	SubscriptionID string       `yaml:"subscriptionID" json:"subscriptionID"`
 	Organisation   string       `yaml:"organisation" json:"organisation"`
 	ClientID       types.EnvVar `yaml:"clientID,omitempty" json:"clientID,omitempty"`

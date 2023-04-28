@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net/http"
 
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -88,15 +87,10 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 func getAccessAndSecretKey(ctx *v1.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
 	connection := conn.GetModel()
 
-	if _connection, err := duty.FindConnectionByURL(ctx, db.DefaultDB(), connection.Username); err != nil {
-		return "", "", fmt.Errorf("failed to find connection from (username=%s): %w", connection.Username, err)
+	if _connection, err := duty.HydratedConnectionByURL(ctx, db.DefaultDB(), ctx.Kubernetes, ctx.Namespace, connection.Username); err != nil {
+		return "", "", err
 	} else if _connection != nil {
 		connection = _connection
-	}
-
-	connection, err := duty.HydrateConnection(ctx, ctx.Kubernetes, db.DefaultDB(), connection, ctx.GetNamespace())
-	if err != nil {
-		return "", "", fmt.Errorf("failed to hydrate connection: %w", err)
 	}
 
 	return connection.Username, connection.Password, nil

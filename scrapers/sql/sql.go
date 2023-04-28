@@ -30,18 +30,13 @@ func (s SqlScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.S
 			connection = config.Connection.GetModel()
 		)
 
-		if _connection, err := duty.FindConnectionByURL(ctx, db.DefaultDB(), connection.URL); err != nil {
-			results.Errorf(err, "failed to find connection from (url=%s)", connection.URL)
+		if _connection, err := duty.HydratedConnectionByURL(ctx, db.DefaultDB(), ctx.Kubernetes, ctx.Namespace, connection.URL); err != nil {
+			results.Errorf(err, "failed to find connection")
 			continue
 		} else if _connection != nil {
 			connection = _connection
 		}
 
-		connection, err := duty.HydrateConnection(ctx, ctx.Kubernetes, db.DefaultDB(), connection, ctx.Namespace)
-		if err != nil {
-			results.Errorf(err, "failed to hydrate connection for %s", config.Connection)
-			continue
-		}
 		db, err := dburl.Open(connection.URL)
 		if err != nil {
 			results.Errorf(err, "failed to open connection to %s", config.GetEndpoint())

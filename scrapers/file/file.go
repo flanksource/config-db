@@ -77,8 +77,8 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) 
 	for _, config := range configs.File {
 		connection := config.GetConnection()
 
-		if _connection, err := duty.FindConnectionByURL(ctx, db.DefaultDB(), connection.URL); err != nil {
-			results.Errorf(err, "failed to find connection from (url=%s)", connection.URL)
+		if _connection, err := duty.HydratedConnectionByURL(ctx, db.DefaultDB(), ctx.Kubernetes, ctx.Namespace, connection.URL); err != nil {
+			results.Errorf(err, "failed to find connection")
 			continue
 		} else if _connection != nil {
 			connection = _connection
