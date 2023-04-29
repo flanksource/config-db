@@ -18,7 +18,7 @@ import (
 type KubernetesScraper struct {
 }
 
-const ExternalTypePrefix = "Kubernetes::"
+const ConfigTypePrefix = "Kubernetes::"
 
 func (kubernetes KubernetesScraper) CanScrape(configs v1.ConfigScraper) bool {
 	return len(configs.Kubernetes) > 0
@@ -38,12 +38,12 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 		// Add Cluster object first
 		clusterID := "Kubernetes/Cluster/" + config.ClusterName
 		results = append(results, v1.ScrapeResult{
-			BaseScraper:  config.BaseScraper,
-			Name:         config.ClusterName,
-			Type:         "Cluster",
-			ExternalType: ExternalTypePrefix + "Cluster",
-			Config:       make(map[string]string),
-			ID:           clusterID,
+			BaseScraper: config.BaseScraper,
+			Name:        config.ClusterName,
+			ConfigClass: "Cluster",
+			Type:        ConfigTypePrefix + "Cluster",
+			Config:      make(map[string]string),
+			ID:          clusterID,
 		})
 
 		opts := options.NewDefaultCmdOptions()
@@ -82,12 +82,12 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 					nodeID := resourceIDMap[""]["Node"][nodeName]
 					relationships = append(relationships, v1.RelationshipResult{
 						ConfigExternalID: v1.ExternalID{
-							ExternalID:   []string{string(obj.GetUID())},
-							ExternalType: ExternalTypePrefix + "Pod",
+							ExternalID: []string{string(obj.GetUID())},
+							ConfigType: ConfigTypePrefix + "Pod",
 						},
 						RelatedExternalID: v1.ExternalID{
-							ExternalID:   []string{nodeID},
-							ExternalType: ExternalTypePrefix + "Node",
+							ExternalID: []string{nodeID},
+							ConfigType: ConfigTypePrefix + "Node",
 						},
 						Relationship: "NodePod",
 					})
@@ -116,15 +116,15 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				BaseScraper:         config.BaseScraper,
 				Name:                obj.GetName(),
 				Namespace:           obj.GetNamespace(),
-				Type:                obj.GetKind(),
-				ExternalType:        ExternalTypePrefix + obj.GetKind(),
+				ConfigClass:         obj.GetKind(),
+				Type:                ConfigTypePrefix + obj.GetKind(),
 				CreatedAt:           &createdAt,
 				Config:              cleanKubernetesObject(obj.Object),
 				ID:                  string(obj.GetUID()),
 				Tags:                stripLabels(convertStringInterfaceMapToStringMap(tags), "-hash"),
 				Aliases:             getKubernetesAlias(obj),
 				ParentExternalID:    parentExternalID,
-				ParentExternalType:  ExternalTypePrefix + parentType,
+				ParentType:          ConfigTypePrefix + parentType,
 				RelationshipResults: relationships,
 			})
 		}

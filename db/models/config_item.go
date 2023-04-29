@@ -14,17 +14,13 @@ import (
 type ConfigItem struct {
 	ID            string            `gorm:"primaryKey;unique_index;not null;column:id" json:"id"  `
 	ScraperID     *uuid.UUID        `gorm:"column:scraper_id;default:null" json:"scraper_id,omitempty"`
-	ConfigType    string            `gorm:"column:config_type;default:''" json:"config_type"  `
+	ConfigClass   string            `gorm:"column:config_class;default:''" json:"config_class"  `
 	ExternalID    pq.StringArray    `gorm:"column:external_id;type:[]text" json:"external_id,omitempty"  `
-	ExternalType  *string           `gorm:"column:external_type;default:null" json:"external_type,omitempty"  `
+	Type          *string           `gorm:"column:type;default:null" json:"type,omitempty"  `
 	Name          *string           `gorm:"column:name;default:null" json:"name,omitempty"  `
 	Namespace     *string           `gorm:"column:namespace;default:null" json:"namespace,omitempty"  `
 	Description   *string           `gorm:"column:description;default:null" json:"description,omitempty"  `
 	Account       *string           `gorm:"column:account;default:null" json:"account,omitempty"  `
-	Region        *string           `gorm:"-" json:"region,omitempty"  `
-	Zone          *string           `gorm:"-" json:"zone,omitempty"  `
-	Network       *string           `gorm:"-" json:"network,omitempty"  `
-	Subnet        *string           `gorm:"-" json:"subnet,omitempty"  `
 	Config        *string           `gorm:"column:config;default:null" json:"config,omitempty"  `
 	Source        *string           `gorm:"column:source;default:null" json:"source,omitempty"  `
 	ParentID      *string           `gorm:"column:parent_id;default:null" json:"parent_id,omitempty"`
@@ -40,7 +36,7 @@ type ConfigItem struct {
 }
 
 func (ci ConfigItem) String() string {
-	return fmt.Sprintf("%s/%s", ci.ConfigType, ci.ID)
+	return fmt.Sprintf("%s/%s", ci.ConfigClass, ci.ID)
 }
 
 func (ci ConfigItem) ConfigJSONStringMap() (map[string]interface{}, error) {

@@ -13,7 +13,7 @@ import (
 // ConfigChange represents the config change database table
 type ConfigChange struct {
 	ExternalID       string     `gorm:"-"`
-	ExternalType     string     `gorm:"-"`
+	ConfigType       string     `gorm:"-"`
 	ExternalChangeId string     `gorm:"column:external_change_id" json:"external_change_id"`
 	ID               string     `gorm:"primaryKey;unique_index;not null;column:id" json:"id"`
 	ConfigID         string     `gorm:"column:config_id;default:''" json:"config_id"`
@@ -28,19 +28,19 @@ type ConfigChange struct {
 
 func (c ConfigChange) GetExternalID() v1.ExternalID {
 	return v1.ExternalID{
-		ExternalID:   []string{c.ExternalID},
-		ExternalType: c.ExternalType,
+		ExternalID: []string{c.ExternalID},
+		ConfigType: c.ConfigType,
 	}
 }
 
 func (c ConfigChange) String() string {
-	return fmt.Sprintf("[%s/%s] %s", c.ExternalType, c.ExternalID, c.ChangeType)
+	return fmt.Sprintf("[%s/%s] %s", c.ConfigType, c.ExternalID, c.ChangeType)
 }
 
 func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *ConfigChange {
 	_change := ConfigChange{
 		ExternalID:       change.ExternalID,
-		ExternalType:     change.ExternalType,
+		ConfigType:       change.ConfigType,
 		ExternalChangeId: change.ExternalChangeID,
 		ChangeType:       change.ChangeType,
 		Source:           change.Source,
@@ -53,8 +53,8 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 	if _change.ExternalID == "" {
 		_change.ExternalID = result.ID
 	}
-	if _change.ExternalType == "" {
-		_change.ExternalType = result.ExternalType
+	if _change.ConfigType == "" {
+		_change.ConfigType = result.Type
 	}
 
 	return &_change

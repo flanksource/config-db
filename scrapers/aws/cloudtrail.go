@@ -81,7 +81,7 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 					change.ExternalID = *resource.ResourceName
 				}
 				if resource.ResourceType != nil {
-					change.ExternalType = *resource.ResourceType
+					change.ConfigType = *resource.ResourceType
 				}
 
 				results.AddChange(change)

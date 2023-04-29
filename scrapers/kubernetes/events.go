@@ -107,7 +107,7 @@ func getChangeFromEvent(obj *unstructured.Unstructured, severityKeywords v1.Seve
 		Details:          getDetailsFromEvent(obj),
 		ExternalChangeID: string(obj.GetUID()),
 		ExternalID:       event.InvolvedObject.UID,
-		ExternalType:     ExternalTypePrefix + event.InvolvedObject.Kind,
+		ConfigType:       ConfigTypePrefix + event.InvolvedObject.Kind,
 		Severity:         getSeverityFromReason(event.Reason, severityKeywords.Error, severityKeywords.Warn),
 		Source:           getSourceFromEvent(obj),
 		Summary:          event.Message,

@@ -19,7 +19,7 @@ import (
 // GetConfigItem returns a single config item result
 func GetConfigItem(extType, extID string) (*models.ConfigItem, error) {
 	ci := models.ConfigItem{}
-	tx := db.Limit(1).Find(&ci, "external_type = ? and external_id  @> ?", extType, pq.StringArray{extID})
+	tx := db.Limit(1).Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{extID})
 	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
@@ -59,7 +59,7 @@ func FindConfigItemID(externalID v1.ExternalID) (*string, error) {
 
 func FindConfigItemFromType(configType string) ([]models.ConfigItem, error) {
 	var ci []models.ConfigItem
-	err := db.Find(&ci, "external_type = @type OR config_type = @type", sql.Named("type", configType)).Error
+	err := db.Find(&ci, "type = @type OR config_class = @type", sql.Named("type", configType)).Error
 	return ci, err
 }
 
@@ -143,19 +143,14 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	}
 
 	ci := &models.ConfigItem{
-		ExternalID:   append(result.Aliases, result.ID),
-		ID:           result.ID,
-		ConfigType:   result.Type,
-		ExternalType: &result.ExternalType,
-		Account:      &result.Account,
-		Region:       &result.Region,
-		Zone:         &result.Zone,
-		Network:      &result.Network,
-		Subnet:       &result.Subnet,
-		Name:         &result.Name,
-		Source:       &result.Source,
-		Tags:         &result.Tags,
-		Config:       &dataStr,
+		ExternalID:  append(result.Aliases, result.ID),
+		ID:          result.ID,
+		ConfigClass: result.ConfigClass,
+		Type:        &result.Type,
+		Name:        &result.Name,
+		Source:      &result.Source,
+		Tags:        &result.Tags,
+		Config:      &dataStr,
 	}
 
 	if result.CreatedAt != nil {
@@ -166,10 +161,10 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 		ci.DeletedAt = result.DeletedAt
 	}
 
-	if result.ParentExternalID != "" && result.ParentExternalType != "" {
+	if result.ParentExternalID != "" && result.ParentType != "" {
 		parentExternalID := v1.ExternalID{
-			ExternalType: result.ParentExternalType,
-			ExternalID:   []string{result.ParentExternalID},
+			ConfigType: result.ParentType,
+			ExternalID: []string{result.ParentExternalID},
 		}
 
 		var err error

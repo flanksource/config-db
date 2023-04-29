@@ -53,7 +53,7 @@ const (
 // +kubebuilder:object:generate=false
 type AnalysisResult struct {
 	ExternalID    string
-	ExternalType  string
+	ConfigType    string
 	Summary       string         // Summary of the analysis
 	Analysis      map[string]any // Detailed metadata of the analysis
 	AnalysisType  AnalysisType   // Type of analysis, e.g. availability, compliance, cost, security, performance.
@@ -72,7 +72,7 @@ type AnalysisResult struct {
 func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 	return models.ConfigAnalysis{
 		ExternalID:    t.ExternalID,
-		ExternalType:  t.ExternalType,
+		ConfigType:    t.ConfigType,
 		Analyzer:      t.Analyzer,
 		Message:       strings.Join(t.Messages, ";"),
 		Severity:      string(t.Severity),
@@ -89,7 +89,7 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 // +kubebuilder:object:generate=false
 type ChangeResult struct {
 	ExternalID       string
-	ExternalType     string
+	ConfigType       string
 	ExternalChangeID string
 	Action           ChangeAction
 	ChangeType       string
@@ -102,7 +102,7 @@ type ChangeResult struct {
 }
 
 func (c ChangeResult) String() string {
-	return fmt.Sprintf("%s/%s: %s", c.ExternalType, c.ExternalID, c.ChangeType)
+	return fmt.Sprintf("%s/%s: %s", c.ConfigType, c.ExternalID, c.ChangeType)
 }
 
 func (result AnalysisResult) String() string {
@@ -163,11 +163,11 @@ func (s *ScrapeResults) AddChange(change ChangeResult) *ScrapeResults {
 	return s
 }
 
-func (s *ScrapeResults) Analysis(analyzer string, externalType string, id string) *AnalysisResult {
+func (s *ScrapeResults) Analysis(analyzer string, configType string, id string) *AnalysisResult {
 	result := AnalysisResult{
-		Analyzer:     analyzer,
-		ExternalType: externalType,
-		ExternalID:   id,
+		Analyzer:   analyzer,
+		ConfigType: configType,
+		ExternalID: id,
 	}
 	*s = append(*s, ScrapeResult{
 		AnalysisResult: &result,
@@ -187,13 +187,8 @@ type ScrapeResult struct {
 	CreatedAt           *time.Time          `json:"created_at,omitempty"`
 	DeletedAt           *time.Time          `json:"deleted_at,omitempty"`
 	LastModified        time.Time           `json:"last_modified,omitempty"`
-	Type                string              `json:"type,omitempty"`
-	ExternalType        string              `json:"external_type,omitempty"`
-	Account             string              `json:"account,omitempty"`
-	Network             string              `json:"network,omitempty"`
-	Subnet              string              `json:"subnet,omitempty"`
-	Region              string              `json:"region,omitempty"`
-	Zone                string              `json:"zone,omitempty"`
+	ConfigClass         string              `json:"config_class,omitempty"`
+	Type                string              `json:"config_type,omitempty"`
 	Name                string              `json:"name,omitempty"`
 	Namespace           string              `json:"namespace,omitempty"`
 	ID                  string              `json:"id,omitempty"`
@@ -211,7 +206,7 @@ type ScrapeResult struct {
 	Ignore              []string            `json:"-"`
 	Action              string              `json:",omitempty"`
 	ParentExternalID    string              `json:"-"`
-	ParentExternalType  string              `json:"-"`
+	ParentType          string              `json:"-"`
 }
 
 func NewScrapeResult(base BaseScraper) *ScrapeResult {
@@ -236,12 +231,7 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 	clone := ScrapeResult{
 		LastModified: s.LastModified,
 		Aliases:      s.Aliases,
-		Type:         s.Type,
-		Account:      s.Account,
-		Network:      s.Network,
-		Subnet:       s.Subnet,
-		Region:       s.Region,
-		Zone:         s.Zone,
+		ConfigClass:  s.ConfigClass,
 		Name:         s.Name,
 		Namespace:    s.Namespace,
 		ID:           s.ID,
@@ -256,7 +246,7 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 }
 
 func (r ScrapeResult) String() string {
-	s := fmt.Sprintf("%s/%s (%s)", r.Type, r.Name, r.ID)
+	s := fmt.Sprintf("%s/%s (%s)", r.ConfigClass, r.Name, r.ID)
 
 	if len(r.Changes) > 0 {
 		s += fmt.Sprintf(" changes=%d", len(r.Changes))

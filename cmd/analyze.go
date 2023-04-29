@@ -36,7 +36,7 @@ var Analyze = &cobra.Command{
 				logger.Fatalf("Could not unmarshall %s: %v", path, err)
 			}
 
-			if obj.Type == "EC2Instance" {
+			if obj.ConfigClass == "EC2Instance" {
 				nested, _ := json.Marshal(obj.Config)
 				instance := aws.Instance{}
 				if err := json.Unmarshal(nested, &instance); err != nil {

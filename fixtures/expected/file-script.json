@@ -1,7 +1,7 @@
 [
   {
     "last_modified": "0001-01-01T00:00:00Z",
-    "type": "Config",
+    "config_class": "Config",
     "name": "Config1",
     "id": "1",
     "config": {
@@ -14,7 +14,7 @@
   },
   {
     "last_modified": "0001-01-01T00:00:00Z",
-    "type": "Config",
+    "config_class": "Config",
     "name": "Config2",
     "id": "2",
     "config": {

@@ -301,14 +301,14 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 		input.Name = input.ID
 	}
 
-	if input.Type == "" {
-		input.Type, err = getString(e.Type, input.Config, e.Config.Type)
+	if input.ConfigClass == "" {
+		input.ConfigClass, err = getString(e.Type, input.Config, e.Config.Type)
 		if err != nil {
 			return input, err
 		}
 	}
 
-	if input.Type == "" {
+	if input.ConfigClass == "" {
 		return input, fmt.Errorf("no type defined for: %s", input)
 	}
 
@@ -332,7 +332,7 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 func (e Extract) applyMask(results []v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 	for _, m := range e.Transform.Masks {
 		for i, input := range results {
-			if input.Type != m.SelectorType {
+			if input.ConfigClass != m.SelectorType {
 				continue
 			}
 
