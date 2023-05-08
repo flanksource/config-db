@@ -40,7 +40,7 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 			var result = v1.NewScrapeResult(config.BaseScraper)
 			output, err := runCommand(ctx, trivyBinPath, config.GetK8sArgs())
 			if err != nil {
-				results = append(results, result.Errorf("failed to run trivy: %w", err))
+				results = append(results, result.SetError(err))
 				continue
 			}
 
@@ -102,5 +102,10 @@ func runCommand(ctx context.Context, command string, args []string) ([]byte, err
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	return cmd.Output()
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run command: %s %s (%s): %w", command, args, stderr.String(), err)
+	}
+
+	return output, nil
 }
