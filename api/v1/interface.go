@@ -227,6 +227,11 @@ func (s ScrapeResult) Errorf(msg string, args ...interface{}) ScrapeResult {
 	return s
 }
 
+func (s ScrapeResult) SetError(err error) ScrapeResult {
+	s.Error = err
+	return s
+}
+
 func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 	clone := ScrapeResult{
 		LastModified: s.LastModified,

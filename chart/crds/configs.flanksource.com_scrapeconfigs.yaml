@@ -301,6 +301,8 @@ spec:
                               type: object
                           type: object
                       type: object
+                    connection:
+                      type: string
                     createFields:
                       description: CreateFields is a list of JSONPath expression used
                         to identify the created time of the config. If multiple fields
@@ -1282,6 +1284,8 @@ spec:
               trivy:
                 items:
                   properties:
+                    compliance:
+                      type: string
                     createFields:
                       description: CreateFields is a list of JSONPath expression used
                         to identify the created time of the config. If multiple fields
@@ -1304,6 +1308,12 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
+                    ignoreUnfixed:
+                      type: boolean
+                    ignoredLicenses:
+                      items:
+                        type: string
+                      type: array
                     items:
                       description: A JSONPath expression to use to extract individual
                         items from the resource, items are extracted first and then
@@ -1311,33 +1321,27 @@ spec:
                         item.
                       type: string
                     kubernetes:
+                      description: TrivyK8sOptions holds in Trivy flags that are Kubernetes
+                        specific.
                       properties:
-                        compliance:
-                          type: string
                         components:
                           items:
                             type: string
                           type: array
-                        ignoreUnfixed:
-                          type: boolean
-                        ignoredLicenses:
-                          items:
-                            type: string
-                          type: array
+                        context:
+                          type: string
                         kubeconfig:
                           type: string
-                        licenseFull:
-                          type: boolean
                         namespace:
                           type: string
-                        severity:
-                          type: string
-                        vulnType:
-                          type: string
                       type: object
+                    licenseFull:
+                      type: boolean
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
+                      type: string
+                    severity:
                       type: string
                     tags:
                       additionalProperties:
@@ -1403,6 +1407,9 @@ spec:
                         the type for the resource.
                       type: string
                     version:
+                      description: Common Trivy Flags ...
+                      type: string
+                    vulnType:
                       type: string
                   type: object
                 type: array

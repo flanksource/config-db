@@ -4,8 +4,17 @@ import "strings"
 
 type Trivy struct {
 	BaseScraper `json:",inline"`
-	Version     string        `json:"version,omitempty"` // Specify the version of Trivy to use
-	Kubernetes  *TrivyOptions `json:"kubernetes,omitempty"`
+
+	// Common Trivy Flags ...
+	Version         string   `json:"version,omitempty" yaml:"version,omitempty"` // Specify the version of Trivy to use
+	Compliance      string   `json:"compliance,omitempty" yaml:"compliance,omitempty"`
+	IgnoredLicenses []string `json:"ignoredLicenses,omitempty" yaml:"ignoredLicenses,omitempty"`
+	IgnoreUnfixed   bool     `json:"ignoreUnfixed,omitempty" yaml:"ignoreUnfixed,omitempty"`
+	LicenseFull     bool     `json:"licenseFull,omitempty" yaml:"licenseFull,omitempty"`
+	Severity        string   `json:"severity,omitempty" yaml:"severity,omitempty"`
+	VulnType        string   `json:"vulnType,omitempty" yaml:"vulnType,omitempty"`
+
+	Kubernetes *TrivyK8sOptions `json:"kubernetes,omitempty"`
 }
 
 // GetK8sArgs returns a slice of arguments that Trivy uses to scan Kubernetes objects.
@@ -13,30 +22,16 @@ func (t Trivy) GetK8sArgs() []string {
 	var args []string
 	args = append(args, "k8s")
 	args = append(args, "--format", "json") // hardcoded here. don't allow users this option.
-	args = append(args, t.Kubernetes.GetArgs()...)
+	args = append(args, t.getCommonArgs()...)
+	args = append(args, t.Kubernetes.getArgs()...)
 	args = append(args, "all")
 	return args
 }
 
-type TrivyOptions struct {
-	Compliance      string   `json:"compliance,omitempty"`
-	Components      []string `json:"components,omitempty"`
-	IgnoredLicenses []string `json:"ignoredLicenses,omitempty"`
-	IgnoreUnfixed   bool     `json:"ignoreUnfixed,omitempty"`
-	Kubeconfig      string   `json:"kubeconfig,omitempty"`
-	LicenseFull     bool     `json:"licenseFull,omitempty"`
-	Namespace       string   `json:"namespace,omitempty"`
-	Severity        string   `json:"severity,omitempty"`
-	VulnType        string   `json:"vulnType,omitempty"`
-}
-
-func (t TrivyOptions) GetArgs() []string {
+func (t Trivy) getCommonArgs() []string {
 	var args []string
 	if t.Compliance != "" {
 		args = append(args, "--compliance", t.Compliance)
-	}
-	if len(t.Components) > 0 {
-		args = append(args, "--components", strings.Join(t.Components, ","))
 	}
 	if len(t.IgnoredLicenses) > 0 {
 		args = append(args, "--ignored-licenses", strings.Join(t.IgnoredLicenses, ","))
@@ -44,20 +39,40 @@ func (t TrivyOptions) GetArgs() []string {
 	if t.IgnoreUnfixed {
 		args = append(args, "--ignore-unfixed")
 	}
-	if t.Kubeconfig != "" {
-		args = append(args, "--kubeconfig", t.Kubeconfig)
-	}
 	if t.LicenseFull {
 		args = append(args, "--license-full")
-	}
-	if t.Namespace != "" {
-		args = append(args, "--namespace", t.Namespace)
 	}
 	if t.Severity != "" {
 		args = append(args, "--severity", t.Severity)
 	}
 	if t.VulnType != "" {
 		args = append(args, "--vuln-type", t.VulnType)
+	}
+
+	return args
+}
+
+// TrivyK8sOptions holds in Trivy flags that are Kubernetes specific.
+type TrivyK8sOptions struct {
+	Components []string `json:"components,omitempty" yaml:"components,omitempty"`
+	Context    string   `json:"context,omitempty" yaml:"context,omitempty"`
+	Kubeconfig string   `json:"kubeconfig,omitempty" yaml:"kubeconfig,omitempty"`
+	Namespace  string   `json:"namespace,omitempty" yaml:"namespace,omitempty"`
+}
+
+func (t TrivyK8sOptions) getArgs() []string {
+	var args []string
+	if len(t.Components) > 0 {
+		args = append(args, "--components", strings.Join(t.Components, ","))
+	}
+	if t.Kubeconfig != "" {
+		args = append(args, "--kubeconfig", t.Kubeconfig)
+	}
+	if t.Namespace != "" {
+		args = append(args, "--namespace", t.Namespace)
+	}
+	if t.Context != "" {
+		args = append(args, "--context", t.Context)
 	}
 	return args
 }
