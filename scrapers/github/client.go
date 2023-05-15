@@ -77,10 +77,18 @@ type GitHubActionsClient struct {
 }
 
 func NewGitHubActionsClient(ctx *v1.ScrapeContext, gha v1.GitHubActions) (*GitHubActionsClient, error) {
-	token, err := duty.GetEnvValueFromCache(ctx.Kubernetes, gha.PersonalAccessToken, ctx.Namespace)
-	if err != nil {
+	var token string
+	if connection, err := ctx.HydrateConnectionByURL(gha.ConnectionName); err != nil {
 		return nil, err
+	} else if connection != nil {
+		token = connection.Password
+	} else {
+		token, err = duty.GetEnvValueFromCache(ctx.Kubernetes, gha.PersonalAccessToken, ctx.Namespace)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	client := resty.New().
 		SetHeader("Accept", "application/vnd.github+json").
 		SetBaseURL(fmt.Sprintf("https://api.github.com/repos/%s/%s", gha.Owner, gha.Repository)).

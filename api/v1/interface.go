@@ -337,16 +337,20 @@ func (ctx ScrapeContext) IsTrace() bool {
 
 // HydrateConnectionByURL ...
 func (ctx *ScrapeContext) HydrateConnectionByURL(connectionName string) (*models.Connection, error) {
-	if !strings.HasPrefix(connectionName, "connection://") {
-		return nil, nil
-	}
-
 	if connectionName == "" {
 		return nil, nil
 	}
 
+	if !strings.HasPrefix(connectionName, "connection://") {
+		return nil, fmt.Errorf("invalid connection name: [%s]", connectionName)
+	}
+
 	if ctx.db == nil {
 		return nil, errors.New("db has not been initialized")
+	}
+
+	if ctx.Kubernetes == nil {
+		return nil, errors.New("kubernetes clientset has not been initialized")
 	}
 
 	connection, err := duty.HydratedConnectionByURL(ctx, ctx.db, ctx.Kubernetes, ctx.Namespace, connectionName)

@@ -40,6 +40,7 @@ func (t *Azure) Populate(ctx *ScrapeContext) error {
 		t.ClientID.ValueStatic = connection.Username
 		t.ClientSecret.ValueStatic = connection.Password
 		t.TenantID = connection.Properties["tenant"]
+		return nil
 	}
 
 	var err error
