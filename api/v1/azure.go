@@ -26,9 +26,9 @@ type Azure struct {
 	TenantID       string       `yaml:"tenantID" json:"tenantID"`
 }
 
-// Populate populates the credentials in Azure from the connection name (if available)
+// HydrateConnection populates the credentials in Azure from the connection name (if available)
 // else it'll try to fetch the credentials from kubernetes secrets.
-func (t *Azure) Populate(ctx *ScrapeContext) error {
+func (t *Azure) HydrateConnection(ctx *ScrapeContext) error {
 	if t.ConnectionName != "" {
 		connection, err := ctx.HydrateConnectionByURL(t.ConnectionName)
 		if err != nil {

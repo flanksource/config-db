@@ -35,7 +35,7 @@ func (azure Scraper) CanScrape(configs v1.ConfigScraper) bool {
 func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, config := range configs.Azure {
-		if err := config.Populate(ctx); err != nil {
+		if err := config.HydrateConnection(ctx); err != nil {
 			results.Errorf(err, "failed to populate config")
 			continue
 		}

@@ -81,13 +81,13 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) 
 			url = connection.URL
 		}
 
-		url = stripSecrets(url)
-		tempDir := path.Join(cacheDir, convertToLocalPath(url))
+		strippedURL := stripSecrets(url)
+		tempDir := path.Join(cacheDir, convertToLocalPath(strippedURL))
 		if err := os.MkdirAll(cacheDir, 0755); err != nil {
 			return results.Errorf(err, "failed to create cache dir: %v", tempDir)
 		}
 
-		logger.Debugf("Scraping file %s ==> %s", url, tempDir)
+		logger.Debugf("Scraping file %s ==> %s", strippedURL, tempDir)
 		var globMatches []string
 		if url != "" {
 			globMatches = getFiles(ctx, tempDir, url, config.Paths)
