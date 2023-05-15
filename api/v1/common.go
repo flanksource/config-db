@@ -199,12 +199,14 @@ func (auth Authentication) GetDomain() string {
 
 // AWSConnection ...
 type AWSConnection struct {
-	AccessKey     types.EnvVar `yaml:"accessKey,omitempty" json:"accessKey,omitempty"`
-	SecretKey     types.EnvVar `yaml:"secretKey,omitempty" json:"secretKey,omitempty"`
-	Region        []string     `yaml:"region,omitempty" json:"region"`
-	Endpoint      string       `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
-	SkipTLSVerify bool         `yaml:"skipTLSVerify,omitempty" json:"skipTLSVerify,omitempty"`
-	AssumeRole    string       `yaml:"assumeRole,omitempty" json:"assumeRole,omitempty"`
+	// ConnectionName of the connection. It'll be used to populate the endpoint, accessKey and secretKey.
+	ConnectionName string       `yaml:"connection,omitempty" json:"connection,omitempty"`
+	AccessKey      types.EnvVar `yaml:"accessKey,omitempty" json:"accessKey,omitempty"`
+	SecretKey      types.EnvVar `yaml:"secretKey,omitempty" json:"secretKey,omitempty"`
+	Region         []string     `yaml:"region,omitempty" json:"region"`
+	Endpoint       string       `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	SkipTLSVerify  bool         `yaml:"skipTLSVerify,omitempty" json:"skipTLSVerify,omitempty"`
+	AssumeRole     string       `yaml:"assumeRole,omitempty" json:"assumeRole,omitempty"`
 }
 
 func (aws AWSConnection) GetModel() *models.Connection {

@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,8 +10,10 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -296,6 +299,7 @@ type RunNowResponse struct {
 // +kubebuilder:object:generate=false
 type ScrapeContext struct {
 	context.Context
+	db                   *gorm.DB
 	Namespace            string
 	Kubernetes           *kubernetes.Clientset
 	KubernetesRestConfig *rest.Config
@@ -329,4 +333,32 @@ func (ctx ScrapeContext) GetNamespace() string {
 // IsTrace ...
 func (ctx ScrapeContext) IsTrace() bool {
 	return ctx.Scraper != nil && ctx.Scraper.IsTrace()
+}
+
+// HydrateConnectionByURL ...
+func (ctx *ScrapeContext) HydrateConnectionByURL(connectionName string) (*models.Connection, error) {
+	if !strings.HasPrefix(connectionName, "connection://") {
+		return nil, nil
+	}
+
+	if connectionName == "" {
+		return nil, nil
+	}
+
+	if ctx.db == nil {
+		return nil, errors.New("db has not been initialized")
+	}
+
+	connection, err := duty.HydratedConnectionByURL(ctx, ctx.db, ctx.Kubernetes, ctx.Namespace, connectionName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Connection name was explicitly provided but was not found.
+	// That's an error.
+	if connection == nil {
+		return nil, fmt.Errorf("connection %s not found", connectionName)
+	}
+
+	return connection, nil
 }

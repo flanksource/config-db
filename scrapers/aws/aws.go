@@ -63,6 +63,7 @@ func (aws Scraper) getContext(ctx *v1.ScrapeContext, awsConfig v1.AWS, region st
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create AWS session")
 	}
+
 	STS := sts.NewFromConfig(*session)
 	caller, err := STS.GetCallerIdentity(ctx, nil)
 	if err != nil {
@@ -953,6 +954,7 @@ func (aws Scraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.Scr
 			if err != nil {
 				return results.Errorf(err, "failed to create AWS context")
 			}
+
 			logger.Infof("Scrapping %s", awsCtx)
 			aws.subnets(awsCtx, awsConfig, results)
 			aws.instances(awsCtx, awsConfig, results)

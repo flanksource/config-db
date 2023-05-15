@@ -3,10 +3,10 @@ package aws
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty"
 	"github.com/henvic/httpretty"
 
@@ -44,6 +44,19 @@ func (e EndpointResolver) ResolveEndpoint(service, region string, options ...int
 }
 
 func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*aws.Config, error) {
+	if conn.ConnectionName != "" {
+		connection, err := ctx.HydrateConnectionByURL(conn.ConnectionName)
+		if err != nil {
+			return nil, fmt.Errorf("could not hydrate connection: %w", err)
+		} else if connection == nil {
+			return nil, fmt.Errorf("connection %s not found", conn.ConnectionName)
+		}
+
+		conn.AccessKey.ValueStatic = connection.Username
+		conn.SecretKey.ValueStatic = connection.Password
+		conn.Endpoint = connection.URL
+	}
+
 	var tr http.RoundTripper
 	tr = &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: conn.SkipTLSVerify},
@@ -77,6 +90,7 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 		if err != nil {
 			return nil, err
 		}
+
 		options = append(options, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")))
 	}
 
@@ -85,13 +99,15 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 }
 
 func getAccessAndSecretKey(ctx *v1.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
-	connection := conn.GetModel()
-
-	if _connection, err := duty.HydratedConnectionByURL(ctx, db.DefaultDB(), ctx.Kubernetes, ctx.Namespace, connection.Username); err != nil {
-		return "", "", err
-	} else if _connection != nil {
-		connection = _connection
+	accessKey, err := duty.GetEnvValueFromCache(ctx.Kubernetes, conn.AccessKey, ctx.Namespace)
+	if err != nil {
+		return "", "", fmt.Errorf("error getting access key: %w", err)
 	}
 
-	return connection.Username, connection.Password, nil
+	secretKey, err := duty.GetEnvValueFromCache(ctx.Kubernetes, conn.SecretKey, ctx.Namespace)
+	if err != nil {
+		return "", "", fmt.Errorf("error getting secret key: %w", err)
+	}
+
+	return accessKey, secretKey, nil
 }
