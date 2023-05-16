@@ -10,6 +10,18 @@ import (
 	"gorm.io/gorm"
 )
 
+var AllScraperConfigs = map[string]any{
+	"aws":            AWS{},
+	"azure":          Azure{},
+	"azuredevops":    AzureDevops{},
+	"file":           File{},
+	"githubactions":  GitHubActions{},
+	"kubernetes":     Kubernetes{},
+	"kubernetesfile": KubernetesFile{},
+	"sql":            SQL{},
+	"trivy":          Trivy{},
+}
+
 // ConfigScraper ...
 type ConfigScraper struct {
 	ID             string           `json:"-"`
