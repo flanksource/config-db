@@ -13,6 +13,7 @@ type Trivy struct {
 	LicenseFull     bool     `json:"licenseFull,omitempty" yaml:"licenseFull,omitempty"`
 	Severity        string   `json:"severity,omitempty" yaml:"severity,omitempty"`
 	VulnType        string   `json:"vulnType,omitempty" yaml:"vulnType,omitempty"`
+	Timeout         string   `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 
 	Kubernetes *TrivyK8sOptions `json:"kubernetes,omitempty"`
 }
@@ -47,6 +48,9 @@ func (t Trivy) getCommonArgs() []string {
 	}
 	if t.VulnType != "" {
 		args = append(args, "--vuln-type", t.VulnType)
+	}
+	if t.Timeout != "" {
+		args = append(args, "--timeout", t.Timeout)
 	}
 
 	return args
