@@ -18,7 +18,7 @@ import (
 // Run ...
 func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult, error) {
 	cwd, _ := os.Getwd()
-	logger.Infof("Scraping files from (PWD: %s)", cwd)
+	logger.Infof("Scraping configs from (PWD: %s)", cwd)
 
 	var results v1.ScrapeResults
 	for _, config := range configs {
@@ -26,6 +26,7 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 			if !scraper.CanScrape(config) {
 				continue
 			}
+
 			jobHistory := models.JobHistory{
 				Name:         fmt.Sprintf("scraper:%T", scraper),
 				ResourceType: "config_scraper",
@@ -33,12 +34,13 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 			if ctx.ScraperID != nil {
 				jobHistory.ResourceID = ctx.ScraperID.String()
 			}
-			jobHistory.Start()
 
+			jobHistory.Start()
 			if err := db.PersistJobHistory(&jobHistory); err != nil {
 				logger.Errorf("Error persisting job history: %v", err)
 			}
 
+			logger.Debugf("Starting to scrape [%s]", jobHistory.Name)
 			for _, result := range scraper.Scrape(ctx, config) {
 				scraped := processScrapeResult(config, result)
 

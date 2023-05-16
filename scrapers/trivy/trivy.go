@@ -27,7 +27,12 @@ func (t Scanner) CanScrape(config v1.ConfigScraper) bool {
 func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
-	for _, config := range configs.Trivy {
+	for i, config := range configs.Trivy {
+		if config.IsEmpty() {
+			logger.Debugf("Trivy config [%d] is empty. Skipping ...", i+1)
+			continue
+		}
+
 		// Ensure that trivy binary is available
 		if err := deps.InstallDependency("trivy", config.Version, ".bin"); err != nil {
 			var result = v1.NewScrapeResult(config.BaseScraper)
