@@ -116,6 +116,7 @@ func NewAzureDevopsClient(ctx *v1.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 		return nil, fmt.Errorf("failed to find connection: %w", err)
 	} else if connection != nil {
 		token = connection.Password
+		ado.Organization = connection.Username
 	} else {
 		token, err = duty.GetEnvValueFromCache(ctx.Kubernetes, ado.PersonalAccessToken, ctx.Namespace)
 		if err != nil {
