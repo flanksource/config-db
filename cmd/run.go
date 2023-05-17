@@ -27,11 +27,11 @@ var Run = &cobra.Command{
 			logger.Fatalf(err.Error())
 		}
 
-		ctx := api.NewScrapeContext(nil, nil)
-
 		if db.ConnectionString != "" {
 			db.MustInit()
 		}
+
+		ctx := api.NewScrapeContext(nil, nil)
 		results, err := scrapers.Run(ctx, scraperConfigs...)
 		if err != nil {
 			logger.Fatalf(err.Error())

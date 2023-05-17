@@ -299,7 +299,7 @@ type RunNowResponse struct {
 // +kubebuilder:object:generate=false
 type ScrapeContext struct {
 	context.Context
-	db                   *gorm.DB
+	DB                   *gorm.DB
 	Namespace            string
 	Kubernetes           *kubernetes.Clientset
 	KubernetesRestConfig *rest.Config
@@ -345,7 +345,7 @@ func (ctx *ScrapeContext) HydrateConnectionByURL(connectionName string) (*models
 		return nil, fmt.Errorf("invalid connection name: [%s]", connectionName)
 	}
 
-	if ctx.db == nil {
+	if ctx.DB == nil {
 		return nil, errors.New("db has not been initialized")
 	}
 
@@ -353,7 +353,7 @@ func (ctx *ScrapeContext) HydrateConnectionByURL(connectionName string) (*models
 		return nil, errors.New("kubernetes clientset has not been initialized")
 	}
 
-	connection, err := duty.HydratedConnectionByURL(ctx, ctx.db, ctx.Kubernetes, ctx.Namespace, connectionName)
+	connection, err := duty.HydratedConnectionByURL(ctx, ctx.DB, ctx.Kubernetes, ctx.Namespace, connectionName)
 	if err != nil {
 		return nil, err
 	}
