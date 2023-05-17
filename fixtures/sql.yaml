@@ -1,5 +1,5 @@
 sql:
-  - connection: postgresql://postgres:postgres@localhost:5432/incident_commander
+  - connection: postgresql://postgres:postgres@localhost:5432/incident_commander?sslmode=disable
     type: Postgres::Database
     id: "incident_commander"
     items: .database
@@ -23,3 +23,10 @@ sql:
       )
 
       select json_build_object('version', version(), 'settings', s.setting, 'roles', r.role ) as database FROM (SELECT * from settings) as s, (Select * from roles) as r
+  # - connection: connection://Postgres/incident-commander (Alternatively, you can use a connection)
+  # - connection: postgresql://$(username):$(password)@localhost:5432/incident_commander?sslmode=disable (connection string can also be templatized)
+  #   auth:
+  #     username:
+  #       value: postgres
+  #     password:
+  #       value: postgres

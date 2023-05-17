@@ -1,7 +1,6 @@
 package scrapers
 
 import (
-	"github.com/flanksource/commons/template"
 	"github.com/flanksource/config-db/scrapers/azure"
 	"github.com/flanksource/config-db/scrapers/trivy"
 	"github.com/flanksource/duty"
@@ -28,45 +27,6 @@ var All = []v1.Scraper{
 	github.GithubActionsScraper{},
 	sql.SqlScraper{},
 	trivy.Scanner{},
-}
-
-func GetConnection(ctx *v1.ScrapeContext, conn *v1.Connection) (string, error) {
-	// TODO: this function should not be necessary, each check should be templated out individual
-	// however, the walk method only support high level values, not values from siblings.
-
-	if conn.Authentication.IsEmpty() {
-		return conn.Connection, nil
-	}
-
-	auth, err := GetAuthValues(ctx, &conn.Authentication)
-	if err != nil {
-		return "", err
-	}
-
-	var clone = *conn
-
-	data := map[string]interface{}{
-		"namespace": ctx.Namespace,
-		"username":  auth.GetUsername(),
-		"password":  auth.GetPassword(),
-		"domain":    auth.GetDomain(),
-	}
-	templater := template.StructTemplater{
-		Values: data,
-		// access go values in template requires prefix everything with .
-		// to support $(username) instead of $(.username) we add a function for each var
-		ValueFunctions: true,
-		DelimSets: []template.Delims{
-			{Left: "{{", Right: "}}"},
-			{Left: "$(", Right: ")"},
-		},
-		RequiredTag: "template",
-	}
-	if err := templater.Walk(clone); err != nil {
-		return "", err
-	}
-
-	return clone.Connection, nil
 }
 
 func GetAuthValues(ctx *v1.ScrapeContext, auth *v1.Authentication) (*v1.Authentication, error) {

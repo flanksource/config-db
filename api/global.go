@@ -4,6 +4,7 @@ import (
 	goctx "context"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/google/uuid"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -21,5 +22,6 @@ func NewScrapeContext(scraper *v1.ConfigScraper, id *uuid.UUID) *v1.ScrapeContex
 		Namespace:            Namespace,
 		Kubernetes:           KubernetesClient,
 		KubernetesRestConfig: KubernetesRestConfig,
+		DB:                   db.DefaultDB(),
 	}
 }
