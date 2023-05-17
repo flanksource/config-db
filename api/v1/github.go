@@ -7,5 +7,7 @@ type GitHubActions struct {
 	Owner               string       `yaml:"owner" json:"owner"`
 	Repository          string       `yaml:"repository" json:"repository"`
 	PersonalAccessToken types.EnvVar `yaml:"personalAccessToken" json:"personalAccessToken"`
-	Workflows           []string     `yaml:"workflows" json:"workflows"`
+	// ConnectionName, if provided, will be used to populate personalAccessToken
+	ConnectionName string   `yaml:"connection,omitempty" json:"connection,omitempty"`
+	Workflows      []string `yaml:"workflows" json:"workflows"`
 }

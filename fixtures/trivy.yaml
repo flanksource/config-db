@@ -1,6 +1,4 @@
 trivy:
   - version: "0.40.0"
+    kubernetes: {}
     timeout: "10m" # Increased from the default 5m timeout
-    kubernetes:
-      namespace: default
-      context: demo

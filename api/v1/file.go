@@ -9,11 +9,14 @@ import (
 // File ...
 type File struct {
 	BaseScraper `json:",inline"`
-	URL         string   `json:"url,omitempty"`
-	Paths       []string `json:"paths,omitempty"`
-	Ignore      []string `json:"ignore,omitempty"`
-	Format      string   `json:"format,omitempty"`
-	Icon        string   `json:"icon,omitempty"`
+	URL         string   `json:"url,omitempty" yaml:"url,omitempty"`
+	Paths       []string `json:"paths,omitempty" yaml:"paths,omitempty"`
+	Ignore      []string `json:"ignore,omitempty" yaml:"ignore,omitempty"`
+	Format      string   `json:"format,omitempty" yaml:"format,omitempty"`
+	Icon        string   `json:"icon,omitempty" yaml:"icon,omitempty"`
+
+	// ConnectionName is used to populate the URL
+	ConnectionName string `json:"connection,omitempty" yaml:"connection,omitempty"`
 }
 
 func (f File) RedactedString() string {

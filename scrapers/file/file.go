@@ -12,8 +12,6 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/duty"
 	"github.com/gobwas/glob"
 	"github.com/hashicorp/go-getter"
 	"sigs.k8s.io/yaml"
@@ -75,25 +73,24 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) 
 	results := v1.ScrapeResults{}
 
 	for _, config := range configs.File {
-		connection := config.GetConnection()
-
-		if _connection, err := duty.HydratedConnectionByURL(ctx, db.DefaultDB(), ctx.Kubernetes, ctx.Namespace, connection.URL); err != nil {
+		url := config.URL
+		if connection, err := ctx.HydrateConnectionByURL(config.ConnectionName); err != nil {
 			results.Errorf(err, "failed to find connection")
 			continue
-		} else if _connection != nil {
-			connection = _connection
+		} else if connection != nil {
+			url = connection.URL
 		}
 
-		url := stripSecrets(connection.URL)
-		tempDir := path.Join(cacheDir, convertToLocalPath(url))
+		strippedURL := stripSecrets(url)
+		tempDir := path.Join(cacheDir, convertToLocalPath(strippedURL))
 		if err := os.MkdirAll(cacheDir, 0755); err != nil {
 			return results.Errorf(err, "failed to create cache dir: %v", tempDir)
 		}
 
-		logger.Debugf("Scraping file %s ==> %s", stripSecrets(connection.URL), tempDir)
+		logger.Debugf("Scraping file %s ==> %s", strippedURL, tempDir)
 		var globMatches []string
-		if connection.URL != "" {
-			globMatches = getFiles(ctx, tempDir, connection.URL, config.Paths)
+		if url != "" {
+			globMatches = getFiles(ctx, tempDir, url, config.Paths)
 		} else {
 			globMatches = findFiles(ctx, "", config.Paths)
 		}

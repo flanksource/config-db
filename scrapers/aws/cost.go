@@ -61,6 +61,7 @@ func getAWSAthenaConfig(ctx *v1.ScrapeContext, awsConfig v1.AWS) (*athena.Config
 	if err != nil {
 		return nil, err
 	}
+
 	if len(accessKey) > 0 && len(secretKey) > 0 {
 		if err = conf.SetAccessID(accessKey); err != nil {
 			return nil, err
@@ -69,6 +70,7 @@ func getAWSAthenaConfig(ctx *v1.ScrapeContext, awsConfig v1.AWS) (*athena.Config
 			return nil, err
 		}
 	}
+
 	return conf, nil
 }
 
@@ -81,7 +83,7 @@ type LineItemRow struct {
 	Cost30d     float64
 }
 
-func FetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
+func fetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
 	var lineItemRows []LineItemRow
 
 	athenaConf, err := getAWSAthenaConfig(ctx, config)
@@ -146,6 +148,7 @@ func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper
 		if err != nil {
 			return results.Errorf(err, "failed to create AWS session")
 		}
+
 		stsClient := sts.NewFromConfig(*session)
 		caller, err := stsClient.GetCallerIdentity(ctx, nil)
 		if err != nil {
@@ -153,7 +156,7 @@ func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper
 		}
 		accountID := *caller.Account
 
-		rows, err := FetchCosts(ctx, awsConfig)
+		rows, err := fetchCosts(ctx, awsConfig)
 		if err != nil {
 			return results.Errorf(err, "failed to fetch costs")
 		}

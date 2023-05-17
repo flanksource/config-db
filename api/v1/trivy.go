@@ -18,6 +18,10 @@ type Trivy struct {
 	Kubernetes *TrivyK8sOptions `json:"kubernetes,omitempty"`
 }
 
+func (t Trivy) IsEmpty() bool {
+	return t.Kubernetes == nil
+}
+
 // GetK8sArgs returns a slice of arguments that Trivy uses to scan Kubernetes objects.
 func (t Trivy) GetK8sArgs() []string {
 	var args []string
