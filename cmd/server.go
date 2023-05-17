@@ -64,33 +64,28 @@ func startScraperCron(configFiles []string) {
 	if err != nil {
 		logger.Fatalf(err.Error())
 	}
+
+	logger.Infof("Persisting %d config files", len(scraperConfigsFiles))
 	for _, scraper := range scraperConfigsFiles {
-		scraperDB, err := db.PersistScrapeConfigFromFile(scraper)
+		_, err := db.PersistScrapeConfigFromFile(scraper)
 		if err != nil {
 			logger.Fatalf("Error persisting scrape config to db: %v", err)
-			continue
 		}
-		_scraper := scraper
-		_scraper.ID = scraperDB.ID.String()
-		scrapers.AddToCron(_scraper, "")
-		fn := func() {
-			if _, err := scrapers.RunScraper(_scraper); err != nil {
-				logger.Errorf("Error running scraper: %v", err)
-			}
-		}
-		defer fn()
 	}
 
 	scraperConfigsDB, err := db.GetScrapeConfigs()
 	if err != nil {
 		logger.Fatalf(err.Error())
 	}
+
+	logger.Infof("Starting %d scrapers", len(scraperConfigsDB))
 	for _, scraper := range scraperConfigsDB {
 		_scraper, err := models.V1ConfigScraper(scraper)
 		if err != nil {
 			logger.Fatalf("Error parsing config scraper: %v", err)
 		}
 		scrapers.AddToCron(_scraper, scraper.ID.String())
+
 		fn := func() {
 			if _, err := scrapers.RunScraper(_scraper); err != nil {
 				logger.Errorf("Error running scraper: %v", err)

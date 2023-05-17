@@ -50,7 +50,10 @@ func GetScrapeConfigs() ([]models.ConfigScraper, error) {
 
 func PersistScrapeConfigFromFile(configScraperSpec v1.ConfigScraper) (models.ConfigScraper, error) {
 	var configScraper models.ConfigScraper
-	spec, _ := utils.StructToJSON(configScraperSpec)
+	spec, err := utils.StructToJSON(configScraperSpec)
+	if err != nil {
+		return configScraper, fmt.Errorf("error converting scraper spec to JSON: %w", err)
+	}
 
 	// Check if exists
 	tx := db.Table("config_scrapers").Where("spec = ?", spec).Find(&configScraper)
@@ -62,7 +65,6 @@ func PersistScrapeConfigFromFile(configScraperSpec v1.ConfigScraper) (models.Con
 	}
 
 	// Create if not exists
-	var err error
 	configScraper.Spec = spec
 	configScraper.Name, err = configScraperSpec.GenerateName()
 	if err != nil {
