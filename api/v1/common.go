@@ -236,6 +236,8 @@ func (gcp GCPConnection) GetModel() *models.Connection {
 }
 
 type Connection struct {
+	// Connection is either the name of the connection to lookup
+	// or the connection string itself.
 	Connection     string         `yaml:"connection" json:"connection" template:"true"`
 	Authentication Authentication `yaml:"auth,omitempty" json:"auth,omitempty"`
 }

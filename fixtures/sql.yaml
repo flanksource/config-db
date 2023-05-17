@@ -1,4 +1,5 @@
 sql:
+  # - connection: connection://Postgres/incident-commander
   - connection: postgresql://postgres:postgres@localhost:5432/incident_commander
     type: Postgres::Database
     id: "incident_commander"
