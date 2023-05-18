@@ -2,19 +2,16 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "config-db.name" . }}
-  labels:
-    {{- include "config-db.labels" . | nindent 4 }}
+  labels: {{- include "config-db.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
-    matchLabels:
-      {{- include "config-db.selectorLabels" . | nindent 6 }}
+    matchLabels: {{- include "config-db.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      labels:
-        {{- include "config-db.selectorLabels" . | nindent 8 }}
+      labels: {{- include "config-db.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "config-db.name" . }}-sa
+      serviceAccountName: {{ template "config-db.serviceAccountName" . }}
       containers:
         - name: {{ include "config-db.name" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"

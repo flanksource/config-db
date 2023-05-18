@@ -12,6 +12,15 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/* Create the name of config-db service account */}}
+{{- define "config-db.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+    {{ default (include "kube-prometheus-stack.operator.fullname" .) .Values.prometheusOperator.serviceAccount.name }}
+{{- else -}}
+    {{ default "default" .Values.prometheusOperator.serviceAccount.name }}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Common labels
 */}}
