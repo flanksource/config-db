@@ -91,7 +91,7 @@ func startScraperCron(configFiles []string) {
 				logger.Errorf("Error running scraper(id=%s): %v", _scraper.ID, err)
 			}
 		}
-		go scrapers.AtomicRunner(_scraper.ID, fn)
+		go scrapers.AtomicRunner(_scraper.ID, fn)()
 	}
 }
 

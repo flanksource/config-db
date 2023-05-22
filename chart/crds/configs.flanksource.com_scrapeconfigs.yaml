@@ -80,6 +80,10 @@ spec:
                       type: object
                     compliance:
                       type: boolean
+                    connection:
+                      description: ConnectionName of the connection. It'll be used
+                        to populate the endpoint, accessKey and secretKey.
+                      type: string
                     cost_reporting:
                       properties:
                         database:
@@ -413,6 +417,8 @@ spec:
               azureDevops:
                 items:
                   properties:
+                    connection:
+                      type: string
                     createFields:
                       description: CreateFields is a list of JSONPath expression used
                         to identify the created time of the config. If multiple fields
@@ -547,8 +553,6 @@ spec:
                         the type for the resource.
                       type: string
                   required:
-                  - organization
-                  - personalAccessToken
                   - pipelines
                   - projects
                   type: object
@@ -557,6 +561,9 @@ spec:
                 items:
                   description: File ...
                   properties:
+                    connection:
+                      description: ConnectionName is used to populate the URL
+                      type: string
                     createFields:
                       description: CreateFields is a list of JSONPath expression used
                         to identify the created time of the config. If multiple fields
@@ -673,6 +680,10 @@ spec:
               githubActions:
                 items:
                   properties:
+                    connection:
+                      description: ConnectionName, if provided, will be used to populate
+                        personalAccessToken
+                      type: string
                     createFields:
                       description: CreateFields is a list of JSONPath expression used
                         to identify the created time of the config. If multiple fields
@@ -1176,6 +1187,8 @@ spec:
                       - username
                       type: object
                     connection:
+                      description: Connection is either the name of the connection
+                        to lookup or the connection string itself.
                       type: string
                     createFields:
                       description: CreateFields is a list of JSONPath expression used
@@ -1349,6 +1362,8 @@ spec:
                       description: JSONStringMap defiend JSON data type, need to implements
                         driver.Valuer, sql.Scanner interface
                       type: object
+                    timeout:
+                      type: string
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
                         to parse timestamps in createFields and DeletedFields. If

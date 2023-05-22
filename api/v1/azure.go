@@ -10,8 +10,8 @@ import (
 type AzureDevops struct {
 	BaseScraper         `json:",inline"`
 	ConnectionName      string       `yaml:"connection,omitempty" json:"connection,omitempty"`
-	Organization        string       `yaml:"organization" json:"organization"`
-	PersonalAccessToken types.EnvVar `yaml:"personalAccessToken" json:"personalAccessToken"`
+	Organization        string       `yaml:"organization,omitempty" json:"organization,omitempty"`
+	PersonalAccessToken types.EnvVar `yaml:"personalAccessToken,omitempty" json:"personalAccessToken,omitempty"`
 	Projects            []string     `yaml:"projects" json:"projects"`
 	Pipelines           []string     `yaml:"pipelines" json:"pipelines"`
 }
