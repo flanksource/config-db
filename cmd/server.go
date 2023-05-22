@@ -62,7 +62,7 @@ func serve(configFiles []string) {
 func startScraperCron(configFiles []string) {
 	scraperConfigsFiles, err := v1.ParseConfigs(configFiles...)
 	if err != nil {
-		logger.Fatalf(err.Error())
+		logger.Fatalf("error parsing config files: %v", err)
 	}
 
 	logger.Infof("Persisting %d config files", len(scraperConfigsFiles))
@@ -75,7 +75,7 @@ func startScraperCron(configFiles []string) {
 
 	scraperConfigsDB, err := db.GetScrapeConfigs()
 	if err != nil {
-		logger.Fatalf(err.Error())
+		logger.Fatalf("error getting configs from database: %v", err)
 	}
 
 	logger.Infof("Starting %d scrapers", len(scraperConfigsDB))
@@ -88,10 +88,10 @@ func startScraperCron(configFiles []string) {
 
 		fn := func() {
 			if _, err := scrapers.RunScraper(_scraper); err != nil {
-				logger.Errorf("Error running scraper: %v", err)
+				logger.Errorf("Error running scraper(id=%s): %v", _scraper.ID, err)
 			}
 		}
-		defer fn()
+		go scrapers.AtomicRunner(_scraper.ID, fn)
 	}
 }
 

@@ -1,6 +1,8 @@
 package scrapers
 
 import (
+	"sync"
+
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/robfig/cron/v3"
@@ -10,20 +12,43 @@ var (
 	cronManger        *cron.Cron
 	DefaultSchedule   string
 	cronIDFunctionMap map[string]cron.EntryID
+
+	// concurrentJobLocks keeps track of the currently running jobs.
+	concurrentJobLocks sync.Map
 )
 
-func AddFuncToCron(schedule string, fn func()) error {
-	_, err := cronManger.AddFunc(schedule, fn)
-	return err
+// AtomicRunner wraps the given function, identified by a unique ID,
+// with a mutex so that the function executes only once at a time, preventing concurrent executions.
+func AtomicRunner(id string, fn func()) func() {
+	return func() {
+		val, _ := concurrentJobLocks.LoadOrStore(id, &sync.Mutex{})
+		lock, ok := val.(*sync.Mutex)
+		if !ok {
+			logger.Warnf("expected mutex but got %T for scraper(id=%s)", lock, id)
+			return
+		}
+
+		if !lock.TryLock() {
+			logger.Debugf("scraper (id=%s) is already running. skipping this run ...", id)
+			return
+		}
+		defer lock.Unlock()
+
+		fn()
+	}
 }
 
 func AddToCron(scraper v1.ConfigScraper, id string) {
 	fn := func() {
 		if _, err := RunScraper(scraper); err != nil {
-			logger.Errorf("Error running scraper: %v", err)
+			logger.Errorf("failed to run scraper %s: %v", id, err)
 		}
 	}
-	schedule := scraper.Schedule
+
+	AddFuncToCron(id, scraper.Schedule, fn)
+}
+
+func AddFuncToCron(id, schedule string, fn func()) {
 	if schedule == "" {
 		schedule = DefaultSchedule
 	}
@@ -32,9 +57,9 @@ func AddToCron(scraper v1.ConfigScraper, id string) {
 	RemoveFromCron(id)
 
 	// Schedule a new job
-	entryID, err := cronManger.AddFunc(schedule, fn)
+	entryID, err := cronManger.AddFunc(schedule, AtomicRunner(id, fn))
 	if err != nil {
-		logger.Errorf("Failed to schedule cron using :%v", err)
+		logger.Errorf("Failed to schedule cron using: %v", err)
 		return
 	}
 
