@@ -1,8 +1,7 @@
 kubernetesFile:
-  - selector:
-      namespace: demo
-      kind: Statefulset
-      name: postgresql
+  - namespace: demo
+    kind: Statefulset
+    name: postgresql
     files:
       - path:
           - /var/lib/postgresql/data/pgdata/postgresql.conf

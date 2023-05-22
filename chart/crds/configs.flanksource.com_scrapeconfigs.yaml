@@ -553,8 +553,6 @@ spec:
                         the type for the resource.
                       type: string
                   required:
-                  - organization
-                  - personalAccessToken
                   - pipelines
                   - projects
                   type: object
