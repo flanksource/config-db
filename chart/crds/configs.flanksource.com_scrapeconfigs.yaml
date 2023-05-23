@@ -1014,8 +1014,6 @@ spec:
                       items:
                         type: string
                       type: array
-                    fieldSelector:
-                      type: string
                     files:
                       items:
                         properties:
@@ -1041,16 +1039,23 @@ spec:
                         the ID,Name,Type and transformations are applied for each
                         item.
                       type: string
-                    kind:
-                      type: string
-                    labelSelector:
-                      type: string
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
-                    namespace:
-                      type: string
+                    selector:
+                      properties:
+                        fieldSelector:
+                          type: string
+                        kind:
+                          type: string
+                        labelSelector:
+                          type: string
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      type: object
                     tags:
                       additionalProperties:
                         type: string
@@ -1114,6 +1119,8 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the type for the resource.
                       type: string
+                  required:
+                  - selector
                   type: object
                 type: array
               logLevel:
