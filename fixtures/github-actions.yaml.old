@@ -1,5 +1,0 @@
-githubActions:
-  - owner: flanksource
-    repository: config-db
-    personalAccessToken:
-      value: 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

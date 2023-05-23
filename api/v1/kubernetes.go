@@ -38,9 +38,9 @@ type Kubernetes struct {
 
 type KubernetesFile struct {
 	BaseScraper `json:",inline"`
-	Selector    ResourceSelector `json:"selector,inline"`
-	Container   string           `json:"container,omitempty"`
-	Files       []PodFile        `json:"files,omitempty"`
+	Selector    ResourceSelector `json:"selector" yaml:"selector"`
+	Container   string           `json:"container,omitempty" yaml:"container,omitempty"`
+	Files       []PodFile        `json:"files,omitempty" yaml:"files,omitempty"`
 }
 
 type PodFile struct {
