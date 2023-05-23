@@ -200,6 +200,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1
 		}
 	}
 
+	logger.Debugf("Found %d pods", len(pods))
 	for _, pod := range pods {
 		for _, file := range pod.Config.Files {
 			for _, p := range file.Path {
@@ -229,6 +230,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1
 			}
 		}
 	}
+
 	return results
 }
 
