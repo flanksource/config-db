@@ -65,6 +65,7 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 		}
 	}
 
+	logger.Infof("Completed scraping %d configs with %d results.", len(configs), len(results))
 	return results, nil
 }
 
