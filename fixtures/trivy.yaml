@@ -1,4 +1,14 @@
 trivy:
   - version: "0.40.0"
+    ignoreUnfixed: true
+    severity:
+      - critical
+      - high
+    scanners:
+      - config
+      - license
+      - rbac
+      - secret
+      - vuln
     kubernetes: {}
-    timeout: "10m" # Increased from the default 5m timeout
+    timeout: "20m" # Increased from the default 5m timeout

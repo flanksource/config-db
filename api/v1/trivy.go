@@ -1,18 +1,21 @@
 package v1
 
-import "strings"
+import (
+	"strings"
+)
 
 type Trivy struct {
 	BaseScraper `json:",inline"`
 
 	// Common Trivy Flags ...
 	Version         string   `json:"version,omitempty" yaml:"version,omitempty"` // Specify the version of Trivy to use
-	Compliance      string   `json:"compliance,omitempty" yaml:"compliance,omitempty"`
+	Compliance      []string `json:"compliance,omitempty" yaml:"compliance,omitempty"`
 	IgnoredLicenses []string `json:"ignoredLicenses,omitempty" yaml:"ignoredLicenses,omitempty"`
 	IgnoreUnfixed   bool     `json:"ignoreUnfixed,omitempty" yaml:"ignoreUnfixed,omitempty"`
 	LicenseFull     bool     `json:"licenseFull,omitempty" yaml:"licenseFull,omitempty"`
-	Severity        string   `json:"severity,omitempty" yaml:"severity,omitempty"`
-	VulnType        string   `json:"vulnType,omitempty" yaml:"vulnType,omitempty"`
+	Severity        []string `json:"severity,omitempty" yaml:"severity,omitempty"`
+	VulnType        []string `json:"vulnType,omitempty" yaml:"vulnType,omitempty"`
+	Scanners        []string `json:"scanners,omitempty" yaml:"scanners,omitempty"`
 	Timeout         string   `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 
 	Kubernetes *TrivyK8sOptions `json:"kubernetes,omitempty"`
@@ -35,8 +38,8 @@ func (t Trivy) GetK8sArgs() []string {
 
 func (t Trivy) getCommonArgs() []string {
 	var args []string
-	if t.Compliance != "" {
-		args = append(args, "--compliance", t.Compliance)
+	if len(t.Compliance) > 0 {
+		args = append(args, "--compliance", strings.Join(t.Compliance, ","))
 	}
 	if len(t.IgnoredLicenses) > 0 {
 		args = append(args, "--ignored-licenses", strings.Join(t.IgnoredLicenses, ","))
@@ -47,11 +50,14 @@ func (t Trivy) getCommonArgs() []string {
 	if t.LicenseFull {
 		args = append(args, "--license-full")
 	}
-	if t.Severity != "" {
-		args = append(args, "--severity", t.Severity)
+	if len(t.Severity) > 0 {
+		args = append(args, "--severity", strings.Join(t.Severity, ","))
 	}
-	if t.VulnType != "" {
-		args = append(args, "--vuln-type", t.VulnType)
+	if len(t.VulnType) > 0 {
+		args = append(args, "--vuln-type", strings.Join(t.VulnType, ","))
+	}
+	if len(t.Scanners) > 0 {
+		args = append(args, "--scanners", strings.Join(t.Scanners, ","))
 	}
 	if t.Timeout != "" {
 		args = append(args, "--timeout", t.Timeout)
