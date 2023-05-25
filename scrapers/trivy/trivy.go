@@ -111,7 +111,7 @@ func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
 						ConfigType:   fmt.Sprintf("Kubernetes::%s", resource.Kind),
 						ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
 						Analysis:     misconfigurationJSON,
-						AnalysisType: v1.AnalysisTypeMisconfiguration,
+						AnalysisType: v1.AnalysisTypeSecurity,
 						Analyzer:     misconfiguration.Title,
 						Messages:     []string{misconfiguration.Description, misconfiguration.Message},
 						Severity:     mapSeverity(misconfiguration.Severity),

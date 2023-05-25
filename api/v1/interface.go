@@ -32,15 +32,14 @@ type Analyzer func(configs []ScrapeResult) AnalysisResult
 type AnalysisType string
 
 const (
-	AnalysisTypeAvailability     AnalysisType = "availability"
-	AnalysisTypeCompliance       AnalysisType = "compliance"
-	AnalysisTypeCost             AnalysisType = "cost"
-	AnalysisTypeOther            AnalysisType = "other"
-	AnalysisTypePerformance      AnalysisType = "performance"
-	AnalysisTypeRecommendation   AnalysisType = "recommendation"
-	AnalysisTypeReliability      AnalysisType = "reliability"
-	AnalysisTypeSecurity         AnalysisType = "security"
-	AnalysisTypeMisconfiguration AnalysisType = "misconfiguration"
+	AnalysisTypeAvailability   AnalysisType = "availability"
+	AnalysisTypeCompliance     AnalysisType = "compliance"
+	AnalysisTypeCost           AnalysisType = "cost"
+	AnalysisTypeOther          AnalysisType = "other"
+	AnalysisTypePerformance    AnalysisType = "performance"
+	AnalysisTypeRecommendation AnalysisType = "recommendation"
+	AnalysisTypeReliability    AnalysisType = "reliability"
+	AnalysisTypeSecurity       AnalysisType = "security"
 )
 
 type Severity string
