@@ -1,6 +1,8 @@
 package trivy
 
-import "time"
+import (
+	"time"
+)
 
 type TrivyResponse struct {
 	ClusterName       string     `json:"ClusterName"`
@@ -19,7 +21,7 @@ type Result struct {
 	Target            string                  `json:"Target"`
 	Class             string                  `json:"Class"`
 	Type              string                  `json:"Type"`
-	Vulnerabilities   []DetectedVulnerability `json:"Vulnerabilities"`
+	Vulnerabilities   DetectedVulnerabilities `json:"Vulnerabilities"`
 	MisconfSummary    *MisconfSummary         `json:"MisconfSummary"`
 	Misconfigurations []Misconfiguration      `json:"Misconfigurations"`
 }
@@ -77,6 +79,18 @@ type DetectedVulnerability struct {
 	// Embed vulnerability details
 	Vulnerability
 }
+
+type DetectedVulnerabilities []DetectedVulnerability
+
+func (t DetectedVulnerabilities) GroupByPkg() map[string][]DetectedVulnerability {
+	output := make(map[string][]DetectedVulnerability)
+	for _, v := range t {
+		output[v.PkgName] = append(output[v.PkgName], v)
+	}
+
+	return output
+}
+
 type Layer struct {
 	Digest string `json:"Digest"`
 	DiffID string `json:"DiffID"`

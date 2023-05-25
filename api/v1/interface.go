@@ -52,6 +52,19 @@ const (
 	SeverityInfo     Severity = "info"
 )
 
+var severityRank = map[Severity]int{
+	SeverityCritical: 5,
+	SeverityHigh:     4,
+	SeverityMedium:   3,
+	SeverityLow:      2,
+	SeverityInfo:     1,
+}
+
+// IsMoreSevere compares whether s1 is more severe than s2.
+func IsMoreSevere(s1, s2 Severity) bool {
+	return severityRank[s1] > severityRank[s2]
+}
+
 // AnalysisResult ...
 // +kubebuilder:object:generate=false
 type AnalysisResult struct {
@@ -147,8 +160,8 @@ func (t ScrapeResults) Errors() []string {
 	return errs
 }
 
-func (t *ScrapeResults) Add(r ScrapeResult) {
-	*t = append(*t, r)
+func (t *ScrapeResults) Add(r ...ScrapeResult) {
+	*t = append(*t, r...)
 }
 
 type RelationshipResult struct {

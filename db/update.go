@@ -143,7 +143,7 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 
 		id, err := FindConfigItemID(change.GetExternalID())
 		if id == nil {
-			logger.Warnf("[%s/%s] unable to find config item for change: %v", change.ConfigType, change.ExternalID, change.ChangeType)
+			logger.Warnf("[Source=%s] [%s/%s] unable to find config item for change: %v", change.Source, change.ConfigType, change.ExternalID, change.ChangeType)
 			return nil
 		} else if err != nil {
 			return err
@@ -163,7 +163,7 @@ func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
 	ci, err := GetConfigItem(analysis.ConfigType, analysis.ExternalID)
 	if ci == nil {
-		logger.Warnf("[%s/%s] unable to find config item for analysis: %+v", analysis.ConfigType, analysis.ExternalID, analysis)
+		logger.Warnf("[Source=%s] [%s/%s] unable to find config item for analysis: %+v", analysis.Source, analysis.ConfigType, analysis.ExternalID, analysis)
 		return nil
 	} else if err != nil {
 		return err

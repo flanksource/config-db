@@ -55,29 +55,70 @@ func (t Scanner) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.Scra
 				continue
 			}
 
-			for _, resource := range trivyResponse.Vulnerabilities {
-				for _, result := range resource.Results {
-					for _, vulnerability := range result.Vulnerabilities {
-						analysis, err := utils.ToJSONMap(vulnerability)
-						if err != nil {
-							logger.Errorf("failed to extract analysis: %v", err)
-						}
+			results.Add(getAnalysis(trivyResponse)...)
+		}
+	}
 
-						results.Add(v1.ScrapeResult{
-							AnalysisResult: &v1.AnalysisResult{
-								ConfigType:   fmt.Sprintf("Kubernetes::%s", resource.Kind),
-								ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
-								Analysis:     analysis,
-								AnalysisType: v1.AnalysisTypeSecurity, // It's always security related.
-								Analyzer:     fmt.Sprintf("%s [%s]", vulnerability.PkgName, vulnerability.VulnerabilityID),
-								Messages:     []string{vulnerability.Description},
-								Severity:     mapSeverity(vulnerability.Severity),
-								Source:       "Trivy",
-								Summary:      vulnerability.Title,
-							},
-						})
-					}
+	return results
+}
+
+// getAnalysis returns the ScrapeResults obtained by extracting the analysis from the TrivyResponse vulnerabilities.
+func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
+	var results v1.ScrapeResults
+	for _, resource := range trivyResponse.Vulnerabilities {
+		for _, result := range resource.Results {
+			for pkg, vulnerabilities := range result.Vulnerabilities.GroupByPkg() {
+				analysis := &v1.AnalysisResult{
+					AnalysisType: v1.AnalysisTypeSecurity,
+					Analyzer:     pkg,
+					ConfigType:   fmt.Sprintf("Kubernetes::%s", resource.Kind),
+					ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
+					Source:       "Trivy",
+					Summary:      pkg,
 				}
+
+				analysis.Analysis = make(map[string]any)
+				for _, vulnerability := range vulnerabilities {
+					vulnerabilityJSON, err := utils.ToJSONMap(vulnerability)
+					if err != nil {
+						logger.Errorf("failed to marshall analysis: %v", err)
+					} else {
+						analysis.Analysis[vulnerability.Title] = vulnerabilityJSON
+					}
+
+					if v1.IsMoreSevere(mapSeverity(vulnerability.Severity), analysis.Severity) {
+						analysis.Severity = mapSeverity(vulnerability.Severity)
+					}
+
+					analysis.Messages = append(analysis.Messages, vulnerability.Description)
+				}
+
+				results.Add(v1.ScrapeResult{AnalysisResult: analysis})
+			}
+		}
+	}
+
+	for _, resource := range trivyResponse.Misconfigurations {
+		for _, result := range resource.Results {
+			for _, misconfiguration := range result.Misconfigurations {
+				misconfigurationJSON, err := utils.ToJSONMap(misconfiguration)
+				if err != nil {
+					logger.Errorf("failed to marshall misconfiguration: %v", err)
+				}
+
+				results.Add(v1.ScrapeResult{
+					AnalysisResult: &v1.AnalysisResult{
+						ConfigType:   fmt.Sprintf("Kubernetes::%s", resource.Kind),
+						ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
+						Analysis:     misconfigurationJSON,
+						AnalysisType: v1.AnalysisTypeSecurity,
+						Analyzer:     misconfiguration.Title,
+						Messages:     []string{misconfiguration.Description, misconfiguration.Message},
+						Severity:     mapSeverity(misconfiguration.Severity),
+						Source:       "Trivy",
+						Summary:      misconfiguration.Title,
+					},
+				})
 			}
 		}
 	}
