@@ -32,14 +32,15 @@ type Analyzer func(configs []ScrapeResult) AnalysisResult
 type AnalysisType string
 
 const (
-	AnalysisTypeAvailability   AnalysisType = "availability"
-	AnalysisTypeCompliance     AnalysisType = "compliance"
-	AnalysisTypeCost           AnalysisType = "cost"
-	AnalysisTypeOther          AnalysisType = "other"
-	AnalysisTypePerformance    AnalysisType = "performance"
-	AnalysisTypeRecommendation AnalysisType = "recommendation"
-	AnalysisTypeReliability    AnalysisType = "reliability"
-	AnalysisTypeSecurity       AnalysisType = "security"
+	AnalysisTypeAvailability     AnalysisType = "availability"
+	AnalysisTypeCompliance       AnalysisType = "compliance"
+	AnalysisTypeCost             AnalysisType = "cost"
+	AnalysisTypeOther            AnalysisType = "other"
+	AnalysisTypePerformance      AnalysisType = "performance"
+	AnalysisTypeRecommendation   AnalysisType = "recommendation"
+	AnalysisTypeReliability      AnalysisType = "reliability"
+	AnalysisTypeSecurity         AnalysisType = "security"
+	AnalysisTypeMisconfiguration AnalysisType = "misconfiguration"
 )
 
 type Severity string
@@ -51,6 +52,19 @@ const (
 	SeverityLow      Severity = "low"
 	SeverityInfo     Severity = "info"
 )
+
+var severityRank = map[Severity]int{
+	SeverityCritical: 5,
+	SeverityHigh:     4,
+	SeverityMedium:   3,
+	SeverityLow:      2,
+	SeverityInfo:     1,
+}
+
+// IsMoreSevere compares whether s1 is more severe than s2.
+func IsMoreSevere(s1, s2 Severity) bool {
+	return severityRank[s1] > severityRank[s2]
+}
 
 // AnalysisResult ...
 // +kubebuilder:object:generate=false
@@ -147,8 +161,8 @@ func (t ScrapeResults) Errors() []string {
 	return errs
 }
 
-func (t *ScrapeResults) Add(r ScrapeResult) {
-	*t = append(*t, r)
+func (t *ScrapeResults) Add(r ...ScrapeResult) {
+	*t = append(*t, r...)
 }
 
 type RelationshipResult struct {
