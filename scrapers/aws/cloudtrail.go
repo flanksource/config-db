@@ -48,9 +48,10 @@ var LastEventTime = sync.Map{}
 type CloudTrailEvent struct {
 	UserIdentity struct {
 		Arn            string `json:"arn"`
+		Username       string `json:"userName"`
 		SessionContext struct {
 			SessionIssuer struct {
-				Username string `json:"username"`
+				Username string `json:"userName"`
 			} `json:"sessionIssuer"`
 		} `json:"sessionContext"`
 	} `json:"userIdentity"`
@@ -102,9 +103,12 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 					continue
 				}
 
-				username := cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username
-				if username != "" {
-					change.CreatedBy = &username
+				if cloudtrailEvent.UserIdentity.Username != "" {
+					change.CreatedBy = &cloudtrailEvent.UserIdentity.Username
+				} else if cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username != "" {
+					change.CreatedBy = &cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username
+				} else if event.Username != nil {
+					change.CreatedBy = event.Username
 				}
 
 				change.Details["Event"] = *event.CloudTrailEvent
