@@ -113,6 +113,7 @@ type ChangeResult struct {
 	Summary          string
 	Severity         string
 	Source           string
+	CreatedBy        *string
 	CreatedAt        *time.Time
 	Details          map[string]interface{}
 }

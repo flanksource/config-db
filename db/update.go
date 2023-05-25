@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -140,6 +141,18 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 		}
 
 		change := models.NewConfigChangeFromV1(*result, change)
+
+		if change.CreatedBy != nil {
+			person, err := FindPersonByEmail(ctx, ptr.ToString(change.CreatedBy))
+			if err != nil {
+				return fmt.Errorf("error finding person by email: %w", err)
+			} else if person != nil {
+				change.CreatedBy = ptr.String(person.ID.String())
+			} else {
+				change.ExternalCreatedBy = change.CreatedBy
+				change.CreatedBy = nil
+			}
+		}
 
 		id, err := FindConfigItemID(change.GetExternalID())
 		if id == nil {

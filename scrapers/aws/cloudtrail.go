@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -13,33 +14,52 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
-func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan types.Event) error {
-	logger.Debugf("Looking up events from %s", input.StartTime)
+func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<- types.Event) error {
+	defer close(c)
+
+	logger.Debugf("Looking up events from %v", input.StartTime)
 	CloudTrail := cloudtrail.NewFromConfig(*ctx.Session)
-	defer func() {
-		close(c)
-	}()
 	events, err := CloudTrail.LookupEvents(ctx, input)
 	if err != nil {
 		return err
 	}
+
 	for _, event := range events.Events {
 		c <- event
 	}
+
 	for events.NextToken != nil {
 		input.NextToken = events.NextToken
 		events, err = CloudTrail.LookupEvents(ctx, input)
 		if err != nil {
 			return err
 		}
+
 		for _, event := range events.Events {
 			c <- event
 		}
 	}
+
 	return nil
 }
 
 var LastEventTime = sync.Map{}
+
+type CloudTrailEvent struct {
+	UserIdentity struct {
+		Arn            string `json:"arn"`
+		Username       string `json:"userName"`
+		SessionContext struct {
+			SessionIssuer struct {
+				Username string `json:"userName"`
+			} `json:"sessionIssuer"`
+		} `json:"sessionContext"`
+	} `json:"userIdentity"`
+}
+
+func (t *CloudTrailEvent) FromJSON(j string) error {
+	return json.Unmarshal([]byte(j), t)
+}
 
 func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
 	if config.Excludes("cloudtrail") {
@@ -74,6 +94,21 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 					ChangeType:       *event.EventName,
 					Details:          v1.NewJSON(*event.CloudTrailEvent),
 					Source:           fmt.Sprintf("AWS::CloudTrail::%s:%s", ctx.Session.Region, *ctx.Caller.Account),
+				}
+
+				var cloudtrailEvent CloudTrailEvent
+				if err := cloudtrailEvent.FromJSON(ptr.ToString(event.CloudTrailEvent)); err != nil {
+					logger.Warnf("error parsing cloudtrail event: %v", err)
+					ignored++
+					continue
+				}
+
+				if cloudtrailEvent.UserIdentity.Username != "" {
+					change.CreatedBy = &cloudtrailEvent.UserIdentity.Username
+				} else if cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username != "" {
+					change.CreatedBy = &cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username
+				} else if event.Username != nil {
+					change.CreatedBy = event.Username
 				}
 
 				change.Details["Event"] = *event.CloudTrailEvent
