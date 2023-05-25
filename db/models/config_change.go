@@ -12,18 +12,20 @@ import (
 
 // ConfigChange represents the config change database table
 type ConfigChange struct {
-	ExternalID       string     `gorm:"-"`
-	ConfigType       string     `gorm:"-"`
-	ExternalChangeId string     `gorm:"column:external_change_id" json:"external_change_id"`
-	ID               string     `gorm:"primaryKey;unique_index;not null;column:id" json:"id"`
-	ConfigID         string     `gorm:"column:config_id;default:''" json:"config_id"`
-	ChangeType       string     `gorm:"column:change_type" json:"change_type"`
-	Severity         string     `gorm:"column:severity" json:"severity"`
-	Source           string     `gorm:"column:source" json:"source"`
-	Summary          string     `gorm:"column:summary;default:null" json:"summary,omitempty"`
-	Patches          string     `gorm:"column:patches;default:null" json:"patches,omitempty"`
-	Details          v1.JSON    `gorm:"column:details" json:"details,omitempty"`
-	CreatedAt        *time.Time `gorm:"column:created_at" json:"created_at"`
+	ExternalID        string     `gorm:"-"`
+	ConfigType        string     `gorm:"-"`
+	ExternalChangeId  string     `gorm:"column:external_change_id" json:"external_change_id"`
+	ID                string     `gorm:"primaryKey;unique_index;not null;column:id" json:"id"`
+	ConfigID          string     `gorm:"column:config_id;default:''" json:"config_id"`
+	ChangeType        string     `gorm:"column:change_type" json:"change_type"`
+	Severity          string     `gorm:"column:severity" json:"severity"`
+	Source            string     `gorm:"column:source" json:"source"`
+	Summary           string     `gorm:"column:summary;default:null" json:"summary,omitempty"`
+	Patches           string     `gorm:"column:patches;default:null" json:"patches,omitempty"`
+	Details           v1.JSON    `gorm:"column:details" json:"details,omitempty"`
+	CreatedAt         *time.Time `gorm:"column:created_at" json:"created_at"`
+	CreatedBy         *string    `json:"created_by"`
+	ExternalCreatedBy *string    `json:"external_created_by"`
 }
 
 func (c ConfigChange) GetExternalID() v1.ExternalID {
@@ -49,6 +51,7 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 		Summary:          change.Summary,
 		Patches:          change.Patches,
 		CreatedAt:        change.CreatedAt,
+		CreatedBy:        change.CreatedBy,
 	}
 	if _change.ExternalID == "" {
 		_change.ExternalID = result.ID

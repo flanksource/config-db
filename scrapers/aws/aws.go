@@ -967,9 +967,9 @@ func (aws Scraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.Scr
 			aws.efs(awsCtx, awsConfig, results)
 			aws.rds(awsCtx, awsConfig, results)
 			aws.config(awsCtx, awsConfig, results)
-			aws.cloudtrail(awsCtx, awsConfig, results)
 			aws.loadBalancers(awsCtx, awsConfig, results)
 			aws.containerImages(awsCtx, awsConfig, results)
+			aws.cloudtrail(awsCtx, awsConfig, results)
 			// We are querying half a million amis, need to optimize for this
 			// aws.ami(awsCtx, awsConfig, results)
 		}
