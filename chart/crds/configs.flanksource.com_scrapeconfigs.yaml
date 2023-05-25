@@ -1305,7 +1305,9 @@ spec:
                 items:
                   properties:
                     compliance:
-                      type: string
+                      items:
+                        type: string
+                      type: array
                     createFields:
                       description: CreateFields is a list of JSONPath expression used
                         to identify the created time of the config. If multiple fields
@@ -1361,8 +1363,14 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
+                    scanners:
+                      items:
+                        type: string
+                      type: array
                     severity:
-                      type: string
+                      items:
+                        type: string
+                      type: array
                     tags:
                       additionalProperties:
                         type: string
@@ -1432,7 +1440,9 @@ spec:
                       description: Common Trivy Flags ...
                       type: string
                     vulnType:
-                      type: string
+                      items:
+                        type: string
+                      type: array
                   type: object
                 type: array
             type: object

@@ -15,7 +15,7 @@
     "spec": {
       "http": [
         {
-          "endpoint": "http://status.savanttools.com/?code=200",
+          "endpoint": "https://httpbin.demo.aws.flanksource.com/status/200",
           "maxSSLExpiry": 7,
           "name": "sample-check",
           "responseCodes": [

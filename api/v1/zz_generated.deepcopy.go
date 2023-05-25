@@ -967,8 +967,28 @@ func (in *Transform) DeepCopy() *Transform {
 func (in *Trivy) DeepCopyInto(out *Trivy) {
 	*out = *in
 	in.BaseScraper.DeepCopyInto(&out.BaseScraper)
+	if in.Compliance != nil {
+		in, out := &in.Compliance, &out.Compliance
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.IgnoredLicenses != nil {
 		in, out := &in.IgnoredLicenses, &out.IgnoredLicenses
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.Severity != nil {
+		in, out := &in.Severity, &out.Severity
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.VulnType != nil {
+		in, out := &in.VulnType, &out.VulnType
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.Scanners != nil {
+		in, out := &in.Scanners, &out.Scanners
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
