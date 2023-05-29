@@ -4,7 +4,8 @@ kubernetes:
       - Secret
       - ReplicaSet
       - APIService
-      #  - events
+      - PodMetrics
+      - NodeMetrics
       - endpoints.discovery.k8s.io
       - endpointslices.discovery.k8s.io
       - leases.coordination.k8s.io
@@ -26,3 +27,9 @@ kubernetes:
         warn:
           - backoff
           - nodeoutofmemory
+    transform:
+      # Canaries
+      exclude:
+        - jsonpath: $.status.lastCheck
+        - jsonpath: $.status.lastTransitionedTime
+        - jsonpath: $.status.checkStatus.*.lastTransitionedTime
