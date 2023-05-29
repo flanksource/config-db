@@ -1,2 +1,734 @@
+AbortEnvironmentUpdate:
+  action: delete
+AbortMultipartUpload:
+  action: delete
+AbortVaultLock:
+  action: delete
+CancelAuditTask:
+  action: delete
+CancelCertificateTransfer:
+  action: delete
+CancelConversionTask:
+  action: delete
+CancelExportTask:
+  action: delete
+CancelReservedInstancesListing:
+  action: delete
+CancelRotateSecret:
+  action: delete
+CancelSchemaExtension:
+  action: delete
+CancelSecretVersionDelete:
+  action: delete
+DeleteAccessKey:
+  action: delete
+DeleteAccount:
+  action: delete
+DeleteAccountAlias:
+  action: delete
+DeleteAccountAuditConfiguration:
+  action: delete
+DeleteAccountMapping:
+  action: delete
+DeleteAccountOpenIdConfig:
+  action: delete
+DeleteAccountPasswordPolicy:
+  action: delete
+DeleteActivation:
+  action: delete
+DeleteActivity:
+  action: delete
+DeleteAddressBook:
+  action: delete
+DeleteAdmChannel:
+  action: delete
+DeleteAlarms:
+  action: delete
+DeleteAlias:
+  action: delete
+DeleteAnalysis:
+  action: delete
+DeleteAnalysisScheme:
+  action: delete
+DeleteAnnotation:
+  action: delete
+DeleteApiKey:
+  action: delete
+DeleteApnsChannel:
+  action: delete
+DeleteApnsSandboxChannel:
+  action: delete
+DeleteApp:
+  action: delete
+DeleteApplianceGroup:
+  action: delete
+DeleteApplication:
+  action: delete
+DeleteApplicationInstance:
+  action: delete
+DeleteApplicationInstanceCertificate:
+  action: delete
+DeleteApplicationVersion:
+  action: delete
+DeleteArchive:
+  action: delete
+DeleteAssessmentRun:
+  action: delete
+DeleteAssessmentTarget:
+  action: delete
+DeleteAttributes:
+  action: delete
+DeleteBackup:
+  action: delete
+DeleteBackupPlan:
+  action: delete
+DeleteBackupSelection:
+  action: delete
+DeleteBackupVault:
+  action: delete
+DeleteBackupVaultAccessPolicy:
+  action: delete
+DeleteBackupVaultNotifications:
+  action: delete
+DeleteBucket:
+  action: delete
+DeleteBucketAnalyticsConfiguration:
+  action: delete
+DeleteBucketCors:
+  action: delete
+DeleteBucketEncryption:
+  action: delete
+DeleteBucketIntelligentTieringConfiguration:
+  action: delete
+DeleteBucketInventoryConfiguration:
+  action: delete
+DeleteBucketLifecycle:
+  action: delete
+DeleteBucketMetricsConfiguration:
+  action: delete
+DeleteBucketOwnershipControls:
+  action: delete
+DeleteBucketPolicy:
+  action: delete
+DeleteBucketReplication:
+  action: delete
+DeleteBucketTagging:
+  action: delete
+DeleteBucketWebsite:
+  action: delete
+DeleteBuild:
+  action: delete
+DeleteCACertificate:
+  action: delete
+DeleteCacheCluster:
+  action: delete
+DeleteCacheParameterGroup:
+  action: delete
+DeleteCacheSecurityGroup:
+  action: delete
+DeleteCacheSubnetGroup:
+  action: delete
+DeleteCertificate:
+  action: delete
+DeleteCertificateAuthority:
+  action: delete
+DeleteChannel:
+  action: delete
+DeleteChannelPolicy:
+  action: delete
+DeleteClassifier:
+  action: delete
+DeleteCluster:
+  action: delete
+DeleteClusterParameterGroup:
+  action: delete
+DeleteClusterSecurityGroup:
+  action: delete
+DeleteClusterSnapshot:
+  action: delete
+DeleteClusterSubnetGroup:
+  action: delete
+DeleteColumnStatisticsForPartition:
+  action: delete
+DeleteColumnStatisticsForTable:
+  action: delete
+DeleteComputeEnvironment:
+  action: delete
+DeleteConnection:
+  action: delete
+DeleteContact:
+  action: delete
+DeleteContainer:
+  action: delete
+DeleteContainerPolicy:
+  action: delete
+DeleteContainerService:
+  action: delete
+DeleteCrawler:
+  action: delete
+DeleteCustomActionType:
+  action: delete
+DeleteCustomerGateway:
+  action: delete
+DeleteDatabase:
+  action: delete
+DeleteDBCluster:
+  action: delete
+DeleteDBClusterEndpoint:
+  action: delete
+DeleteDBClusterParameterGroup:
+  action: delete
+DeleteDBClusterSnapshot:
+  action: delete
+DeleteDBInstance:
+  action: delete
+DeleteDBInstanceAutomatedBackup:
+  action: delete
+DeleteDBParameterGroup:
+  action: delete
+DeleteDBProxy:
+  action: delete
+DeleteDBSecurityGroup:
+  action: delete
+DeleteDBSnapshot:
+  action: delete
+DeleteDBSubnetGroup:
+  action: delete
+DeleteDeployment:
+  action: delete
+DeleteDeploymentConfig:
+  action: delete
+DeleteDeploymentGroup:
+  action: delete
+DeleteDetector:
+  action: delete
+DeleteDetectorModel:
+  action: delete
+DeleteDevEndpoint:
+  action: delete
+DeleteDevicePool:
+  action: delete
+DeleteDirectConnectGateway:
+  action: delete
+DeleteDirectConnectGatewayAssociation:
+  action: delete
+DeleteDirectConnectGatewayAssociationProposal:
+  action: delete
+DeleteDirectory:
+  action: delete
+DeleteDistribution:
+  action: delete
+DeleteDistributionConfiguration:
+  action: delete
+DeleteDomain:
+  action: delete
+DeleteDomainAssociation:
+  action: delete
+DeleteDomainConfiguration:
+  action: delete
+DeleteDomainEntry:
+  action: delete
+DeleteDynamoDBTable:
+  action: delete
+DeleteEgressOnlyInternetGateway:
+  action: delete
+DeleteEmailIdentity:
+  action: delete
+DeleteEndpoint:
+  action: delete
+DeleteEndpointConfig:
+  action: delete
+DeleteEntityRecognizer:
+  action: delete
+DeleteEnvironment:
+  action: delete
+DeleteEnvironmentConfiguration:
+  action: delete
+DeleteEnvironmentMembership:
+  action: delete
+DeleteEnvironmentTemplate:
+  action: delete
+DeleteEnvironmentTemplateVersion:
+  action: delete
+DeleteEventSourceMapping:
+  action: delete
+DeleteFacet:
+  action: delete
+DeleteFargateProfile:
+  action: delete
+DeleteFeatureGroup:
+  action: delete
+DeleteFileShare:
+  action: delete
+DeleteFileSystem:
+  action: delete
+DeleteFileSystemPolicy:
+  action: delete
+DeleteFirewall:
+  action: delete
+DeleteFirewallDomainList:
+  action: delete
+DeleteFirewallRule:
+  action: delete
+DeleteFirewallRuleGroup:
+  action: delete
+DeleteFirewallRuleGroupAssociation:
+  action: delete
+DeleteFleet:
+  action: delete
+DeleteFlowLogs:
+  action: delete
+DeleteFolder:
+  action: delete
+DeleteFolderMembership:
+  action: delete
+DeleteForecast:
+  action: delete
+DeleteForecastExportJob:
+  action: delete
+DeleteFunction:
+  action: delete
+DeleteFunctionConcurrency:
+  action: delete
+DeleteFunctionEventInvokeConfig:
+  action: delete
+DeleteGateway:
+  action: delete
+DeleteGatewayRoute:
+  action: delete
+DeleteGlobalCluster:
+  action: delete
+DeleteGlobalNetwork:
+  action: delete
+DeleteGraph:
+  action: delete
+DeleteGroup:
+  action: delete
+DeleteHealthCheck:
+  action: delete
+DeleteHIT:
+  action: delete
+DeleteHostedZone:
+  action: delete
+DeleteImage:
+  action: delete
+DeleteHsm:
+  action: delete
+DeleteHsmClientCertificate:
+  action: delete
+DeleteHsmConfiguration:
+  action: delete
+DeleteIdentities:
+  action: delete
+DeleteIdentityPool:
+  action: delete
+DeleteIndexField:
+  action: delete
+DeleteInstance:
+  action: delete
+DeleteInstanceProfile:
+  action: delete
+DeleteInstanceSnapshot:
+  action: delete
+DeleteIntegration:
+  action: delete
+DeleteIntegrationResponse:
+  action: delete
+DeleteIntent:
+  action: delete
+DeleteIntentVersion:
+  action: delete
+DeleteInterconnect:
+  action: delete
+DeleteInternetGateway:
+  action: delete
+DeleteInvitations:
+  action: delete
+DeleteIPSet:
+  action: delete
+DeleteJob:
+  action: delete
+DeleteJobQueue:
+  action: delete
+DeleteJobTemplate:
+  action: delete
+DeleteKeyPair:
+  action: delete
+DeleteLag:
+  action: delete
+DeleteLaunchConfiguration:
+  action: delete
+DeleteLayer:
+  action: delete
+DeleteLexicon:
+  action: delete
+DeleteLifecycleHook:
+  action: delete
+DeleteListener:
+  action: delete
+DeleteLoadBalancer:
+  action: delete
+DeleteLoadBalancerListeners:
+  action: delete
+DeleteLoadBalancerPolicy:
+  action: delete
+DeleteLoadBalancerTlsCertificate:
+  action: delete
+DeleteLogGroup:
+  action: delete
+DeleteLoginProfile:
+  action: delete
+DeleteLogStream:
+  action: delete
+DeleteLunaClient:
+  action: delete
+DeleteMailDomain:
+  action: delete
+DeleteMailFlowRule:
+  action: delete
+DeleteMaintenanceWindow:
+  action: delete
+DeleteMatchmakingConfiguration:
+  action: delete
+DeleteMembers:
+  action: delete
+DeleteMethod:
+  action: delete
+DeleteMethodResponse:
+  action: delete
+DeleteMetricFilter:
+  action: delete
+DeleteMLModel:
+  action: delete
+DeleteModel:
+  action: delete
+DeleteMountTarget:
+  action: delete
+DeleteNamedQuery:
+  action: delete
+DeleteNamespace:
+  action: delete
+DeleteNatGateway:
+  action: delete
+DeleteNetworkAcl:
+  action: delete
+DeleteNetworkAclEntry:
+  action: delete
+DeleteNetworkInterface:
+  action: delete
+DeleteNotebookInstance:
+  action: delete
+DeleteNotebookInstanceLifecycleConfig:
+  action: delete
+DeleteNotificationConfiguration:
+  action: delete
+DeleteNotificationTopic:
+  action: delete
+DeleteOpenIDConnectProvider:
+  action: delete
+DeleteOptionGroup:
+  action: delete
+DeleteOrganization:
+  action: delete
+DeleteOrganizationalUnit:
+  action: delete
+DeleteOrganizationFolderShare:
+  action: delete
+DeleteOrganizationShare:
+  action: delete
+DeleteOrigamiReportPreferences:
+  action: delete
+DeleteOTAUpdate:
+  action: delete
+DeleteParameter:
+  action: delete
+DeleteParameterGroup:
+  action: delete
+DeleteParameters:
+  action: delete
+DeletePartition:
+  action: delete
+DeletePatchBaseline:
+  action: delete
+DeletePermissionSet:
+  action: delete
+DeletePermissionsPolicy:
+  action: delete
+DeletePipeline:
+  action: delete
+DeletePlacementGroup:
+  action: delete
+DeletePolicy:
+  action: delete
+DeletePolicyVersion:
+  action: delete
+DeletePortfolio:
+  action: delete
+DeletePortfolioShare:
+  action: delete
+DeletePreset:
+  action: delete
+DeleteProduct:
+  action: delete
+DeleteProfile:
+  action: delete
+DeleteProgressUpdateStream:
+  action: delete
+DeleteProject:
+  action: delete
+DeleteProjectSnapshot:
+  action: delete
+DeleteProtection:
+  action: delete
+DeleteProvisioningArtifact:
+  action: delete
+DeleteQueue:
+  action: delete
+DeleteRankExpression:
+  action: delete
+DeleteRealtimeEndpoint:
+  action: delete
+DeleteRegistrationCode:
+  action: delete
+DeleteReplicationGroup:
+  action: delete
+DeleteReplicationInstance:
+  action: delete
+DeleteReplicationJob:
+  action: delete
+DeleteReplicationSubnetGroup:
+  action: delete
+DeleteReplicationTask:
+  action: delete
+DeleteRepository:
+  action: delete
+DeleteRequestValidator:
+  action: delete
+DeleteResolver:
+  action: delete
+DeleteResource:
+  action: delete
+DeleteResourceDataSync:
+  action: delete
+DeleteResourcePermission:
+  action: delete
+DeleteResourcePolicy:
+  action: delete
+DeleteResources:
+  action: delete
+DeleteRestApi:
+  action: delete
+DeleteRetentionPolicy:
+  action: delete
+DeleteReusableDelegationSet:
+  action: delete
+DeleteRole:
+  action: delete
+DeleteRoleAlias:
+  action: delete
+DeleteRolePolicy:
+  action: delete
+DeleteRoom:
+  action: delete
+DeleteRoomSkillParameter:
+  action: delete
+DeleteRoute:
+  action: delete
+DeleteRouteTable:
+  action: delete
+DeleteRule:
+  action: delete
+DeleteSAMLProvider:
+  action: delete
+DeleteScheduledAction:
+  action: delete
+DeleteScheduledAudit:
+  action: delete
+DeleteSchema:
+  action: delete
+DeleteSecret:
+  action: delete
+DeleteSecurityConfiguration:
+  action: delete
+DeleteSecurityGroup:
+  action: delete
+DeleteSecurityProfile:
+  action: delete
+DeleteSegment:
+  action: delete
+DeleteServer:
+  action: delete
+DeleteServerCatalog:
+  action: delete
+DeleteServerCertificate:
+  action: delete
+DeleteService:
+  action: delete
+DeleteServiceLinkedRole:
+  action: delete
+DeleteServiceRoleForLexBots:
+  action: delete
+DeleteServiceRoleForLexChannels:
+  action: delete
+DeleteServiceSpecificCredential:
+  action: delete
+DeleteShare:
+  action: delete
+DeleteSigningCertificate:
+  action: delete
+DeleteSizeConstraintSet:
+  action: delete
+DeleteSkillGroup:
+  action: delete
+DeleteSlotType:
+  action: delete
+DeleteSlotTypeVersion:
+  action: delete
+DeleteSmsChannel:
+  action: delete
+DeleteSnapshot:
+  action: delete
+DeleteSnapshotSchedule:
+  action: delete
+DeleteSoftwareConfiguration:
+  action: delete
+DeleteSpiceCapacity:
+  action: delete
+DeleteSpotDatafeedSubscription:
+  action: delete
+DeleteSSHPublicKey:
+  action: delete
+DeleteStack:
+  action: delete
+DeleteStackInstances:
+  action: delete
+DeleteStackSet:
+  action: delete
+DeleteStage:
+  action: delete
+DeleteStateMachine:
+  action: delete
+DeleteStream:
+  action: delete
+DeleteStreamingDistribution:
+  action: delete
+DeleteStreamProcessor:
+  action: delete
+DeleteSubnet:
+  action: delete
+DeleteSubnetGroup:
+  action: delete
+DeleteSubscription:
+  action: delete
+DeleteSubscriptionFilter:
+  action: delete
+DeleteSuggester:
+  action: delete
+DeleteTable:
+  action: delete
+DeleteTags:
+  action: delete
+DeleteTagsForDomain:
+  action: delete
+DeleteTape:
+  action: delete
+DeleteTapeArchive:
+  action: delete
+DeleteTargetGroup:
+  action: delete
+DeleteThing:
+  action: delete
+DeleteThingGroup:
+  action: delete
+DeleteThingType:
+  action: delete
+DeleteThreatIntelSet:
+  action: delete
+DeleteTopicRule:
+  action: delete
+DeleteTrafficPolicy:
+  action: delete
+DeleteTrafficPolicyInstance:
+  action: delete
+DeleteTrail:
+  action: delete
+DeleteTrigger:
+  action: delete
+DeleteTrust:
+  action: delete
+DeleteType:
+  action: delete
+DeleteTypedLinkFacet:
+  action: delete
+DeleteUsagePlan:
+  action: delete
+DeleteUsagePlanKey:
+  action: delete
+DeleteUser:
+  action: delete
+DeleteUserDefinedFunction:
+  action: delete
+DeleteUserPolicy:
+  action: delete
+DeleteUserPool:
+  action: delete
+DeleteUserPoolClient:
+  action: delete
+DeleteUserProfile:
+  action: delete
+DeleteUtterances:
+  action: delete
+DeleteV2LoggingLevel:
+  action: delete
+DeleteVault:
+  action: delete
+DeleteVaultAccessPolicy:
+  action: delete
+DeleteVaultNotifications:
+  action: delete
+DeleteVirtualInterface:
+  action: delete
+DeleteVirtualMFADevice:
+  action: delete
+DeleteVolume:
+  action: delete
+DeleteVpc:
+  action: delete
+DeleteVpcEndpoints:
+  action: delete
+DeleteVpcLink:
+  action: delete
+DeleteVpcPeeringAuthorization:
+  action: delete
+DeleteVpcPeeringConnection:
+  action: delete
+DeleteVpnConnection:
+  action: delete
+DeleteVpnConnectionRoute:
+  action: delete
+DeleteVpnGateway:
+  action: delete
+DeleteWebACL:
+  action: delete
+DeleteWebhook:
+  action: delete
+DeleteXssMatchSet:
+  action: delete
+TerminateEnvironment:
+  action: delete
+TerminateInstanceInAutoScalingGroup:
+  action: delete
 TerminateInstances:
+  action: delete
+TerminateJob:
+  action: delete
+TerminateJobFlows:
+  action: delete
+TerminateProvisionedProduct:
+  action: delete
+TerminateSession:
+  action: delete
+TerminateWorkspaces:
+  action: delete
+WipeDevice:
   action: delete
