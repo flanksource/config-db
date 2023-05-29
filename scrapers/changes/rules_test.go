@@ -48,6 +48,28 @@ func TestProcessRules(t *testing.T) {
 				{ChangeType: "TerminateInstances", Action: v1.Delete},
 			},
 		},
+		{
+			name: "Test with unrecognized action",
+			input: v1.ScrapeResult{
+				Changes: []v1.ChangeResult{
+					{ChangeType: "UnrecognizedAction"},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{ChangeType: "UnrecognizedAction"},
+			},
+		},
+		{
+			name: "Test with empty action",
+			input: v1.ScrapeResult{
+				Changes: []v1.ChangeResult{
+					{ChangeType: ""},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{ChangeType: ""},
+			},
+		},
 	}
 
 	for _, tt := range tests {
