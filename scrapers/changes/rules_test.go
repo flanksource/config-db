@@ -8,6 +8,11 @@ import (
 )
 
 func TestProcessRules(t *testing.T) {
+	// Add custom rules for testing
+	Rules.allRules["SilentUser"] = Change{Action: v1.Ignore}
+	Rules.allRules["*Removal"] = Change{Action: v1.Ignore}
+	Rules.init()
+
 	tests := []struct {
 		name   string
 		input  v1.ScrapeResult
@@ -25,12 +30,12 @@ func TestProcessRules(t *testing.T) {
 			input: v1.ScrapeResult{
 				Changes: []v1.ChangeResult{
 					{ChangeType: "AddTags"},
-					{ChangeType: "WipeDevice"},
+					{ChangeType: "SilentUser"},
 				},
 			},
 			expect: []v1.ChangeResult{
 				{ChangeType: "AddTags"},
-				{ChangeType: "WipeDevice", Action: v1.Delete},
+				{ChangeType: "SilentUser", Action: v1.Ignore},
 			},
 		},
 		{
@@ -40,12 +45,14 @@ func TestProcessRules(t *testing.T) {
 					{ChangeType: "ActivateUser", Action: "Creation"},
 					{ChangeType: "DeleteUserProfile"},
 					{ChangeType: "TerminateInstances"},
+					{ChangeType: "ContainerRemoval"},
 				},
 			},
 			expect: []v1.ChangeResult{
 				{ChangeType: "ActivateUser", Action: "Creation"},
 				{ChangeType: "DeleteUserProfile", Action: v1.Delete},
 				{ChangeType: "TerminateInstances", Action: v1.Delete},
+				{ChangeType: "ContainerRemoval", Action: v1.Ignore},
 			},
 		},
 		{
