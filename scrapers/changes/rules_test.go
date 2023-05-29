@@ -8,16 +8,6 @@ import (
 )
 
 func TestProcessRules(t *testing.T) {
-	// Override the Rules
-	Rules = changeRule{
-		allRules: map[string]Change{
-			"DeleteUser":         {Action: v1.Delete},
-			"Delete*":            {Action: v1.Delete},
-			"TerminateInstances": {Action: v1.Delete},
-		},
-	}
-	Rules.init()
-
 	tests := []struct {
 		name   string
 		input  v1.ScrapeResult
@@ -31,16 +21,16 @@ func TestProcessRules(t *testing.T) {
 			expect: []v1.ChangeResult{},
 		},
 		{
-			name: "Test with one ChangeType matching a rule",
+			name: "Test with one exact matching rule",
 			input: v1.ScrapeResult{
 				Changes: []v1.ChangeResult{
-					{ChangeType: "DeleteUser"},
-					{ChangeType: "TerminateInstances"},
+					{ChangeType: "AddTags"},
+					{ChangeType: "WipeDevice"},
 				},
 			},
 			expect: []v1.ChangeResult{
-				{ChangeType: "DeleteUser", Action: v1.Delete},
-				{ChangeType: "TerminateInstances", Action: v1.Delete},
+				{ChangeType: "AddTags"},
+				{ChangeType: "WipeDevice", Action: v1.Delete},
 			},
 		},
 		{
