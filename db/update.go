@@ -188,6 +188,9 @@ func upsertAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis.ConfigID = uuid.MustParse(ci.ID)
 	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
 	analysis.ScraperID = ctx.ScraperID
+	if analysis.Status == "" {
+		analysis.Status = dutyModels.AnalysisStatusOpen
+	}
 
 	return CreateAnalysis(analysis)
 }
@@ -248,7 +251,7 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 
 	if !startTime.IsZero() {
 		// Any analysis that weren't observed again will be marked as resolved
-		if err := UpdateAnalysisStatusBefore(ctx, startTime, ctx.ScraperID.String(), "resolved"); err != nil {
+		if err := UpdateAnalysisStatusBefore(ctx, startTime, ctx.ScraperID.String(), dutyModels.AnalysisStatusResolved); err != nil {
 			logger.Errorf("failed to mark analysis before %v as healthy: %v", startTime, err)
 		}
 	}

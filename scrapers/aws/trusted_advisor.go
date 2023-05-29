@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty/models"
 )
 
 func mapCategoryToAnalysisType(category string) v1.AnalysisType {
@@ -98,7 +99,9 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 					configType = "AWS::::Account"
 				}
 			}
+
 			analysis := results.Analysis(*check.Name, configType, id)
+			analysis.Status = models.AnalysisStatusOpen
 			analysis.AnalysisType = mapCategoryToAnalysisType(*check.Category)
 			analysis.Severity = mapSeverity(metadata["Status"])
 			delete(metadata, "Status")

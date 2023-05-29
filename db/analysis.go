@@ -29,7 +29,8 @@ func CreateAnalysis(analysis models.ConfigAnalysis) error {
 		return db.Model(&analysis).Updates(map[string]interface{}{
 			"last_observed": gorm.Expr("now()"),
 			"message":       analysis.Message,
-			"status":        analysis.Status}).Error
+			"status":        analysis.Status,
+		}).Error
 	}
 
 	return db.Create(&analysis).Error

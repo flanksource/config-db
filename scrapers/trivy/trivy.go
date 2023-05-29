@@ -11,6 +11,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty/models"
 )
 
 const (
@@ -117,6 +118,7 @@ func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
 						Severity:     mapSeverity(misconfiguration.Severity),
 						Source:       "Trivy",
 						Summary:      misconfiguration.Title,
+						Status:       models.AnalysisStatusOpen,
 					},
 				})
 			}
