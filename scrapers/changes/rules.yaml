@@ -1,16 +1,6 @@
-Abort*:
-  action: delete
-Cancel*:
-  action: delete
 Delete*:
-  action: delete
-Disable*:
   action: delete
 Remove*:
   action: delete
-Stop*:
-  action: delete
 Terminate*:
-  action: delete
-WipeDevice:
   action: delete
