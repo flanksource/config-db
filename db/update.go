@@ -196,14 +196,13 @@ func upsertAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 }
 
 func GetCurrentDBTime(ctx context.Context) (time.Time, error) {
-	var latest time.Time
-	err := db.WithContext(ctx).Raw(`SELECT CURRENT_TIMESTAMP`).Scan(&latest).Error
-	return latest, err
+	var now time.Time
+	err := db.WithContext(ctx).Raw(`SELECT CURRENT_TIMESTAMP`).Scan(&now).Error
+	return now, err
 }
 
 // UpdateAnalysisStatusBefore updates the status of config analyses that were last observed before the specified time.
 func UpdateAnalysisStatusBefore(ctx context.Context, before time.Time, scraperID, status string) error {
-	db.Debug()
 	return db.WithContext(ctx).
 		Model(&dutyModels.ConfigAnalysis{}).
 		Where("last_observed <= ? AND first_observed <= ?", before, before).
@@ -216,7 +215,7 @@ func UpdateAnalysisStatusBefore(ctx context.Context, before time.Time, scraperID
 func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 	startTime, err := GetCurrentDBTime(ctx)
 	if err != nil {
-		logger.Errorf("unable to get current db time: %v", err)
+		return fmt.Errorf("unable to get current db time: %w", err)
 	}
 
 	for _, result := range results {
