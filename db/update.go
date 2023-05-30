@@ -197,7 +197,7 @@ func upsertAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 
 func GetCurrentDBTime(ctx context.Context) (time.Time, error) {
 	var latest time.Time
-	err := db.WithContext(ctx).Raw(`SELECT CURRENT_TIMESTAMP`).First(&latest).Error
+	err := db.WithContext(ctx).Raw(`SELECT CURRENT_TIMESTAMP`).Scan(&latest).Error
 	return latest, err
 }
 
@@ -249,7 +249,7 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 	}
 
-	if !startTime.IsZero() {
+	if !startTime.IsZero() && ctx.ScraperID != nil {
 		// Any analysis that weren't observed again will be marked as resolved
 		if err := UpdateAnalysisStatusBefore(ctx, startTime, ctx.ScraperID.String(), dutyModels.AnalysisStatusResolved); err != nil {
 			logger.Errorf("failed to mark analysis before %v as healthy: %v", startTime, err)
