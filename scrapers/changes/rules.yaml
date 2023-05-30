@@ -1,2 +1,6 @@
-TerminateInstances:
+Delete*:
+  action: delete
+Remove*:
+  action: delete
+Terminate*:
   action: delete
