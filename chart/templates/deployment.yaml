@@ -43,6 +43,8 @@ spec:
             - operator
             - -v
             - --disable-postgrest={{ .Values.disablePostgrest }}
+            - --change-retention-days={{ .Values.configChangeRetentionDays }}
+            - --analysis-retention-days={{ .Values.configAnalysisRetentionDays }}
           env:
             - name: DB_URL
               valueFrom:
