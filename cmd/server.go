@@ -8,6 +8,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/query"
 
 	"github.com/flanksource/config-db/scrapers"
@@ -53,6 +54,8 @@ func serve(configFiles []string) {
 
 	// Run this in a goroutine to make it non-blocking for server start
 	go startScraperCron(configFiles)
+
+	go jobs.ScheduleJobs()
 
 	if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil {
 		e.Logger.Fatal(err)

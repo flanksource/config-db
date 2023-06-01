@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/utils/kube"
 	"github.com/spf13/cobra"
@@ -62,6 +63,8 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&api.Namespace, "namespace", os.Getenv("NAMESPACE"), "Namespace to watch for config-db resources")
 	flags.IntVar(&devGuiPort, "devGuiPort", 3004, "Port used by a local npm server in development mode")
 	flags.IntVar(&metricsPort, "metricsPort", 8081, "Port to expose a health dashboard ")
+	flags.IntVar(&jobs.ConfigAnalysisRetentionDays, "analysis-retention-days", jobs.DefaultConfigAnalysisRetentionDays, "Days to retain config analysis for")
+	flags.IntVar(&jobs.ConfigChangeRetentionDays, "change-retention-days", jobs.DefaultConfigChangeRetentionDays, "Days to retain config changes for")
 	flags.BoolVar(&disableKubernetes, "disable-kubernetes", false, "Disable all functionality that requires a kubernetes connection")
 	flags.BoolVar(&dev, "dev", false, "Run in development mode")
 	flags.BoolVar(&disablePostgrest, "disable-postgrest", false, "Disable the postgrest server")
