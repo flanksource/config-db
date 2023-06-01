@@ -1,8 +1,10 @@
 package db
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
@@ -172,7 +174,7 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	return nil
 }
 
-func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
+func upsertAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
 	ci, err := GetConfigItem(analysis.ConfigType, analysis.ExternalID)
 	if ci == nil {
@@ -185,14 +187,36 @@ func updateAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	logger.Tracef("[%s/%s] ==> %s", analysis.ConfigType, analysis.ExternalID, analysis)
 	analysis.ConfigID = uuid.MustParse(ci.ID)
 	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
+	analysis.ScraperID = ctx.ScraperID
 
 	return CreateAnalysis(analysis)
 }
 
+func GetCurrentDBTime(ctx context.Context) (time.Time, error) {
+	var latest time.Time
+	err := db.WithContext(ctx).Raw(`SELECT CURRENT_TIMESTAMP`).First(&latest).Error
+	return latest, err
+}
+
+// UpdateAnalysisStatusBefore updates the status of config analyses that were last observed before the specified time.
+func UpdateAnalysisStatusBefore(ctx context.Context, before time.Time, scraperID, status string) error {
+	db.Debug()
+	return db.WithContext(ctx).
+		Model(&dutyModels.ConfigAnalysis{}).
+		Where("last_observed <= ? AND first_observed <= ?", before, before).
+		Where("scraper_id = ?", scraperID).
+		Update("status", status).
+		Error
+}
+
 // SaveResults creates or update a configuartion with config changes
 func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
-	for _, result := range results {
+	startTime, err := GetCurrentDBTime(ctx)
+	if err != nil {
+		logger.Errorf("unable to get current db time: %v", err)
+	}
 
+	for _, result := range results {
 		if result.Config != nil {
 			ci, err := NewConfigItemFromResult(result)
 			if err != nil {
@@ -206,7 +230,7 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 
 		if result.AnalysisResult != nil {
-			if err := updateAnalysis(ctx, &result); err != nil {
+			if err := upsertAnalysis(ctx, &result); err != nil {
 				return err
 			}
 		}
@@ -219,6 +243,13 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 			if err := relationshipResultHandler(result.RelationshipResults); err != nil {
 				return err
 			}
+		}
+	}
+
+	if !startTime.IsZero() {
+		// Any analysis that weren't observed again will be marked as resolved
+		if err := UpdateAnalysisStatusBefore(ctx, startTime, ctx.ScraperID.String(), "resolved"); err != nil {
+			logger.Errorf("failed to mark analysis before %v as healthy: %v", startTime, err)
 		}
 	}
 
