@@ -26,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/pkg/errors"
 )
 
 // Scraper ...
@@ -61,13 +60,13 @@ func (ctx AWSContext) String() string {
 func (aws Scraper) getContext(ctx *v1.ScrapeContext, awsConfig v1.AWS, region string) (*AWSContext, error) {
 	session, err := NewSession(ctx, *awsConfig.AWSConnection, region)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create AWS session")
+		return nil, fmt.Errorf("failed to create AWS session for region=%q: %w", region, err)
 	}
 
 	STS := sts.NewFromConfig(*session)
 	caller, err := STS.GetCallerIdentity(ctx, nil)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get identity")
+		return nil, fmt.Errorf("failed to get identity for region=%q: %w", region, err)
 	}
 
 	usEast1 := session.Copy()
@@ -952,7 +951,8 @@ func (aws Scraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.Scr
 		for _, region := range awsConfig.Region {
 			awsCtx, err := aws.getContext(ctx, awsConfig, region)
 			if err != nil {
-				return results.Errorf(err, "failed to create AWS context")
+				results.Errorf(err, "failed to create AWS context")
+				continue
 			}
 
 			logger.Infof("Scrapping %s", awsCtx)
@@ -976,7 +976,8 @@ func (aws Scraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.Scr
 
 		awsCtx, err := aws.getContext(ctx, awsConfig, "us-east-1")
 		if err != nil {
-			return results.Errorf(err, "failed to create AWS context")
+			results.Errorf(err, "failed to create AWS context")
+			continue
 		}
 
 		aws.account(awsCtx, awsConfig, results)
@@ -984,7 +985,6 @@ func (aws Scraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.Scr
 		aws.iamRoles(awsCtx, awsConfig, results)
 		aws.iamProfiles(awsCtx, awsConfig, results)
 		aws.dnsZones(awsCtx, awsConfig, results)
-
 		aws.trustedAdvisor(awsCtx, awsConfig, results)
 		aws.s3Buckets(awsCtx, awsConfig, results)
 	}

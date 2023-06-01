@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"os/exec"
 
 	"github.com/flanksource/commons/deps"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty/models"
 )
 
 const (
@@ -90,7 +92,12 @@ func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
 						analysis.Severity = mapSeverity(vulnerability.Severity)
 					}
 
-					analysis.Messages = append(analysis.Messages, vulnerability.Description)
+					var msg bytes.Buffer
+					if err := trivyVulnTemplate.Execute(&msg, vulnerability); err != nil {
+						logger.Errorf("failed to execute trivy template: %v", err)
+					} else {
+						analysis.Messages = append(analysis.Messages, msg.String())
+					}
 				}
 
 				results.Add(v1.ScrapeResult{AnalysisResult: analysis})
@@ -117,6 +124,7 @@ func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
 						Severity:     mapSeverity(misconfiguration.Severity),
 						Source:       "Trivy",
 						Summary:      misconfiguration.Title,
+						Status:       models.AnalysisStatusOpen,
 					},
 				})
 			}
@@ -154,4 +162,17 @@ func runCommand(ctx context.Context, command string, args []string) ([]byte, err
 	}
 
 	return output, nil
+}
+
+var trivyVulnTemplate *template.Template
+
+func init() {
+	tpl := `
+<b>Title:</b> {{.Title}}<br>
+<b>CVE:</b> <a href="{{.PrimaryURL}}">{{.VulnerabilityID}}</a><br>
+<b>Installed Version:</b> {{.InstalledVersion}}<br>
+<b>Fixed Version:</b> {{.FixedVersion}}<br>
+<b>Description:</b> {{.Description}}
+`
+	trivyVulnTemplate = template.Must(template.New("trivy").Parse(tpl))
 }

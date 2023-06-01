@@ -47,7 +47,7 @@ var _ = Describe("Scrapers test", func() {
 			It(fixture, func() {
 				config := getConfig(fixture)
 				expected := getFixtureResult(fixture)
-				ctx := &v1.ScrapeContext{}
+				ctx := &v1.ScrapeContext{Context: context.Background()}
 
 				results, err := Run(ctx, config)
 				Expect(err).To(BeNil())
@@ -80,7 +80,7 @@ var _ = Describe("Scrapers test", func() {
 			configScraper, err := db.PersistScrapeConfigFromFile(config)
 			Expect(err).To(BeNil())
 
-			ctx := &v1.ScrapeContext{ScraperID: &configScraper.ID}
+			ctx := &v1.ScrapeContext{ScraperID: &configScraper.ID, Context: context.Background()}
 
 			results, err := Run(ctx, config)
 			Expect(err).To(BeNil())
@@ -103,7 +103,7 @@ var _ = Describe("Scrapers test", func() {
 
 		It("should store the changes from the config", func() {
 			config := getConfig("file-car-change")
-			ctx := &v1.ScrapeContext{}
+			ctx := &v1.ScrapeContext{Context: context.Background()}
 
 			results, err := Run(ctx, config)
 			Expect(err).To(BeNil())

@@ -54,7 +54,6 @@ var Run = &cobra.Command{
 		} else {
 			logger.Fatalf("skipping export: neither --output-dir or --db is specified")
 		}
-
 	},
 }
 

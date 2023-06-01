@@ -90,7 +90,7 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 		ExternalID:    t.ExternalID,
 		ConfigType:    t.ConfigType,
 		Analyzer:      t.Analyzer,
-		Message:       strings.Join(t.Messages, ";"),
+		Message:       strings.Join(t.Messages, "<br><br>"),
 		Severity:      string(t.Severity),
 		AnalysisType:  string(t.AnalysisType),
 		Summary:       t.Summary,

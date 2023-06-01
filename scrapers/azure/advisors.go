@@ -6,6 +6,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/advisor/armadvisor"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/models"
 )
 
 func (azure Scraper) fetchAdvisorAnalysis() v1.ScrapeResults {
@@ -36,6 +37,7 @@ func (azure Scraper) fetchAdvisorAnalysis() v1.ScrapeResults {
 
 			configType := getARMType(recommendation.Properties.ImpactedField)
 			analysis := results.Analysis(deref(recommendation.Type), configType, externalID)
+			analysis.Status = models.AnalysisStatusOpen
 			analysis.Severity = mapSeverity(recommendation.Properties.Impact)
 			analysis.Source = "Azure Advisor"
 			analysis.AnalysisType = mapAnalysisType(recommendation.Properties.Category)
