@@ -54,11 +54,7 @@ require (
 	github.com/dustin/gojson v0.0.0-20160307161227-2e71ec9dd5ad // indirect
 	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-<<<<<<< HEAD
 	github.com/flanksource/duty v1.0.99 // indirect
-=======
-	github.com/flanksource/duty v1.0.98 // indirect
->>>>>>> f393477 (chore: go mod tidy on hack pkg)
 	github.com/flanksource/gomplate/v3 v3.20.3 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
@@ -75,11 +71,7 @@ require (
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
-<<<<<<< HEAD
-	github.com/google/s2a-go v0.1.3 // indirect
-=======
 	github.com/google/s2a-go v0.1.4 // indirect
->>>>>>> f393477 (chore: go mod tidy on hack pkg)
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/google/wire v0.5.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
