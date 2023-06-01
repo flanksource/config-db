@@ -20,7 +20,7 @@ var _ = Describe("Scrapers test", func() {
 	Describe("DB initialization", func() {
 		It("should be able to run migrations", func() {
 			logger.Infof("Running migrations against %s", pgUrl)
-			if err := duty.Migrate(pgUrl); err != nil {
+			if err := duty.Migrate(pgUrl, nil); err != nil {
 				Fail(err.Error())
 			}
 		})

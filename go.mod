@@ -41,8 +41,8 @@ require (
 	github.com/dop251/goja v0.0.0-20230402114112-623f9dda9079
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.21.0
-	github.com/flanksource/commons v1.9.0
-	github.com/flanksource/duty v1.0.82
+	github.com/flanksource/commons v1.10.0
+	github.com/flanksource/duty v1.0.99
 	github.com/flanksource/ketall v1.1.1
 	github.com/go-logr/zapr v1.2.3
 	github.com/gobwas/glob v0.2.3
@@ -91,7 +91,7 @@ require (
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/google/pprof v0.0.0-20230323073829-e72429f035bd // indirect
-	github.com/google/s2a-go v0.1.2 // indirect
+	github.com/google/s2a-go v0.1.3 // indirect
 	github.com/hashicorp/hcl/v2 v2.16.2 // indirect
 	github.com/itchyny/gojq v0.12.12 // indirect
 	github.com/itchyny/timefmt-go v0.1.5 // indirect
@@ -123,7 +123,7 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.110.0 // indirect
+	cloud.google.com/go v0.110.1 // indirect
 	cloud.google.com/go/compute v1.19.1 // indirect
 	cloud.google.com/go/iam v1.0.0 // indirect
 	cloud.google.com/go/storage v1.30.1 // indirect
@@ -133,10 +133,10 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230426101702-58e86b294756 // indirect
-	github.com/Shopify/ejson v1.3.3 // indirect
+	github.com/Shopify/ejson v1.4.0 // indirect
 	github.com/acomagu/bufpipe v1.0.4 // indirect
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
-	github.com/aws/aws-sdk-go v1.44.252 // indirect
+	github.com/aws/aws-sdk-go v1.44.256 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.3 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.64 // indirect
@@ -151,7 +151,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.9 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
-	github.com/cloudflare/circl v1.3.2 // indirect
+	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/dustin/gojson v0.0.0-20160307161227-2e71ec9dd5ad // indirect
@@ -243,7 +243,7 @@ require (
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.starlark.net v0.0.0-20230302034142-4b1e35fe2254 // indirect
-	go.uber.org/atomic v1.10.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	gocloud.dev v0.29.0 // indirect
@@ -256,7 +256,7 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
-	google.golang.org/api v0.120.0 // indirect
+	google.golang.org/api v0.121.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/grpc v1.54.0 // indirect
@@ -274,9 +274,4 @@ require (
 	sigs.k8s.io/kustomize/api v0.12.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.9 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
-)
-
-replace (
-	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.12.1
-	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.13.9
 )
