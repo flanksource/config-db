@@ -63,7 +63,7 @@ func Init(connection string) error {
 	}
 
 	if runMigrations {
-		if err = duty.Migrate(connection); err != nil {
+		if err = duty.Migrate(connection, nil); err != nil {
 			return err
 		}
 	}
