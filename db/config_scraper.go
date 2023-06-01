@@ -31,10 +31,11 @@ func DeleteScrapeConfig(scrapeConfig *v1.ScrapeConfig) error {
 	return db.Delete(&configScraper).Error
 }
 
-func PersistScrapeConfig(scrapeConfig *v1.ScrapeConfig) (bool, error) {
+func PersistScrapeConfigFromCRD(scrapeConfig *v1.ScrapeConfig) (bool, error) {
 	configScraper := models.ConfigScraper{
-		ID:   uuid.MustParse(string(scrapeConfig.GetUID())),
-		Name: fmt.Sprintf("%s/%s", scrapeConfig.Namespace, scrapeConfig.Name),
+		ID:     uuid.MustParse(string(scrapeConfig.GetUID())),
+		Name:   fmt.Sprintf("%s/%s", scrapeConfig.Namespace, scrapeConfig.Name),
+		Source: models.SourceCRD,
 	}
 	configScraper.Spec, _ = utils.StructToJSON(scrapeConfig.Spec.ConfigScraper)
 
@@ -67,6 +68,7 @@ func PersistScrapeConfigFromFile(configScraperSpec v1.ConfigScraper) (models.Con
 	// Create if not exists
 	configScraper.Spec = spec
 	configScraper.Name, err = configScraperSpec.GenerateName()
+	configScraper.Source = models.SourceConfigFile
 	if err != nil {
 		return configScraper, err
 	}

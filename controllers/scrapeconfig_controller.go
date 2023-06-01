@@ -89,7 +89,7 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	changed, err := db.PersistScrapeConfig(scrapeConfig)
+	changed, err := db.PersistScrapeConfigFromCRD(scrapeConfig)
 	if err != nil {
 		logger.Error(err, "failed to persist scrape config")
 		return ctrl.Result{}, err
