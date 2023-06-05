@@ -13,6 +13,9 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
+	"github.com/gomarkdown/markdown"
+	"github.com/gomarkdown/markdown/html"
+	"github.com/gomarkdown/markdown/parser"
 )
 
 const (
@@ -92,8 +95,14 @@ func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
 						analysis.Severity = mapSeverity(vulnerability.Severity)
 					}
 
+					view := map[string]any{
+						"title":       template.HTML(mdToHTML("**Title:** " + vulnerability.Title)),
+						"description": template.HTML(mdToHTML("**Description:** " + vulnerability.Description)),
+						"vuln":        vulnerability,
+					}
+
 					var msg bytes.Buffer
-					if err := trivyVulnTemplate.Execute(&msg, vulnerability); err != nil {
+					if err := trivyVulnTemplate.Execute(&msg, view); err != nil {
 						logger.Errorf("failed to execute trivy template: %v", err)
 					} else {
 						analysis.Messages = append(analysis.Messages, msg.String())
@@ -168,11 +177,24 @@ var trivyVulnTemplate *template.Template
 
 func init() {
 	tpl := `
-<b>Title:</b> {{.Title}}<br>
-<b>CVE:</b> <a href="{{.PrimaryURL}}">{{.VulnerabilityID}}</a><br>
-<b>Installed Version:</b> {{.InstalledVersion}}<br>
-<b>Fixed Version:</b> {{.FixedVersion}}<br>
-<b>Description:</b> {{.Description}}
+{{.title}}
+<b>CVE:</b> <a href="{{.vuln.PrimaryURL}}">{{.vuln.VulnerabilityID}}</a><br>
+<b>Installed Version:</b> {{.vuln.InstalledVersion}}<br>
+<b>Fixed Version:</b> {{.vuln.FixedVersion}}<br>
+{{if .vuln.DataSource}}<b>Data source:</b> <a href="{{.vuln.DataSource.URL}}">{{.vuln.DataSource.Name}}</a><br>{{end}}
+{{.description}}
 `
 	trivyVulnTemplate = template.Must(template.New("trivy").Parse(tpl))
+}
+
+func mdToHTML(md string) string {
+	extensions := parser.CommonExtensions
+	p := parser.NewWithExtensions(extensions)
+	doc := p.Parse([]byte(md))
+
+	htmlFlags := html.CommonFlags | html.HrefTargetBlank
+	opts := html.RendererOptions{Flags: htmlFlags}
+	renderer := html.NewRenderer(opts)
+
+	return string(markdown.Render(doc, renderer))
 }

@@ -46,6 +46,7 @@ require (
 	github.com/flanksource/ketall v1.1.1
 	github.com/go-logr/zapr v1.2.3
 	github.com/gobwas/glob v0.2.3
+	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-getter v1.7.1
 	github.com/henvic/httpretty v0.1.0
