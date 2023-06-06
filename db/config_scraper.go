@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
@@ -24,11 +25,11 @@ func FindScraper(id string) (*models.ConfigScraper, error) {
 	return &configScraper, nil
 }
 
-func DeleteScrapeConfig(scrapeConfig *v1.ScrapeConfig) error {
-	configScraper := models.ConfigScraper{
-		ID: uuid.MustParse(string(scrapeConfig.GetUID())),
-	}
-	return db.Delete(&configScraper).Error
+func DeleteScrapeConfig(id string) error {
+	return db.Table("config_scrapers").
+		Where("id = ?", id).
+		Update("deleted_at", time.Now()).
+		Error
 }
 
 func PersistScrapeConfigFromCRD(scrapeConfig *v1.ScrapeConfig) (bool, error) {
@@ -45,7 +46,7 @@ func PersistScrapeConfigFromCRD(scrapeConfig *v1.ScrapeConfig) (bool, error) {
 
 func GetScrapeConfigs() ([]models.ConfigScraper, error) {
 	var configScrapers []models.ConfigScraper
-	err := db.Find(&configScrapers).Error
+	err := db.Find(&configScrapers, "deleted_at IS NULL").Error
 	return configScrapers, err
 }
 
