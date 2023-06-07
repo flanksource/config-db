@@ -3,8 +3,10 @@ package db
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
@@ -26,10 +28,44 @@ func FindScraper(id string) (*models.ConfigScraper, error) {
 }
 
 func DeleteScrapeConfig(id string) error {
-	return db.Table("config_scrapers").
+	if err := db.Table("config_scrapers").
 		Where("id = ?", id).
 		Update("deleted_at", time.Now()).
-		Error
+		Error; err != nil {
+		return err
+	}
+
+	// Fetch all IDs which are linked to other tables
+	foreignKeyTables := []string{
+		"config_changes",
+		"config_analysis",
+		"config_component_relationships",
+		"config_relationships",
+		"evidences",
+	}
+	selectQueryTmpl := `SELECT config_id FROM %s`
+	var selectQueryItems []string
+	for _, t := range foreignKeyTables {
+		selectQueryItems = append(selectQueryItems, fmt.Sprintf(selectQueryTmpl, t))
+	}
+	selectQuery := strings.Join(selectQueryItems, " UNION ")
+
+	var referredConfigIDs []string
+	logger.Infof("YASH Reffered ids are %v", referredConfigIDs)
+	if err := db.Raw(selectQuery).Scan(&referredConfigIDs).Error; err != nil {
+		return err
+	}
+
+	// Remove scraper_id from linked config_items
+	if err := db.Table("config_items").Where("id IN (?) AND scraper_id = ?", referredConfigIDs, id).Update("scraper_id", nil).Error; err != nil {
+		return err
+	}
+
+	// Soft delete remaining config_items
+	if err := db.Table("config_items").Where("id NOT IN (?) AND scraper_id = ?", referredConfigIDs, id).Update("deleted_at", time.Now()).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func PersistScrapeConfigFromCRD(scrapeConfig *v1.ScrapeConfig) (bool, error) {
