@@ -153,6 +153,10 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 		Config:      &dataStr,
 	}
 
+	if result.Status != "" {
+		ci.Status = &result.Status
+	}
+
 	if result.CreatedAt != nil {
 		ci.CreatedAt = *result.CreatedAt
 	}

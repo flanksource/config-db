@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/ketall"
 	"github.com/flanksource/ketall/options"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -118,6 +119,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				Namespace:           obj.GetNamespace(),
 				ConfigClass:         obj.GetKind(),
 				Type:                ConfigTypePrefix + obj.GetKind(),
+				Status:              extractStatus(obj),
 				CreatedAt:           &createdAt,
 				Config:              cleanKubernetesObject(obj.Object),
 				ID:                  string(obj.GetUID()),
@@ -218,6 +220,32 @@ func getResourceIDsFromObjs(objs []*unstructured.Unstructured) map[string]map[st
 	}
 
 	return resourceIDMap
+}
+
+func extractStatus(obj *unstructured.Unstructured) string {
+	switch obj.GetKind() {
+	case "Pod":
+		if statusMap, ok := obj.Object["status"].(map[string]any); ok {
+			switch statusMap["phase"] {
+			case "Pending":
+				return string(models.ConfigStatusPending)
+			case "Running":
+				return string(models.ConfigStatusRunning)
+			case "Succeeded":
+				return string(models.ConfigStatusSucceeded)
+			case "Failed":
+				return string(models.ConfigStatusFailed)
+			case "Unknown":
+				return string(models.ConfigStatusUnknown)
+			}
+		}
+	case "Node":
+		if ts := obj.GetDeletionTimestamp(); ts != nil {
+			return string("Deleting")
+		}
+	}
+
+	return ""
 }
 
 //nolint:errcheck

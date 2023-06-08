@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/models"
 )
 
 // Scraper ...
@@ -519,8 +520,27 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			tags["network"] = instance.VpcID
 			tags["subnet"] = instance.SubnetID
 
+			var configStatus string
+			if i.State != nil {
+				switch string(i.State.Name) {
+				case "running":
+					configStatus = models.ConfigStatusRunning
+				case "pending":
+					configStatus = models.ConfigStatusPending
+				case "stopping":
+					configStatus = models.ConfigStatusStopping
+				case "stopped":
+					configStatus = models.ConfigStatusStopped
+				case "shutting-down":
+					configStatus = models.ConfigStatusDeleting
+				case "terminated":
+					configStatus = models.ConfigStatusDeleted
+				}
+			}
+
 			*results = append(*results, v1.ScrapeResult{
 				Type:                v1.AWSEC2Instance,
+				Status:              configStatus,
 				Tags:                tags,
 				BaseScraper:         config.BaseScraper,
 				Config:              instance,
