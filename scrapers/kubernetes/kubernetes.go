@@ -225,8 +225,12 @@ func getResourceIDsFromObjs(objs []*unstructured.Unstructured) map[string]map[st
 func extractStatus(obj *unstructured.Unstructured) string {
 	switch obj.GetKind() {
 	case "Pod":
-		if statusMap, ok := obj.Object["status"].(map[string]any); ok {
-			switch statusMap["phase"] {
+		if podStatus, ok := obj.Object["status"].(map[string]any); ok {
+			if podStatus["reason"] == "Evicted" {
+				return string(models.ConfigStatusDeleted)
+			}
+
+			switch podStatus["phase"] {
 			case "Pending":
 				return string(models.ConfigStatusPending)
 			case "Running":
