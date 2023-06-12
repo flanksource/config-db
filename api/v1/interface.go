@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -104,18 +105,45 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 
 // +kubebuilder:object:generate=false
 type ChangeResult struct {
-	ExternalID       string
-	ConfigType       string
-	ExternalChangeID string
-	Action           ChangeAction
-	ChangeType       string
-	Patches          string
-	Summary          string
-	Severity         string
-	Source           string
-	CreatedBy        *string
-	CreatedAt        *time.Time
-	Details          map[string]interface{}
+	ExternalID       string                 `json:"external_id"`
+	ConfigType       string                 `json:"config_type"`
+	ExternalChangeID string                 `json:"external_change_id"`
+	Action           ChangeAction           `json:"action"`
+	ChangeType       string                 `json:"change_type"`
+	Patches          string                 `json:"patches"`
+	Summary          string                 `json:"summary"`
+	Severity         string                 `json:"severity"`
+	Source           string                 `json:"source"`
+	CreatedBy        *string                `json:"created_by"`
+	CreatedAt        *time.Time             `json:"created_at"`
+	Details          map[string]interface{} `json:"details"`
+}
+
+func (r ChangeResult) AsMap() map[string]any {
+	output := make(map[string]any)
+
+	b, err := json.Marshal(r)
+	if err != nil {
+		logger.Errorf("failed to marshal change result: %v", err)
+		return output
+	}
+
+	if err := json.Unmarshal(b, &output); err != nil {
+		logger.Errorf("failed to unmarshal change result: %v", err)
+	}
+
+	return output
+}
+
+func (r ChangeResult) PatchesMap() map[string]any {
+	output := make(map[string]any)
+	if r.Patches != "" {
+		if err := json.Unmarshal([]byte(r.Patches), &output); err != nil {
+			logger.Errorf("failed to unmarshal: %v", err)
+		}
+	}
+
+	return output
 }
 
 func (c ChangeResult) String() string {
@@ -280,6 +308,23 @@ func (r ScrapeResult) String() string {
 		s += " analysis=1"
 	}
 	return s
+}
+
+// ConfigMap returns the underlying config as a map
+func (r ScrapeResult) ConfigMap() map[string]any {
+	output := make(map[string]any)
+
+	b, err := json.Marshal(r.Config)
+	if err != nil {
+		logger.Errorf("failed to marshal config: %v", err)
+		return output
+	}
+
+	if err := json.Unmarshal(b, &output); err != nil {
+		logger.Errorf("failed to unmarshal config: %v", err)
+	}
+
+	return output
 }
 
 // QueryColumn ...

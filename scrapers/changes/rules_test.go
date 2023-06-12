@@ -8,38 +8,33 @@ import (
 )
 
 func TestProcessRules(t *testing.T) {
-	// Add custom rules for testing
-	Rules.allRules["SilentUser"] = Change{Action: v1.Ignore}
-	Rules.allRules["*Removal"] = Change{Action: v1.Ignore}
-	Rules.init()
-
 	tests := []struct {
 		name   string
 		input  v1.ScrapeResult
 		expect []v1.ChangeResult
 	}{
 		{
-			name: "Test with empty ScrapeResult",
+			name: "Test Action: empty ScrapeResult",
 			input: v1.ScrapeResult{
 				Changes: []v1.ChangeResult{},
 			},
 			expect: []v1.ChangeResult{},
 		},
 		{
-			name: "Test with one exact matching rule",
+			name: "Test Action: one exact matching rule",
 			input: v1.ScrapeResult{
 				Changes: []v1.ChangeResult{
 					{ChangeType: "AddTags"},
-					{ChangeType: "SilentUser"},
+					{ChangeType: "DeleteUser"},
 				},
 			},
 			expect: []v1.ChangeResult{
 				{ChangeType: "AddTags"},
-				{ChangeType: "SilentUser", Action: v1.Ignore},
+				{ChangeType: "DeleteUser", Action: v1.Delete},
 			},
 		},
 		{
-			name: "Test wildcard rule",
+			name: "Test Action: multiple matching rule",
 			input: v1.ScrapeResult{
 				Changes: []v1.ChangeResult{
 					{ChangeType: "ActivateUser", Action: "Creation"},
@@ -52,11 +47,11 @@ func TestProcessRules(t *testing.T) {
 				{ChangeType: "ActivateUser", Action: "Creation"},
 				{ChangeType: "DeleteUserProfile", Action: v1.Delete},
 				{ChangeType: "TerminateInstances", Action: v1.Delete},
-				{ChangeType: "ContainerRemoval", Action: v1.Ignore},
+				{ChangeType: "ContainerRemoval"},
 			},
 		},
 		{
-			name: "Test with unrecognized action",
+			name: "Test Action: unrecognized action",
 			input: v1.ScrapeResult{
 				Changes: []v1.ChangeResult{
 					{ChangeType: "UnrecognizedAction"},
@@ -67,7 +62,7 @@ func TestProcessRules(t *testing.T) {
 			},
 		},
 		{
-			name: "Test with empty action",
+			name: "Test Action: empty action",
 			input: v1.ScrapeResult{
 				Changes: []v1.ChangeResult{
 					{ChangeType: ""},
@@ -77,13 +72,63 @@ func TestProcessRules(t *testing.T) {
 				{ChangeType: ""},
 			},
 		},
+		{
+			name: "Test Type & Summary | single change result",
+			input: v1.ScrapeResult{
+				Type: "HelmRelease",
+				Changes: []v1.ChangeResult{
+					{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
+			},
+		},
+		{
+			name: "Test Type & Summary | multiple change results",
+			input: v1.ScrapeResult{
+				Type: "HelmRelease",
+				Changes: []v1.ChangeResult{
+					{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
+					{ChangeType: "diff", Patches: `{"status": {"failures": 1}}`},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
+				{
+					ChangeType: "HelmReconcileFailed",
+					Patches:    `{"status": {"failures": 1}}`,
+					Summary:    "Reconcile failed 1",
+				},
+			},
+		},
+		{
+			name: "Test Type, Summary & Action | all-in-one",
+			input: v1.ScrapeResult{
+				Type: "HelmRelease",
+				Changes: []v1.ChangeResult{
+					{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
+					{ChangeType: "diff", Patches: `{"status": {"failures": 1}}`},
+					{ChangeType: "DeleteUser"},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
+				{
+					ChangeType: "HelmReconcileFailed",
+					Patches:    `{"status": {"failures": 1}}`,
+					Summary:    "Reconcile failed 1",
+				},
+				{ChangeType: "DeleteUser", Action: v1.Delete},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ProcessRules(tt.input)
-			if !reflect.DeepEqual(result, tt.expect) {
-				t.Errorf("ProcessRules() = %v, want %v", result, tt.expect)
+			ProcessRules(&tt.input)
+			if !reflect.DeepEqual(tt.input.Changes, tt.expect) {
+				t.Errorf("ProcessRules() = %v, want %v", tt.input.Changes, tt.expect)
 			}
 		})
 	}

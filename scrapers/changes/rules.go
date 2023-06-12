@@ -2,7 +2,7 @@ package changes
 
 import (
 	_ "embed"
-	"strings"
+	"fmt"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -10,76 +10,86 @@ import (
 )
 
 //go:embed rules.yaml
-var changeRules []byte
-
-type Change struct {
-	Action v1.ChangeAction `yaml:"action"`
-}
+var changeRulesConfig []byte
 
 type changeRule struct {
-	allRules         map[string]Change
-	exactMatchRules  map[string]Change
-	prefixMatchRules map[string]Change
-	suffixMatchRules map[string]Change
+	Action  v1.ChangeAction `json:"action"`  // map the change action to this action.
+	Filter  string          `json:"filter"`  // cel-go filter for a config item.
+	Rule    string          `json:"rule"`    // cel-go filter for a config change.
+	Type    string          `json:"type"`    // replace with this change type.
+	Summary string          `json:"summary"` // Go templatable summary to replace the existing change summary.
 }
 
-func (t *changeRule) init() {
-	t.exactMatchRules = make(map[string]Change)
-	t.prefixMatchRules = make(map[string]Change)
-	t.suffixMatchRules = make(map[string]Change)
-
-	for k, v := range t.allRules {
-		if strings.HasSuffix(k, "*") {
-			t.suffixMatchRules[strings.TrimSuffix(k, "*")] = v
-		} else if strings.HasPrefix(k, "*") {
-			t.prefixMatchRules[strings.TrimPrefix(k, "*")] = v
-		} else {
-			t.exactMatchRules[k] = v
-		}
+// matches the rule with a config using the filter
+func (t *changeRule) match(result *v1.ScrapeResult) (bool, error) {
+	if t.Filter == "" {
+		return true, nil
 	}
+
+	env := map[string]any{
+		"config":      result.ConfigMap(),
+		"config_type": result.Type,
+	}
+	return evaluateCelExpression(t.Filter, env, "config", "config_type")
 }
 
-func (t changeRule) determineAction(action string) (v1.ChangeAction, bool) {
-	if rule, ok := t.exactMatchRules[action]; ok {
-		return rule.Action, true
+func (t *changeRule) process(change *v1.ChangeResult) error {
+	env := map[string]any{
+		"change": change.AsMap(),
+		"patch":  change.PatchesMap(),
 	}
 
-	for k, rule := range t.prefixMatchRules {
-		if strings.HasSuffix(action, k) {
-			return rule.Action, true
+	if ok, err := evaluateCelExpression(t.Rule, env, "change", "patch"); err != nil {
+		return fmt.Errorf("Failed to evaluate rule %s: %w", t.Rule, err)
+	} else if !ok {
+		return nil
+	}
+
+	if t.Type != "" {
+		change.ChangeType = t.Type
+	}
+
+	if t.Action != "" {
+		change.Action = t.Action
+	}
+
+	if t.Summary != "" {
+		summary, err := evaluateGoTemplate(t.Summary, env)
+		if err != nil {
+			return fmt.Errorf("Failed to evaluate template %s: %w", t.Summary, err)
 		}
+
+		change.Summary = summary
 	}
 
-	for k, rule := range t.suffixMatchRules {
-		if strings.HasPrefix(action, k) {
-			return rule.Action, true
-		}
-	}
-
-	return "", false
+	return nil
 }
 
-var Rules changeRule
+var Rules []changeRule
 
 func init() {
-	if err := yaml.Unmarshal(changeRules, &Rules.allRules); err != nil {
+	if err := yaml.Unmarshal(changeRulesConfig, &Rules); err != nil {
 		logger.Errorf("Failed to unmarshal config rules: %s", err)
 	}
 
-	Rules.init()
-	logger.Infof("Loaded %d change rules", len(Rules.allRules))
+	logger.Infof("Loaded %d change rules", len(Rules))
 }
 
-func ProcessRules(result v1.ScrapeResult) []v1.ChangeResult {
-	changes := make([]v1.ChangeResult, 0, len(result.Changes))
-
-	for _, change := range result.Changes {
-		if action, ok := Rules.determineAction(change.ChangeType); ok {
-			change.Action = action
+// ProcessRules modifies the scraped changes in-place
+// using the change rules.
+func ProcessRules(result *v1.ScrapeResult) {
+	for _, rule := range Rules {
+		if match, err := rule.match(result); err != nil {
+			logger.Errorf("Failed to match filter %s: %s", rule.Filter, err)
+			continue
+		} else if !match {
+			continue
 		}
 
-		changes = append(changes, change)
+		for i := range result.Changes {
+			if err := rule.process(&result.Changes[i]); err != nil {
+				logger.Errorf("Failed to process rule %s: %v", rule.Rule, err)
+			}
+		}
 	}
-
-	return changes
 }
