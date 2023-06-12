@@ -64,14 +64,14 @@ func evaluateGoTemplate(content string, view any) (string, error) {
 	var tpl *template.Template
 	var err error
 
-	if val, exists := programCache.Get(content); exists {
+	if val, exists := templateCache.Get(content); exists {
 		tpl = val.(*template.Template)
 	} else {
 		tpl, err = template.New("").Parse(content)
 		if err != nil {
 			return "", fmt.Errorf("error parsing template %s: %w", content, err)
 		}
-		programCache.SetDefault(content, tpl)
+		templateCache.SetDefault(content, tpl)
 	}
 
 	var rendered bytes.Buffer
