@@ -234,6 +234,7 @@ type ScrapeResult struct {
 	LastModified        time.Time           `json:"last_modified,omitempty"`
 	ConfigClass         string              `json:"config_class,omitempty"`
 	Type                string              `json:"config_type,omitempty"`
+	Status              string              `json:"status,omitempty"` // status extracted from the config itself
 	Name                string              `json:"name,omitempty"`
 	Namespace           string              `json:"namespace,omitempty"`
 	ID                  string              `json:"id,omitempty"`

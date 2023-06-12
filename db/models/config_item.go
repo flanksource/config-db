@@ -17,6 +17,7 @@ type ConfigItem struct {
 	ConfigClass   string            `gorm:"column:config_class;default:''" json:"config_class"  `
 	ExternalID    pq.StringArray    `gorm:"column:external_id;type:[]text" json:"external_id,omitempty"  `
 	Type          *string           `gorm:"column:type;default:null" json:"type,omitempty"  `
+	Status        *string           `gorm:"column:status;default:null" json:"status,omitempty"  `
 	Name          *string           `gorm:"column:name;default:null" json:"name,omitempty"  `
 	Namespace     *string           `gorm:"column:namespace;default:null" json:"namespace,omitempty"  `
 	Description   *string           `gorm:"column:description;default:null" json:"description,omitempty"  `
