@@ -78,7 +78,7 @@ func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.Scr
 		}
 	}
 
-	result.Changes = changes.ProcessRules(result)
+	changes.ProcessRules(&result)
 
 	// No config means we don't need to extract anything
 	if result.Config == nil {
