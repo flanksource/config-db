@@ -3,6 +3,8 @@ package db
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
@@ -24,11 +26,43 @@ func FindScraper(id string) (*models.ConfigScraper, error) {
 	return &configScraper, nil
 }
 
-func DeleteScrapeConfig(scrapeConfig *v1.ScrapeConfig) error {
-	configScraper := models.ConfigScraper{
-		ID: uuid.MustParse(string(scrapeConfig.GetUID())),
+func DeleteScrapeConfig(id string) error {
+	if err := db.Table("config_scrapers").
+		Where("id = ?", id).
+		Update("deleted_at", time.Now()).
+		Error; err != nil {
+		return err
 	}
-	return db.Delete(&configScraper).Error
+
+	// Fetch all IDs which are linked to other tables
+	foreignKeyTables := []string{
+		"evidences",
+	}
+
+	var selectQueryItems []string
+	for _, t := range foreignKeyTables {
+		selectQueryItems = append(selectQueryItems, fmt.Sprintf(`SELECT config_id FROM %s`, t))
+	}
+	selectQuery := strings.Join(selectQueryItems, " UNION ")
+
+	// Remove scraper_id from linked config_items
+	if err := db.Exec(fmt.Sprintf(`
+        UPDATE config_items
+        SET scraper_id = NULL
+        WHERE id IN (%s) AND scraper_id = ?
+    `, selectQuery), id).Error; err != nil {
+		return err
+	}
+
+	// Soft delete remaining config_items
+	if err := db.Exec(fmt.Sprintf(`
+        UPDATE config_items
+        SET deleted_at = NOW()
+        WHERE id NOT IN (%s) AND scraper_id = ?
+    `, selectQuery), id).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func PersistScrapeConfigFromCRD(scrapeConfig *v1.ScrapeConfig) (bool, error) {
@@ -45,7 +79,7 @@ func PersistScrapeConfigFromCRD(scrapeConfig *v1.ScrapeConfig) (bool, error) {
 
 func GetScrapeConfigs() ([]models.ConfigScraper, error) {
 	var configScrapers []models.ConfigScraper
-	err := db.Find(&configScrapers).Error
+	err := db.Find(&configScrapers, "deleted_at IS NULL").Error
 	return configScrapers, err
 }
 
