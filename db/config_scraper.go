@@ -36,10 +36,6 @@ func DeleteScrapeConfig(id string) error {
 
 	// Fetch all IDs which are linked to other tables
 	foreignKeyTables := []string{
-		"config_changes",
-		"config_analysis",
-		"config_component_relationships",
-		"config_relationships",
 		"evidences",
 	}
 
