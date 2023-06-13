@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -12,6 +13,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/analysis"
 	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/scrapers/processors"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 )
 
@@ -69,6 +71,24 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	return results, nil
 }
 
+// Add a list of changed json paths. If multiple changed then the highest level.
+func summarizeChanges(changes []v1.ChangeResult) []v1.ChangeResult {
+	for i, change := range changes {
+		if change.Patches == "" {
+			continue
+		}
+
+		paths := utils.ExtractLeafNodesAndCommonParents(change.AsMap())
+		if len(paths) == 0 {
+			continue
+		}
+
+		changes[i].Summary += strings.Join(paths, ",")
+	}
+
+	return changes
+}
+
 // processScrapeResult extracts possibly more configs from the result
 func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.ScrapeResults {
 	if result.AnalysisResult != nil {
@@ -79,6 +99,8 @@ func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.Scr
 	}
 
 	changes.ProcessRules(&result)
+
+	result.Changes = summarizeChanges(result.Changes)
 
 	// No config means we don't need to extract anything
 	if result.Config == nil {
