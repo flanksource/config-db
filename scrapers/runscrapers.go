@@ -13,6 +13,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/analysis"
 	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/scrapers/processors"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 )
 
@@ -70,73 +71,19 @@ func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult,
 	return results, nil
 }
 
-// Node represents a leaf node in the JSON tree
-type Node struct {
-	path   string
-	parent string
-}
-
-func extractNodePaths(data map[string]any, currentPath string, topLevelPaths map[Node]struct{}) {
-	if currentPath != "" {
-		currentPath += "."
-	}
-
-	for key, value := range data {
-		newPath := fmt.Sprintf("%s%s", currentPath, key)
-		if valMap, ok := value.(map[string]any); ok {
-			extractNodePaths(valMap, newPath, topLevelPaths)
-		} else {
-			n := Node{
-				path:   strings.TrimSuffix(newPath, "."),
-				parent: strings.TrimSuffix(currentPath, "."),
-			}
-			topLevelPaths[n] = struct{}{}
-		}
-	}
-}
-
-func extractChangedPaths(data map[string]any) map[string]struct{} {
-	paths := make(map[Node]struct{})
-	extractNodePaths(data, "", paths)
-
-	// If multiple nodes with the same parent, then use the parent only
-	var parents = make(map[string]int)
-	for p := range paths {
-		parents[p.parent]++
-	}
-
-	output := make(map[string]struct{})
-	for k := range paths {
-		if val := parents[k.parent]; val > 1 {
-			output[k.parent] = struct{}{}
-			continue
-		}
-
-		output[k.path] = struct{}{}
-	}
-
-	return output
-}
-
-// Add a list of path's changed. If multiple changed then the highest level.
+// Add a list of changed json paths. If multiple changed then the highest level.
 func summarizeChanges(changes []v1.ChangeResult) []v1.ChangeResult {
 	for i, change := range changes {
 		if change.Patches == "" {
 			continue
 		}
 
-		paths := extractChangedPaths(change.AsMap())
+		paths := utils.ExtractLeafNodesAndCommonParents(change.AsMap())
 		if len(paths) == 0 {
 			continue
 		}
 
-		var changedPathSummary string
-		for p := range paths {
-			changedPathSummary += p + ","
-		}
-		changedPathSummary = strings.TrimSuffix(changedPathSummary, ",")
-
-		changes[i].Summary += changedPathSummary
+		changes[i].Summary += strings.Join(paths, ",")
 	}
 
 	return changes

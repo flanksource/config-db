@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"testing"
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/logger"
@@ -13,7 +12,6 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty"
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -186,126 +184,4 @@ func compare(a interface{}, b interface{}) string {
 	}
 
 	return string(patch)
-}
-
-func Test_extractTopLevelPath(t *testing.T) {
-	type args struct {
-		data  string
-		paths map[string]struct{}
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		{
-			name: "first",
-			args: args{
-				data: `
-	{
-		"address": {
-			"city": {
-				"block": 9,
-				"name": "mohalla"
-			}
-		}
-	}`,
-				paths: map[string]struct{}{
-					"address.city": {},
-				},
-			},
-		},
-		{
-			name: "yaml",
-			args: args{
-				data: `
-{
-  "metadata": {
-    "annotations": {
-      "control-plane.alpha.kubernetes.io/leader": "{\"holderIdentity\":\"ip-172-16-56-162.eu-west-2.compute.internal\",\"leaseDurationSeconds\":30,\"acquireTime\":\"2023-03-07T10:13:03Z\",\"renewTime\":\"2023-03-16T05:10:21Z\",\"leaderTransitions\":25}"
-    },
-    "resourceVersion": "483339358"
-  }
-}`,
-				paths: map[string]struct{}{
-					"metadata.annotations.control-plane.alpha.kubernetes.io/leader": {},
-					"metadata.resourceVersion":                                      {},
-				},
-			},
-		},
-		{
-			name: "second",
-			args: args{
-				data: `
-		{
-		  "status": {
-		    "conditions": [
-		      {
-		        "type": "Ready",
-		        "reason": "ChartPullFailed",
-		        "status": "False",
-		        "message": "no chart version found for mysql-8.8.8",
-		        "lastTransitionTime": "2023-03-16T04:47:24.000Z"
-		      }
-		    ]
-		  },
-		  "metadata": {
-		    "resourceVersion": "483324452"
-		  }
-		}`,
-				paths: map[string]struct{}{
-					"status.conditions":        {},
-					"metadata.resourceVersion": {},
-				},
-			},
-		},
-		{
-			name: "deeply nested",
-			args: args{
-				data: `
-		{
-		  "a": {
-		    "b": {
-		      "c": {
-		        "d": {
-		          "e": {
-		            "f": 1,
-		            "g": 2
-		          }
-		        }
-		      },
-		      "h": 3,
-		      "i": {
-		        "j": {
-		          "k": 4
-		        }
-		      }
-		    }
-		  },
-		  "metadata": {
-		    "resourceVersion": "483324452"
-		  }
-		}
-		`,
-				paths: map[string]struct{}{
-					"a.b.c.d.e":                {},
-					"a.b.h":                    {},
-					"a.b.i.j.k":                {},
-					"metadata.resourceVersion": {},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var m map[string]any
-			if err := json.Unmarshal([]byte(tt.args.data), &m); err != nil {
-				t.Fatalf("Failed to unmarshal data: %v", err)
-			}
-
-			paths := extractChangedPaths(m)
-			if diff := cmp.Diff(tt.args.paths, paths); diff != "" {
-				t.Fatalf("extractTopLevelPath() mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
 }
