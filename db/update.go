@@ -157,11 +157,11 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 		}
 
 		id, err := FindConfigItemID(change.GetExternalID())
-		if id == nil {
+		if err != nil {
+			return err
+		} else if id == nil {
 			logger.Warnf("[Source=%s] [%s/%s] unable to find config item for change: %v", change.Source, change.ConfigType, change.ExternalID, change.ChangeType)
 			return nil
-		} else if err != nil {
-			return err
 		}
 
 		change.ConfigID = *id
