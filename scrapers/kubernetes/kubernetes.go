@@ -259,12 +259,28 @@ func cleanKubernetesObject(obj map[string]any) string {
 	o.Delete("metadata", "resourceVersion")
 	o.Delete("metadata", "annotations", "control-plane.alpha.kubernetes.io/leader")
 	o.Delete("status", "artifact", "lastUpdateTime")
+	o.Delete("status", "observedGeneration")
+	o.Delete("status", "lastTransitionTime")
 
 	c, _ := o.ArrayCount("status", "conditions")
 	for i := 0; i < c; i += 1 {
 		o.Delete("status", "conditions", strconv.Itoa(i), "lastTransitionTime")
 		o.Delete("status", "conditions", strconv.Itoa(i), "lastHeartbeatTime")
 		o.Delete("status", "conditions", strconv.Itoa(i), "lastUpdateTime")
+		o.Delete("status", "conditions", strconv.Itoa(i), "observedGeneration")
 	}
+
+	// Canary CRD
+	o.Delete("status", "lastCheck")
+	o.Delete("status", "lastTransitionedTime")
+	o.Delete("status", "latency1h")
+	o.Delete("status", "uptime1h")
+
+	for k := range o.Search("status", "checkStatus").ChildrenMap() {
+		o.Delete("status", "checkStatus", k, "lastTransitionedTime")
+		o.Delete("status", "checkStatus", k, "latency1h")
+		o.Delete("status", "checkStatus", k, "uptime1h")
+	}
+
 	return o.String()
 }
