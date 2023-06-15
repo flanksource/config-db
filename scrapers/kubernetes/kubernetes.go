@@ -265,6 +265,7 @@ func cleanKubernetesObject(obj map[string]any) string {
 		o.Delete("status", "conditions", strconv.Itoa(i), "lastTransitionTime")
 		o.Delete("status", "conditions", strconv.Itoa(i), "lastHeartbeatTime")
 		o.Delete("status", "conditions", strconv.Itoa(i), "lastUpdateTime")
+		o.Delete("status", "conditions", strconv.Itoa(i), "observedGeneration")
 	}
 	return o.String()
 }
