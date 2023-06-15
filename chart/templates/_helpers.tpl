@@ -2,7 +2,7 @@
 Expand the name of the chart.
 */}}
 {{- define "config-db.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- .Values.nameOverride | default .Chart.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -14,11 +14,7 @@ Create chart name and version as used by the chart label.
 
 {{/* Create the name of config-db service account */}}
 {{- define "config-db.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-    {{ default (include "kube-prometheus-stack.operator.fullname" .) .Values.prometheusOperator.serviceAccount.name }}
-{{- else -}}
-    {{ default "default" .Values.prometheusOperator.serviceAccount.name }}
-{{- end -}}
+{{ .Values.serviceAccount.name | default (include "config-db.name" .) }}
 {{- end -}}
 
 {{/*
