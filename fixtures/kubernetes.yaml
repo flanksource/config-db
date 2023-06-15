@@ -27,13 +27,3 @@ kubernetes:
         warn:
           - backoff
           - nodeoutofmemory
-    transform:
-      # Canaries
-      exclude:
-        - jsonpath: $.status.lastCheck
-        - jsonpath: $.status.lastTransitionedTime
-        - jsonpath: $.status.checkStatus.*.lastTransitionedTime
-        - jsonpath: $.status.checkStatus.*.uptime1h
-        - jsonpath: $.status.checkStatus.*.latency1h
-        - jsonpath: $.status.uptime1h
-        - jsonpath: $.status.latency1h
