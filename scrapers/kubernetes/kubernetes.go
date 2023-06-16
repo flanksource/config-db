@@ -56,6 +56,11 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 		resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
 
 		for _, obj := range objs {
+			if string(obj.GetUID()) == "" {
+				logger.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+				continue
+			}
+
 			if obj.GetKind() == "Event" {
 				reason, _ := obj.Object["reason"].(string)
 				if utils.MatchItems(reason, config.Event.Exclusions...) {
