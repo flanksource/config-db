@@ -315,6 +315,15 @@ func (r ScrapeResult) String() string {
 func (r ScrapeResult) ConfigMap() map[string]any {
 	output := make(map[string]any)
 
+	// If config is of type string, try unmarshal first
+	if _, ok := r.Config.(string); ok {
+		if err := json.Unmarshal([]byte(r.Config.(string)), &output); err != nil {
+			logger.Errorf("failed to unmarshal config: %v", err)
+		}
+		return output
+	}
+
+	// Marshal and unmarshal into json for other types
 	b, err := json.Marshal(r.Config)
 	if err != nil {
 		logger.Errorf("failed to marshal config: %v", err)
@@ -323,6 +332,7 @@ func (r ScrapeResult) ConfigMap() map[string]any {
 
 	if err := json.Unmarshal(b, &output); err != nil {
 		logger.Errorf("failed to unmarshal config: %v", err)
+		return output
 	}
 
 	return output
