@@ -77,9 +77,9 @@ func PersistScrapeConfigFromCRD(scrapeConfig *v1.ScrapeConfig) (bool, error) {
 	return tx.RowsAffected > 0, tx.Error
 }
 
-func GetScrapeConfigs() ([]models.ConfigScraper, error) {
+func GetScrapeConfigsOfAgent(agentID uuid.UUID) ([]models.ConfigScraper, error) {
 	var configScrapers []models.ConfigScraper
-	err := db.Find(&configScrapers, "deleted_at IS NULL AND agent_id = ?", uuid.Nil).Error
+	err := db.Find(&configScrapers, "deleted_at IS NULL AND agent_id = ?", agentID).Error
 	return configScrapers, err
 }
 
