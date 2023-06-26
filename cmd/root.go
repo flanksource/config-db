@@ -10,8 +10,14 @@ import (
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/utils/kube"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+)
+
+var (
+	agentID   = uuid.Nil // the derived agent id from the agentName
+	agentName string     // name of the agent passed as a CLI arg
 )
 
 var dev bool
@@ -71,6 +77,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&scrapers.DefaultSchedule, "default-schedule", "@every 60m", "Default schedule for configs that don't specfiy one")
 	flags.StringVar(&scrapers.StaleTimeout, "stale-timeout", "30m", "Delete config items not scraped within the timeout")
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
+	flags.StringVar(&agentName, "agent-name", "", "Name of the agent")
 }
 
 func init() {

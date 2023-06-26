@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 
@@ -52,6 +53,17 @@ func serve(configFiles []string) {
 	e.GET("/query", query.Handler)
 	e.POST("/run/:id", scrapers.RunNowHandler)
 
+	if agentName != "" {
+		agent, err := db.FindAgentByName(context.Background(), agentName)
+		if err != nil {
+			logger.Fatalf("error searching for agent (name=%s): %v", agentName, err)
+		} else if agent == nil {
+			logger.Fatalf("agent not found (name=%s)", agentName)
+		} else {
+			agentID = agent.ID
+		}
+	}
+
 	// Run this in a goroutine to make it non-blocking for server start
 	go startScraperCron(configFiles)
 
@@ -76,7 +88,7 @@ func startScraperCron(configFiles []string) {
 		}
 	}
 
-	scraperConfigsDB, err := db.GetScrapeConfigs()
+	scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(agentID)
 	if err != nil {
 		logger.Fatalf("error getting configs from database: %v", err)
 	}
