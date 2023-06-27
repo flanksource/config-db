@@ -2,7 +2,7 @@
 Expand the name of the chart.
 */}}
 {{- define "config-db.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- .Values.nameOverride | default .Chart.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -11,6 +11,11 @@ Create chart name and version as used by the chart label.
 {{- define "config-db.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
+
+{{/* Create the name of config-db service account */}}
+{{- define "config-db.serviceAccountName" -}}
+{{ .Values.serviceAccount.name | default (include "config-db.name" .) }}
+{{- end -}}
 
 {{/*
 Common labels

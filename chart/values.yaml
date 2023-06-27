@@ -56,6 +56,11 @@ resources:
     memory: 4Gi
     cpu: 500m
 
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
 extra:
   {}
   # nodeSelector:
