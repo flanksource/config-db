@@ -9,11 +9,13 @@ import (
 const (
 	DefaultConfigAnalysisRetentionDays = 60
 	DefaultConfigChangeRetentionDays   = 60
+	DefaultConfigItemRetentionDays     = 7
 )
 
 var (
 	ConfigAnalysisRetentionDays int
 	ConfigChangeRetentionDays   int
+	ConfigItemRetentionDays     int
 )
 
 func DeleteOldConfigAnalysis() {
@@ -62,4 +64,35 @@ func DeleteOldConfigChanges() {
 	}
 
 	_ = db.PersistJobHistory(jobHistory.End())
+}
+
+func CleanupConfigItems() {
+	jobHistory := models.NewJobHistory("CleanupConfigItems", "", "").Start()
+	_ = db.PersistJobHistory(jobHistory)
+	defer func() {
+		_ = db.PersistJobHistory(jobHistory.End())
+	}()
+
+	if ConfigItemRetentionDays <= 0 {
+		ConfigItemRetentionDays = DefaultConfigItemRetentionDays
+	}
+	err := db.DefaultDB().Exec(`
+        DELETE FROM config_items
+        WHERE
+            (NOW() - deleted_at) > INTERVAL '1 day' * ? AND
+            id NOT IN (
+                SELECT config_id FROM evidences WHERE config_id IS NOT NULL
+                UNION
+                SELECT config_id FROM config_changes WHERE id IN (SELECT config_change_id FROM evidences)
+                UNION
+                SELECT config_id FROM config_analysis WHERE id IN (SELECT config_analysis_id FROM evidences)
+            )
+    `, ConfigItemRetentionDays).Error
+
+	if err != nil {
+		logger.Errorf("Error cleaning up config items: %v", err)
+		jobHistory.AddError(err.Error())
+	} else {
+		jobHistory.IncrSuccess()
+	}
 }
