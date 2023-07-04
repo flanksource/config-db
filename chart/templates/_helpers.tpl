@@ -14,7 +14,7 @@ Create chart name and version as used by the chart label.
 
 {{/* Create the name of config-db service account */}}
 {{- define "config-db.serviceAccountName" -}}
-{{ .Values.serviceAccount.name | default (include "config-db.name" .) }}
+{{ .Values.serviceAccount.name | default ( printf "%s-sa" (include "config-db.name" .)) }}
 {{- end -}}
 
 {{/*
