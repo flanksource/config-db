@@ -11,6 +11,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/flanksource/ketall"
 	"github.com/flanksource/ketall/options"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -115,6 +116,11 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.Con
 				tags["namespace"] = obj.GetNamespace()
 			}
 			tags["cluster"] = config.ClusterName
+
+			// Add health metadata
+			if healthStatus, err := health.GetResourceHealth(obj, nil); err == nil {
+				obj.Object["healthStatus"] = healthStatus
+			}
 
 			createdAt := obj.GetCreationTimestamp().Time
 			parentType, parentExternalID := getKubernetesParent(obj, resourceIDMap)
