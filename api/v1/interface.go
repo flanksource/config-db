@@ -237,6 +237,7 @@ type ScrapeResult struct {
 	Status              string              `json:"status,omitempty"` // status extracted from the config itself
 	Name                string              `json:"name,omitempty"`
 	Namespace           string              `json:"namespace,omitempty"`
+	Description         string              `json:"description,omitempty"`
 	ID                  string              `json:"id,omitempty"`
 	Aliases             []string            `json:"aliases,omitempty"`
 	Source              string              `json:"source,omitempty"`

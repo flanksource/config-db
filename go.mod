@@ -43,6 +43,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.21.0
 	github.com/flanksource/commons v1.10.0
 	github.com/flanksource/duty v1.0.113
+	github.com/flanksource/is-healthy v0.0.0-20230705092916-3b4cf510c5fc
 	github.com/flanksource/ketall v1.1.1
 	github.com/go-logr/zapr v1.2.3
 	github.com/gobwas/glob v0.2.3
@@ -63,7 +64,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.4
 	github.com/uber/athenadriver v1.1.14
 	github.com/xo/dburl v0.13.1
 	gopkg.in/flanksource/yaml.v3 v3.2.2
