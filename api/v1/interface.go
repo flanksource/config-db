@@ -30,39 +30,16 @@ type Scraper interface {
 // +kubebuilder:object:generate=false
 type Analyzer func(configs []ScrapeResult) AnalysisResult
 
-type AnalysisType string
-
-const (
-	AnalysisTypeAvailability   AnalysisType = "availability"
-	AnalysisTypeCompliance     AnalysisType = "compliance"
-	AnalysisTypeCost           AnalysisType = "cost"
-	AnalysisTypeOther          AnalysisType = "other"
-	AnalysisTypePerformance    AnalysisType = "performance"
-	AnalysisTypeRecommendation AnalysisType = "recommendation"
-	AnalysisTypeReliability    AnalysisType = "reliability"
-	AnalysisTypeSecurity       AnalysisType = "security"
-)
-
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
-var severityRank = map[Severity]int{
-	SeverityCritical: 5,
-	SeverityHigh:     4,
-	SeverityMedium:   3,
-	SeverityLow:      2,
-	SeverityInfo:     1,
+var severityRank = map[models.Severity]int{
+	models.SeverityCritical: 5,
+	models.SeverityHigh:     4,
+	models.SeverityMedium:   3,
+	models.SeverityLow:      2,
+	models.SeverityInfo:     1,
 }
 
 // IsMoreSevere compares whether s1 is more severe than s2.
-func IsMoreSevere(s1, s2 Severity) bool {
+func IsMoreSevere(s1, s2 models.Severity) bool {
 	return severityRank[s1] > severityRank[s2]
 }
 
@@ -71,13 +48,13 @@ func IsMoreSevere(s1, s2 Severity) bool {
 type AnalysisResult struct {
 	ExternalID    string
 	ConfigType    string
-	Summary       string         // Summary of the analysis
-	Analysis      map[string]any // Detailed metadata of the analysis
-	AnalysisType  AnalysisType   // Type of analysis, e.g. availability, compliance, cost, security, performance.
-	Severity      Severity       // Severity of the analysis, e.g. critical, high, medium, low, info
-	Source        string         // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
-	Analyzer      string         // Very brief description of the analysis
-	Messages      []string       // A detailed paragraphs of the analysis
+	Summary       string              // Summary of the analysis
+	Analysis      map[string]any      // Detailed metadata of the analysis
+	AnalysisType  models.AnalysisType // Type of analysis, e.g. availability, compliance, cost, security, performance.
+	Severity      models.Severity     // Severity of the analysis, e.g. critical, high, medium, low, info
+	Source        string              // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
+	Analyzer      string              // Very brief description of the analysis
+	Messages      []string            // A detailed paragraphs of the analysis
 	Status        string
 	FirstObserved *time.Time
 	LastObserved  *time.Time
@@ -92,8 +69,8 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 		ConfigType:    t.ConfigType,
 		Analyzer:      t.Analyzer,
 		Message:       strings.Join(t.Messages, "<br><br>"),
-		Severity:      string(t.Severity),
-		AnalysisType:  string(t.AnalysisType),
+		Severity:      t.Severity,
+		AnalysisType:  t.AnalysisType,
 		Summary:       t.Summary,
 		Analysis:      t.Analysis,
 		Status:        t.Status,

@@ -10,30 +10,30 @@ import (
 	"github.com/flanksource/duty/models"
 )
 
-func mapCategoryToAnalysisType(category string) v1.AnalysisType {
+func mapCategoryToAnalysisType(category string) models.AnalysisType {
 	switch category {
 	case "cost_optimizing", "cost":
-		return v1.AnalysisTypeCost
+		return models.AnalysisTypeCost
 	case "performance":
-		return v1.AnalysisTypePerformance
+		return models.AnalysisTypePerformance
 	case "fault_tolerance":
-		return v1.AnalysisTypeReliability
+		return models.AnalysisTypeReliability
 	case "recommendation":
-		return v1.AnalysisTypeRecommendation
+		return models.AnalysisTypeRecommendation
 	default:
-		return v1.AnalysisTypeOther
+		return models.AnalysisTypeOther
 	}
 }
 
-func mapSeverity(severity string) v1.Severity {
+func mapSeverity(severity string) models.Severity {
 	switch severity {
 	case "Red":
-		return v1.SeverityCritical
+		return models.SeverityCritical
 	case "Yellow":
-		return v1.SeverityLow
+		return models.SeverityLow
 	}
 
-	return v1.SeverityInfo
+	return models.SeverityInfo
 }
 
 func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
