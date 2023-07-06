@@ -74,7 +74,7 @@ func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
 		for _, result := range resource.Results {
 			for pkg, vulnerabilities := range result.Vulnerabilities.GroupByPkg() {
 				analysis := &v1.AnalysisResult{
-					AnalysisType: v1.AnalysisTypeSecurity,
+					AnalysisType: models.AnalysisTypeSecurity,
 					Analyzer:     pkg,
 					ConfigType:   fmt.Sprintf("Kubernetes::%s", resource.Kind),
 					ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
@@ -127,7 +127,7 @@ func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
 						ConfigType:   fmt.Sprintf("Kubernetes::%s", resource.Kind),
 						ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
 						Analysis:     misconfigurationJSON,
-						AnalysisType: v1.AnalysisTypeSecurity,
+						AnalysisType: models.AnalysisTypeSecurity,
 						Analyzer:     misconfiguration.Title,
 						Messages:     []string{misconfiguration.Description, misconfiguration.Message},
 						Severity:     mapSeverity(misconfiguration.Severity),
@@ -143,18 +143,18 @@ func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
 	return results
 }
 
-func mapSeverity(severity string) v1.Severity {
+func mapSeverity(severity string) models.Severity {
 	switch severity {
 	case "CRITICAL":
-		return v1.SeverityCritical
+		return models.SeverityCritical
 	case "HIGH":
-		return v1.SeverityHigh
+		return models.SeverityHigh
 	case "MEDIUM":
-		return v1.SeverityMedium
+		return models.SeverityMedium
 	case "LOW":
-		return v1.SeverityLow
+		return models.SeverityLow
 	default:
-		return v1.SeverityInfo
+		return models.SeverityInfo
 	}
 }
 

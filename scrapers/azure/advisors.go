@@ -68,40 +68,40 @@ func getResourceID(input *armadvisor.ResourceMetadata) string {
 }
 
 // mapAnalysisType maps the advisor recommendation category to an analysis type.
-func mapAnalysisType(impactLevel *armadvisor.Category) v1.AnalysisType {
+func mapAnalysisType(impactLevel *armadvisor.Category) models.AnalysisType {
 	if impactLevel == nil {
-		return v1.AnalysisTypeOther
+		return models.AnalysisTypeOther
 	}
 
 	switch *impactLevel {
 	case armadvisor.CategoryCost:
-		return v1.AnalysisTypeCost
+		return models.AnalysisTypeCost
 	case armadvisor.CategoryHighAvailability:
-		return v1.AnalysisTypeAvailability
+		return models.AnalysisTypeAvailability
 	case armadvisor.CategoryOperationalExcellence:
-		return v1.AnalysisTypeRecommendation
+		return models.AnalysisTypeRecommendation
 	case armadvisor.CategoryPerformance:
-		return v1.AnalysisTypePerformance
+		return models.AnalysisTypePerformance
 	case armadvisor.CategorySecurity:
-		return v1.AnalysisTypeSecurity
+		return models.AnalysisTypeSecurity
 	default:
-		return v1.AnalysisTypeOther
+		return models.AnalysisTypeOther
 	}
 }
 
 // mapSeverity maps the advisor impact level to a severity.
-func mapSeverity(impactLevel *armadvisor.Impact) v1.Severity {
+func mapSeverity(impactLevel *armadvisor.Impact) models.Severity {
 	if impactLevel == nil {
-		return v1.SeverityLow
+		return models.SeverityLow
 	}
 
 	switch *impactLevel {
 	case armadvisor.ImpactHigh:
-		return v1.SeverityHigh
+		return models.SeverityHigh
 	case armadvisor.ImpactMedium:
-		return v1.SeverityMedium
+		return models.SeverityMedium
 	default:
-		return v1.SeverityLow
+		return models.SeverityLow
 	}
 }
 

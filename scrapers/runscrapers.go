@@ -93,8 +93,8 @@ func summarizeChanges(changes []v1.ChangeResult) []v1.ChangeResult {
 func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.ScrapeResults {
 	if result.AnalysisResult != nil {
 		if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
-			result.AnalysisResult.AnalysisType = v1.AnalysisType(rule.Category)
-			result.AnalysisResult.Severity = v1.Severity(rule.Severity)
+			result.AnalysisResult.AnalysisType = models.AnalysisType(rule.Category)
+			result.AnalysisResult.Severity = models.Severity(rule.Severity)
 		}
 	}
 
