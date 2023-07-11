@@ -6,6 +6,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
+	"github.com/flanksource/duty/migrate"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/pflag"
 	"gorm.io/gorm"
@@ -63,7 +64,10 @@ func Init(connection string) error {
 	}
 
 	if runMigrations {
-		if err = duty.Migrate(connection, nil); err != nil {
+		opts := &migrate.MigrateOptions{
+			IgnoreFiles: []string{"012_changelog.sql"},
+		}
+		if err = duty.Migrate(connection, opts); err != nil {
 			return err
 		}
 	}

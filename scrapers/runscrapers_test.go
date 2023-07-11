@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -66,7 +65,9 @@ var _ = Describe("Scrapers test", func() {
 
 					Expect(want.ID).To(Equal(got.ID))
 					Expect(want.ConfigClass).To(Equal(got.ConfigClass))
-					Expect(compare(want.Config, got.Config)).To(Equal(""))
+					wantJSON, _ := json.Marshal(want.Config)
+					gotJSON, _ := json.Marshal(got.Config)
+					Expect(wantJSON).To(MatchJSON(gotJSON))
 				}
 			})
 		}
@@ -161,27 +162,4 @@ func getFixtureResult(fixture string) []v1.ScrapeResult {
 		Fail(fmt.Sprintf("Failed to unmarshal fixture: %v", err))
 	}
 	return results
-}
-
-func toJSON(i interface{}) []byte {
-	switch v := i.(type) {
-	case string:
-		return []byte(v)
-	}
-
-	b, _ := json.Marshal(i)
-	return b
-}
-
-func compare(a interface{}, b interface{}) string {
-	patch, err := jsonpatch.CreateMergePatch(toJSON(a), toJSON(b))
-	if err != nil {
-		return err.Error()
-	}
-
-	if len(patch) <= 2 { // no patch or empty array
-		return ""
-	}
-
-	return string(patch)
 }
