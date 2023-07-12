@@ -176,7 +176,29 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			if err != nil {
 				return results, errors.Wrapf(err, "Failed parse properties %s", input)
 			}
-			input.Config = props.Map()
+
+			propMap := make(map[string]any)
+			// Remove comments and tabs
+			for key, val := range props.Map() {
+				if before, _, exists := strings.Cut(val, "\t"); exists {
+					val = before
+				}
+				if exists := strings.Contains(val, "#"); exists {
+					open := false
+					for i, ch := range val {
+						// Properties with strings are stored in single quotes
+						if ch == '\'' {
+							open = !open
+						}
+						if ch == '#' && !open {
+							val = strings.TrimSpace(val[0:i])
+							break
+						}
+					}
+				}
+				propMap[key] = val
+			}
+			input.Config = propMap
 		} else if input.Format == "yaml" {
 			contentByte, err := kyaml.YAMLToJSON([]byte(input.Config.(string)))
 			if err != nil {

@@ -3,34 +3,48 @@
   "source": "github.com/flanksource/canary-checker/fixtures/minimal/http_pass_single.yaml",
   "id": "http-pass-single",
   "config_class": "Canary",
-  "config": {
-    "apiVersion": "canaries.flanksource.com/v1",
-    "kind": "Canary",
-    "metadata": {
-      "labels": {
-        "canary": "http"
-      },
-      "name": "http-pass-single"
-    },
-    "spec": {
-      "http": [
-        {
-          "endpoint": "https://httpbin.demo.aws.flanksource.com/status/200",
-          "maxSSLExpiry": 7,
-          "name": "sample-check",
-          "responseCodes": [
-            201,
-            200,
-            301
-          ],
-          "responseContent": "",
-          "test": {
-            "expr": "code == 200"
+  "config":{
+        "apiVersion": "canaries.flanksource.com/v1",
+        "kind": "Canary",
+        "metadata": {
+          "labels": {
+            "canary": "http"
           },
-          "thresholdMillis": 3000
+          "name": "http-pass-single"
+        },
+        "spec": {
+          "http": [
+            {
+              "endpoint": "https://httpbin.demo.aws.flanksource.com/status/200",
+              "name": "http-deprecated-endpoint"
+            },
+            {
+              "name": "http-minimal-check",
+              "url": "https://httpbin.demo.aws.flanksource.com/status/200"
+            },
+            {
+              "maxSSLExpiry": 7,
+              "name": "http-param-tests",
+              "responseCodes": [
+                201,
+                200,
+                301
+              ],
+              "responseContent": "",
+              "url": "https://httpbin.demo.aws.flanksource.com/status/200"
+            },
+            {
+              "display": {
+                "template": "code={{.code}}, age={{.sslAge}}"
+              },
+              "name": "http-expr-tests",
+              "test": {
+                "expr": "code in [200,201,301] and sslAge \u003e Duration('7d')"
+              },
+              "url": "https://httpbin.demo.aws.flanksource.com/status/200"
+            }
+          ],
+          "interval": 30
         }
-      ],
-      "interval": 30
-    }
-  }
+      } 
 }]

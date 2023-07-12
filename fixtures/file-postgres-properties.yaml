@@ -1,0 +1,6 @@
+file:
+  - format: properties
+    type: PostgreSQLProperties
+    id: postgresql-properties
+    paths:
+      - ./fixtures/file-postgres-properties.conf
