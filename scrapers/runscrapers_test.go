@@ -39,6 +39,7 @@ var _ = Describe("Scrapers test", func() {
 			"file-script",
 			"file-script-gotemplate",
 			"file-mask",
+			"file-postgres-properties",
 		}
 
 		for _, fixtureName := range fixtures {
