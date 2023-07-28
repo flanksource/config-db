@@ -21,11 +21,11 @@ type KubernetesScraper struct {
 
 const ConfigTypePrefix = "Kubernetes::"
 
-func (kubernetes KubernetesScraper) CanScrape(configs v1.ConfigScraper) bool {
+func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
 }
 
-func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ScraperSpec) v1.ScrapeResults {
 	var (
 		results       v1.ScrapeResults
 		changeResults v1.ScrapeResults

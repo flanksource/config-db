@@ -22,8 +22,8 @@ import (
 // Scraper ...
 // +kubebuilder:object:generate=false
 type Scraper interface {
-	Scrape(ctx *ScrapeContext, config ConfigScraper) ScrapeResults
-	CanScrape(config ConfigScraper) bool
+	Scrape(ctx *ScrapeContext, config ScraperSpec) ScrapeResults
+	CanScrape(config ScraperSpec) bool
 }
 
 // Analyzer ...
@@ -351,7 +351,7 @@ type ScrapeContext struct {
 	Namespace            string
 	Kubernetes           *kubernetes.Clientset
 	KubernetesRestConfig *rest.Config
-	Scraper              *ConfigScraper
+	Scraper              *ScraperSpec
 	ScraperID            *uuid.UUID
 }
 
@@ -367,7 +367,7 @@ func (ctx ScrapeContext) Read(path string) ([]byte, string, error) {
 }
 
 // WithScraper ...
-func (ctx ScrapeContext) WithScraper(config *ConfigScraper) ScrapeContext {
+func (ctx ScrapeContext) WithScraper(config *ScraperSpec) ScrapeContext {
 	ctx.Scraper = config
 	return ctx
 

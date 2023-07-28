@@ -97,12 +97,12 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Sync jobs if new scrape config is created
 	if changed || scrapeConfig.Generation == 1 {
-		scrapeConfig.Spec.ConfigScraper.ID = string(scrapeConfig.GetUID())
-		if _, err := scrapers.RunScraper(scrapeConfig.Spec.ConfigScraper); err != nil {
+		scrapeConfig.Spec.ID = string(scrapeConfig.GetUID())
+		if _, err := scrapers.RunScraper(scrapeConfig.Spec); err != nil {
 			logger.Error(err, "failed to run scraper")
 			return ctrl.Result{Requeue: true, RequeueAfter: 2 * time.Minute}, err
 		}
-		scrapers.AddToCron(scrapeConfig.Spec.ConfigScraper, string(scrapeConfig.GetUID()))
+		scrapers.AddToCron(scrapeConfig.Spec, string(scrapeConfig.GetUID()))
 	}
 
 	return ctrl.Result{}, nil

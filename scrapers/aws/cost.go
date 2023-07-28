@@ -131,7 +131,7 @@ func fetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
 
 type CostScraper struct{}
 
-func (awsCost CostScraper) CanScrape(config v1.ConfigScraper) bool {
+func (awsCost CostScraper) CanScrape(config v1.ScraperSpec) bool {
 	for _, awsConfig := range config.AWS {
 		if awsConfig.CostReporting.S3BucketPath != "" || awsConfig.CostReporting.Table != "" {
 			return true
@@ -140,7 +140,7 @@ func (awsCost CostScraper) CanScrape(config v1.ConfigScraper) bool {
 	return false
 }
 
-func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ConfigScraper) v1.ScrapeResults {
+func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ScraperSpec) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
 	for _, awsConfig := range config.AWS {

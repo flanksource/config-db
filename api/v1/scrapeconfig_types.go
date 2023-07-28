@@ -24,11 +24,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ScrapeConfigSpec defines the desired state of ScrapeConfig
-type ScrapeConfigSpec struct {
-	ConfigScraper `json:",inline"`
-}
-
 // ScrapeConfigStatus defines the observed state of ScrapeConfig
 type ScrapeConfigStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
@@ -42,7 +37,7 @@ type ScrapeConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ScrapeConfigSpec   `json:"spec,omitempty"`
+	Spec   ScraperSpec        `json:"spec,omitempty"`
 	Status ScrapeConfigStatus `json:"status,omitempty"`
 }
 

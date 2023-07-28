@@ -102,10 +102,10 @@ func startScraperCron(configFiles []string) {
 
 		fn := func() {
 			if _, err := scrapers.RunScraper(_scraper); err != nil {
-				logger.Errorf("Error running scraper(id=%s): %v", _scraper.ID, err)
+				logger.Errorf("Error running scraper(id=%s): %v", scraper.ID, err)
 			}
 		}
-		go scrapers.AtomicRunner(_scraper.ID, fn)()
+		go scrapers.AtomicRunner(scraper.ID.String(), fn)()
 	}
 }
 

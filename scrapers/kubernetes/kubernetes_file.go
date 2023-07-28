@@ -117,12 +117,12 @@ func findBySelector(ctx *v1.ScrapeContext, client *kubernetes.Clientset, config 
 	return pods, nil
 }
 
-func (kubernetes KubernetesFileScraper) CanScrape(configs v1.ConfigScraper) bool {
+func (kubernetes KubernetesFileScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.KubernetesFile) > 0
 }
 
 // Scrape ...
-func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+func (kubernetes KubernetesFileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ScraperSpec) v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 	if len(configs.KubernetesFile) == 0 {
 		return results

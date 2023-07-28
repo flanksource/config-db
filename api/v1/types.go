@@ -22,8 +22,8 @@ var AllScraperConfigs = map[string]any{
 	"trivy":          Trivy{},
 }
 
-// ConfigScraper ...
-type ConfigScraper struct {
+// ScraperSpec defines the desired state of Config scraper
+type ScraperSpec struct {
 	ID             string           `json:"-"`
 	LogLevel       string           `json:"logLevel,omitempty"`
 	Schedule       string           `json:"schedule,omitempty"`
@@ -41,20 +41,20 @@ type ConfigScraper struct {
 	Full bool `json:"full,omitempty"`
 }
 
-func (c ConfigScraper) GenerateName() (string, error) {
+func (c ScraperSpec) GenerateName() (string, error) {
 	return utils.Hash(c)
 }
 
 // IsEmpty ...
-func (c ConfigScraper) IsEmpty() bool {
+func (c ScraperSpec) IsEmpty() bool {
 	return len(c.AWS) == 0 && len(c.File) == 0
 }
 
-func (c ConfigScraper) IsTrace() bool {
+func (c ScraperSpec) IsTrace() bool {
 	return c.LogLevel == "trace"
 }
 
-func (c ConfigScraper) IsDebug() bool {
+func (c ScraperSpec) IsDebug() bool {
 	return c.LogLevel == "debug"
 }
 

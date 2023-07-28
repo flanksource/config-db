@@ -18,7 +18,7 @@ import (
 )
 
 // Run ...
-func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult, error) {
+func Run(ctx *v1.ScrapeContext, configs ...v1.ScraperSpec) ([]v1.ScrapeResult, error) {
 	cwd, _ := os.Getwd()
 	logger.Infof("Scraping configs from (PWD: %s)", cwd)
 
@@ -90,7 +90,7 @@ func summarizeChanges(changes []v1.ChangeResult) []v1.ChangeResult {
 }
 
 // processScrapeResult extracts possibly more configs from the result
-func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.ScrapeResults {
+func processScrapeResult(config v1.ScraperSpec, result v1.ScrapeResult) v1.ScrapeResults {
 	if result.AnalysisResult != nil {
 		if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
 			result.AnalysisResult.AnalysisType = models.AnalysisType(rule.Category)

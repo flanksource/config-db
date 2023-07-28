@@ -8,8 +8,8 @@ import (
 )
 
 // V1ConfigScraper generates a v1.ConfigScraper from a models.ConfigScraper
-func V1ConfigScraper(cs models.ConfigScraper) (v1.ConfigScraper, error) {
-	var spec v1.ConfigScraper
+func V1ConfigScraper(cs models.ConfigScraper) (v1.ScraperSpec, error) {
+	var spec v1.ScraperSpec
 	if err := json.Unmarshal([]byte(cs.Spec), &spec); err != nil {
 		return spec, err
 	}

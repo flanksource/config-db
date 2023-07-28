@@ -31,9 +31,9 @@ var Run = &cobra.Command{
 			db.MustInit()
 		}
 
-		var scraperSpecs []v1.ConfigScraper
+		var scraperSpecs []v1.ScraperSpec
 		for i := range scraperConfigs {
-			scraperSpecs = append(scraperSpecs, scraperConfigs[i].Spec.ConfigScraper)
+			scraperSpecs = append(scraperSpecs, scraperConfigs[i].Spec)
 		}
 
 		ctx := api.NewScrapeContext(nil, nil)

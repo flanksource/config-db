@@ -19,11 +19,11 @@ import (
 type SqlScraper struct {
 }
 
-func (s SqlScraper) CanScrape(configs v1.ConfigScraper) bool {
+func (s SqlScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.SQL) > 0
 }
 
-func (s SqlScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+func (s SqlScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ScraperSpec) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, _config := range configs.SQL {
 		var (

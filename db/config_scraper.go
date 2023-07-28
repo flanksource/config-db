@@ -71,7 +71,7 @@ func PersistScrapeConfigFromCRD(scrapeConfig *v1.ScrapeConfig) (bool, error) {
 		Name:   fmt.Sprintf("%s/%s", scrapeConfig.Namespace, scrapeConfig.Name),
 		Source: models.SourceCRD,
 	}
-	configScraper.Spec, _ = utils.StructToJSON(scrapeConfig.Spec.ConfigScraper)
+	configScraper.Spec, _ = utils.StructToJSON(scrapeConfig.Spec)
 
 	tx := db.Table("config_scrapers").Save(&configScraper)
 	return tx.RowsAffected > 0, tx.Error

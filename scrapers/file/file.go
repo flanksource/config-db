@@ -63,11 +63,11 @@ func convertToLocalPath(uri string) string {
 	return p + path.Base(_uri.Path) + "-" + hex.EncodeToString(hash[:])[0:8]
 }
 
-func (file FileScraper) CanScrape(configs v1.ConfigScraper) bool {
+func (file FileScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.File) > 0
 }
 
-func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ConfigScraper) v1.ScrapeResults {
+func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ScraperSpec) v1.ScrapeResults {
 	pwd, _ := os.Getwd()
 	cacheDir := path.Join(pwd, ".config-db", "cache", "files")
 	results := v1.ScrapeResults{}

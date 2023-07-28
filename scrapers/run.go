@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func RunScraper(scraper v1.ConfigScraper) (v1.ScrapeResults, error) {
+func RunScraper(scraper v1.ScraperSpec) (v1.ScrapeResults, error) {
 	id, err := uuid.Parse(scraper.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse uuid[%s]: %w", scraper.ID, err)
