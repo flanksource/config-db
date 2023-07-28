@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 
@@ -31,35 +32,41 @@ var Run = &cobra.Command{
 			db.MustInit()
 		}
 
-		var scraperSpecs []v1.ScraperSpec
-		for i := range scraperConfigs {
-			scraperSpecs = append(scraperSpecs, scraperConfigs[i].Spec)
-		}
-
-		ctx := api.NewScrapeContext(nil, nil)
-		results, err := scrapers.Run(ctx, scraperSpecs...)
-		if err != nil {
-			logger.Fatalf(err.Error())
-		}
-
-		if db.ConnectionString != "" {
-			logger.Infof("Exporting %d resources to DB", len(results))
-			if err = db.SaveResults(ctx, results); err != nil {
-				logger.Errorf("Failed to update db: %+v", err)
-			}
-		} else if outputDir != "" {
-			logger.Infof("Exporting %d resources to %s", len(results), outputDir)
-
-			for _, result := range results {
-				if err := exportResource(result, filename, outputDir); err != nil {
-					logger.Fatalf("failed to export results %v", err)
-				}
-			}
-
-		} else {
+		if db.ConnectionString == "" && outputDir == "" {
 			logger.Fatalf("skipping export: neither --output-dir or --db is specified")
 		}
+
+		for _, scraperConfig := range scraperConfigs {
+			ctx := api.NewScrapeContext(nil, nil)
+			if err := scrapeAndStore(ctx, scraperConfig.Spec); err != nil {
+				logger.Errorf("error scraping config: (name=%s) %v", scraperConfig.Name, err)
+			}
+		}
 	},
+}
+
+func scrapeAndStore(ctx *v1.ScrapeContext, spec v1.ScraperSpec) error {
+	results, err := scrapers.Run(ctx, spec)
+	if err != nil {
+		return err
+	}
+
+	if db.ConnectionString != "" {
+		logger.Infof("Exporting %d resources to DB", len(results))
+		return db.SaveResults(ctx, results)
+	}
+
+	if outputDir != "" {
+		logger.Infof("Exporting %d resources to %s", len(results), outputDir)
+
+		for _, result := range results {
+			if err := exportResource(result, filename, outputDir); err != nil {
+				return fmt.Errorf("failed to export results %v", err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func exportResource(resource v1.ScrapeResult, filename, outputDir string) error {
