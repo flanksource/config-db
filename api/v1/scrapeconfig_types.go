@@ -17,6 +17,10 @@ limitations under the License.
 package v1
 
 import (
+	"encoding/json"
+
+	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty/models"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -40,6 +44,23 @@ type ScrapeConfig struct {
 
 	Spec   ScrapeConfigSpec   `json:"spec,omitempty"`
 	Status ScrapeConfigStatus `json:"status,omitempty"`
+}
+
+func (t *ScrapeConfig) ToModel() (models.ConfigScraper, error) {
+	spec, err := json.Marshal(t.Spec)
+	if err != nil {
+		return models.ConfigScraper{}, err
+	}
+
+	return models.ConfigScraper{
+		Name:   t.Name,
+		Spec:   string(spec),
+		Source: t.Annotations["source"],
+	}, nil
+}
+
+func (t *ScrapeConfig) GenerateName() (string, error) {
+	return utils.Hash(t)
 }
 
 //+kubebuilder:object:root=true

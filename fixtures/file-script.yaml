@@ -1,13 +1,18 @@
-file:
-  - type: Config
-    id: $.id
-    name: $.name
-    transform:
-      script:
-        javascript: |+
-          for (var i = 0; i < config.length; i++) {
-            config[i].added ="a"
-          }
-          JSON.stringify(config)
-    paths:
-      - fixtures/data/multiple-configs.json
+apiVersion: configs.flanksource.com/v1
+kind: Config
+metadata:
+  name: file-script-scraper
+spec:
+  file:
+    - type: Config
+      id: $.id
+      name: $.name
+      transform:
+        script:
+          javascript: |+
+            for (var i = 0; i < config.length; i++) {
+              config[i].added ="a"
+            }
+            JSON.stringify(config)
+      paths:
+        - fixtures/data/multiple-configs.json

@@ -83,15 +83,13 @@ func GetScrapeConfigsOfAgent(agentID uuid.UUID) ([]models.ConfigScraper, error) 
 	return configScrapers, err
 }
 
-func PersistScrapeConfigFromFile(configScraperSpec v1.ConfigScraper) (models.ConfigScraper, error) {
-	var configScraper models.ConfigScraper
-	spec, err := utils.StructToJSON(configScraperSpec)
+func PersistScrapeConfigFromFile(configScraperSpec v1.ScrapeConfig) (models.ConfigScraper, error) {
+	configScraper, err := configScraperSpec.ToModel()
 	if err != nil {
-		return configScraper, fmt.Errorf("error converting scraper spec to JSON: %w", err)
+		return configScraper, err
 	}
 
-	// Check if exists
-	tx := db.Table("config_scrapers").Where("spec = ?", spec).Find(&configScraper)
+	tx := db.Table("config_scrapers").Where("spec = ?", configScraper.Spec).Find(&configScraper)
 	if tx.Error != nil {
 		return configScraper, tx.Error
 	}
@@ -99,13 +97,10 @@ func PersistScrapeConfigFromFile(configScraperSpec v1.ConfigScraper) (models.Con
 		return configScraper, nil
 	}
 
-	// Create if not exists
-	configScraper.Spec = spec
 	configScraper.Name, err = configScraperSpec.GenerateName()
 	configScraper.Source = models.SourceConfigFile
 	if err != nil {
 		return configScraper, err
 	}
-	tx = db.Table("config_scrapers").Create(&configScraper)
-	return configScraper, tx.Error
+	return configScraper, db.Create(&configScraper).Error
 }

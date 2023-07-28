@@ -1,6 +1,11 @@
-file:
-  - type: $.Config.InstanceType
-    id: $.Config.InstanceId
-    path:
-      - config*.json
-      - test*.json
+apiVersion: configs.flanksource.com/v1
+kind: Config
+metadata:
+  name: file-scraper
+spec:
+  file:
+    - type: $.Config.InstanceType
+      id: $.Config.InstanceId
+      path:
+        - config*.json
+        - test*.json

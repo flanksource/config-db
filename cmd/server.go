@@ -64,7 +64,6 @@ func serve(configFiles []string) {
 		}
 	}
 
-	// Run this in a goroutine to make it non-blocking for server start
 	go startScraperCron(configFiles)
 
 	go jobs.ScheduleJobs()
@@ -81,8 +80,8 @@ func startScraperCron(configFiles []string) {
 	}
 
 	logger.Infof("Persisting %d config files", len(scraperConfigsFiles))
-	for _, scraper := range scraperConfigsFiles {
-		_, err := db.PersistScrapeConfigFromFile(scraper)
+	for _, scrapeConfig := range scraperConfigsFiles {
+		_, err := db.PersistScrapeConfigFromFile(scrapeConfig)
 		if err != nil {
 			logger.Fatalf("Error persisting scrape config to db: %v", err)
 		}

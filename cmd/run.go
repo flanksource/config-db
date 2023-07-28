@@ -31,8 +31,13 @@ var Run = &cobra.Command{
 			db.MustInit()
 		}
 
+		var scraperSpecs []v1.ConfigScraper
+		for i := range scraperConfigs {
+			scraperSpecs = append(scraperSpecs, scraperConfigs[i].Spec.ConfigScraper)
+		}
+
 		ctx := api.NewScrapeContext(nil, nil)
-		results, err := scrapers.Run(ctx, scraperConfigs...)
+		results, err := scrapers.Run(ctx, scraperSpecs...)
 		if err != nil {
 			logger.Fatalf(err.Error())
 		}

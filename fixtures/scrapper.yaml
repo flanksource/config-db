@@ -1,6 +1,11 @@
-aws:
- - region: ap-south-1
-   compliance: true
-   patch_states: true
-   patch_details: true
-   inventory: true
+apiVersion: configs.flanksource.com/v1
+kind: Config
+metadata:
+  name: aws-general-scraper
+spec:
+  aws:
+    - region: ap-south-1
+      compliance: true
+      patch_states: true
+      patch_details: true
+      inventory: true

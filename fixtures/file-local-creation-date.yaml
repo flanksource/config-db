@@ -1,11 +1,16 @@
-file:
-  - type: $.aws[0].region
-    id: $.aws[0].region
-    createFields:
-      - $.aws[0].made_at
-      - $.aws[0].created_at
-    deleteFields:
-      - "$.aws[0].removed_at"
-      - "$.aws[0].deleted_at"
-    paths:
-      - fixtures/data/test.yaml
+apiVersion: configs.flanksource.com/v1
+kind: Config
+metadata:
+  name: file-local-creation-date.yaml
+spec:
+  file:
+    - type: $.aws[0].region
+      id: $.aws[0].region
+      createFields:
+        - $.aws[0].made_at
+        - $.aws[0].created_at
+      deleteFields:
+        - "$.aws[0].removed_at"
+        - "$.aws[0].deleted_at"
+      paths:
+        - fixtures/data/test.yaml

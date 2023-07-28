@@ -1,5 +1,10 @@
-azure:
-  - organisation: flanksource
-    subscriptionId: e3911016-5810-415f-b075-682db169988f
-    region:
-      - eu-west-2
+apiVersion: configs.flanksource.com/v1
+kind: Config
+metadata:
+  name: azure-scraper
+spec:
+  azure:
+    - organisation: flanksource
+      subscriptionId: e3911016-5810-415f-b075-682db169988f
+      region:
+        - eu-west-2

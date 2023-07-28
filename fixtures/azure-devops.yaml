@@ -1,7 +1,12 @@
-azureDevops:
-  - connection: connection://Azure Devops/Flanksource
-    projects:
-      - Demo1
-    pipelines:
-      - "adhoc-release"
-      - "git automation"
+apiVersion: configs.flanksource.com/v1
+kind: Config
+metadata:
+  name: azure-devlops-scraper
+spec:
+  azureDevops:
+    - connection: connection://Azure Devops/Flanksource
+      projects:
+        - Demo1
+      pipelines:
+        - "adhoc-release"
+        - "git automation"
