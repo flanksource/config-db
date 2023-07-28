@@ -46,7 +46,7 @@ func ParseConfigs(files ...string) ([]ScrapeConfig, error) {
 func parseConfig(configfile string) ([]ScrapeConfig, error) {
 	configs, err := readFile(configfile)
 	if err != nil {
-		return nil, fmt.Errorf("error reading config file=%s: %v", configfile, err)
+		return nil, fmt.Errorf("error reading config file=%s: %w", configfile, err)
 	}
 
 	var scrapers []ScrapeConfig
@@ -58,7 +58,7 @@ func parseConfig(configfile string) ([]ScrapeConfig, error) {
 		var config ScrapeConfig
 		decoder := yamlutil.NewYAMLOrJSONDecoder(strings.NewReader(chunk), 1024)
 		if err := decoder.Decode(&config); err != nil {
-			return nil, fmt.Errorf("error decoding yaml. file=%s: %v", configfile, err)
+			return nil, fmt.Errorf("error decoding yaml. file=%s: %w", configfile, err)
 		}
 
 		scrapers = append(scrapers, config)

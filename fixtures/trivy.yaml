@@ -1,5 +1,5 @@
 apiVersion: configs.flanksource.com/v1
-kind: Config
+kind: ScrapeConfig
 metadata:
   name: trivy-scraper
 spec:

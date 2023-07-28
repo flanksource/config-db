@@ -1,9 +1,14 @@
-kubernetesFile:
-  - selector:
-      namespace: default
-      kind: Statefulset
-      name: postgresql
-    files:
-      - path:
-          - /etc/postgresql/postgresql.conf
-        format: properties
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: kubernetes-file-scraper
+spec:
+  kubernetesFile:
+    - selector:
+        namespace: default
+        kind: Statefulset
+        name: postgresql
+      files:
+        - path:
+            - /etc/postgresql/postgresql.conf
+          format: properties
