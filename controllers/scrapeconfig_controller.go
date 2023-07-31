@@ -98,7 +98,6 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Sync jobs if new scrape config is created
 	if changed || scrapeConfig.Generation == 1 {
-		scrapeConfig.Spec.ID = string(scrapeConfig.GetUID())
 		ctx := api.NewScrapeContext(ctx, *scrapeConfig)
 		if _, err := scrapers.RunScraper(ctx); err != nil {
 			logger.Error(err, "failed to run scraper")

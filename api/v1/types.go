@@ -24,7 +24,6 @@ var AllScraperConfigs = map[string]any{
 
 // ScraperSpec defines the desired state of Config scraper
 type ScraperSpec struct {
-	ID             string           `json:"-"`
 	LogLevel       string           `json:"logLevel,omitempty"`
 	Schedule       string           `json:"schedule,omitempty"`
 	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
