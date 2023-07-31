@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -37,7 +38,7 @@ var Run = &cobra.Command{
 		}
 
 		for _, scraperConfig := range scraperConfigs {
-			ctx := api.NewScrapeContext(scraperConfig, nil)
+			ctx := api.NewScrapeContext(context.Background(), scraperConfig)
 			if err := scrapeAndStore(ctx); err != nil {
 				logger.Errorf("error scraping config: (name=%s) %v", scraperConfig.Name, err)
 			}

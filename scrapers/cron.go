@@ -1,9 +1,11 @@
 package scrapers
 
 import (
+	"context"
 	"sync"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/robfig/cron/v3"
 )
@@ -38,14 +40,15 @@ func AtomicRunner(id string, fn func()) func() {
 	}
 }
 
-func AddToCron(scraper v1.ScrapeConfig, id string) {
+func AddToCron(scrapeConfig v1.ScrapeConfig) {
 	fn := func() {
-		if _, err := RunScraper(scraper); err != nil {
-			logger.Errorf("failed to run scraper %s: %v", id, err)
+		ctx := api.NewScrapeContext(context.Background(), scrapeConfig)
+		if _, err := RunScraper(ctx); err != nil {
+			logger.Errorf("failed to run scraper %s: %v", ctx.ScrapeConfig.GetUID(), err)
 		}
 	}
 
-	AddFuncToCron(id, scraper.Spec.Schedule, fn)
+	AddFuncToCron(string(scrapeConfig.GetUID()), scrapeConfig.Spec.Schedule, fn)
 }
 
 func AddFuncToCron(id, schedule string, fn func()) {

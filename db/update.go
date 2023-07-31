@@ -187,7 +187,7 @@ func upsertAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	logger.Tracef("[%s/%s] ==> %s", analysis.ConfigType, analysis.ExternalID, analysis)
 	analysis.ConfigID = uuid.MustParse(ci.ID)
 	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
-	analysis.ScraperID = ctx.ScraperID
+	analysis.ScraperID = ctx.ScrapeConfig.GetPersistedID()
 	if analysis.Status == "" {
 		analysis.Status = dutyModels.AnalysisStatusOpen
 	}
@@ -225,7 +225,8 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 				return errors.Wrapf(err, "unable to create config item: %s", result)
 			}
 
-			ci.ScraperID = ctx.ScraperID
+			ci.ScraperID = ctx.ScrapeConfig.GetPersistedID()
+
 			if err := updateCI(ctx, *ci); err != nil {
 				return err
 			}
@@ -248,9 +249,9 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 	}
 
-	if !startTime.IsZero() && ctx.ScraperID != nil {
+	if !startTime.IsZero() && ctx.ScrapeConfig.GetPersistedID() != nil {
 		// Any analysis that weren't observed again will be marked as resolved
-		if err := UpdateAnalysisStatusBefore(ctx, startTime, ctx.ScraperID.String(), dutyModels.AnalysisStatusResolved); err != nil {
+		if err := UpdateAnalysisStatusBefore(ctx, startTime, string(ctx.ScrapeConfig.GetUID()), dutyModels.AnalysisStatusResolved); err != nil {
 			logger.Errorf("failed to mark analysis before %v as healthy: %v", startTime, err)
 		}
 	}

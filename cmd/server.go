@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
@@ -97,10 +98,11 @@ func startScraperCron(configFiles []string) {
 		if err != nil {
 			logger.Fatalf("Error parsing config scraper: %v", err)
 		}
-		scrapers.AddToCron(_scraper, scraper.ID.String())
+		scrapers.AddToCron(_scraper)
 
 		fn := func() {
-			if _, err := scrapers.RunScraper(_scraper); err != nil {
+			ctx := api.NewScrapeContext(context.Background(), _scraper)
+			if _, err := scrapers.RunScraper(ctx); err != nil {
 				logger.Errorf("Error running scraper(id=%s): %v", scraper.ID, err)
 			}
 		}

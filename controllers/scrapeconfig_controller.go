@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/flanksource/config-db/api"
 	configsv1 "github.com/flanksource/config-db/api/v1"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -98,11 +99,12 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Sync jobs if new scrape config is created
 	if changed || scrapeConfig.Generation == 1 {
 		scrapeConfig.Spec.ID = string(scrapeConfig.GetUID())
-		if _, err := scrapers.RunScraper(*scrapeConfig); err != nil {
+		ctx := api.NewScrapeContext(ctx, *scrapeConfig)
+		if _, err := scrapers.RunScraper(ctx); err != nil {
 			logger.Error(err, "failed to run scraper")
 			return ctrl.Result{Requeue: true, RequeueAfter: 2 * time.Minute}, err
 		}
-		scrapers.AddToCron(*scrapeConfig, string(scrapeConfig.GetUID()))
+		scrapers.AddToCron(*scrapeConfig)
 	}
 
 	return ctrl.Result{}, nil

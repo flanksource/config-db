@@ -13,7 +13,6 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -352,7 +351,6 @@ type ScrapeContext struct {
 	Kubernetes           *kubernetes.Clientset
 	KubernetesRestConfig *rest.Config
 	ScrapeConfig         ScrapeConfig
-	ScraperID            *uuid.UUID
 }
 
 func (ctx ScrapeContext) Find(path string) ([]string, error) {

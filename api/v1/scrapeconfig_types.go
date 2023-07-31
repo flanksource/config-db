@@ -85,13 +85,13 @@ func (t *ScrapeConfig) GenerateName() (string, error) {
 	return utils.Hash(t)
 }
 
-func (t *ScrapeConfig) GetPersistedID() uuid.UUID {
+func (t *ScrapeConfig) GetPersistedID() *uuid.UUID {
 	if t.GetUID() == "" {
-		return uuid.Nil
+		return nil
 	}
 
 	u, _ := uuid.Parse(string(t.GetUID()))
-	return u
+	return &u
 }
 
 //+kubebuilder:object:root=true

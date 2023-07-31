@@ -31,9 +31,7 @@ func Run(ctx *v1.ScrapeContext) ([]v1.ScrapeResult, error) {
 		jobHistory := models.JobHistory{
 			Name:         fmt.Sprintf("scraper:%T", scraper),
 			ResourceType: "config_scraper",
-		}
-		if ctx.ScraperID != nil {
-			jobHistory.ResourceID = ctx.ScraperID.String()
+			ResourceID:   string(ctx.ScrapeConfig.GetUID()),
 		}
 
 		jobHistory.Start()
