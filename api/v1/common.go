@@ -8,6 +8,7 @@ import (
 
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	"github.com/flanksource/gomplate/v3"
 )
 
 type Filter struct {
@@ -19,6 +20,15 @@ type Script struct {
 	JSONPath   string `yaml:"jsonpath,omitempty" json:"jsonpath,omitempty"`
 	Expression string `yaml:"expr,omitempty" json:"expr,omitempty"`
 	Javascript string `yaml:"javascript,omitempty" json:"javascript,omitempty"`
+}
+
+func (s Script) ToGomplate() gomplate.Template {
+	return gomplate.Template{
+		Template:   s.GoTemplate,
+		JSONPath:   s.JSONPath,
+		Javascript: s.Javascript,
+		Expression: s.Expression,
+	}
 }
 
 func (s Script) IsEmpty() bool {
