@@ -21,7 +21,7 @@ func (gh GithubActionsScraper) CanScrape(spec v1.ScraperSpec) bool {
 // Scrape fetches github workflows and workflow runs from github API and converts the action executions (workflow runs) to change events.
 func (gh GithubActionsScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 	results := v1.ScrapeResults{}
-	for _, config := range ctx.Scraper.Spec.GithubActions {
+	for _, config := range ctx.ScrapeConfig.Spec.GithubActions {
 		client, err := NewGitHubActionsClient(ctx, config)
 		if err != nil {
 			results.Errorf(err, "failed to create github actions client for owner %s with repository %v", config.Owner, config.Repository)

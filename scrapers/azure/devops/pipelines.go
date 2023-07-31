@@ -20,7 +20,7 @@ func (ado AzureDevopsScraper) CanScrape(configs v1.ScraperSpec) bool {
 func (ado AzureDevopsScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 
 	results := v1.ScrapeResults{}
-	for _, config := range ctx.Scraper.Spec.AzureDevops {
+	for _, config := range ctx.ScrapeConfig.Spec.AzureDevops {
 		client, err := NewAzureDevopsClient(ctx, config)
 		if err != nil {
 			results.Errorf(err, "failed to create azure devops client for %s", config.Organization)

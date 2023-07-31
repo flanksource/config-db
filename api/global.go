@@ -17,7 +17,7 @@ var Namespace string
 func NewScrapeContext(scraper v1.ScrapeConfig, id *uuid.UUID) *v1.ScrapeContext {
 	return &v1.ScrapeContext{
 		Context:              goctx.Background(),
-		Scraper:              scraper,
+		ScrapeConfig:         scraper,
 		ScraperID:            id,
 		Namespace:            Namespace,
 		Kubernetes:           KubernetesClient,

@@ -351,7 +351,7 @@ type ScrapeContext struct {
 	Namespace            string
 	Kubernetes           *kubernetes.Clientset
 	KubernetesRestConfig *rest.Config
-	Scraper              ScrapeConfig
+	ScrapeConfig         ScrapeConfig
 	ScraperID            *uuid.UUID
 }
 
@@ -373,7 +373,7 @@ func (ctx ScrapeContext) GetNamespace() string {
 
 // IsTrace ...
 func (ctx ScrapeContext) IsTrace() bool {
-	return ctx.Scraper.Spec.IsTrace()
+	return ctx.ScrapeConfig.Spec.IsTrace()
 }
 
 // HydrateConnectionByURL ...

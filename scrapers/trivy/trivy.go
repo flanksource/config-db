@@ -32,7 +32,7 @@ func (t Scanner) CanScrape(config v1.ScraperSpec) bool {
 func (t Scanner) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
-	for i, config := range ctx.Scraper.Spec.Trivy {
+	for i, config := range ctx.ScrapeConfig.Spec.Trivy {
 		if config.IsEmpty() {
 			logger.Debugf("Trivy config [%d] is empty. Skipping ...", i+1)
 			continue

@@ -25,7 +25,7 @@ func (s SqlScraper) CanScrape(configs v1.ScraperSpec) bool {
 
 func (s SqlScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
-	for _, _config := range ctx.Scraper.Spec.SQL {
+	for _, _config := range ctx.ScrapeConfig.Spec.SQL {
 		var (
 			config     = _config
 			err        error
