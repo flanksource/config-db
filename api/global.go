@@ -14,7 +14,7 @@ var KubernetesClient *kubernetes.Clientset
 var KubernetesRestConfig *rest.Config
 var Namespace string
 
-func NewScrapeContext(scraper *v1.ScraperSpec, id *uuid.UUID) *v1.ScrapeContext {
+func NewScrapeContext(scraper v1.ScrapeConfig, id *uuid.UUID) *v1.ScrapeContext {
 	return &v1.ScrapeContext{
 		Context:              goctx.Background(),
 		Scraper:              scraper,

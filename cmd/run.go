@@ -33,11 +33,11 @@ var Run = &cobra.Command{
 		}
 
 		if db.ConnectionString == "" && outputDir == "" {
-			logger.Fatalf("skipping export: neither --output-dir or --db is specified")
+			logger.Fatalf("skipping export: neither --output-dir nor --db is specified")
 		}
 
 		for _, scraperConfig := range scraperConfigs {
-			ctx := api.NewScrapeContext(nil, nil)
+			ctx := api.NewScrapeContext(scraperConfig, nil)
 			if err := scrapeAndStore(ctx, scraperConfig.Spec); err != nil {
 				logger.Errorf("error scraping config: (name=%s) %v", scraperConfig.Name, err)
 			}

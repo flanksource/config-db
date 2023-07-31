@@ -38,14 +38,14 @@ func AtomicRunner(id string, fn func()) func() {
 	}
 }
 
-func AddToCron(scraper v1.ScraperSpec, id string) {
+func AddToCron(scraper v1.ScrapeConfig, id string) {
 	fn := func() {
 		if _, err := RunScraper(scraper); err != nil {
 			logger.Errorf("failed to run scraper %s: %v", id, err)
 		}
 	}
 
-	AddFuncToCron(id, scraper.Schedule, fn)
+	AddFuncToCron(id, scraper.Spec.Schedule, fn)
 }
 
 func AddFuncToCron(id, schedule string, fn func()) {

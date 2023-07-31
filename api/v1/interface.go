@@ -351,7 +351,7 @@ type ScrapeContext struct {
 	Namespace            string
 	Kubernetes           *kubernetes.Clientset
 	KubernetesRestConfig *rest.Config
-	Scraper              *ScraperSpec
+	Scraper              ScrapeConfig
 	ScraperID            *uuid.UUID
 }
 
@@ -366,13 +366,6 @@ func (ctx ScrapeContext) Read(path string) ([]byte, string, error) {
 	return content, filename, err
 }
 
-// WithScraper ...
-func (ctx ScrapeContext) WithScraper(config *ScraperSpec) ScrapeContext {
-	ctx.Scraper = config
-	return ctx
-
-}
-
 // GetNamespace ...
 func (ctx ScrapeContext) GetNamespace() string {
 	return ctx.Namespace
@@ -380,7 +373,7 @@ func (ctx ScrapeContext) GetNamespace() string {
 
 // IsTrace ...
 func (ctx ScrapeContext) IsTrace() bool {
-	return ctx.Scraper != nil && ctx.Scraper.IsTrace()
+	return ctx.Scraper.Spec.IsTrace()
 }
 
 // HydrateConnectionByURL ...

@@ -21,7 +21,9 @@ import (
 
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 )
 
 // ScrapeConfigStatus defines the observed state of ScrapeConfig
@@ -54,8 +56,42 @@ func (t *ScrapeConfig) ToModel() (models.ConfigScraper, error) {
 	}, nil
 }
 
+func ScrapeConfigFromModel(m models.ConfigScraper) (ScrapeConfig, error) {
+	var spec ScraperSpec
+	if err := json.Unmarshal([]byte(m.Spec), &spec); err != nil {
+		return ScrapeConfig{}, err
+	}
+
+	sc := ScrapeConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: m.Name,
+			Annotations: map[string]string{
+				"source": m.Source,
+			},
+			UID:               k8stypes.UID(m.ID.String()),
+			CreationTimestamp: metav1.Time{Time: m.CreatedAt},
+		},
+		Spec: spec,
+	}
+
+	if m.DeletedAt != nil {
+		sc.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: *m.DeletedAt}
+	}
+
+	return sc, nil
+}
+
 func (t *ScrapeConfig) GenerateName() (string, error) {
 	return utils.Hash(t)
+}
+
+func (t *ScrapeConfig) GetPersistedID() uuid.UUID {
+	if t.GetUID() == "" {
+		return uuid.Nil
+	}
+
+	u, _ := uuid.Parse(string(t.GetUID()))
+	return u
 }
 
 //+kubebuilder:object:root=true
