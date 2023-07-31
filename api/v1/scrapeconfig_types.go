@@ -19,7 +19,6 @@ package v1
 import (
 	"encoding/json"
 
-	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,10 +78,6 @@ func ScrapeConfigFromModel(m models.ConfigScraper) (ScrapeConfig, error) {
 	}
 
 	return sc, nil
-}
-
-func (t *ScrapeConfig) GenerateName() (string, error) {
-	return utils.Hash(t)
 }
 
 func (t *ScrapeConfig) GetPersistedID() *uuid.UUID {

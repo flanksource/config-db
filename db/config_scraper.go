@@ -83,8 +83,8 @@ func GetScrapeConfigsOfAgent(agentID uuid.UUID) ([]models.ConfigScraper, error) 
 	return configScrapers, err
 }
 
-func PersistScrapeConfigFromFile(configScraperSpec v1.ScrapeConfig) (models.ConfigScraper, error) {
-	configScraper, err := configScraperSpec.ToModel()
+func PersistScrapeConfigFromFile(scrapeConfig v1.ScrapeConfig) (models.ConfigScraper, error) {
+	configScraper, err := scrapeConfig.ToModel()
 	if err != nil {
 		return configScraper, err
 	}
@@ -97,7 +97,7 @@ func PersistScrapeConfigFromFile(configScraperSpec v1.ScrapeConfig) (models.Conf
 		return configScraper, nil
 	}
 
-	configScraper.Name, err = configScraperSpec.GenerateName()
+	configScraper.Name, err = scrapeConfig.Spec.GenerateName()
 	configScraper.Source = models.SourceConfigFile
 	if err != nil {
 		return configScraper, err

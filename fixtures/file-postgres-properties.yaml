@@ -1,7 +1,7 @@
 apiVersion: configs.flanksource.com/v1
 kind: ScrapeConfig
 metadata:
-  name: git-postgres-propertes-scraper
+  name: file-postgres-properties-scraper
 spec:
   file:
     - format: properties
