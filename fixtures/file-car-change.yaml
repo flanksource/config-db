@@ -1,6 +1,11 @@
-full: true
-file:
-  - type: Car
-    id: $.reg_no
-    paths:
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-car-change-scraper
+spec:
+  full: true
+  file:
+    - type: Car
+      id: $.reg_no
+      paths:
       - fixtures/data/car_changes.json

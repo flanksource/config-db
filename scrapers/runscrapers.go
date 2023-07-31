@@ -18,56 +18,52 @@ import (
 )
 
 // Run ...
-func Run(ctx *v1.ScrapeContext, configs ...v1.ConfigScraper) ([]v1.ScrapeResult, error) {
+func Run(ctx *v1.ScrapeContext) ([]v1.ScrapeResult, error) {
 	cwd, _ := os.Getwd()
 	logger.Infof("Scraping configs from (PWD: %s)", cwd)
 
 	var results v1.ScrapeResults
-	for _, config := range configs {
-		for _, scraper := range All {
-			if !scraper.CanScrape(config) {
-				continue
-			}
+	for _, scraper := range All {
+		if !scraper.CanScrape(ctx.ScrapeConfig.Spec) {
+			continue
+		}
 
-			jobHistory := models.JobHistory{
-				Name:         fmt.Sprintf("scraper:%T", scraper),
-				ResourceType: "config_scraper",
-			}
-			if ctx.ScraperID != nil {
-				jobHistory.ResourceID = ctx.ScraperID.String()
-			}
+		jobHistory := models.JobHistory{
+			Name:         fmt.Sprintf("scraper:%T", scraper),
+			ResourceType: "config_scraper",
+			ResourceID:   string(ctx.ScrapeConfig.GetUID()),
+		}
 
-			jobHistory.Start()
-			if err := db.PersistJobHistory(&jobHistory); err != nil {
-				logger.Errorf("Error persisting job history: %v", err)
-			}
+		jobHistory.Start()
+		if err := db.PersistJobHistory(&jobHistory); err != nil {
+			logger.Errorf("Error persisting job history: %v", err)
+		}
 
-			logger.Debugf("Starting to scrape [%s]", jobHistory.Name)
-			for _, result := range scraper.Scrape(ctx, config) {
-				scraped := processScrapeResult(config, result)
+		logger.Debugf("Starting to scrape [%s]", jobHistory.Name)
+		for _, result := range scraper.Scrape(ctx) {
+			scraped := processScrapeResult(ctx.ScrapeConfig.Spec, result)
 
-				for i := range scraped {
-					if scraped[i].Error != nil {
-						logger.Errorf("Error scraping %s: %v", scraped[i].ID, scraped[i].Error)
-						jobHistory.AddError(scraped[i].Error.Error())
-					}
+			for i := range scraped {
+				if scraped[i].Error != nil {
+					logger.Errorf("Error scraping %s: %v", scraped[i].ID, scraped[i].Error)
+					jobHistory.AddError(scraped[i].Error.Error())
 				}
-
-				if !scraped.HasErr() {
-					jobHistory.IncrSuccess()
-				}
-
-				results = append(results, scraped...)
 			}
 
-			jobHistory.End()
-			if err := db.PersistJobHistory(&jobHistory); err != nil {
-				logger.Errorf("Error persisting job history: %v", err)
+			if !scraped.HasErr() {
+				jobHistory.IncrSuccess()
 			}
+
+			results = append(results, scraped...)
+		}
+
+		jobHistory.End()
+		if err := db.PersistJobHistory(&jobHistory); err != nil {
+			logger.Errorf("Error persisting job history: %v", err)
 		}
 	}
 
-	logger.Infof("Completed scraping %d configs with %d results.", len(configs), len(results))
+	logger.Infof("Completed scraping with %d results.", len(results))
 	return results, nil
 }
 
@@ -90,7 +86,7 @@ func summarizeChanges(changes []v1.ChangeResult) []v1.ChangeResult {
 }
 
 // processScrapeResult extracts possibly more configs from the result
-func processScrapeResult(config v1.ConfigScraper, result v1.ScrapeResult) v1.ScrapeResults {
+func processScrapeResult(config v1.ScraperSpec, result v1.ScrapeResult) v1.ScrapeResults {
 	if result.AnalysisResult != nil {
 		if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
 			result.AnalysisResult.AnalysisType = models.AnalysisType(rule.Category)

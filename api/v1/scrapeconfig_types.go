@@ -17,13 +17,13 @@ limitations under the License.
 package v1
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
+	"encoding/json"
 
-// ScrapeConfigSpec defines the desired state of ScrapeConfig
-type ScrapeConfigSpec struct {
-	ConfigScraper `json:",inline"`
-}
+	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+)
 
 // ScrapeConfigStatus defines the observed state of ScrapeConfig
 type ScrapeConfigStatus struct {
@@ -38,8 +38,55 @@ type ScrapeConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ScrapeConfigSpec   `json:"spec,omitempty"`
+	Spec   ScraperSpec        `json:"spec,omitempty"`
 	Status ScrapeConfigStatus `json:"status,omitempty"`
+}
+
+func (t *ScrapeConfig) ToModel() (models.ConfigScraper, error) {
+	spec, err := json.Marshal(t.Spec)
+	if err != nil {
+		return models.ConfigScraper{}, err
+	}
+
+	return models.ConfigScraper{
+		Name:   t.Name,
+		Spec:   string(spec),
+		Source: t.Annotations["source"],
+	}, nil
+}
+
+func ScrapeConfigFromModel(m models.ConfigScraper) (ScrapeConfig, error) {
+	var spec ScraperSpec
+	if err := json.Unmarshal([]byte(m.Spec), &spec); err != nil {
+		return ScrapeConfig{}, err
+	}
+
+	sc := ScrapeConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: m.Name,
+			Annotations: map[string]string{
+				"source": m.Source,
+			},
+			UID:               k8stypes.UID(m.ID.String()),
+			CreationTimestamp: metav1.Time{Time: m.CreatedAt},
+		},
+		Spec: spec,
+	}
+
+	if m.DeletedAt != nil {
+		sc.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: *m.DeletedAt}
+	}
+
+	return sc, nil
+}
+
+func (t *ScrapeConfig) GetPersistedID() *uuid.UUID {
+	if t.GetUID() == "" {
+		return nil
+	}
+
+	u, _ := uuid.Parse(string(t.GetUID()))
+	return &u
 }
 
 //+kubebuilder:object:root=true

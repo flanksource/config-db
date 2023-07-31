@@ -1,6 +1,11 @@
-file:
-  - type: $.kind
-    id: $.metadata.name
-    url: github.com/flanksource/canary-checker
-    paths:
-      - fixtures/minimal/http_pass_single.yaml
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-git-scraper
+spec:
+  file:
+    - type: $.kind
+      id: $.metadata.name
+      url: github.com/flanksource/canary-checker
+      paths:
+        - fixtures/minimal/http_pass_single.yaml

@@ -1,5 +1,10 @@
-githubActions:
-  - owner: flanksource
-    repository: config-db
-    personalAccessToken:
-      value: <pat>
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: github-actions-scraper
+spec:
+  githubActions:
+    - owner: flanksource
+      repository: config-db
+      personalAccessToken:
+        value: <pat>

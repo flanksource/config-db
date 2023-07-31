@@ -1,37 +1,42 @@
-aws:
-  - region:
-      - eu-west-2
-      - us-east-1
-      - af-south-1
-      - ap-south-1
-      - eu-central-1
-    compliance: true
-    patch_states: false
-    trusted_advisor_check: false
-    patch_details: false
-    cost_reporting:
-      s3_bucket_path: s3://flanksource-cost-reports/query-results
-      database: athenacurcfn_flanksource_report
-      table: flanksource_report
-      region: af-south-1
-    inventory: true
-    exclude:
-      - Amazon EC2 Reserved Instances Optimization
-      - Savings Plan
-      # - trusted_advisor
-      # - cloudtrail
-    # include:
-    #   - vpc
-    #   # - subnet
-    # - vpc
-    # - SecurityGroup
-    transform:
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: aws-scraper
+spec:
+  aws:
+    - region:
+        - eu-west-2
+        - us-east-1
+        - af-south-1
+        - ap-south-1
+        - eu-central-1
+      compliance: true
+      patch_states: false
+      trusted_advisor_check: false
+      patch_details: false
+      cost_reporting:
+        s3_bucket_path: s3://flanksource-cost-reports/query-results
+        database: athenacurcfn_flanksource_report
+        table: flanksource_report
+        region: af-south-1
+      inventory: true
       exclude:
-        - jsonpath: $.tags
-        - jsonpath: $.privateDnsNameOptionsOnLaunch
-        # - jsonpath: availableIpAddressCount
-        - jsonpath: outpostArn
-        - jsonpath: mapCustomerOwnedIpOnLaunch
-        - jsonpath: subnetArn
-        # - jsonpath: usageOperationUpdateTime
-        # - jsonpath: $..privateIPAddresses
+        - Amazon EC2 Reserved Instances Optimization
+        - Savings Plan
+        # - trusted_advisor
+        # - cloudtrail
+      # include:
+      #   - vpc
+      #   # - subnet
+      # - vpc
+      # - SecurityGroup
+      transform:
+        exclude:
+          - jsonpath: $.tags
+          - jsonpath: $.privateDnsNameOptionsOnLaunch
+          # - jsonpath: availableIpAddressCount
+          - jsonpath: outpostArn
+          - jsonpath: mapCustomerOwnedIpOnLaunch
+          - jsonpath: subnetArn
+          # - jsonpath: usageOperationUpdateTime
+          # - jsonpath: $..privateIPAddresses

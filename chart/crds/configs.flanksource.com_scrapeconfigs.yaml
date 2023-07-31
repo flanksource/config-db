@@ -33,7 +33,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: ScrapeConfigSpec defines the desired state of ScrapeConfig
+            description: ScraperSpec defines the desired state of Config scraper
             properties:
               aws:
                 items:

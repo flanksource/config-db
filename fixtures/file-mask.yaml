@@ -1,16 +1,21 @@
-file:
-  - type: Config
-    id: $.id
-    name: $.name
-    transform:
-      mask:
-        - selector:
-            type: Config
-          jsonpath: $.password
-          value: md5sum
-        - selector:
-            type: Config
-          jsonpath: $.secret
-          value: '***'
-    paths:
-      - fixtures/data/single-config.json
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-mask-scraper
+spec:
+  file:
+    - type: Config
+      id: $.id
+      name: $.name
+      transform:
+        mask:
+          - selector:
+              type: Config
+            jsonpath: $.password
+            value: md5sum
+          - selector:
+              type: Config
+            jsonpath: $.secret
+            value: '***'
+      paths:
+        - fixtures/data/single-config.json

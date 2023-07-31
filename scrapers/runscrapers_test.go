@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
@@ -45,11 +46,11 @@ var _ = Describe("Scrapers test", func() {
 		for _, fixtureName := range fixtures {
 			fixture := fixtureName
 			It(fixture, func() {
-				config := getConfig(fixture)
+				config := getConfigSpec(fixture)
 				expected := getFixtureResult(fixture)
-				ctx := &v1.ScrapeContext{Context: context.Background()}
+				ctx := api.NewScrapeContext(context.Background(), config)
 
-				results, err := Run(ctx, config)
+				results, err := Run(ctx)
 				Expect(err).To(BeNil())
 
 				err = db.SaveResults(ctx, results)
@@ -78,13 +79,13 @@ var _ = Describe("Scrapers test", func() {
 		var storedConfigItem *models.ConfigItem
 
 		It("should create a new config item", func() {
-			config := getConfig("file-car")
+			config := getConfigSpec("file-car")
 			configScraper, err := db.PersistScrapeConfigFromFile(config)
 			Expect(err).To(BeNil())
 
-			ctx := &v1.ScrapeContext{ScraperID: &configScraper.ID, Context: context.Background()}
+			ctx := api.NewScrapeContext(context.Background(), config)
 
-			results, err := Run(ctx, config)
+			results, err := Run(ctx)
 			Expect(err).To(BeNil())
 
 			logger.Infof("SCRAPER ID: %s", configScraper.ID)
@@ -104,10 +105,11 @@ var _ = Describe("Scrapers test", func() {
 		})
 
 		It("should store the changes from the config", func() {
-			config := getConfig("file-car-change")
-			ctx := &v1.ScrapeContext{Context: context.Background()}
+			config := getConfigSpec("file-car-change")
 
-			results, err := Run(ctx, config)
+			ctx := api.NewScrapeContext(context.Background(), config)
+
+			results, err := Run(ctx)
 			Expect(err).To(BeNil())
 
 			err = db.SaveResults(ctx, results)
@@ -144,7 +146,7 @@ var _ = Describe("Scrapers test", func() {
 	})
 })
 
-func getConfig(name string) v1.ConfigScraper {
+func getConfigSpec(name string) v1.ScrapeConfig {
 	configs, err := v1.ParseConfigs("fixtures/" + name + ".yaml")
 	if err != nil {
 		Fail(fmt.Sprintf("Failed to parse config: %v", err))

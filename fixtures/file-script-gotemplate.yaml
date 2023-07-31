@@ -1,17 +1,22 @@
-file:
-  - type: MyConfig
-    id: "$.id"
-    name: "scraped"
-    transform:
-      script:
-        gotemplate: |+
-          [
-            {
-              {{range $i := .config}}
-                "name-{{.id}}": "hi {{.name}}",
-              {{end}}
-              "id": "1"
-            }
-          ]
-    paths:
-      - fixtures/data/multiple-configs.json
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-script-gotemplate-scraper
+spec:
+  file:
+    - type: MyConfig
+      id: "$.id"
+      name: "scraped"
+      transform:
+        script:
+          gotemplate: |+
+            [
+              {
+                {{range $i := .config}}
+                  "name-{{.id}}": "hi {{.name}}",
+                {{end}}
+                "id": "1"
+              }
+            ]
+      paths:
+        - fixtures/data/multiple-configs.json

@@ -1,5 +1,10 @@
-file:
-  - type: Car
-    id: $.reg_no
-    paths:
-      - fixtures/data/car.json
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-car-scraper
+spec:
+  file:
+    - type: Car
+      id: $.reg_no
+      paths:
+        - fixtures/data/car.json

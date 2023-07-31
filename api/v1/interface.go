@@ -13,7 +13,6 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -22,8 +21,8 @@ import (
 // Scraper ...
 // +kubebuilder:object:generate=false
 type Scraper interface {
-	Scrape(ctx *ScrapeContext, config ConfigScraper) ScrapeResults
-	CanScrape(config ConfigScraper) bool
+	Scrape(ctx *ScrapeContext) ScrapeResults
+	CanScrape(config ScraperSpec) bool
 }
 
 // Analyzer ...
@@ -351,8 +350,7 @@ type ScrapeContext struct {
 	Namespace            string
 	Kubernetes           *kubernetes.Clientset
 	KubernetesRestConfig *rest.Config
-	Scraper              *ConfigScraper
-	ScraperID            *uuid.UUID
+	ScrapeConfig         ScrapeConfig
 }
 
 func (ctx ScrapeContext) Find(path string) ([]string, error) {
@@ -366,13 +364,6 @@ func (ctx ScrapeContext) Read(path string) ([]byte, string, error) {
 	return content, filename, err
 }
 
-// WithScraper ...
-func (ctx ScrapeContext) WithScraper(config *ConfigScraper) ScrapeContext {
-	ctx.Scraper = config
-	return ctx
-
-}
-
 // GetNamespace ...
 func (ctx ScrapeContext) GetNamespace() string {
 	return ctx.Namespace
@@ -380,7 +371,7 @@ func (ctx ScrapeContext) GetNamespace() string {
 
 // IsTrace ...
 func (ctx ScrapeContext) IsTrace() bool {
-	return ctx.Scraper != nil && ctx.Scraper.IsTrace()
+	return ctx.ScrapeConfig.Spec.IsTrace()
 }
 
 // HydrateConnectionByURL ...

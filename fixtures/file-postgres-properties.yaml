@@ -1,6 +1,11 @@
-file:
-  - format: properties
-    type: PostgreSQLProperties
-    id: postgresql-properties
-    paths:
-      - ./fixtures/file-postgres-properties.conf
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-postgres-properties-scraper
+spec:
+  file:
+    - format: properties
+      type: PostgreSQLProperties
+      id: postgresql-properties
+      paths:
+        - ./fixtures/file-postgres-properties.conf

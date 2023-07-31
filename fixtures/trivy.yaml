@@ -1,14 +1,19 @@
-trivy:
-  - version: "0.40.0"
-    ignoreUnfixed: true
-    severity:
-      - critical
-      - high
-    scanners:
-      - config
-      - license
-      - rbac
-      - secret
-      - vuln
-    kubernetes: {}
-    timeout: "20m" # Increased from the default 5m timeout
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: trivy-scraper
+spec:
+  trivy:
+    - version: "0.40.0"
+      ignoreUnfixed: true
+      severity:
+        - critical
+        - high
+      scanners:
+        - config
+        - license
+        - rbac
+        - secret
+        - vuln
+      kubernetes: {}
+      timeout: "20m" # Increased from the default 5m timeout

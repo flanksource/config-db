@@ -6,9 +6,9 @@ import (
 	"net/url"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/query"
 
@@ -64,7 +64,6 @@ func serve(configFiles []string) {
 		}
 	}
 
-	// Run this in a goroutine to make it non-blocking for server start
 	go startScraperCron(configFiles)
 
 	go jobs.ScheduleJobs()
@@ -81,8 +80,8 @@ func startScraperCron(configFiles []string) {
 	}
 
 	logger.Infof("Persisting %d config files", len(scraperConfigsFiles))
-	for _, scraper := range scraperConfigsFiles {
-		_, err := db.PersistScrapeConfigFromFile(scraper)
+	for _, scrapeConfig := range scraperConfigsFiles {
+		_, err := db.PersistScrapeConfigFromFile(scrapeConfig)
 		if err != nil {
 			logger.Fatalf("Error persisting scrape config to db: %v", err)
 		}
@@ -95,18 +94,19 @@ func startScraperCron(configFiles []string) {
 
 	logger.Infof("Starting %d scrapers", len(scraperConfigsDB))
 	for _, scraper := range scraperConfigsDB {
-		_scraper, err := models.V1ConfigScraper(scraper)
+		_scraper, err := v1.ScrapeConfigFromModel(scraper)
 		if err != nil {
 			logger.Fatalf("Error parsing config scraper: %v", err)
 		}
-		scrapers.AddToCron(_scraper, scraper.ID.String())
+		scrapers.AddToCron(_scraper)
 
 		fn := func() {
-			if _, err := scrapers.RunScraper(_scraper); err != nil {
-				logger.Errorf("Error running scraper(id=%s): %v", _scraper.ID, err)
+			ctx := api.NewScrapeContext(context.Background(), _scraper)
+			if _, err := scrapers.RunScraper(ctx); err != nil {
+				logger.Errorf("Error running scraper(id=%s): %v", scraper.ID, err)
 			}
 		}
-		go scrapers.AtomicRunner(_scraper.ID, fn)()
+		go scrapers.AtomicRunner(scraper.ID.String(), fn)()
 	}
 }
 

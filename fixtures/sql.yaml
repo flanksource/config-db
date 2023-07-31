@@ -1,32 +1,37 @@
-sql:
-  - connection: postgresql://postgres:postgres@localhost:5432/incident_commander?sslmode=disable
-    type: Postgres::Database
-    id: "incident_commander"
-    items: .database
-    query: |
-      WITH settings AS (
-        select json_object_agg(name, concat(setting,unit)) as setting from pg_settings where source != 'default'
-        ),
-        roles as (
-        SELECT json_object_agg(usename,
-          CASE
-            WHEN usesuper AND usecreatedb THEN
-            CAST('superuser, create database' AS pg_catalog.text)
-            WHEN usesuper THEN
-              CAST('superuser' AS pg_catalog.text)
-            WHEN usecreatedb THEN
-              CAST('create database' AS pg_catalog.text)
-            ELSE
-              CAST('' AS pg_catalog.text)
-          END) as role
-        FROM pg_catalog.pg_user
-      )
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: incident-commander-postgres-scraper
+spec:
+  sql:
+    - connection: postgresql://postgres:postgres@localhost:5432/incident_commander?sslmode=disable
+      type: Postgres::Database
+      id: "incident_commander"
+      items: .database
+      query: |
+        WITH settings AS (
+          select json_object_agg(name, concat(setting,unit)) as setting from pg_settings where source != 'default'
+          ),
+          roles as (
+          SELECT json_object_agg(usename,
+            CASE
+              WHEN usesuper AND usecreatedb THEN
+              CAST('superuser, create database' AS pg_catalog.text)
+              WHEN usesuper THEN
+                CAST('superuser' AS pg_catalog.text)
+              WHEN usecreatedb THEN
+                CAST('create database' AS pg_catalog.text)
+              ELSE
+                CAST('' AS pg_catalog.text)
+            END) as role
+          FROM pg_catalog.pg_user
+        )
 
-      select json_build_object('version', version(), 'settings', s.setting, 'roles', r.role ) as database FROM (SELECT * from settings) as s, (Select * from roles) as r
-  # - connection: connection://Postgres/incident-commander (Alternatively, you can use a connection)
-  # - connection: postgresql://$(username):$(password)@localhost:5432/incident_commander?sslmode=disable (connection string can also be templatized)
-  #   auth:
-  #     username:
-  #       value: postgres
-  #     password:
-  #       value: postgres
+        select json_build_object('version', version(), 'settings', s.setting, 'roles', r.role ) as database FROM (SELECT * from settings) as s, (Select * from roles) as r
+    # - connection: connection://Postgres/incident-commander (Alternatively, you can use a connection)
+    # - connection: postgresql://$(username):$(password)@localhost:5432/incident_commander?sslmode=disable (connection string can also be templatized)
+    #   auth:
+    #     username:
+    #       value: postgres
+    #     password:
+    #       value: postgres

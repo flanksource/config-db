@@ -1,5 +1,10 @@
-file:
-  - type: $.aws[0].region
-    id: $.aws[0].region
-    paths:
-      - fixtures/data/test.yaml
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-local-scraper
+spec:
+  file:
+    - type: $.aws[0].region
+      id: $.aws[0].region
+      paths:
+        - fixtures/data/test.yaml
