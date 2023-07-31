@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
@@ -47,9 +48,9 @@ var _ = Describe("Scrapers test", func() {
 			It(fixture, func() {
 				config := getConfigSpec(fixture)
 				expected := getFixtureResult(fixture)
-				ctx := &v1.ScrapeContext{Context: context.Background()}
+				ctx := api.NewScrapeContext(config, nil)
 
-				results, err := Run(ctx, config.Spec)
+				results, err := Run(ctx)
 				Expect(err).To(BeNil())
 
 				err = db.SaveResults(ctx, results)
@@ -82,9 +83,9 @@ var _ = Describe("Scrapers test", func() {
 			configScraper, err := db.PersistScrapeConfigFromFile(config)
 			Expect(err).To(BeNil())
 
-			ctx := &v1.ScrapeContext{ScraperID: &configScraper.ID, Context: context.Background()}
+			ctx := api.NewScrapeContext(config, &configScraper.ID)
 
-			results, err := Run(ctx, config.Spec)
+			results, err := Run(ctx)
 			Expect(err).To(BeNil())
 
 			logger.Infof("SCRAPER ID: %s", configScraper.ID)
@@ -105,9 +106,10 @@ var _ = Describe("Scrapers test", func() {
 
 		It("should store the changes from the config", func() {
 			config := getConfigSpec("file-car-change")
-			ctx := &v1.ScrapeContext{Context: context.Background()}
 
-			results, err := Run(ctx, config.Spec)
+			ctx := api.NewScrapeContext(config, nil)
+
+			results, err := Run(ctx)
 			Expect(err).To(BeNil())
 
 			err = db.SaveResults(ctx, results)

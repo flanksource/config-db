@@ -140,10 +140,10 @@ func (awsCost CostScraper) CanScrape(config v1.ScraperSpec) bool {
 	return false
 }
 
-func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext, config v1.ScraperSpec) v1.ScrapeResults {
+func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
-	for _, awsConfig := range config.AWS {
+	for _, awsConfig := range ctx.Scraper.Spec.AWS {
 		session, err := NewSession(ctx, *awsConfig.AWSConnection, awsConfig.Region[0])
 		if err != nil {
 			return results.Errorf(err, "failed to create AWS session")

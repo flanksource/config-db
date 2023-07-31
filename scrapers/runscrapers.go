@@ -18,13 +18,13 @@ import (
 )
 
 // Run ...
-func Run(ctx *v1.ScrapeContext, config v1.ScraperSpec) ([]v1.ScrapeResult, error) {
+func Run(ctx *v1.ScrapeContext) ([]v1.ScrapeResult, error) {
 	cwd, _ := os.Getwd()
 	logger.Infof("Scraping configs from (PWD: %s)", cwd)
 
 	var results v1.ScrapeResults
 	for _, scraper := range All {
-		if !scraper.CanScrape(config) {
+		if !scraper.CanScrape(ctx.Scraper.Spec) {
 			continue
 		}
 
@@ -42,8 +42,8 @@ func Run(ctx *v1.ScrapeContext, config v1.ScraperSpec) ([]v1.ScrapeResult, error
 		}
 
 		logger.Debugf("Starting to scrape [%s]", jobHistory.Name)
-		for _, result := range scraper.Scrape(ctx, config) {
-			scraped := processScrapeResult(config, result)
+		for _, result := range scraper.Scrape(ctx) {
+			scraped := processScrapeResult(ctx.Scraper.Spec, result)
 
 			for i := range scraped {
 				if scraped[i].Error != nil {

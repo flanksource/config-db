@@ -32,9 +32,9 @@ func (azure Scraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Azure) > 0
 }
 
-func (azure Scraper) Scrape(ctx *v1.ScrapeContext, configs v1.ScraperSpec) v1.ScrapeResults {
+func (azure Scraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
-	for _, config := range configs.Azure {
+	for _, config := range ctx.Scraper.Spec.Azure {
 		if err := config.HydrateConnection(ctx); err != nil {
 			results.Errorf(err, "failed to populate config")
 			continue

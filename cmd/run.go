@@ -38,15 +38,15 @@ var Run = &cobra.Command{
 
 		for _, scraperConfig := range scraperConfigs {
 			ctx := api.NewScrapeContext(scraperConfig, nil)
-			if err := scrapeAndStore(ctx, scraperConfig.Spec); err != nil {
+			if err := scrapeAndStore(ctx); err != nil {
 				logger.Errorf("error scraping config: (name=%s) %v", scraperConfig.Name, err)
 			}
 		}
 	},
 }
 
-func scrapeAndStore(ctx *v1.ScrapeContext, spec v1.ScraperSpec) error {
-	results, err := scrapers.Run(ctx, spec)
+func scrapeAndStore(ctx *v1.ScrapeContext) error {
+	results, err := scrapers.Run(ctx)
 	if err != nil {
 		return err
 	}

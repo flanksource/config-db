@@ -67,12 +67,12 @@ func (file FileScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.File) > 0
 }
 
-func (file FileScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ScraperSpec) v1.ScrapeResults {
+func (file FileScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 	pwd, _ := os.Getwd()
 	cacheDir := path.Join(pwd, ".config-db", "cache", "files")
 	results := v1.ScrapeResults{}
 
-	for _, config := range configs.File {
+	for _, config := range ctx.Scraper.Spec.File {
 		url := config.URL
 		if connection, err := ctx.HydrateConnectionByURL(config.ConnectionName); err != nil {
 			results.Errorf(err, "failed to find connection")

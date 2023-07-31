@@ -25,13 +25,13 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
 }
 
-func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext, configs v1.ScraperSpec) v1.ScrapeResults {
+func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 	var (
 		results       v1.ScrapeResults
 		changeResults v1.ScrapeResults
 	)
 
-	for _, config := range configs.Kubernetes {
+	for _, config := range ctx.Scraper.Spec.Kubernetes {
 		if config.ClusterName == "" {
 			logger.Fatalf("clusterName missing from kubernetes configuration")
 		}

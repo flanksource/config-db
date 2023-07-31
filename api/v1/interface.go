@@ -22,7 +22,7 @@ import (
 // Scraper ...
 // +kubebuilder:object:generate=false
 type Scraper interface {
-	Scrape(ctx *ScrapeContext, config ScraperSpec) ScrapeResults
+	Scrape(ctx *ScrapeContext) ScrapeResults
 	CanScrape(config ScraperSpec) bool
 }
 
