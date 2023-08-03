@@ -74,12 +74,18 @@ func summarizeChanges(changes []v1.ChangeResult) []v1.ChangeResult {
 			continue
 		}
 
-		paths := utils.ExtractLeafNodesAndCommonParents(change.AsMap())
+		var patch map[string]any
+		if err := json.Unmarshal([]byte(change.Patches), &patch); err != nil {
+			logger.Errorf("failed to unmarshal patches as map[string]any: %v %v", change.Patches, err)
+			continue
+		}
+
+		paths := utils.ExtractLeafNodesAndCommonParents(patch)
 		if len(paths) == 0 {
 			continue
 		}
 
-		changes[i].Summary += strings.Join(paths, ",")
+		changes[i].Summary += strings.Join(paths, ", ")
 	}
 
 	return changes
