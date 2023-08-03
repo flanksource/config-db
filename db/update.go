@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
@@ -316,6 +317,11 @@ func generateConfigChange(newConf, prev models.ConfigItem) (*dutyModels.ConfigCh
 		return nil, fmt.Errorf("failed to create merge patch: %w", err)
 	}
 
+	var patchJSON map[string]any
+	if err := json.Unmarshal(patch, &patchJSON); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal patch: %w", err)
+	}
+
 	return &dutyModels.ConfigChange{
 		ConfigID:         newConf.ID,
 		ChangeType:       "diff",
@@ -323,6 +329,7 @@ func generateConfigChange(newConf, prev models.ConfigItem) (*dutyModels.ConfigCh
 		ID:               ulid.MustNew().AsUUID(),
 		Diff:             diff,
 		Patches:          string(patch),
+		Summary:          strings.Join(utils.ExtractLeafNodesAndCommonParents(patchJSON), ", "),
 	}, nil
 }
 
