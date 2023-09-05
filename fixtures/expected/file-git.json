@@ -14,6 +14,7 @@
         "name": "http-pass-single"
       },
       "spec": {
+        "interval": 30,
         "http": [
           {
             "endpoint": "https://httpbin.demo.aws.flanksource.com/status/200",
@@ -21,27 +22,47 @@
           },
           {
             "name": "http-minimal-check",
-            "url": "https://httpbin.demo.aws.flanksource.com/status/200"
+            "url": "https://httpbin.demo.aws.flanksource.com/status/200",
+            "metrics": [
+              {
+                "name": "httpbin_2xx_count",
+                "type": "counter",
+                "value": "result.code == 200 ? 1 : 0",
+                "labels": [
+                  {
+                    "name": "name",
+                    "value": "httpbin_2xx_count"
+                  },
+                  {
+                    "name": "check_name",
+                    "valueExpr": "check.name"
+                  },
+                  {
+                    "name": "status_class",
+                    "valueExpr": "string(result.code).charAt(0)"
+                  }
+                ]
+              }
+            ]
           },
           {
-            "maxSSLExpiry": 7,
             "name": "http-param-tests",
+            "url": "https://httpbin.demo.aws.flanksource.com/status/200",
             "responseCodes": [201, 200, 301],
             "responseContent": "",
-            "url": "https://httpbin.demo.aws.flanksource.com/status/200"
+            "maxSSLExpiry": 7
           },
           {
-            "display": {
-              "template": "code={{.code}}, age={{.sslAge}}"
-            },
             "name": "http-expr-tests",
+            "url": "https://httpbin.demo.aws.flanksource.com/status/200",
             "test": {
               "expr": "code in [200,201,301] && sslAge > Duration('7d')"
             },
-            "url": "https://httpbin.demo.aws.flanksource.com/status/200"
+            "display": {
+              "template": "code={{.code}}, age={{.sslAge}}"
+            }
           }
-        ],
-        "interval": 30
+        ]
       }
     }
   }
