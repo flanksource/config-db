@@ -103,7 +103,7 @@ func startScraperCron(configFiles []string) {
 
 		for _, k := range _scraper.Spec.Kubernetes {
 			ctx := api.NewScrapeContext(context.Background(), _scraper)
-			go exitOnError(kubernetes.WatchEvents(ctx, k), "error watching events")
+			go exitOnError(kubernetes.WatchEvents(ctx, k, kubernetesChangeEventConsumer), "error watching events")
 		}
 
 		fn := func() {
@@ -141,4 +141,8 @@ func exitOnError(err error, description string) {
 	if err != nil {
 		logger.Fatalf("%s %v", description, err)
 	}
+}
+
+func kubernetesChangeEventConsumer(ctx *v1.ScrapeContext, changes []*v1.ChangeResult) {
+	return
 }
