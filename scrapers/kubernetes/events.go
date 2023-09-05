@@ -10,7 +10,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
 	"github.com/google/uuid"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // InvolvedObject represents a Kubernetes InvolvedObject object
@@ -23,12 +23,32 @@ type InvolvedObject struct {
 
 // Event represents a Kubernetes Event object
 type Event struct {
-	Reason         string          `json:"reason,omitempty"`
-	Message        string          `json:"message,omitempty"`
-	InvolvedObject *InvolvedObject `json:"involvedObject,omitempty"`
+	Reason         string             `json:"reason,omitempty"`
+	Message        string             `json:"message,omitempty"`
+	Source         map[string]any     `json:"source,omitempty"`
+	Metadata       *metav1.ObjectMeta `json:"metadata,omitempty"`
+	InvolvedObject *InvolvedObject    `json:"involvedObject,omitempty"`
 }
 
-func (t *Event) FromObjMap(obj map[string]interface{}) error {
+func (t *Event) GetUID() string {
+	return string(t.Metadata.UID)
+}
+
+func (t *Event) AsMap() (map[string]any, error) {
+	eventJSON, err := json.Marshal(t)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal event object: %v", err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(eventJSON, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal event object: %v", err)
+	}
+
+	return result, nil
+}
+
+func (t *Event) FromObjMap(obj any) error {
 	eventJSON, err := json.Marshal(obj)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event object: %v", err)
@@ -53,14 +73,9 @@ func getSeverityFromReason(reason string, errKeywords, warnKeywords []string) st
 	return ""
 }
 
-func getSourceFromEvent(obj *unstructured.Unstructured) string {
-	val, ok := obj.Object["source"].(map[string]any)
-	if !ok {
-		return ""
-	}
-
-	keyVals := make([]string, 0, len(val))
-	for k, v := range val {
+func getSourceFromEvent(event Event) string {
+	keyVals := make([]string, 0, len(event.Source))
+	for k, v := range event.Source {
 		keyVals = append(keyVals, fmt.Sprintf("%s=%s", k, v))
 	}
 
@@ -68,37 +83,24 @@ func getSourceFromEvent(obj *unstructured.Unstructured) string {
 	return fmt.Sprintf("kubernetes/%s", strings.Join(keyVals, ","))
 }
 
-func getDetailsFromEvent(obj *unstructured.Unstructured) map[string]any {
-	details := make(map[string]any)
+func getDetailsFromEvent(event Event) map[string]any {
+	details, err := event.AsMap()
+	if err != nil {
+		logger.Errorf("failed to convert event to map: %v", err)
+		return nil
+	}
 
-	for k, v := range obj.Object {
-		switch k {
-		case "involvedObject":
-			continue
+	delete(details, "involvedObject")
 
-		case "metadata":
-			if metadata, ok := v.(map[string]any); ok {
-				delete(metadata, "managedFields")
-			}
-		}
-
-		details[k] = v
+	if metadata, ok := details["metadata"].(map[string]any); ok {
+		delete(metadata, "managedFields")
 	}
 
 	return details
 }
 
-func getChangeFromEvent(obj *unstructured.Unstructured, severityKeywords v1.SeverityKeywords) *v1.ChangeResult {
-	eventCreatedAt := obj.GetCreationTimestamp().Time
-
-	var event Event
-	if err := event.FromObjMap(obj.Object); err != nil {
-		logger.Errorf("failed to parse event: %v", err)
-		return nil
-	}
-
+func getChangeFromEvent(event Event, severityKeywords v1.SeverityKeywords) *v1.ChangeResult {
 	if event.InvolvedObject == nil {
-		logger.Debugf("event has no involved object: %v", event)
 		return nil
 	}
 
@@ -109,13 +111,13 @@ func getChangeFromEvent(obj *unstructured.Unstructured, severityKeywords v1.Seve
 
 	return &v1.ChangeResult{
 		ChangeType:       event.Reason,
-		CreatedAt:        &eventCreatedAt,
-		Details:          getDetailsFromEvent(obj),
-		ExternalChangeID: string(obj.GetUID()),
+		CreatedAt:        &event.Metadata.CreationTimestamp.Time,
+		Details:          getDetailsFromEvent(event),
+		ExternalChangeID: event.GetUID(),
 		ExternalID:       event.InvolvedObject.UID,
 		ConfigType:       ConfigTypePrefix + event.InvolvedObject.Kind,
 		Severity:         getSeverityFromReason(event.Reason, severityKeywords.Error, severityKeywords.Warn),
-		Source:           getSourceFromEvent(obj),
+		Source:           getSourceFromEvent(event),
 		Summary:          event.Message,
 	}
 }

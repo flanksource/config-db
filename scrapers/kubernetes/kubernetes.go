@@ -63,13 +63,18 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResul
 			}
 
 			if obj.GetKind() == "Event" {
-				reason, _ := obj.Object["reason"].(string)
-				if utils.MatchItems(reason, config.Event.Exclusions...) {
-					logger.Debugf("excluding event object for reason [%s].", reason)
+				var event Event
+				if err := event.FromObjMap(obj.Object); err != nil {
+					logger.Errorf("failed to parse event: %v", err)
+					return nil
+				}
+
+				if utils.MatchItems(event.Reason, config.Event.Exclusions...) {
+					logger.Debugf("excluding event object for reason [%s].", event.Reason)
 					continue
 				}
 
-				change := getChangeFromEvent(obj, config.Event.SeverityKeywords)
+				change := getChangeFromEvent(event, config.Event.SeverityKeywords)
 				if change != nil {
 					changeResults = append(changeResults, v1.ScrapeResult{
 						Changes: []v1.ChangeResult{*change},

@@ -11,6 +11,7 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/query"
+	"github.com/flanksource/config-db/scrapers/kubernetes"
 
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/labstack/echo/v4"
@@ -100,6 +101,11 @@ func startScraperCron(configFiles []string) {
 		}
 		scrapers.AddToCron(_scraper)
 
+		for _, k := range _scraper.Spec.Kubernetes {
+			ctx := api.NewScrapeContext(context.Background(), _scraper)
+			go exitOnError(kubernetes.WatchEvents(ctx, k), "error watching events")
+		}
+
 		fn := func() {
 			ctx := api.NewScrapeContext(context.Background(), _scraper)
 			if _, err := scrapers.RunScraper(ctx); err != nil {
@@ -129,4 +135,10 @@ func forward(e *echo.Echo, prefix string, target string) {
 
 func init() {
 	ServerFlags(Serve.Flags())
+}
+
+func exitOnError(err error, description string) {
+	if err != nil {
+		logger.Fatalf("%s %v", description, err)
+	}
 }
