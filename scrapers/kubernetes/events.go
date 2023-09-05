@@ -72,8 +72,14 @@ func getDetailsFromEvent(obj *unstructured.Unstructured) map[string]any {
 	details := make(map[string]any)
 
 	for k, v := range obj.Object {
-		if k == "involvedObject" {
+		switch k {
+		case "involvedObject":
 			continue
+
+		case "metadata":
+			if metadata, ok := v.(map[string]any); ok {
+				delete(metadata, "managedFields")
+			}
 		}
 
 		details[k] = v
