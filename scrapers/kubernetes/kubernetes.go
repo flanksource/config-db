@@ -224,6 +224,7 @@ func extractDeployNameFromReplicaSet(rs string) string {
 func getResourceIDsFromObjs(objs []*unstructured.Unstructured) map[string]map[string]map[string]string {
 	// {Namespace: {Kind: {Name: ID}}}
 	resourceIDMap := make(map[string]map[string]map[string]string)
+	resourceIDMap[""] = make(map[string]map[string]string)
 
 	for _, obj := range objs {
 		if collections.Contains([]string{"Namespace", "Deployment", "Node"}, obj.GetKind()) {

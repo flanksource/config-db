@@ -3,6 +3,7 @@ package scrapers
 import (
 	"fmt"
 
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 )
@@ -26,5 +27,6 @@ func RunScraper(ctx *v1.ScrapeContext) (v1.ScrapeResults, error) {
 		}
 	}
 
+	logger.Infof("Saved scrape results: %s", ctx.ScrapeConfig.Name)
 	return results, nil
 }
