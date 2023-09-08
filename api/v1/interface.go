@@ -25,6 +25,13 @@ type Scraper interface {
 	CanScrape(config ScraperSpec) bool
 }
 
+// TargettedScraper can additionally scrape a predefined set of configs.
+// +kubebuilder:object:generate=false
+type TargettedScraper interface {
+	Scraper
+	ScrapeSome(ctx *ScrapeContext, configIndex int, ids []string) ScrapeResults
+}
+
 // Analyzer ...
 // +kubebuilder:object:generate=false
 type Analyzer func(configs []ScrapeResult) AnalysisResult

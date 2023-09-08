@@ -25,16 +25,57 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
 }
 
+type ItemID struct {
+	Name      string
+	Namespace string
+	Kind      string
+}
+
+func (t ItemID) Encode() string {
+	return fmt.Sprintf("%s/%s/%s", t.Name, t.Namespace, t.Kind)
+}
+
+func DecodeItemID(encoded string) ItemID {
+	parts := strings.Split(encoded, "/")
+	return ItemID{
+		Name:      parts[0],
+		Namespace: parts[1],
+		Kind:      parts[2],
+	}
+}
+
+func (kubernetes KubernetesScraper) ScrapeSome(ctx *v1.ScrapeContext, configIndex int, ids []string) v1.ScrapeResults {
+	logger.Debugf("ScrapeSome:: %d ids", len(ids))
+
+	config := ctx.ScrapeConfig.Spec.Kubernetes[configIndex]
+	var objects []*unstructured.Unstructured
+	for _, id := range ids {
+		itemID := DecodeItemID(id)
+		obj, err := ketall.KetOne(ctx, itemID.Name, itemID.Namespace, itemID.Kind, options.NewDefaultCmdOptions())
+		if err != nil {
+			logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", itemID.Kind, itemID.Name, itemID.Namespace, err)
+			continue
+		}
+
+		objects = append(objects, obj)
+	}
+
+	logger.Infof("Found %d objects for %d ids", len(objects), len(ids))
+
+	return extractResults(config, objects)
+}
+
 func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
-	var (
-		results       v1.ScrapeResults
-		changeResults v1.ScrapeResults
-	)
+	var results v1.ScrapeResults
 
 	for _, config := range ctx.ScrapeConfig.Spec.Kubernetes {
 		if config.ClusterName == "" {
 			logger.Fatalf("clusterName missing from kubernetes configuration")
 		}
+
+		opts := options.NewDefaultCmdOptions()
+		opts = updateOptions(opts, config)
+		objs := ketall.KetAll(opts)
 
 		// Add Cluster object first
 		clusterID := "Kubernetes/Cluster/" + config.ClusterName
@@ -47,107 +88,117 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResul
 			ID:          clusterID,
 		})
 
-		opts := options.NewDefaultCmdOptions()
-		opts = updateOptions(opts, config)
-		objs := ketall.KetAll(opts)
+		extracted := extractResults(config, objs)
+		results = append(results, extracted...)
+	}
 
-		resourceIDMap := getResourceIDsFromObjs(objs)
-		resourceIDMap[""]["Cluster"] = make(map[string]string)
-		resourceIDMap[""]["Cluster"][config.ClusterName] = clusterID
-		resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
+	return results
+}
 
-		for _, obj := range objs {
-			if string(obj.GetUID()) == "" {
-				logger.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
-				continue
-			}
+func extractResults(config v1.Kubernetes, objs []*unstructured.Unstructured) v1.ScrapeResults {
+	var (
+		results       v1.ScrapeResults
+		changeResults v1.ScrapeResults
+	)
 
-			if obj.GetKind() == "Event" {
-				var event Event
-				if err := event.FromObjMap(obj.Object); err != nil {
-					logger.Errorf("failed to parse event: %v", err)
-					return nil
-				}
+	clusterID := "Kubernetes/Cluster/" + config.ClusterName
 
-				if utils.MatchItems(event.Reason, config.Event.Exclusions...) {
-					logger.Debugf("excluding event object for reason [%s].", event.Reason)
-					continue
-				}
+	resourceIDMap := getResourceIDsFromObjs(objs)
+	resourceIDMap[""]["Cluster"] = make(map[string]string)
+	resourceIDMap[""]["Cluster"][config.ClusterName] = clusterID
+	resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
 
-				change := getChangeFromEvent(event, config.Event.SeverityKeywords)
-				if change != nil {
-					changeResults = append(changeResults, v1.ScrapeResult{
-						Changes: []v1.ChangeResult{*change},
-					})
-				}
-
-				// this is all we need from an event object
-				continue
-			}
-
-			var relationships v1.RelationshipResults
-			if obj.GetKind() == "Pod" {
-				spec := obj.Object["spec"].(map[string]interface{})
-				if spec["nodeName"] != nil {
-					nodeName := spec["nodeName"].(string)
-					nodeID := resourceIDMap[""]["Node"][nodeName]
-					relationships = append(relationships, v1.RelationshipResult{
-						ConfigExternalID: v1.ExternalID{
-							ExternalID: []string{string(obj.GetUID())},
-							ConfigType: ConfigTypePrefix + "Pod",
-						},
-						RelatedExternalID: v1.ExternalID{
-							ExternalID: []string{nodeID},
-							ConfigType: ConfigTypePrefix + "Node",
-						},
-						Relationship: "NodePod",
-					})
-				}
-			}
-
-			obj.SetManagedFields(nil)
-			annotations := obj.GetAnnotations()
-			if annotations != nil {
-				delete(annotations, "kubectl.kubernetes.io/last-applied-configuration")
-			}
-			obj.SetAnnotations(annotations)
-			metadata := obj.Object["metadata"].(map[string]interface{})
-			tags := make(map[string]interface{})
-			if metadata["labels"] != nil {
-				tags = metadata["labels"].(map[string]interface{})
-			}
-			if obj.GetNamespace() != "" {
-				tags["namespace"] = obj.GetNamespace()
-			}
-			tags["cluster"] = config.ClusterName
-
-			// Add health metadata
-			var status, description string
-			if healthStatus, err := health.GetResourceHealth(obj, nil); err == nil && healthStatus != nil {
-				status = string(healthStatus.Status)
-				description = healthStatus.Message
-			}
-
-			createdAt := obj.GetCreationTimestamp().Time
-			parentType, parentExternalID := getKubernetesParent(obj, resourceIDMap)
-			results = append(results, v1.ScrapeResult{
-				BaseScraper:         config.BaseScraper,
-				Name:                obj.GetName(),
-				Namespace:           obj.GetNamespace(),
-				ConfigClass:         obj.GetKind(),
-				Type:                ConfigTypePrefix + obj.GetKind(),
-				Status:              status,
-				Description:         description,
-				CreatedAt:           &createdAt,
-				Config:              cleanKubernetesObject(obj.Object),
-				ID:                  string(obj.GetUID()),
-				Tags:                stripLabels(convertStringInterfaceMapToStringMap(tags), "-hash"),
-				Aliases:             getKubernetesAlias(obj),
-				ParentExternalID:    parentExternalID,
-				ParentType:          ConfigTypePrefix + parentType,
-				RelationshipResults: relationships,
-			})
+	for _, obj := range objs {
+		if string(obj.GetUID()) == "" {
+			logger.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			continue
 		}
+
+		if obj.GetKind() == "Event" {
+			var event Event
+			if err := event.FromObjMap(obj.Object); err != nil {
+				logger.Errorf("failed to parse event: %v", err)
+				return nil
+			}
+
+			if utils.MatchItems(event.Reason, config.Event.Exclusions...) {
+				logger.Debugf("excluding event object for reason [%s].", event.Reason)
+				continue
+			}
+
+			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
+			if change != nil {
+				changeResults = append(changeResults, v1.ScrapeResult{
+					Changes: []v1.ChangeResult{*change},
+				})
+			}
+
+			// this is all we need from an event object
+			continue
+		}
+
+		var relationships v1.RelationshipResults
+		if obj.GetKind() == "Pod" {
+			spec := obj.Object["spec"].(map[string]interface{})
+			if spec["nodeName"] != nil {
+				nodeName := spec["nodeName"].(string)
+				nodeID := resourceIDMap[""]["Node"][nodeName]
+				relationships = append(relationships, v1.RelationshipResult{
+					ConfigExternalID: v1.ExternalID{
+						ExternalID: []string{string(obj.GetUID())},
+						ConfigType: ConfigTypePrefix + "Pod",
+					},
+					RelatedExternalID: v1.ExternalID{
+						ExternalID: []string{nodeID},
+						ConfigType: ConfigTypePrefix + "Node",
+					},
+					Relationship: "NodePod",
+				})
+			}
+		}
+
+		obj.SetManagedFields(nil)
+		annotations := obj.GetAnnotations()
+		if annotations != nil {
+			delete(annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		}
+		obj.SetAnnotations(annotations)
+		metadata := obj.Object["metadata"].(map[string]interface{})
+		tags := make(map[string]interface{})
+		if metadata["labels"] != nil {
+			tags = metadata["labels"].(map[string]interface{})
+		}
+		if obj.GetNamespace() != "" {
+			tags["namespace"] = obj.GetNamespace()
+		}
+		tags["cluster"] = config.ClusterName
+
+		// Add health metadata
+		var status, description string
+		if healthStatus, err := health.GetResourceHealth(obj, nil); err == nil && healthStatus != nil {
+			status = string(healthStatus.Status)
+			description = healthStatus.Message
+		}
+
+		createdAt := obj.GetCreationTimestamp().Time
+		parentType, parentExternalID := getKubernetesParent(obj, resourceIDMap)
+		results = append(results, v1.ScrapeResult{
+			BaseScraper:         config.BaseScraper,
+			Name:                obj.GetName(),
+			Namespace:           obj.GetNamespace(),
+			ConfigClass:         obj.GetKind(),
+			Type:                ConfigTypePrefix + obj.GetKind(),
+			Status:              status,
+			Description:         description,
+			CreatedAt:           &createdAt,
+			Config:              cleanKubernetesObject(obj.Object),
+			ID:                  string(obj.GetUID()),
+			Tags:                stripLabels(convertStringInterfaceMapToStringMap(tags), "-hash"),
+			Aliases:             getKubernetesAlias(obj),
+			ParentExternalID:    parentExternalID,
+			ParentType:          ConfigTypePrefix + parentType,
+			RelationshipResults: relationships,
+		})
 	}
 
 	results = append(results, changeResults...)

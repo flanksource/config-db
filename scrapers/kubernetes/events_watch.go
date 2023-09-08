@@ -1,8 +1,8 @@
 package kubernetes
 
 import (
-	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,20 +16,23 @@ import (
 var (
 	// eventWatchInterval is the schedule on which new K8s resources are scraped
 	// from the events
-	eventWatchInterval = time.Second * 10
+	eventWatchInterval = time.Second * 5
 )
 
-type consumerFunc func(ctx *v1.ScrapeContext, involvedObjects []*InvolvedObject)
+type consumerFunc func(ctx *v1.ScrapeContext, involvedObjects map[string]map[string]*InvolvedObject)
 
 type eventWatcher struct {
-	involvedObjects []*InvolvedObject
+	// involvedObjects keeps record of all the involved objects from events
+	// by the resource kind.
+	involvedObjects map[string]map[string]*InvolvedObject
 
 	lock *sync.Mutex
 }
 
 func WatchEvents(ctx *v1.ScrapeContext, config v1.Kubernetes, consume consumerFunc) error {
 	watcher := &eventWatcher{
-		lock: &sync.Mutex{},
+		lock:            &sync.Mutex{},
+		involvedObjects: make(map[string]map[string]*InvolvedObject),
 	}
 
 	go watcher.consumeChangeEvents(ctx, consume)
@@ -42,7 +45,7 @@ func WatchEvents(ctx *v1.ScrapeContext, config v1.Kubernetes, consume consumerFu
 func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error {
 	logger.Infof("Watching kubernetes events: %v", config)
 
-	watcher, err := ctx.Kubernetes.CoreV1().Events(config.Namespace).Watch(context.TODO(), metav1.ListOptions{})
+	watcher, err := ctx.Kubernetes.CoreV1().Events(config.Namespace).Watch(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to watch events: %w", err)
 	}
@@ -59,7 +62,12 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 			continue
 		}
 
-		if !utils.MatchItems(event.Reason, config.Event.Exclusions...) {
+		// TODO: Definitely need a new exclusion list in the kubernetes spec to exclude by pattern matching names (junit*, for example)
+		if strings.Contains(event.InvolvedObject.Name, "junit") || strings.Contains(event.InvolvedObject.Name, "hello-world") {
+			continue
+		}
+
+		if !utils.MatchItems(event.Reason, config.Event.Exclusions...) && false {
 			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
 			if change != nil {
 				if err := db.SaveResults(ctx, []v1.ScrapeResult{{Changes: []v1.ChangeResult{*change}}}); err != nil {
@@ -69,7 +77,10 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 		}
 
 		t.lock.Lock()
-		t.involvedObjects = append(t.involvedObjects, event.InvolvedObject)
+		if _, ok := t.involvedObjects[event.InvolvedObject.Kind]; !ok {
+			t.involvedObjects[event.InvolvedObject.Kind] = make(map[string]*InvolvedObject)
+		}
+		t.involvedObjects[event.InvolvedObject.Kind][event.GetUID()] = event.InvolvedObject
 		t.lock.Unlock()
 	}
 
@@ -82,14 +93,13 @@ func (t *eventWatcher) consumeChangeEvents(ctx *v1.ScrapeContext, consume consum
 	for {
 		time.Sleep(eventWatchInterval)
 
-		logger.Infof("Consuming buffer. Len: %d", len(t.involvedObjects))
 		if len(t.involvedObjects) == 0 {
-			return
+			continue
 		}
 
 		t.lock.Lock()
 		consume(ctx, t.involvedObjects)
-		t.involvedObjects = nil
+		t.involvedObjects = make(map[string]map[string]*InvolvedObject)
 		t.lock.Unlock()
 	}
 }

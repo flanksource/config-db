@@ -4,16 +4,15 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
+
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/query"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/labstack/echo/v4"
@@ -108,13 +107,13 @@ func startScraperCron(configFiles []string) {
 			go exitOnError(kubernetes.WatchEvents(ctx, k, kubernetesChangeEventConsumer), "error watching events")
 		}
 
-		fn := func() {
-			ctx := api.NewScrapeContext(context.Background(), _scraper)
-			if _, err := scrapers.RunScraper(ctx); err != nil {
-				logger.Errorf("Error running scraper(id=%s): %v", scraper.ID, err)
-			}
-		}
-		go scrapers.AtomicRunner(scraper.ID.String(), fn)()
+		// fn := func() {
+		// 	ctx := api.NewScrapeContext(context.Background(), _scraper)
+		// 	if _, err := scrapers.RunScraper(ctx); err != nil {
+		// 		logger.Errorf("Error running scraper(id=%s): %v", scraper.ID, err)
+		// 	}
+		// }
+		// go scrapers.AtomicRunner(scraper.ID.String(), fn)()
 	}
 }
 
@@ -145,34 +144,15 @@ func exitOnError(err error, description string) {
 	}
 }
 
-func kubernetesChangeEventConsumer(ctx *v1.ScrapeContext, changes []*kubernetes.InvolvedObject) {
-	resourcesPerKind := make(map[string]map[string]*kubernetes.InvolvedObject)
-	for _, c := range changes {
-		if resourcesPerKind[c.Kind] == nil {
-			resourcesPerKind[c.Kind] = make(map[string]*kubernetes.InvolvedObject)
+func kubernetesChangeEventConsumer(ctx *v1.ScrapeContext, resourcesPerKind map[string]map[string]*kubernetes.InvolvedObject) {
+	var resourceIDs []string
+	for kind, resources := range resourcesPerKind {
+		for _, r := range resources {
+			resourceIDs = append(resourceIDs, kubernetes.ItemID{Kind: kind, Name: r.Name, Namespace: r.Namespace}.Encode())
 		}
-
-		resourcesPerKind[c.Kind][c.UID] = c
 	}
 
-	for kind, resources := range resourcesPerKind {
-		if kind != "Pod" {
-			continue
-		}
-
-		for _, resource := range resources {
-			if strings.Contains(resource.Name, "junit") { // Temporary
-				continue
-			}
-
-			logger.Infof("Getting pod (name=%s, namespace=%s)", resource.Name, resource.Namespace)
-			pod, err := ctx.Kubernetes.CoreV1().Pods(resource.Namespace).Get(ctx, resource.Name, metav1.GetOptions{})
-			if err != nil {
-				logger.Errorf("failed to get pod (name=%s): %v", resource.Name, err)
-				continue
-			}
-
-			logger.Infof("Got pod %s", pod.Name)
-		}
+	if _, err := scrapers.RunSome(ctx, kubernetes.KubernetesScraper{}, 0, resourceIDs); err != nil {
+		logger.Errorf("Error running scraper(id=%s): %v", ctx.ScrapeConfig.GetUID(), err)
 	}
 }

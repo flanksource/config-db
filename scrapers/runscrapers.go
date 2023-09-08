@@ -17,6 +17,44 @@ import (
 	"github.com/flanksource/duty/models"
 )
 
+func RunSome(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, configIndex int, ids []string) ([]v1.ScrapeResult, error) {
+	jobHistory := models.JobHistory{
+		Name:         fmt.Sprintf("scraper:%T", scraper),
+		ResourceType: "config_scraper",
+		ResourceID:   string(ctx.ScrapeConfig.GetUID()),
+	}
+
+	jobHistory.Start()
+	if err := db.PersistJobHistory(&jobHistory); err != nil {
+		logger.Errorf("Error persisting job history: %v", err)
+	}
+
+	var results v1.ScrapeResults
+	for _, result := range scraper.ScrapeSome(ctx, configIndex, ids) {
+		scraped := processScrapeResult(ctx.ScrapeConfig.Spec, result)
+
+		for i := range scraped {
+			if scraped[i].Error != nil {
+				logger.Errorf("Error scraping %s: %v", scraped[i].ID, scraped[i].Error)
+				jobHistory.AddError(scraped[i].Error.Error())
+			}
+		}
+
+		if !scraped.HasErr() {
+			jobHistory.IncrSuccess()
+		}
+
+		results = append(results, scraped...)
+	}
+
+	jobHistory.End()
+	if err := db.PersistJobHistory(&jobHistory); err != nil {
+		logger.Errorf("Error persisting job history: %v", err)
+	}
+
+	return results, nil
+}
+
 // Run ...
 func Run(ctx *v1.ScrapeContext) ([]v1.ScrapeResult, error) {
 	cwd, _ := os.Getwd()

@@ -3,6 +3,7 @@ package v1
 import (
 	"strings"
 
+	"github.com/flanksource/commons/collections/set"
 	"github.com/flanksource/duty/types"
 )
 
@@ -34,6 +35,21 @@ type Kubernetes struct {
 	Exclusions      []string        `json:"exclusions,omitempty"`
 	Kubeconfig      *types.EnvVar   `json:"kubeconfig,omitempty"`
 	Event           KubernetesEvent `json:"event,omitempty"`
+
+	exclusionSet set.Set[string] `json:"-"`
+}
+
+func (t *Kubernetes) IsExcluded(item string) bool {
+	if len(t.Exclusions) == 0 {
+		return false
+	}
+
+	if len(t.exclusionSet) == 0 {
+		t.exclusionSet = set.New[string]()
+		t.exclusionSet.Add(t.Exclusions...)
+	}
+
+	return t.exclusionSet.Contains(item)
 }
 
 type KubernetesFile struct {
