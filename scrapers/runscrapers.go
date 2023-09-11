@@ -17,7 +17,7 @@ import (
 	"github.com/flanksource/duty/models"
 )
 
-func RunSome(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, configIndex int, ids []string) ([]v1.ScrapeResult, error) {
+func runSome(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, configIndex int, ids []string) ([]v1.ScrapeResult, error) {
 	jobHistory := models.JobHistory{
 		Name:         fmt.Sprintf("scraper:%T", scraper),
 		ResourceType: "config_scraper",

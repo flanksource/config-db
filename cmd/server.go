@@ -102,18 +102,18 @@ func startScraperCron(configFiles []string) {
 		}
 		scrapers.AddToCron(_scraper)
 
+		fn := func() {
+			ctx := api.NewScrapeContext(context.Background(), _scraper)
+			if _, err := scrapers.RunScraper(ctx); err != nil {
+				logger.Errorf("Error running scraper(id=%s): %v", scraper.ID, err)
+			}
+		}
+		go scrapers.AtomicRunner(scraper.ID.String(), fn)()
+
 		for _, k := range _scraper.Spec.Kubernetes {
 			ctx := api.NewScrapeContext(context.Background(), _scraper)
 			go exitOnError(kubernetes.WatchEvents(ctx, k, kubernetesChangeEventConsumer), "error watching events")
 		}
-
-		// fn := func() {
-		// 	ctx := api.NewScrapeContext(context.Background(), _scraper)
-		// 	if _, err := scrapers.RunScraper(ctx); err != nil {
-		// 		logger.Errorf("Error running scraper(id=%s): %v", scraper.ID, err)
-		// 	}
-		// }
-		// go scrapers.AtomicRunner(scraper.ID.String(), fn)()
 	}
 }
 
@@ -152,7 +152,7 @@ func kubernetesChangeEventConsumer(ctx *v1.ScrapeContext, resourcesPerKind map[s
 		}
 	}
 
-	if _, err := scrapers.RunSome(ctx, kubernetes.KubernetesScraper{}, 0, resourceIDs); err != nil {
+	if _, err := scrapers.RunTargettedScraper(ctx, kubernetes.KubernetesScraper{}, 0, resourceIDs); err != nil {
 		logger.Errorf("Error running scraper(id=%s): %v", ctx.ScrapeConfig.GetUID(), err)
 	}
 }

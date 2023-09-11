@@ -45,8 +45,6 @@ func DecodeItemID(encoded string) ItemID {
 }
 
 func (kubernetes KubernetesScraper) ScrapeSome(ctx *v1.ScrapeContext, configIndex int, ids []string) v1.ScrapeResults {
-	logger.Debugf("ScrapeSome:: %d ids", len(ids))
-
 	config := ctx.ScrapeConfig.Spec.Kubernetes[configIndex]
 	var objects []*unstructured.Unstructured
 	for _, id := range ids {
@@ -55,12 +53,15 @@ func (kubernetes KubernetesScraper) ScrapeSome(ctx *v1.ScrapeContext, configInde
 		if err != nil {
 			logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", itemID.Kind, itemID.Name, itemID.Namespace, err)
 			continue
+		} else if obj == nil {
+			logger.Debugf("resource not found (Kind=%s, Name=%s, Namespace=%s): %v", itemID.Kind, itemID.Name, itemID.Namespace, err)
+			continue
 		}
 
 		objects = append(objects, obj)
 	}
 
-	logger.Infof("Found %d objects for %d ids", len(objects), len(ids))
+	logger.Debugf("Found %d objects for %d ids", len(objects), len(ids))
 
 	return extractResults(config, objects)
 }
