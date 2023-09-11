@@ -16,7 +16,7 @@ import (
 var (
 	// eventWatchInterval is the schedule on which new K8s resources are scraped
 	// from the events
-	eventWatchInterval = time.Second * 5
+	eventWatchInterval = time.Second * 10
 )
 
 type consumerFunc func(ctx *v1.ScrapeContext, involvedObjects map[string]map[string]*InvolvedObject)

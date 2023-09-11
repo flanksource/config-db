@@ -54,7 +54,7 @@ func (kubernetes KubernetesScraper) ScrapeSome(ctx *v1.ScrapeContext, configInde
 			logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", itemID.Kind, itemID.Name, itemID.Namespace, err)
 			continue
 		} else if obj == nil {
-			logger.Debugf("resource not found (Kind=%s, Name=%s, Namespace=%s): %v", itemID.Kind, itemID.Name, itemID.Namespace, err)
+			logger.Debugf("resource not found (Kind=%s, Name=%s, Namespace=%s)", itemID.Kind, itemID.Name, itemID.Namespace)
 			continue
 		}
 
