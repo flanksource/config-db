@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -19,7 +20,7 @@ var (
 	refetchEventResourceInterval = time.Second * 10
 )
 
-type consumerFunc func(ctx *v1.ScrapeContext, involvedObjects map[string]map[string]*InvolvedObject)
+type consumerFunc func(ctx *v1.ScrapeContext, config v1.Kubernetes, involvedObjects map[string]map[string]*InvolvedObject)
 
 type eventWatcher struct {
 	// involvedObjects keeps record of all the involved objects from events
@@ -36,7 +37,7 @@ func WatchEvents(ctx *v1.ScrapeContext, config v1.Kubernetes, consume consumerFu
 		involvedObjects: make(map[string]map[string]*InvolvedObject),
 	}
 
-	go watcher.consumeChangeEvents(ctx, consume)
+	go watcher.consumeChangeEvents(ctx, config, consume)
 
 	return watcher.Watch(ctx, config)
 }
@@ -68,6 +69,10 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 			continue
 		}
 
+		if collections.Contains([]string{"canaries", "monitoring"}, event.InvolvedObject.Namespace) {
+			continue
+		}
+
 		if !utils.MatchItems(event.Reason, config.Event.Exclusions...) && false {
 			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
 			if change != nil {
@@ -90,7 +95,7 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 
 // consumeChangeEvents fetches the configs referenced by the changes and saves them.
 // It clears the buffer after.
-func (t *eventWatcher) consumeChangeEvents(ctx *v1.ScrapeContext, consume consumerFunc) {
+func (t *eventWatcher) consumeChangeEvents(ctx *v1.ScrapeContext, config v1.Kubernetes, consume consumerFunc) {
 	for {
 		time.Sleep(refetchEventResourceInterval)
 
@@ -99,7 +104,7 @@ func (t *eventWatcher) consumeChangeEvents(ctx *v1.ScrapeContext, consume consum
 		}
 
 		t.lock.Lock()
-		consume(ctx, t.involvedObjects)
+		consume(ctx, config, t.involvedObjects)
 		t.involvedObjects = make(map[string]map[string]*InvolvedObject)
 		t.lock.Unlock()
 	}

@@ -44,11 +44,17 @@ func DecodeItemID(encoded string) ItemID {
 	}
 }
 
-func (kubernetes KubernetesScraper) ScrapeSome(ctx *v1.ScrapeContext, configIndex int, ids []string) v1.ScrapeResults {
-	config := ctx.ScrapeConfig.Spec.Kubernetes[configIndex]
+func (kubernetes KubernetesScraper) ScrapeSome(ctx *v1.ScrapeContext, configRaw any, ids []string) v1.ScrapeResults {
+	config, ok := configRaw.(v1.Kubernetes)
+	if !ok {
+		return v1.ScrapeResults{{Error: fmt.Errorf("invalid config type: %T", configRaw)}}
+	}
+
+	logger.WithValues("action", "scrapeSome").Debugf("Scraping %d ids", len(ids))
 	var objects []*unstructured.Unstructured
 	for _, id := range ids {
 		itemID := DecodeItemID(id)
+		logger.WithValues("action", "scrapeSome").Debugf("Scraping namespace=%s, kind=%s, name=%s", itemID.Namespace, itemID.Kind, itemID.Name)
 		obj, err := ketall.KetOne(ctx, itemID.Name, itemID.Namespace, itemID.Kind, options.NewDefaultCmdOptions())
 		if err != nil {
 			logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", itemID.Kind, itemID.Name, itemID.Namespace, err)

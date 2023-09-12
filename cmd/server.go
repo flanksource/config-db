@@ -143,7 +143,7 @@ func exitOnError(err error, description string) {
 	}
 }
 
-func kubernetesChangeEventConsumer(ctx *v1.ScrapeContext, resourcesPerKind map[string]map[string]*kubernetes.InvolvedObject) {
+func kubernetesChangeEventConsumer(ctx *v1.ScrapeContext, config v1.Kubernetes, resourcesPerKind map[string]map[string]*kubernetes.InvolvedObject) {
 	var resourceIDs []string
 	for kind, resources := range resourcesPerKind {
 		for _, r := range resources {
@@ -151,7 +151,7 @@ func kubernetesChangeEventConsumer(ctx *v1.ScrapeContext, resourcesPerKind map[s
 		}
 	}
 
-	if _, err := scrapers.RunTargettedScraper(ctx, kubernetes.KubernetesScraper{}, 0, resourceIDs); err != nil {
+	if _, err := scrapers.RunTargettedScraper(ctx, kubernetes.KubernetesScraper{}, config, resourceIDs); err != nil {
 		logger.Errorf("Error running scraper(id=%s): %v", ctx.ScrapeConfig.GetUID(), err)
 	}
 }

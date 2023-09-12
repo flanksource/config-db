@@ -21,8 +21,8 @@ func RunScraper(ctx *v1.ScrapeContext) (v1.ScrapeResults, error) {
 	return results, nil
 }
 
-func RunTargettedScraper(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, configIndex int, ids []string) (v1.ScrapeResults, error) {
-	results, scraperErr := runSome(ctx, scraper, configIndex, ids)
+func RunTargettedScraper(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, config any, ids []string) (v1.ScrapeResults, error) {
+	results, scraperErr := runSome(ctx, scraper, config, ids)
 	if scraperErr != nil {
 		return nil, fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig.Name, scraperErr)
 	}

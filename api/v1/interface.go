@@ -29,7 +29,7 @@ type Scraper interface {
 // +kubebuilder:object:generate=false
 type TargettedScraper interface {
 	Scraper
-	ScrapeSome(ctx *ScrapeContext, configIndex int, ids []string) ScrapeResults
+	ScrapeSome(ctx *ScrapeContext, config any, ids []string) ScrapeResults
 }
 
 // Analyzer ...

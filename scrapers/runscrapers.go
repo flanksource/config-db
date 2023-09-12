@@ -17,7 +17,7 @@ import (
 	"github.com/flanksource/duty/models"
 )
 
-func runSome(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, configIndex int, ids []string) ([]v1.ScrapeResult, error) {
+func runSome(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, config any, ids []string) ([]v1.ScrapeResult, error) {
 	jobHistory := models.JobHistory{
 		Name:         fmt.Sprintf("scraper:%T", scraper),
 		ResourceType: "config_scraper",
@@ -30,7 +30,7 @@ func runSome(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, configIndex int
 	}
 
 	var results v1.ScrapeResults
-	for _, result := range scraper.ScrapeSome(ctx, configIndex, ids) {
+	for _, result := range scraper.ScrapeSome(ctx, config, ids) {
 		scraped := processScrapeResult(ctx.ScrapeConfig.Spec, result)
 
 		for i := range scraped {
