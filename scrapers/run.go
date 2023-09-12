@@ -48,6 +48,6 @@ func saveResults(ctx *v1.ScrapeContext, results v1.ScrapeResults) error {
 		}
 	}
 
-	logger.Debugf("Saved scrape results: %s", ctx.ScrapeConfig.Name)
+	logger.Debugf("Saved scrape results. name=%s", ctx.ScrapeConfig.Name)
 	return nil
 }

@@ -14,9 +14,9 @@ import (
 )
 
 var (
-	// eventWatchInterval is the schedule on which new K8s resources are scraped
-	// from the events
-	eventWatchInterval = time.Second * 10
+	// refetchEventResourceInterval is the schedule on which K8s resources,
+	// gathered from from the real-time events, are scraped.
+	refetchEventResourceInterval = time.Second * 10
 )
 
 type consumerFunc func(ctx *v1.ScrapeContext, involvedObjects map[string]map[string]*InvolvedObject)
@@ -26,6 +26,7 @@ type eventWatcher struct {
 	// by the resource kind.
 	involvedObjects map[string]map[string]*InvolvedObject
 
+	// lock for involvedObjects.
 	lock *sync.Mutex
 }
 
@@ -43,11 +44,11 @@ func WatchEvents(ctx *v1.ScrapeContext, config v1.Kubernetes, consume consumerFu
 // WatchEvents watches Kubernetes events for any config changes & fetches
 // the referenced config items in batches.
 func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error {
-	logger.Infof("Watching kubernetes events: %v", config)
+	logger.Infof("Watching kubernetes events. name=%s namespace=%s cluster=%s", config.Name, config.Namespace, config.ClusterName)
 
 	watcher, err := ctx.Kubernetes.CoreV1().Events(config.Namespace).Watch(ctx, metav1.ListOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to watch events: %w", err)
+		return fmt.Errorf("failed to create a new event watcher: %w", err)
 	}
 	defer watcher.Stop()
 
@@ -91,7 +92,7 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 // It clears the buffer after.
 func (t *eventWatcher) consumeChangeEvents(ctx *v1.ScrapeContext, consume consumerFunc) {
 	for {
-		time.Sleep(eventWatchInterval)
+		time.Sleep(refetchEventResourceInterval)
 
 		if len(t.involvedObjects) == 0 {
 			continue

@@ -31,9 +31,11 @@ type Kubernetes struct {
 	Selector        string          `json:"selector,omitempty"`
 	FieldSelector   string          `json:"fieldSelector,omitempty"`
 	MaxInflight     int64           `json:"maxInflight,omitempty"`
-	Exclusions      []string        `json:"exclusions,omitempty"`
 	Kubeconfig      *types.EnvVar   `json:"kubeconfig,omitempty"`
 	Event           KubernetesEvent `json:"event,omitempty"`
+
+	// Exclusion is a list of name, kind or short names of the resources to exclude
+	Exclusions []string `json:"exclusions,omitempty"`
 }
 
 type KubernetesFile struct {

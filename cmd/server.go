@@ -6,18 +6,17 @@ import (
 	"net/url"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
-
-	"github.com/flanksource/config-db/jobs"
-	"github.com/flanksource/config-db/query"
-	"github.com/flanksource/config-db/scrapers/kubernetes"
-
-	"github.com/flanksource/config-db/scrapers"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/spf13/cobra"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/jobs"
+	"github.com/flanksource/config-db/query"
+	"github.com/flanksource/config-db/scrapers"
+	"github.com/flanksource/config-db/scrapers/kubernetes"
 )
 
 // Serve ...

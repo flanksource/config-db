@@ -10,16 +10,12 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
 	"github.com/google/uuid"
+	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
-// InvolvedObject represents a Kubernetes InvolvedObject object
-type InvolvedObject struct {
-	UID       string `json:"uid,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-}
+type InvolvedObject coreV1.ObjectReference
 
 // Event represents a Kubernetes Event object
 type Event struct {
@@ -104,9 +100,9 @@ func getChangeFromEvent(event Event, severityKeywords v1.SeverityKeywords) *v1.C
 		return nil
 	}
 
-	_, err := uuid.Parse(event.InvolvedObject.UID)
+	_, err := uuid.Parse(string(event.InvolvedObject.UID))
 	if err != nil {
-		event.InvolvedObject.UID = fmt.Sprintf("Kubernetes/%s/%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name)
+		event.InvolvedObject.UID = types.UID(fmt.Sprintf("Kubernetes/%s/%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name))
 	}
 
 	return &v1.ChangeResult{
@@ -114,7 +110,7 @@ func getChangeFromEvent(event Event, severityKeywords v1.SeverityKeywords) *v1.C
 		CreatedAt:        &event.Metadata.CreationTimestamp.Time,
 		Details:          getDetailsFromEvent(event),
 		ExternalChangeID: event.GetUID(),
-		ExternalID:       event.InvolvedObject.UID,
+		ExternalID:       string(event.InvolvedObject.UID),
 		ConfigType:       ConfigTypePrefix + event.InvolvedObject.Kind,
 		Severity:         getSeverityFromReason(event.Reason, severityKeywords.Error, severityKeywords.Warn),
 		Source:           getSourceFromEvent(event),
