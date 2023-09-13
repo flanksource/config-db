@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
-	github.com/flanksource/commons v1.11.0
+	github.com/flanksource/commons v1.12.0
 	github.com/flanksource/config-db v0.0.65
 	github.com/spf13/cobra v1.7.0
 )
@@ -20,9 +20,9 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
-	github.com/antonmedv/expr v1.15.1 // indirect
+	github.com/antonmedv/expr v1.15.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/aws/aws-sdk-go v1.45.7 // indirect
+	github.com/aws/aws-sdk-go v1.45.8 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
