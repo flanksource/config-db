@@ -9,7 +9,6 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/flanksource/ketall"
 	"github.com/flanksource/ketall/options"
@@ -50,17 +49,17 @@ func (kubernetes KubernetesScraper) ScrapeSome(ctx *v1.ScrapeContext, configRaw 
 		return v1.ScrapeResults{{Error: fmt.Errorf("invalid config type: %T", configRaw)}}
 	}
 
-	logger.WithValues("action", "scrapeSome").Debugf("Scraping %d ids", len(ids))
+	logger.Debugf("Scraping %d ids", len(ids))
 	var objects []*unstructured.Unstructured
 	for _, id := range ids {
 		itemID := DecodeItemID(id)
-		logger.WithValues("action", "scrapeSome").Debugf("Scraping namespace=%s, kind=%s, name=%s", itemID.Namespace, itemID.Kind, itemID.Name)
+		logger.WithValues("name", itemID.Name).WithValues("namespace", itemID.Namespace).WithValues("kind", itemID.Kind).Debugf("ketOne")
 		obj, err := ketall.KetOne(ctx, itemID.Name, itemID.Namespace, itemID.Kind, options.NewDefaultCmdOptions())
 		if err != nil {
 			logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", itemID.Kind, itemID.Name, itemID.Namespace, err)
 			continue
 		} else if obj == nil {
-			logger.Debugf("resource not found (Kind=%s, Name=%s, Namespace=%s)", itemID.Kind, itemID.Name, itemID.Namespace)
+			logger.WithValues("name", itemID.Name).WithValues("namespace", itemID.Namespace).WithValues("kind", itemID.Kind).Debugf("resource from event not found")
 			continue
 		}
 
@@ -128,8 +127,12 @@ func extractResults(config v1.Kubernetes, objs []*unstructured.Unstructured) v1.
 				return nil
 			}
 
-			if utils.MatchItems(event.Reason, config.Event.Exclusions...) {
-				logger.Debugf("excluding event object for reason [%s].", event.Reason)
+			if event.InvolvedObject == nil {
+				continue
+			}
+
+			if config.Event.Exclusions.Filter(event.InvolvedObject.Name, event.InvolvedObject.Namespace, event.Reason) {
+				logger.WithValues("name", event.InvolvedObject.Name).WithValues("namespace", event.InvolvedObject.Namespace).WithValues("reason", event.Reason).Debugf("excluding event object")
 				continue
 			}
 
@@ -264,7 +267,7 @@ func updateOptions(opts *options.KetallOptions, config v1.Kubernetes) *options.K
 	opts.FieldSelector = config.FieldSelector
 	opts.UseCache = config.UseCache
 	opts.MaxInflight = config.MaxInflight
-	opts.Exclusions = config.Exclusions
+	opts.Exclusions = config.Exclusions.List()
 	opts.Since = config.Since
 	//TODO: update kubeconfig reference if provided by user
 	// if config.Kubeconfig != nil {

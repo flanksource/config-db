@@ -2,15 +2,12 @@ package kubernetes
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -64,16 +61,11 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 			continue
 		}
 
-		// TODO: Definitely need a new exclusion list in the kubernetes spec to exclude by pattern matching names (junit*, for example)
-		if strings.Contains(event.InvolvedObject.Name, "junit") || strings.Contains(event.InvolvedObject.Name, "hello-world") {
+		if config.Exclusions.Filter(event.InvolvedObject.Name, event.InvolvedObject.Namespace, event.InvolvedObject.Kind, nil) {
 			continue
 		}
 
-		if collections.Contains([]string{"canaries", "monitoring"}, event.InvolvedObject.Namespace) {
-			continue
-		}
-
-		if !utils.MatchItems(event.Reason, config.Event.Exclusions...) && false {
+		if config.Event.Exclusions.Filter(event.InvolvedObject.Name, event.InvolvedObject.Namespace, event.Reason) {
 			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
 			if change != nil {
 				if err := db.SaveResults(ctx, []v1.ScrapeResult{{Changes: []v1.ChangeResult{*change}}}); err != nil {

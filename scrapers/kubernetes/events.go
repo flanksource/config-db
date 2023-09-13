@@ -96,10 +96,6 @@ func getDetailsFromEvent(event Event) map[string]any {
 }
 
 func getChangeFromEvent(event Event, severityKeywords v1.SeverityKeywords) *v1.ChangeResult {
-	if event.InvolvedObject == nil {
-		return nil
-	}
-
 	_, err := uuid.Parse(string(event.InvolvedObject.UID))
 	if err != nil {
 		event.InvolvedObject.UID = types.UID(fmt.Sprintf("Kubernetes/%s/%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name))

@@ -6,25 +6,36 @@ spec:
   kubernetes:
     - clusterName: local-kind-cluster
       exclusions:
-        - Secret
-        - ReplicaSet
-        - APIService
-        - PodMetrics
-        - NodeMetrics
-        - endpoints.discovery.k8s.io
-        - endpointslices.discovery.k8s.io
-        - leases.coordination.k8s.io
-        - podmetrics.metrics.k8s.io
-        - nodemetrics.metrics.k8s.io
-        - customresourcedefinition
-        - controllerrevision
-        - certificaterequest
-        - orders.acme.cert-manager.io
+        name:
+          - junit*
+          - k6-junit*
+          - newman-junit*
+          - playwright-junit-*
+          - hello-world*
+        namespace:
+          - canaries
+          - monitoring
+        kind:
+          - Secret
+          - ReplicaSet
+          - APIService
+          - PodMetrics
+          - NodeMetrics
+          - endpoints.discovery.k8s.io
+          - endpointslices.discovery.k8s.io
+          - leases.coordination.k8s.io
+          - podmetrics.metrics.k8s.io
+          - nodemetrics.metrics.k8s.io
+          - customresourcedefinition
+          - controllerrevision
+          - certificaterequest
+          - orders.acme.cert-manager.io
       event:
         exclusions:
-          - SuccessfulCreate
-          - Created
-          - DNSConfigForming
+          reason:
+            - SuccessfulCreate
+            - Created
+            - DNSConfigForming
         severityKeywords:
           error:
             - failed
