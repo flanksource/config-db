@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/sethvargo/go-retry"
 	"github.com/spf13/cobra"
 
 	"github.com/flanksource/config-db/api"
@@ -109,9 +111,9 @@ func startScraperCron(configFiles []string) {
 		}
 		go scrapers.AtomicRunner(scraper.ID.String(), fn)()
 
-		for _, k := range _scraper.Spec.Kubernetes {
+		for _, config := range _scraper.Spec.Kubernetes {
 			ctx := api.NewScrapeContext(context.Background(), _scraper)
-			go exitOnError(kubernetes.WatchEvents(ctx, k, scrapers.RunK8IncrementalScraper), "error watching events")
+			go watchKubernetesEventsWithRetry(ctx, config)
 		}
 	}
 }
@@ -137,8 +139,23 @@ func init() {
 	ServerFlags(Serve.Flags())
 }
 
-func exitOnError(err error, description string) {
-	if err != nil {
-		logger.Fatalf("%s %v", description, err)
+func watchKubernetesEventsWithRetry(ctx *v1.ScrapeContext, config v1.Kubernetes) {
+	const (
+		timeout                 = time.Minute // how long to keep retrying before we reset and retry again
+		exponentialBaseDuration = time.Second
+	)
+
+	for {
+		backoff := retry.WithMaxDuration(timeout, retry.NewExponential(exponentialBaseDuration))
+		err := retry.Do(ctx, backoff, func(ctxt context.Context) error {
+			ctx := ctxt.(*v1.ScrapeContext)
+			if err := kubernetes.WatchEvents(ctx, config, scrapers.RunK8IncrementalScraper); err != nil {
+				return retry.RetryableError(err)
+			}
+
+			return nil
+		})
+
+		logger.Errorf("Failed to watch kubernetes events. name=%s namespace=%s cluster=%s: %v", config.Name, config.Namespace, config.ClusterName, err)
 	}
 }
