@@ -3,19 +3,20 @@ package kubernetes
 import (
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
+	v1 "github.com/flanksource/config-db/api/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Test_getSourceFromEvent(t *testing.T) {
 	tests := []struct {
 		name string
-		args Event
+		args v1.KubernetesEvent
 		want string
 	}{
 		{
-			name: "simple", args: Event{
-				Source: map[string]interface{}{
+			name: "simple", args: v1.KubernetesEvent{
+				Source: map[string]string{
 					"component": "kubelet",
 					"host":      "minikube",
 				},
@@ -23,8 +24,8 @@ func Test_getSourceFromEvent(t *testing.T) {
 			want: "kubernetes/component=kubelet,host=minikube",
 		},
 		{
-			name: "empty", args: Event{
-				Source: map[string]any{},
+			name: "empty", args: v1.KubernetesEvent{
+				Source: map[string]string{},
 			},
 			want: "kubernetes/",
 		},
@@ -40,12 +41,12 @@ func Test_getSourceFromEvent(t *testing.T) {
 
 func TestEvent_FromObjMap(t *testing.T) {
 	t.Run("from object", func(t *testing.T) {
-		eventV1 := v1.Event{
+		eventV1 := corev1.Event{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "HI",
 			},
 		}
-		var eventFromV1 Event
+		var eventFromV1 v1.KubernetesEvent
 		if err := eventFromV1.FromObj(eventV1); err != nil {
 			t.Fatalf("error was not expected %v", err)
 		}
@@ -64,7 +65,7 @@ func TestEvent_FromObjMap(t *testing.T) {
 				"creationTimestamp": "2020-01-01T00:00:00Z",
 			},
 		}
-		var eventFromMap Event
+		var eventFromMap v1.KubernetesEvent
 		if err := eventFromMap.FromObjMap(eventMap); err != nil {
 			t.Fatalf("error was not expected %v", err)
 		}

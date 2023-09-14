@@ -17,12 +17,12 @@ var (
 	refetchEventResourceInterval = time.Second * 10
 )
 
-type consumerFunc func(ctx *v1.ScrapeContext, config v1.Kubernetes, involvedObjects []*InvolvedObject) error
+type consumerFunc func(ctx *v1.ScrapeContext, config v1.Kubernetes, involvedObjects []*v1.InvolvedObject) error
 
 type eventWatcher struct {
 	// involvedObjects keeps record of all the involved objects from events
 	// by the resource kind.
-	involvedObjects map[string]map[string]*InvolvedObject
+	involvedObjects map[string]map[string]*v1.InvolvedObject
 
 	// lock for involvedObjects.
 	lock *sync.Mutex
@@ -31,7 +31,7 @@ type eventWatcher struct {
 func WatchEvents(ctx *v1.ScrapeContext, config v1.Kubernetes, consume consumerFunc) error {
 	watcher := &eventWatcher{
 		lock:            &sync.Mutex{},
-		involvedObjects: make(map[string]map[string]*InvolvedObject),
+		involvedObjects: make(map[string]map[string]*v1.InvolvedObject),
 	}
 
 	go watcher.consumeChangeEvents(ctx, config, consume)
@@ -51,7 +51,7 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 	defer watcher.Stop()
 
 	for watchEvent := range watcher.ResultChan() {
-		var event Event
+		var event v1.KubernetesEvent
 		if err := event.FromObj(watchEvent.Object); err != nil {
 			logger.Errorf("failed to unmarshal event (id=%s): %v", event.GetUID(), err)
 			continue
@@ -65,7 +65,7 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 			continue
 		}
 
-		if config.Event.Exclusions.Filter(event.InvolvedObject.Name, event.InvolvedObject.Namespace, event.Reason) {
+		if config.Event.Exclusions.Filter(event) {
 			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
 			if change != nil {
 				if err := db.SaveResults(ctx, []v1.ScrapeResult{{Changes: []v1.ChangeResult{*change}}}); err != nil {
@@ -76,7 +76,7 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 
 		t.lock.Lock()
 		if _, ok := t.involvedObjects[event.InvolvedObject.Kind]; !ok {
-			t.involvedObjects[event.InvolvedObject.Kind] = make(map[string]*InvolvedObject)
+			t.involvedObjects[event.InvolvedObject.Kind] = make(map[string]*v1.InvolvedObject)
 		}
 		t.involvedObjects[event.InvolvedObject.Kind][event.GetUID()] = event.InvolvedObject
 		t.lock.Unlock()
@@ -96,7 +96,7 @@ func (t *eventWatcher) consumeChangeEvents(ctx *v1.ScrapeContext, config v1.Kube
 		}
 
 		t.lock.Lock()
-		var resourceIDs []*InvolvedObject
+		var resourceIDs []*v1.InvolvedObject
 		for _, resources := range t.involvedObjects {
 			for _, r := range resources {
 				resourceIDs = append(resourceIDs, r)
@@ -108,6 +108,6 @@ func (t *eventWatcher) consumeChangeEvents(ctx *v1.ScrapeContext, config v1.Kube
 			logger.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig.Name, err)
 		}
 
-		t.involvedObjects = make(map[string]map[string]*InvolvedObject)
+		t.involvedObjects = make(map[string]map[string]*v1.InvolvedObject)
 	}
 }

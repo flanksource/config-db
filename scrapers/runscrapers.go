@@ -18,7 +18,7 @@ import (
 	"github.com/flanksource/duty/models"
 )
 
-func runK8IncrementalScraper(ctx *v1.ScrapeContext, config v1.Kubernetes, ids []*kubernetes.InvolvedObject) ([]v1.ScrapeResult, error) {
+func runK8IncrementalScraper(ctx *v1.ScrapeContext, config v1.Kubernetes, ids []*v1.InvolvedObject) ([]v1.ScrapeResult, error) {
 	jobHistory := models.JobHistory{
 		Name:         "K8IncrementalScraper",
 		ResourceType: "config_scraper",

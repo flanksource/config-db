@@ -24,7 +24,7 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
 }
 
-func (kubernetes KubernetesScraper) IncrementalScrape(ctx *v1.ScrapeContext, config v1.Kubernetes, resources []*InvolvedObject) v1.ScrapeResults {
+func (kubernetes KubernetesScraper) IncrementalScrape(ctx *v1.ScrapeContext, config v1.Kubernetes, resources []*v1.InvolvedObject) v1.ScrapeResults {
 	logger.Debugf("Scraping %d resources", len(resources))
 
 	var objects []*unstructured.Unstructured
@@ -97,7 +97,7 @@ func extractResults(config v1.Kubernetes, objs []*unstructured.Unstructured) v1.
 		}
 
 		if obj.GetKind() == "Event" {
-			var event Event
+			var event v1.KubernetesEvent
 			if err := event.FromObjMap(obj.Object); err != nil {
 				logger.Errorf("failed to parse event: %v", err)
 				return nil
@@ -107,7 +107,7 @@ func extractResults(config v1.Kubernetes, objs []*unstructured.Unstructured) v1.
 				continue
 			}
 
-			if config.Event.Exclusions.Filter(event.InvolvedObject.Name, event.InvolvedObject.Namespace, event.Reason) {
+			if config.Event.Exclusions.Filter(event) {
 				logger.WithValues("name", event.InvolvedObject.Name).WithValues("namespace", event.InvolvedObject.Namespace).WithValues("reason", event.Reason).Debugf("excluding event object")
 				continue
 			}

@@ -1,10 +1,15 @@
 package v1
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty/types"
+	"github.com/flanksource/mapstructure"
+	coreV1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // SeverityKeywords is used to identify the severity
@@ -21,21 +26,21 @@ type KubernetesEventExclusions struct {
 }
 
 // Filter returns true if the given input matches any of the exclusions.
-func (t *KubernetesEventExclusions) Filter(name, namespace, reason string) bool {
-	if name != "" && len(t.Names) != 0 {
-		if collections.MatchItems(name, t.Names...) {
+func (t *KubernetesEventExclusions) Filter(event KubernetesEvent) bool {
+	if event.InvolvedObject.Name != "" && len(t.Names) != 0 {
+		if collections.MatchItems(event.InvolvedObject.Name, t.Names...) {
 			return true
 		}
 	}
 
-	if namespace != "" && len(t.Namespaces) != 0 {
-		if collections.MatchItems(namespace, t.Namespaces...) {
+	if event.InvolvedObject.Namespace != "" && len(t.Namespaces) != 0 {
+		if collections.MatchItems(event.InvolvedObject.Namespace, t.Namespaces...) {
 			return true
 		}
 	}
 
-	if reason != "" && len(t.Reasons) != 0 {
-		if collections.MatchItems(reason, t.Reasons...) {
+	if event.Reason != "" && len(t.Reasons) != 0 {
+		if collections.MatchItems(event.Reason, t.Reasons...) {
 			return true
 		}
 	}
@@ -43,7 +48,7 @@ func (t *KubernetesEventExclusions) Filter(name, namespace, reason string) bool 
 	return false
 }
 
-type KubernetesEvent struct {
+type KubernetesEventConfig struct {
 	Exclusions       KubernetesEventExclusions `json:"exclusions,omitempty"`
 	SeverityKeywords SeverityKeywords          `json:"severityKeywords,omitempty"`
 }
@@ -110,7 +115,7 @@ type Kubernetes struct {
 	FieldSelector   string                     `json:"fieldSelector,omitempty"`
 	MaxInflight     int64                      `json:"maxInflight,omitempty"`
 	Kubeconfig      *types.EnvVar              `json:"kubeconfig,omitempty"`
-	Event           KubernetesEvent            `json:"event,omitempty"`
+	Event           KubernetesEventConfig      `json:"event,omitempty"`
 	Exclusions      KubernetesConfigExclusions `json:"exclusions,omitempty"`
 }
 
@@ -157,4 +162,56 @@ func (r ResourceSelector) String() string {
 		s += " fields=" + r.FieldSelector
 	}
 	return s
+}
+
+type InvolvedObject coreV1.ObjectReference
+
+// KubernetesEvent represents a Kubernetes KubernetesEvent object
+type KubernetesEvent struct {
+	Reason         string             `json:"reason,omitempty"`
+	Message        string             `json:"message,omitempty"`
+	Source         map[string]string  `json:"source,omitempty"`
+	Metadata       *metav1.ObjectMeta `json:"metadata,omitempty" mapstructure:"metadata"`
+	InvolvedObject *InvolvedObject    `json:"involvedObject,omitempty"`
+}
+
+func (t *KubernetesEvent) GetUID() string {
+	return string(t.Metadata.UID)
+}
+
+func (t *KubernetesEvent) AsMap() (map[string]any, error) {
+	eventJSON, err := json.Marshal(t)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal event object: %v", err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(eventJSON, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal event object: %v", err)
+	}
+
+	return result, nil
+}
+
+func (t *KubernetesEvent) FromObj(obj any) error {
+	conf := mapstructure.DecoderConfig{
+		TagName: "json", // Need to set this to json because when `obj` is v1.Event there's no mapstructure struct tag.
+		Result:  t,
+	}
+
+	decoder, err := mapstructure.NewDecoder(&conf)
+	if err != nil {
+		return err
+	}
+
+	return decoder.Decode(obj)
+}
+
+func (t *KubernetesEvent) FromObjMap(obj any) error {
+	b, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(b, t)
 }

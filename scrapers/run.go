@@ -6,7 +6,6 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/scrapers/kubernetes"
 )
 
 func RunScraper(ctx *v1.ScrapeContext) (v1.ScrapeResults, error) {
@@ -22,7 +21,7 @@ func RunScraper(ctx *v1.ScrapeContext) (v1.ScrapeResults, error) {
 	return results, nil
 }
 
-func RunK8IncrementalScraper(ctx *v1.ScrapeContext, config v1.Kubernetes, resources []*kubernetes.InvolvedObject) error {
+func RunK8IncrementalScraper(ctx *v1.ScrapeContext, config v1.Kubernetes, resources []*v1.InvolvedObject) error {
 	results, scraperErr := runK8IncrementalScraper(ctx, config, resources)
 	if scraperErr != nil {
 		return fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig.Name, scraperErr)
