@@ -46,7 +46,7 @@ func TestEvent_FromObjMap(t *testing.T) {
 			},
 		}
 		var eventFromV1 Event
-		if err := eventFromV1.FromObjMap(eventV1); err != nil {
+		if err := eventFromV1.FromObj(eventV1); err != nil {
 			t.Fatalf("error was not expected %v", err)
 		}
 
@@ -57,8 +57,11 @@ func TestEvent_FromObjMap(t *testing.T) {
 
 	t.Run("from map", func(t *testing.T) {
 		eventMap := map[string]any{
-			"metadata": map[string]string{
-				"name": "HI",
+			"metadata": map[string]any{
+				"name":              "HI",
+				"namespace":         "default",
+				"uid":               "1028a8ac-b028-456c-b3ea-869b9a9fba5f",
+				"creationTimestamp": "2020-01-01T00:00:00Z",
 			},
 		}
 		var eventFromMap Event

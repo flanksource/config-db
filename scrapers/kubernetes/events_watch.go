@@ -52,7 +52,7 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 
 	for watchEvent := range watcher.ResultChan() {
 		var event Event
-		if err := event.FromObjMap(watchEvent.Object); err != nil {
+		if err := event.FromObj(watchEvent.Object); err != nil {
 			logger.Errorf("failed to unmarshal event (id=%s): %v", event.GetUID(), err)
 			continue
 		}

@@ -45,10 +45,10 @@ func (t *Event) AsMap() (map[string]any, error) {
 	return result, nil
 }
 
-func (t *Event) FromObjMap(obj any) error {
+func (t *Event) FromObj(obj any) error {
 	conf := mapstructure.DecoderConfig{
 		TagName: "json", // Need to set this to json because when `obj` is v1.Event there's no mapstructure struct tag.
-		Result:  &t,
+		Result:  t,
 	}
 
 	decoder, err := mapstructure.NewDecoder(&conf)
@@ -58,6 +58,15 @@ func (t *Event) FromObjMap(obj any) error {
 
 	decoder.Decode(obj)
 	return nil
+}
+
+func (t *Event) FromObjMap(obj any) error {
+	b, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(b, t)
 }
 
 func getSeverityFromReason(reason string, errKeywords, warnKeywords []string) string {
