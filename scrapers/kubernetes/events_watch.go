@@ -17,7 +17,7 @@ var (
 	refetchEventResourceInterval = time.Second * 10
 )
 
-type consumerFunc func(ctx *v1.ScrapeContext, config v1.Kubernetes, involvedObjects map[string]map[string]*InvolvedObject)
+type consumerFunc func(ctx *v1.ScrapeContext, config v1.Kubernetes, involvedObjects []*InvolvedObject) error
 
 type eventWatcher struct {
 	// involvedObjects keeps record of all the involved objects from events
@@ -96,8 +96,18 @@ func (t *eventWatcher) consumeChangeEvents(ctx *v1.ScrapeContext, config v1.Kube
 		}
 
 		t.lock.Lock()
-		consume(ctx, config, t.involvedObjects)
-		t.involvedObjects = make(map[string]map[string]*InvolvedObject)
+		var resourceIDs []*InvolvedObject
+		for _, resources := range t.involvedObjects {
+			for _, r := range resources {
+				resourceIDs = append(resourceIDs, r)
+			}
+		}
 		t.lock.Unlock()
+
+		if err := consume(ctx, config, resourceIDs); err != nil {
+			logger.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig.Name, err)
+		}
+
+		t.involvedObjects = make(map[string]map[string]*InvolvedObject)
 	}
 }

@@ -24,49 +24,25 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
 }
 
-type ItemID struct {
-	Name      string
-	Namespace string
-	Kind      string
-}
+func (kubernetes KubernetesScraper) IncrementalScrape(ctx *v1.ScrapeContext, config v1.Kubernetes, resources []*InvolvedObject) v1.ScrapeResults {
+	logger.Debugf("Scraping %d resources", len(resources))
 
-func (t ItemID) Encode() string {
-	return fmt.Sprintf("%s/%s/%s", t.Name, t.Namespace, t.Kind)
-}
-
-func DecodeItemID(encoded string) ItemID {
-	parts := strings.Split(encoded, "/")
-	return ItemID{
-		Name:      parts[0],
-		Namespace: parts[1],
-		Kind:      parts[2],
-	}
-}
-
-func (kubernetes KubernetesScraper) ScrapeSome(ctx *v1.ScrapeContext, configRaw any, ids []string) v1.ScrapeResults {
-	config, ok := configRaw.(v1.Kubernetes)
-	if !ok {
-		return v1.ScrapeResults{{Error: fmt.Errorf("invalid config type: %T", configRaw)}}
-	}
-
-	logger.Debugf("Scraping %d ids", len(ids))
 	var objects []*unstructured.Unstructured
-	for _, id := range ids {
-		itemID := DecodeItemID(id)
-		logger.WithValues("name", itemID.Name).WithValues("namespace", itemID.Namespace).WithValues("kind", itemID.Kind).Debugf("ketOne")
-		obj, err := ketall.KetOne(ctx, itemID.Name, itemID.Namespace, itemID.Kind, options.NewDefaultCmdOptions())
+	for _, resource := range resources {
+		logger.WithValues("name", resource.Name).WithValues("namespace", resource.Namespace).WithValues("kind", resource.Kind).Debugf("ketOne")
+		obj, err := ketall.KetOne(ctx, resource.Name, resource.Namespace, resource.Kind, options.NewDefaultCmdOptions())
 		if err != nil {
-			logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", itemID.Kind, itemID.Name, itemID.Namespace, err)
+			logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
 			continue
 		} else if obj == nil {
-			logger.WithValues("name", itemID.Name).WithValues("namespace", itemID.Namespace).WithValues("kind", itemID.Kind).Debugf("resource from event not found")
+			logger.WithValues("name", resource.Name).WithValues("namespace", resource.Namespace).WithValues("kind", resource.Kind).Debugf("resource from event not found")
 			continue
 		}
 
 		objects = append(objects, obj)
 	}
 
-	logger.Debugf("Found %d objects for %d ids", len(objects), len(ids))
+	logger.Debugf("Found %d objects for %d ids", len(objects), len(resources))
 
 	return extractResults(config, objects)
 }

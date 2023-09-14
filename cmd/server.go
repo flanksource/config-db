@@ -111,7 +111,7 @@ func startScraperCron(configFiles []string) {
 
 		for _, k := range _scraper.Spec.Kubernetes {
 			ctx := api.NewScrapeContext(context.Background(), _scraper)
-			go exitOnError(kubernetes.WatchEvents(ctx, k, kubernetesChangeEventConsumer), "error watching events")
+			go exitOnError(kubernetes.WatchEvents(ctx, k, scrapers.RunK8IncrementalScraper), "error watching events")
 		}
 	}
 }
@@ -140,18 +140,5 @@ func init() {
 func exitOnError(err error, description string) {
 	if err != nil {
 		logger.Fatalf("%s %v", description, err)
-	}
-}
-
-func kubernetesChangeEventConsumer(ctx *v1.ScrapeContext, config v1.Kubernetes, resourcesPerKind map[string]map[string]*kubernetes.InvolvedObject) {
-	var resourceIDs []string
-	for kind, resources := range resourcesPerKind {
-		for _, r := range resources {
-			resourceIDs = append(resourceIDs, kubernetes.ItemID{Kind: kind, Name: r.Name, Namespace: r.Namespace}.Encode())
-		}
-	}
-
-	if _, err := scrapers.RunTargettedScraper(ctx, kubernetes.KubernetesScraper{}, config, resourceIDs); err != nil {
-		logger.Errorf("Error running scraper(id=%s): %v", ctx.ScrapeConfig.GetUID(), err)
 	}
 }

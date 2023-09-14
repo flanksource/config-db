@@ -12,14 +12,15 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers/analysis"
 	"github.com/flanksource/config-db/scrapers/changes"
+	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/scrapers/processors"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 )
 
-func runSome(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, config any, ids []string) ([]v1.ScrapeResult, error) {
+func runK8IncrementalScraper(ctx *v1.ScrapeContext, config v1.Kubernetes, ids []*kubernetes.InvolvedObject) ([]v1.ScrapeResult, error) {
 	jobHistory := models.JobHistory{
-		Name:         fmt.Sprintf("scraper:%T", scraper),
+		Name:         "K8IncrementalScraper",
 		ResourceType: "config_scraper",
 		ResourceID:   string(ctx.ScrapeConfig.GetUID()),
 	}
@@ -30,7 +31,8 @@ func runSome(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, config any, ids
 	}
 
 	var results v1.ScrapeResults
-	for _, result := range scraper.ScrapeSome(ctx, config, ids) {
+	var scraper kubernetes.KubernetesScraper
+	for _, result := range scraper.IncrementalScrape(ctx, config, ids) {
 		scraped := processScrapeResult(ctx.ScrapeConfig.Spec, result)
 
 		for i := range scraped {

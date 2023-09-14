@@ -6,6 +6,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/scrapers/kubernetes"
 )
 
 func RunScraper(ctx *v1.ScrapeContext) (v1.ScrapeResults, error) {
@@ -21,17 +22,17 @@ func RunScraper(ctx *v1.ScrapeContext) (v1.ScrapeResults, error) {
 	return results, nil
 }
 
-func RunTargettedScraper(ctx *v1.ScrapeContext, scraper v1.TargettedScraper, config any, ids []string) (v1.ScrapeResults, error) {
-	results, scraperErr := runSome(ctx, scraper, config, ids)
+func RunK8IncrementalScraper(ctx *v1.ScrapeContext, config v1.Kubernetes, resources []*kubernetes.InvolvedObject) error {
+	results, scraperErr := runK8IncrementalScraper(ctx, config, resources)
 	if scraperErr != nil {
-		return nil, fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig.Name, scraperErr)
+		return fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig.Name, scraperErr)
 	}
 
 	if err := saveResults(ctx, results); err != nil {
-		return nil, fmt.Errorf("failed to save results: %w", err)
+		return fmt.Errorf("failed to save results: %w", err)
 	}
 
-	return results, nil
+	return nil
 }
 
 func saveResults(ctx *v1.ScrapeContext, results v1.ScrapeResults) error {
