@@ -2,6 +2,9 @@ package kubernetes
 
 import (
 	"testing"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Test_getSourceFromEvent(t *testing.T) {
@@ -33,4 +36,38 @@ func Test_getSourceFromEvent(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEvent_FromObjMap(t *testing.T) {
+	t.Run("from object", func(t *testing.T) {
+		eventV1 := v1.Event{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "HI",
+			},
+		}
+		var eventFromV1 Event
+		if err := eventFromV1.FromObjMap(eventV1); err != nil {
+			t.Fatalf("error was not expected %v", err)
+		}
+
+		if eventFromV1.Metadata == nil {
+			t.Fail()
+		}
+	})
+
+	t.Run("from map", func(t *testing.T) {
+		eventMap := map[string]any{
+			"metadata": map[string]string{
+				"name": "HI",
+			},
+		}
+		var eventFromMap Event
+		if err := eventFromMap.FromObjMap(eventMap); err != nil {
+			t.Fatalf("error was not expected %v", err)
+		}
+
+		if eventFromMap.Metadata == nil {
+			t.Fail()
+		}
+	})
 }

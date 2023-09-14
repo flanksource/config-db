@@ -9,6 +9,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/mapstructure"
 	"github.com/google/uuid"
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,7 +23,7 @@ type Event struct {
 	Reason         string             `json:"reason,omitempty"`
 	Message        string             `json:"message,omitempty"`
 	Source         map[string]any     `json:"source,omitempty"`
-	Metadata       *metav1.ObjectMeta `json:"metadata,omitempty"`
+	Metadata       *metav1.ObjectMeta `json:"metadata,omitempty" mapstructure:"metadata"`
 	InvolvedObject *InvolvedObject    `json:"involvedObject,omitempty"`
 }
 
@@ -45,15 +46,17 @@ func (t *Event) AsMap() (map[string]any, error) {
 }
 
 func (t *Event) FromObjMap(obj any) error {
-	eventJSON, err := json.Marshal(obj)
+	conf := mapstructure.DecoderConfig{
+		TagName: "json", // Need to set this to json because when `obj` is v1.Event there's no mapstructure struct tag.
+		Result:  &t,
+	}
+
+	decoder, err := mapstructure.NewDecoder(&conf)
 	if err != nil {
-		return fmt.Errorf("failed to marshal event object: %v", err)
+		return err
 	}
 
-	if err := json.Unmarshal(eventJSON, t); err != nil {
-		return fmt.Errorf("failed to unmarshal event object: %v", err)
-	}
-
+	decoder.Decode(obj)
 	return nil
 }
 
