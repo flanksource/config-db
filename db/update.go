@@ -102,8 +102,15 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 	}
 
 	ci.ID = existing.ID
-	ci.DeletedAt = existing.DeletedAt
-	if err := UpdateConfigItem(&ci); err != nil {
+
+	// In case a resource was marked as deleted but is un-deleted now
+	// we set an update flag as gorm ignores nil pointers
+	updateDeletedAt := false
+	if ci.DeletedAt != existing.DeletedAt {
+		updateDeletedAt = true
+	}
+
+	if err := UpdateConfigItem(&ci, updateDeletedAt); err != nil {
 		if err := CreateConfigItem(&ci); err != nil {
 			return fmt.Errorf("[%s] failed to update item %v", ci, err)
 		}

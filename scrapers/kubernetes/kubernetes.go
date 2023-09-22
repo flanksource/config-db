@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
@@ -124,6 +125,23 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResul
 			}
 
 			createdAt := obj.GetCreationTimestamp().Time
+			var deletedAt *time.Time
+			if !obj.GetDeletionTimestamp().IsZero() {
+				deletedAt = &obj.GetDeletionTimestamp().Time
+			}
+
+			// Evicted Pods must be considered deleted
+			if obj.GetKind() == "Pod" && status == string(health.HealthStatusDegraded) {
+				objStatus := obj.Object["status"].(map[string]any)
+				if val, ok := objStatus["reason"].(string); ok && val == "Evicted" {
+					// Use createdAt as default and try to parse the evict time
+					deletedAt = &createdAt
+					if evictTime, err := time.Parse(time.RFC3339, objStatus["startTime"].(string)); err != nil {
+						deletedAt = &evictTime
+					}
+				}
+			}
+
 			parentType, parentExternalID := getKubernetesParent(obj, resourceIDMap)
 			results = append(results, v1.ScrapeResult{
 				BaseScraper:         config.BaseScraper,
@@ -134,6 +152,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResul
 				Status:              status,
 				Description:         description,
 				CreatedAt:           &createdAt,
+				DeletedAt:           deletedAt,
 				Config:              cleanKubernetesObject(obj.Object),
 				ID:                  string(obj.GetUID()),
 				Tags:                stripLabels(convertStringInterfaceMapToStringMap(tags), "-hash"),
