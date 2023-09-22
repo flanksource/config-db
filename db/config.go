@@ -19,7 +19,7 @@ import (
 // GetConfigItem returns a single config item result
 func GetConfigItem(extType, extID string) (*models.ConfigItem, error) {
 	ci := models.ConfigItem{}
-	tx := db.Limit(1).Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{extID})
+	tx := db.Limit(1).Select("id", "config_class", "type", "config").Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{extID})
 	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
@@ -73,13 +73,12 @@ func CreateConfigItem(ci *models.ConfigItem) error {
 
 // UpdateConfigItem updates all the fields of a given config item row
 func UpdateConfigItem(ci *models.ConfigItem) error {
-
 	if err := db.Updates(ci).Error; err != nil {
 		return err
 	}
 
 	// Since gorm ignores nil fields, we are setting deleted_at explicitly
-	if ci.DeletedAt != nil {
+	if ci.TouchDeletedAt {
 		if err := db.Table("config_items").Where("id = ?", ci.ID).UpdateColumn("deleted_at", nil).Error; err != nil {
 			return err
 		}

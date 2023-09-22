@@ -102,7 +102,13 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 	}
 
 	ci.ID = existing.ID
-	ci.DeletedAt = existing.DeletedAt
+
+	// In case a resource was marked as deleted but is un-deleted now
+	// we set an update flag as gorm ignores nil pointers
+	if ci.DeletedAt != existing.DeletedAt {
+		ci.TouchDeletedAt = true
+	}
+
 	if err := UpdateConfigItem(&ci); err != nil {
 		if err := CreateConfigItem(&ci); err != nil {
 			return fmt.Errorf("[%s] failed to update item %v", ci, err)
@@ -177,8 +183,11 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 
 func upsertAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
-	ci, err := GetConfigItem(analysis.ConfigType, analysis.ExternalID)
-	if ci == nil {
+	ciID, err := FindConfigItemID(v1.ExternalID{
+		ConfigType: analysis.ConfigType,
+		ExternalID: []string{analysis.ExternalID},
+	})
+	if ciID == nil {
 		logger.Warnf("[Source=%s] [%s/%s] unable to find config item for analysis: %+v", analysis.Source, analysis.ConfigType, analysis.ExternalID, analysis)
 		return nil
 	} else if err != nil {
@@ -186,7 +195,10 @@ func upsertAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	}
 
 	logger.Tracef("[%s/%s] ==> %s", analysis.ConfigType, analysis.ExternalID, analysis)
-	analysis.ConfigID = uuid.MustParse(ci.ID)
+	analysis.ConfigID, err = uuid.Parse(*ciID)
+	if err != nil {
+		return err
+	}
 	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
 	analysis.ScraperID = ctx.ScrapeConfig.GetPersistedID()
 	if analysis.Status == "" {
