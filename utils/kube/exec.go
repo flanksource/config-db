@@ -11,7 +11,7 @@ import (
 )
 
 // ExecutePodf runs the specified shell command inside a container of the specified pod
-func ExecutePodf(ctx context.Context, client *kubernetes.Clientset, rc *rest.Config, namespace, pod, container string, command ...string) (string, string, error) {
+func ExecutePodf(ctx context.Context, client kubernetes.Interface, rc *rest.Config, namespace, pod, container string, command ...string) (string, string, error) {
 	const tty = false
 	req := client.CoreV1().RESTClient().Post().
 		Resource("pods").

@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	athena "github.com/uber/athenadriver/go"
@@ -47,7 +48,7 @@ const costQueryTemplate = `
     ON cost_30d.line_item_product_code = items.line_item_product_code AND items.line_item_resource_id = cost_30d.line_item_resource_id
 `
 
-func getAWSAthenaConfig(ctx *v1.ScrapeContext, awsConfig v1.AWS) (*athena.Config, error) {
+func getAWSAthenaConfig(ctx api.ScrapeContext, awsConfig v1.AWS) (*athena.Config, error) {
 	conf := athena.NewNoOpsConfig()
 
 	if err := conf.SetRegion(awsConfig.CostReporting.Region); err != nil {
@@ -83,7 +84,7 @@ type LineItemRow struct {
 	Cost30d     float64
 }
 
-func fetchCosts(ctx *v1.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
+func fetchCosts(ctx api.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
 	var lineItemRows []LineItemRow
 
 	athenaConf, err := getAWSAthenaConfig(ctx, config)
@@ -140,10 +141,10 @@ func (awsCost CostScraper) CanScrape(config v1.ScraperSpec) bool {
 	return false
 }
 
-func (awsCost CostScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
+func (awsCost CostScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
-	for _, awsConfig := range ctx.ScrapeConfig.Spec.AWS {
+	for _, awsConfig := range ctx.ScrapeConfig().Spec.AWS {
 		session, err := NewSession(ctx, *awsConfig.AWSConnection, awsConfig.Region[0])
 		if err != nil {
 			return results.Errorf(err, "failed to create AWS session")

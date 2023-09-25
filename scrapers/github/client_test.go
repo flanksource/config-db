@@ -1,15 +1,17 @@
 package github
 
 import (
+	"context"
 	"os"
 	"testing"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/types"
 )
 
 var testGithubApiClient = func() (*GitHubActionsClient, error) {
-	textCtx := new(v1.ScrapeContext)
+	textCtx := api.NewScrapeContext(context.TODO(), nil, nil)
 	ghToken := os.Getenv("GH_ACCESS_TOKEN")
 	testGh := v1.GitHubActions{
 		Owner:               "flanksource",

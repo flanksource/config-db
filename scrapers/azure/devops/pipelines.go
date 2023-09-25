@@ -3,6 +3,7 @@ package devops
 import (
 	"fmt"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
 )
@@ -17,10 +18,10 @@ func (ado AzureDevopsScraper) CanScrape(configs v1.ScraperSpec) bool {
 }
 
 // Scrape ...
-func (ado AzureDevopsScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
+func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 	results := v1.ScrapeResults{}
-	for _, config := range ctx.ScrapeConfig.Spec.AzureDevops {
+	for _, config := range ctx.ScrapeConfig().Spec.AzureDevops {
 		client, err := NewAzureDevopsClient(ctx, config)
 		if err != nil {
 			results.Errorf(err, "failed to create azure devops client for %s", config.Organization)

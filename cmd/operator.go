@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -13,6 +14,7 @@ import (
 	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	configsv1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/controllers"
 	"github.com/flanksource/config-db/db"
@@ -38,6 +40,8 @@ func init() {
 
 func run(cmd *cobra.Command, args []string) {
 	db.MustInit()
+	api.DefaultContext = api.NewScrapeContext(context.Background(), db.DefaultDB(), db.Pool)
+
 	zapLogger := logger.GetZapLogger()
 	if zapLogger == nil {
 		logger.Fatalf("failed to get zap logger")

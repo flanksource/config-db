@@ -25,6 +25,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
 )
@@ -34,7 +35,7 @@ type Scraper struct {
 }
 
 type AWSContext struct {
-	*v1.ScrapeContext
+	api.ScrapeContext
 	Session *aws.Config
 	STS     *sts.Client
 	EC2     *ec2.Client
@@ -58,7 +59,7 @@ func (ctx AWSContext) String() string {
 	return fmt.Sprintf("account=%s user=%s region=%s", *ctx.Caller.Account, *ctx.Caller.UserId, ctx.Session.Region)
 }
 
-func (aws Scraper) getContext(ctx *v1.ScrapeContext, awsConfig v1.AWS, region string) (*AWSContext, error) {
+func (aws Scraper) getContext(ctx api.ScrapeContext, awsConfig v1.AWS, region string) (*AWSContext, error) {
 	session, err := NewSession(ctx, *awsConfig.AWSConnection, region)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AWS session for region=%q: %w", region, err)
@@ -964,10 +965,10 @@ func (aws Scraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.AWS) > 0
 }
 
-func (aws Scraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
+func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	results := &v1.ScrapeResults{}
 
-	for _, awsConfig := range ctx.ScrapeConfig.Spec.AWS {
+	for _, awsConfig := range ctx.ScrapeConfig().Spec.AWS {
 		for _, region := range awsConfig.Region {
 			awsCtx, err := aws.getContext(ctx, awsConfig, region)
 			if err != nil {

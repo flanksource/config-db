@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/duty"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -73,17 +73,17 @@ type Runs struct {
 
 type GitHubActionsClient struct {
 	*resty.Client
-	*v1.ScrapeContext
+	api.ScrapeContext
 }
 
-func NewGitHubActionsClient(ctx *v1.ScrapeContext, gha v1.GitHubActions) (*GitHubActionsClient, error) {
+func NewGitHubActionsClient(ctx api.ScrapeContext, gha v1.GitHubActions) (*GitHubActionsClient, error) {
 	var token string
-	if connection, err := ctx.HydrateConnectionByURL(gha.ConnectionName); err != nil {
+	if connection, err := ctx.HydrateConnection(gha.ConnectionName); err != nil {
 		return nil, err
 	} else if connection != nil {
 		token = connection.Password
 	} else {
-		token, err = duty.GetEnvValueFromCache(ctx.Kubernetes, gha.PersonalAccessToken, ctx.Namespace)
+		token, err = ctx.GetEnvValueFromCache(gha.PersonalAccessToken)
 		if err != nil {
 			return nil, err
 		}

@@ -27,7 +27,7 @@ func RunNowHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to transform config scraper model", err)
 	}
 
-	ctx := api.NewScrapeContext(c.Request().Context(), configScraper)
+	ctx := api.DefaultContext.WithContext(c.Request().Context()).WithScrapeConfig(&configScraper)
 	results, err := RunScraper(ctx)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to run scraper", err)
