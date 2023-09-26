@@ -55,14 +55,14 @@ func serve(configFiles []string) {
 	e.GET("/query", query.Handler)
 	e.POST("/run/:id", scrapers.RunNowHandler)
 
-	if agentName != "" {
-		agent, err := db.FindAgentByName(context.Background(), agentName)
+	if api.UpstreamConfig.AgentName != "" {
+		agent, err := db.FindAgentByName(context.Background(), api.UpstreamConfig.AgentName)
 		if err != nil {
-			logger.Fatalf("error searching for agent (name=%s): %v", agentName, err)
+			logger.Fatalf("error searching for agent (name=%s): %v", api.UpstreamConfig.AgentName, err)
 		} else if agent == nil {
-			logger.Fatalf("agent not found (name=%s)", agentName)
+			logger.Fatalf("agent not found (name=%s)", api.UpstreamConfig.AgentName)
 		} else {
-			agentID = agent.ID
+			api.AgentID = agent.ID
 		}
 	}
 
@@ -89,7 +89,7 @@ func startScraperCron(configFiles []string) {
 		}
 	}
 
-	scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(agentID)
+	scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(api.AgentID)
 	if err != nil {
 		logger.Fatalf("error getting configs from database: %v", err)
 	}
