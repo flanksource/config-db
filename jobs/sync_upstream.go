@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
@@ -106,31 +105,42 @@ func (t *UpstreamPullJob) pull(ctx api.ScrapeContext, config upstream.UpstreamCo
 	}).Create(&scrapeConfigs).Error
 }
 
+type LastPushedConfigResult struct {
+	ConfigID   uuid.UUID
+	AnalysisID uuid.UUID
+	ChangeID   uuid.UUID
+}
+
 // UpstreamPushJob pushes scrape config results to the upstream server
 type UpstreamPushJob struct {
-	lastConfigItemID uuid.UUID
-	lastAnalysisID   uuid.UUID
-	lastChangeID     uuid.UUID
+	status LastPushedConfigResult
 
 	initiated bool
-
-	// MaxAge defines how far back we look into the past on startup when
-	// lastRuntime is zero.
-	MaxAge time.Duration
 }
 
 // init initializes the last pushed ids ...
-func (t *UpstreamPushJob) init(ctx api.ScrapeContext) error {
-	if err := ctx.DB().Debug().Model(&models.ConfigItem{}).Select("id").Where("NOW() - updated_at <= ?", t.MaxAge).Scan(&t.lastConfigItemID).Error; err != nil {
-		return fmt.Errorf("error getting last config item id: %w", err)
+func (t *UpstreamPushJob) init(ctx api.ScrapeContext, config upstream.UpstreamConfig) error {
+	endpoint, err := url.JoinPath(config.Host, "upstream", "scrapeconfig", "status", config.AgentName)
+	if err != nil {
+		return fmt.Errorf("error creating url endpoint for host %s: %w", config.Host, err)
 	}
 
-	if err := ctx.DB().Debug().Model(&models.ConfigAnalysis{}).Select("id").Where("NOW() - first_observed <= ?", t.MaxAge).Scan(&t.lastAnalysisID).Error; err != nil {
-		return fmt.Errorf("error getting last analysis id: %w", err)
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("error creating new http request: %w", err)
 	}
 
-	if err := ctx.DB().Debug().Model(&models.ConfigChange{}).Select("id").Where("NOW() - created_at <= ?", t.MaxAge).Scan(&t.lastChangeID).Error; err != nil {
-		return fmt.Errorf("error getting last change id: %w", err)
+	req.SetBasicAuth(config.Username, config.Password)
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("error making request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if err := json.NewDecoder(resp.Body).Decode(&t.status); err != nil {
+		return fmt.Errorf("error decoding JSON response: %w", err)
 	}
 
 	return nil
@@ -145,7 +155,7 @@ func (t *UpstreamPushJob) Run() {
 
 	if !t.initiated {
 		logger.Debugf("initializing upstream push job")
-		if err := t.init(ctx); err != nil {
+		if err := t.init(ctx, api.UpstreamConfig); err != nil {
 			jobHistory.AddError(err.Error())
 			logger.Errorf("error initializing upstream push job: %v", err)
 			return
@@ -163,36 +173,34 @@ func (t *UpstreamPushJob) Run() {
 }
 
 func (t *UpstreamPushJob) run(ctx api.ScrapeContext) error {
-	logger.Tracef("running configs upstream push job")
-
 	pushData := &upstream.PushData{AgentName: api.UpstreamConfig.AgentName}
-	if err := ctx.DB().Where("id > ?", t.lastConfigItemID).Find(&pushData.ConfigItems).Error; err != nil {
+	if err := ctx.DB().Where("id > ?", t.status.ConfigID).Find(&pushData.ConfigItems).Error; err != nil {
 		return err
 	}
 
-	if err := ctx.DB().Where("id > ?", t.lastAnalysisID).Find(&pushData.ConfigAnalysis).Error; err != nil {
+	if err := ctx.DB().Where("id > ?", t.status.AnalysisID).Find(&pushData.ConfigAnalysis).Error; err != nil {
 		return err
 	}
 
-	if err := ctx.DB().Where("id > ?", t.lastChangeID).Find(&pushData.ConfigChanges).Error; err != nil {
+	if err := ctx.DB().Where("id > ?", t.status.ChangeID).Find(&pushData.ConfigChanges).Error; err != nil {
 		return err
 	}
 
-	logger.Tracef("pushing %d config scrape results to upstream", pushData.Count())
 	if pushData.Count() == 0 {
 		return nil
 	}
 
+	logger.Tracef("pushing %d config scrape results to upstream", pushData.Count())
 	if err := upstream.Push(ctx, api.UpstreamConfig, pushData); err != nil {
 		return fmt.Errorf("error pushing to upstream: %w", err)
 	}
 
 	if len(pushData.ConfigItems) > 0 {
-		t.lastConfigItemID = pushData.ConfigItems[len(pushData.ConfigItems)-1].ID
+		t.status.ConfigID = pushData.ConfigItems[len(pushData.ConfigItems)-1].ID
 	}
 
 	if len(pushData.ConfigAnalysis) > 0 {
-		t.lastAnalysisID = pushData.ConfigAnalysis[len(pushData.ConfigAnalysis)-1].ID
+		t.status.AnalysisID = pushData.ConfigAnalysis[len(pushData.ConfigAnalysis)-1].ID
 	}
 
 	if len(pushData.ConfigChanges) > 0 {
@@ -202,7 +210,7 @@ func (t *UpstreamPushJob) run(ctx api.ScrapeContext) error {
 			return err
 		}
 
-		t.lastChangeID = parsed
+		t.status.ChangeID = parsed
 	}
 
 	return nil

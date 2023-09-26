@@ -11,6 +11,7 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/query"
+	"github.com/google/uuid"
 
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/labstack/echo/v4"
@@ -55,17 +56,6 @@ func serve(configFiles []string) {
 	e.GET("/query", query.Handler)
 	e.POST("/run/:id", scrapers.RunNowHandler)
 
-	if api.UpstreamConfig.AgentName != "" {
-		agent, err := db.FindAgentByName(context.Background(), api.UpstreamConfig.AgentName)
-		if err != nil {
-			logger.Fatalf("error searching for agent (name=%s): %v", api.UpstreamConfig.AgentName, err)
-		} else if agent == nil {
-			logger.Fatalf("agent not found (name=%s)", api.UpstreamConfig.AgentName)
-		} else {
-			api.AgentID = agent.ID
-		}
-	}
-
 	go startScraperCron(configFiles)
 
 	go jobs.ScheduleJobs()
@@ -89,7 +79,7 @@ func startScraperCron(configFiles []string) {
 		}
 	}
 
-	scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(api.AgentID)
+	scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(uuid.Nil)
 	if err != nil {
 		logger.Fatalf("error getting configs from database: %v", err)
 	}

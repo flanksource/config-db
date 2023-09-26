@@ -3,7 +3,6 @@ package jobs
 import (
 	"reflect"
 	"runtime"
-	"time"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
@@ -33,7 +32,7 @@ func ScheduleJobs() {
 		pullJob := &UpstreamPullJob{}
 		pullJob.Run()
 
-		pushJob := &UpstreamPushJob{MaxAge: time.Minute * 5}
+		pushJob := &UpstreamPushJob{}
 		pushJob.Run()
 
 		if _, err := FuncScheduler.AddJob(PullConfigScrapersFromUpstreamSchedule, pullJob); err != nil {
