@@ -32,15 +32,8 @@ func ScheduleJobs() {
 		pullJob := &UpstreamPullJob{}
 		pullJob.Run()
 
-		pushJob := &UpstreamPushJob{}
-		pushJob.Run()
-
 		if _, err := FuncScheduler.AddJob(PullConfigScrapersFromUpstreamSchedule, pullJob); err != nil {
 			logger.Fatalf("Failed to schedule job [PullUpstreamScrapeConfigs]: %v", err)
-		}
-
-		if _, err := FuncScheduler.AddJob(PushConfigResultsToUpstreamSchedule, pushJob); err != nil {
-			logger.Fatalf("Failed to schedule job [UpstreamPushJob]: %v", err)
 		}
 
 		scheduleFunc(ReconcileConfigsToUpstreamSchedule, ReconcileConfigScraperResults)

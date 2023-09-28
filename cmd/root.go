@@ -78,6 +78,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&api.UpstreamConfig.Username, "upstream-user", "", "upstream username")
 	flags.StringVar(&api.UpstreamConfig.Password, "upstream-password", "", "upstream password")
 	flags.StringVar(&api.UpstreamConfig.AgentName, "agent-name", "", "name of this agent")
+	flags.IntVar(&jobs.ReconcilePageSize, "upstream-page-size", 500, "upstream reconciliation page size")
 }
 
 func init() {
