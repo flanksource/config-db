@@ -1,9 +1,9 @@
 package scrapers
 
 import (
+	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/scrapers/azure"
 	"github.com/flanksource/config-db/scrapers/trivy"
-	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/types"
 
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -16,7 +16,7 @@ import (
 )
 
 // All is the scrappers registry
-var All = []v1.Scraper{
+var All = []api.Scraper{
 	azure.Scraper{},
 	aws.Scraper{},
 	aws.CostScraper{},
@@ -29,7 +29,7 @@ var All = []v1.Scraper{
 	trivy.Scanner{},
 }
 
-func GetAuthValues(ctx *v1.ScrapeContext, auth *v1.Authentication) (*v1.Authentication, error) {
+func GetAuthValues(ctx api.ScrapeContext, auth *v1.Authentication) (*v1.Authentication, error) {
 	authentication := &v1.Authentication{
 		Username: types.EnvVar{
 			ValueStatic: "",
@@ -42,14 +42,14 @@ func GetAuthValues(ctx *v1.ScrapeContext, auth *v1.Authentication) (*v1.Authenti
 	if auth == nil {
 		return authentication, nil
 	}
-	username, err := duty.GetEnvValueFromCache(ctx.Kubernetes, auth.Username, ctx.Namespace)
+	username, err := ctx.GetEnvValueFromCache(auth.Username)
 	if err != nil {
 		return nil, err
 	}
 	authentication.Username = types.EnvVar{
 		ValueStatic: username,
 	}
-	password, err := duty.GetEnvValueFromCache(ctx.Kubernetes, auth.Password, ctx.Namespace)
+	password, err := ctx.GetEnvValueFromCache(auth.Password)
 	if err != nil {
 		return nil, err
 	}

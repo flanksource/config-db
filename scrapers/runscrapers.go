@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers/analysis"
@@ -18,20 +19,20 @@ import (
 )
 
 // Run ...
-func Run(ctx *v1.ScrapeContext) ([]v1.ScrapeResult, error) {
+func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 	cwd, _ := os.Getwd()
 	logger.Infof("Scraping configs from (PWD: %s)", cwd)
 
 	var results v1.ScrapeResults
 	for _, scraper := range All {
-		if !scraper.CanScrape(ctx.ScrapeConfig.Spec) {
+		if !scraper.CanScrape(ctx.ScrapeConfig().Spec) {
 			continue
 		}
 
 		jobHistory := models.JobHistory{
 			Name:         fmt.Sprintf("scraper:%T", scraper),
 			ResourceType: "config_scraper",
-			ResourceID:   string(ctx.ScrapeConfig.GetUID()),
+			ResourceID:   string(ctx.ScrapeConfig().GetUID()),
 		}
 
 		jobHistory.Start()
@@ -41,7 +42,7 @@ func Run(ctx *v1.ScrapeContext) ([]v1.ScrapeResult, error) {
 
 		logger.Debugf("Starting to scrape [%s]", jobHistory.Name)
 		for _, result := range scraper.Scrape(ctx) {
-			scraped := processScrapeResult(ctx.ScrapeConfig.Spec, result)
+			scraped := processScrapeResult(ctx.ScrapeConfig().Spec, result)
 
 			for i := range scraped {
 				if scraped[i].Error != nil {

@@ -28,6 +28,8 @@ var Serve = &cobra.Command{
 
 func serve(configFiles []string) {
 	db.MustInit()
+	api.DefaultContext = api.NewScrapeContext(context.Background(), db.DefaultDB(), db.Pool)
+
 	e := echo.New()
 	// PostgREST needs to know how it is exposed to create the correct links
 	db.HTTPEndpoint = publicEndpoint + "/db"
@@ -101,7 +103,7 @@ func startScraperCron(configFiles []string) {
 		scrapers.AddToCron(_scraper)
 
 		fn := func() {
-			ctx := api.NewScrapeContext(context.Background(), _scraper)
+			ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
 			if _, err := scrapers.RunScraper(ctx); err != nil {
 				logger.Errorf("Error running scraper(id=%s): %v", scraper.ID, err)
 			}

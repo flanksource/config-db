@@ -10,6 +10,7 @@ import (
 
 	"github.com/flanksource/commons/deps"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
@@ -29,10 +30,10 @@ func (t Scanner) CanScrape(config v1.ScraperSpec) bool {
 	return len(config.Trivy) > 0
 }
 
-func (t Scanner) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
+func (t Scanner) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
-	for i, config := range ctx.ScrapeConfig.Spec.Trivy {
+	for i, config := range ctx.ScrapeConfig().Spec.Trivy {
 		if config.IsEmpty() {
 			logger.Debugf("Trivy config [%d] is empty. Skipping ...", i+1)
 			continue

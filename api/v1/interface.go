@@ -1,29 +1,14 @@
 package v1
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
-
-// Scraper ...
-// +kubebuilder:object:generate=false
-type Scraper interface {
-	Scrape(ctx *ScrapeContext) ScrapeResults
-	CanScrape(config ScraperSpec) bool
-}
 
 // Analyzer ...
 // +kubebuilder:object:generate=false
@@ -340,68 +325,4 @@ type RunNowResponse struct {
 	Success int      `json:"success"`
 	Failed  int      `json:"failed"`
 	Errors  []string `json:"errors,omitempty"`
-}
-
-// ScrapeContext ...
-// +kubebuilder:object:generate=false
-type ScrapeContext struct {
-	context.Context
-	DB                   *gorm.DB
-	Namespace            string
-	Kubernetes           *kubernetes.Clientset
-	KubernetesRestConfig *rest.Config
-	ScrapeConfig         ScrapeConfig
-}
-
-func (ctx ScrapeContext) Find(path string) ([]string, error) {
-	return filepath.Glob(path)
-}
-
-// Read returns the contents of a file, the base filename and an error
-func (ctx ScrapeContext) Read(path string) ([]byte, string, error) {
-	content, err := os.ReadFile(path)
-	filename := filepath.Base(path)
-	return content, filename, err
-}
-
-// GetNamespace ...
-func (ctx ScrapeContext) GetNamespace() string {
-	return ctx.Namespace
-}
-
-// IsTrace ...
-func (ctx ScrapeContext) IsTrace() bool {
-	return ctx.ScrapeConfig.Spec.IsTrace()
-}
-
-// HydrateConnectionByURL ...
-func (ctx *ScrapeContext) HydrateConnectionByURL(connectionName string) (*models.Connection, error) {
-	if connectionName == "" {
-		return nil, nil
-	}
-
-	if !strings.HasPrefix(connectionName, "connection://") {
-		return nil, fmt.Errorf("invalid connection name: [%s]", connectionName)
-	}
-
-	if ctx.DB == nil {
-		return nil, errors.New("db has not been initialized")
-	}
-
-	if ctx.Kubernetes == nil {
-		return nil, errors.New("kubernetes clientset has not been initialized")
-	}
-
-	connection, err := duty.HydratedConnectionByURL(ctx, ctx.DB, ctx.Kubernetes, ctx.Namespace, connectionName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Connection name was explicitly provided but was not found.
-	// That's an error.
-	if connection == nil {
-		return nil, fmt.Errorf("connection %s not found", connectionName)
-	}
-
-	return connection, nil
 }

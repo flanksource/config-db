@@ -1,7 +1,6 @@
 package scrapers
 
 import (
-	"context"
 	"sync"
 
 	"github.com/flanksource/commons/logger"
@@ -42,9 +41,9 @@ func AtomicRunner(id string, fn func()) func() {
 
 func AddToCron(scrapeConfig v1.ScrapeConfig) {
 	fn := func() {
-		ctx := api.NewScrapeContext(context.Background(), scrapeConfig)
+		ctx := api.DefaultContext.WithScrapeConfig(&scrapeConfig)
 		if _, err := RunScraper(ctx); err != nil {
-			logger.Errorf("failed to run scraper %s: %v", ctx.ScrapeConfig.GetUID(), err)
+			logger.Errorf("failed to run scraper %s: %v", ctx.ScrapeConfig().GetUID(), err)
 		}
 	}
 
