@@ -13,10 +13,16 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/upstream"
+	"github.com/flanksource/postq/pg"
 	"gorm.io/gorm/clause"
 )
 
 var ReconcilePageSize int
+
+const (
+	EventPushQueueCreate    = "push_queue.create"
+	eventQueueUpdateChannel = "event_queue_updates"
+)
 
 // ReconcileConfigScraperResults pushes missing scrape config results to the upstream server
 func ReconcileConfigScraperResults() {
@@ -27,7 +33,7 @@ func ReconcileConfigScraperResults() {
 	defer func() { _ = db.PersistJobHistory(jobHistory.End()) }()
 
 	reconciler := upstream.NewUpstreamReconciler(api.UpstreamConfig, ReconcilePageSize)
-	if err := reconciler.Sync(ctx, "config_items"); err != nil {
+	if err := reconciler.SyncAfter(ctx, "config_items", time.Hour*48); err != nil {
 		jobHistory.AddError(err.Error())
 		logger.Errorf("failed to sync table config_items: %v", err)
 	} else {
@@ -101,4 +107,17 @@ func (t *UpstreamPullJob) pull(ctx api.ScrapeContext, config upstream.UpstreamCo
 		Columns:   []clause.Column{{Name: "id"}},
 		UpdateAll: true,
 	}).Create(&scrapeConfigs).Error
+}
+
+func StartConsumser(ctx api.ScrapeContext) error {
+	consumer, err := upstream.NewPushQueueConsumer(api.UpstreamConfig).EventConsumer()
+	if err != nil {
+		return err
+	}
+
+	pgNotifyChannel := make(chan string)
+	go pg.Listen(ctx, eventQueueUpdateChannel, pgNotifyChannel)
+
+	go consumer.Listen(ctx, pgNotifyChannel)
+	return nil
 }

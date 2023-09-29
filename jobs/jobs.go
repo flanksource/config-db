@@ -12,7 +12,7 @@ import (
 var FuncScheduler = cron.New()
 
 const (
-	PullConfigScrapersFromUpstreamSchedule = "@every 30s"
+	PullConfigScrapersFromUpstreamSchedule = "@every 5m"
 	PushConfigResultsToUpstreamSchedule    = "@every 10s"
 	ReconcileConfigsToUpstreamSchedule     = "@every 3h"
 )
@@ -34,6 +34,11 @@ func ScheduleJobs() {
 
 		if _, err := FuncScheduler.AddJob(PullConfigScrapersFromUpstreamSchedule, pullJob); err != nil {
 			logger.Fatalf("Failed to schedule job [PullUpstreamScrapeConfigs]: %v", err)
+		}
+
+		// Syncs scrape config results to upstream in real-time
+		if err := StartConsumser(api.DefaultContext); err != nil {
+			logger.Fatalf("Failed to start event consumer: %v", err)
 		}
 
 		scheduleFunc(ReconcileConfigsToUpstreamSchedule, ReconcileConfigScraperResults)
