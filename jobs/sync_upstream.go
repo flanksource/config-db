@@ -69,7 +69,7 @@ func (t *UpstreamPullJob) pull(ctx api.ScrapeContext, config upstream.UpstreamCo
 	req.SetBasicAuth(config.Username, config.Password)
 
 	params := url.Values{}
-	params.Add("since", t.lastRuntime.Format(time.RFC3339))
+	params.Add("since", t.lastRuntime.Format(time.RFC3339Nano))
 	req.URL.RawQuery = params.Encode()
 
 	httpClient := &http.Client{}
