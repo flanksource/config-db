@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
@@ -74,11 +75,20 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
 
 	// Flags for push/pull
-	flags.StringVar(&api.UpstreamConfig.Host, "upstream-host", "", "central mission control instance to sync scrape configs & their results")
-	flags.StringVar(&api.UpstreamConfig.Username, "upstream-user", "", "upstream username")
-	flags.StringVar(&api.UpstreamConfig.Password, "upstream-password", "", "upstream password")
-	flags.StringVar(&api.UpstreamConfig.AgentName, "agent-name", "", "name of this agent")
-	flags.IntVar(&jobs.ReconcilePageSize, "upstream-page-size", 500, "upstream reconciliation page size")
+	var upstreamPageSizeDefault = 500
+	if val, exists := os.LookupEnv("UPSTREAM_PAGE_SIZE"); exists {
+		if parsed, err := strconv.Atoi(val); err != nil || parsed < 0 {
+			logger.Fatalf("invalid value=%s for UPSTREAM_PAGE_SIZE. Must be a postive number", val)
+		} else {
+			upstreamPageSizeDefault = parsed
+		}
+	}
+
+	flags.StringVar(&api.UpstreamConfig.Host, "upstream-host", os.Getenv("UPSTREAM_HOST"), "central mission control instance to sync scrape configs & their results")
+	flags.StringVar(&api.UpstreamConfig.Username, "upstream-user", os.Getenv("UPSTREAM_USER"), "upstream username")
+	flags.StringVar(&api.UpstreamConfig.Password, "upstream-password", os.Getenv("UPSTREAM_PASSWORD"), "upstream password")
+	flags.StringVar(&api.UpstreamConfig.AgentName, "agent-name", os.Getenv("AGENT_NAME"), "name of this agent")
+	flags.IntVar(&jobs.ReconcilePageSize, "upstream-page-size", upstreamPageSizeDefault, "upstream reconciliation page size")
 }
 
 func init() {
