@@ -62,9 +62,10 @@ serviceAccount:
   annotations: {}
 
 upstream:
+  enabled: true
   secretKeyRef:
-    name: upstream
-  agentName: 
+    name: upstream # Must contain: UPSTREAM_USER, UPSTREAM_PASS & UPSTREAM_HOST
+  agentName: default-agent
   pageSize: 500
 
 extra:

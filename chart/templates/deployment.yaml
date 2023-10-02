@@ -42,9 +42,11 @@ spec:
             - --disable-postgrest={{ .Values.disablePostgrest }}
             - --change-retention-days={{ .Values.configChangeRetentionDays }}
             - --analysis-retention-days={{ .Values.configAnalysisRetentionDays }}
+          {{- if .Values.upstream.enabled}}
           envFrom:
             - secretRef:
-              name: {{ .Values.upstream.secretKeyRef.name }}
+                name: {{ .Values.upstream.secretKeyRef.name }}
+          {{- end}}
           env:
             - name: DB_URL
               valueFrom:
@@ -53,10 +55,12 @@ spec:
                   key: {{ .Values.db.secretKeyRef.key }}
             - name: NAMESPACE
               value: {{ .Values.namespace | default .Release.Namespace }}
+            {{- if .Values.upstream.enabled}}
             - name: AGENT_NAME
-              value: {{ .Values.upstream.agentName }}
+              value: '{{ .Values.upstream.agentName }}'
             - name: UPSTREAM_PAGE_SIZE
-              value: {{ .Values.upstream.pageSize }}
+              value: '{{ .Values.upstream.pageSize }}'
+            {{- end}}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.extra }}
