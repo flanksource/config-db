@@ -61,6 +61,12 @@ serviceAccount:
   name: ""
   annotations: {}
 
+upstream:
+  secretKeyRef:
+    name: upstream
+  agentName: 
+  pageSize: 500
+
 extra:
   {}
   # nodeSelector:
