@@ -40,10 +40,10 @@ require (
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.21.0
 	github.com/flanksource/commons v1.12.0
-	github.com/flanksource/duty v1.0.187
+	github.com/flanksource/duty v1.0.188
 	github.com/flanksource/is-healthy v0.0.0-20230713150444-ad2a5ef4bb37
 	github.com/flanksource/ketall v1.1.1
-	github.com/flanksource/postq v1.0.0
+	github.com/flanksource/postq v0.1.0
 	github.com/go-logr/zapr v1.2.4
 	github.com/gobwas/glob v0.2.3
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
@@ -76,7 +76,7 @@ require (
 )
 
 require (
-	ariga.io/atlas v0.14.1 // indirect
+	ariga.io/atlas v0.14.2 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.2.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.9.0 // indirect
@@ -157,7 +157,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
-	github.com/flanksource/gomplate/v3 v3.20.12
+	github.com/flanksource/gomplate/v3 v3.20.13
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/logr v1.2.4
@@ -257,7 +257,3 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230601165947-6ce0bf390ce3 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.3.0 // indirect
 )
-
-replace github.com/flanksource/duty => ../duty
-
-replace github.com/flanksource/postq => ../postq
