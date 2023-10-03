@@ -62,7 +62,7 @@ serviceAccount:
   annotations: {}
 
 upstream:
-  enabled: true
+  enabled: false
   secretKeyRef:
     name: upstream # Must contain: UPSTREAM_USER, UPSTREAM_PASS & UPSTREAM_HOST
   agentName: default-agent
