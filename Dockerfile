@@ -17,5 +17,4 @@ COPY --from=builder /app/.bin/config-db /app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 RUN /app/config-db go-offline
-
 ENTRYPOINT ["/app/config-db"]
