@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/duty"
 )
 
 type Project struct {
@@ -107,18 +107,18 @@ type Runs struct {
 
 type AzureDevopsClient struct {
 	*resty.Client
-	*v1.ScrapeContext
+	api.ScrapeContext
 }
 
-func NewAzureDevopsClient(ctx *v1.ScrapeContext, ado v1.AzureDevops) (*AzureDevopsClient, error) {
+func NewAzureDevopsClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*AzureDevopsClient, error) {
 	var token string
-	if connection, err := ctx.HydrateConnectionByURL(ado.ConnectionName); err != nil {
+	if connection, err := ctx.HydrateConnection(ado.ConnectionName); err != nil {
 		return nil, fmt.Errorf("failed to find connection: %w", err)
 	} else if connection != nil {
 		token = connection.Password
 		ado.Organization = connection.Username
 	} else {
-		token, err = duty.GetEnvValueFromCache(ctx.Kubernetes, ado.PersonalAccessToken, ctx.Namespace)
+		token, err = ctx.GetEnvValueFromCache(ado.PersonalAccessToken)
 		if err != nil {
 			return nil, err
 		}

@@ -8,6 +8,7 @@ import (
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/flanksource/ketall"
@@ -24,7 +25,7 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
 }
 
-func (kubernetes KubernetesScraper) IncrementalScrape(ctx *v1.ScrapeContext, config v1.Kubernetes, resources []*v1.InvolvedObject) v1.ScrapeResults {
+func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, config v1.Kubernetes, resources []*v1.InvolvedObject) v1.ScrapeResults {
 	logger.Debugf("Scraping %d resources", len(resources))
 
 	var objects []*unstructured.Unstructured
@@ -47,10 +48,10 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx *v1.ScrapeContext, con
 	return extractResults(config, objects)
 }
 
-func (kubernetes KubernetesScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
+func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
-	for _, config := range ctx.ScrapeConfig.Spec.Kubernetes {
+	for _, config := range ctx.ScrapeConfig().Spec.Kubernetes {
 		if config.ClusterName == "" {
 			logger.Fatalf("clusterName missing from kubernetes configuration")
 		}

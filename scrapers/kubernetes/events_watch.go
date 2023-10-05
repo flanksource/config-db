@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,7 +18,7 @@ var (
 	refetchEventResourceInterval = time.Second * 10
 )
 
-type consumerFunc func(ctx *v1.ScrapeContext, config v1.Kubernetes, involvedObjects []*v1.InvolvedObject) error
+type consumerFunc func(ctx api.ScrapeContext, config v1.Kubernetes, involvedObjects []*v1.InvolvedObject) error
 
 type eventWatcher struct {
 	// involvedObjects keeps record of all the involved objects from events
@@ -28,7 +29,7 @@ type eventWatcher struct {
 	lock *sync.Mutex
 }
 
-func WatchEvents(ctx *v1.ScrapeContext, config v1.Kubernetes, consume consumerFunc) error {
+func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes, consume consumerFunc) error {
 	watcher := &eventWatcher{
 		lock:            &sync.Mutex{},
 		involvedObjects: make(map[string]map[string]*v1.InvolvedObject),
@@ -41,10 +42,10 @@ func WatchEvents(ctx *v1.ScrapeContext, config v1.Kubernetes, consume consumerFu
 
 // WatchEvents watches Kubernetes events for any config changes & fetches
 // the referenced config items in batches.
-func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error {
+func (t *eventWatcher) Watch(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	logger.Infof("Watching kubernetes events. name=%s namespace=%s cluster=%s", config.Name, config.Namespace, config.ClusterName)
 
-	watcher, err := ctx.Kubernetes.CoreV1().Events(config.Namespace).Watch(ctx, metav1.ListOptions{})
+	watcher, err := ctx.Kubernetes().CoreV1().Events(config.Namespace).Watch(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create a new event watcher: %w", err)
 	}
@@ -87,7 +88,7 @@ func (t *eventWatcher) Watch(ctx *v1.ScrapeContext, config v1.Kubernetes) error 
 
 // consumeChangeEvents fetches the configs referenced by the changes and saves them.
 // It clears the buffer after.
-func (t *eventWatcher) consumeChangeEvents(ctx *v1.ScrapeContext, config v1.Kubernetes, consume consumerFunc) {
+func (t *eventWatcher) consumeChangeEvents(ctx api.ScrapeContext, config v1.Kubernetes, consume consumerFunc) {
 	for {
 		time.Sleep(refetchEventResourceInterval)
 
@@ -105,7 +106,7 @@ func (t *eventWatcher) consumeChangeEvents(ctx *v1.ScrapeContext, config v1.Kube
 		t.lock.Unlock()
 
 		if err := consume(ctx, config, resourceIDs); err != nil {
-			logger.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig.Name, err)
+			logger.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig().Name, err)
 		}
 
 		t.involvedObjects = make(map[string]map[string]*v1.InvolvedObject)

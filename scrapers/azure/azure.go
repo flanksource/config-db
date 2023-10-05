@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
@@ -32,11 +33,42 @@ func (azure Scraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Azure) > 0
 }
 
-func (azure Scraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
+// HydrateConnection populates the credentials in Azure from the connection name (if available)
+// else it'll try to fetch the credentials from kubernetes secrets.
+func (azure Scraper) hydrateConnection(ctx api.ScrapeContext, t v1.Azure) error {
+	if t.ConnectionName != "" {
+		connection, err := ctx.HydrateConnection(t.ConnectionName)
+		if err != nil {
+			return fmt.Errorf("could not hydrate connection: %w", err)
+		} else if connection == nil {
+			return fmt.Errorf("connection %s not found", t.ConnectionName)
+		}
+
+		t.ClientID.ValueStatic = connection.Username
+		t.ClientSecret.ValueStatic = connection.Password
+		t.TenantID = connection.Properties["tenant"]
+		return nil
+	}
+
+	var err error
+	t.ClientID.ValueStatic, err = ctx.GetEnvValueFromCache(t.ClientID)
+	if err != nil {
+		return fmt.Errorf("failed to get client id: %w", err)
+	}
+
+	t.ClientSecret.ValueStatic, err = ctx.GetEnvValueFromCache(t.ClientSecret)
+	if err != nil {
+		return fmt.Errorf("failed to get client secret: %w", err)
+	}
+
+	return nil
+}
+
+func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
-	for _, config := range ctx.ScrapeConfig.Spec.Azure {
-		if err := config.HydrateConnection(ctx); err != nil {
-			results.Errorf(err, "failed to populate config")
+	for _, config := range ctx.ScrapeConfig().Spec.Azure {
+		if err := azure.hydrateConnection(ctx, config); err != nil {
+			results.Errorf(err, "failed to populate connection")
 			continue
 		}
 

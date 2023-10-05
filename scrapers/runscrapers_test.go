@@ -48,7 +48,7 @@ var _ = Describe("Scrapers test", func() {
 			It(fixture, func() {
 				config := getConfigSpec(fixture)
 				expected := getFixtureResult(fixture)
-				ctx := api.NewScrapeContext(context.Background(), config)
+				ctx := api.NewScrapeContext(context.Background(), nil, nil).WithScrapeConfig(&config)
 
 				results, err := Run(ctx)
 				Expect(err).To(BeNil())
@@ -83,7 +83,7 @@ var _ = Describe("Scrapers test", func() {
 			configScraper, err := db.PersistScrapeConfigFromFile(config)
 			Expect(err).To(BeNil())
 
-			ctx := api.NewScrapeContext(context.Background(), config)
+			ctx := api.NewScrapeContext(context.Background(), nil, nil).WithScrapeConfig(&config)
 
 			results, err := Run(ctx)
 			Expect(err).To(BeNil())
@@ -107,7 +107,7 @@ var _ = Describe("Scrapers test", func() {
 		It("should store the changes from the config", func() {
 			config := getConfigSpec("file-car-change")
 
-			ctx := api.NewScrapeContext(context.Background(), config)
+			ctx := api.NewScrapeContext(context.Background(), nil, nil).WithScrapeConfig(&config)
 
 			results, err := Run(ctx)
 			Expect(err).To(BeNil())

@@ -31,22 +31,23 @@ var Run = &cobra.Command{
 
 		if db.ConnectionString != "" {
 			db.MustInit()
+			api.DefaultContext = api.NewScrapeContext(context.Background(), db.DefaultDB(), db.Pool)
 		}
 
 		if db.ConnectionString == "" && outputDir == "" {
 			logger.Fatalf("skipping export: neither --output-dir nor --db is specified")
 		}
 
-		for _, scraperConfig := range scraperConfigs {
-			ctx := api.NewScrapeContext(context.Background(), scraperConfig)
+		for i := range scraperConfigs {
+			ctx := api.DefaultContext.WithScrapeConfig(&scraperConfigs[i])
 			if err := scrapeAndStore(ctx); err != nil {
-				logger.Errorf("error scraping config: (name=%s) %v", scraperConfig.Name, err)
+				logger.Errorf("error scraping config: (name=%s) %v", scraperConfigs[i].Name, err)
 			}
 		}
 	},
 }
 
-func scrapeAndStore(ctx *v1.ScrapeContext) error {
+func scrapeAndStore(ctx api.ScrapeContext) error {
 	results, err := scrapers.Run(ctx)
 	if err != nil {
 		return err

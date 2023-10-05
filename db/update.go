@@ -10,6 +10,7 @@ import (
 	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/db/ulid"
@@ -25,7 +26,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func deleteChangeHandler(ctx *v1.ScrapeContext, change v1.ChangeResult) error {
+func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	var deletedAt interface{}
 	if change.CreatedAt != nil {
 		deletedAt = change.CreatedAt
@@ -87,7 +88,7 @@ func getParentPath(parentExternalUID v1.ExternalID) string {
 	return path
 }
 
-func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
+func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 	existing, err := GetConfigItem(*ci.Type, ci.ID)
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return errors.Wrapf(err, "unable to lookup existing config: %s", ci)
@@ -102,7 +103,13 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 	}
 
 	ci.ID = existing.ID
-	ci.DeletedAt = existing.DeletedAt
+
+	// In case a resource was marked as deleted but is un-deleted now
+	// we set an update flag as gorm ignores nil pointers
+	if ci.DeletedAt != existing.DeletedAt {
+		ci.TouchDeletedAt = true
+	}
+
 	if err := UpdateConfigItem(&ci); err != nil {
 		if err := CreateConfigItem(&ci); err != nil {
 			return fmt.Errorf("[%s] failed to update item %v", ci, err)
@@ -130,7 +137,7 @@ func updateCI(ctx *v1.ScrapeContext, ci models.ConfigItem) error {
 	return nil
 }
 
-func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
+func updateChange(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	for _, change := range result.Changes {
 		if change.Action == v1.Ignore {
 			continue
@@ -175,10 +182,13 @@ func updateChange(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	return nil
 }
 
-func upsertAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
+func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
-	ci, err := GetConfigItem(analysis.ConfigType, analysis.ExternalID)
-	if ci == nil {
+	ciID, err := FindConfigItemID(v1.ExternalID{
+		ConfigType: analysis.ConfigType,
+		ExternalID: []string{analysis.ExternalID},
+	})
+	if ciID == nil {
 		logger.Warnf("[Source=%s] [%s/%s] unable to find config item for analysis: %+v", analysis.Source, analysis.ConfigType, analysis.ExternalID, analysis)
 		return nil
 	} else if err != nil {
@@ -186,9 +196,12 @@ func upsertAnalysis(ctx *v1.ScrapeContext, result *v1.ScrapeResult) error {
 	}
 
 	logger.Tracef("[%s/%s] ==> %s", analysis.ConfigType, analysis.ExternalID, analysis)
-	analysis.ConfigID = uuid.MustParse(ci.ID)
+	analysis.ConfigID, err = uuid.Parse(*ciID)
+	if err != nil {
+		return err
+	}
 	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
-	analysis.ScraperID = ctx.ScrapeConfig.GetPersistedID()
+	analysis.ScraperID = ctx.ScrapeConfig().GetPersistedID()
 	if analysis.Status == "" {
 		analysis.Status = dutyModels.AnalysisStatusOpen
 	}
@@ -213,7 +226,7 @@ func UpdateAnalysisStatusBefore(ctx context.Context, before time.Time, scraperID
 }
 
 // SaveResults creates or update a configuartion with config changes
-func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
+func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 	startTime, err := GetCurrentDBTime(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to get current db time: %w", err)
@@ -226,7 +239,7 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 				return errors.Wrapf(err, "unable to create config item: %s", result)
 			}
 
-			ci.ScraperID = ctx.ScrapeConfig.GetPersistedID()
+			ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
 
 			if err := updateCI(ctx, *ci); err != nil {
 				return err
@@ -250,9 +263,9 @@ func SaveResults(ctx *v1.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 	}
 
-	if !startTime.IsZero() && ctx.ScrapeConfig.GetPersistedID() != nil {
+	if !startTime.IsZero() && ctx.ScrapeConfig().GetPersistedID() != nil {
 		// Any analysis that weren't observed again will be marked as resolved
-		if err := UpdateAnalysisStatusBefore(ctx, startTime, string(ctx.ScrapeConfig.GetUID()), dutyModels.AnalysisStatusResolved); err != nil {
+		if err := UpdateAnalysisStatusBefore(ctx, startTime, string(ctx.ScrapeConfig().GetUID()), dutyModels.AnalysisStatusResolved); err != nil {
 			logger.Errorf("failed to mark analysis before %v as healthy: %v", startTime, err)
 		}
 	}

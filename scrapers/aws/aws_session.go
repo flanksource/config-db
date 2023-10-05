@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/duty"
 	"github.com/henvic/httpretty"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -18,7 +18,7 @@ import (
 )
 
 // NewSession ...
-func NewSession(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*aws.Config, error) {
+func NewSession(ctx api.ScrapeContext, conn v1.AWSConnection, region string) (*aws.Config, error) {
 	cfg, err := loadConfig(ctx, conn, region)
 	if err != nil {
 		return nil, err
@@ -43,9 +43,9 @@ func (e EndpointResolver) ResolveEndpoint(service, region string, options ...int
 	}, nil
 }
 
-func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*aws.Config, error) {
+func loadConfig(ctx api.ScrapeContext, conn v1.AWSConnection, region string) (*aws.Config, error) {
 	if conn.ConnectionName != "" {
-		connection, err := ctx.HydrateConnectionByURL(conn.ConnectionName)
+		connection, err := ctx.HydrateConnection(conn.ConnectionName)
 		if err != nil {
 			return nil, fmt.Errorf("could not hydrate connection: %w", err)
 		} else if connection == nil {
@@ -99,13 +99,13 @@ func loadConfig(ctx *v1.ScrapeContext, conn v1.AWSConnection, region string) (*a
 }
 
 // getAccessAndSecretKey retrieves the access and secret keys from the Kubernetes cache.
-func getAccessAndSecretKey(ctx *v1.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
-	accessKey, err := duty.GetEnvValueFromCache(ctx.Kubernetes, conn.AccessKey, ctx.Namespace)
+func getAccessAndSecretKey(ctx api.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
+	accessKey, err := ctx.GetEnvValueFromCache(conn.AccessKey)
 	if err != nil {
 		return "", "", fmt.Errorf("error getting access key: %w", err)
 	}
 
-	secretKey, err := duty.GetEnvValueFromCache(ctx.Kubernetes, conn.SecretKey, ctx.Namespace)
+	secretKey, err := ctx.GetEnvValueFromCache(conn.SecretKey)
 	if err != nil {
 		return "", "", fmt.Errorf("error getting secret key: %w", err)
 	}

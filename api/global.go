@@ -1,25 +1,22 @@
 package api
 
 import (
-	"context"
-
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/duty/upstream"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
-var KubernetesClient *kubernetes.Clientset
-var KubernetesRestConfig *rest.Config
-var Namespace string
+var (
+	KubernetesClient     *kubernetes.Clientset
+	KubernetesRestConfig *rest.Config
+	Namespace            string
+	DefaultContext       ScrapeContext
 
-func NewScrapeContext(ctx context.Context, scraper v1.ScrapeConfig) *v1.ScrapeContext {
-	return &v1.ScrapeContext{
-		Context:              ctx,
-		ScrapeConfig:         scraper,
-		Namespace:            Namespace,
-		Kubernetes:           KubernetesClient,
-		KubernetesRestConfig: KubernetesRestConfig,
-		DB:                   db.DefaultDB(),
-	}
+	UpstreamConfig upstream.UpstreamConfig
+)
+
+type Scraper interface {
+	Scrape(ctx ScrapeContext) v1.ScrapeResults
+	CanScrape(config v1.ScraperSpec) bool
 }

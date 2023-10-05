@@ -11,7 +11,9 @@ import (
 	"strings"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 	"github.com/gobwas/glob"
 	"github.com/hashicorp/go-getter"
 	"sigs.k8s.io/yaml"
@@ -67,14 +69,14 @@ func (file FileScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.File) > 0
 }
 
-func (file FileScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
+func (file FileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	pwd, _ := os.Getwd()
 	cacheDir := path.Join(pwd, ".config-db", "cache", "files")
 	results := v1.ScrapeResults{}
 
-	for _, config := range ctx.ScrapeConfig.Spec.File {
+	for _, config := range ctx.ScrapeConfig().Spec.File {
 		url := config.URL
-		if connection, err := ctx.HydrateConnectionByURL(config.ConnectionName); err != nil {
+		if connection, err := ctx.HydrateConnection(config.ConnectionName); err != nil {
 			results.Errorf(err, "failed to find connection")
 			continue
 		} else if connection != nil {
@@ -113,7 +115,7 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 				continue
 			}
 
-			contentByte, _, err := ctx.Read(match)
+			contentByte, _, err := utils.Read(match)
 			if err != nil {
 				results = append(results, result.Errorf("failed to read file %s: %v", file, err))
 				continue
@@ -138,7 +140,7 @@ func (file FileScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 	return results
 }
 
-func getFiles(ctx *v1.ScrapeContext, dst, url string, paths []string) (matches []string) {
+func getFiles(ctx api.ScrapeContext, dst, url string, paths []string) (matches []string) {
 	logger.Debugf("Downloading files from %s to %s", stripSecrets(url), dst)
 	if err := getter.GetAny(dst, url); err != nil {
 		logger.Errorf("Error downloading file: %s", err)
@@ -146,7 +148,7 @@ func getFiles(ctx *v1.ScrapeContext, dst, url string, paths []string) (matches [
 	return findFiles(ctx, dst, paths)
 }
 
-func findFiles(ctx *v1.ScrapeContext, dir string, paths []string) []string {
+func findFiles(ctx api.ScrapeContext, dir string, paths []string) []string {
 	matches := []string{}
 	if paths == nil {
 		logger.Debugf("no paths specified, scrapping all json and yaml/yml files")
@@ -154,7 +156,7 @@ func findFiles(ctx *v1.ScrapeContext, dir string, paths []string) []string {
 	}
 
 	for _, path := range paths {
-		match, err := ctx.Find(filepath.Join(dir, path))
+		match, err := utils.Find(filepath.Join(dir, path))
 		if err != nil {
 			logger.Debugf("could not match glob pattern(%s): %v", dir+"/"+path, err)
 			continue

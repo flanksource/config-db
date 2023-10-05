@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
@@ -10,14 +11,8 @@ import (
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/utils/kube"
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-)
-
-var (
-	agentID   = uuid.Nil // the derived agent id from the agentName
-	agentName string     // name of the agent passed as a CLI arg
 )
 
 var dev bool
@@ -78,7 +73,22 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&scrapers.DefaultSchedule, "default-schedule", "@every 60m", "Default schedule for configs that don't specfiy one")
 	flags.StringVar(&scrapers.StaleTimeout, "stale-timeout", "30m", "Delete config items not scraped within the timeout")
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
-	flags.StringVar(&agentName, "agent-name", "", "Name of the agent")
+
+	// Flags for push/pull
+	var upstreamPageSizeDefault = 500
+	if val, exists := os.LookupEnv("UPSTREAM_PAGE_SIZE"); exists {
+		if parsed, err := strconv.Atoi(val); err != nil || parsed < 0 {
+			logger.Fatalf("invalid value=%s for UPSTREAM_PAGE_SIZE. Must be a postive number", val)
+		} else {
+			upstreamPageSizeDefault = parsed
+		}
+	}
+
+	flags.StringVar(&api.UpstreamConfig.Host, "upstream-host", os.Getenv("UPSTREAM_HOST"), "central mission control instance to sync scrape configs & their results")
+	flags.StringVar(&api.UpstreamConfig.Username, "upstream-user", os.Getenv("UPSTREAM_USER"), "upstream username")
+	flags.StringVar(&api.UpstreamConfig.Password, "upstream-password", os.Getenv("UPSTREAM_PASSWORD"), "upstream password")
+	flags.StringVar(&api.UpstreamConfig.AgentName, "agent-name", os.Getenv("AGENT_NAME"), "name of this agent")
+	flags.IntVar(&jobs.ReconcilePageSize, "upstream-page-size", upstreamPageSizeDefault, "upstream reconciliation page size")
 }
 
 func init() {

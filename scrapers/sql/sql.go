@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty"
@@ -23,9 +24,9 @@ func (s SqlScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.SQL) > 0
 }
 
-func (s SqlScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
+func (s SqlScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
-	for _, _config := range ctx.ScrapeConfig.Spec.SQL {
+	for _, _config := range ctx.ScrapeConfig().Spec.SQL {
 		var (
 			config     = _config
 			err        error
@@ -33,13 +34,13 @@ func (s SqlScraper) Scrape(ctx *v1.ScrapeContext) v1.ScrapeResults {
 		)
 
 		if strings.HasPrefix(config.Connection.Connection, "connection://") {
-			connection, err = ctx.HydrateConnectionByURL(config.Connection.Connection)
+			connection, err = ctx.HydrateConnection(config.Connection.Connection)
 			if err != nil {
 				results.Errorf(err, "failed to find connection name %s", config.Connection.Connection)
 				continue
 			}
 		} else {
-			connection, err = duty.HydrateConnection(ctx, ctx.Kubernetes, db.DefaultDB(), connection, ctx.Namespace)
+			connection, err = duty.HydrateConnection(ctx, ctx.Kubernetes(), db.DefaultDB(), connection, ctx.Namespace())
 			if err != nil {
 				results.Errorf(err, "failed to hydrate connection for %s", config.Connection)
 				continue

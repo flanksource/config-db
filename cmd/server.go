@@ -17,6 +17,8 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/query"
+	"github.com/google/uuid"
+
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 )
@@ -31,6 +33,8 @@ var Serve = &cobra.Command{
 
 func serve(configFiles []string) {
 	db.MustInit()
+	api.DefaultContext = api.NewScrapeContext(context.Background(), db.DefaultDB(), db.Pool)
+
 	e := echo.New()
 	// PostgREST needs to know how it is exposed to create the correct links
 	db.HTTPEndpoint = publicEndpoint + "/db"
@@ -56,17 +60,6 @@ func serve(configFiles []string) {
 	e.GET("/query", query.Handler)
 	e.POST("/run/:id", scrapers.RunNowHandler)
 
-	if agentName != "" {
-		agent, err := db.FindAgentByName(context.Background(), agentName)
-		if err != nil {
-			logger.Fatalf("error searching for agent (name=%s): %v", agentName, err)
-		} else if agent == nil {
-			logger.Fatalf("agent not found (name=%s)", agentName)
-		} else {
-			agentID = agent.ID
-		}
-	}
-
 	go startScraperCron(configFiles)
 
 	go jobs.ScheduleJobs()
@@ -90,7 +83,7 @@ func startScraperCron(configFiles []string) {
 		}
 	}
 
-	scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(agentID)
+	scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(uuid.Nil)
 	if err != nil {
 		logger.Fatalf("error getting configs from database: %v", err)
 	}
@@ -104,7 +97,7 @@ func startScraperCron(configFiles []string) {
 		scrapers.AddToCron(_scraper)
 
 		fn := func() {
-			ctx := api.NewScrapeContext(context.Background(), _scraper)
+			ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
 			if _, err := scrapers.RunScraper(ctx); err != nil {
 				logger.Errorf("Error running scraper(id=%s): %v", scraper.ID, err)
 			}
@@ -112,7 +105,7 @@ func startScraperCron(configFiles []string) {
 		go scrapers.AtomicRunner(scraper.ID.String(), fn)()
 
 		for _, config := range _scraper.Spec.Kubernetes {
-			ctx := api.NewScrapeContext(context.Background(), _scraper)
+			ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
 			go watchKubernetesEventsWithRetry(ctx, config)
 		}
 	}
@@ -139,7 +132,7 @@ func init() {
 	ServerFlags(Serve.Flags())
 }
 
-func watchKubernetesEventsWithRetry(ctx *v1.ScrapeContext, config v1.Kubernetes) {
+func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes) {
 	const (
 		timeout                 = time.Minute // how long to keep retrying before we reset and retry again
 		exponentialBaseDuration = time.Second
@@ -148,7 +141,7 @@ func watchKubernetesEventsWithRetry(ctx *v1.ScrapeContext, config v1.Kubernetes)
 	for {
 		backoff := retry.WithMaxDuration(timeout, retry.NewExponential(exponentialBaseDuration))
 		err := retry.Do(ctx, backoff, func(ctxt context.Context) error {
-			ctx := ctxt.(*v1.ScrapeContext)
+			ctx := ctxt.(api.ScrapeContext)
 			if err := kubernetes.WatchEvents(ctx, config, scrapers.RunK8IncrementalScraper); err != nil {
 				return retry.RetryableError(err)
 			}

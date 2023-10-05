@@ -11,15 +11,8 @@ RUN make build
 FROM ubuntu:jammy@sha256:0bced47fffa3361afa981854fcabcd4577cd43cebbb808cea2b1f33a3dd7f508
 WORKDIR /app
 
-# install CA certificates
-RUN apt-get update && \
-  apt-get install -y ca-certificates && \
-  rm -Rf /var/lib/apt/lists/*  && \
-  rm -Rf /usr/share/doc && rm -Rf /usr/share/man  && \
-  apt-get clean
-
 COPY --from=builder /app/.bin/config-db /app
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 RUN /app/config-db go-offline
-
 ENTRYPOINT ["/app/config-db"]
