@@ -27,11 +27,9 @@ db:
   enabled: true
   secretKeyRef:
     create: true
-    # Setting the name of the secret will disable secret creation in this chart and look for an existing secret (whose name is specified in this field) to mount.
-    # When setting this up in a fresh environment as a standalone app, it's best to leave the value empty.
+    # (Required) The name of the secret to look for.
     name:
-    # This is the key that either the secret will create(if secretRefKey is empty) or this is the key it'll look for in the secret(if secretRefKey is mentioned).
-    # The name of the key is mandatory to set.
+    # (Required) This is the key that we look for in the secret.
     key: DB_URL
   storageClass:
   storage:
@@ -60,6 +58,13 @@ serviceAccount:
   create: true
   name: ""
   annotations: {}
+
+upstream:
+  enabled: false
+  secretKeyRef:
+    name: upstream # Must contain: UPSTREAM_USER, UPSTREAM_PASS & UPSTREAM_HOST
+  agentName: default-agent
+  pageSize: 500
 
 extra:
   {}

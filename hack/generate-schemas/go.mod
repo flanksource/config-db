@@ -13,14 +13,14 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
-	github.com/flanksource/duty v1.0.183 // indirect
-	github.com/flanksource/gomplate/v3 v3.20.12 // indirect
+	github.com/flanksource/duty v1.0.188 // indirect
+	github.com/flanksource/gomplate/v3 v3.20.13 // indirect
 	github.com/flanksource/is-healthy v0.0.0-20231003215854-76c51e3a3ff7 // indirect
 	github.com/flanksource/mapstructure v1.6.0 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/google/cel-go v0.18.0 // indirect
+	github.com/google/cel-go v0.18.1 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/gosimple/slug v1.13.1 // indirect
