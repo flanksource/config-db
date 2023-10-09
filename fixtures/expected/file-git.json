@@ -39,7 +39,7 @@
                   },
                   {
                     "name": "status_class",
-                    "valueExpr": "string(result.code).charAt(0)"
+                    "valueExpr": "string(code).charAt(0)"
                   }
                 ]
               }
