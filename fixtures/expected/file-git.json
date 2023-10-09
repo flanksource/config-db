@@ -27,7 +27,7 @@
               {
                 "name": "httpbin_2xx_count",
                 "type": "counter",
-                "value": "result.code == 200 ? 1 : 0",
+                "value": "code == 200 ? 1 : 0",
                 "labels": [
                   {
                     "name": "name",

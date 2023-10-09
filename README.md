@@ -13,7 +13,7 @@ make build
 Starting the server will run the migrations and start scraping in background (The `default-schedule` configuration will run scraping every 60 minutes if configuration is not explicitly specified).
 
 ```bash
-DB_URL=postgres://<username>:<password>@localhost:5432/<db_name> ./.bin/config-db serve --run-migrations
+DB_URL=postgres://<username>:<password>@localhost:5432/<db_name> ./.bin/config-db serve --db-migrations
 ```
 
 ### Scape config
