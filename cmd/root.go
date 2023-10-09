@@ -77,7 +77,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 	// Flags for push/pull
 	var upstreamPageSizeDefault = 500
 	if val, exists := os.LookupEnv("UPSTREAM_PAGE_SIZE"); exists {
-		if parsed, err := strconv.Atoi(val); err != nil || parsed < 0 {
+		if parsed, err := strconv.Atoi(val); err != nil || parsed <= 0 {
 			logger.Fatalf("invalid value=%s for UPSTREAM_PAGE_SIZE. Must be a postive number", val)
 		} else {
 			upstreamPageSizeDefault = parsed
