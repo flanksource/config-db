@@ -1,5 +1,4 @@
 # Default values for config-db.
-# This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
 replicas: 1
@@ -27,12 +26,12 @@ db:
   enabled: true
   secretKeyRef:
     create: true
-    # (Required) The name of the secret to look for.
-    name:
-    # (Required) This is the key that we look for in the secret.
+    # The name of the secret to look for.
+    name: config-db-postgresql
+    # This is the key that we look for in the secret.
     key: DB_URL
-  storageClass:
-  storage:
+  storageClass: ""
+  storage: 20Gi
 
 ingress:
   enabled: false
@@ -62,7 +61,7 @@ serviceAccount:
 upstream:
   enabled: false
   secretKeyRef:
-    name: upstream # Must contain: UPSTREAM_USER, UPSTREAM_PASS & UPSTREAM_HOST
+    name: config-db-upstream # Must contain: UPSTREAM_USER, UPSTREAM_PASS & UPSTREAM_HOST
   agentName: default-agent
   pageSize: 500
 
