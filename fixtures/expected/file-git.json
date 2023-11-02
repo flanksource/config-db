@@ -61,6 +61,13 @@
             "display": {
               "template": "code={{.code}}, age={{.sslAge}}"
             }
+          },
+          {
+            "name": "http-headers",
+            "test": {
+              "expr": "json.headers[\"User-Agent\"].startsWith(\"canary-checker/\")"
+            },
+            "url": "https://httpbin.demo.aws.flanksource.com/headers"
           }
         ]
       }
