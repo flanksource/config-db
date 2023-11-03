@@ -4,16 +4,16 @@
 replicas: 1
 
 # Use this only if you want to replace the default that is .Chart.Name as the name of all the objects.
-nameOverride: ""
+nameOverride: ''
 
 # Set to true if you want to disable the postgrest service
-disablePostgrest: false 
+disablePostgrest: false
 
 image:
   repository: docker.io/flanksource/config-db
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
+  tag: 'latest'
 
 configChangeRetentionDays: 60
 configAnalysisRetentionDays: 60
@@ -21,17 +21,26 @@ configAnalysisRetentionDays: 60
 # a list of configmaps to load scrape rules from, the configmap should have a single entry called "config.yaml"
 scrapeRuleConfigMaps:
   - config-db-rules
+
 db:
-  # Setting this to true will create a postgres stateful set for config-db to connect to.
-  enabled: true
-  secretKeyRef:
-    create: true
-    # The name of the secret to look for.
-    name: config-db-postgresql
-    # This is the key that we look for in the secret.
-    key: DB_URL
-  storageClass: ""
-  storage: 20Gi
+  runMigrations: true
+  embedded:
+    # If the database is embedded, setting this to true will persist the contents of the database
+    # through a persistent volume
+    persist: true
+    storageClass: ''
+    storage: 20Gi
+  external:
+    # Setting this to true will create a postgres stateful set for config-db to connect to.
+    enabled: false
+    secretKeyRef:
+      create: true
+      # The name of the secret to look for.
+      name: config-db-postgresql
+      # This is the key that we look for in the secret.
+      key: DB_URL
+    storageClass: ''
+    storage: 20Gi
 
 ingress:
   enabled: false
@@ -55,7 +64,7 @@ resources:
 
 serviceAccount:
   create: true
-  name: ""
+  name: ''
   annotations: {}
 
 upstream:

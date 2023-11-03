@@ -1,4 +1,4 @@
-{{- if eq .Values.db.enabled true }}
+{{- if eq .Values.db.external.enabled true }}
 
 ---
 # PostgreSQL StatefulSet
@@ -25,18 +25,18 @@ spec:
             mountPath: /data
         envFrom:
           - secretRef:
-              name: {{ .Values.db.secretKeyRef.name }}
+              name: {{ .Values.db.external.secretKeyRef.name }}
   volumeClaimTemplates:
     - metadata:
         name: postgresql
       spec:
         accessModes: ["ReadWriteOnce"]
-        {{- if not (eq .Values.db.storageClass "") }}
-        storageClassName: {{ .Values.db.storageClass }}
+        {{- if not (eq .Values.db.external.storageClass "") }}
+        storageClassName: {{ .Values.db.external.storageClass }}
         {{- end }}
         resources:
           requests:
-            storage: {{ .Values.db.storage }}
+            storage: {{ .Values.db.external.storage }}
 ---
 # PostgreSQL StatefulSet Service
 apiVersion: v1
@@ -50,11 +50,11 @@ spec:
   - port: 5432
     targetPort: 5432
 ---
-{{- if .Values.db.secretKeyRef.create }}
+{{- if .Values.db.external.secretKeyRef.create }}
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ .Values.db.secretKeyRef.name }}
+  name: {{ .Values.db.external.secretKeyRef.name }}
   annotations:
     "helm.sh/resource-policy": "keep"
 type: Opaque
@@ -66,13 +66,13 @@ stringData:
   {{- $dbname := (( get $secretData "POSTGRES_DB" ) | b64dec ) | default "config_db" }}
   {{- $host := print (include "config-db.name" .) "-postgresql." .Release.Namespace  ".svc.cluster.local:5432" }}
   {{- $url := print "postgresql://" $user ":" $password "@" $host }}
-  {{- $configDbUrl := ( get $secretData .Values.db.secretKeyRef.key ) | default ( print $url "/config_db?sslmode=disable" ) }}
+  {{- $configDbUrl := ( get $secretData .Values.db.external.secretKeyRef.key ) | default ( print $url "/config_db?sslmode=disable" ) }}
   
   POSTGRES_USER: {{ $user | quote }}
   POSTGRES_PASSWORD: {{ $password | quote }}
   POSTGRES_HOST: {{ $host | quote }}
   POSTGRES_DB: {{ $dbname | quote }}
-  {{ .Values.db.secretKeyRef.key }}: {{ $configDbUrl | quote }}
+  {{ .Values.db.external.secretKeyRef.key }}: {{ $configDbUrl | quote }}
 
 {{- end }}
 

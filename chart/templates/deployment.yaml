@@ -1,5 +1,9 @@
 apiVersion: apps/v1
+{{- if and (eq .Values.db.external.enabled false) (eq .Values.db.embedded.persist true) }}
+kind: StatefulSet
+{{- else }}
 kind: Deployment
+{{- end }}
 metadata:
   name: {{ include "config-db.name" . }}
   labels: {{- include "config-db.labels" . | nindent 4 }}
@@ -7,6 +11,22 @@ spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels: {{- include "config-db.selectorLabels" . | nindent 6 }}
+  {{- if and (eq .Values.db.external.enabled false) (eq .Values.db.embedded.persist true) }}
+  serviceName: {{ include "config-db.name" . }}
+  volumeClaimTemplates:
+    - metadata:
+        name: config-db-embedded-database
+        labels:
+          {{- include "config-db.labels" . | nindent 10 }}
+      spec:
+        {{- if not (eq .Values.db.embedded.storageClass "") }}
+        storageClassName: {{ .Values.db.embedded.storageClass }}
+        {{- end }}
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.db.embedded.storage }}
+  {{- end }}
   template:
     metadata:
       labels: {{- include "config-db.selectorLabels" . | nindent 8 }}
@@ -42,7 +62,7 @@ spec:
             - --disable-postgrest={{ .Values.disablePostgrest }}
             - --change-retention-days={{ .Values.configChangeRetentionDays }}
             - --analysis-retention-days={{ .Values.configAnalysisRetentionDays }}
-            {{- if .Values.db.enabled}}
+            {{- if .Values.db.runMigrations}}
             - --db-migrations
             {{- end}}
           {{- if .Values.upstream.enabled}}
@@ -52,10 +72,14 @@ spec:
           {{- end}}
           env:
             - name: DB_URL
+              {{- if .Values.db.external.enabled}}
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.db.secretKeyRef.name }}
-                  key: {{ .Values.db.secretKeyRef.key }}
+                  name: {{ .Values.db.external.secretKeyRef.name }}
+                  key: {{ .Values.db.external.secretKeyRef.key }}
+              {{- else}}
+              value: "embedded:///opt/database"
+              {{- end}}
             - name: NAMESPACE
               value: {{ .Values.namespace | default .Release.Namespace }}
             {{- if .Values.upstream.enabled}}
@@ -66,6 +90,11 @@ spec:
             {{- end}}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if and (eq .Values.db.external.enabled false) (eq .Values.db.embedded.persist true) }}
+            - name: config-db-embedded-database
+              mountPath: "/opt/database"
+            {{- end }}
       {{- with .Values.extra }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
