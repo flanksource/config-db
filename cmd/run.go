@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,6 +22,8 @@ var Run = &cobra.Command{
 	Use:   "run <scraper.yaml>",
 	Short: "Run scrapers and return",
 	Run: func(cmd *cobra.Command, configFiles []string) {
+		ctx := cmd.Context()
+
 		logger.Infof("Scraping %v", configFiles)
 		scraperConfigs, err := v1.ParseConfigs(configFiles...)
 		if err != nil {
@@ -30,8 +31,8 @@ var Run = &cobra.Command{
 		}
 
 		if db.ConnectionString != "" {
-			db.MustInit()
-			api.DefaultContext = api.NewScrapeContext(context.Background(), db.DefaultDB(), db.Pool)
+			db.MustInit(ctx)
+			api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
 		}
 
 		if db.ConnectionString == "" && outputDir == "" {

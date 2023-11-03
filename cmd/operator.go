@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 
@@ -39,8 +38,10 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) {
-	db.MustInit()
-	api.DefaultContext = api.NewScrapeContext(context.Background(), db.DefaultDB(), db.Pool)
+	ctx := cmd.Context()
+
+	db.MustInit(ctx)
+	api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
 
 	zapLogger := logger.GetZapLogger()
 	if zapLogger == nil {
@@ -64,7 +65,7 @@ func run(cmd *cobra.Command, args []string) {
 	utilruntime.Must(configsv1.AddToScheme(scheme))
 
 	// Start the server
-	go serve(args)
+	go serve(ctx, args)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,

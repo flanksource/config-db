@@ -23,13 +23,14 @@ import (
 var Serve = &cobra.Command{
 	Use: "serve",
 	Run: func(cmd *cobra.Command, args []string) {
-		serve(args)
+		serve(cmd.Context(), args)
 	},
 }
 
-func serve(configFiles []string) {
-	db.MustInit()
-	api.DefaultContext = api.NewScrapeContext(context.Background(), db.DefaultDB(), db.Pool)
+func serve(ctx context.Context, configFiles []string) {
+	db.MustInit(ctx)
+
+	api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
 
 	e := echo.New()
 	// PostgREST needs to know how it is exposed to create the correct links
@@ -60,8 +61,19 @@ func serve(configFiles []string) {
 
 	go jobs.ScheduleJobs()
 
-	if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil {
-		e.Logger.Fatal(err)
+	go func() {
+		if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil {
+			e.Logger.Fatal(err)
+		}
+	}()
+
+	<-ctx.Done()
+	if err := db.StopEmbeddedPGServer(); err != nil {
+		logger.Errorf("failed to stop server: %v", err)
+	}
+
+	if err := e.Shutdown(ctx); err != nil {
+		logger.Errorf("failed to shutdown echo HTTP server: %v", err)
 	}
 }
 
