@@ -351,21 +351,21 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 	for _, relationship := range relationships {
 		configID, err := FindConfigItemID(relationship.ConfigExternalID)
 		if err != nil {
-			logger.Errorf("Error fetching config item id: %v", err)
+			logger.Errorf("error fetching config item(id=%s): %v", relationship.ConfigExternalID, err)
 			continue
 		}
 		if configID == nil {
-			logger.Warnf("Failed to find config %s", relationship.ConfigExternalID)
+			logger.Warnf("failed to find config %s", relationship.ConfigExternalID)
 			continue
 		}
 
 		relatedID, err := FindConfigItemID(relationship.RelatedExternalID)
 		if err != nil {
-			logger.Errorf("Error fetching config item id: %v", err)
+			logger.Errorf("error fetching external config item(id=%s): %v", relationship.RelatedExternalID, err)
 			continue
 		}
 		if relatedID == nil {
-			logger.Warnf("Relationship not found %s", relationship.RelatedExternalID)
+			logger.Warnf("related external config item(id=%s) not found.", relationship.RelatedExternalID)
 			continue
 		}
 
