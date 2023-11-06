@@ -102,6 +102,21 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 				}
 			}
 
+			for _, ownerRef := range obj.GetOwnerReferences() {
+				rel := v1.RelationshipResult{
+					ConfigExternalID: v1.ExternalID{
+						ExternalID: []string{string(obj.GetUID())},
+						ConfigType: ConfigTypePrefix + obj.GetKind(),
+					},
+					RelatedExternalID: v1.ExternalID{
+						ExternalID: []string{string(ownerRef.UID)},
+						ConfigType: ConfigTypePrefix + ownerRef.Kind,
+					},
+					Relationship: ownerRef.Kind + obj.GetKind(),
+				}
+				relationships = append(relationships, rel)
+			}
+
 			obj.SetManagedFields(nil)
 			annotations := obj.GetAnnotations()
 			if annotations != nil {
