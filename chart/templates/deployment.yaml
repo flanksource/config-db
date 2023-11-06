@@ -32,6 +32,8 @@ spec:
       labels: {{- include "config-db.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ template "config-db.serviceAccountName" . }}
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: {{ include "config-db.name" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"

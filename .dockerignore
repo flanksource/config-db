@@ -1,0 +1,15 @@
+.bin/
+.config-db/
+.github/
+.vscode/
+
+build
+
+chart/
+CONTRIBUTING.md
+SECURITY.md
+README.md
+PROJECT
+
+cover.out
+.releaserc
