@@ -1,5 +1,4 @@
-{{- if eq .Values.db.external.enabled true }}
-
+{{- if .Values.db.external.create }}
 ---
 # PostgreSQL StatefulSet
 apiVersion: apps/v1
@@ -31,7 +30,7 @@ spec:
         name: postgresql
       spec:
         accessModes: ["ReadWriteOnce"]
-        {{- if not (eq .Values.db.external.storageClass "") }}
+        {{- if ne .Values.db.external.storageClass "" }}
         storageClassName: {{ .Values.db.external.storageClass }}
         {{- end }}
         resources:
@@ -50,7 +49,6 @@ spec:
   - port: 5432
     targetPort: 5432
 ---
-{{- if .Values.db.external.secretKeyRef.create }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -67,15 +65,11 @@ stringData:
   {{- $host := print (include "config-db.name" .) "-postgresql." .Release.Namespace  ".svc.cluster.local:5432" }}
   {{- $url := print "postgresql://" $user ":" $password "@" $host }}
   {{- $configDbUrl := ( get $secretData .Values.db.external.secretKeyRef.key ) | default ( print $url "/config_db?sslmode=disable" ) }}
-  
   POSTGRES_USER: {{ $user | quote }}
   POSTGRES_PASSWORD: {{ $password | quote }}
   POSTGRES_HOST: {{ $host | quote }}
   POSTGRES_DB: {{ $dbname | quote }}
   {{ .Values.db.external.secretKeyRef.key }}: {{ $configDbUrl | quote }}
-
-{{- end }}
-
 ---
 
 {{- end }}
