@@ -11,8 +11,8 @@ spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels: {{- include "config-db.selectorLabels" . | nindent 6 }}
-  {{- if and (eq .Values.db.external.enabled false) (eq .Values.db.embedded.persist true) }}
   serviceName: {{ include "config-db.name" . }}
+  {{- if and (eq .Values.db.external.enabled false) (eq .Values.db.embedded.persist true) }}
   volumeClaimTemplates:
     - metadata:
         name: config-db-embedded-database
