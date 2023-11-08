@@ -52,7 +52,7 @@ func MustInit(ctx context.Context) {
 func embeddedDB(database string, port uint32) (string, error) {
 	embeddedPath := strings.TrimSuffix(strings.TrimPrefix(ConnectionString, "embedded://"), "/")
 	if err := os.Chmod(embeddedPath, 0750); err != nil {
-		return "", err
+		logger.Errorf("failed to chmod %s: %v", embeddedPath, err)
 	}
 
 	logger.Infof("Starting embedded postgres server at %s", embeddedPath)

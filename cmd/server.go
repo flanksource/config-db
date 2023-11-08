@@ -23,13 +23,14 @@ import (
 var Serve = &cobra.Command{
 	Use: "serve",
 	Run: func(cmd *cobra.Command, args []string) {
-		serve(cmd.Context(), args)
+		ctx := cmd.Context()
+
+		db.MustInit(ctx)
+		serve(ctx, args)
 	},
 }
 
 func serve(ctx context.Context, configFiles []string) {
-	db.MustInit(ctx)
-
 	api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
 
 	e := echo.New()
