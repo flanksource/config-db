@@ -7,8 +7,6 @@ import (
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/duty"
 	"github.com/xo/dburl"
 
 	//drivers
@@ -40,7 +38,7 @@ func (s SqlScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				continue
 			}
 		} else {
-			connection, err = duty.HydrateConnection(ctx, ctx.Kubernetes(), db.DefaultDB(), connection, ctx.Namespace())
+			connection, err = ctx.HydrateConnectionModel(*connection)
 			if err != nil {
 				results.Errorf(err, "failed to hydrate connection for %s", config.Connection)
 				continue

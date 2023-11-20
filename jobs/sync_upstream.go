@@ -33,7 +33,7 @@ func ReconcileConfigScraperResults() {
 	defer func() { _ = db.PersistJobHistory(jobHistory.End()) }()
 
 	reconciler := upstream.NewUpstreamReconciler(api.UpstreamConfig, ReconcilePageSize)
-	if err := reconciler.SyncAfter(ctx, "config_items", time.Hour*48); err != nil {
+	if err := reconciler.SyncAfter(ctx.DutyContext(), "config_items", time.Hour*48); err != nil {
 		jobHistory.AddError(err.Error())
 		logger.Errorf("failed to sync table config_items: %v", err)
 	} else {
