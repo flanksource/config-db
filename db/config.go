@@ -78,8 +78,14 @@ func UpdateConfigItem(ci *models.ConfigItem) error {
 	}
 
 	// Since gorm ignores nil fields, we are setting deleted_at explicitly
-	if ci.TouchDeletedAt {
-		if err := db.Table("config_items").Where("id = ?", ci.ID).UpdateColumn("deleted_at", nil).Error; err != nil {
+	// TODO Add deleted reason check
+	if ci.TouchDeletedAt && ci.DeleteReason != v1.DeletedReasonFromEvent {
+		if err := db.Table("config_items").
+			Where("id = ?", ci.ID).
+			Updates(map[string]any{
+				"deleted_at":    nil,
+				"delete_reason": nil,
+			}).Error; err != nil {
 			return err
 		}
 	}
@@ -167,6 +173,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 
 	if result.DeletedAt != nil {
 		ci.DeletedAt = result.DeletedAt
+		ci.DeleteReason = result.DeleteReason
 	}
 
 	if result.ParentExternalID != "" && result.ParentType != "" {
