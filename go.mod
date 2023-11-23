@@ -40,7 +40,7 @@ require (
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.21.0
 	github.com/flanksource/commons v1.17.1
-	github.com/flanksource/duty v1.0.222
+	github.com/flanksource/duty v1.0.224
 	github.com/flanksource/is-healthy v0.0.0-20231003215854-76c51e3a3ff7
 	github.com/flanksource/ketall v1.1.1
 	github.com/flanksource/postq v0.1.1
