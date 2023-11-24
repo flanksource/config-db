@@ -315,6 +315,7 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 		deletedAt, err := getTimestamp(deletedAtSelector, input.Config, input.BaseScraper.TimestampFormat)
 		if nil == err {
 			input.DeletedAt = &deletedAt
+			input.DeleteReason = v1.DeletedReasonFromDeleteField
 			break
 		}
 	}

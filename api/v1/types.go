@@ -77,3 +77,12 @@ func (e ExternalID) CacheKey() string {
 func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
 	return db.Where("type = ? AND external_id  @> ?", e.ConfigType, pq.StringArray(e.ExternalID))
 }
+
+type ConfigDeleteReason string
+
+var (
+	DeletedReasonMissingScrape   ConfigDeleteReason = "MISSING_SCRAPE"
+	DeletedReasonFromAttribute   ConfigDeleteReason = "FROM_ATTRIBUTE"
+	DeletedReasonFromEvent       ConfigDeleteReason = "FROM_EVENT"
+	DeletedReasonFromDeleteField ConfigDeleteReason = "FROM_DELETE_FIELD"
+)

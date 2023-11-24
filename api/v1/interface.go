@@ -192,6 +192,7 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 type ScrapeResult struct {
 	CreatedAt           *time.Time          `json:"created_at,omitempty"`
 	DeletedAt           *time.Time          `json:"deleted_at,omitempty"`
+	DeleteReason        ConfigDeleteReason  `json:"delete_reason,omitempty"`
 	LastModified        time.Time           `json:"last_modified,omitempty"`
 	ConfigClass         string              `json:"config_class,omitempty"`
 	Type                string              `json:"config_type,omitempty"`

@@ -142,8 +142,10 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 
 			createdAt := obj.GetCreationTimestamp().Time
 			var deletedAt *time.Time
+			var deleteReason v1.ConfigDeleteReason
 			if !obj.GetDeletionTimestamp().IsZero() {
 				deletedAt = &obj.GetDeletionTimestamp().Time
+				deleteReason = v1.DeletedReasonFromAttribute
 			}
 
 			// Evicted Pods must be considered deleted
@@ -170,6 +172,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 				Description:         description,
 				CreatedAt:           &createdAt,
 				DeletedAt:           deletedAt,
+				DeleteReason:        deleteReason,
 				Config:              cleanKubernetesObject(obj.Object),
 				ID:                  string(obj.GetUID()),
 				Tags:                stripLabels(convertStringInterfaceMapToStringMap(tags), "-hash"),
