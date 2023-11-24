@@ -81,7 +81,8 @@ func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
 type ConfigDeleteReason string
 
 var (
-	DeletedReasonMissingScrape ConfigDeleteReason = "MISSING_SCRAPE"
-	DeletedReasonFromAttribute ConfigDeleteReason = "FROM_ATTRIBUTE"
-	DeletedReasonFromEvent     ConfigDeleteReason = "FROM_EVENT"
+	DeletedReasonMissingScrape   ConfigDeleteReason = "MISSING_SCRAPE"
+	DeletedReasonFromAttribute   ConfigDeleteReason = "FROM_ATTRIBUTE"
+	DeletedReasonFromEvent       ConfigDeleteReason = "FROM_EVENT"
+	DeletedReasonFromDeleteField ConfigDeleteReason = "FROM_DELETE_FIELD"
 )
