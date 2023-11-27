@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	commonUtils "github.com/flanksource/commons/utils"
+
 	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/logger"
@@ -359,14 +361,19 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 			continue
 		}
 
-		relatedID, err := FindConfigItemID(relationship.RelatedExternalID)
-		if err != nil {
-			logger.Errorf("error fetching external config item(id=%s): %v", relationship.RelatedExternalID, err)
-			continue
-		}
-		if relatedID == nil {
-			logger.Warnf("related external config item(id=%s) not found.", relationship.RelatedExternalID)
-			continue
+		var relatedID *string
+		if relationship.RelatedConfigID != uuid.Nil {
+			relatedID = commonUtils.Ptr(relationship.RelatedConfigID.String())
+		} else {
+			relatedID, err = FindConfigItemID(relationship.RelatedExternalID)
+			if err != nil {
+				logger.Errorf("error fetching external config item(id=%s): %v", relationship.RelatedExternalID, err)
+				continue
+			}
+			if relatedID == nil {
+				logger.Warnf("related external config item(id=%s) not found.", relationship.RelatedExternalID)
+				continue
+			}
 		}
 
 		// In first iteration, the database is not completely populated

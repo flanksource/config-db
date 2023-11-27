@@ -11,6 +11,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/flanksource/ketall"
@@ -115,6 +116,47 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 					Relationship: ownerRef.Kind + obj.GetKind(),
 				}
 				relationships = append(relationships, rel)
+			}
+
+			for _, f := range config.Relationships {
+				env := map[string]any{}
+				if spec, ok := obj.Object["spec"].(map[string]any); ok {
+					env["spec"] = spec
+				} else {
+					env["spec"] = map[string]any{}
+				}
+
+				kind, err := f.Kind.Eval(obj.GetLabels(), env)
+				if err != nil {
+					return results.Errorf(err, "failed to evaluate kind: %v for config relationship", f.Kind)
+				}
+
+				name, err := f.Name.Eval(obj.GetLabels(), env)
+				if err != nil {
+					return results.Errorf(err, "failed to evaluate name: %v for config relationship", f.Name)
+				}
+
+				namespace, err := f.Namespace.Eval(obj.GetLabels(), env)
+				if err != nil {
+					return results.Errorf(err, "failed to evaluate namespace: %v for config relationship", f.Namespace)
+				}
+
+				linkedConfigItemIDs, err := db.ConfigItemsIDs(ctx.DutyContext(), fmt.Sprintf("%s%s", ConfigTypePrefix, kind), name, namespace)
+				if err != nil {
+					return results.Errorf(err, "failed to get linked config items: kind=%s, name=%s, namespace=%s", kind, name, namespace)
+				}
+
+				for _, id := range linkedConfigItemIDs {
+					rel := v1.RelationshipResult{
+						ConfigExternalID: v1.ExternalID{
+							ExternalID: []string{string(obj.GetUID())},
+							ConfigType: ConfigTypePrefix + obj.GetKind(),
+						},
+						RelatedConfigID: id,
+						Relationship:    kind + obj.GetKind(),
+					}
+					relationships = append(relationships, rel)
+				}
 			}
 
 			obj.SetManagedFields(nil)

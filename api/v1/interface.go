@@ -8,6 +8,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 )
 
 // Analyzer ...
@@ -155,9 +156,13 @@ func (t *ScrapeResults) Add(r ...ScrapeResult) {
 }
 
 type RelationshipResult struct {
-	ConfigExternalID  ExternalID
+	ConfigExternalID ExternalID
+	// Related External ID to lookup the actual config item ID.
+	// Used when the config id is not known.
 	RelatedExternalID ExternalID
-	Relationship      string
+	// Config ID of the related config.
+	RelatedConfigID uuid.UUID
+	Relationship    string
 }
 
 type RelationshipResults []RelationshipResult
