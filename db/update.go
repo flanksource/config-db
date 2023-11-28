@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	commonUtils "github.com/flanksource/commons/utils"
-
 	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/logger"
@@ -357,13 +355,13 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 			continue
 		}
 		if configID == nil {
-			logger.Warnf("failed to find config %s", relationship.ConfigExternalID)
+			logger.Debugf("failed to find config %s", relationship.ConfigExternalID)
 			continue
 		}
 
 		var relatedID *string
-		if relationship.RelatedConfigID != uuid.Nil {
-			relatedID = commonUtils.Ptr(relationship.RelatedConfigID.String())
+		if relationship.RelatedConfigID != "" {
+			relatedID = &relationship.RelatedConfigID
 		} else {
 			relatedID, err = FindConfigItemID(relationship.RelatedExternalID)
 			if err != nil {
@@ -371,7 +369,7 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 				continue
 			}
 			if relatedID == nil {
-				logger.Warnf("related external config item(id=%s) not found.", relationship.RelatedExternalID)
+				logger.Debugf("related external config item(id=%s) not found.", relationship.RelatedExternalID)
 				continue
 			}
 		}

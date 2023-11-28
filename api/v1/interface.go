@@ -8,7 +8,6 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/models"
-	"github.com/google/uuid"
 )
 
 // Analyzer ...
@@ -161,7 +160,7 @@ type RelationshipResult struct {
 	// Used when the config id is not known.
 	RelatedExternalID ExternalID
 	// Config ID of the related config.
-	RelatedConfigID uuid.UUID
+	RelatedConfigID string
 	Relationship    string
 }
 

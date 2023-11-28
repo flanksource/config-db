@@ -152,7 +152,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 							ExternalID: []string{string(obj.GetUID())},
 							ConfigType: ConfigTypePrefix + obj.GetKind(),
 						},
-						RelatedConfigID: id,
+						RelatedConfigID: id.String(),
 						Relationship:    kind + obj.GetKind(),
 					}
 					relationships = append(relationships, rel)
