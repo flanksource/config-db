@@ -22,11 +22,11 @@ spec:
         - orders.acme.cert-manager.io
       relationships:
         - kind:
-            expr: has(spec.claimRef) && spec.claimRef.kind
+            expr: "has(spec.claimRef) ? spec.claimRef.kind : ''"
           name:
-            expr: has(spec.claimRef) && spec.claimRef.name
+            expr: "has(spec.claimRef) ? spec.claimRef.name : ''"
           namespace:
-            expr: has(spec.claimRef) && spec.claimRef.namespace
+            expr: "has(spec.claimRef) ? spec.claimRef.namespace : ''"
         - kind:
             value: Kustomization
           name:

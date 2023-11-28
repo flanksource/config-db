@@ -5,6 +5,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/duty/context"
 	"github.com/google/uuid"
 )
 
@@ -12,7 +13,7 @@ var (
 	StaleTimeout string
 )
 
-func DeleteStaleConfigItems(scraperID uuid.UUID) error {
+func DeleteStaleConfigItems(ctx context.Context, scraperID uuid.UUID) error {
 	// Get stale timeout in relative terms
 	staleDuration, err := duration.ParseDuration(StaleTimeout)
 	if err != nil {
@@ -32,7 +33,7 @@ func DeleteStaleConfigItems(scraperID uuid.UUID) error {
             deleted_at IS NULL AND
             scraper_id = ?`
 
-	result := db.DefaultDB().Exec(deleteQuery, v1.DeletedReasonMissingScrape, staleMinutes, scraperID)
+	result := ctx.DB().Exec(deleteQuery, v1.DeletedReasonMissingScrape, staleMinutes, scraperID)
 	if err := result.Error; err != nil {
 		return err
 	}

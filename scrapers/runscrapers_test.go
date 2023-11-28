@@ -1,7 +1,7 @@
 package scrapers
 
 import (
-	"context"
+	gocontext "context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,11 +12,15 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty"
+	"github.com/flanksource/duty/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	apiv1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = Describe("Scrapers test", func() {
+var _ = Describe("Scrapers test", Ordered, func() {
 	Describe("DB initialization", func() {
 		It("should be able to run migrations", func() {
 			logger.Infof("Running migrations against %s", pgUrl)
@@ -26,11 +30,82 @@ var _ = Describe("Scrapers test", func() {
 		})
 
 		It("Gorm can connect", func() {
-			gorm, err := duty.NewGorm(pgUrl, duty.DefaultGormConfig())
-			Expect(err).ToNot(HaveOccurred())
 			var people int64
-			Expect(gorm.Table("people").Count(&people).Error).ToNot(HaveOccurred())
+			Expect(gormDB.Table("people").Count(&people).Error).ToNot(HaveOccurred())
 			Expect(people).To(Equal(int64(1)))
+		})
+	})
+
+	Describe("Test kubernetes relationship", func() {
+		var scrapeConfig v1.ScrapeConfig
+
+		It("should prepare scrape config", func() {
+			scrapeConfig = getConfigSpec("kubernetes")
+			scrapeConfig.Spec.Kubernetes[0].Kubeconfig = &types.EnvVar{
+				ValueStatic: kubeConfigPath,
+			}
+			scrapeConfig.Spec.Kubernetes[0].Relationships = append(scrapeConfig.Spec.Kubernetes[0].Relationships, v1.KubernetesRelationship{
+				Kind:      v1.KubernetesRelationshipLookup{Value: "ConfigMap"},
+				Name:      v1.KubernetesRelationshipLookup{Label: "flanksource/name"},
+				Namespace: v1.KubernetesRelationshipLookup{Label: "flanksource/namespace"},
+			})
+		})
+
+		It("should save a configMap", func() {
+			first := &apiv1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "first-config",
+					Namespace: "default",
+					Labels: map[string]string{
+						"flanksource/name":      "second-config",
+						"flanksource/namespace": "default",
+					},
+				},
+				Data: map[string]string{"key": "value"},
+			}
+
+			err := k8sClient.Create(gocontext.TODO(), first)
+			Expect(err).NotTo(HaveOccurred(), "failed to create test MyKind resource")
+		})
+
+		It("should save second configMap", func() {
+			first := &apiv1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "second-config",
+					Namespace: "default",
+				},
+				Data: map[string]string{"key": "value"},
+			}
+
+			err := k8sClient.Create(gocontext.TODO(), first)
+			Expect(err).NotTo(HaveOccurred(), "failed to create test MyKind resource")
+		})
+
+		It("should successfully complete first scrape run", func() {
+			scraperCtx := api.NewScrapeContext(gocontext.TODO(), gormDB, nil).WithScrapeConfig(&scrapeConfig)
+			_, err := RunScraper(scraperCtx)
+			Expect(err).To(BeNil())
+		})
+
+		It("should have saved the two config items to database", func() {
+			var configItems []models.ConfigItem
+			err := gormDB.Where("name IN (?, ?)", "first-config", "second-config").Find(&configItems).Error
+			Expect(err).To(BeNil())
+
+			Expect(len(configItems)).To(Equal(2))
+		})
+
+		It("should correctly setup kubernetes relationship", func() {
+			scraperCtx := api.NewScrapeContext(gocontext.TODO(), gormDB, nil).WithScrapeConfig(&scrapeConfig)
+			_, err := RunScraper(scraperCtx)
+			Expect(err).To(BeNil())
+
+			var configRelationships []models.ConfigRelationship
+			err = gormDB.Find(&configRelationships).Error
+			Expect(err).To(BeNil())
+
+			Expect(len(configRelationships)).To(Equal(1))
+			Expect(configRelationships[0].Relation).To(Equal("ConfigMapConfigMap"))
 		})
 	})
 
@@ -48,7 +123,7 @@ var _ = Describe("Scrapers test", func() {
 			It(fixture, func() {
 				config := getConfigSpec(fixture)
 				expected := getFixtureResult(fixture)
-				ctx := api.NewScrapeContext(context.Background(), nil, nil).WithScrapeConfig(&config)
+				ctx := api.NewScrapeContext(gocontext.Background(), nil, nil).WithScrapeConfig(&config)
 
 				results, err := Run(ctx)
 				Expect(err).To(BeNil())
@@ -83,7 +158,7 @@ var _ = Describe("Scrapers test", func() {
 			configScraper, err := db.PersistScrapeConfigFromFile(config)
 			Expect(err).To(BeNil())
 
-			ctx := api.NewScrapeContext(context.Background(), nil, nil).WithScrapeConfig(&config)
+			ctx := api.NewScrapeContext(gocontext.Background(), nil, nil).WithScrapeConfig(&config)
 
 			results, err := Run(ctx)
 			Expect(err).To(BeNil())
@@ -107,7 +182,7 @@ var _ = Describe("Scrapers test", func() {
 		It("should store the changes from the config", func() {
 			config := getConfigSpec("file-car-change")
 
-			ctx := api.NewScrapeContext(context.Background(), nil, nil).WithScrapeConfig(&config)
+			ctx := api.NewScrapeContext(gocontext.Background(), nil, nil).WithScrapeConfig(&config)
 
 			results, err := Run(ctx)
 			Expect(err).To(BeNil())
@@ -123,7 +198,7 @@ var _ = Describe("Scrapers test", func() {
 			Expect(configItemID).ToNot(BeNil())
 
 			// Expect the config_changes to be stored
-			items, err := db.FindConfigChangesByItemID(context.Background(), *configItemID)
+			items, err := db.FindConfigChangesByItemID(gocontext.Background(), *configItemID)
 			Expect(err).To(BeNil())
 			Expect(len(items)).To(Equal(1))
 			Expect(items[0].ConfigID).To(Equal(storedConfigItem.ID))

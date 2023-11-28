@@ -9,6 +9,8 @@ import (
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/duty/context"
+
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -32,6 +34,8 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 	var (
 		results       v1.ScrapeResults
 		changeResults v1.ScrapeResults
+
+		err error
 	)
 
 	for _, config := range ctx.ScrapeConfig().Spec.Kubernetes {
@@ -51,7 +55,10 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 		})
 
 		opts := options.NewDefaultCmdOptions()
-		opts = updateOptions(opts, config)
+		opts, err = updateOptions(ctx.DutyContext(), opts, config)
+		if err != nil {
+			return results.Errorf(err, "error setting up kube config")
+		}
 		objs := ketall.KetAll(opts)
 
 		resourceIDMap := getResourceIDsFromObjs(objs)
@@ -131,6 +138,10 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 					return results.Errorf(err, "failed to evaluate kind: %v for config relationship", f.Kind)
 				}
 
+				if kind != obj.GetKind() {
+					continue // Try matching another relationship
+				}
+
 				name, err := f.Name.Eval(obj.GetLabels(), env)
 				if err != nil {
 					return results.Errorf(err, "failed to evaluate name: %v for config relationship", f.Name)
@@ -141,9 +152,9 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 					return results.Errorf(err, "failed to evaluate namespace: %v for config relationship", f.Namespace)
 				}
 
-				linkedConfigItemIDs, err := db.ConfigItemsIDs(ctx.DutyContext(), fmt.Sprintf("%s%s", ConfigTypePrefix, kind), name, namespace)
+				linkedConfigItemIDs, err := db.FindConfigIDsByNamespaceName(ctx.DutyContext(), namespace, name)
 				if err != nil {
-					return results.Errorf(err, "failed to get linked config items: kind=%s, name=%s, namespace=%s", kind, name, namespace)
+					return results.Errorf(err, "failed to get linked config items: name=%s, namespace=%s", name, namespace)
 				}
 
 				for _, id := range linkedConfigItemIDs {
@@ -274,7 +285,7 @@ func getKubernetesAlias(obj *unstructured.Unstructured) []string {
 	return []string{strings.Join([]string{"Kubernetes", obj.GetKind(), obj.GetNamespace(), obj.GetName()}, "/")}
 }
 
-func updateOptions(opts *options.KetallOptions, config v1.Kubernetes) *options.KetallOptions {
+func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.Kubernetes) (*options.KetallOptions, error) {
 	opts.AllowIncomplete = config.AllowIncomplete
 	opts.Namespace = config.Namespace
 	opts.Scope = config.Scope
@@ -284,11 +295,16 @@ func updateOptions(opts *options.KetallOptions, config v1.Kubernetes) *options.K
 	opts.MaxInflight = config.MaxInflight
 	opts.Exclusions = config.Exclusions
 	opts.Since = config.Since
-	//TODO: update kubeconfig reference if provided by user
-	// if config.Kubeconfig != nil {
-	// 	opts.Kubeconfig = config.Kubeconfig.GetValue()
-	// }
-	return opts
+	if config.Kubeconfig != nil {
+		val, err := ctx.GetEnvValueFromCache(*config.Kubeconfig)
+		if err != nil {
+			return nil, err
+		}
+
+		opts.GenericCliFlags.KubeConfig = &val
+	}
+
+	return opts, nil
 }
 
 func extractDeployNameFromReplicaSet(rs string) string {

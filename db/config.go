@@ -95,13 +95,12 @@ func UpdateConfigItem(ci *models.ConfigItem) error {
 	return nil
 }
 
-// ConfigItemsIDs returns the uuid of config items which matches the given type, name & namespace
-func ConfigItemsIDs(ctx context.Context, configType, name, namespace string) ([]uuid.UUID, error) {
+// FindConfigIDsByNamespaceName returns the uuid of config items which matches the given type, name & namespace
+func FindConfigIDsByNamespaceName(ctx context.Context, namespace, name string) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
 	err := ctx.DB().
 		Model(&models.ConfigItem{}).
 		Select("id").
-		Where("type = ?", configType).
 		Where("name = ?", name).
 		Where("namespace = ?", namespace).
 		Find(&ids).Error
