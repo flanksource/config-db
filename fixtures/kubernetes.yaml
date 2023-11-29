@@ -20,6 +20,25 @@ spec:
         - controllerrevision
         - certificaterequest
         - orders.acme.cert-manager.io
+      relationships:
+        - kind:
+            expr: "has(spec.claimRef) ? spec.claimRef.kind : ''"
+          name:
+            expr: "has(spec.claimRef) ? spec.claimRef.name : ''"
+          namespace:
+            expr: "has(spec.claimRef) ? spec.claimRef.namespace : ''"
+        - kind:
+            value: Kustomization
+          name:
+            label: kustomize.toolkit.fluxcd.io/name
+          namespace:
+            label: kustomize.toolkit.fluxcd.io/namespace
+        - kind:
+            value: HelmRelease
+          name:
+            label: helm.toolkit.fluxcd.io/name
+          namespace:
+            label: helm.toolkit.fluxcd.io/namespace
       event:
         exclusions:
           - SuccessfulCreate

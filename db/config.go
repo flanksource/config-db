@@ -1,7 +1,7 @@
 package db
 
 import (
-	"context"
+	gocontext "context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,7 +9,9 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
 	"github.com/patrickmn/go-cache"
@@ -91,6 +93,18 @@ func UpdateConfigItem(ci *models.ConfigItem) error {
 	}
 
 	return nil
+}
+
+// FindConfigIDsByNamespaceName returns the uuid of config items which matches the given type, name & namespace
+func FindConfigIDsByNamespaceName(ctx context.Context, namespace, name string) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := ctx.DB().
+		Model(&models.ConfigItem{}).
+		Select("id").
+		Where("name = ?", name).
+		Where("namespace = ?", namespace).
+		Find(&ids).Error
+	return ids, err
 }
 
 // QueryConfigItems ...
@@ -218,7 +232,7 @@ func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
 }
 
 // FindConfigChangesByItemID returns all the changes of the given config item
-func FindConfigChangesByItemID(ctx context.Context, configItemID string) ([]dutyModels.ConfigChange, error) {
+func FindConfigChangesByItemID(ctx gocontext.Context, configItemID string) ([]dutyModels.ConfigChange, error) {
 	var ci []dutyModels.ConfigChange
 	tx := db.WithContext(ctx).Where("config_id = ?", configItemID).Find(&ci)
 	if tx.Error != nil {

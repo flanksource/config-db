@@ -22,8 +22,11 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 
 	// If error in any of the scrape results, don't delete old items
 	if len(results) > 0 && !v1.ScrapeResults(results).HasErr() {
-		if err := DeleteStaleConfigItems(*ctx.ScrapeConfig().GetPersistedID()); err != nil {
-			return nil, fmt.Errorf("error deleting stale config items: %w", err)
+		persistedID := ctx.ScrapeConfig().GetPersistedID()
+		if persistedID != nil {
+			if err := DeleteStaleConfigItems(ctx.DutyContext(), *persistedID); err != nil {
+				return nil, fmt.Errorf("error deleting stale config items: %w", err)
+			}
 		}
 	}
 

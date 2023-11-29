@@ -355,18 +355,23 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 			continue
 		}
 		if configID == nil {
-			logger.Warnf("failed to find config %s", relationship.ConfigExternalID)
+			logger.Debugf("failed to find config %s", relationship.ConfigExternalID)
 			continue
 		}
 
-		relatedID, err := FindConfigItemID(relationship.RelatedExternalID)
-		if err != nil {
-			logger.Errorf("error fetching external config item(id=%s): %v", relationship.RelatedExternalID, err)
-			continue
-		}
-		if relatedID == nil {
-			logger.Warnf("related external config item(id=%s) not found.", relationship.RelatedExternalID)
-			continue
+		var relatedID *string
+		if relationship.RelatedConfigID != "" {
+			relatedID = &relationship.RelatedConfigID
+		} else {
+			relatedID, err = FindConfigItemID(relationship.RelatedExternalID)
+			if err != nil {
+				logger.Errorf("error fetching external config item(id=%s): %v", relationship.RelatedExternalID, err)
+				continue
+			}
+			if relatedID == nil {
+				logger.Debugf("related external config item(id=%s) not found.", relationship.RelatedExternalID)
+				continue
+			}
 		}
 
 		// In first iteration, the database is not completely populated
