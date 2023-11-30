@@ -20,7 +20,7 @@ GOBIN=$(shell go env GOBIN)
 endif
 
 docker:
-	docker build . -t ${IMG}
+	docker build . -f build/Dockerfile -t ${IMG}
 
 # Push the docker image
 docker-push:

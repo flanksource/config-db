@@ -4,16 +4,16 @@
 replicas: 1
 
 # Use this only if you want to replace the default that is .Chart.Name as the name of all the objects.
-nameOverride: ""
+nameOverride: ''
 
 # Set to true if you want to disable the postgrest service
-disablePostgrest: false 
+disablePostgrest: false
 
 image:
   repository: docker.io/flanksource/config-db
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
+  tag: 'latest'
 
 configChangeRetentionDays: 60
 configAnalysisRetentionDays: 60
@@ -21,17 +21,38 @@ configAnalysisRetentionDays: 60
 # a list of configmaps to load scrape rules from, the configmap should have a single entry called "config.yaml"
 scrapeRuleConfigMaps:
   - config-db-rules
+
 db:
-  # Setting this to true will create a postgres stateful set for config-db to connect to.
-  enabled: true
-  secretKeyRef:
-    create: true
-    # The name of the secret to look for.
-    name: config-db-postgresql
-    # This is the key that we look for in the secret.
-    key: DB_URL
-  storageClass: ""
-  storage: 20Gi
+  runMigrations: true
+  embedded:
+    # If the database is embedded, setting this to true will persist the contents of the database
+    # through a persistent volume
+    persist: true
+    storageClass: ''
+    storage: 20Gi
+  external:
+    # Setting enabled to true will use an external postgres DB.
+    # You can either use the embedded db or an external db.
+    # If both is enabled, then embedded db will take precedence.
+    enabled: false
+    # Setting create:true will create
+    #   - a postgres stateful set
+    #   - the secret &
+    #   - the service to expose the postgres stateful set.
+    # By default, the generated secret will use 'postgres' as the username and a randomly generated password.
+    # If you need to set a custom username and password, you can populate a secret named 'postgres-connection' before install
+    # with POSTGRES_USER and POSTGRES_PASSWORD
+    #
+    # If create:false, a prexisting secret containing the URI to an existing postgres database must be provided
+    # The URI must be in the format 'postgresql://"$user":"$password"@"$host"/"$database"'
+    create: false
+    secretKeyRef:
+      # The name of the secret to look for.
+      name: config-db-postgresql
+      # This is the key that we look for in the secret.
+      key: DB_URL
+    storageClass: ''
+    storage: 20Gi
 
 ingress:
   enabled: false
@@ -55,7 +76,7 @@ resources:
 
 serviceAccount:
   create: true
-  name: ""
+  name: ''
   annotations: {}
 
 upstream:

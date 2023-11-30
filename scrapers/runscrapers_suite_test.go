@@ -1,6 +1,7 @@
 package scrapers
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -49,7 +50,7 @@ var _ = BeforeSuite(func() {
 	if _, err := duty.NewDB(pgUrl); err != nil {
 		Fail(err.Error())
 	}
-	if err := db.Init(pgUrl); err != nil {
+	if err := db.Init(context.Background(), pgUrl); err != nil {
 		Fail(err.Error())
 	}
 
