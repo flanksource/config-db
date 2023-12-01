@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
@@ -12,7 +13,10 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty"
+	"github.com/flanksource/duty/context"
+	dutymodels "github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -217,6 +221,68 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(storedConfigItem).ToNot(BeNil())
 
 			Expect(configItem, storedConfigItem)
+		})
+
+		It("should retain config changes as per the spec", func() {
+
+			dummyScraper := dutymodels.ConfigScraper{
+				Name:   "Test",
+				Spec:   `{"foo":"bar"}`,
+				Source: dutymodels.SourceConfigFile,
+			}
+			err := db.DefaultDB().Create(&dummyScraper).Error
+			Expect(err).To(BeNil())
+
+			ciID := uuid.New()
+			dummyCI := models.ConfigItem{
+				ID:          ciID.String(),
+				ConfigClass: "Test",
+				ScraperID:   &dummyScraper.ID,
+			}
+			err = db.DefaultDB().Create(&dummyCI).Error
+			Expect(err).To(BeNil())
+
+			configItemID := dummyCI.ID
+
+			twoDaysAgo := time.Now().Add(-2 * 24 * time.Hour)
+			fiveDaysAgo := time.Now().Add(-5 * 24 * time.Hour)
+			configChanges := []models.ConfigChange{
+				{ConfigID: configItemID, ChangeType: "TestDiff"},
+				{ConfigID: configItemID, ChangeType: "TestDiff"},
+				{ConfigID: configItemID, ChangeType: "TestDiff"},
+				{ConfigID: configItemID, ChangeType: "TestDiff"},
+				{ConfigID: configItemID, ChangeType: "TestDiff"},
+				{ConfigID: configItemID, ChangeType: "TestDiff"},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo},
+			}
+			err = db.DefaultDB().Create(&configChanges).Error
+			Expect(err).To(BeNil())
+
+			var currentCount int
+			err = db.DefaultDB().
+				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID).
+				Scan(&currentCount).
+				Error
+			Expect(err).To(BeNil())
+			Expect(currentCount, len(configChanges))
+
+			ctx := context.NewContext(gocontext.Background()).WithDB(db.DefaultDB(), db.Pool)
+			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Age: "3d", Count: 10})
+			Expect(err).To(BeNil())
+
+			var newCount int
+			err = db.DefaultDB().
+				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID).
+				Scan(&newCount).
+				Error
+			Expect(err).To(BeNil())
+			Expect(newCount, 8)
 		})
 	})
 })

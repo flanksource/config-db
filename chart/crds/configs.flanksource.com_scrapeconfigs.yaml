@@ -1167,6 +1167,20 @@ spec:
                 type: array
               logLevel:
                 type: string
+              retention:
+                properties:
+                  changes:
+                    items:
+                      properties:
+                        age:
+                          type: string
+                        count:
+                          type: integer
+                        name:
+                          type: string
+                      type: object
+                    type: array
+                type: object
               schedule:
                 type: string
               sql:
