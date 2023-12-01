@@ -32,16 +32,6 @@ func ProcessChangeRetention(ctx context.Context, scraperID uuid.UUID, spec v1.Ch
         )
     `
 
-	//query = `
-	//UPDATE config_changes
-	//SET deleted_at = NOW()
-	//WHERE
-	//change_type = ? AND
-	//config_id IN (SELECT id FROM config_item WHERE scraper_id = ?) AND
-	//((NOW() - created_at > INTERVAL '1 minute' * ?)) AND
-	//deleted_at IS NULL
-	//`
-
 	result := ctx.DB().Exec(query, spec.Name, scraperID, ageMinutes, spec.Count)
 	if err := result.Error; err != nil {
 		return fmt.Errorf("error retaining config changes: %w", err)
