@@ -224,7 +224,6 @@ var _ = Describe("Scrapers test", Ordered, func() {
 		})
 
 		It("should retain config changes as per the spec", func() {
-
 			dummyScraper := dutymodels.ConfigScraper{
 				Name:   "Test",
 				Spec:   `{"foo":"bar"}`,
@@ -233,35 +232,39 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			err := db.DefaultDB().Create(&dummyScraper).Error
 			Expect(err).To(BeNil())
 
-			ciID := uuid.New()
+			configItemID := uuid.New().String()
 			dummyCI := models.ConfigItem{
-				ID:          ciID.String(),
+				ID:          configItemID,
 				ConfigClass: "Test",
 				ScraperID:   &dummyScraper.ID,
 			}
 			err = db.DefaultDB().Create(&dummyCI).Error
 			Expect(err).To(BeNil())
 
-			configItemID := dummyCI.ID
-
 			twoDaysAgo := time.Now().Add(-2 * 24 * time.Hour)
 			fiveDaysAgo := time.Now().Add(-5 * 24 * time.Hour)
+			tenDaysAgo := time.Now().Add(-10 * 24 * time.Hour)
 			configChanges := []models.ConfigChange{
-				{ConfigID: configItemID, ChangeType: "TestDiff"},
-				{ConfigID: configItemID, ChangeType: "TestDiff"},
-				{ConfigID: configItemID, ChangeType: "TestDiff"},
-				{ConfigID: configItemID, ChangeType: "TestDiff"},
-				{ConfigID: configItemID, ChangeType: "TestDiff"},
-				{ConfigID: configItemID, ChangeType: "TestDiff"},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo},
+				{ConfigID: configItemID, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &tenDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &tenDaysAgo, ExternalChangeId: uuid.New().String()},
 			}
-			err = db.DefaultDB().Create(&configChanges).Error
+
+			err = db.DefaultDB().Table("config_changes").Create(&configChanges).Error
 			Expect(err).To(BeNil())
 
 			var currentCount int
@@ -270,19 +273,46 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				Scan(&currentCount).
 				Error
 			Expect(err).To(BeNil())
-			Expect(currentCount, len(configChanges))
+			Expect(currentCount).To(Equal(len(configChanges)))
 
 			ctx := context.NewContext(gocontext.Background()).WithDB(db.DefaultDB(), db.Pool)
-			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Age: "3d", Count: 10})
-			Expect(err).To(BeNil())
 
-			var newCount int
+			// Everything older than 8 days should be removed
+			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Age: "8d"})
+			Expect(err).To(BeNil())
+			var count1 int
 			err = db.DefaultDB().
 				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID).
-				Scan(&newCount).
+				Scan(&count1).
 				Error
 			Expect(err).To(BeNil())
-			Expect(newCount, 8)
+			Expect(count1).To(Equal(15))
+
+			// Only keep latest 12 config changes
+			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Count: 12})
+			Expect(err).To(BeNil())
+			var count2 int
+			err = db.DefaultDB().
+				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID).
+				Scan(&count2).
+				Error
+			Expect(err).To(BeNil())
+			Expect(count2).To(Equal(12))
+
+			// Keep config changes which are newer than 3 days and max count can be 10
+			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Age: "3d", Count: 10})
+			Expect(err).To(BeNil())
+			var count3 int
+			err = db.DefaultDB().
+				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID).
+				Scan(&count3).
+				Error
+			Expect(err).To(BeNil())
+			Expect(count3).To(Equal(9))
+
+			// No params in ChangeRetentionSpec should fail
+			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff"})
+			Expect(err).ToNot(BeNil())
 		})
 	})
 })
