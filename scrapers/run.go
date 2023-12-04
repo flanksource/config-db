@@ -3,7 +3,6 @@ package scrapers
 import (
 	"fmt"
 
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -27,13 +26,6 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 		if len(results) > 0 && !v1.ScrapeResults(results).HasErr() {
 			if err := DeleteStaleConfigItems(ctx.DutyContext(), *persistedID); err != nil {
 				return nil, fmt.Errorf("error deleting stale config items: %w", err)
-			}
-		}
-
-		// Process change retention
-		for _, change := range ctx.ScrapeConfig().Spec.Retention.Changes {
-			if err := ProcessChangeRetention(ctx.DutyContext(), *persistedID, change); err != nil {
-				logger.Errorf("Error processing change retention rules: %v", err)
 			}
 		}
 	}
