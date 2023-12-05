@@ -19,9 +19,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/duty/models"
+
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
+
+const ConfigTypePrefix = "Azure::"
 
 type Scraper struct {
 	ctx    context.Context
@@ -100,6 +104,45 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		results = append(results, azure.fetchNetworkSecurityGroups()...)
 		results = append(results, azure.fetchPublicIPAddresses()...)
 		results = append(results, azure.fetchAdvisorAnalysis()...)
+	}
+
+	// Establish relationship of all resources to the corresponding subscription & resource group
+	for i, r := range results {
+		if r.ID == "" {
+			continue
+		}
+
+		var relateSubscription, relateResourceGroup bool
+		switch r.Type {
+		case ConfigTypePrefix + "SUBSCRIPTION":
+			continue
+
+		case ConfigTypePrefix + "MICROSOFT.RESOURCES/RESOURCEGROUPS":
+			relateSubscription = true
+
+		default:
+			relateSubscription = true
+			relateResourceGroup = true
+		}
+
+		if relateSubscription {
+			results[i].RelationshipResults = append(results[i].RelationshipResults, v1.RelationshipResult{
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{r.ID}, ConfigType: r.Type},
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{"/subscriptions/" + azure.config.SubscriptionID}, ConfigType: ConfigTypePrefix + "SUBSCRIPTION"},
+				Relationship:      "Subscription" + strings.TrimPrefix(r.Type, ConfigTypePrefix),
+			})
+		}
+
+		if relateResourceGroup && extractResourceGroup(r.ID) != "" {
+			results[i].RelationshipResults = append(results[i].RelationshipResults, v1.RelationshipResult{
+				ConfigExternalID: v1.ExternalID{ExternalID: []string{r.ID}, ConfigType: r.Type},
+				RelatedExternalID: v1.ExternalID{
+					ExternalID: []string{fmt.Sprintf("/subscriptions/%s/resourcegroups/%s", azure.config.SubscriptionID, extractResourceGroup(r.ID))},
+					ConfigType: ConfigTypePrefix + "MICROSOFT.RESOURCES/RESOURCEGROUPS",
+				},
+				Relationship: "Resourcegroup" + strings.TrimPrefix(r.Type, ConfigTypePrefix),
+			})
+		}
 	}
 
 	return results
@@ -313,11 +356,12 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
 				Config:      v,
-				ConfigClass: "VirtualMachine",
+				ConfigClass: models.ConfigClassVirtualMachine,
 				Type:        getARMType(v.Type),
 			})
 		}
 	}
+
 	return results
 }
 
@@ -627,4 +671,21 @@ func getARMType(rType *string) string {
 	// - Microsoft.ContainerService/ManagedClusters (case not enforced)
 	// This is required to match config analysis with the config item.
 	return "Azure::" + strings.ToUpper(deref(rType))
+}
+
+func extractResourceGroup(resourceID string) string {
+	resourceID = strings.Trim(resourceID, " ")
+	resourceID = strings.TrimPrefix(resourceID, "/")
+
+	segments := strings.Split(resourceID, "/")
+	if len(segments) < 4 {
+		return ""
+	}
+
+	if segments[2] != "resourcegroups" {
+		return ""
+	}
+
+	// The resource group is the third segment
+	return segments[3]
 }
