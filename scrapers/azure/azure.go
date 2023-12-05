@@ -194,6 +194,13 @@ var azureActivityExcludeOperations = []string{
 	"Microsoft.ContainerService/managedClusters/listClusterUserCredential/action",
 }
 
+// activityChangeRecord holds together the change result generated from an activity log
+// along with the original activity log event.
+type activityChangeRecord struct {
+	Result    v1.ChangeResult
+	EventData *armmonitor.EventData
+}
+
 func (azure Scraper) fetchActivityLogs() v1.ScrapeResults {
 	logger.Debugf("fetching activity logs for subscription %s", azure.config.SubscriptionID)
 
@@ -203,6 +210,10 @@ func (azure Scraper) fetchActivityLogs() v1.ScrapeResults {
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate arm monitor client: %w", err)})
 	}
+
+	// corelatedActivities keeps together events that belong to the same "uber operation"
+	// https://learn.microsoft.com/en-us/rest/api/monitor/activity-logs/list?view=rest-monitor-2015-04-01&tabs=HTTP#eventdata
+	var corelatedActivities = map[string][]activityChangeRecord{}
 
 	filter := fmt.Sprintf("eventTimestamp ge '%s'", time.Now().UTC().Add(activityLogTimespan).Format(time.RFC3339))
 	pager := clientFactory.NewActivityLogsClient().NewListPager(filter, &armmonitor.ActivityLogsClientListOptions{Select: &activityLogFilter})
@@ -222,15 +233,47 @@ func (azure Scraper) fetchActivityLogs() v1.ScrapeResults {
 				ChangeType:       utils.Deref(v.OperationName.Value),
 				CreatedAt:        v.EventTimestamp,
 				Details:          v1.NewJSON(*v),
-				ExternalChangeID: utils.Deref(v.EventDataID),
+				ExternalChangeID: utils.Deref(v.CorrelationID),
 				ExternalID:       strings.ToLower(utils.Deref(v.ResourceID)),
 				ConfigType:       getARMType(v.ResourceType.Value),
 				Severity:         string(getSeverityFromReason(v)),
 				Source:           ConfigTypePrefix + "ActivityLog",
 				Summary:          utils.Deref(v.OperationName.LocalizedValue),
 			}
-			results = append(results, v1.ScrapeResult{Changes: []v1.ChangeResult{change}})
+			corelatedActivities[utils.Deref(v.CorrelationID)] = append(corelatedActivities[utils.Deref(v.CorrelationID)], activityChangeRecord{
+				Result:    change,
+				EventData: v,
+			})
 		}
+
+		// Stop the pager because there's a bug in the SDK itself
+		// error: failed to read activity logs next page: invalid semicolon separator in query
+		// TODO:
+		break
+	}
+
+	// For the correlated activities, we merge some fields and aggregate the timestamps into a single change record
+	for _, changeRecords := range corelatedActivities {
+		change := changeRecords[0].Result // Use the latest event as the base
+		change.UpdateExisting = true      // New events might have arrived, so we want to update the existing change in db
+
+		statusTimestamps := map[string]*time.Time{}
+		for i := range changeRecords {
+			change.CreatedAt = changeRecords[i].EventData.EventTimestamp // Use the oldest event's timestamp
+
+			status := utils.Deref(changeRecords[i].EventData.Status.Value)
+			if status == "" {
+				continue
+			}
+			statusTimestamps[strings.ToLower(status)] = changeRecords[i].EventData.EventTimestamp
+
+			if _, ok := change.Details["httpRequest"]; !ok {
+				change.Details["httpRequest"] = changeRecords[i].EventData
+			}
+		}
+
+		change.Details["timestamps"] = statusTimestamps
+		results = append(results, v1.ScrapeResult{Changes: []v1.ChangeResult{change}})
 	}
 
 	return results
