@@ -27,6 +27,7 @@ func ScheduleJobs() {
 	scheduleFunc("@every 24h", DeleteOldConfigChanges)
 	scheduleFunc("@every 24h", DeleteOldConfigAnalysis)
 	scheduleFunc("@every 24h", CleanupConfigItems)
+	scheduleFunc("@every 1h", ProcessChangeRetentionRules)
 
 	if api.UpstreamConfig.Valid() {
 		pullJob := &UpstreamPullJob{}
