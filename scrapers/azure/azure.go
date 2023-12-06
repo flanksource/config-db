@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/flanksource/commons/logger"
+	commonutils "github.com/flanksource/commons/utils"
 	"github.com/flanksource/duty/models"
 
 	"github.com/flanksource/config-db/api"
@@ -434,7 +435,7 @@ func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 				Name:        *v.DisplayName,
 				Config:      v,
 				ConfigClass: "Subscription",
-				Type:        "Azure::SUBSCRIPTION",
+				Type:        getARMType(commonutils.Ptr("Subscription")),
 			})
 		}
 	}
@@ -678,13 +679,7 @@ func getARMID(id *string) string {
 // getARMType takes in a type of a resource group
 // and returns it in a compatible format.
 func getARMType(rType *string) string {
-	// Need to uppercase the resource type in the config item because
-	// the azure advisor recommendation uses resource type in all uppercase; not always but most of the time.
-	// For example: It returns
-	// - MICROSOFT.COMPUTE/VIRTUALMACHINES (all caps)
-	// - Microsoft.ContainerService/ManagedClusters (case not enforced)
-	// This is required to match config analysis with the config item.
-	return "Azure::" + strings.ToUpper(deref(rType))
+	return "Azure::" + deref(rType)
 }
 
 func extractResourceGroup(resourceID string) string {

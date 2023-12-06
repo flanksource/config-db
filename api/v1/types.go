@@ -86,7 +86,7 @@ func (e ExternalID) CacheKey() string {
 }
 
 func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
-	return db.Where("type = ? AND external_id  @> ?", e.ConfigType, pq.StringArray(e.ExternalID))
+	return db.Where("lower(type) = ? AND external_id @> ?", strings.ToLower(e.ConfigType), pq.StringArray(e.ExternalID))
 }
 
 type ConfigDeleteReason string
