@@ -36,7 +36,7 @@ func ProcessChangeRetention(ctx context.Context, scraperID uuid.UUID, spec v1.Ch
 
 	query := fmt.Sprintf(`
         WITH latest_config_changes AS (
-            SELECT id, change_type, created_at, ROW_NUMBER() OVER(ORDER BY created_at DESC) AS seq
+            SELECT id, change_type, created_at, ROW_NUMBER() OVER(PARTITION BY config_id ORDER BY created_at DESC) AS seq
             FROM config_changes
             WHERE
                 change_type = @changeType AND
