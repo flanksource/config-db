@@ -238,7 +238,15 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				ConfigClass: "Test",
 				ScraperID:   &dummyScraper.ID,
 			}
+			configItemID2 := uuid.New().String()
+			dummyCI2 := models.ConfigItem{
+				ID:          configItemID2,
+				ConfigClass: "Test",
+				ScraperID:   &dummyScraper.ID,
+			}
 			err = db.DefaultDB().Create(&dummyCI).Error
+			Expect(err).To(BeNil())
+			err = db.DefaultDB().Create(&dummyCI2).Error
 			Expect(err).To(BeNil())
 
 			twoDaysAgo := time.Now().Add(-2 * 24 * time.Hour)
@@ -262,6 +270,8 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
 				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &tenDaysAgo, ExternalChangeId: uuid.New().String()},
 				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &tenDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID2, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID2, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
 			}
 
 			err = db.DefaultDB().Table("config_changes").Create(&configChanges).Error
@@ -269,7 +279,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 
 			var currentCount int
 			err = db.DefaultDB().
-				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID).
+				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ?`, "TestDiff").
 				Scan(&currentCount).
 				Error
 			Expect(err).To(BeNil())
@@ -288,6 +298,15 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(err).To(BeNil())
 			Expect(count1).To(Equal(15))
 
+			// The other config item should not be touched
+			var otherCount1 int
+			err = db.DefaultDB().
+				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID2).
+				Scan(&otherCount1).
+				Error
+			Expect(err).To(BeNil())
+			Expect(otherCount1).To(Equal(2))
+
 			// Only keep latest 12 config changes
 			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Count: 12})
 			Expect(err).To(BeNil())
@@ -298,6 +317,15 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				Error
 			Expect(err).To(BeNil())
 			Expect(count2).To(Equal(12))
+
+			// The other config item should not be touched
+			var otherCount2 int
+			err = db.DefaultDB().
+				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID2).
+				Scan(&otherCount2).
+				Error
+			Expect(err).To(BeNil())
+			Expect(otherCount2).To(Equal(2))
 
 			// Keep config changes which are newer than 3 days and max count can be 10
 			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Age: "3d", Count: 10})
@@ -313,6 +341,16 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			// No params in ChangeRetentionSpec should fail
 			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff"})
 			Expect(err).ToNot(BeNil())
+
+			// The other config item should not be touched
+			var otherCount3 int
+			err = db.DefaultDB().
+				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID2).
+				Scan(&otherCount3).
+				Error
+			Expect(err).To(BeNil())
+			Expect(otherCount3).To(Equal(2))
+
 		})
 	})
 })
