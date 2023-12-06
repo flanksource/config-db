@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -22,19 +23,20 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
-	commonutils "github.com/flanksource/commons/utils"
+	"github.com/flanksource/commons/utils"
 	"github.com/flanksource/duty/models"
 
-	"github.com/flanksource/commons/utils"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 const (
-	activityLogTimespan = time.Hour * -1
-
-	ConfigTypePrefix = "Azure::"
+	ConfigTypePrefix         = "Azure::"
+	defaultActivityLogMaxage = time.Hour * 24 * 7
 )
+
+// activityLogLastRecordTime keeps track of the time of the last activity log per subscription.
+var activityLogLastRecordTime = sync.Map{}
 
 var activityLogFilter = strings.Join([]string{
 	"authorization",
@@ -187,13 +189,6 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	return results
 }
 
-// azureActivityExcludeOperations is a list of activity logs we can avoid
-// as they do not mutate any resources.
-var azureActivityExcludeOperations = []string{
-	"Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action",
-	"Microsoft.ContainerService/managedClusters/listClusterUserCredential/action",
-}
-
 // activityChangeRecord holds together the change result generated from an activity log
 // along with the original activity log event.
 type activityChangeRecord struct {
@@ -215,7 +210,12 @@ func (azure Scraper) fetchActivityLogs() v1.ScrapeResults {
 	// https://learn.microsoft.com/en-us/rest/api/monitor/activity-logs/list?view=rest-monitor-2015-04-01&tabs=HTTP#eventdata
 	var corelatedActivities = map[string][]activityChangeRecord{}
 
-	filter := fmt.Sprintf("eventTimestamp ge '%s'", time.Now().UTC().Add(activityLogTimespan).Format(time.RFC3339))
+	var recordSince = time.Now().Add(-defaultActivityLogMaxage)
+	if v, ok := activityLogLastRecordTime.Load(azure.config.SubscriptionID); ok {
+		recordSince = v.(time.Time)
+	}
+
+	filter := fmt.Sprintf("eventTimestamp ge '%s'", recordSince.Format(time.RFC3339))
 	pager := clientFactory.NewActivityLogsClient().NewListPager(filter, &armmonitor.ActivityLogsClientListOptions{Select: &activityLogFilter})
 	for pager.More() {
 		page, err := pager.NextPage(azure.ctx)
@@ -225,7 +225,11 @@ func (azure Scraper) fetchActivityLogs() v1.ScrapeResults {
 		logger.Tracef("Fetched %d activity logs", len(page.Value))
 
 		for _, v := range page.Value {
-			if collections.Contains(azureActivityExcludeOperations, utils.Deref(v.OperationName.Value)) {
+			if recordSince.Before(utils.Deref(v.EventTimestamp)) {
+				recordSince = *v.EventTimestamp
+			}
+
+			if azure.config.Exclusions != nil && collections.Contains(azure.config.Exclusions.ActivityLogs, utils.Deref(v.OperationName.Value)) {
 				continue
 			}
 
@@ -251,6 +255,8 @@ func (azure Scraper) fetchActivityLogs() v1.ScrapeResults {
 		// TODO:
 		break
 	}
+
+	activityLogLastRecordTime.Store(azure.config.SubscriptionID, recordSince)
 
 	// For the correlated activities, we merge some fields and aggregate the timestamps into a single change record
 	for _, changeRecords := range corelatedActivities {
@@ -570,7 +576,7 @@ func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 				Name:        *v.DisplayName,
 				Config:      v,
 				ConfigClass: "Subscription",
-				Type:        getARMType(commonutils.Ptr("Subscription")),
+				Type:        getARMType(utils.Ptr("Subscription")),
 			})
 		}
 	}

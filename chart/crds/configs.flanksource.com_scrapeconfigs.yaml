@@ -321,6 +321,16 @@ spec:
                       items:
                         type: string
                       type: array
+                    exclusions:
+                      properties:
+                        activityLogs:
+                          description: 'ActivityLogs is a list of operations to exclude
+                            from activity logs. Example: "Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action"
+                            "Microsoft.ContainerService/managedClusters/listClusterUserCredential/action"'
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
