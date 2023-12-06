@@ -2,6 +2,7 @@ package azure
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -23,6 +24,7 @@ import (
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 )
 
 const ConfigTypePrefix = "Azure::"
@@ -110,6 +112,18 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	for i, r := range results {
 		if r.ID == "" {
 			continue
+		}
+
+		// Remove etags from the config json as they produce unecessary changes.
+		// TODO: Maybe we can limit this to certain types that have etags to avoid unnecessary parsing.
+		// Or maybe etag can be present on all types - not sure.
+		if r.Config != nil {
+			rawConfig, err := json.Marshal(r.Config)
+			if err == nil {
+				if conf, err := utils.ParseJQ(rawConfig, `walk(if type == "object" then with_entries(select(.key | test("etag") | not)) else . end)`); err == nil {
+					results[i].Config = conf
+				}
+			}
 		}
 
 		var relateSubscription, relateResourceGroup bool

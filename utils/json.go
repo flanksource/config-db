@@ -3,6 +3,8 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/itchyny/gojq"
 )
 
 func StructToJSON(v any) (string, error) {
@@ -85,4 +87,42 @@ func ExtractLeafNodesAndCommonParents(data map[string]any) []string {
 	}
 
 	return output
+}
+
+func ParseJQ(v []byte, expr string) (any, error) {
+	query, err := gojq.Parse(expr)
+	if err != nil {
+		return nil, err
+	}
+
+	var input any
+	err = json.Unmarshal(v, &input)
+	if err != nil {
+		return nil, err
+	}
+
+	iter := query.Run(input)
+	var output []any
+	for {
+		val, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err, ok := val.(error); ok {
+			return nil, fmt.Errorf("error parsing jq: %v", err)
+		}
+
+		x, err := json.Marshal(val)
+		if err != nil {
+			return nil, err
+		}
+
+		output = append(output, x)
+	}
+
+	if len(output) == 1 {
+		return output[0], nil
+	}
+
+	return output, nil
 }

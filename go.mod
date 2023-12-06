@@ -52,6 +52,7 @@ require (
 	github.com/hashicorp/go-getter v1.7.3
 	github.com/henvic/httpretty v0.1.2
 	github.com/hexops/gotextdiff v1.0.3
+	github.com/itchyny/gojq v0.12.13
 	github.com/jackc/pgx/v5 v5.4.3
 	github.com/labstack/echo/v4 v4.10.2
 	github.com/lib/pq v1.10.9
@@ -103,7 +104,6 @@ require (
 	github.com/google/pprof v0.0.0-20230323073829-e72429f035bd // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/hashicorp/hcl/v2 v2.18.1 // indirect
-	github.com/itchyny/gojq v0.12.13 // indirect
 	github.com/itchyny/timefmt-go v0.1.5 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
