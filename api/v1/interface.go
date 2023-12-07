@@ -78,6 +78,9 @@ type ChangeResult struct {
 	CreatedBy        *string                `json:"created_by"`
 	CreatedAt        *time.Time             `json:"created_at"`
 	Details          map[string]interface{} `json:"details"`
+
+	// UpdateExisting indicates whether to update an existing change
+	UpdateExisting bool `json:"update_existing"`
 }
 
 func (r ChangeResult) AsMap() map[string]any {

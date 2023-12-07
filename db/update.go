@@ -138,19 +138,19 @@ func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 }
 
 func updateChange(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
-	for _, change := range result.Changes {
-		if change.Action == v1.Ignore {
+	for _, changeResult := range result.Changes {
+		if changeResult.Action == v1.Ignore {
 			continue
 		}
 
-		if change.Action == v1.Delete {
-			if err := deleteChangeHandler(ctx, change); err != nil {
+		if changeResult.Action == v1.Delete {
+			if err := deleteChangeHandler(ctx, changeResult); err != nil {
 				return err
 			}
 			continue
 		}
 
-		change := models.NewConfigChangeFromV1(*result, change)
+		change := models.NewConfigChangeFromV1(*result, changeResult)
 
 		if change.CreatedBy != nil {
 			person, err := FindPersonByEmail(ctx, ptr.ToString(change.CreatedBy))
@@ -174,8 +174,14 @@ func updateChange(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 
 		change.ConfigID = *id
 
-		if err := db.Create(change).Error; err != nil {
-			return err
+		if changeResult.UpdateExisting {
+			if err := db.Save(change).Error; err != nil {
+				return err
+			}
+		} else {
+			if err := db.Create(change).Error; err != nil {
+				return err
+			}
 		}
 	}
 
