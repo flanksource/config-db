@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -12,21 +13,51 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	commonutils "github.com/flanksource/commons/utils"
 	"github.com/flanksource/duty/models"
 
+	"github.com/flanksource/commons/utils"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
-const ConfigTypePrefix = "Azure::"
+const (
+	activityLogTimespan = time.Hour * -1
+
+	ConfigTypePrefix = "Azure::"
+)
+
+var activityLogFilter = strings.Join([]string{
+	"authorization",
+	// "claims",
+	"correlationId",
+	"description",
+	"eventDataId",
+	"eventName",
+	"eventTimestamp",
+	"httpRequest",
+	"level",
+	"operationId",
+	"operationName",
+	"properties",
+	"resourceGroupName",
+	"resourceId",
+	"resourceProviderName",
+	"resourceType", // not present in the docs, but is necessary
+	"status",
+	"submissionTimestamp",
+	"subscriptionId",
+	"subStatus",
+}, ",")
 
 var defaultExcludes = []v1.Filter{
 	{JSONPath: "$..etag"}, // Remove etags from the config json as they produce unecessary changes.
@@ -111,6 +142,7 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		results = append(results, azure.fetchNetworkSecurityGroups()...)
 		results = append(results, azure.fetchPublicIPAddresses()...)
 		results = append(results, azure.fetchAdvisorAnalysis()...)
+		results = append(results, azure.fetchActivityLogs()...)
 	}
 
 	// Establish relationship of all resources to the corresponding subscription & resource group
@@ -153,6 +185,74 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	}
 
 	return results
+}
+
+// azureActivityExcludeOperations is a list of activity logs we can avoid
+// as they do not mutate any resources.
+var azureActivityExcludeOperations = []string{
+	"Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action",
+	"Microsoft.ContainerService/managedClusters/listClusterUserCredential/action",
+}
+
+func (azure Scraper) fetchActivityLogs() v1.ScrapeResults {
+	logger.Debugf("fetching activity logs for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+
+	clientFactory, err := armmonitor.NewClientFactory(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate arm monitor client: %w", err)})
+	}
+
+	filter := fmt.Sprintf("eventTimestamp ge '%s'", time.Now().UTC().Add(activityLogTimespan).Format(time.RFC3339))
+	pager := clientFactory.NewActivityLogsClient().NewListPager(filter, &armmonitor.ActivityLogsClientListOptions{Select: &activityLogFilter})
+	for pager.More() {
+		page, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read activity logs next page: %w", err)})
+		}
+		logger.Tracef("Fetched %d activity logs", len(page.Value))
+
+		for _, v := range page.Value {
+			if collections.Contains(azureActivityExcludeOperations, utils.Deref(v.OperationName.Value)) {
+				continue
+			}
+
+			change := v1.ChangeResult{
+				ChangeType:       utils.Deref(v.OperationName.Value),
+				CreatedAt:        v.EventTimestamp,
+				Details:          v1.NewJSON(*v),
+				ExternalChangeID: utils.Deref(v.EventDataID),
+				ExternalID:       strings.ToLower(utils.Deref(v.ResourceID)),
+				ConfigType:       getARMType(v.ResourceType.Value),
+				Severity:         string(getSeverityFromReason(v)),
+				Source:           ConfigTypePrefix + "ActivityLog",
+				Summary:          utils.Deref(v.OperationName.LocalizedValue),
+			}
+			results = append(results, v1.ScrapeResult{Changes: []v1.ChangeResult{change}})
+		}
+	}
+
+	return results
+}
+
+func getSeverityFromReason(v *armmonitor.EventData) models.Severity {
+	switch utils.Deref(v.Level) {
+	case "Critical":
+		return models.SeverityCritical
+
+	case "Error":
+		return models.SeverityHigh
+
+	case "Warning":
+		return models.SeverityMedium
+
+	case "Verbose":
+		return models.SeverityLow
+
+	default:
+		return models.SeverityInfo
+	}
 }
 
 // fetchDatabases gets all databases in a subscription.
