@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/flanksource/commons/logger"
+	commonutils "github.com/flanksource/commons/utils"
 	"github.com/flanksource/duty/models"
 
 	"github.com/flanksource/config-db/api"
@@ -26,6 +27,10 @@ import (
 )
 
 const ConfigTypePrefix = "Azure::"
+
+var defaultExcludes = []v1.Filter{
+	{JSONPath: "$..etag"}, // Remove etags from the config json as they produce unecessary changes.
+}
 
 type Scraper struct {
 	ctx    context.Context
@@ -76,6 +81,8 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			results.Errorf(err, "failed to populate connection")
 			continue
 		}
+
+		config.Transform.Exclude = append(config.Transform.Exclude, defaultExcludes...)
 
 		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID.ValueStatic, config.ClientSecret.ValueStatic, nil)
 		if err != nil {
@@ -420,7 +427,7 @@ func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 				Name:        *v.DisplayName,
 				Config:      v,
 				ConfigClass: "Subscription",
-				Type:        "Azure::SUBSCRIPTION",
+				Type:        getARMType(commonutils.Ptr("Subscription")),
 			})
 		}
 	}
@@ -664,13 +671,7 @@ func getARMID(id *string) string {
 // getARMType takes in a type of a resource group
 // and returns it in a compatible format.
 func getARMType(rType *string) string {
-	// Need to uppercase the resource type in the config item because
-	// the azure advisor recommendation uses resource type in all uppercase; not always but most of the time.
-	// For example: It returns
-	// - MICROSOFT.COMPUTE/VIRTUALMACHINES (all caps)
-	// - Microsoft.ContainerService/ManagedClusters (case not enforced)
-	// This is required to match config analysis with the config item.
-	return "Azure::" + strings.ToUpper(deref(rType))
+	return "Azure::" + deref(rType)
 }
 
 func extractResourceGroup(resourceID string) string {
