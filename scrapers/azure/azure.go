@@ -447,6 +447,7 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
+				ConfigID:    v.Properties.ResourceGUID,
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
@@ -477,6 +478,7 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
+				ConfigID:    v.Properties.ResourceGUID,
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
@@ -508,6 +510,7 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
+				ConfigID:    v.Properties.VMID,
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
@@ -763,6 +766,7 @@ func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
 
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
+				ConfigID:    v.Properties.ResourceGUID,
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
@@ -795,6 +799,7 @@ func (azure Scraper) fetchPublicIPAddresses() v1.ScrapeResults {
 
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
+				ConfigID:    v.Properties.ResourceGUID,
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
