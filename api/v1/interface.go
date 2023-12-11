@@ -197,6 +197,14 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 // ScrapeResult ...
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
+	// ID is the id of the config at it's origin (i.e. the external id)
+	// Eg: For Azure, it's the azure resource id and for kuberetenes it's the object UID.
+	// If it's a valid UUID & ConfigID is nil, it'll be used as the primary key id of the config item in the database.
+	ID string `json:"id,omitempty"`
+
+	// Config ID is used as the primary key id of the config item in the database.
+	ConfigID *string `json:"-"`
+
 	CreatedAt           *time.Time          `json:"created_at,omitempty"`
 	DeletedAt           *time.Time          `json:"deleted_at,omitempty"`
 	DeleteReason        ConfigDeleteReason  `json:"delete_reason,omitempty"`
@@ -207,7 +215,6 @@ type ScrapeResult struct {
 	Name                string              `json:"name,omitempty"`
 	Namespace           string              `json:"namespace,omitempty"`
 	Description         string              `json:"description,omitempty"`
-	ID                  string              `json:"id,omitempty"`
 	Aliases             []string            `json:"aliases,omitempty"`
 	Source              string              `json:"source,omitempty"`
 	Config              interface{}         `json:"config,omitempty"`

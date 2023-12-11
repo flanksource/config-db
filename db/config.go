@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/commons/utils"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty/context"
@@ -163,7 +164,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 
 	ci := &models.ConfigItem{
 		ExternalID:  append(result.Aliases, result.ID),
-		ID:          result.ID,
+		ID:          utils.Deref(result.ConfigID),
 		ConfigClass: result.ConfigClass,
 		Type:        &result.Type,
 		Name:        &result.Name,
@@ -171,6 +172,12 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 		Source:      &result.Source,
 		Tags:        &result.Tags,
 		Config:      &dataStr,
+	}
+
+	// If the config result hasn't specified an id for the config,
+	// we try to use the external id as the primary key of the config item.
+	if ci.ID == "" {
+		ci.ID = result.ID
 	}
 
 	if result.Status != "" {
