@@ -49,6 +49,13 @@ func (t *KubernetesRelationshipLookup) Eval(labels map[string]string, envVar map
 	return "", errors.New("unknown kubernetes relationship lookup type")
 }
 
+func (t KubernetesRelationshipLookup) IsEmpty() bool {
+	if t.Value == "" && t.Label == "" && t.Expr == "" {
+		return true
+	}
+	return false
+}
+
 type KubernetesRelationship struct {
 	// Kind defines which field to use for the kind lookup
 	Kind KubernetesRelationshipLookup `json:"kind" yaml:"kind"`
