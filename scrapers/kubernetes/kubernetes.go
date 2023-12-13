@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -40,7 +39,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 
 	for _, config := range ctx.ScrapeConfig().Spec.Kubernetes {
 		if config.ClusterName == "" {
-			logger.Fatalf("clusterName missing from kubernetes configuration")
+			return results.Errorf(err, "clusterName missing from kubernetes configuration")
 		}
 
 		// Add Cluster object first
@@ -133,13 +132,17 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 					env["spec"] = map[string]any{}
 				}
 
-				kind, err := f.Kind.Eval(obj.GetLabels(), env)
-				if err != nil {
-					return results.Errorf(err, "failed to evaluate kind: %v for config relationship", f.Kind)
-				}
+				var kind string
+				if !f.Kind.IsEmpty() {
+					kind, err = f.Kind.Eval(obj.GetLabels(), env)
+					if err != nil {
+						return results.Errorf(err, "failed to evaluate kind: %v for config relationship", f.Kind)
+					}
 
-				if kind != obj.GetKind() {
-					continue // Try matching another relationship
+					if kind != obj.GetKind() {
+						// Try matching another relationship
+						continue
+					}
 				}
 
 				name, err := f.Name.Eval(obj.GetLabels(), env)
@@ -170,21 +173,14 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 				}
 			}
 
-			obj.SetManagedFields(nil)
-			annotations := obj.GetAnnotations()
-			if annotations != nil {
-				delete(annotations, "kubectl.kubernetes.io/last-applied-configuration")
+			tags := make(map[string]string)
+			if obj.GetLabels() != nil {
+				tags = obj.GetLabels()
 			}
-			obj.SetAnnotations(annotations)
-			metadata := obj.Object["metadata"].(map[string]interface{})
-			tags := make(map[string]interface{})
-			if metadata["labels"] != nil {
-				tags = metadata["labels"].(map[string]interface{})
-			}
+			tags["cluster"] = config.ClusterName
 			if obj.GetNamespace() != "" {
 				tags["namespace"] = obj.GetNamespace()
 			}
-			tags["cluster"] = config.ClusterName
 
 			// Add health metadata
 			var status, description string
@@ -228,7 +224,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 				DeleteReason:        deleteReason,
 				Config:              cleanKubernetesObject(obj.Object),
 				ID:                  string(obj.GetUID()),
-				Tags:                stripLabels(convertStringInterfaceMapToStringMap(tags), "-hash"),
+				Tags:                stripLabels(tags, "-hash"),
 				Aliases:             getKubernetesAlias(obj),
 				ParentExternalID:    parentExternalID,
 				ParentType:          ConfigTypePrefix + parentType,
@@ -239,14 +235,6 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 
 	results = append(results, changeResults...)
 	return results
-}
-
-func convertStringInterfaceMapToStringMap(input map[string]interface{}) map[string]string {
-	output := make(map[string]string)
-	for key, value := range input {
-		output[key] = fmt.Sprintf("%v", value)
-	}
-	return output
 }
 
 func getKubernetesParent(obj *unstructured.Unstructured, resourceIDMap map[string]map[string]map[string]string) (string, string) {
@@ -338,6 +326,9 @@ func cleanKubernetesObject(obj map[string]any) string {
 	o.Delete("metadata", "generation")
 	o.Delete("metadata", "resourceVersion")
 	o.Delete("metadata", "annotations", "control-plane.alpha.kubernetes.io/leader")
+	o.Delete("metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
+	o.Delete("metadata", "managedFields")
+
 	o.Delete("status", "artifact", "lastUpdateTime")
 	o.Delete("status", "observedGeneration")
 	o.Delete("status", "lastTransitionTime")

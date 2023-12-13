@@ -45,18 +45,18 @@ var _ = Describe("Scrapers test", Ordered, func() {
 
 		It("should prepare scrape config", func() {
 			scrapeConfig = getConfigSpec("kubernetes")
+			scrapeConfig.Spec.Kubernetes[0].Exclusions = nil
 			scrapeConfig.Spec.Kubernetes[0].Kubeconfig = &types.EnvVar{
 				ValueStatic: kubeConfigPath,
 			}
 			scrapeConfig.Spec.Kubernetes[0].Relationships = append(scrapeConfig.Spec.Kubernetes[0].Relationships, v1.KubernetesRelationship{
-				Kind:      v1.KubernetesRelationshipLookup{Value: "ConfigMap"},
 				Name:      v1.KubernetesRelationshipLookup{Label: "flanksource/name"},
 				Namespace: v1.KubernetesRelationshipLookup{Label: "flanksource/namespace"},
 			})
 		})
 
 		It("should save a configMap", func() {
-			first := &apiv1.ConfigMap{
+			cm1 := &apiv1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "first-config",
 					Namespace: "default",
@@ -68,12 +68,27 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				Data: map[string]string{"key": "value"},
 			}
 
-			err := k8sClient.Create(gocontext.TODO(), first)
+			err := k8sClient.Create(gocontext.Background(), cm1)
+			Expect(err).NotTo(HaveOccurred(), "failed to create test MyKind resource")
+
+			sec1 := &apiv1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "first-secret",
+					Namespace: "default",
+					Labels: map[string]string{
+						"flanksource/name":      "second-config",
+						"flanksource/namespace": "default",
+					},
+				},
+				Data: nil,
+			}
+
+			err = k8sClient.Create(gocontext.Background(), sec1)
 			Expect(err).NotTo(HaveOccurred(), "failed to create test MyKind resource")
 		})
 
 		It("should save second configMap", func() {
-			first := &apiv1.ConfigMap{
+			cm2 := &apiv1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "second-config",
 					Namespace: "default",
@@ -81,7 +96,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				Data: map[string]string{"key": "value"},
 			}
 
-			err := k8sClient.Create(gocontext.TODO(), first)
+			err := k8sClient.Create(gocontext.Background(), cm2)
 			Expect(err).NotTo(HaveOccurred(), "failed to create test MyKind resource")
 		})
 
@@ -93,10 +108,10 @@ var _ = Describe("Scrapers test", Ordered, func() {
 
 		It("should have saved the two config items to database", func() {
 			var configItems []models.ConfigItem
-			err := gormDB.Where("name IN (?, ?)", "first-config", "second-config").Find(&configItems).Error
+			err := gormDB.Where("name IN (?, ?, ?)", "first-config", "second-config", "first-secret").Find(&configItems).Error
 			Expect(err).To(BeNil())
 
-			Expect(len(configItems)).To(Equal(2))
+			Expect(len(configItems)).To(Equal(3))
 		})
 
 		It("should correctly setup kubernetes relationship", func() {
@@ -108,8 +123,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			err = gormDB.Find(&configRelationships).Error
 			Expect(err).To(BeNil())
 
-			Expect(len(configRelationships)).To(Equal(1))
-			Expect(configRelationships[0].Relation).To(Equal("ConfigMapConfigMap"))
+			Expect(len(configRelationships)).To(Equal(2))
 		})
 	})
 
