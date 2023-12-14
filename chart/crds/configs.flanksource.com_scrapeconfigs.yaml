@@ -970,8 +970,6 @@ spec:
                               value:
                                 type: string
                             type: object
-                        required:
-                        - kind
                         type: object
                       type: array
                     scope:
