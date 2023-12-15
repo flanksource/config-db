@@ -132,17 +132,9 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 					env["spec"] = map[string]any{}
 				}
 
-				var kind string
-				if !f.Kind.IsEmpty() {
-					kind, err = f.Kind.Eval(obj.GetLabels(), env)
-					if err != nil {
-						return results.Errorf(err, "failed to evaluate kind: %v for config relationship", f.Kind)
-					}
-
-					if kind != obj.GetKind() {
-						// Try matching another relationship
-						continue
-					}
+				kind, err := f.Kind.Eval(obj.GetLabels(), env)
+				if err != nil {
+					return results.Errorf(err, "failed to evaluate kind: %v for config relationship", f.Kind)
 				}
 
 				name, err := f.Name.Eval(obj.GetLabels(), env)
@@ -155,7 +147,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 					return results.Errorf(err, "failed to evaluate namespace: %v for config relationship", f.Namespace)
 				}
 
-				linkedConfigItemIDs, err := db.FindConfigIDsByNamespaceName(ctx.DutyContext(), namespace, name)
+				linkedConfigItemIDs, err := db.FindConfigIDsByNamespaceNameClass(ctx.DutyContext(), namespace, name, kind)
 				if err != nil {
 					return results.Errorf(err, "failed to get linked config items: name=%s, namespace=%s", name, namespace)
 				}

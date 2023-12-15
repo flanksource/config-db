@@ -22,7 +22,10 @@ import (
 // GetConfigItem returns a single config item result
 func GetConfigItem(extType, extID string) (*models.ConfigItem, error) {
 	ci := models.ConfigItem{}
-	tx := db.Limit(1).Select("id", "config_class", "type", "config").Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{extID})
+	tx := db.
+		Select("id", "config_class", "type", "config", "created_at", "updated_at", "deleted_at").
+		Limit(1).
+		Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{extID})
 	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
@@ -96,14 +99,15 @@ func UpdateConfigItem(ci *models.ConfigItem) error {
 	return nil
 }
 
-// FindConfigIDsByNamespaceName returns the uuid of config items which matches the given type, name & namespace
-func FindConfigIDsByNamespaceName(ctx context.Context, namespace, name string) ([]uuid.UUID, error) {
+// FindConfigIDsByNamespaceNameClass returns the uuid of config items which matches the given type, name & namespace
+func FindConfigIDsByNamespaceNameClass(ctx context.Context, namespace, name, configClass string) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
 	err := ctx.DB().
 		Model(&models.ConfigItem{}).
 		Select("id").
 		Where("name = ?", name).
 		Where("namespace = ?", namespace).
+		Where("config_class = ?", configClass).
 		Find(&ids).Error
 	return ids, err
 }
@@ -227,15 +231,19 @@ func GetJSON(ci models.ConfigItem) []byte {
 }
 
 func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
-	if len(relationships) == 0 {
-		return nil
-	}
+	// Doing it in a for loop to avoid
+	// ERROR: ON CONFLICT DO UPDATE command cannot affect row a second time
+	for _, rel := range relationships {
+		err := db.Debug().Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
+			UpdateAll: true,
+		}).Create(&rel).Error
+		if err != nil {
+			return err
+		}
 
-	tx := db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
-		UpdateAll: true,
-	}).Create(&relationships)
-	return tx.Error
+	}
+	return nil
 }
 
 // FindConfigChangesByItemID returns all the changes of the given config item
