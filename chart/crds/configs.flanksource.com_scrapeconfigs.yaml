@@ -970,6 +970,10 @@ spec:
                               value:
                                 type: string
                             type: object
+                        required:
+                        - kind
+                        - name
+                        - namespace
                         type: object
                       type: array
                     scope:

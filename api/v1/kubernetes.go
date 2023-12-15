@@ -58,11 +58,11 @@ func (t KubernetesRelationshipLookup) IsEmpty() bool {
 
 type KubernetesRelationship struct {
 	// Kind defines which field to use for the kind lookup
-	Kind KubernetesRelationshipLookup `json:"kind,omitempty" yaml:"kind,omitempty"`
+	Kind KubernetesRelationshipLookup `json:"kind" yaml:"kind"`
 	// Name defines which field to use for the name lookup
-	Name KubernetesRelationshipLookup `json:"name,omitempty" yaml:"name,omitempty"`
+	Name KubernetesRelationshipLookup `json:"name" yaml:"name"`
 	// Namespace defines which field to use for the namespace lookup
-	Namespace KubernetesRelationshipLookup `json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	Namespace KubernetesRelationshipLookup `json:"namespace" yaml:"namespace"`
 }
 
 type Kubernetes struct {

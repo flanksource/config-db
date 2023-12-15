@@ -50,6 +50,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				ValueStatic: kubeConfigPath,
 			}
 			scrapeConfig.Spec.Kubernetes[0].Relationships = append(scrapeConfig.Spec.Kubernetes[0].Relationships, v1.KubernetesRelationship{
+				Kind:      v1.KubernetesRelationshipLookup{Value: "ConfigMap"},
 				Name:      v1.KubernetesRelationshipLookup{Label: "flanksource/name"},
 				Namespace: v1.KubernetesRelationshipLookup{Label: "flanksource/namespace"},
 			})
@@ -69,7 +70,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			}
 
 			err := k8sClient.Create(gocontext.Background(), cm1)
-			Expect(err).NotTo(HaveOccurred(), "failed to create test MyKind resource")
+			Expect(err).NotTo(HaveOccurred(), "failed to create ConfigMap")
 
 			sec1 := &apiv1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -84,7 +85,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			}
 
 			err = k8sClient.Create(gocontext.Background(), sec1)
-			Expect(err).NotTo(HaveOccurred(), "failed to create test MyKind resource")
+			Expect(err).NotTo(HaveOccurred(), "failed to create Secret")
 		})
 
 		It("should save second configMap", func() {
