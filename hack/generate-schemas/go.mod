@@ -13,7 +13,7 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
-	github.com/flanksource/duty v1.0.240 // indirect
+	github.com/flanksource/duty v1.0.241 // indirect
 	github.com/flanksource/gomplate/v3 v3.20.16 // indirect
 	github.com/flanksource/is-healthy v0.0.0-20231003215854-76c51e3a3ff7 // indirect
 	github.com/flanksource/mapstructure v1.6.0 // indirect
