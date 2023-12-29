@@ -43,7 +43,7 @@ db:
     # If you need to set a custom username and password, you can populate a secret named 'postgres-connection' before install
     # with POSTGRES_USER and POSTGRES_PASSWORD
     #
-    # If create:false, a prexisting secret containing the URI to an existing postgres database must be provided
+    # If create:false, a preexisting secret containing the URI to an existing postgres database must be provided
     # The URI must be in the format 'postgresql://"$user":"$password"@"$host"/"$database"'
     create: false
     secretKeyRef:
@@ -78,6 +78,20 @@ serviceAccount:
   create: true
   name: ''
   annotations: {}
+  rbac:
+    # Whether to create cluster-wide or namespaced roles
+    cluster_role: true
+    
+    # for secret management with valueFrom
+    tokenRequest: true
+    secrets: true
+    configmaps: true
+    
+    # for use with kubernetes resource lookups
+    readAll: true
+    
+    # for kubernetesFile lookups
+    exec: true
 
 upstream:
   enabled: false
