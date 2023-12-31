@@ -88,7 +88,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create Secret")
 		})
 
-		It("should save second configMap", func() {
+		It("should save a second configMap", func() {
 			cm2 := &apiv1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "second-config",
@@ -124,7 +124,10 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			err = gormDB.Find(&configRelationships).Error
 			Expect(err).To(BeNil())
 
-			Expect(len(configRelationships)).To(Equal(2))
+			// 2 relationships are coming from the relationship config above &
+			// the remaining 21 are coming from the relationship with the namespace.
+			// eg. Namespace->ConfigMap,Namespace->Endpoints, Namespace->RoleBinding,  Namespace->Role ...
+			Expect(len(configRelationships)).To(Equal(2 + 21))
 		})
 	})
 

@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -107,6 +108,20 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 						Relationship: "NodePod",
 					})
 				}
+			}
+
+			if obj.GetNamespace() != "" {
+				relationships = append(relationships, v1.RelationshipResult{
+					ConfigExternalID: v1.ExternalID{
+						ExternalID: []string{string(obj.GetUID())},
+						ConfigType: ConfigTypePrefix + obj.GetKind(),
+					},
+					RelatedExternalID: v1.ExternalID{
+						ExternalID: []string{fmt.Sprintf("Kubernetes/Namespace//%s", obj.GetNamespace())},
+						ConfigType: ConfigTypePrefix + "Namespace",
+					},
+					Relationship: "Namespace" + obj.GetKind(),
+				})
 			}
 
 			for _, ownerRef := range obj.GetOwnerReferences() {
