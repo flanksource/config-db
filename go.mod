@@ -41,7 +41,7 @@ require (
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.19.3
-	github.com/flanksource/duty v1.0.248
+	github.com/flanksource/duty v1.0.274
 	github.com/flanksource/is-healthy v0.0.0-20231003215854-76c51e3a3ff7
 	github.com/flanksource/ketall v1.1.1
 	github.com/flanksource/postq v0.1.3
@@ -278,5 +278,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.3.0 // indirect
 )
 
-replace github.com/flanksource/duty => ../duty
-replace github.com/flanksource/postq => ../postq
+// replace github.com/flanksource/duty => ../duty
+// replace github.com/flanksource/postq => ../postq
