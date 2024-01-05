@@ -34,7 +34,7 @@ func getBinary() deps.BinaryFunc {
 		"PGRST_DB_ANON_ROLE":             "postgrest_api",
 		"PGRST_OPENAPI_SERVER_PROXY_URI": HTTPEndpoint,
 		"PGRST_DB_PORT":                  strconv.Itoa(PostgRESTServerPort),
-		"PGRST_LOG_LEVEL":                LogLevel,
+		"PGRST_LOG_LEVEL":                PGRSTLogLevel,
 		"PGRST_ADMIN_SERVER_PORT":        strconv.Itoa(PostgRESTAdminServerPort),
 	})
 }

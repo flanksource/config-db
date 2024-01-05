@@ -21,7 +21,7 @@ import (
 var (
 	ConnectionString string
 	Schema           = "public"
-	LogLevel         = "info"
+	PGRSTLogLevel    = "info"
 	HTTPEndpoint     = "http://localhost:8080/db"
 	db               *gorm.DB
 	runMigrations    = false
@@ -35,7 +35,7 @@ var (
 func Flags(flags *pflag.FlagSet) {
 	flags.StringVar(&ConnectionString, "db", "DB_URL", "Connection string for the postgres database. Use embedded://<path to dir> to use the embedded database")
 	flags.StringVar(&Schema, "db-schema", "public", "")
-	flags.StringVar(&LogLevel, "db-log-level", "warn", "")
+	flags.StringVar(&PGRSTLogLevel, "postgrest-log-level", "warn", "")
 	flags.BoolVar(&runMigrations, "db-migrations", false, "Run database migrations")
 }
 
