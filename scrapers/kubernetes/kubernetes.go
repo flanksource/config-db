@@ -118,29 +118,11 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 					for _, ownerRef := range obj.GetOwnerReferences() {
 						if ownerRef.Kind == "DaemonSet" && ownerRef.Name == "aws-node" {
 							var (
-								awsRoleARN  string
-								vpcID       string
-								clusterName string
-								awsRegion   string
+								awsRoleARN  = getContainerEnv(spec, "AWS_ROLE_ARN")
+								vpcID       = getContainerEnv(spec, "VPC_ID")
+								clusterName = getContainerEnv(spec, "CLUSTER_NAME")
+								awsRegion   = getContainerEnv(spec, "AWS_REGION")
 							)
-
-							for _, env := range spec["env"].([]any) {
-								if arn, ok := env.(map[string]any)["AWS_ROLE_ARN"]; ok {
-									awsRoleARN = arn.(string)
-								}
-
-								if vpc, ok := env.(map[string]any)["VPC_ID"]; ok {
-									vpcID = vpc.(string)
-								}
-
-								if cluster, ok := env.(map[string]any)["CLUSTER_NAME"]; ok {
-									clusterName = cluster.(string)
-								}
-
-								if region, ok := env.(map[string]any)["AWS_REGION"]; ok {
-									awsRegion = region.(string)
-								}
-							}
 
 							if awsRoleARN != "" {
 								relationships = append(relationships, v1.RelationshipResult{
@@ -158,12 +140,6 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 								if clusterScrapeResult, ok := results[0].Config.(map[string]any); ok {
 									clusterScrapeResult["vpc-id"] = vpcID
 								}
-
-								relationships = append(relationships, v1.RelationshipResult{
-									ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + "Pod"},
-									RelatedExternalID: v1.ExternalID{ExternalID: []string{clusterName}, ConfigType: ConfigTypePrefix + "Cluster"},
-									Relationship:      "ClusterPod",
-								})
 
 								relationships = append(relationships, v1.RelationshipResult{
 									ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + "Pod"},
@@ -510,6 +486,28 @@ func extractAccountIDFromARN(input string) string {
 	matches := arnRegexp.FindStringSubmatch(input)
 	if len(matches) >= 2 {
 		return matches[1]
+	}
+
+	return ""
+}
+
+// getContainerEnv returns the value of the given environment var
+// on the first component it finds.
+func getContainerEnv(podSpec map[string]any, envName string) string {
+	if containers, ok := podSpec["containers"].([]any); ok {
+		for _, container := range containers {
+			if envsRaw, ok := container.(map[string]any)["env"]; ok {
+				if envs, ok := envsRaw.([]any); ok {
+					for _, envRaw := range envs {
+						if env, ok := envRaw.(map[string]any); ok {
+							if env["name"] == envName {
+								return env["value"].(string)
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return ""
