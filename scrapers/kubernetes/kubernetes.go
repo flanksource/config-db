@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -50,7 +51,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 			Name:        config.ClusterName,
 			ConfigClass: "Cluster",
 			Type:        ConfigTypePrefix + "Cluster",
-			Config:      make(map[string]string),
+			Config:      make(map[string]any),
 			ID:          clusterID,
 		})
 
@@ -65,6 +66,9 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 		resourceIDMap[""]["Cluster"] = make(map[string]string)
 		resourceIDMap[""]["Cluster"][config.ClusterName] = clusterID
 		resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
+
+		// Labels that are added to the kubernetes nodes once all the objects are visited
+		var labelsToAddToNode = map[string]map[string]string{}
 
 		for _, obj := range objs {
 			if string(obj.GetUID()) == "" {
@@ -93,8 +97,9 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 			var relationships v1.RelationshipResults
 			if obj.GetKind() == "Pod" {
 				spec := obj.Object["spec"].(map[string]interface{})
+				var nodeName string
 				if spec["nodeName"] != nil {
-					nodeName := spec["nodeName"].(string)
+					nodeName = spec["nodeName"].(string)
 					nodeID := resourceIDMap[""]["Node"][nodeName]
 					relationships = append(relationships, v1.RelationshipResult{
 						ConfigExternalID: v1.ExternalID{
@@ -107,6 +112,93 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 						},
 						Relationship: "NodePod",
 					})
+				}
+
+				if obj.GetLabels()["app.kubernetes.io/name"] == "aws-node" {
+					for _, ownerRef := range obj.GetOwnerReferences() {
+						if ownerRef.Kind == "DaemonSet" && ownerRef.Name == "aws-node" {
+							var (
+								awsRoleARN  = getContainerEnv(spec, "AWS_ROLE_ARN")
+								vpcID       = getContainerEnv(spec, "VPC_ID")
+								clusterName = getContainerEnv(spec, "CLUSTER_NAME")
+								awsRegion   = getContainerEnv(spec, "AWS_REGION")
+							)
+
+							if awsRoleARN != "" {
+								relationships = append(relationships, v1.RelationshipResult{
+									ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + "Pod"},
+									RelatedExternalID: v1.ExternalID{ExternalID: []string{awsRoleARN}, ConfigType: "AWS::IAM::Role"},
+									Relationship:      "IAMRoleNode",
+								})
+							}
+
+							if vpcID != "" {
+								labelsToAddToNode[nodeName] = map[string]string{
+									"vpc-id": vpcID,
+								}
+
+								if clusterScrapeResult, ok := results[0].Config.(map[string]any); ok {
+									clusterScrapeResult["vpc-id"] = vpcID
+								}
+
+								relationships = append(relationships, v1.RelationshipResult{
+									ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + "Pod"},
+									RelatedExternalID: v1.ExternalID{ExternalID: []string{fmt.Sprintf("Kubernetes/Node//%s", nodeName)}, ConfigType: ConfigTypePrefix + "Node"},
+									Relationship:      "NodePod",
+								})
+							}
+
+							if clusterName != "" {
+								if clusterScrapeResult, ok := results[0].Config.(map[string]any); ok {
+									clusterScrapeResult["cluster-name"] = clusterName
+								}
+
+								awsAccountID := extractAccountIDFromARN(awsRoleARN)
+								if awsAccountID != "" && awsRegion != "" {
+									relationships = append(relationships, v1.RelationshipResult{
+										ConfigExternalID:  v1.ExternalID{ExternalID: []string{clusterID}, ConfigType: ConfigTypePrefix + "Cluster"},
+										RelatedExternalID: v1.ExternalID{ExternalID: []string{fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", awsRegion, awsAccountID, clusterName)}, ConfigType: "AWS::EKS::Cluster"},
+										Relationship:      "EKSClusterKubernetesCluster",
+									})
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if obj.GetKind() == "Node" {
+				if clusterName, ok := obj.GetLabels()["alpha.eksctl.io/cluster-name"]; ok {
+					if clusterScrapeResult, ok := results[0].Config.(map[string]any); ok {
+						clusterScrapeResult["cluster-name"] = clusterName
+					}
+
+					relationships = append(relationships, v1.RelationshipResult{
+						ConfigExternalID: v1.ExternalID{
+							ExternalID: []string{string(obj.GetUID())},
+							ConfigType: ConfigTypePrefix + "Node",
+						},
+						RelatedExternalID: v1.ExternalID{
+							ExternalID: []string{clusterName},
+							ConfigType: "AWS::EKS::Cluster",
+						},
+						Relationship: "EKSClusterNode",
+					})
+				}
+
+				if spec, ok := obj.Object["spec"].(map[string]any); ok {
+					if providerID, ok := spec["providerID"].(string); ok {
+						// providerID is expected to be in the format "aws:///eu-west-1a/i-06ec81231075dd597"
+						splits := strings.Split(providerID, "/")
+						if strings.HasPrefix(providerID, "aws:///") && len(splits) > 0 && strings.HasPrefix(splits[len(splits)-1], "i-") {
+							ec2InstanceID := splits[len(splits)-1]
+							relationships = append(relationships, v1.RelationshipResult{
+								ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + "Node"},
+								RelatedExternalID: v1.ExternalID{ExternalID: []string{ec2InstanceID}, ConfigType: "AWS::EC2::Instance"},
+								Relationship:      "EC2InstanceNode",
+							})
+						}
+					}
 				}
 			}
 
@@ -180,6 +272,21 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 				}
 			}
 
+			if obj.GetKind() == "ConfigMap" && obj.GetName() == "aws-auth" {
+				cm, ok := obj.Object["data"].(map[string]any)
+				if ok {
+					var accountID string
+					if mapRolesYAML, ok := cm["mapRoles"].(string); ok {
+						accountID = extractAccountIDFromARN(mapRolesYAML)
+					}
+
+					if clusterScrapeResult, ok := results[0].Config.(map[string]any); ok {
+						clusterScrapeResult["aws-auth"] = cm
+						clusterScrapeResult["account-id"] = accountID
+					}
+				}
+			}
+
 			tags := make(map[string]string)
 			if obj.GetLabels() != nil {
 				tags = obj.GetLabels()
@@ -237,6 +344,14 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 				ParentType:          ConfigTypePrefix + parentType,
 				RelationshipResults: relationships,
 			})
+		}
+
+		if len(labelsToAddToNode) != 0 {
+			for i := range results {
+				if labels, ok := labelsToAddToNode[results[i].Name]; ok {
+					results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), labels)
+				}
+			}
 		}
 	}
 
@@ -361,4 +476,37 @@ func cleanKubernetesObject(obj map[string]any) string {
 	}
 
 	return o.String()
+}
+
+var arnRegexp = regexp.MustCompile(`arn:aws:iam::(\d+):role/`)
+
+func extractAccountIDFromARN(input string) string {
+	matches := arnRegexp.FindStringSubmatch(input)
+	if len(matches) >= 2 {
+		return matches[1]
+	}
+
+	return ""
+}
+
+// getContainerEnv returns the value of the given environment var
+// on the first component it finds.
+func getContainerEnv(podSpec map[string]any, envName string) string {
+	if containers, ok := podSpec["containers"].([]any); ok {
+		for _, container := range containers {
+			if envsRaw, ok := container.(map[string]any)["env"]; ok {
+				if envs, ok := envsRaw.([]any); ok {
+					for _, envRaw := range envs {
+						if env, ok := envRaw.(map[string]any); ok {
+							if env["name"] == envName {
+								return env["value"].(string)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return ""
 }
