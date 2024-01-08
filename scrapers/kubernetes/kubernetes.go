@@ -111,6 +111,26 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 				}
 			}
 
+			if obj.GetKind() == "Node" {
+				if clusterName, ok := obj.GetLabels()["alpha.eksctl.io/cluster-name"]; ok {
+					if clusterScrapeResult, ok := results[0].Config.(map[string]any); ok {
+						clusterScrapeResult["cluster-name"] = clusterName
+					}
+
+					relationships = append(relationships, v1.RelationshipResult{
+						ConfigExternalID: v1.ExternalID{
+							ExternalID: []string{string(obj.GetUID())},
+							ConfigType: ConfigTypePrefix + "Node",
+						},
+						RelatedExternalID: v1.ExternalID{
+							ExternalID: []string{clusterName},
+							ConfigType: "AWS::EKS::Cluster",
+						},
+						Relationship: "EKSClusterNode",
+					})
+				}
+			}
+
 			if obj.GetNamespace() != "" {
 				relationships = append(relationships, v1.RelationshipResult{
 					ConfigExternalID: v1.ExternalID{
@@ -191,9 +211,9 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 						accountID = extractAccountIDFromARN(mapRolesYAML)
 					}
 
-					if v, ok := results[0].Config.(map[string]any); ok {
-						v["aws-auth"] = cm
-						v["account-id"] = accountID
+					if clusterScrapeResult, ok := results[0].Config.(map[string]any); ok {
+						clusterScrapeResult["aws-auth"] = cm
+						clusterScrapeResult["account-id"] = accountID
 					}
 				}
 			}
