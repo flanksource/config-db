@@ -114,10 +114,6 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 					})
 				}
 
-				// If there's a "aws-node" pod from aws-node daemon set
-				// - extract AWS_ROLE_ARN env and link the node the pod is running on to that EKS::IAM:role
-				// - extract VPC_ID and add it the Kubernetes::node, and Kubernetes::Cluster as labels and relationships
-				// - extract CLUSTER_NAME and add it Kubernetes::Cluster as spec, and link to Kubernetes::Cluster to AWS::EKS Cluster on cluster name and account id
 				if obj.GetLabels()["app.kubernetes.io/name"] == "aws-node" {
 					for _, ownerRef := range obj.GetOwnerReferences() {
 						if ownerRef.Kind == "DaemonSet" && ownerRef.Name == "aws-node" {
@@ -303,10 +299,8 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 			}
 
 			if obj.GetKind() == "ConfigMap" && obj.GetName() == "aws-auth" {
-				// If there is a aws-auth cm, then insert its contents into the cluster JSON at aws-auth
 				cm, ok := obj.Object["data"].(map[string]any)
 				if ok {
-					// Extract the account ID from the roles
 					var accountID string
 					if mapRolesYAML, ok := cm["mapRoles"].(string); ok {
 						accountID = extractAccountIDFromARN(mapRolesYAML)
