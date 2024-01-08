@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -50,7 +51,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 			Name:        config.ClusterName,
 			ConfigClass: "Cluster",
 			Type:        ConfigTypePrefix + "Cluster",
-			Config:      make(map[string]string),
+			Config:      make(map[string]any),
 			ID:          clusterID,
 		})
 
@@ -177,6 +178,23 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 						Relationship:    kind + obj.GetKind(),
 					}
 					relationships = append(relationships, rel)
+				}
+			}
+
+			if obj.GetKind() == "ConfigMap" && obj.GetName() == "aws-auth" {
+				// If there is a aws-auth cm, then insert its contents into the cluster JSON at aws-auth
+				cm, ok := obj.Object["data"].(map[string]any)
+				if ok {
+					// Extract the account ID from the roles
+					var accountID string
+					if mapRolesYAML, ok := cm["mapRoles"].(string); ok {
+						accountID = extractAccountIDFromARN(mapRolesYAML)
+					}
+
+					if v, ok := results[0].Config.(map[string]any); ok {
+						v["aws-auth"] = cm
+						v["account-id"] = accountID
+					}
 				}
 			}
 
@@ -361,4 +379,15 @@ func cleanKubernetesObject(obj map[string]any) string {
 	}
 
 	return o.String()
+}
+
+var arnRegexp = regexp.MustCompile(`arn:aws:iam::(\d+):role/`)
+
+func extractAccountIDFromARN(input string) string {
+	matches := arnRegexp.FindStringSubmatch(input)
+	if len(matches) >= 2 {
+		return matches[1]
+	}
+
+	return ""
 }
