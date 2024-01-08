@@ -213,6 +213,23 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 						Relationship: "EKSClusterNode",
 					})
 				}
+
+				if computeType, ok := obj.GetLabels()["eks.amazonaws.com/compute-type"]; ok && computeType == "ec2" {
+					if spec, ok := obj.Object["spec"].(map[string]any); ok {
+						if providerID, ok := spec["providerID"].(string); ok {
+							// providerID is expected to be in the format "aws:///eu-west-1a/i-06ec81231075dd597"
+							splits := strings.Split(providerID, "/")
+							if len(splits) > 0 && strings.HasPrefix(splits[len(splits)-1], "i-") {
+								ec2InstanceID := splits[len(splits)-1]
+								relationships = append(relationships, v1.RelationshipResult{
+									ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + "Node"},
+									RelatedExternalID: v1.ExternalID{ExternalID: []string{ec2InstanceID}, ConfigType: "AWS::EC2::Instance"},
+									Relationship:      "EC2InstanceNode",
+								})
+							}
+						}
+					}
+				}
 			}
 
 			if obj.GetNamespace() != "" {
