@@ -173,7 +173,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			}
 		}
 
-		if len(input.BaseScraper.Properties) != 0 {
+		if properties, ok := input.BaseScraper.Properties[input.Type]; ok {
 			templater := gomplate.StructTemplater{
 				Values:         input.AsMap(),
 				ValueFunctions: true,
@@ -183,25 +183,10 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 				},
 			}
 
-			// We cannot template input.BaseScraper.Properties directly as that'll template the shared
-			// variable. So a copy is made.
-			propertiesCopy := make(map[string][]types.Property, len(input.BaseScraper.Properties))
-			for i := range input.BaseScraper.Properties {
-				sliceCopy := make([]types.Property, len(input.BaseScraper.Properties[i]))
-				copy(sliceCopy, input.BaseScraper.Properties[i])
-				propertiesCopy[i] = sliceCopy
-			}
-			if err := templater.Walk(propertiesCopy); err != nil {
+			input.Properties = make([]*types.Property, len(properties))
+			copy(input.Properties, properties)
+			if err := templater.Walk(input.Properties); err != nil {
 				return results, fmt.Errorf("failed to template scraper properties: %w", err)
-			}
-
-			if input.Properties == nil {
-				input.Properties = map[string][]types.Property{}
-			}
-			for k, v := range propertiesCopy {
-				if _, ok := input.Properties[k]; !ok {
-					input.Properties[k] = v
-				}
 			}
 		}
 

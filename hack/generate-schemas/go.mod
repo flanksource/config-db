@@ -13,7 +13,7 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
-	github.com/flanksource/duty v1.0.274 // indirect
+	github.com/flanksource/duty v1.0.282 // indirect
 	github.com/flanksource/gomplate/v3 v3.20.30 // indirect
 	github.com/flanksource/is-healthy v0.0.0-20231003215854-76c51e3a3ff7 // indirect
 	github.com/flanksource/postq v0.1.3 // indirect
@@ -82,3 +82,5 @@ require (
 )
 
 replace github.com/flanksource/config-db => ../../
+
+// replace github.com/flanksource/duty => ../../../duty

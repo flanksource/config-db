@@ -13,8 +13,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/flanksource/commons v1.20.0 h1:1z7FHGsCY7F7zMx4m0OlzYCUvCc1caREPp7vf1xyeCQ=
 github.com/flanksource/commons v1.20.0/go.mod h1:bs2nMwaTCpTQGZNtJv8KNqEVyfGjFZTGUDaAbPHB1cw=
-github.com/flanksource/duty v1.0.274 h1:Rr9IkN72OKinzOfwyUGxE9m6Ktt/vx7BA3ZfCFYZQKA=
-github.com/flanksource/duty v1.0.274/go.mod h1:60NJ/Y3hBXggANTGxfZFo1SBeKf87k14YkZNkTdfcFo=
+github.com/flanksource/duty v1.0.282 h1:iddsHVcOs6IQ4Wm8U7pxeazrkRn8bO6T387As4zdDaM=
+github.com/flanksource/duty v1.0.282/go.mod h1:zDVxlWxpSZjbpuBv0i9ke4vlG2elgyKjYY+656XhfPs=
 github.com/flanksource/gomplate/v3 v3.20.30 h1:zRB1DVFIp64QiL6vkJJzVJK4Hj/PazwTNQ6+mDlHaxc=
 github.com/flanksource/gomplate/v3 v3.20.30/go.mod h1:m2WVc04GMVBOcZhtDaz/LTtrVWKejeJhFM1Jy/h9VZQ=
 github.com/flanksource/is-healthy v0.0.0-20231003215854-76c51e3a3ff7 h1:s6jf6P1pRfdvksVFjIXFRfnimvEYUR0/Mmla1EIjiRM=

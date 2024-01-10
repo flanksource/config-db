@@ -191,16 +191,20 @@ func (in *BaseScraper) DeepCopyInto(out *BaseScraper) {
 	}
 	if in.Properties != nil {
 		in, out := &in.Properties, &out.Properties
-		*out = make(map[string][]types.Property, len(*in))
+		*out = make(map[string]types.Properties, len(*in))
 		for key, val := range *in {
-			var outVal []types.Property
+			var outVal []*types.Property
 			if val == nil {
 				(*out)[key] = nil
 			} else {
 				in, out := &val, &outVal
-				*out = make([]types.Property, len(*in))
+				*out = make(types.Properties, len(*in))
 				for i := range *in {
-					(*in)[i].DeepCopyInto(&(*out)[i])
+					if (*in)[i] != nil {
+						in, out := &(*in)[i], &(*out)[i]
+						*out = new(types.Property)
+						(*in).DeepCopyInto(*out)
+					}
 				}
 			}
 			(*out)[key] = outVal

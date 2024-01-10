@@ -167,7 +167,7 @@ type BaseScraper struct {
 	Tags JSONStringMap `json:"tags,omitempty"`
 
 	// Properties are custom templatable properties for the scraped config items.
-	Properties map[string][]types.Property `json:"properties,omitempty" template:"true"`
+	Properties map[string]types.Properties `json:"properties,omitempty" template:"true"`
 }
 
 func (base BaseScraper) String() string {
