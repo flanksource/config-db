@@ -86,7 +86,8 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 				change := getChangeFromEvent(obj, config.Event.SeverityKeywords)
 				if change != nil {
 					changeResults = append(changeResults, v1.ScrapeResult{
-						Changes: []v1.ChangeResult{*change},
+						BaseScraper: config.BaseScraper,
+						Changes:     []v1.ChangeResult{*change},
 					})
 				}
 

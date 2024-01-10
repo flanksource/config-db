@@ -5,6 +5,11 @@ metadata:
 spec:
   kubernetes:
     - clusterName: local-kind-cluster
+      transform:
+        changes:
+          exclude:
+            - 'details.source.component == "canary-checker" && details.reason == "Failed"'
+            - 'details.source.component == "canary-checker" && details.reason == "Succeeded"'
       exclusions:
         - Secret
         - ReplicaSet

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/flanksource/config-db/db/ulid"
 	"github.com/flanksource/config-db/utils"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/gomplate/v3"
 	"github.com/google/uuid"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
@@ -148,9 +150,33 @@ func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 	return nil
 }
 
+func shouldExcludeChange(exclusions []string, changeResult v1.ChangeResult) (bool, error) {
+	for _, expr := range exclusions {
+		if res, err := gomplate.RunTemplate(changeResult.AsMap(), gomplate.Template{Expression: expr}); err != nil {
+			return false, fmt.Errorf("failed to evaluate change exclusion expression(%s): %w", expr, err)
+		} else if skipChange, err := strconv.ParseBool(res); err != nil {
+			return false, fmt.Errorf("change exclusion expression(%s) didn't evaluate to a boolean: %w", expr, err)
+		} else if skipChange {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func updateChange(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	for _, changeResult := range result.Changes {
 		if changeResult.Action == v1.Ignore {
+			continue
+		}
+
+		if exclude, err := shouldExcludeChange(result.BaseScraper.Transform.Change.Exclude, changeResult); err != nil {
+			return err
+		} else if exclude {
+			if ctx.IsTrace() {
+				logger.Tracef("excluded change: %v", changeResult)
+			}
+
 			continue
 		}
 
@@ -287,6 +313,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 	}
 
+	logger.Tracef("Saved %d results.", len(results))
 	return nil
 }
 

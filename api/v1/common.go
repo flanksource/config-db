@@ -95,6 +95,11 @@ func (s MaskList) String() string {
 	return fmt.Sprintf("total_masks=%d", len(s))
 }
 
+type TransformChange struct {
+	// Exclude is a list of CEL expressions that excludes a given change
+	Exclude []string `json:"exclude,omitempty"`
+}
+
 type Transform struct {
 	Script  Script   `yaml:",inline" json:",inline"`
 	Include []Filter `json:"include,omitempty"`
@@ -103,7 +108,8 @@ type Transform struct {
 	Exclude []Filter `json:"exclude,omitempty"`
 	// Masks consist of configurations to replace sensitive fields
 	// with hash functions or static string.
-	Masks MaskList `json:"mask,omitempty"`
+	Masks  MaskList        `json:"mask,omitempty"`
+	Change TransformChange `json:"changes,omitempty"`
 }
 
 func (t Transform) IsEmpty() bool {
