@@ -8,6 +8,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 )
 
 // Analyzer ...
@@ -205,31 +206,48 @@ type ScrapeResult struct {
 	// Config ID is used as the primary key id of the config item in the database.
 	ConfigID *string `json:"-"`
 
-	CreatedAt           *time.Time          `json:"created_at,omitempty"`
-	DeletedAt           *time.Time          `json:"deleted_at,omitempty"`
-	DeleteReason        ConfigDeleteReason  `json:"delete_reason,omitempty"`
-	LastModified        time.Time           `json:"last_modified,omitempty"`
-	ConfigClass         string              `json:"config_class,omitempty"`
-	Type                string              `json:"config_type,omitempty"`
-	Status              string              `json:"status,omitempty"` // status extracted from the config itself
-	Name                string              `json:"name,omitempty"`
-	Namespace           string              `json:"namespace,omitempty"`
-	Description         string              `json:"description,omitempty"`
-	Aliases             []string            `json:"aliases,omitempty"`
-	Source              string              `json:"source,omitempty"`
-	Config              interface{}         `json:"config,omitempty"`
-	Format              string              `json:"format,omitempty"`
-	Icon                string              `json:"icon,omitempty"`
-	Tags                JSONStringMap       `json:"tags,omitempty"`
-	BaseScraper         BaseScraper         `json:"-"`
-	Error               error               `json:"-"`
-	AnalysisResult      *AnalysisResult     `json:"analysis,omitempty"`
-	Changes             []ChangeResult      `json:"-"`
-	RelationshipResults RelationshipResults `json:"-"`
-	Ignore              []string            `json:"-"`
-	Action              string              `json:",omitempty"`
-	ParentExternalID    string              `json:"-"`
-	ParentType          string              `json:"-"`
+	CreatedAt           *time.Time             `json:"created_at,omitempty"`
+	DeletedAt           *time.Time             `json:"deleted_at,omitempty"`
+	DeleteReason        ConfigDeleteReason     `json:"delete_reason,omitempty"`
+	LastModified        time.Time              `json:"last_modified,omitempty"`
+	ConfigClass         string                 `json:"config_class,omitempty"`
+	Type                string                 `json:"config_type,omitempty"`
+	Status              string                 `json:"status,omitempty"` // status extracted from the config itself
+	Name                string                 `json:"name,omitempty"`
+	Namespace           string                 `json:"namespace,omitempty"`
+	Description         string                 `json:"description,omitempty"`
+	Aliases             []string               `json:"aliases,omitempty"`
+	Source              string                 `json:"source,omitempty"`
+	Config              interface{}            `json:"config,omitempty"`
+	Format              string                 `json:"format,omitempty"`
+	Icon                string                 `json:"icon,omitempty"`
+	Tags                JSONStringMap          `json:"tags,omitempty"`
+	BaseScraper         BaseScraper            `json:"-"`
+	Error               error                  `json:"-"`
+	AnalysisResult      *AnalysisResult        `json:"analysis,omitempty"`
+	Changes             []ChangeResult         `json:"-"`
+	RelationshipResults RelationshipResults    `json:"-"`
+	Ignore              []string               `json:"-"`
+	Action              string                 `json:",omitempty"`
+	ParentExternalID    string                 `json:"-"`
+	ParentType          string                 `json:"-"`
+	Properties          types.ConfigProperties `json:"properties,omitempty"`
+}
+
+func (s ScrapeResult) AsMap() map[string]any {
+	output := make(map[string]any)
+
+	b, err := json.Marshal(s)
+	if err != nil {
+		logger.Errorf("failed to marshal change result: %v", err)
+		return output
+	}
+
+	if err := json.Unmarshal(b, &output); err != nil {
+		logger.Errorf("failed to unmarshal change result: %v", err)
+	}
+
+	return output
 }
 
 func NewScrapeResult(base BaseScraper) *ScrapeResult {

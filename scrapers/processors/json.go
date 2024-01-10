@@ -9,6 +9,8 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/types"
+	"github.com/flanksource/gomplate/v3"
 	"github.com/magiconair/properties"
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
@@ -168,6 +170,38 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			}
 			if _, ok := input.Tags[k]; !ok {
 				input.Tags[k] = v
+			}
+		}
+
+		if len(input.BaseScraper.Properties) != 0 {
+			templater := gomplate.StructTemplater{
+				Values:         input.AsMap(),
+				ValueFunctions: true,
+				DelimSets: []gomplate.Delims{
+					{Left: "{{", Right: "}}"},
+					{Left: "$(", Right: ")"},
+				},
+			}
+
+			// We cannot template input.BaseScraper.Properties directly as that'll template the shared
+			// variable. So a copy is made.
+			propertiesCopy := make(map[string][]types.Property, len(input.BaseScraper.Properties))
+			for i := range input.BaseScraper.Properties {
+				sliceCopy := make([]types.Property, len(input.BaseScraper.Properties[i]))
+				copy(sliceCopy, input.BaseScraper.Properties[i])
+				propertiesCopy[i] = sliceCopy
+			}
+			if err := templater.Walk(propertiesCopy); err != nil {
+				return results, fmt.Errorf("failed to template scraper properties: %w", err)
+			}
+
+			if input.Properties == nil {
+				input.Properties = map[string][]types.Property{}
+			}
+			for k, v := range propertiesCopy {
+				if _, ok := input.Properties[k]; !ok {
+					input.Properties[k] = v
+				}
 			}
 		}
 

@@ -175,6 +175,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 		Namespace:   &result.Namespace,
 		Source:      &result.Source,
 		Tags:        &result.Tags,
+		Properties:  &result.Properties,
 		Config:      &dataStr,
 	}
 

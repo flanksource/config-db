@@ -10,6 +10,13 @@ spec:
           exclude:
             - 'details.source.component == "canary-checker" && details.reason == "Failed"'
             - 'details.source.component == "canary-checker" && details.reason == "Succeeded"'
+      properties:
+        '{{.kind}}':
+          - name: '{{.name}}'
+            icon: opensearch
+            links:
+              - type: '{{.config_type}}'
+                url: https://opensearch.svc/_dashboards/app/discover#/?_a=(query:(language:kuery,query:'kubernetes_pod_id:{{.id}}'))
       exclusions:
         - Secret
         - ReplicaSet
