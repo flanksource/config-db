@@ -9,7 +9,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/duty/types"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/magiconair/properties"
 	"github.com/ohler55/ojg/jp"
@@ -183,8 +183,13 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 				},
 			}
 
-			input.Properties = make([]*types.Property, len(properties))
-			copy(input.Properties, properties)
+			// Need to perform a deep clone otherwise this will affect the base scraper
+			// and hence all the inputs that come after.
+			input.Properties, err = utils.CloneWithJSON(properties)
+			if err != nil {
+				return results, fmt.Errorf("failed to clone config properties: %w", err)
+			}
+
 			if err := templater.Walk(input.Properties); err != nil {
 				return results, fmt.Errorf("failed to template scraper properties: %w", err)
 			}

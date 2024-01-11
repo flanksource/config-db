@@ -166,7 +166,8 @@ type BaseScraper struct {
 	// Tags allow you to set custom tags on the scraped config items.
 	Tags JSONStringMap `json:"tags,omitempty"`
 
-	// Properties are custom templatable properties for the scraped config items.
+	// Properties are custom templatable properties for the scraped config items
+	// grouped by the config type.
 	Properties map[string]types.Properties `json:"properties,omitempty" template:"true"`
 }
 

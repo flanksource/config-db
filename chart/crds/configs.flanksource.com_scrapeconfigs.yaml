@@ -222,7 +222,7 @@ spec:
                           type: object
                         type: array
                       description: Properties are custom templatable properties for
-                        the scraped config items.
+                        the scraped config items grouped by the config type.
                       type: object
                     region:
                       items:
@@ -550,7 +550,7 @@ spec:
                           type: object
                         type: array
                       description: Properties are custom templatable properties for
-                        the scraped config items.
+                        the scraped config items grouped by the config type.
                       type: object
                     subscriptionID:
                       type: string
@@ -788,7 +788,7 @@ spec:
                           type: object
                         type: array
                       description: Properties are custom templatable properties for
-                        the scraped config items.
+                        the scraped config items grouped by the config type.
                       type: object
                     tags:
                       additionalProperties:
@@ -980,7 +980,7 @@ spec:
                           type: object
                         type: array
                       description: Properties are custom templatable properties for
-                        the scraped config items.
+                        the scraped config items grouped by the config type.
                       type: object
                     tags:
                       additionalProperties:
@@ -1210,7 +1210,7 @@ spec:
                           type: object
                         type: array
                       description: Properties are custom templatable properties for
-                        the scraped config items.
+                        the scraped config items grouped by the config type.
                       type: object
                     repository:
                       type: string
@@ -1476,7 +1476,7 @@ spec:
                           type: object
                         type: array
                       description: Properties are custom templatable properties for
-                        the scraped config items.
+                        the scraped config items grouped by the config type.
                       type: object
                     relationships:
                       description: Relationships specify the fields to use to relate
@@ -1716,7 +1716,7 @@ spec:
                           type: object
                         type: array
                       description: Properties are custom templatable properties for
-                        the scraped config items.
+                        the scraped config items grouped by the config type.
                       type: object
                     selector:
                       properties:
@@ -2023,7 +2023,7 @@ spec:
                           type: object
                         type: array
                       description: Properties are custom templatable properties for
-                        the scraped config items.
+                        the scraped config items grouped by the config type.
                       type: object
                     query:
                       type: string
@@ -2230,7 +2230,7 @@ spec:
                           type: object
                         type: array
                       description: Properties are custom templatable properties for
-                        the scraped config items.
+                        the scraped config items grouped by the config type.
                       type: object
                     scanners:
                       items:
