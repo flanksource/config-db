@@ -158,6 +158,72 @@ spec:
                       type: boolean
                     patch_states:
                       type: boolean
+                    properties:
+                      additionalProperties:
+                        items:
+                          description: Property is a realized v1.Property without
+                            the lookup definition
+                          properties:
+                            color:
+                              type: string
+                            headline:
+                              type: boolean
+                            icon:
+                              type: string
+                            label:
+                              type: string
+                            lastTransition:
+                              type: string
+                            links:
+                              items:
+                                properties:
+                                  icon:
+                                    type: string
+                                  label:
+                                    type: string
+                                  text:
+                                    type: string
+                                  tooltip:
+                                    type: string
+                                  type:
+                                    description: e.g. documentation, support, playbook
+                                    type: string
+                                  url:
+                                    type: string
+                                type: object
+                              type: array
+                            max:
+                              format: int64
+                              type: integer
+                            min:
+                              format: int64
+                              type: integer
+                            name:
+                              type: string
+                            order:
+                              type: integer
+                            status:
+                              type: string
+                            text:
+                              description: Either text or value is required, but not
+                                both.
+                              type: string
+                            tooltip:
+                              type: string
+                            type:
+                              type: string
+                            unit:
+                              description: e.g. milliseconds, bytes, millicores, epoch
+                                etc.
+                              type: string
+                            value:
+                              format: int64
+                              type: integer
+                          type: object
+                        type: array
+                      description: Properties are custom templatable properties for
+                        the scraped config items grouped by the config type.
+                      type: object
                     region:
                       items:
                         type: string
@@ -210,8 +276,8 @@ spec:
                     tags:
                       additionalProperties:
                         type: string
-                      description: JSONStringMap defiend JSON data type, need to implements
-                        driver.Valuer, sql.Scanner interface
+                      description: Tags allow you to set custom tags on the scraped
+                        config items.
                       type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
@@ -220,6 +286,15 @@ spec:
                       type: string
                     transform:
                       properties:
+                        changes:
+                          properties:
+                            exclude:
+                              description: Exclude is a list of CEL expressions that
+                                excludes a given change
+                              items:
+                                type: string
+                              type: array
+                          type: object
                         exclude:
                           description: Fields to remove from the config, useful for
                             removing sensitive data and fields that change often without
@@ -411,13 +486,79 @@ spec:
                       type: string
                     organisation:
                       type: string
+                    properties:
+                      additionalProperties:
+                        items:
+                          description: Property is a realized v1.Property without
+                            the lookup definition
+                          properties:
+                            color:
+                              type: string
+                            headline:
+                              type: boolean
+                            icon:
+                              type: string
+                            label:
+                              type: string
+                            lastTransition:
+                              type: string
+                            links:
+                              items:
+                                properties:
+                                  icon:
+                                    type: string
+                                  label:
+                                    type: string
+                                  text:
+                                    type: string
+                                  tooltip:
+                                    type: string
+                                  type:
+                                    description: e.g. documentation, support, playbook
+                                    type: string
+                                  url:
+                                    type: string
+                                type: object
+                              type: array
+                            max:
+                              format: int64
+                              type: integer
+                            min:
+                              format: int64
+                              type: integer
+                            name:
+                              type: string
+                            order:
+                              type: integer
+                            status:
+                              type: string
+                            text:
+                              description: Either text or value is required, but not
+                                both.
+                              type: string
+                            tooltip:
+                              type: string
+                            type:
+                              type: string
+                            unit:
+                              description: e.g. milliseconds, bytes, millicores, epoch
+                                etc.
+                              type: string
+                            value:
+                              format: int64
+                              type: integer
+                          type: object
+                        type: array
+                      description: Properties are custom templatable properties for
+                        the scraped config items grouped by the config type.
+                      type: object
                     subscriptionID:
                       type: string
                     tags:
                       additionalProperties:
                         type: string
-                      description: JSONStringMap defiend JSON data type, need to implements
-                        driver.Valuer, sql.Scanner interface
+                      description: Tags allow you to set custom tags on the scraped
+                        config items.
                       type: object
                     tenantID:
                       type: string
@@ -428,6 +569,15 @@ spec:
                       type: string
                     transform:
                       properties:
+                        changes:
+                          properties:
+                            exclude:
+                              description: Exclude is a list of CEL expressions that
+                                excludes a given change
+                              items:
+                                type: string
+                              type: array
+                          type: object
                         exclude:
                           description: Fields to remove from the config, useful for
                             removing sensitive data and fields that change often without
@@ -574,11 +724,77 @@ spec:
                       items:
                         type: string
                       type: array
+                    properties:
+                      additionalProperties:
+                        items:
+                          description: Property is a realized v1.Property without
+                            the lookup definition
+                          properties:
+                            color:
+                              type: string
+                            headline:
+                              type: boolean
+                            icon:
+                              type: string
+                            label:
+                              type: string
+                            lastTransition:
+                              type: string
+                            links:
+                              items:
+                                properties:
+                                  icon:
+                                    type: string
+                                  label:
+                                    type: string
+                                  text:
+                                    type: string
+                                  tooltip:
+                                    type: string
+                                  type:
+                                    description: e.g. documentation, support, playbook
+                                    type: string
+                                  url:
+                                    type: string
+                                type: object
+                              type: array
+                            max:
+                              format: int64
+                              type: integer
+                            min:
+                              format: int64
+                              type: integer
+                            name:
+                              type: string
+                            order:
+                              type: integer
+                            status:
+                              type: string
+                            text:
+                              description: Either text or value is required, but not
+                                both.
+                              type: string
+                            tooltip:
+                              type: string
+                            type:
+                              type: string
+                            unit:
+                              description: e.g. milliseconds, bytes, millicores, epoch
+                                etc.
+                              type: string
+                            value:
+                              format: int64
+                              type: integer
+                          type: object
+                        type: array
+                      description: Properties are custom templatable properties for
+                        the scraped config items grouped by the config type.
+                      type: object
                     tags:
                       additionalProperties:
                         type: string
-                      description: JSONStringMap defiend JSON data type, need to implements
-                        driver.Valuer, sql.Scanner interface
+                      description: Tags allow you to set custom tags on the scraped
+                        config items.
                       type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
@@ -587,6 +803,15 @@ spec:
                       type: string
                     transform:
                       properties:
+                        changes:
+                          properties:
+                            exclude:
+                              description: Exclude is a list of CEL expressions that
+                                excludes a given change
+                              items:
+                                type: string
+                              type: array
+                          type: object
                         exclude:
                           description: Fields to remove from the config, useful for
                             removing sensitive data and fields that change often without
@@ -691,11 +916,77 @@ spec:
                       items:
                         type: string
                       type: array
+                    properties:
+                      additionalProperties:
+                        items:
+                          description: Property is a realized v1.Property without
+                            the lookup definition
+                          properties:
+                            color:
+                              type: string
+                            headline:
+                              type: boolean
+                            icon:
+                              type: string
+                            label:
+                              type: string
+                            lastTransition:
+                              type: string
+                            links:
+                              items:
+                                properties:
+                                  icon:
+                                    type: string
+                                  label:
+                                    type: string
+                                  text:
+                                    type: string
+                                  tooltip:
+                                    type: string
+                                  type:
+                                    description: e.g. documentation, support, playbook
+                                    type: string
+                                  url:
+                                    type: string
+                                type: object
+                              type: array
+                            max:
+                              format: int64
+                              type: integer
+                            min:
+                              format: int64
+                              type: integer
+                            name:
+                              type: string
+                            order:
+                              type: integer
+                            status:
+                              type: string
+                            text:
+                              description: Either text or value is required, but not
+                                both.
+                              type: string
+                            tooltip:
+                              type: string
+                            type:
+                              type: string
+                            unit:
+                              description: e.g. milliseconds, bytes, millicores, epoch
+                                etc.
+                              type: string
+                            value:
+                              format: int64
+                              type: integer
+                          type: object
+                        type: array
+                      description: Properties are custom templatable properties for
+                        the scraped config items grouped by the config type.
+                      type: object
                     tags:
                       additionalProperties:
                         type: string
-                      description: JSONStringMap defiend JSON data type, need to implements
-                        driver.Valuer, sql.Scanner interface
+                      description: Tags allow you to set custom tags on the scraped
+                        config items.
                       type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
@@ -704,6 +995,15 @@ spec:
                       type: string
                     transform:
                       properties:
+                        changes:
+                          properties:
+                            exclude:
+                              description: Exclude is a list of CEL expressions that
+                                excludes a given change
+                              items:
+                                type: string
+                              type: array
+                          type: object
                         exclude:
                           description: Fields to remove from the config, useful for
                             removing sensitive data and fields that change often without
@@ -846,13 +1146,79 @@ spec:
                               type: string
                           type: object
                       type: object
+                    properties:
+                      additionalProperties:
+                        items:
+                          description: Property is a realized v1.Property without
+                            the lookup definition
+                          properties:
+                            color:
+                              type: string
+                            headline:
+                              type: boolean
+                            icon:
+                              type: string
+                            label:
+                              type: string
+                            lastTransition:
+                              type: string
+                            links:
+                              items:
+                                properties:
+                                  icon:
+                                    type: string
+                                  label:
+                                    type: string
+                                  text:
+                                    type: string
+                                  tooltip:
+                                    type: string
+                                  type:
+                                    description: e.g. documentation, support, playbook
+                                    type: string
+                                  url:
+                                    type: string
+                                type: object
+                              type: array
+                            max:
+                              format: int64
+                              type: integer
+                            min:
+                              format: int64
+                              type: integer
+                            name:
+                              type: string
+                            order:
+                              type: integer
+                            status:
+                              type: string
+                            text:
+                              description: Either text or value is required, but not
+                                both.
+                              type: string
+                            tooltip:
+                              type: string
+                            type:
+                              type: string
+                            unit:
+                              description: e.g. milliseconds, bytes, millicores, epoch
+                                etc.
+                              type: string
+                            value:
+                              format: int64
+                              type: integer
+                          type: object
+                        type: array
+                      description: Properties are custom templatable properties for
+                        the scraped config items grouped by the config type.
+                      type: object
                     repository:
                       type: string
                     tags:
                       additionalProperties:
                         type: string
-                      description: JSONStringMap defiend JSON data type, need to implements
-                        driver.Valuer, sql.Scanner interface
+                      description: Tags allow you to set custom tags on the scraped
+                        config items.
                       type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
@@ -861,6 +1227,15 @@ spec:
                       type: string
                     transform:
                       properties:
+                        changes:
+                          properties:
+                            exclude:
+                              description: Exclude is a list of CEL expressions that
+                                excludes a given change
+                              items:
+                                type: string
+                              type: array
+                          type: object
                         exclude:
                           description: Fields to remove from the config, useful for
                             removing sensitive data and fields that change often without
@@ -1037,6 +1412,72 @@ spec:
                       type: string
                     namespace:
                       type: string
+                    properties:
+                      additionalProperties:
+                        items:
+                          description: Property is a realized v1.Property without
+                            the lookup definition
+                          properties:
+                            color:
+                              type: string
+                            headline:
+                              type: boolean
+                            icon:
+                              type: string
+                            label:
+                              type: string
+                            lastTransition:
+                              type: string
+                            links:
+                              items:
+                                properties:
+                                  icon:
+                                    type: string
+                                  label:
+                                    type: string
+                                  text:
+                                    type: string
+                                  tooltip:
+                                    type: string
+                                  type:
+                                    description: e.g. documentation, support, playbook
+                                    type: string
+                                  url:
+                                    type: string
+                                type: object
+                              type: array
+                            max:
+                              format: int64
+                              type: integer
+                            min:
+                              format: int64
+                              type: integer
+                            name:
+                              type: string
+                            order:
+                              type: integer
+                            status:
+                              type: string
+                            text:
+                              description: Either text or value is required, but not
+                                both.
+                              type: string
+                            tooltip:
+                              type: string
+                            type:
+                              type: string
+                            unit:
+                              description: e.g. milliseconds, bytes, millicores, epoch
+                                etc.
+                              type: string
+                            value:
+                              format: int64
+                              type: integer
+                          type: object
+                        type: array
+                      description: Properties are custom templatable properties for
+                        the scraped config items grouped by the config type.
+                      type: object
                     relationships:
                       description: Relationships specify the fields to use to relate
                         Kubernetes objects.
@@ -1090,8 +1531,8 @@ spec:
                     tags:
                       additionalProperties:
                         type: string
-                      description: JSONStringMap defiend JSON data type, need to implements
-                        driver.Valuer, sql.Scanner interface
+                      description: Tags allow you to set custom tags on the scraped
+                        config items.
                       type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
@@ -1100,6 +1541,15 @@ spec:
                       type: string
                     transform:
                       properties:
+                        changes:
+                          properties:
+                            exclude:
+                              description: Exclude is a list of CEL expressions that
+                                excludes a given change
+                              items:
+                                type: string
+                              type: array
+                          type: object
                         exclude:
                           description: Fields to remove from the config, useful for
                             removing sensitive data and fields that change often without
@@ -1202,6 +1652,72 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
+                    properties:
+                      additionalProperties:
+                        items:
+                          description: Property is a realized v1.Property without
+                            the lookup definition
+                          properties:
+                            color:
+                              type: string
+                            headline:
+                              type: boolean
+                            icon:
+                              type: string
+                            label:
+                              type: string
+                            lastTransition:
+                              type: string
+                            links:
+                              items:
+                                properties:
+                                  icon:
+                                    type: string
+                                  label:
+                                    type: string
+                                  text:
+                                    type: string
+                                  tooltip:
+                                    type: string
+                                  type:
+                                    description: e.g. documentation, support, playbook
+                                    type: string
+                                  url:
+                                    type: string
+                                type: object
+                              type: array
+                            max:
+                              format: int64
+                              type: integer
+                            min:
+                              format: int64
+                              type: integer
+                            name:
+                              type: string
+                            order:
+                              type: integer
+                            status:
+                              type: string
+                            text:
+                              description: Either text or value is required, but not
+                                both.
+                              type: string
+                            tooltip:
+                              type: string
+                            type:
+                              type: string
+                            unit:
+                              description: e.g. milliseconds, bytes, millicores, epoch
+                                etc.
+                              type: string
+                            value:
+                              format: int64
+                              type: integer
+                          type: object
+                        type: array
+                      description: Properties are custom templatable properties for
+                        the scraped config items grouped by the config type.
+                      type: object
                     selector:
                       properties:
                         fieldSelector:
@@ -1218,8 +1734,8 @@ spec:
                     tags:
                       additionalProperties:
                         type: string
-                      description: JSONStringMap defiend JSON data type, need to implements
-                        driver.Valuer, sql.Scanner interface
+                      description: Tags allow you to set custom tags on the scraped
+                        config items.
                       type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
@@ -1228,6 +1744,15 @@ spec:
                       type: string
                     transform:
                       properties:
+                        changes:
+                          properties:
+                            exclude:
+                              description: Exclude is a list of CEL expressions that
+                                excludes a given change
+                              items:
+                                type: string
+                              type: array
+                          type: object
                         exclude:
                           description: Fields to remove from the config, useful for
                             removing sensitive data and fields that change often without
@@ -1434,13 +1959,79 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
+                    properties:
+                      additionalProperties:
+                        items:
+                          description: Property is a realized v1.Property without
+                            the lookup definition
+                          properties:
+                            color:
+                              type: string
+                            headline:
+                              type: boolean
+                            icon:
+                              type: string
+                            label:
+                              type: string
+                            lastTransition:
+                              type: string
+                            links:
+                              items:
+                                properties:
+                                  icon:
+                                    type: string
+                                  label:
+                                    type: string
+                                  text:
+                                    type: string
+                                  tooltip:
+                                    type: string
+                                  type:
+                                    description: e.g. documentation, support, playbook
+                                    type: string
+                                  url:
+                                    type: string
+                                type: object
+                              type: array
+                            max:
+                              format: int64
+                              type: integer
+                            min:
+                              format: int64
+                              type: integer
+                            name:
+                              type: string
+                            order:
+                              type: integer
+                            status:
+                              type: string
+                            text:
+                              description: Either text or value is required, but not
+                                both.
+                              type: string
+                            tooltip:
+                              type: string
+                            type:
+                              type: string
+                            unit:
+                              description: e.g. milliseconds, bytes, millicores, epoch
+                                etc.
+                              type: string
+                            value:
+                              format: int64
+                              type: integer
+                          type: object
+                        type: array
+                      description: Properties are custom templatable properties for
+                        the scraped config items grouped by the config type.
+                      type: object
                     query:
                       type: string
                     tags:
                       additionalProperties:
                         type: string
-                      description: JSONStringMap defiend JSON data type, need to implements
-                        driver.Valuer, sql.Scanner interface
+                      description: Tags allow you to set custom tags on the scraped
+                        config items.
                       type: object
                     timestampFormat:
                       description: TimestampFormat is a Go time format string used
@@ -1449,6 +2040,15 @@ spec:
                       type: string
                     transform:
                       properties:
+                        changes:
+                          properties:
+                            exclude:
+                              description: Exclude is a list of CEL expressions that
+                                excludes a given change
+                              items:
+                                type: string
+                              type: array
+                          type: object
                         exclude:
                           description: Fields to remove from the config, useful for
                             removing sensitive data and fields that change often without
@@ -1566,6 +2166,72 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
+                    properties:
+                      additionalProperties:
+                        items:
+                          description: Property is a realized v1.Property without
+                            the lookup definition
+                          properties:
+                            color:
+                              type: string
+                            headline:
+                              type: boolean
+                            icon:
+                              type: string
+                            label:
+                              type: string
+                            lastTransition:
+                              type: string
+                            links:
+                              items:
+                                properties:
+                                  icon:
+                                    type: string
+                                  label:
+                                    type: string
+                                  text:
+                                    type: string
+                                  tooltip:
+                                    type: string
+                                  type:
+                                    description: e.g. documentation, support, playbook
+                                    type: string
+                                  url:
+                                    type: string
+                                type: object
+                              type: array
+                            max:
+                              format: int64
+                              type: integer
+                            min:
+                              format: int64
+                              type: integer
+                            name:
+                              type: string
+                            order:
+                              type: integer
+                            status:
+                              type: string
+                            text:
+                              description: Either text or value is required, but not
+                                both.
+                              type: string
+                            tooltip:
+                              type: string
+                            type:
+                              type: string
+                            unit:
+                              description: e.g. milliseconds, bytes, millicores, epoch
+                                etc.
+                              type: string
+                            value:
+                              format: int64
+                              type: integer
+                          type: object
+                        type: array
+                      description: Properties are custom templatable properties for
+                        the scraped config items grouped by the config type.
+                      type: object
                     scanners:
                       items:
                         type: string
@@ -1577,8 +2243,8 @@ spec:
                     tags:
                       additionalProperties:
                         type: string
-                      description: JSONStringMap defiend JSON data type, need to implements
-                        driver.Valuer, sql.Scanner interface
+                      description: Tags allow you to set custom tags on the scraped
+                        config items.
                       type: object
                     timeout:
                       type: string
@@ -1589,6 +2255,15 @@ spec:
                       type: string
                     transform:
                       properties:
+                        changes:
+                          properties:
+                            exclude:
+                              description: Exclude is a list of CEL expressions that
+                                excludes a given change
+                              items:
+                                type: string
+                              type: array
+                          type: object
                         exclude:
                           description: Fields to remove from the config, useful for
                             removing sensitive data and fields that change often without

@@ -8,6 +8,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 )
 
 // Analyzer ...
@@ -230,6 +231,23 @@ type ScrapeResult struct {
 	Action              string              `json:",omitempty"`
 	ParentExternalID    string              `json:"-"`
 	ParentType          string              `json:"-"`
+	Properties          types.Properties    `json:"properties,omitempty"`
+}
+
+func (s ScrapeResult) AsMap() map[string]any {
+	output := make(map[string]any)
+
+	b, err := json.Marshal(s)
+	if err != nil {
+		logger.Errorf("failed to marshal change result: %v", err)
+		return output
+	}
+
+	if err := json.Unmarshal(b, &output); err != nil {
+		logger.Errorf("failed to unmarshal change result: %v", err)
+	}
+
+	return output
 }
 
 func NewScrapeResult(base BaseScraper) *ScrapeResult {
