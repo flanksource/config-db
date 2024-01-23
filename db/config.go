@@ -1,15 +1,18 @@
 package db
 
 import (
-	"context"
+	gocontext "context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/commons/utils"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
 	"github.com/patrickmn/go-cache"
@@ -19,7 +22,10 @@ import (
 // GetConfigItem returns a single config item result
 func GetConfigItem(extType, extID string) (*models.ConfigItem, error) {
 	ci := models.ConfigItem{}
-	tx := db.Limit(1).Select("id", "config_class", "type", "config").Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{extID})
+	tx := db.
+		Select("id", "config_class", "type", "config", "created_at", "updated_at", "deleted_at").
+		Limit(1).
+		Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{extID})
 	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
@@ -78,13 +84,32 @@ func UpdateConfigItem(ci *models.ConfigItem) error {
 	}
 
 	// Since gorm ignores nil fields, we are setting deleted_at explicitly
-	if ci.TouchDeletedAt {
-		if err := db.Table("config_items").Where("id = ?", ci.ID).UpdateColumn("deleted_at", nil).Error; err != nil {
+	// TODO Add deleted reason check
+	if ci.TouchDeletedAt && ci.DeleteReason != v1.DeletedReasonFromEvent {
+		if err := db.Table("config_items").
+			Where("id = ?", ci.ID).
+			Updates(map[string]any{
+				"deleted_at":    nil,
+				"delete_reason": nil,
+			}).Error; err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// FindConfigIDsByNamespaceNameClass returns the uuid of config items which matches the given type, name & namespace
+func FindConfigIDsByNamespaceNameClass(ctx context.Context, namespace, name, configClass string) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := ctx.DB().
+		Model(&models.ConfigItem{}).
+		Select("id").
+		Where("name = ?", name).
+		Where("namespace = ?", namespace).
+		Where("config_class = ?", configClass).
+		Find(&ids).Error
+	return ids, err
 }
 
 // QueryConfigItems ...
@@ -143,13 +168,21 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 
 	ci := &models.ConfigItem{
 		ExternalID:  append(result.Aliases, result.ID),
-		ID:          result.ID,
+		ID:          utils.Deref(result.ConfigID),
 		ConfigClass: result.ConfigClass,
 		Type:        &result.Type,
 		Name:        &result.Name,
+		Namespace:   &result.Namespace,
 		Source:      &result.Source,
 		Tags:        &result.Tags,
+		Properties:  &result.Properties,
 		Config:      &dataStr,
+	}
+
+	// If the config result hasn't specified an id for the config,
+	// we try to use the external id as the primary key of the config item.
+	if ci.ID == "" {
+		ci.ID = result.ID
 	}
 
 	if result.Status != "" {
@@ -166,6 +199,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 
 	if result.DeletedAt != nil {
 		ci.DeletedAt = result.DeletedAt
+		ci.DeleteReason = result.DeleteReason
 	}
 
 	if result.ParentExternalID != "" && result.ParentType != "" {
@@ -198,19 +232,23 @@ func GetJSON(ci models.ConfigItem) []byte {
 }
 
 func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
-	if len(relationships) == 0 {
-		return nil
-	}
+	// Doing it in a for loop to avoid
+	// ERROR: ON CONFLICT DO UPDATE command cannot affect row a second time
+	for _, rel := range relationships {
+		err := db.Debug().Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
+			UpdateAll: true,
+		}).Create(&rel).Error
+		if err != nil {
+			return err
+		}
 
-	tx := db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
-		UpdateAll: true,
-	}).Create(&relationships)
-	return tx.Error
+	}
+	return nil
 }
 
 // FindConfigChangesByItemID returns all the changes of the given config item
-func FindConfigChangesByItemID(ctx context.Context, configItemID string) ([]dutyModels.ConfigChange, error) {
+func FindConfigChangesByItemID(ctx gocontext.Context, configItemID string) ([]dutyModels.ConfigChange, error) {
 	var ci []dutyModels.ConfigChange
 	tx := db.WithContext(ctx).Where("config_id = ?", configItemID).Find(&ci)
 	if tx.Error != nil {

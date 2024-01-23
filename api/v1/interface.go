@@ -8,6 +8,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 )
 
 // Analyzer ...
@@ -78,6 +79,9 @@ type ChangeResult struct {
 	CreatedBy        *string                `json:"created_by"`
 	CreatedAt        *time.Time             `json:"created_at"`
 	Details          map[string]interface{} `json:"details"`
+
+	// UpdateExisting indicates whether to update an existing change
+	UpdateExisting bool `json:"update_existing"`
 }
 
 func (r ChangeResult) AsMap() map[string]any {
@@ -155,9 +159,13 @@ func (t *ScrapeResults) Add(r ...ScrapeResult) {
 }
 
 type RelationshipResult struct {
-	ConfigExternalID  ExternalID
+	ConfigExternalID ExternalID
+	// Related External ID to lookup the actual config item ID.
+	// Used when the config id is not known.
 	RelatedExternalID ExternalID
-	Relationship      string
+	// Config ID of the related config.
+	RelatedConfigID string
+	Relationship    string
 }
 
 type RelationshipResults []RelationshipResult
@@ -190,8 +198,17 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 // ScrapeResult ...
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
+	// ID is the id of the config at it's origin (i.e. the external id)
+	// Eg: For Azure, it's the azure resource id and for kuberetenes it's the object UID.
+	// If it's a valid UUID & ConfigID is nil, it'll be used as the primary key id of the config item in the database.
+	ID string `json:"id,omitempty"`
+
+	// Config ID is used as the primary key id of the config item in the database.
+	ConfigID *string `json:"-"`
+
 	CreatedAt           *time.Time          `json:"created_at,omitempty"`
 	DeletedAt           *time.Time          `json:"deleted_at,omitempty"`
+	DeleteReason        ConfigDeleteReason  `json:"delete_reason,omitempty"`
 	LastModified        time.Time           `json:"last_modified,omitempty"`
 	ConfigClass         string              `json:"config_class,omitempty"`
 	Type                string              `json:"config_type,omitempty"`
@@ -199,7 +216,6 @@ type ScrapeResult struct {
 	Name                string              `json:"name,omitempty"`
 	Namespace           string              `json:"namespace,omitempty"`
 	Description         string              `json:"description,omitempty"`
-	ID                  string              `json:"id,omitempty"`
 	Aliases             []string            `json:"aliases,omitempty"`
 	Source              string              `json:"source,omitempty"`
 	Config              interface{}         `json:"config,omitempty"`
@@ -215,6 +231,23 @@ type ScrapeResult struct {
 	Action              string              `json:",omitempty"`
 	ParentExternalID    string              `json:"-"`
 	ParentType          string              `json:"-"`
+	Properties          types.Properties    `json:"properties,omitempty"`
+}
+
+func (s ScrapeResult) AsMap() map[string]any {
+	output := make(map[string]any)
+
+	b, err := json.Marshal(s)
+	if err != nil {
+		logger.Errorf("failed to marshal change result: %v", err)
+		return output
+	}
+
+	if err := json.Unmarshal(b, &output); err != nil {
+		logger.Errorf("failed to unmarshal change result: %v", err)
+	}
+
+	return output
 }
 
 func NewScrapeResult(base BaseScraper) *ScrapeResult {

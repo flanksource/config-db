@@ -7,6 +7,7 @@ import (
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty"
+	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,6 +18,7 @@ import (
 
 type ScrapeContext interface {
 	duty.DBContext
+	DutyContext() dutyCtx.Context
 
 	IsTrace() bool
 
@@ -33,6 +35,7 @@ type ScrapeContext interface {
 	GetEnvValueFromCache(env types.EnvVar) (string, error)
 
 	HydrateConnection(connectionIdentifier string) (*models.Connection, error)
+	HydrateConnectionModel(models.Connection) (*models.Connection, error)
 }
 
 type scrapeContext struct {
@@ -67,6 +70,13 @@ func (ctx scrapeContext) WithContext(from context.Context) ScrapeContext {
 func (ctx scrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContext {
 	ctx.scrapeConfig = scraper
 	return &ctx
+}
+
+func (ctx scrapeContext) DutyContext() dutyCtx.Context {
+	return dutyCtx.NewContext(ctx).
+		WithKubernetes(ctx.kubernetes).
+		WithDB(ctx.db, ctx.pool).
+		WithNamespace(ctx.namespace)
 }
 
 func (ctx scrapeContext) DB() *gorm.DB {
@@ -106,11 +116,15 @@ func (ctx *scrapeContext) HydrateConnection(connectionName string) (*models.Conn
 		return nil, errors.New("db has not been initialized")
 	}
 
+	if ctx.pool == nil {
+		return nil, errors.New("pool has not been initialized")
+	}
+
 	if ctx.kubernetes == nil {
 		return nil, errors.New("kubernetes clientset has not been initialized")
 	}
 
-	connection, err := duty.HydratedConnectionByURL(ctx, ctx.db, ctx.kubernetes, ctx.namespace, connectionName)
+	connection, err := dutyCtx.HydrateConnectionByURL(ctx.DutyContext(), connectionName)
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +133,33 @@ func (ctx *scrapeContext) HydrateConnection(connectionName string) (*models.Conn
 	// That's an error.
 	if connection == nil {
 		return nil, fmt.Errorf("connection %s not found", connectionName)
+	}
+
+	return connection, nil
+}
+
+func (ctx *scrapeContext) HydrateConnectionModel(c models.Connection) (*models.Connection, error) {
+	if ctx.db == nil {
+		return nil, errors.New("db has not been initialized")
+	}
+
+	if ctx.pool == nil {
+		return nil, errors.New("pool has not been initialized")
+	}
+
+	if ctx.kubernetes == nil {
+		return nil, errors.New("kubernetes clientset has not been initialized")
+	}
+
+	connection, err := dutyCtx.HydrateConnection(ctx.DutyContext(), &c)
+	if err != nil {
+		return nil, err
+	}
+
+	// Connection name was explicitly provided but was not found.
+	// That's an error.
+	if connection == nil {
+		return nil, fmt.Errorf("connection %s not found", c.Name)
 	}
 
 	return connection, nil

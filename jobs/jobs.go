@@ -11,12 +11,6 @@ import (
 
 var FuncScheduler = cron.New()
 
-const (
-	PullConfigScrapersFromUpstreamSchedule = "@every 5m"
-	PushConfigResultsToUpstreamSchedule    = "@every 10s"
-	ReconcileConfigsToUpstreamSchedule     = "@every 3h"
-)
-
 func ScheduleJobs() {
 	scheduleFunc := func(schedule string, fn func()) {
 		if _, err := FuncScheduler.AddFunc(schedule, fn); err != nil {
@@ -27,21 +21,21 @@ func ScheduleJobs() {
 	scheduleFunc("@every 24h", DeleteOldConfigChanges)
 	scheduleFunc("@every 24h", DeleteOldConfigAnalysis)
 	scheduleFunc("@every 24h", CleanupConfigItems)
+	scheduleFunc("@every 1h", ProcessChangeRetentionRules)
 
 	if api.UpstreamConfig.Valid() {
-		pullJob := &UpstreamPullJob{}
-		pullJob.Run()
-
-		if _, err := FuncScheduler.AddJob(PullConfigScrapersFromUpstreamSchedule, pullJob); err != nil {
-			logger.Fatalf("Failed to schedule job [PullUpstreamScrapeConfigs]: %v", err)
-		}
-
-		// Syncs scrape config results to upstream in real-time
-		if err := StartConsumser(api.DefaultContext); err != nil {
+		// Syncs config_items to upstream in real-time
+		if err := StartUpstreamConsumer(api.DefaultContext.DutyContext()); err != nil {
 			logger.Fatalf("Failed to start event consumer: %v", err)
 		}
 
-		scheduleFunc(ReconcileConfigsToUpstreamSchedule, ReconcileConfigScraperResults)
+		for _, j := range UpstreamJobs {
+			var job = j
+			job.Context = api.DefaultContext.DutyContext()
+			if err := job.AddToScheduler(FuncScheduler); err != nil {
+				logger.Errorf(err.Error())
+			}
+		}
 	}
 
 	FuncScheduler.Start()

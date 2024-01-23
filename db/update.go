@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
+	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -16,6 +18,7 @@ import (
 	"github.com/flanksource/config-db/db/ulid"
 	"github.com/flanksource/config-db/utils"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/gomplate/v3"
 	"github.com/google/uuid"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
@@ -95,7 +98,17 @@ func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 	}
 
 	if existing == nil {
-		ci.ID = ulid.MustNew().AsUUID()
+		// Use the resource id as the config item's primary key.
+		// If it isn't a valid UUID, we generate a new one.
+		if parsed, err := uuid.Parse(ci.ID); err != nil || parsed == uuid.Nil {
+			id, err := hash.DeterministicUUID(ci.ID)
+			if err != nil {
+				return fmt.Errorf("error generating uuid for config (id:%s): %w", ci.ID, err)
+			}
+
+			ci.ID = id.String()
+		}
+
 		if err := CreateConfigItem(&ci); err != nil {
 			logger.Errorf("[%s] failed to create item %v", ci, err)
 		}
@@ -137,20 +150,44 @@ func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 	return nil
 }
 
+func shouldExcludeChange(exclusions []string, changeResult v1.ChangeResult) (bool, error) {
+	for _, expr := range exclusions {
+		if res, err := gomplate.RunTemplate(changeResult.AsMap(), gomplate.Template{Expression: expr}); err != nil {
+			return false, fmt.Errorf("failed to evaluate change exclusion expression(%s): %w", expr, err)
+		} else if skipChange, err := strconv.ParseBool(res); err != nil {
+			return false, fmt.Errorf("change exclusion expression(%s) didn't evaluate to a boolean: %w", expr, err)
+		} else if skipChange {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func updateChange(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
-	for _, change := range result.Changes {
-		if change.Action == v1.Ignore {
+	for _, changeResult := range result.Changes {
+		if changeResult.Action == v1.Ignore {
 			continue
 		}
 
-		if change.Action == v1.Delete {
-			if err := deleteChangeHandler(ctx, change); err != nil {
+		if exclude, err := shouldExcludeChange(result.BaseScraper.Transform.Change.Exclude, changeResult); err != nil {
+			return err
+		} else if exclude {
+			if ctx.IsTrace() {
+				logger.Tracef("excluded change: %v", changeResult)
+			}
+
+			continue
+		}
+
+		if changeResult.Action == v1.Delete {
+			if err := deleteChangeHandler(ctx, changeResult); err != nil {
 				return err
 			}
 			continue
 		}
 
-		change := models.NewConfigChangeFromV1(*result, change)
+		change := models.NewConfigChangeFromV1(*result, changeResult)
 
 		if change.CreatedBy != nil {
 			person, err := FindPersonByEmail(ctx, ptr.ToString(change.CreatedBy))
@@ -174,8 +211,14 @@ func updateChange(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 
 		change.ConfigID = *id
 
-		if err := db.Create(change).Error; err != nil {
-			return err
+		if changeResult.UpdateExisting {
+			if err := db.Save(change).Error; err != nil {
+				return err
+			}
+		} else {
+			if err := db.Create(change).Error; err != nil {
+				return err
+			}
 		}
 	}
 
@@ -270,6 +313,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 	}
 
+	logger.Tracef("Saved %d results.", len(results))
 	return nil
 }
 
@@ -351,22 +395,27 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 	for _, relationship := range relationships {
 		configID, err := FindConfigItemID(relationship.ConfigExternalID)
 		if err != nil {
-			logger.Errorf("Error fetching config item id: %v", err)
+			logger.Errorf("error fetching config item(id=%s): %v", relationship.ConfigExternalID, err)
 			continue
 		}
 		if configID == nil {
-			logger.Warnf("Failed to find config %s", relationship.ConfigExternalID)
+			logger.Debugf("failed to find config %s", relationship.ConfigExternalID)
 			continue
 		}
 
-		relatedID, err := FindConfigItemID(relationship.RelatedExternalID)
-		if err != nil {
-			logger.Errorf("Error fetching config item id: %v", err)
-			continue
-		}
-		if relatedID == nil {
-			logger.Warnf("Relationship not found %s", relationship.RelatedExternalID)
-			continue
+		var relatedID *string
+		if relationship.RelatedConfigID != "" {
+			relatedID = &relationship.RelatedConfigID
+		} else {
+			relatedID, err = FindConfigItemID(relationship.RelatedExternalID)
+			if err != nil {
+				logger.Errorf("error fetching external config item(id=%s): %v", relationship.RelatedExternalID, err)
+				continue
+			}
+			if relatedID == nil {
+				logger.Debugf("related external config item(id=%s) not found.", relationship.RelatedExternalID)
+				continue
+			}
 		}
 
 		// In first iteration, the database is not completely populated

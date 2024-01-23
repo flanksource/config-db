@@ -22,6 +22,16 @@ var AllScraperConfigs = map[string]any{
 	"trivy":          Trivy{},
 }
 
+type ChangeRetentionSpec struct {
+	Name  string `json:"name,omitempty"`
+	Age   string `json:"age,omitempty"`
+	Count int    `json:"count,omitempty"`
+}
+
+type RetentionSpec struct {
+	Changes []ChangeRetentionSpec `json:"changes,omitempty"`
+}
+
 // ScraperSpec defines the desired state of Config scraper
 type ScraperSpec struct {
 	LogLevel       string           `json:"logLevel,omitempty"`
@@ -35,6 +45,7 @@ type ScraperSpec struct {
 	Azure          []Azure          `json:"azure,omitempty" yaml:"azure,omitempty"`
 	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
 	Trivy          []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
+	Retention      RetentionSpec    `json:"retention,omitempty"`
 
 	// Full flag when set will try to extract out changes from the scraped config.
 	Full bool `json:"full,omitempty"`
@@ -75,5 +86,14 @@ func (e ExternalID) CacheKey() string {
 }
 
 func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
-	return db.Where("type = ? AND external_id  @> ?", e.ConfigType, pq.StringArray(e.ExternalID))
+	return db.Where("lower(type) = ? AND external_id @> ?", strings.ToLower(e.ConfigType), pq.StringArray(e.ExternalID))
 }
+
+type ConfigDeleteReason string
+
+var (
+	DeletedReasonMissingScrape   ConfigDeleteReason = "MISSING_SCRAPE"
+	DeletedReasonFromAttribute   ConfigDeleteReason = "FROM_ATTRIBUTE"
+	DeletedReasonFromEvent       ConfigDeleteReason = "FROM_EVENT"
+	DeletedReasonFromDeleteField ConfigDeleteReason = "FROM_DELETE_FIELD"
+)

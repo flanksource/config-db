@@ -15,10 +15,19 @@ type AzureDevops struct {
 
 type Azure struct {
 	BaseScraper    `json:",inline"`
-	ConnectionName string       `yaml:"connection,omitempty" json:"connection,omitempty"`
-	SubscriptionID string       `yaml:"subscriptionID" json:"subscriptionID"`
-	Organisation   string       `yaml:"organisation" json:"organisation"`
-	ClientID       types.EnvVar `yaml:"clientID,omitempty" json:"clientID,omitempty"`
-	ClientSecret   types.EnvVar `yaml:"clientSecret,omitempty" json:"clientSecret,omitempty"`
-	TenantID       string       `yaml:"tenantID" json:"tenantID"`
+	ConnectionName string           `yaml:"connection,omitempty" json:"connection,omitempty"`
+	SubscriptionID string           `yaml:"subscriptionID" json:"subscriptionID"`
+	Organisation   string           `yaml:"organisation" json:"organisation"`
+	ClientID       types.EnvVar     `yaml:"clientID,omitempty" json:"clientID,omitempty"`
+	ClientSecret   types.EnvVar     `yaml:"clientSecret,omitempty" json:"clientSecret,omitempty"`
+	TenantID       string           `yaml:"tenantID" json:"tenantID"`
+	Exclusions     *AzureExclusions `yaml:"exclusions,omitempty" json:"exclusions,omitempty"`
+}
+
+type AzureExclusions struct {
+	// ActivityLogs is a list of operations to exclude from activity logs.
+	// Example:
+	//  "Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action"
+	//  "Microsoft.ContainerService/managedClusters/listClusterUserCredential/action"
+	ActivityLogs []string `yaml:"activityLogs,omitempty" json:"activityLogs,omitempty"`
 }

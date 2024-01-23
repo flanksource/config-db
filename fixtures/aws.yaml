@@ -10,6 +10,13 @@ spec:
         - af-south-1
         - ap-south-1
         - eu-central-1
+      properties:
+        'AWS::IAM::Role':
+          - name: AWS Link
+            icon: aws-iam
+            links:
+              - text: AWS Link
+                url: https://us-east-1.console.aws.amazon.com/iamv2/home#/roles/details/{{.name}}?section=permissions
       compliance: true
       patch_states: false
       trusted_advisor_check: false

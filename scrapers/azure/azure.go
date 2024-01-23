@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -12,16 +14,56 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/commons/utils"
+	"github.com/flanksource/duty/models"
+
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
+
+const (
+	ConfigTypePrefix         = "Azure::"
+	defaultActivityLogMaxage = time.Hour * 24 * 7
+)
+
+// activityLogLastRecordTime keeps track of the time of the last activity log per subscription.
+var activityLogLastRecordTime = sync.Map{}
+
+var activityLogFilter = strings.Join([]string{
+	"authorization",
+	// "claims",
+	"correlationId",
+	"description",
+	"eventDataId",
+	"eventName",
+	"eventTimestamp",
+	"httpRequest",
+	"level",
+	"operationId",
+	"operationName",
+	"properties",
+	"resourceGroupName",
+	"resourceId",
+	"resourceProviderName",
+	"resourceType", // not present in the docs, but is necessary
+	"status",
+	"submissionTimestamp",
+	"subscriptionId",
+	"subStatus",
+}, ",")
+
+var defaultExcludes = []v1.Filter{
+	{JSONPath: "$..etag"}, // Remove etags from the config json as they produce unecessary changes.
+}
 
 type Scraper struct {
 	ctx    context.Context
@@ -35,42 +77,45 @@ func (azure Scraper) CanScrape(configs v1.ScraperSpec) bool {
 
 // HydrateConnection populates the credentials in Azure from the connection name (if available)
 // else it'll try to fetch the credentials from kubernetes secrets.
-func (azure Scraper) hydrateConnection(ctx api.ScrapeContext, t v1.Azure) error {
+func (azure Scraper) hydrateConnection(ctx api.ScrapeContext, t v1.Azure) (v1.Azure, error) {
 	if t.ConnectionName != "" {
 		connection, err := ctx.HydrateConnection(t.ConnectionName)
 		if err != nil {
-			return fmt.Errorf("could not hydrate connection: %w", err)
+			return t, fmt.Errorf("could not hydrate connection: %w", err)
 		} else if connection == nil {
-			return fmt.Errorf("connection %s not found", t.ConnectionName)
+			return t, fmt.Errorf("connection %s not found", t.ConnectionName)
 		}
 
 		t.ClientID.ValueStatic = connection.Username
 		t.ClientSecret.ValueStatic = connection.Password
 		t.TenantID = connection.Properties["tenant"]
-		return nil
+		return t, nil
 	}
 
 	var err error
 	t.ClientID.ValueStatic, err = ctx.GetEnvValueFromCache(t.ClientID)
 	if err != nil {
-		return fmt.Errorf("failed to get client id: %w", err)
+		return t, fmt.Errorf("failed to get client id: %w", err)
 	}
 
 	t.ClientSecret.ValueStatic, err = ctx.GetEnvValueFromCache(t.ClientSecret)
 	if err != nil {
-		return fmt.Errorf("failed to get client secret: %w", err)
+		return t, fmt.Errorf("failed to get client secret: %w", err)
 	}
 
-	return nil
+	return t, nil
 }
 
 func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
-	for _, config := range ctx.ScrapeConfig().Spec.Azure {
-		if err := azure.hydrateConnection(ctx, config); err != nil {
+	for _, _config := range ctx.ScrapeConfig().Spec.Azure {
+		config, err := azure.hydrateConnection(ctx, _config)
+		if err != nil {
 			results.Errorf(err, "failed to populate connection")
 			continue
 		}
+
+		config.Transform.Exclude = append(config.Transform.Exclude, defaultExcludes...)
 
 		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID.ValueStatic, config.ClientSecret.ValueStatic, nil)
 		if err != nil {
@@ -99,9 +144,164 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		results = append(results, azure.fetchNetworkSecurityGroups()...)
 		results = append(results, azure.fetchPublicIPAddresses()...)
 		results = append(results, azure.fetchAdvisorAnalysis()...)
+		results = append(results, azure.fetchActivityLogs()...)
+	}
+
+	// Establish relationship of all resources to the corresponding subscription & resource group
+	for i, r := range results {
+		if r.ID == "" {
+			continue
+		}
+
+		var relateSubscription, relateResourceGroup bool
+		switch r.Type {
+		case ConfigTypePrefix + "SUBSCRIPTION":
+			continue
+
+		case ConfigTypePrefix + "MICROSOFT.RESOURCES/RESOURCEGROUPS":
+			relateSubscription = true
+
+		default:
+			relateSubscription = true
+			relateResourceGroup = true
+		}
+
+		if relateSubscription {
+			results[i].RelationshipResults = append(results[i].RelationshipResults, v1.RelationshipResult{
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{r.ID}, ConfigType: r.Type},
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{"/subscriptions/" + azure.config.SubscriptionID}, ConfigType: ConfigTypePrefix + "SUBSCRIPTION"},
+				Relationship:      "Subscription" + strings.TrimPrefix(r.Type, ConfigTypePrefix),
+			})
+		}
+
+		if relateResourceGroup && extractResourceGroup(r.ID) != "" {
+			results[i].RelationshipResults = append(results[i].RelationshipResults, v1.RelationshipResult{
+				ConfigExternalID: v1.ExternalID{ExternalID: []string{r.ID}, ConfigType: r.Type},
+				RelatedExternalID: v1.ExternalID{
+					ExternalID: []string{fmt.Sprintf("/subscriptions/%s/resourcegroups/%s", azure.config.SubscriptionID, extractResourceGroup(r.ID))},
+					ConfigType: ConfigTypePrefix + "MICROSOFT.RESOURCES/RESOURCEGROUPS",
+				},
+				Relationship: "Resourcegroup" + strings.TrimPrefix(r.Type, ConfigTypePrefix),
+			})
+		}
 	}
 
 	return results
+}
+
+// activityChangeRecord holds together the change result generated from an activity log
+// along with the original activity log event.
+type activityChangeRecord struct {
+	Result    v1.ChangeResult
+	EventData *armmonitor.EventData
+}
+
+func (azure Scraper) fetchActivityLogs() v1.ScrapeResults {
+	logger.Debugf("fetching activity logs for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+
+	clientFactory, err := armmonitor.NewClientFactory(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate arm monitor client: %w", err)})
+	}
+
+	// corelatedActivities keeps together events that belong to the same "uber operation"
+	// https://learn.microsoft.com/en-us/rest/api/monitor/activity-logs/list?view=rest-monitor-2015-04-01&tabs=HTTP#eventdata
+	var corelatedActivities = map[string][]activityChangeRecord{}
+
+	var recordSince = time.Now().Add(-defaultActivityLogMaxage)
+	if v, ok := activityLogLastRecordTime.Load(azure.config.SubscriptionID); ok {
+		recordSince = v.(time.Time)
+	}
+
+	filter := fmt.Sprintf("eventTimestamp ge '%s'", recordSince.Format(time.RFC3339))
+	pager := clientFactory.NewActivityLogsClient().NewListPager(filter, &armmonitor.ActivityLogsClientListOptions{Select: &activityLogFilter})
+	for pager.More() {
+		page, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read activity logs next page: %w", err)})
+		}
+		logger.Tracef("Fetched %d activity logs", len(page.Value))
+
+		for _, v := range page.Value {
+			if recordSince.Before(utils.Deref(v.EventTimestamp)) {
+				recordSince = *v.EventTimestamp
+			}
+
+			if azure.config.Exclusions != nil && collections.Contains(azure.config.Exclusions.ActivityLogs, utils.Deref(v.OperationName.Value)) {
+				continue
+			}
+
+			change := v1.ChangeResult{
+				ChangeType:       utils.Deref(v.OperationName.Value),
+				CreatedAt:        v.EventTimestamp,
+				Details:          v1.NewJSON(*v),
+				ExternalChangeID: utils.Deref(v.CorrelationID),
+				ExternalID:       strings.ToLower(utils.Deref(v.ResourceID)),
+				ConfigType:       getARMType(v.ResourceType.Value),
+				Severity:         string(getSeverityFromReason(v)),
+				Source:           ConfigTypePrefix + "ActivityLog",
+				Summary:          utils.Deref(v.OperationName.LocalizedValue),
+			}
+			corelatedActivities[utils.Deref(v.CorrelationID)] = append(corelatedActivities[utils.Deref(v.CorrelationID)], activityChangeRecord{
+				Result:    change,
+				EventData: v,
+			})
+		}
+
+		// Stop the pager because there's a bug in the SDK itself
+		// error: failed to read activity logs next page: invalid semicolon separator in query
+		// TODO:
+		break
+	}
+
+	activityLogLastRecordTime.Store(azure.config.SubscriptionID, recordSince)
+
+	// For the correlated activities, we merge some fields and aggregate the timestamps into a single change record
+	for _, changeRecords := range corelatedActivities {
+		change := changeRecords[0].Result // Use the latest event as the base
+		change.UpdateExisting = true      // New events might have arrived, so we want to update the existing change in db
+
+		statusTimestamps := map[string]*time.Time{}
+		for i := range changeRecords {
+			change.CreatedAt = changeRecords[i].EventData.EventTimestamp // Use the oldest event's timestamp
+
+			status := utils.Deref(changeRecords[i].EventData.Status.Value)
+			if status == "" {
+				continue
+			}
+			statusTimestamps[strings.ToLower(status)] = changeRecords[i].EventData.EventTimestamp
+
+			if _, ok := change.Details["httpRequest"]; !ok {
+				change.Details["httpRequest"] = changeRecords[i].EventData
+			}
+		}
+
+		change.Details["timestamps"] = statusTimestamps
+		results = append(results, v1.ScrapeResult{Changes: []v1.ChangeResult{change}})
+	}
+
+	return results
+}
+
+func getSeverityFromReason(v *armmonitor.EventData) models.Severity {
+	switch utils.Deref(v.Level) {
+	case "Critical":
+		return models.SeverityCritical
+
+	case "Error":
+		return models.SeverityHigh
+
+	case "Warning":
+		return models.SeverityMedium
+
+	case "Verbose":
+		return models.SeverityLow
+
+	default:
+		return models.SeverityInfo
+	}
 }
 
 // fetchDatabases gets all databases in a subscription.
@@ -247,6 +447,7 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
+				ConfigID:    v.Properties.ResourceGUID,
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
@@ -277,6 +478,7 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
+				ConfigID:    v.Properties.ResourceGUID,
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
@@ -308,15 +510,17 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 		}
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
+				ConfigID:    v.Properties.VMID,
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
 				Config:      v,
-				ConfigClass: "VirtualMachine",
+				ConfigClass: models.ConfigClassVirtualMachine,
 				Type:        getARMType(v.Type),
 			})
 		}
 	}
+
 	return results
 }
 
@@ -375,7 +579,7 @@ func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 				Name:        *v.DisplayName,
 				Config:      v,
 				ConfigClass: "Subscription",
-				Type:        "Azure::SUBSCRIPTION",
+				Type:        getARMType(utils.Ptr("Subscription")),
 			})
 		}
 	}
@@ -562,6 +766,7 @@ func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
 
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
+				ConfigID:    v.Properties.ResourceGUID,
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
@@ -594,6 +799,7 @@ func (azure Scraper) fetchPublicIPAddresses() v1.ScrapeResults {
 
 		for _, v := range nextPage.Value {
 			results = append(results, v1.ScrapeResult{
+				ConfigID:    v.Properties.ResourceGUID,
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
 				Name:        deref(v.Name),
@@ -619,11 +825,22 @@ func getARMID(id *string) string {
 // getARMType takes in a type of a resource group
 // and returns it in a compatible format.
 func getARMType(rType *string) string {
-	// Need to uppercase the resource type in the config item because
-	// the azure advisor recommendation uses resource type in all uppercase; not always but most of the time.
-	// For example: It returns
-	// - MICROSOFT.COMPUTE/VIRTUALMACHINES (all caps)
-	// - Microsoft.ContainerService/ManagedClusters (case not enforced)
-	// This is required to match config analysis with the config item.
-	return "Azure::" + strings.ToUpper(deref(rType))
+	return "Azure::" + deref(rType)
+}
+
+func extractResourceGroup(resourceID string) string {
+	resourceID = strings.Trim(resourceID, " ")
+	resourceID = strings.TrimPrefix(resourceID, "/")
+
+	segments := strings.Split(resourceID, "/")
+	if len(segments) < 4 {
+		return ""
+	}
+
+	if segments[2] != "resourcegroups" {
+		return ""
+	}
+
+	// The resource group is the third segment
+	return segments[3]
 }

@@ -1,11 +1,10 @@
-{{- if eq .Values.db.enabled true }}
-
+{{- if .Values.db.external.create }}
 ---
 # PostgreSQL StatefulSet
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: postgresql
+  name: {{ template "config-db.name" . }}-postgresql
 spec:
   serviceName: postgresql
   selector:
@@ -25,57 +24,52 @@ spec:
             mountPath: /data
         envFrom:
           - secretRef:
-              name: {{ .Values.db.secretKeyRef.name }}
+              name: {{ .Values.db.external.secretKeyRef.name }}
   volumeClaimTemplates:
     - metadata:
         name: postgresql
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: {{ .Values.db.storageClass }}
+        {{- if ne .Values.db.external.storageClass "" }}
+        storageClassName: {{ .Values.db.external.storageClass }}
+        {{- end }}
         resources:
           requests:
-            storage: {{ .Values.db.storage }}
-
+            storage: {{ .Values.db.external.storage }}
 ---
-
 # PostgreSQL StatefulSet Service
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres
+  name: {{ template "config-db.name" . }}-postgresql
 spec:
   selector:
     app: postgresql
   ports:
   - port: 5432
     targetPort: 5432
-
 ---
-
-{{- if .Values.db.secretKeyRef.create }}
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ .Values.db.secretKeyRef.name }}
+  name: {{ .Values.db.external.secretKeyRef.name }}
   annotations:
     "helm.sh/resource-policy": "keep"
 type: Opaque
 stringData:
-  {{- $secretObj := ( lookup "v1" "Secret" .Release.Namespace "postgres-connection" ) }}
-  {{- $secretData := ( get $secretObj "data" ) }}
+  {{- $secretObj := ( lookup "v1" "Secret" .Release.Namespace "postgres-connection" ) | default dict }}
+  {{- $secretData := ( get $secretObj "data" | default dict ) }}
   {{- $user := (( get $secretData "POSTGRES_USER" ) | b64dec ) | default "postgres" }}
   {{- $password := (( get $secretData "POSTGRES_PASSWORD" ) | b64dec ) | default (randAlphaNum 32) }}
-  {{- $host := print "postgres." .Release.Namespace  ".svc.cluster.local:5432" }}
+  {{- $dbname := (( get $secretData "POSTGRES_DB" ) | b64dec ) | default "config_db" }}
+  {{- $host := print (include "config-db.name" .) "-postgresql." .Release.Namespace  ".svc.cluster.local:5432" }}
   {{- $url := print "postgresql://" $user ":" $password "@" $host }}
-  {{- $configDbUrl := ( get $secretData .Values.db.secretKeyRef.key ) | default ( print $url "/config-db" ) }}
-  
+  {{- $configDbUrl := ( get $secretData .Values.db.external.secretKeyRef.key ) | default ( print $url "/config_db?sslmode=disable" ) }}
   POSTGRES_USER: {{ $user | quote }}
   POSTGRES_PASSWORD: {{ $password | quote }}
   POSTGRES_HOST: {{ $host | quote }}
-  {{ .Values.db.secretKeyRef.key }}: {{ $configDbUrl | quote }}
-
-{{- end }}
-
+  POSTGRES_DB: {{ $dbname | quote }}
+  {{ .Values.db.external.secretKeyRef.key }}: {{ $configDbUrl | quote }}
 ---
 
 {{- end }}

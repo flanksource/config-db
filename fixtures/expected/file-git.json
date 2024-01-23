@@ -27,7 +27,7 @@
               {
                 "name": "httpbin_2xx_count",
                 "type": "counter",
-                "value": "result.code == 200 ? 1 : 0",
+                "value": "code == 200 ? 1 : 0",
                 "labels": [
                   {
                     "name": "name",
@@ -39,7 +39,7 @@
                   },
                   {
                     "name": "status_class",
-                    "valueExpr": "string(result.code).charAt(0)"
+                    "valueExpr": "string(code).charAt(0)"
                   }
                 ]
               }
@@ -61,6 +61,13 @@
             "display": {
               "template": "code={{.code}}, age={{.sslAge}}"
             }
+          },
+          {
+            "name": "http-headers",
+            "test": {
+              "expr": "json.headers[\"User-Agent\"].startsWith(\"canary-checker/\")"
+            },
+            "url": "https://httpbin.demo.aws.flanksource.com/headers"
           }
         ]
       }

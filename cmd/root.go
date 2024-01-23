@@ -11,6 +11,7 @@ import (
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/utils/kube"
+	"github.com/flanksource/duty"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -53,7 +54,7 @@ var Root = &cobra.Command{
 			db.ConnectionString = ""
 		}
 		db.Schema = readFromEnv(db.Schema)
-		db.LogLevel = readFromEnv(db.LogLevel)
+		db.PGRSTLogLevel = readFromEnv(db.PGRSTLogLevel)
 
 	},
 }
@@ -77,7 +78,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 	// Flags for push/pull
 	var upstreamPageSizeDefault = 500
 	if val, exists := os.LookupEnv("UPSTREAM_PAGE_SIZE"); exists {
-		if parsed, err := strconv.Atoi(val); err != nil || parsed < 0 {
+		if parsed, err := strconv.Atoi(val); err != nil || parsed <= 0 {
 			logger.Fatalf("invalid value=%s for UPSTREAM_PAGE_SIZE. Must be a postive number", val)
 		} else {
 			upstreamPageSizeDefault = parsed
@@ -93,6 +94,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 
 func init() {
 	logger.BindFlags(Root.PersistentFlags())
+	duty.BindFlags(Root.PersistentFlags())
 
 	if len(commit) > 8 {
 		version = fmt.Sprintf("%v, commit %v, built at %v", version, commit[0:8], date)

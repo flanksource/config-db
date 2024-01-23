@@ -95,6 +95,11 @@ func (s MaskList) String() string {
 	return fmt.Sprintf("total_masks=%d", len(s))
 }
 
+type TransformChange struct {
+	// Exclude is a list of CEL expressions that excludes a given change
+	Exclude []string `json:"exclude,omitempty"`
+}
+
 type Transform struct {
 	Script  Script   `yaml:",inline" json:",inline"`
 	Include []Filter `json:"include,omitempty"`
@@ -103,7 +108,8 @@ type Transform struct {
 	Exclude []Filter `json:"exclude,omitempty"`
 	// Masks consist of configurations to replace sensitive fields
 	// with hash functions or static string.
-	Masks MaskList `json:"mask,omitempty"`
+	Masks  MaskList        `json:"mask,omitempty"`
+	Change TransformChange `json:"changes,omitempty"`
 }
 
 func (t Transform) IsEmpty() bool {
@@ -155,8 +161,14 @@ type BaseScraper struct {
 
 	// DeleteFields is a JSONPath expression used to identify the deleted time of the config.
 	// If multiple fields are specified, the first non-empty value will be used.
-	DeleteFields []string      `json:"deleteFields,omitempty"`
-	Tags         JSONStringMap `json:"tags,omitempty"`
+	DeleteFields []string `json:"deleteFields,omitempty"`
+
+	// Tags allow you to set custom tags on the scraped config items.
+	Tags JSONStringMap `json:"tags,omitempty"`
+
+	// Properties are custom templatable properties for the scraped config items
+	// grouped by the config type.
+	Properties map[string]types.Properties `json:"properties,omitempty" template:"true"`
 }
 
 func (base BaseScraper) String() string {
