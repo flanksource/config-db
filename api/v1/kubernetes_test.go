@@ -13,13 +13,13 @@ func TestKubernetesConfigExclusions_Filter(t *testing.T) {
 	}
 	tests := []struct {
 		name          string
-		config        KubernetesConfigExclusions
+		config        KubernetesExclusionConfig
 		args          args
 		shouldExclude bool
 	}{
 		{
 			name: "exclusion by name",
-			config: KubernetesConfigExclusions{
+			config: KubernetesExclusionConfig{
 				Names: []string{"junit-*"},
 			},
 			args: args{
@@ -29,7 +29,7 @@ func TestKubernetesConfigExclusions_Filter(t *testing.T) {
 		},
 		{
 			name: "exclusion by namespace",
-			config: KubernetesConfigExclusions{
+			config: KubernetesExclusionConfig{
 				Namespaces: []string{"*-canaries"},
 			},
 			args: args{
@@ -39,7 +39,7 @@ func TestKubernetesConfigExclusions_Filter(t *testing.T) {
 		},
 		{
 			name: "exclusion by kind",
-			config: KubernetesConfigExclusions{
+			config: KubernetesExclusionConfig{
 				Kinds: []string{"*Chart"},
 			},
 			args: args{
@@ -49,7 +49,7 @@ func TestKubernetesConfigExclusions_Filter(t *testing.T) {
 		},
 		{
 			name: "exclusion by labels | exact match",
-			config: KubernetesConfigExclusions{
+			config: KubernetesExclusionConfig{
 				Labels: map[string]string{
 					"prod": "env",
 				},
@@ -63,7 +63,7 @@ func TestKubernetesConfigExclusions_Filter(t *testing.T) {
 		},
 		{
 			name: "exclusion by labels | one matches",
-			config: KubernetesConfigExclusions{
+			config: KubernetesExclusionConfig{
 				Labels: map[string]string{
 					"prod":          "env",
 					"is-billed":     "true",
@@ -80,7 +80,7 @@ func TestKubernetesConfigExclusions_Filter(t *testing.T) {
 		},
 		{
 			name:   "no exclusions",
-			config: KubernetesConfigExclusions{},
+			config: KubernetesExclusionConfig{},
 			args: args{
 				namespace: "default",
 				name:      "test-foo",

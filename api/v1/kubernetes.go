@@ -22,9 +22,9 @@ type SeverityKeywords struct {
 }
 
 type KubernetesEventExclusions struct {
-	Names      []string `json:"name" yaml:"name"`
-	Namespaces []string `json:"namespace" yaml:"namespace"`
-	Reasons    []string `json:"reason" yaml:"reason"`
+	Names      []string `json:"name,omitempty" yaml:"name,omitempty"`
+	Namespaces []string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	Reasons    []string `json:"reason,omitempty" yaml:"reason,omitempty"`
 }
 
 // Filter returns true if the given input matches any of the exclusions.
@@ -55,7 +55,7 @@ type KubernetesEventConfig struct {
 	SeverityKeywords SeverityKeywords          `json:"severityKeywords,omitempty"`
 }
 
-type KubernetesConfigExclusions struct {
+type KubernetesExclusionConfig struct {
 	Names      []string          `json:"name" yaml:"name"`
 	Kinds      []string          `json:"kind" yaml:"kind"`
 	Namespaces []string          `json:"namespace" yaml:"namespace"`
@@ -63,14 +63,14 @@ type KubernetesConfigExclusions struct {
 }
 
 // List returns the union of the exclusions.
-func (t *KubernetesConfigExclusions) List() []string {
+func (t *KubernetesExclusionConfig) List() []string {
 	result := append(t.Names, t.Kinds...)
 	result = append(result, t.Namespaces...)
 	return result
 }
 
 // Filter returns true if the given input matches any of the exclusions.
-func (t *KubernetesConfigExclusions) Filter(name, namespace, kind string, labels map[string]string) bool {
+func (t *KubernetesExclusionConfig) Filter(name, namespace, kind string, labels map[string]string) bool {
 	if name != "" && len(t.Names) != 0 {
 		if collections.MatchItems(name, t.Names...) {
 			return true
@@ -150,18 +150,18 @@ type KubernetesRelationship struct {
 
 type Kubernetes struct {
 	BaseScraper     `json:",inline"`
-	ClusterName     string                     `json:"clusterName,omitempty"`
-	Namespace       string                     `json:"namespace,omitempty"`
-	UseCache        bool                       `json:"useCache,omitempty"`
-	AllowIncomplete bool                       `json:"allowIncomplete,omitempty"`
-	Scope           string                     `json:"scope,omitempty"`
-	Since           string                     `json:"since,omitempty"`
-	Selector        string                     `json:"selector,omitempty"`
-	FieldSelector   string                     `json:"fieldSelector,omitempty"`
-	Kubeconfig      *types.EnvVar              `json:"kubeconfig,omitempty"`
-	MaxInflight     int64                      `json:"maxInflight,omitempty"`
-	Event           KubernetesEventConfig      `json:"event,omitempty"`
-	Exclusions      KubernetesConfigExclusions `json:"exclusions,omitempty"`
+	ClusterName     string                    `json:"clusterName,omitempty"`
+	Namespace       string                    `json:"namespace,omitempty"`
+	UseCache        bool                      `json:"useCache,omitempty"`
+	AllowIncomplete bool                      `json:"allowIncomplete,omitempty"`
+	Scope           string                    `json:"scope,omitempty"`
+	Since           string                    `json:"since,omitempty"`
+	Selector        string                    `json:"selector,omitempty"`
+	FieldSelector   string                    `json:"fieldSelector,omitempty"`
+	MaxInflight     int64                     `json:"maxInflight,omitempty"`
+	Exclusions      KubernetesExclusionConfig `json:"exclusions,omitempty"`
+	Kubeconfig      *types.EnvVar             `json:"kubeconfig,omitempty"`
+	Event           KubernetesEventConfig     `json:"event,omitempty"`
 
 	// Relationships specify the fields to use to relate Kubernetes objects.
 	Relationships []KubernetesRelationship `json:"relationships,omitempty"`

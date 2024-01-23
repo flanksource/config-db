@@ -1334,10 +1334,6 @@ spec:
                               items:
                                 type: string
                               type: array
-                          required:
-                          - name
-                          - namespace
-                          - reason
                           type: object
                         severityKeywords:
                           description: SeverityKeywords is used to identify the severity

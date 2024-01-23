@@ -66,7 +66,7 @@ func (t *eventWatcher) Watch(ctx api.ScrapeContext, config v1.Kubernetes) error 
 			continue
 		}
 
-		if config.Event.Exclusions.Filter(event) {
+		if !config.Event.Exclusions.Filter(event) {
 			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
 			if change != nil {
 				if err := db.SaveResults(ctx, []v1.ScrapeResult{{Changes: []v1.ChangeResult{*change}}}); err != nil {
