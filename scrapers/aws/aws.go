@@ -440,7 +440,6 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 }
 
 func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
-
 	if !config.Includes("EC2instance") {
 		return
 	}
@@ -458,6 +457,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				ExternalID: []string{*i.InstanceId},
 				ConfigType: v1.AWSEC2Instance,
 			}
+
 			// SecurityGroup relationships
 			for _, sg := range i.SecurityGroups {
 				relationships = append(relationships, v1.RelationshipResult{
@@ -523,6 +523,34 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 					ConfigType: "Kubernetes::Node",
 				},
 				Relationship: "Instance-KuberenetesNode",
+			})
+
+			// Instance to VPC relationship
+			relationships = append(relationships, v1.RelationshipResult{
+				RelatedExternalID: selfExternalID,
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(i.VpcId)}, ConfigType: v1.AWSEC2VPC},
+				Relationship:      "VPCInstance",
+			})
+
+			// Instance to Subnet relationship
+			relationships = append(relationships, v1.RelationshipResult{
+				RelatedExternalID: selfExternalID,
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(i.SubnetId)}, ConfigType: v1.AWSEC2Subnet},
+				Relationship:      "SubnetInstance",
+			})
+
+			// Instance to Region relationship
+			relationships = append(relationships, v1.RelationshipResult{
+				RelatedExternalID: selfExternalID,
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{ctx.Session.Region}, ConfigType: v1.AWSRegion},
+				Relationship:      "RegionInstance",
+			})
+
+			// Instance to zone relationship
+			relationships = append(relationships, v1.RelationshipResult{
+				RelatedExternalID: selfExternalID,
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{ctx.Subnets[lo.FromPtr(i.SubnetId)].Zone}, ConfigType: v1.AWSZone},
+				Relationship:      "ZoneInstance",
 			})
 
 			instance := NewInstance(i)
