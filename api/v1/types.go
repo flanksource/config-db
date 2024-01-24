@@ -28,8 +28,16 @@ type ChangeRetentionSpec struct {
 	Count int    `json:"count,omitempty"`
 }
 
+type TypeRetentionSpec struct {
+	Name       string `json:"name,omitempty"`
+	CreatedAge string `json:"createdAge,omitempty"`
+	UpdatedAge string `json:"updatedAge,omitempty"`
+	DeletedAge string `json:"deletedAge,omitempty"`
+}
+
 type RetentionSpec struct {
 	Changes []ChangeRetentionSpec `json:"changes,omitempty"`
+	Types   []TypeRetentionSpec   `json:"types,omitempty"`
 }
 
 // ScraperSpec defines the desired state of Config scraper
