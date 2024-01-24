@@ -293,6 +293,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 				tags = obj.GetLabels()
 			}
 			tags["cluster"] = config.ClusterName
+			tags["apiVersion"] = obj.GetAPIVersion()
 			if obj.GetNamespace() != "" {
 				tags["namespace"] = obj.GetNamespace()
 			}
