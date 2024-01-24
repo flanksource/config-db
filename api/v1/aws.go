@@ -47,6 +47,7 @@ type CostReporting struct {
 }
 
 const (
+	AWSRegion             = "AWS::Region"
 	AWSEC2Instance        = "AWS::EC2::Instance"
 	AWSEKSCluster         = "AWS::EKS::Cluster"
 	AWSS3Bucket           = "AWS::S3::Bucket"

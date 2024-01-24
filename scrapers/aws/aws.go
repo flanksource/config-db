@@ -19,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go/ptr"
+	"github.com/samber/lo"
 
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
@@ -260,7 +261,7 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			continue
 		}
 		*results = append(*results, v1.ScrapeResult{
-			Type:        "AWS::Region",
+			Type:        v1.AWSRegion,
 			ConfigClass: "Region",
 			BaseScraper: config.BaseScraper,
 			Config:      region,
@@ -403,6 +404,20 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 				ConfigType: v1.AWSEC2DHCPOptions,
 			},
 			Relationship: "VPCDHCPOptions",
+		})
+
+		// VPC to Account relationship
+		relationships = append(relationships, v1.RelationshipResult{
+			RelatedExternalID: v1.ExternalID{ExternalID: []string{string(*vpc.VpcId)}, ConfigType: v1.AWSEC2VPC},
+			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(ctx.Caller.Account)}, ConfigType: v1.AWSAccount},
+			Relationship:      "AccountVPC",
+		})
+
+		// VPC to region relationship
+		relationships = append(relationships, v1.RelationshipResult{
+			RelatedExternalID: v1.ExternalID{ExternalID: []string{string(*vpc.VpcId)}, ConfigType: v1.AWSEC2VPC},
+			ConfigExternalID:  v1.ExternalID{ExternalID: []string{ctx.Session.Region}, ConfigType: v1.AWSRegion},
+			Relationship:      "RegionVPC",
 		})
 
 		tags := getTags(vpc.Tags)
