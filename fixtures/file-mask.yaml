@@ -9,12 +9,10 @@ spec:
       name: $.name
       transform:
         mask:
-          - selector:
-              type: Config
+          - selector: config.name == 'Config1'
             jsonpath: $.password
             value: md5sum
-          - selector:
-              type: Config
+          - selector: config.name == 'Config1'
             jsonpath: $.secret
             value: '***'
       paths:
