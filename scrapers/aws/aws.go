@@ -141,12 +141,14 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	if !config.Includes("EKS") {
 		return
 	}
+
 	EKS := eks.NewFromConfig(*ctx.Session)
 	clusters, err := EKS.ListClusters(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "failed to list clusters")
 		return
 	}
+
 	for _, clusterName := range clusters.Clusters {
 		cluster, err := EKS.DescribeCluster(ctx, &eks.DescribeClusterInput{
 			Name: strPtr(clusterName),
@@ -156,21 +158,48 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			continue
 		}
 
+		var relationships []v1.RelationshipResult
+		selfExternalID := v1.ExternalID{ExternalID: []string{lo.FromPtr(cluster.Cluster.Name)}, ConfigType: v1.AWSEKSCluster}
+
+		// EKS to instance roles relationship
+		relationships = append(relationships, v1.RelationshipResult{
+			RelatedExternalID: selfExternalID,
+			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(cluster.Cluster.Arn)}, ConfigType: v1.AWSIAMRole},
+			Relationship:      "EKSIAMRole",
+		})
+
+		// EKS to subnets relationships
+		for _, subnetID := range cluster.Cluster.ResourcesVpcConfig.SubnetIds {
+			relationships = append(relationships, v1.RelationshipResult{
+				RelatedExternalID: selfExternalID,
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{subnetID}, ConfigType: v1.AWSEC2Subnet},
+				Relationship:      "SubnetEKS",
+			})
+		}
+
+		// EKS to security groups relationship
+		relationships = append(relationships, v1.RelationshipResult{
+			RelatedExternalID: selfExternalID,
+			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(cluster.Cluster.ResourcesVpcConfig.ClusterSecurityGroupId)}, ConfigType: v1.AWSEC2SecurityGroup},
+			Relationship:      "EKSSecuritygroups",
+		})
+
 		cluster.Cluster.Tags["account"] = *ctx.Caller.Account
 		cluster.Cluster.Tags["region"] = getRegionFromArn(*cluster.Cluster.Arn, "eks")
 		*results = append(*results, v1.ScrapeResult{
-			Type:             v1.AWSEKSCluster,
-			CreatedAt:        cluster.Cluster.CreatedAt,
-			Tags:             cluster.Cluster.Tags,
-			BaseScraper:      config.BaseScraper,
-			Config:           cluster.Cluster,
-			ConfigClass:      "KubernetesCluster",
-			Name:             getName(cluster.Cluster.Tags, clusterName),
-			Aliases:          []string{*cluster.Cluster.Arn, "AmazonEKS/" + *cluster.Cluster.Arn},
-			ID:               *cluster.Cluster.Name,
-			Ignore:           []string{"createdAt", "name"},
-			ParentExternalID: *cluster.Cluster.ResourcesVpcConfig.VpcId,
-			ParentType:       v1.AWSEC2VPC,
+			Type:                v1.AWSEKSCluster,
+			CreatedAt:           cluster.Cluster.CreatedAt,
+			Tags:                cluster.Cluster.Tags,
+			BaseScraper:         config.BaseScraper,
+			Config:              cluster.Cluster,
+			ConfigClass:         "KubernetesCluster",
+			Name:                getName(cluster.Cluster.Tags, clusterName),
+			Aliases:             []string{*cluster.Cluster.Arn, "AmazonEKS/" + *cluster.Cluster.Arn},
+			ID:                  *cluster.Cluster.Name,
+			Ignore:              []string{"createdAt", "name"},
+			ParentExternalID:    *cluster.Cluster.ResourcesVpcConfig.VpcId,
+			ParentType:          v1.AWSEC2VPC,
+			RelationshipResults: relationships,
 		})
 	}
 }
@@ -590,6 +619,7 @@ func (aws Scraper) securityGroups(ctx *AWSContext, config v1.AWS, results *v1.Sc
 	if !config.Includes("SecurityGroup") {
 		return
 	}
+
 	describeInput := &ec2.DescribeSecurityGroupsInput{}
 	describeOutput, err := ctx.EC2.DescribeSecurityGroups(ctx, describeInput)
 	if err != nil {
@@ -601,7 +631,7 @@ func (aws Scraper) securityGroups(ctx *AWSContext, config v1.AWS, results *v1.Sc
 		tags["account"] = *ctx.Caller.Account
 		tags["network"] = *sg.VpcId
 		*results = append(*results, v1.ScrapeResult{
-			Type:             "AWS::EC2::SecurityGroup",
+			Type:             v1.AWSEC2SecurityGroup,
 			Tags:             tags,
 			BaseScraper:      config.BaseScraper,
 			Config:           sg,
@@ -1070,7 +1100,7 @@ func getConfigTypeById(id string) string {
 	case "db":
 		return "AWS::RDS::DBInstance"
 	case "sg":
-		return "AWS::EC2::SecurityGroup"
+		return v1.AWSEC2SecurityGroup
 	case "vol":
 		return "AWS::EBS::Volume"
 	case "vpc":
