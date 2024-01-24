@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,9 +20,23 @@ import (
 )
 
 type Mask struct {
-	SelectorType string
-	JSONPath     *jp.Expr
-	Value        string
+	Selector string // cel expression
+	JSONPath *jp.Expr
+	Value    string
+}
+
+// Filter returns true if the mask selector matches
+func (t *Mask) Filter(in v1.ScrapeResult) (bool, error) {
+	if t.Selector == "" {
+		return false, nil
+	}
+
+	res, err := gomplate.RunTemplate(in.AsMap(), gomplate.Template{Expression: t.Selector})
+	if err != nil {
+		return false, err
+	}
+
+	return strconv.ParseBool(res)
 }
 
 type Transform struct {
@@ -120,7 +135,7 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 	extract.Transform.Script = config.Transform.Script
 
 	for _, mask := range config.Transform.Masks {
-		if mask.Selector.IsEmpty() {
+		if mask.Selector == "" {
 			continue
 		}
 
@@ -130,9 +145,9 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 		}
 
 		extract.Transform.Masks = append(extract.Transform.Masks, Mask{
-			SelectorType: mask.Selector.Type,
-			Value:        mask.Value,
-			JSONPath:     &x,
+			Selector: mask.Selector,
+			Value:    mask.Value,
+			JSONPath: &x,
 		})
 	}
 
@@ -379,7 +394,9 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 func (e Extract) applyMask(results []v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 	for _, m := range e.Transform.Masks {
 		for i, input := range results {
-			if input.ConfigClass != m.SelectorType {
+			if ok, err := m.Filter(input); err != nil || !ok {
+				// NOTE: If the cel expression accesses a field that doesn't exist,
+				// it will return an error. We treat this errors as a non-match filter.
 				continue
 			}
 
