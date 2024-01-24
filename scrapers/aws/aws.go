@@ -406,13 +406,6 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			Relationship: "VPCDHCPOptions",
 		})
 
-		// VPC to Account relationship
-		relationships = append(relationships, v1.RelationshipResult{
-			RelatedExternalID: v1.ExternalID{ExternalID: []string{string(*vpc.VpcId)}, ConfigType: v1.AWSEC2VPC},
-			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(ctx.Caller.Account)}, ConfigType: v1.AWSAccount},
-			Relationship:      "AccountVPC",
-		})
-
 		// VPC to region relationship
 		relationships = append(relationships, v1.RelationshipResult{
 			RelatedExternalID: v1.ExternalID{ExternalID: []string{string(*vpc.VpcId)}, ConfigType: v1.AWSEC2VPC},
@@ -432,7 +425,7 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			Name:                getName(tags, *vpc.VpcId),
 			ID:                  *vpc.VpcId,
 			Aliases:             []string{"AmazonEC2/" + *vpc.VpcId},
-			ParentExternalID:    *ctx.Caller.Account,
+			ParentExternalID:    lo.FromPtr(ctx.Caller.Account),
 			ParentType:          v1.AWSAccount,
 			RelationshipResults: relationships,
 		})
@@ -525,13 +518,6 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				Relationship: "Instance-KuberenetesNode",
 			})
 
-			// Instance to VPC relationship
-			relationships = append(relationships, v1.RelationshipResult{
-				RelatedExternalID: selfExternalID,
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(i.VpcId)}, ConfigType: v1.AWSEC2VPC},
-				Relationship:      "VPCInstance",
-			})
-
 			// Instance to Subnet relationship
 			relationships = append(relationships, v1.RelationshipResult{
 				RelatedExternalID: selfExternalID,
@@ -592,8 +578,8 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				Name:                instance.GetHostname(),
 				Aliases:             []string{"AmazonEC2/" + instance.InstanceID},
 				ID:                  instance.InstanceID,
-				ParentExternalID:    instance.SubnetID,
-				ParentType:          v1.AWSEC2Subnet,
+				ParentExternalID:    instance.VpcID,
+				ParentType:          v1.AWSEC2VPC,
 				RelationshipResults: relationships,
 			})
 		}
@@ -882,8 +868,8 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 	if err != nil {
 		results.Errorf(err, "failed to get subnets")
 	}
-	for _, subnet := range subnets.Subnets {
 
+	for _, subnet := range subnets.Subnets {
 		// Subnet tags are of the form [{Key: "<key>", Value:
 		// "<value>"}, ...]
 		tags := make(v1.JSONStringMap)
@@ -903,16 +889,36 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		if !config.Includes("subnet") {
 			return
 		}
+
+		var relationships []v1.RelationshipResult
+		selfExternalID := v1.ExternalID{ExternalID: []string{lo.FromPtr(subnet.SubnetId)}, ConfigType: v1.AWSEC2Subnet}
+
+		// Subnet to Region relationship
+		relationships = append(relationships, v1.RelationshipResult{
+			RelatedExternalID: selfExternalID,
+			ConfigExternalID:  v1.ExternalID{ExternalID: []string{ctx.Session.Region}, ConfigType: v1.AWSRegion},
+			Relationship:      "RegionSubnet",
+		})
+
+		// TODO: Subnet to availability zone relationship
+		// relationships = append(relationships, v1.RelationshipResult{
+		// 	RelatedExternalID: selfExternalID,
+		// 	ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(subnet.AvailabilityZone)}, ConfigType: v1.AWSZone},
+		// 	Relationship:      "ZoneSubnet",
+		// })
+
 		result := v1.ScrapeResult{
-			Type:             "AWS::EC2::Subnet",
-			BaseScraper:      config.BaseScraper,
-			Tags:             tags,
-			ConfigClass:      "Subnet",
-			ID:               *subnet.SubnetId,
-			Config:           subnet,
-			ParentExternalID: *subnet.VpcId,
-			ParentType:       v1.AWSEC2VPC,
+			Type:                "AWS::EC2::Subnet",
+			BaseScraper:         config.BaseScraper,
+			Tags:                tags,
+			ConfigClass:         "Subnet",
+			ID:                  *subnet.SubnetId,
+			Config:              subnet,
+			ParentExternalID:    lo.FromPtr(subnet.VpcId),
+			ParentType:          v1.AWSEC2VPC,
+			RelationshipResults: relationships,
 		}
+
 		*results = append(*results, result)
 	}
 }
