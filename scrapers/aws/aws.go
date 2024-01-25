@@ -1033,24 +1033,29 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	tags := make(map[string]string)
 	tags["account"] = *ctx.Caller.Account
 	for _, profile := range profiles.InstanceProfiles {
-		// Use the first IAM role as the parent
-		var parentExternalID string
-		if len(profile.Roles) > 0 {
-			parentExternalID = lo.FromPtr(profile.Roles[0].Arn)
+		// Instance profile to IAM role relationships
+		var relationships []v1.RelationshipResult
+		for _, role := range profile.Roles {
+			relationships = append(relationships, v1.RelationshipResult{
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{lo.FromPtr(profile.InstanceProfileId)}, ConfigType: v1.AWSIAMInstanceProfile},
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(role.Arn)}, ConfigType: v1.AWSIAMRole},
+				Relationship:      "IAMRoleInstanceProfile",
+			})
 		}
 
 		*results = append(*results, v1.ScrapeResult{
-			Type:             v1.AWSIAMInstanceProfile,
-			CreatedAt:        profile.CreateDate,
-			BaseScraper:      config.BaseScraper,
-			Config:           profile,
-			Tags:             tags,
-			ConfigClass:      "Profile",
-			Name:             *profile.InstanceProfileName,
-			Aliases:          []string{*profile.InstanceProfileName, *profile.Arn},
-			ID:               *profile.InstanceProfileId,
-			ParentExternalID: parentExternalID,
-			ParentType:       v1.AWSIAMRole,
+			Type:                v1.AWSIAMInstanceProfile,
+			CreatedAt:           profile.CreateDate,
+			BaseScraper:         config.BaseScraper,
+			Config:              profile,
+			Tags:                tags,
+			ConfigClass:         "Profile",
+			Name:                *profile.InstanceProfileName,
+			Aliases:             []string{*profile.InstanceProfileName, *profile.Arn},
+			ID:                  *profile.InstanceProfileId,
+			ParentExternalID:    lo.FromPtr(ctx.Caller.Account),
+			ParentType:          v1.AWSAccount,
+			RelationshipResults: relationships,
 		})
 	}
 }
