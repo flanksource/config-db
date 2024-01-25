@@ -208,6 +208,7 @@ func (aws Scraper) efs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	if !config.Includes("EFS") {
 		return
 	}
+
 	describeInput := &efs.DescribeFileSystemsInput{}
 	EFS := efs.NewFromConfig(*ctx.Session)
 	describeOutput, err := EFS.DescribeFileSystems(ctx, describeInput)
@@ -215,8 +216,8 @@ func (aws Scraper) efs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 		results.Errorf(err, "failed to get efs")
 		return
 	}
-	for _, fs := range describeOutput.FileSystems {
 
+	for _, fs := range describeOutput.FileSystems {
 		tags := make(v1.JSONStringMap)
 		for _, tag := range fs.Tags {
 			tags[*tag.Key] = *tag.Value
@@ -239,6 +240,7 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 	if !config.Includes("Account") {
 		return
 	}
+
 	summary, err := ctx.IAM.GetAccountSummary(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "failed to get account summary")
@@ -270,14 +272,16 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 	})
 
 	*results = append(*results, v1.ScrapeResult{
-		Type:        "AWS::IAM::User",
-		BaseScraper: config.BaseScraper,
-		Config:      summary.SummaryMap,
-		Tags:        tags,
-		ConfigClass: "User",
-		Name:        "root",
-		Aliases:     []string{"<root account>"},
-		ID:          "root",
+		Type:             "AWS::IAM::User",
+		BaseScraper:      config.BaseScraper,
+		Config:           summary.SummaryMap,
+		Tags:             tags,
+		ConfigClass:      "User",
+		Name:             "root",
+		Aliases:          []string{"<root account>"},
+		ID:               "root",
+		ParentExternalID: lo.FromPtr(ctx.Caller.Account),
+		ParentType:       v1.AWSAccount,
 	})
 
 	regions, err := ctx.EC2.DescribeRegions(ctx, &ec2.DescribeRegionsInput{})
@@ -285,10 +289,12 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		results.Errorf(err, "failed to get regions")
 		return
 	}
+
 	for _, region := range regions.Regions {
 		if *region.OptInStatus == "not-opted-in" {
 			continue
 		}
+
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSRegion,
 			ConfigClass: "Region",
@@ -298,7 +304,27 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			Tags:        tags,
 			ID:          *region.RegionName,
 		})
+	}
 
+	azDescribeInput := &ec2.DescribeAvailabilityZonesInput{}
+	azDescribeOutput, err := ctx.EC2.DescribeAvailabilityZones(ctx, azDescribeInput)
+	if err != nil {
+		results.Errorf(err, "failed to describe availability zones")
+		return
+	}
+
+	for _, az := range azDescribeOutput.AvailabilityZones {
+		*results = append(*results, v1.ScrapeResult{
+			ID:               lo.FromPtr(az.ZoneId),
+			Type:             v1.AWSAvailabilityZone,
+			BaseScraper:      config.BaseScraper,
+			Config:           az,
+			ConfigClass:      "AvailabilityZone",
+			Aliases:          []string{lo.FromPtr(az.ZoneName)},
+			Name:             lo.FromPtr(az.ZoneName),
+			ParentExternalID: lo.FromPtr(az.RegionName),
+			ParentType:       v1.AWSRegion,
+		})
 	}
 }
 
@@ -316,16 +342,18 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 	tags["account"] = *ctx.Caller.Account
 	for _, user := range users.Users {
 		*results = append(*results, v1.ScrapeResult{
-			Type:        "AWS::IAM::User",
-			CreatedAt:   user.CreateDate,
-			BaseScraper: config.BaseScraper,
-			Config:      user,
-			ConfigClass: "User",
-			Tags:        tags,
-			Name:        *user.UserName,
-			Aliases:     []string{*user.UserId, *user.Arn},
-			Ignore:      []string{"arn", "userId", "createDate", "userName"},
-			ID:          *user.UserName, // UserId is not often referenced
+			Type:             "AWS::IAM::User",
+			CreatedAt:        user.CreateDate,
+			BaseScraper:      config.BaseScraper,
+			Config:           user,
+			ConfigClass:      "User",
+			Tags:             tags,
+			Name:             *user.UserName,
+			Aliases:          []string{*user.UserId, *user.Arn},
+			Ignore:           []string{"arn", "userId", "createDate", "userName"},
+			ID:               *user.UserName, // UserId is not often referenced
+			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
+			ParentType:       v1.AWSAccount,
 		})
 	}
 }
@@ -334,12 +362,14 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	if !config.Includes("EBS") {
 		return
 	}
+
 	describeInput := &ec2.DescribeVolumesInput{}
 	describeOutput, err := ctx.EC2.DescribeVolumes(ctx, describeInput)
 	if err != nil {
 		results.Errorf(err, "failed to get ebs")
 		return
 	}
+
 	for _, volume := range describeOutput.Volumes {
 		tags := getTags(volume.Tags)
 		tags["account"] = *ctx.Caller.Account
@@ -347,14 +377,16 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 		// Remove last letter from zone
 		tags["region"] = tags["zone"][:len(tags["zone"])-1]
 		*results = append(*results, v1.ScrapeResult{
-			Type:        v1.AWSEBSVolume,
-			Tags:        tags,
-			BaseScraper: config.BaseScraper,
-			Config:      volume,
-			ConfigClass: "DiskStorage",
-			Aliases:     []string{"AmazonEC2/" + *volume.VolumeId},
-			Name:        getName(tags, *volume.VolumeId),
-			ID:          *volume.VolumeId,
+			Type:             v1.AWSEBSVolume,
+			Tags:             tags,
+			BaseScraper:      config.BaseScraper,
+			Config:           volume,
+			ConfigClass:      "DiskStorage",
+			Aliases:          []string{"AmazonEC2/" + *volume.VolumeId},
+			Name:             getName(tags, *volume.VolumeId),
+			ID:               *volume.VolumeId,
+			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
+			ParentType:       v1.AWSAccount,
 		})
 	}
 }
@@ -676,23 +708,27 @@ func (aws Scraper) dhcp(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 	if !config.Includes("DHCP") {
 		return
 	}
+
 	describeInput := &ec2.DescribeDhcpOptionsInput{}
 	describeOutput, err := ctx.EC2.DescribeDhcpOptions(ctx, describeInput)
 	if err != nil {
 		results.Errorf(err, "failed to describe dhcp options")
 		return
 	}
+
 	for _, d := range describeOutput.DhcpOptions {
 		tags := getTags(d.Tags)
 		tags["account"] = *ctx.Caller.Account
 		*results = append(*results, v1.ScrapeResult{
-			Type:        v1.AWSEC2DHCPOptions,
-			Tags:        tags,
-			BaseScraper: config.BaseScraper,
-			Config:      d,
-			ConfigClass: "DHCP",
-			Name:        getName(tags, *d.DhcpOptionsId),
-			ID:          *d.DhcpOptionsId,
+			Type:             v1.AWSEC2DHCPOptions,
+			Tags:             tags,
+			BaseScraper:      config.BaseScraper,
+			Config:           d,
+			ConfigClass:      "DHCP",
+			Name:             getName(tags, *d.DhcpOptionsId),
+			ID:               *d.DhcpOptionsId,
+			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
+			ParentType:       v1.AWSAccount,
 		})
 	}
 }
@@ -930,15 +966,15 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			Relationship:      "RegionSubnet",
 		})
 
-		// TODO: Subnet to availability zone relationship
-		// relationships = append(relationships, v1.RelationshipResult{
-		// 	RelatedExternalID: selfExternalID,
-		// 	ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(subnet.AvailabilityZone)}, ConfigType: v1.AWSZone},
-		// 	Relationship:      "ZoneSubnet",
-		// })
+		// Subnet to availability zone relationship
+		relationships = append(relationships, v1.RelationshipResult{
+			RelatedExternalID: selfExternalID,
+			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(subnet.AvailabilityZone)}, ConfigType: v1.AWSAvailabilityZone},
+			Relationship:      "AvailabilityZoneSubnet",
+		})
 
 		result := v1.ScrapeResult{
-			Type:                "AWS::EC2::Subnet",
+			Type:                v1.AWSEC2Subnet,
 			BaseScraper:         config.BaseScraper,
 			Tags:                tags,
 			ConfigClass:         "Subnet",
@@ -968,15 +1004,17 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 		tags["account"] = *ctx.Caller.Account
 
 		*results = append(*results, v1.ScrapeResult{
-			Type:        v1.AWSIAMRole,
-			CreatedAt:   role.CreateDate,
-			BaseScraper: config.BaseScraper,
-			Config:      role,
-			ConfigClass: "Role",
-			Tags:        tags,
-			Name:        *role.RoleName,
-			Aliases:     []string{*role.RoleName, *role.Arn},
-			ID:          *role.RoleId,
+			Type:             v1.AWSIAMRole,
+			CreatedAt:        role.CreateDate,
+			BaseScraper:      config.BaseScraper,
+			Config:           role,
+			ConfigClass:      "Role",
+			Tags:             tags,
+			Name:             *role.RoleName,
+			Aliases:          []string{*role.RoleName, *role.Arn},
+			ID:               *role.RoleId,
+			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
+			ParentType:       v1.AWSAccount,
 		})
 	}
 }
@@ -985,6 +1023,7 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	if !config.Includes("Profiles") {
 		return
 	}
+
 	profiles, err := ctx.IAM.ListInstanceProfiles(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "failed to get profiles")
@@ -994,16 +1033,24 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	tags := make(map[string]string)
 	tags["account"] = *ctx.Caller.Account
 	for _, profile := range profiles.InstanceProfiles {
+		// Use the first IAM role as the parent
+		var parentExternalID string
+		if len(profile.Roles) > 0 {
+			parentExternalID = lo.FromPtr(profile.Roles[0].Arn)
+		}
+
 		*results = append(*results, v1.ScrapeResult{
-			Type:        v1.AWSIAMInstanceProfile,
-			CreatedAt:   profile.CreateDate,
-			BaseScraper: config.BaseScraper,
-			Config:      profile,
-			Tags:        tags,
-			ConfigClass: "Profile",
-			Name:        *profile.InstanceProfileName,
-			Aliases:     []string{*profile.InstanceProfileName, *profile.Arn},
-			ID:          *profile.InstanceProfileId,
+			Type:             v1.AWSIAMInstanceProfile,
+			CreatedAt:        profile.CreateDate,
+			BaseScraper:      config.BaseScraper,
+			Config:           profile,
+			Tags:             tags,
+			ConfigClass:      "Profile",
+			Name:             *profile.InstanceProfileName,
+			Aliases:          []string{*profile.InstanceProfileName, *profile.Arn},
+			ID:               *profile.InstanceProfileId,
+			ParentExternalID: parentExternalID,
+			ParentType:       v1.AWSIAMRole,
 		})
 	}
 }
@@ -1013,6 +1060,7 @@ func (aws Scraper) ami(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	if !config.Includes("Images") {
 		return
 	}
+
 	amis, err := ctx.EC2.DescribeImages(ctx, &ec2.DescribeImagesInput{})
 	if err != nil {
 		results.Errorf(err, "failed to get amis")
@@ -1106,10 +1154,10 @@ func getConfigTypeById(id string) string {
 	case "vpc":
 		return "AWS::EC2::VPC"
 	case "subnet":
-		return "AWS::EC2::Subnet"
+		return v1.AWSEC2Subnet
 	}
-	return ""
 
+	return ""
 }
 
 func getRegionFromArn(arn, resourceType string) string {
