@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
 	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
@@ -28,7 +28,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/duty/models"
+	"github.com/flanksource/is-healthy/pkg/health"
 )
 
 // Scraper ...
@@ -48,7 +48,7 @@ type AWSContext struct {
 	Subnets map[string]Zone
 }
 
-func getTags(tags []types.Tag) v1.JSONStringMap {
+func getTags(tags []ec2Types.Tag) v1.JSONStringMap {
 	result := make(v1.JSONStringMap)
 	for _, tag := range tags {
 		result[*tag.Key] = *tag.Value
@@ -186,6 +186,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 
 		cluster.Cluster.Tags["account"] = *ctx.Caller.Account
 		cluster.Cluster.Tags["region"] = getRegionFromArn(*cluster.Cluster.Arn, "eks")
+
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSEKSCluster,
 			CreatedAt:           cluster.Cluster.CreatedAt,
@@ -200,6 +201,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			ParentExternalID:    *cluster.Cluster.ResourcesVpcConfig.VpcId,
 			ParentType:          v1.AWSEC2VPC,
 			RelationshipResults: relationships,
+			Status:              health.MapAWSStatus(string(cluster.Cluster.Status)),
 		})
 	}
 }
@@ -387,6 +389,7 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			ID:               *volume.VolumeId,
 			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
 			ParentType:       v1.AWSAccount,
+			Status:           health.MapAWSStatus(string(volume.State)),
 		})
 	}
 }
@@ -395,6 +398,7 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	if !config.Includes("RDS") {
 		return
 	}
+
 	describeInput := &rds.DescribeDBInstancesInput{}
 	RDS := rds.NewFromConfig(*ctx.Session)
 	describeOutput, err := RDS.DescribeDBInstances(ctx, describeInput)
@@ -402,6 +406,7 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 		results.Errorf(err, "failed to get rds")
 		return
 	}
+
 	for _, instance := range describeOutput.DBInstances {
 		tags := make(v1.JSONStringMap)
 		for _, tag := range instance.TagList {
@@ -438,6 +443,7 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			ParentExternalID:    *instance.DBSubnetGroup.VpcId,
 			ParentType:          v1.AWSEC2VPC,
 			RelationshipResults: relationships,
+			Status:              health.MapAWSStatus(lo.FromPtr(instance.DBInstanceStatus)),
 		})
 	}
 }
@@ -446,12 +452,14 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 	if !config.Includes("VPC") {
 		return
 	}
+
 	describeInput := &ec2.DescribeVpcsInput{}
 	describeOutput, err := ctx.EC2.DescribeVpcs(ctx, describeInput)
 	if err != nil {
 		results.Errorf(err, "failed to get vpcs")
 		return
 	}
+
 	for _, vpc := range describeOutput.Vpcs {
 		var relationships v1.RelationshipResults
 		// DHCPOptions relationship
@@ -489,6 +497,7 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			ParentExternalID:    lo.FromPtr(ctx.Caller.Account),
 			ParentType:          v1.AWSAccount,
 			RelationshipResults: relationships,
+			Status:              health.MapAWSStatus(string(vpc.State)),
 		})
 	}
 }
@@ -611,27 +620,9 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			tags["network"] = instance.VpcID
 			tags["subnet"] = instance.SubnetID
 
-			var configStatus string
-			if i.State != nil {
-				switch string(i.State.Name) {
-				case "running":
-					configStatus = models.ConfigStatusRunning
-				case "pending":
-					configStatus = models.ConfigStatusPending
-				case "stopping":
-					configStatus = models.ConfigStatusStopping
-				case "stopped":
-					configStatus = models.ConfigStatusStopped
-				case "shutting-down":
-					configStatus = models.ConfigStatusDeleting
-				case "terminated":
-					configStatus = models.ConfigStatusDeleted
-				}
-			}
-
 			*results = append(*results, v1.ScrapeResult{
 				Type:                v1.AWSEC2Instance,
-				Status:              configStatus,
+				Status:              health.MapAWSStatus(string(i.State.Name)),
 				Tags:                tags,
 				BaseScraper:         config.BaseScraper,
 				Config:              instance,
@@ -923,6 +914,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			ParentExternalID:    *lb.VpcId,
 			ParentType:          v1.AWSEC2VPC,
 			RelationshipResults: relationships,
+			Status:              health.MapAWSStatus(string(lb.State.Code)),
 		})
 	}
 
@@ -982,6 +974,7 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			Config:              subnet,
 			ParentExternalID:    lo.FromPtr(subnet.VpcId),
 			ParentType:          v1.AWSEC2VPC,
+			Status:              health.MapAWSStatus(string(subnet.State)),
 			RelationshipResults: relationships,
 		}
 
@@ -993,6 +986,7 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 	if !config.Includes("Roles") {
 		return
 	}
+
 	roles, err := ctx.IAM.ListRoles(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "failed to get roles")
