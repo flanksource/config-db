@@ -92,7 +92,7 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 					delete(metadata, "User Name (IAM or Root)")
 				} else if metadata["Region"] != "" {
 					id = metadata["Region"]
-					configType = "AWS::Region"
+					configType = v1.AWSRegion
 					delete(metadata, "Region")
 				} else {
 					id = *ctx.Caller.Account

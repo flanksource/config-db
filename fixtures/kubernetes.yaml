@@ -6,6 +6,14 @@ spec:
   kubernetes:
     - clusterName: local-kind-cluster
       transform:
+        mask:
+          - selector: |
+              has(config.kind) ? config.kind == 'Certificate' : false
+            jsonpath: .spec.dnsNames
+            value: md5sum
+          - selector: 'config_type == "Kubernetes::Certificate"'
+            jsonpath: .spec.commonName
+            value: md5sum
         changes:
           exclude:
             - 'details.source.component == "canary-checker" && details.reason == "Failed"'

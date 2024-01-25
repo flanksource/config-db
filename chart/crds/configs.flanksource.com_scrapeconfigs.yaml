@@ -326,14 +326,13 @@ spec:
                           items:
                             properties:
                               jsonpath:
+                                description: JSONPath specifies what field in the
+                                  config needs to be masked
                                 type: string
                               selector:
-                                properties:
-                                  type:
-                                    description: Type is the config type to apply
-                                      the mask
-                                    type: string
-                                type: object
+                                description: Selector is a CEL expression that selects
+                                  on what config items to apply the mask.
+                                type: string
                               value:
                                 description: Value can be a hash function name or
                                   just a string
@@ -609,14 +608,13 @@ spec:
                           items:
                             properties:
                               jsonpath:
+                                description: JSONPath specifies what field in the
+                                  config needs to be masked
                                 type: string
                               selector:
-                                properties:
-                                  type:
-                                    description: Type is the config type to apply
-                                      the mask
-                                    type: string
-                                type: object
+                                description: Selector is a CEL expression that selects
+                                  on what config items to apply the mask.
+                                type: string
                               value:
                                 description: Value can be a hash function name or
                                   just a string
@@ -843,14 +841,13 @@ spec:
                           items:
                             properties:
                               jsonpath:
+                                description: JSONPath specifies what field in the
+                                  config needs to be masked
                                 type: string
                               selector:
-                                properties:
-                                  type:
-                                    description: Type is the config type to apply
-                                      the mask
-                                    type: string
-                                type: object
+                                description: Selector is a CEL expression that selects
+                                  on what config items to apply the mask.
+                                type: string
                               value:
                                 description: Value can be a hash function name or
                                   just a string
@@ -1035,14 +1032,13 @@ spec:
                           items:
                             properties:
                               jsonpath:
+                                description: JSONPath specifies what field in the
+                                  config needs to be masked
                                 type: string
                               selector:
-                                properties:
-                                  type:
-                                    description: Type is the config type to apply
-                                      the mask
-                                    type: string
-                                type: object
+                                description: Selector is a CEL expression that selects
+                                  on what config items to apply the mask.
+                                type: string
                               value:
                                 description: Value can be a hash function name or
                                   just a string
@@ -1267,14 +1263,13 @@ spec:
                           items:
                             properties:
                               jsonpath:
+                                description: JSONPath specifies what field in the
+                                  config needs to be masked
                                 type: string
                               selector:
-                                properties:
-                                  type:
-                                    description: Type is the config type to apply
-                                      the mask
-                                    type: string
-                                type: object
+                                description: Selector is a CEL expression that selects
+                                  on what config items to apply the mask.
+                                type: string
                               value:
                                 description: Value can be a hash function name or
                                   just a string
@@ -1609,14 +1604,13 @@ spec:
                           items:
                             properties:
                               jsonpath:
+                                description: JSONPath specifies what field in the
+                                  config needs to be masked
                                 type: string
                               selector:
-                                properties:
-                                  type:
-                                    description: Type is the config type to apply
-                                      the mask
-                                    type: string
-                                type: object
+                                description: Selector is a CEL expression that selects
+                                  on what config items to apply the mask.
+                                type: string
                               value:
                                 description: Value can be a hash function name or
                                   just a string
@@ -1812,14 +1806,13 @@ spec:
                           items:
                             properties:
                               jsonpath:
+                                description: JSONPath specifies what field in the
+                                  config needs to be masked
                                 type: string
                               selector:
-                                properties:
-                                  type:
-                                    description: Type is the config type to apply
-                                      the mask
-                                    type: string
-                                type: object
+                                description: Selector is a CEL expression that selects
+                                  on what config items to apply the mask.
+                                type: string
                               value:
                                 description: Value can be a hash function name or
                                   just a string
@@ -1847,6 +1840,19 @@ spec:
                         count:
                           type: integer
                         name:
+                          type: string
+                      type: object
+                    type: array
+                  types:
+                    items:
+                      properties:
+                        createdAge:
+                          type: string
+                        deletedAge:
+                          type: string
+                        name:
+                          type: string
+                        updatedAge:
                           type: string
                       type: object
                     type: array
@@ -2108,14 +2114,13 @@ spec:
                           items:
                             properties:
                               jsonpath:
+                                description: JSONPath specifies what field in the
+                                  config needs to be masked
                                 type: string
                               selector:
-                                properties:
-                                  type:
-                                    description: Type is the config type to apply
-                                      the mask
-                                    type: string
-                                type: object
+                                description: Selector is a CEL expression that selects
+                                  on what config items to apply the mask.
+                                type: string
                               value:
                                 description: Value can be a hash function name or
                                   just a string
@@ -2323,14 +2328,13 @@ spec:
                           items:
                             properties:
                               jsonpath:
+                                description: JSONPath specifies what field in the
+                                  config needs to be masked
                                 type: string
                               selector:
-                                properties:
-                                  type:
-                                    description: Type is the config type to apply
-                                      the mask
-                                    type: string
-                                type: object
+                                description: Selector is a CEL expression that selects
+                                  on what config items to apply the mask.
+                                type: string
                               value:
                                 description: Value can be a hash function name or
                                   just a string

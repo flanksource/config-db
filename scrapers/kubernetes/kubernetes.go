@@ -336,6 +336,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			tags = obj.GetLabels()
 		}
 		tags["cluster"] = config.ClusterName
+		tags["apiVersion"] = obj.GetAPIVersion()
 		if obj.GetNamespace() != "" {
 			tags["namespace"] = obj.GetNamespace()
 		}

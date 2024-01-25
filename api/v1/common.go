@@ -51,28 +51,17 @@ func (s Script) String() string {
 	return ""
 }
 
-type MaskSelector struct {
-	// Type is the config type to apply the mask
-	Type string `json:"type,omitempty"`
-}
-
-func (s MaskSelector) IsEmpty() bool {
-	return s.Type == ""
-}
-
-func (s MaskSelector) String() string {
-	return fmt.Sprintf("type=%s", s.Type)
-}
-
 type Mask struct {
-	Selector MaskSelector `json:"selector,omitempty"`
-	JSONPath string       `json:"jsonpath,omitempty"`
+	// Selector is a CEL expression that selects on what config items to apply the mask.
+	Selector string `json:"selector,omitempty"`
+	// JSONPath specifies what field in the config needs to be masked
+	JSONPath string `json:"jsonpath,omitempty"`
 	// Value can be a hash function name or just a string
 	Value string `json:"value,omitempty"`
 }
 
 func (s Mask) IsEmpty() bool {
-	return s.Selector.IsEmpty() && s.JSONPath == "" && s.Value == ""
+	return s.Selector == "" && s.JSONPath == "" && s.Value == ""
 }
 
 func (s Mask) String() string {
