@@ -32,20 +32,30 @@ spec:
               - text: grafana
                 url: https://grafana.svc/d/85a562078cdf77779eaa1add43ccec1e/kubernetes-compute-resources-namespace-pods?var-namespace={{.name}}
       exclusions:
-        - Secret
-        - ReplicaSet
-        - APIService
-        - PodMetrics
-        - NodeMetrics
-        - endpoints.discovery.k8s.io
-        - endpointslices.discovery.k8s.io
-        - leases.coordination.k8s.io
-        - podmetrics.metrics.k8s.io
-        - nodemetrics.metrics.k8s.io
-        - customresourcedefinition
-        - controllerrevision
-        - certificaterequest
-        - orders.acme.cert-manager.io
+        name:
+          - junit*
+          - k6-junit*
+          - newman-junit*
+          - playwright-junit-*
+          - hello-world*
+        namespace:
+          - canaries
+          - monitoring
+        kind:
+          - Secret
+          - ReplicaSet
+          - APIService
+          - PodMetrics
+          - NodeMetrics
+          - endpoints.discovery.k8s.io
+          - endpointslices.discovery.k8s.io
+          - leases.coordination.k8s.io
+          - podmetrics.metrics.k8s.io
+          - nodemetrics.metrics.k8s.io
+          - customresourcedefinition
+          - controllerrevision
+          - certificaterequest
+          - orders.acme.cert-manager.io
       relationships:
         - kind:
             expr: "has(spec.claimRef) ? spec.claimRef.kind : ''"
@@ -67,9 +77,10 @@ spec:
             label: helm.toolkit.fluxcd.io/namespace
       event:
         exclusions:
-          - SuccessfulCreate
-          - Created
-          - DNSConfigForming
+          reason:
+            - SuccessfulCreate
+            - Created
+            - DNSConfigForming
         severityKeywords:
           error:
             - failed

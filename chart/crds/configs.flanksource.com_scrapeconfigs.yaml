@@ -1316,11 +1316,20 @@ spec:
                     event:
                       properties:
                         exclusions:
-                          description: Exclusions is a list of keywords that'll be
-                            used to exclude event objects based on the reason.
-                          items:
-                            type: string
-                          type: array
+                          properties:
+                            name:
+                              items:
+                                type: string
+                              type: array
+                            namespace:
+                              items:
+                                type: string
+                              type: array
+                            reason:
+                              items:
+                                type: string
+                              type: array
+                          type: object
                         severityKeywords:
                           description: SeverityKeywords is used to identify the severity
                             from the Kubernetes Event reason.
@@ -1336,9 +1345,28 @@ spec:
                           type: object
                       type: object
                     exclusions:
-                      items:
-                        type: string
-                      type: array
+                      properties:
+                        kind:
+                          items:
+                            type: string
+                          type: array
+                        labels:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        name:
+                          items:
+                            type: string
+                          type: array
+                        namespace:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - kind
+                      - name
+                      - namespace
+                      type: object
                     fieldSelector:
                       type: string
                     format:
@@ -1812,6 +1840,19 @@ spec:
                         count:
                           type: integer
                         name:
+                          type: string
+                      type: object
+                    type: array
+                  types:
+                    items:
+                      properties:
+                        createdAge:
+                          type: string
+                        deletedAge:
+                          type: string
+                        name:
+                          type: string
+                        updatedAge:
                           type: string
                       type: object
                     type: array

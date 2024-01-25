@@ -4,8 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"github.com/sethvargo/go-retry"
+	"github.com/spf13/cobra"
+
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -14,9 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/flanksource/config-db/scrapers"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/spf13/cobra"
+	"github.com/flanksource/config-db/scrapers/kubernetes"
 )
 
 // Serve ...
@@ -112,6 +116,11 @@ func startScraperCron(configFiles []string) {
 			}
 		}
 		go scrapers.AtomicRunner(scraper.ID.String(), fn)()
+
+		for _, config := range _scraper.Spec.Kubernetes {
+			ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
+			go watchKubernetesEventsWithRetry(ctx, config)
+		}
 	}
 }
 
@@ -134,4 +143,25 @@ func forward(e *echo.Echo, prefix string, target string) {
 
 func init() {
 	ServerFlags(Serve.Flags())
+}
+
+func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes) {
+	const (
+		timeout                 = time.Minute // how long to keep retrying before we reset and retry again
+		exponentialBaseDuration = time.Second
+	)
+
+	for {
+		backoff := retry.WithMaxDuration(timeout, retry.NewExponential(exponentialBaseDuration))
+		err := retry.Do(ctx, backoff, func(ctxt context.Context) error {
+			ctx := ctxt.(api.ScrapeContext)
+			if err := kubernetes.WatchEvents(ctx, config, scrapers.RunK8IncrementalScraper); err != nil {
+				return retry.RetryableError(err)
+			}
+
+			return nil
+		})
+
+		logger.Errorf("Failed to watch kubernetes events. name=%s namespace=%s cluster=%s: %v", config.Name, config.Namespace, config.ClusterName, err)
+	}
 }

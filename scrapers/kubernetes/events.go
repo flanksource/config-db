@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,36 +9,8 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
 	"github.com/google/uuid"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 )
-
-// InvolvedObject represents a Kubernetes InvolvedObject object
-type InvolvedObject struct {
-	UID       string `json:"uid,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-}
-
-// Event represents a Kubernetes Event object
-type Event struct {
-	Reason         string          `json:"reason,omitempty"`
-	Message        string          `json:"message,omitempty"`
-	InvolvedObject *InvolvedObject `json:"involvedObject,omitempty"`
-}
-
-func (t *Event) FromObjMap(obj map[string]interface{}) error {
-	eventJSON, err := json.Marshal(obj)
-	if err != nil {
-		return fmt.Errorf("failed to marshal event object: %v", err)
-	}
-
-	if err := json.Unmarshal(eventJSON, t); err != nil {
-		return fmt.Errorf("failed to unmarshal event object: %v", err)
-	}
-
-	return nil
-}
 
 func getSeverityFromReason(reason string, errKeywords, warnKeywords []string) string {
 	if utils.MatchItems(reason, errKeywords...) {
@@ -53,14 +24,9 @@ func getSeverityFromReason(reason string, errKeywords, warnKeywords []string) st
 	return ""
 }
 
-func getSourceFromEvent(obj *unstructured.Unstructured) string {
-	val, ok := obj.Object["source"].(map[string]any)
-	if !ok {
-		return ""
-	}
-
-	keyVals := make([]string, 0, len(val))
-	for k, v := range val {
+func getSourceFromEvent(event v1.KubernetesEvent) string {
+	keyVals := make([]string, 0, len(event.Source))
+	for k, v := range event.Source {
 		keyVals = append(keyVals, fmt.Sprintf("%s=%s", k, v))
 	}
 
@@ -68,54 +34,37 @@ func getSourceFromEvent(obj *unstructured.Unstructured) string {
 	return fmt.Sprintf("kubernetes/%s", strings.Join(keyVals, ","))
 }
 
-func getDetailsFromEvent(obj *unstructured.Unstructured) map[string]any {
-	details := make(map[string]any)
+func getDetailsFromEvent(event v1.KubernetesEvent) map[string]any {
+	details, err := event.AsMap()
+	if err != nil {
+		logger.Errorf("failed to convert event to map: %v", err)
+		return nil
+	}
 
-	for k, v := range obj.Object {
-		switch k {
-		case "involvedObject":
-			continue
+	delete(details, "involvedObject")
 
-		case "metadata":
-			if metadata, ok := v.(map[string]any); ok {
-				delete(metadata, "managedFields")
-			}
-		}
-
-		details[k] = v
+	if metadata, ok := details["metadata"].(map[string]any); ok {
+		delete(metadata, "managedFields")
 	}
 
 	return details
 }
 
-func getChangeFromEvent(obj *unstructured.Unstructured, severityKeywords v1.SeverityKeywords) *v1.ChangeResult {
-	eventCreatedAt := obj.GetCreationTimestamp().Time
-
-	var event Event
-	if err := event.FromObjMap(obj.Object); err != nil {
-		logger.Errorf("failed to parse event: %v", err)
-		return nil
-	}
-
-	if event.InvolvedObject == nil {
-		logger.Debugf("event has no involved object: %v", event)
-		return nil
-	}
-
-	_, err := uuid.Parse(event.InvolvedObject.UID)
+func getChangeFromEvent(event v1.KubernetesEvent, severityKeywords v1.SeverityKeywords) *v1.ChangeResult {
+	_, err := uuid.Parse(string(event.InvolvedObject.UID))
 	if err != nil {
-		event.InvolvedObject.UID = fmt.Sprintf("Kubernetes/%s/%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name)
+		event.InvolvedObject.UID = types.UID(fmt.Sprintf("Kubernetes/%s/%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name))
 	}
 
 	return &v1.ChangeResult{
 		ChangeType:       event.Reason,
-		CreatedAt:        &eventCreatedAt,
-		Details:          getDetailsFromEvent(obj),
-		ExternalChangeID: string(obj.GetUID()),
-		ExternalID:       event.InvolvedObject.UID,
+		CreatedAt:        &event.Metadata.CreationTimestamp.Time,
+		Details:          getDetailsFromEvent(event),
+		ExternalChangeID: event.GetUID(),
+		ExternalID:       string(event.InvolvedObject.UID),
 		ConfigType:       ConfigTypePrefix + event.InvolvedObject.Kind,
 		Severity:         getSeverityFromReason(event.Reason, severityKeywords.Error, severityKeywords.Warn),
-		Source:           getSourceFromEvent(obj),
+		Source:           getSourceFromEvent(event),
 		Summary:          event.Message,
 	}
 }

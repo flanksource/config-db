@@ -45,7 +45,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 
 		It("should prepare scrape config", func() {
 			scrapeConfig = getConfigSpec("kubernetes")
-			scrapeConfig.Spec.Kubernetes[0].Exclusions = nil
+			scrapeConfig.Spec.Kubernetes[0].Exclusions = v1.KubernetesExclusionConfig{}
 			scrapeConfig.Spec.Kubernetes[0].Kubeconfig = &types.EnvVar{
 				ValueStatic: kubeConfigPath,
 			}
