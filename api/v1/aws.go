@@ -47,6 +47,8 @@ type CostReporting struct {
 }
 
 const (
+	AWSRegion             = "AWS::Region"
+	AWSZone               = "AWS::Route53::HostedZone"
 	AWSEC2Instance        = "AWS::EC2::Instance"
 	AWSEKSCluster         = "AWS::EKS::Cluster"
 	AWSS3Bucket           = "AWS::S3::Bucket"
@@ -57,6 +59,7 @@ const (
 	AWSEC2VPC             = "AWS::EC2::VPC"
 	AWSEC2Subnet          = "AWS::EC2::Subnet"
 	AWSAccount            = "AWS::::Account"
+	AWSAvailabilityZone   = "AWS::AvailabilityZone"
 	AWSEC2SecurityGroup   = "AWS::EC2::SecurityGroup"
 	AWSIAMUser            = "AWS::IAM::User"
 	AWSIAMRole            = "AWS::IAM::Role"
