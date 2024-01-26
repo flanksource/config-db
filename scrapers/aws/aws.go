@@ -313,18 +313,47 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		return
 	}
 
+	var uniqueAvailabilityZoneIDs = map[string]struct{}{}
 	for _, az := range azDescribeOutput.AvailabilityZones {
 		*results = append(*results, v1.ScrapeResult{
-			ID:               lo.FromPtr(az.ZoneId),
+			ID:               lo.FromPtr(az.ZoneName),
 			Type:             v1.AWSAvailabilityZone,
 			BaseScraper:      config.BaseScraper,
 			Config:           az,
 			ConfigClass:      "AvailabilityZone",
-			Aliases:          []string{lo.FromPtr(az.ZoneName)},
+			Aliases:          nil,
 			Name:             lo.FromPtr(az.ZoneName),
-			ParentExternalID: lo.FromPtr(az.RegionName),
-			ParentType:       v1.AWSRegion,
+			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
+			ParentType:       v1.AWSAccount,
+			RelationshipResults: []v1.RelationshipResult{
+				{
+					ConfigExternalID:  v1.ExternalID{ConfigType: v1.AWSAvailabilityZone, ExternalID: []string{lo.FromPtr(az.ZoneName)}},
+					RelatedExternalID: v1.ExternalID{ConfigType: v1.AWSAvailabilityZoneID, ExternalID: []string{lo.FromPtr(az.ZoneId)}},
+					Relationship:      "AvailabilityZoneIDAvailabilityZone",
+				},
+				{
+					ConfigExternalID:  v1.ExternalID{ConfigType: v1.AWSAvailabilityZone, ExternalID: []string{lo.FromPtr(az.ZoneName)}},
+					RelatedExternalID: v1.ExternalID{ConfigType: v1.AWSRegion, ExternalID: []string{lo.FromPtr(az.RegionName)}},
+					Relationship:      "RegionAvailabilityZone",
+				},
+			},
 		})
+
+		if _, ok := uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)]; !ok {
+			*results = append(*results, v1.ScrapeResult{
+				ID:               lo.FromPtr(az.ZoneId),
+				Type:             v1.AWSAvailabilityZoneID,
+				BaseScraper:      config.BaseScraper,
+				Config:           map[string]string{"RegionName": *az.RegionName},
+				ConfigClass:      "AvailabilityZone",
+				Aliases:          nil,
+				Name:             lo.FromPtr(az.ZoneId),
+				ParentExternalID: lo.FromPtr(az.RegionName),
+				ParentType:       v1.AWSRegion,
+			})
+
+			uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)] = struct{}{}
+		}
 	}
 }
 
@@ -971,6 +1000,13 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			RelatedExternalID: selfExternalID,
 			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(subnet.AvailabilityZone)}, ConfigType: v1.AWSAvailabilityZone},
 			Relationship:      "AvailabilityZoneSubnet",
+		})
+
+		// Subnet to availability zone relationship
+		relationships = append(relationships, v1.RelationshipResult{
+			RelatedExternalID: selfExternalID,
+			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(subnet.AvailabilityZoneId)}, ConfigType: v1.AWSAvailabilityZoneID},
+			Relationship:      "AvailabilityZoneIDSubnet",
 		})
 
 		result := v1.ScrapeResult{
