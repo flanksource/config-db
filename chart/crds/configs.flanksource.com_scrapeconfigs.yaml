@@ -159,71 +159,69 @@ spec:
                     patch_states:
                       type: boolean
                     properties:
-                      additionalProperties:
-                        items:
-                          description: Property is a realized v1.Property without
-                            the lookup definition
-                          properties:
-                            color:
-                              type: string
-                            headline:
-                              type: boolean
-                            icon:
-                              type: string
-                            label:
-                              type: string
-                            lastTransition:
-                              type: string
-                            links:
-                              items:
-                                properties:
-                                  icon:
-                                    type: string
-                                  label:
-                                    type: string
-                                  text:
-                                    type: string
-                                  tooltip:
-                                    type: string
-                                  type:
-                                    description: e.g. documentation, support, playbook
-                                    type: string
-                                  url:
-                                    type: string
-                                type: object
-                              type: array
-                            max:
-                              format: int64
-                              type: integer
-                            min:
-                              format: int64
-                              type: integer
-                            name:
-                              type: string
-                            order:
-                              type: integer
-                            status:
-                              type: string
-                            text:
-                              description: Either text or value is required, but not
-                                both.
-                              type: string
-                            tooltip:
-                              type: string
-                            type:
-                              type: string
-                            unit:
-                              description: e.g. milliseconds, bytes, millicores, epoch
-                                etc.
-                              type: string
-                            value:
-                              format: int64
-                              type: integer
-                          type: object
-                        type: array
                       description: Properties are custom templatable properties for
                         the scraped config items grouped by the config type.
-                      type: object
+                      items:
+                        properties:
+                          color:
+                            type: string
+                          filter:
+                            type: string
+                          headline:
+                            type: boolean
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          lastTransition:
+                            type: string
+                          links:
+                            items:
+                              properties:
+                                icon:
+                                  type: string
+                                label:
+                                  type: string
+                                text:
+                                  type: string
+                                tooltip:
+                                  type: string
+                                type:
+                                  description: e.g. documentation, support, playbook
+                                  type: string
+                                url:
+                                  type: string
+                              type: object
+                            type: array
+                          max:
+                            format: int64
+                            type: integer
+                          min:
+                            format: int64
+                            type: integer
+                          name:
+                            type: string
+                          order:
+                            type: integer
+                          status:
+                            type: string
+                          text:
+                            description: Either text or value is required, but not
+                              both.
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            type: string
+                          unit:
+                            description: e.g. milliseconds, bytes, millicores, epoch
+                              etc.
+                            type: string
+                          value:
+                            format: int64
+                            type: integer
+                        type: object
+                      type: array
                     region:
                       items:
                         type: string
@@ -486,71 +484,69 @@ spec:
                     organisation:
                       type: string
                     properties:
-                      additionalProperties:
-                        items:
-                          description: Property is a realized v1.Property without
-                            the lookup definition
-                          properties:
-                            color:
-                              type: string
-                            headline:
-                              type: boolean
-                            icon:
-                              type: string
-                            label:
-                              type: string
-                            lastTransition:
-                              type: string
-                            links:
-                              items:
-                                properties:
-                                  icon:
-                                    type: string
-                                  label:
-                                    type: string
-                                  text:
-                                    type: string
-                                  tooltip:
-                                    type: string
-                                  type:
-                                    description: e.g. documentation, support, playbook
-                                    type: string
-                                  url:
-                                    type: string
-                                type: object
-                              type: array
-                            max:
-                              format: int64
-                              type: integer
-                            min:
-                              format: int64
-                              type: integer
-                            name:
-                              type: string
-                            order:
-                              type: integer
-                            status:
-                              type: string
-                            text:
-                              description: Either text or value is required, but not
-                                both.
-                              type: string
-                            tooltip:
-                              type: string
-                            type:
-                              type: string
-                            unit:
-                              description: e.g. milliseconds, bytes, millicores, epoch
-                                etc.
-                              type: string
-                            value:
-                              format: int64
-                              type: integer
-                          type: object
-                        type: array
                       description: Properties are custom templatable properties for
                         the scraped config items grouped by the config type.
-                      type: object
+                      items:
+                        properties:
+                          color:
+                            type: string
+                          filter:
+                            type: string
+                          headline:
+                            type: boolean
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          lastTransition:
+                            type: string
+                          links:
+                            items:
+                              properties:
+                                icon:
+                                  type: string
+                                label:
+                                  type: string
+                                text:
+                                  type: string
+                                tooltip:
+                                  type: string
+                                type:
+                                  description: e.g. documentation, support, playbook
+                                  type: string
+                                url:
+                                  type: string
+                              type: object
+                            type: array
+                          max:
+                            format: int64
+                            type: integer
+                          min:
+                            format: int64
+                            type: integer
+                          name:
+                            type: string
+                          order:
+                            type: integer
+                          status:
+                            type: string
+                          text:
+                            description: Either text or value is required, but not
+                              both.
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            type: string
+                          unit:
+                            description: e.g. milliseconds, bytes, millicores, epoch
+                              etc.
+                            type: string
+                          value:
+                            format: int64
+                            type: integer
+                        type: object
+                      type: array
                     subscriptionID:
                       type: string
                     tags:
@@ -723,71 +719,69 @@ spec:
                         type: string
                       type: array
                     properties:
-                      additionalProperties:
-                        items:
-                          description: Property is a realized v1.Property without
-                            the lookup definition
-                          properties:
-                            color:
-                              type: string
-                            headline:
-                              type: boolean
-                            icon:
-                              type: string
-                            label:
-                              type: string
-                            lastTransition:
-                              type: string
-                            links:
-                              items:
-                                properties:
-                                  icon:
-                                    type: string
-                                  label:
-                                    type: string
-                                  text:
-                                    type: string
-                                  tooltip:
-                                    type: string
-                                  type:
-                                    description: e.g. documentation, support, playbook
-                                    type: string
-                                  url:
-                                    type: string
-                                type: object
-                              type: array
-                            max:
-                              format: int64
-                              type: integer
-                            min:
-                              format: int64
-                              type: integer
-                            name:
-                              type: string
-                            order:
-                              type: integer
-                            status:
-                              type: string
-                            text:
-                              description: Either text or value is required, but not
-                                both.
-                              type: string
-                            tooltip:
-                              type: string
-                            type:
-                              type: string
-                            unit:
-                              description: e.g. milliseconds, bytes, millicores, epoch
-                                etc.
-                              type: string
-                            value:
-                              format: int64
-                              type: integer
-                          type: object
-                        type: array
                       description: Properties are custom templatable properties for
                         the scraped config items grouped by the config type.
-                      type: object
+                      items:
+                        properties:
+                          color:
+                            type: string
+                          filter:
+                            type: string
+                          headline:
+                            type: boolean
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          lastTransition:
+                            type: string
+                          links:
+                            items:
+                              properties:
+                                icon:
+                                  type: string
+                                label:
+                                  type: string
+                                text:
+                                  type: string
+                                tooltip:
+                                  type: string
+                                type:
+                                  description: e.g. documentation, support, playbook
+                                  type: string
+                                url:
+                                  type: string
+                              type: object
+                            type: array
+                          max:
+                            format: int64
+                            type: integer
+                          min:
+                            format: int64
+                            type: integer
+                          name:
+                            type: string
+                          order:
+                            type: integer
+                          status:
+                            type: string
+                          text:
+                            description: Either text or value is required, but not
+                              both.
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            type: string
+                          unit:
+                            description: e.g. milliseconds, bytes, millicores, epoch
+                              etc.
+                            type: string
+                          value:
+                            format: int64
+                            type: integer
+                        type: object
+                      type: array
                     tags:
                       additionalProperties:
                         type: string
@@ -914,71 +908,69 @@ spec:
                         type: string
                       type: array
                     properties:
-                      additionalProperties:
-                        items:
-                          description: Property is a realized v1.Property without
-                            the lookup definition
-                          properties:
-                            color:
-                              type: string
-                            headline:
-                              type: boolean
-                            icon:
-                              type: string
-                            label:
-                              type: string
-                            lastTransition:
-                              type: string
-                            links:
-                              items:
-                                properties:
-                                  icon:
-                                    type: string
-                                  label:
-                                    type: string
-                                  text:
-                                    type: string
-                                  tooltip:
-                                    type: string
-                                  type:
-                                    description: e.g. documentation, support, playbook
-                                    type: string
-                                  url:
-                                    type: string
-                                type: object
-                              type: array
-                            max:
-                              format: int64
-                              type: integer
-                            min:
-                              format: int64
-                              type: integer
-                            name:
-                              type: string
-                            order:
-                              type: integer
-                            status:
-                              type: string
-                            text:
-                              description: Either text or value is required, but not
-                                both.
-                              type: string
-                            tooltip:
-                              type: string
-                            type:
-                              type: string
-                            unit:
-                              description: e.g. milliseconds, bytes, millicores, epoch
-                                etc.
-                              type: string
-                            value:
-                              format: int64
-                              type: integer
-                          type: object
-                        type: array
                       description: Properties are custom templatable properties for
                         the scraped config items grouped by the config type.
-                      type: object
+                      items:
+                        properties:
+                          color:
+                            type: string
+                          filter:
+                            type: string
+                          headline:
+                            type: boolean
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          lastTransition:
+                            type: string
+                          links:
+                            items:
+                              properties:
+                                icon:
+                                  type: string
+                                label:
+                                  type: string
+                                text:
+                                  type: string
+                                tooltip:
+                                  type: string
+                                type:
+                                  description: e.g. documentation, support, playbook
+                                  type: string
+                                url:
+                                  type: string
+                              type: object
+                            type: array
+                          max:
+                            format: int64
+                            type: integer
+                          min:
+                            format: int64
+                            type: integer
+                          name:
+                            type: string
+                          order:
+                            type: integer
+                          status:
+                            type: string
+                          text:
+                            description: Either text or value is required, but not
+                              both.
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            type: string
+                          unit:
+                            description: e.g. milliseconds, bytes, millicores, epoch
+                              etc.
+                            type: string
+                          value:
+                            format: int64
+                            type: integer
+                        type: object
+                      type: array
                     tags:
                       additionalProperties:
                         type: string
@@ -1143,71 +1135,69 @@ spec:
                           type: object
                       type: object
                     properties:
-                      additionalProperties:
-                        items:
-                          description: Property is a realized v1.Property without
-                            the lookup definition
-                          properties:
-                            color:
-                              type: string
-                            headline:
-                              type: boolean
-                            icon:
-                              type: string
-                            label:
-                              type: string
-                            lastTransition:
-                              type: string
-                            links:
-                              items:
-                                properties:
-                                  icon:
-                                    type: string
-                                  label:
-                                    type: string
-                                  text:
-                                    type: string
-                                  tooltip:
-                                    type: string
-                                  type:
-                                    description: e.g. documentation, support, playbook
-                                    type: string
-                                  url:
-                                    type: string
-                                type: object
-                              type: array
-                            max:
-                              format: int64
-                              type: integer
-                            min:
-                              format: int64
-                              type: integer
-                            name:
-                              type: string
-                            order:
-                              type: integer
-                            status:
-                              type: string
-                            text:
-                              description: Either text or value is required, but not
-                                both.
-                              type: string
-                            tooltip:
-                              type: string
-                            type:
-                              type: string
-                            unit:
-                              description: e.g. milliseconds, bytes, millicores, epoch
-                                etc.
-                              type: string
-                            value:
-                              format: int64
-                              type: integer
-                          type: object
-                        type: array
                       description: Properties are custom templatable properties for
                         the scraped config items grouped by the config type.
-                      type: object
+                      items:
+                        properties:
+                          color:
+                            type: string
+                          filter:
+                            type: string
+                          headline:
+                            type: boolean
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          lastTransition:
+                            type: string
+                          links:
+                            items:
+                              properties:
+                                icon:
+                                  type: string
+                                label:
+                                  type: string
+                                text:
+                                  type: string
+                                tooltip:
+                                  type: string
+                                type:
+                                  description: e.g. documentation, support, playbook
+                                  type: string
+                                url:
+                                  type: string
+                              type: object
+                            type: array
+                          max:
+                            format: int64
+                            type: integer
+                          min:
+                            format: int64
+                            type: integer
+                          name:
+                            type: string
+                          order:
+                            type: integer
+                          status:
+                            type: string
+                          text:
+                            description: Either text or value is required, but not
+                              both.
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            type: string
+                          unit:
+                            description: e.g. milliseconds, bytes, millicores, epoch
+                              etc.
+                            type: string
+                          value:
+                            format: int64
+                            type: integer
+                        type: object
+                      type: array
                     repository:
                       type: string
                     tags:
@@ -1436,71 +1426,69 @@ spec:
                     namespace:
                       type: string
                     properties:
-                      additionalProperties:
-                        items:
-                          description: Property is a realized v1.Property without
-                            the lookup definition
-                          properties:
-                            color:
-                              type: string
-                            headline:
-                              type: boolean
-                            icon:
-                              type: string
-                            label:
-                              type: string
-                            lastTransition:
-                              type: string
-                            links:
-                              items:
-                                properties:
-                                  icon:
-                                    type: string
-                                  label:
-                                    type: string
-                                  text:
-                                    type: string
-                                  tooltip:
-                                    type: string
-                                  type:
-                                    description: e.g. documentation, support, playbook
-                                    type: string
-                                  url:
-                                    type: string
-                                type: object
-                              type: array
-                            max:
-                              format: int64
-                              type: integer
-                            min:
-                              format: int64
-                              type: integer
-                            name:
-                              type: string
-                            order:
-                              type: integer
-                            status:
-                              type: string
-                            text:
-                              description: Either text or value is required, but not
-                                both.
-                              type: string
-                            tooltip:
-                              type: string
-                            type:
-                              type: string
-                            unit:
-                              description: e.g. milliseconds, bytes, millicores, epoch
-                                etc.
-                              type: string
-                            value:
-                              format: int64
-                              type: integer
-                          type: object
-                        type: array
                       description: Properties are custom templatable properties for
                         the scraped config items grouped by the config type.
-                      type: object
+                      items:
+                        properties:
+                          color:
+                            type: string
+                          filter:
+                            type: string
+                          headline:
+                            type: boolean
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          lastTransition:
+                            type: string
+                          links:
+                            items:
+                              properties:
+                                icon:
+                                  type: string
+                                label:
+                                  type: string
+                                text:
+                                  type: string
+                                tooltip:
+                                  type: string
+                                type:
+                                  description: e.g. documentation, support, playbook
+                                  type: string
+                                url:
+                                  type: string
+                              type: object
+                            type: array
+                          max:
+                            format: int64
+                            type: integer
+                          min:
+                            format: int64
+                            type: integer
+                          name:
+                            type: string
+                          order:
+                            type: integer
+                          status:
+                            type: string
+                          text:
+                            description: Either text or value is required, but not
+                              both.
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            type: string
+                          unit:
+                            description: e.g. milliseconds, bytes, millicores, epoch
+                              etc.
+                            type: string
+                          value:
+                            format: int64
+                            type: integer
+                        type: object
+                      type: array
                     relationships:
                       description: Relationships specify the fields to use to relate
                         Kubernetes objects.
@@ -1675,71 +1663,69 @@ spec:
                         the ID for the resource.
                       type: string
                     properties:
-                      additionalProperties:
-                        items:
-                          description: Property is a realized v1.Property without
-                            the lookup definition
-                          properties:
-                            color:
-                              type: string
-                            headline:
-                              type: boolean
-                            icon:
-                              type: string
-                            label:
-                              type: string
-                            lastTransition:
-                              type: string
-                            links:
-                              items:
-                                properties:
-                                  icon:
-                                    type: string
-                                  label:
-                                    type: string
-                                  text:
-                                    type: string
-                                  tooltip:
-                                    type: string
-                                  type:
-                                    description: e.g. documentation, support, playbook
-                                    type: string
-                                  url:
-                                    type: string
-                                type: object
-                              type: array
-                            max:
-                              format: int64
-                              type: integer
-                            min:
-                              format: int64
-                              type: integer
-                            name:
-                              type: string
-                            order:
-                              type: integer
-                            status:
-                              type: string
-                            text:
-                              description: Either text or value is required, but not
-                                both.
-                              type: string
-                            tooltip:
-                              type: string
-                            type:
-                              type: string
-                            unit:
-                              description: e.g. milliseconds, bytes, millicores, epoch
-                                etc.
-                              type: string
-                            value:
-                              format: int64
-                              type: integer
-                          type: object
-                        type: array
                       description: Properties are custom templatable properties for
                         the scraped config items grouped by the config type.
-                      type: object
+                      items:
+                        properties:
+                          color:
+                            type: string
+                          filter:
+                            type: string
+                          headline:
+                            type: boolean
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          lastTransition:
+                            type: string
+                          links:
+                            items:
+                              properties:
+                                icon:
+                                  type: string
+                                label:
+                                  type: string
+                                text:
+                                  type: string
+                                tooltip:
+                                  type: string
+                                type:
+                                  description: e.g. documentation, support, playbook
+                                  type: string
+                                url:
+                                  type: string
+                              type: object
+                            type: array
+                          max:
+                            format: int64
+                            type: integer
+                          min:
+                            format: int64
+                            type: integer
+                          name:
+                            type: string
+                          order:
+                            type: integer
+                          status:
+                            type: string
+                          text:
+                            description: Either text or value is required, but not
+                              both.
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            type: string
+                          unit:
+                            description: e.g. milliseconds, bytes, millicores, epoch
+                              etc.
+                            type: string
+                          value:
+                            format: int64
+                            type: integer
+                        type: object
+                      type: array
                     selector:
                       properties:
                         fieldSelector:
@@ -1994,71 +1980,69 @@ spec:
                         the ID for the resource.
                       type: string
                     properties:
-                      additionalProperties:
-                        items:
-                          description: Property is a realized v1.Property without
-                            the lookup definition
-                          properties:
-                            color:
-                              type: string
-                            headline:
-                              type: boolean
-                            icon:
-                              type: string
-                            label:
-                              type: string
-                            lastTransition:
-                              type: string
-                            links:
-                              items:
-                                properties:
-                                  icon:
-                                    type: string
-                                  label:
-                                    type: string
-                                  text:
-                                    type: string
-                                  tooltip:
-                                    type: string
-                                  type:
-                                    description: e.g. documentation, support, playbook
-                                    type: string
-                                  url:
-                                    type: string
-                                type: object
-                              type: array
-                            max:
-                              format: int64
-                              type: integer
-                            min:
-                              format: int64
-                              type: integer
-                            name:
-                              type: string
-                            order:
-                              type: integer
-                            status:
-                              type: string
-                            text:
-                              description: Either text or value is required, but not
-                                both.
-                              type: string
-                            tooltip:
-                              type: string
-                            type:
-                              type: string
-                            unit:
-                              description: e.g. milliseconds, bytes, millicores, epoch
-                                etc.
-                              type: string
-                            value:
-                              format: int64
-                              type: integer
-                          type: object
-                        type: array
                       description: Properties are custom templatable properties for
                         the scraped config items grouped by the config type.
-                      type: object
+                      items:
+                        properties:
+                          color:
+                            type: string
+                          filter:
+                            type: string
+                          headline:
+                            type: boolean
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          lastTransition:
+                            type: string
+                          links:
+                            items:
+                              properties:
+                                icon:
+                                  type: string
+                                label:
+                                  type: string
+                                text:
+                                  type: string
+                                tooltip:
+                                  type: string
+                                type:
+                                  description: e.g. documentation, support, playbook
+                                  type: string
+                                url:
+                                  type: string
+                              type: object
+                            type: array
+                          max:
+                            format: int64
+                            type: integer
+                          min:
+                            format: int64
+                            type: integer
+                          name:
+                            type: string
+                          order:
+                            type: integer
+                          status:
+                            type: string
+                          text:
+                            description: Either text or value is required, but not
+                              both.
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            type: string
+                          unit:
+                            description: e.g. milliseconds, bytes, millicores, epoch
+                              etc.
+                            type: string
+                          value:
+                            format: int64
+                            type: integer
+                        type: object
+                      type: array
                     query:
                       type: string
                     tags:
@@ -2200,71 +2184,69 @@ spec:
                         the ID for the resource.
                       type: string
                     properties:
-                      additionalProperties:
-                        items:
-                          description: Property is a realized v1.Property without
-                            the lookup definition
-                          properties:
-                            color:
-                              type: string
-                            headline:
-                              type: boolean
-                            icon:
-                              type: string
-                            label:
-                              type: string
-                            lastTransition:
-                              type: string
-                            links:
-                              items:
-                                properties:
-                                  icon:
-                                    type: string
-                                  label:
-                                    type: string
-                                  text:
-                                    type: string
-                                  tooltip:
-                                    type: string
-                                  type:
-                                    description: e.g. documentation, support, playbook
-                                    type: string
-                                  url:
-                                    type: string
-                                type: object
-                              type: array
-                            max:
-                              format: int64
-                              type: integer
-                            min:
-                              format: int64
-                              type: integer
-                            name:
-                              type: string
-                            order:
-                              type: integer
-                            status:
-                              type: string
-                            text:
-                              description: Either text or value is required, but not
-                                both.
-                              type: string
-                            tooltip:
-                              type: string
-                            type:
-                              type: string
-                            unit:
-                              description: e.g. milliseconds, bytes, millicores, epoch
-                                etc.
-                              type: string
-                            value:
-                              format: int64
-                              type: integer
-                          type: object
-                        type: array
                       description: Properties are custom templatable properties for
                         the scraped config items grouped by the config type.
-                      type: object
+                      items:
+                        properties:
+                          color:
+                            type: string
+                          filter:
+                            type: string
+                          headline:
+                            type: boolean
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          lastTransition:
+                            type: string
+                          links:
+                            items:
+                              properties:
+                                icon:
+                                  type: string
+                                label:
+                                  type: string
+                                text:
+                                  type: string
+                                tooltip:
+                                  type: string
+                                type:
+                                  description: e.g. documentation, support, playbook
+                                  type: string
+                                url:
+                                  type: string
+                              type: object
+                            type: array
+                          max:
+                            format: int64
+                            type: integer
+                          min:
+                            format: int64
+                            type: integer
+                          name:
+                            type: string
+                          order:
+                            type: integer
+                          status:
+                            type: string
+                          text:
+                            description: Either text or value is required, but not
+                              both.
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            type: string
+                          unit:
+                            description: e.g. milliseconds, bytes, millicores, epoch
+                              etc.
+                            type: string
+                          value:
+                            format: int64
+                            type: integer
+                        type: object
+                      type: array
                     scanners:
                       items:
                         type: string

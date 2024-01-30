@@ -125,6 +125,12 @@ func (t Transform) String() string {
 	return s
 }
 
+type ConfigProperties struct {
+	types.Property `yaml:",inline" json:",inline"`
+
+	Filter string `json:"filter,omitempty"`
+}
+
 type BaseScraper struct {
 	// A static value or JSONPath expression to use as the ID for the resource.
 	ID string `json:"id,omitempty"`
@@ -157,7 +163,7 @@ type BaseScraper struct {
 
 	// Properties are custom templatable properties for the scraped config items
 	// grouped by the config type.
-	Properties map[string]types.Properties `json:"properties,omitempty" template:"true"`
+	Properties []ConfigProperties `json:"properties,omitempty" template:"true"`
 }
 
 func (base BaseScraper) String() string {

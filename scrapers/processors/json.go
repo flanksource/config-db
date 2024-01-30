@@ -188,7 +188,26 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			}
 		}
 
-		if properties, ok := input.BaseScraper.Properties[input.Type]; ok {
+		for _, configProperty := range input.BaseScraper.Properties {
+			if configProperty.Filter != "" {
+				if response, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: configProperty.Filter}); err != nil {
+					input.Errorf("failed to parse filter: %v", err)
+					continue
+				} else if boolVal, err := strconv.ParseBool(response); err != nil {
+					input.Errorf("expected a boolean but property filter returned (%s)", response)
+					continue
+				} else if !boolVal {
+					continue
+				}
+			}
+
+			// Need to perform a deep clone otherwise this will affect the base scraper
+			// and hence all the inputs that come after.
+			configProperty, err = utils.CloneWithJSON(configProperty)
+			if err != nil {
+				return results, fmt.Errorf("failed to clone config properties: %w", err)
+			}
+
 			templater := gomplate.StructTemplater{
 				Values:         input.AsMap(),
 				ValueFunctions: true,
@@ -198,16 +217,12 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 				},
 			}
 
-			// Need to perform a deep clone otherwise this will affect the base scraper
-			// and hence all the inputs that come after.
-			input.Properties, err = utils.CloneWithJSON(properties)
-			if err != nil {
-				return results, fmt.Errorf("failed to clone config properties: %w", err)
+			if err := templater.Walk(configProperty); err != nil {
+				input.Errorf("failed to template scraper properties: %v", err)
+				continue
 			}
 
-			if err := templater.Walk(input.Properties); err != nil {
-				return results, fmt.Errorf("failed to template scraper properties: %w", err)
-			}
+			input.Properties = append(input.Properties, &configProperty.Property)
 		}
 
 		if input.Format == "properties" {
