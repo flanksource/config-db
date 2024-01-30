@@ -42,7 +42,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.20.0
 	github.com/flanksource/duty v1.0.282
-	github.com/flanksource/is-healthy v0.0.0-20231003215854-76c51e3a3ff7
+	github.com/flanksource/is-healthy v1.0.1
 	github.com/flanksource/ketall v1.1.3
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/flanksource/postq v0.1.3
@@ -278,4 +278,4 @@ require (
 
 // replace github.com/flanksource/postq => ../postq
 
-replace github.com/flanksource/is-healthy => ../is-healthy
+// replace github.com/flanksource/is-healthy => ../is-healthy

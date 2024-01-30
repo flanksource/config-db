@@ -23,7 +23,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/flanksource/duty v1.0.282 // indirect
 	github.com/flanksource/gomplate/v3 v3.20.30 // indirect
-	github.com/flanksource/is-healthy v0.0.0-20231003215854-76c51e3a3ff7 // indirect
+	github.com/flanksource/is-healthy v1.0.1 // indirect
 	github.com/flanksource/mapstructure v1.6.0 // indirect
 	github.com/flanksource/postq v0.1.3 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
