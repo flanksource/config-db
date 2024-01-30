@@ -42,7 +42,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.20.0
 	github.com/flanksource/duty v1.0.282
-	github.com/flanksource/is-healthy v0.0.0-20231003215854-76c51e3a3ff7
+	github.com/flanksource/is-healthy v1.0.1
 	github.com/flanksource/ketall v1.1.3
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/flanksource/postq v0.1.3
@@ -63,6 +63,7 @@ require (
 	github.com/onsi/gomega v1.29.0
 	github.com/pkg/errors v0.9.1
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/samber/lo v1.39.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
@@ -125,7 +126,6 @@ require (
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/robertkrimen/otto v0.2.1 // indirect
-	github.com/samber/lo v1.39.0 // indirect
 	github.com/sergi/go-diff v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
@@ -277,3 +277,5 @@ require (
 // replace github.com/flanksource/duty => ../duty
 
 // replace github.com/flanksource/postq => ../postq
+
+// replace github.com/flanksource/is-healthy => ../is-healthy
