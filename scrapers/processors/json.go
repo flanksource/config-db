@@ -10,7 +10,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/magiconair/properties"
 	"github.com/ohler55/ojg/jp"
@@ -188,7 +188,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			}
 		}
 
-		for _, configProperty := range input.BaseScraper.Properties {
+		for i, configProperty := range input.BaseScraper.Properties {
 			if configProperty.Filter != "" {
 				if response, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: configProperty.Filter}); err != nil {
 					input.Errorf("failed to parse filter: %v", err)
@@ -201,12 +201,9 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 				}
 			}
 
-			// Need to perform a deep clone otherwise this will affect the base scraper
-			// and hence all the inputs that come after.
-			configProperty, err = utils.CloneWithJSON(configProperty)
-			if err != nil {
-				return results, fmt.Errorf("failed to clone config properties: %w", err)
-			}
+			// clone the links so as to not mutate the original Links template
+			configProperty.Links = make([]types.Link, len(input.BaseScraper.Properties[i].Links))
+			copy(configProperty.Links, input.BaseScraper.Properties[i].Links)
 
 			templater := gomplate.StructTemplater{
 				Values:         input.AsMap(),
