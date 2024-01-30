@@ -201,7 +201,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			ParentExternalID:    *cluster.Cluster.ResourcesVpcConfig.VpcId,
 			ParentType:          v1.AWSEC2VPC,
 			RelationshipResults: relationships,
-			Status:              health.MapAWSStatus(string(cluster.Cluster.Status)),
+			Status:              health.MapAWSStatus(string(cluster.Cluster.Status), health.AWSResourceTypeEKS),
 		})
 	}
 }
@@ -389,7 +389,7 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			ID:               *volume.VolumeId,
 			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
 			ParentType:       v1.AWSAccount,
-			Status:           health.MapAWSStatus(string(volume.State)),
+			Status:           health.MapAWSStatus(string(volume.State), health.AWSResourceTypeEBS),
 		})
 	}
 }
@@ -443,7 +443,7 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			ParentExternalID:    *instance.DBSubnetGroup.VpcId,
 			ParentType:          v1.AWSEC2VPC,
 			RelationshipResults: relationships,
-			Status:              health.MapAWSStatus(lo.FromPtr(instance.DBInstanceStatus)),
+			Status:              health.MapAWSStatus(lo.FromPtr(instance.DBInstanceStatus), health.AWSResourceTypeRDS),
 		})
 	}
 }
@@ -497,7 +497,7 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			ParentExternalID:    lo.FromPtr(ctx.Caller.Account),
 			ParentType:          v1.AWSAccount,
 			RelationshipResults: relationships,
-			Status:              health.MapAWSStatus(string(vpc.State)),
+			Status:              health.MapAWSStatus(string(vpc.State), health.AWSResourceTypeVPC),
 		})
 	}
 }
@@ -622,7 +622,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 
 			*results = append(*results, v1.ScrapeResult{
 				Type:                v1.AWSEC2Instance,
-				Status:              health.MapAWSStatus(string(i.State.Name)),
+				Status:              health.MapAWSStatus(string(i.State.Name), health.AWSResourceTypeEC2),
 				Tags:                tags,
 				BaseScraper:         config.BaseScraper,
 				Config:              instance,
@@ -914,7 +914,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			ParentExternalID:    *lb.VpcId,
 			ParentType:          v1.AWSEC2VPC,
 			RelationshipResults: relationships,
-			Status:              health.MapAWSStatus(string(lb.State.Code)),
+			Status:              health.MapAWSStatus(string(lb.State.Code), health.AWSResourceTypeELB),
 		})
 	}
 
@@ -974,7 +974,7 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			Config:              subnet,
 			ParentExternalID:    lo.FromPtr(subnet.VpcId),
 			ParentType:          v1.AWSEC2VPC,
-			Status:              health.MapAWSStatus(string(subnet.State)),
+			Status:              health.MapAWSStatus(string(subnet.State), health.AWSResourceTypeSubnet),
 			RelationshipResults: relationships,
 		}
 
