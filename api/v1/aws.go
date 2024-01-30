@@ -60,6 +60,7 @@ const (
 	AWSEC2Subnet          = "AWS::EC2::Subnet"
 	AWSAccount            = "AWS::::Account"
 	AWSAvailabilityZone   = "AWS::AvailabilityZone"
+	AWSAvailabilityZoneID = "AWS::AvailabilityZoneID"
 	AWSEC2SecurityGroup   = "AWS::EC2::SecurityGroup"
 	AWSIAMUser            = "AWS::IAM::User"
 	AWSIAMRole            = "AWS::IAM::Role"
