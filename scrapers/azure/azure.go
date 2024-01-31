@@ -61,7 +61,7 @@ var activityLogFilter = strings.Join([]string{
 	"subStatus",
 }, ",")
 
-var defaultExcludes = []v1.Filter{
+var defaultExcludes = []v1.ConfigFieldExclusion{
 	{JSONPath: "$..etag"}, // Remove etags from the config json as they produce unecessary changes.
 }
 

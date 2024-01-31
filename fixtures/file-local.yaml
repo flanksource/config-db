@@ -5,6 +5,7 @@ metadata:
 spec:
   file:
     - type: $.aws[0].region
+      class: $.aws[0].region
       id: $.aws[0].region
       paths:
         - fixtures/data/test.yaml

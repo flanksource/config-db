@@ -14,6 +14,13 @@ spec:
           - selector: 'config_type == "Kubernetes::Certificate"'
             jsonpath: .spec.commonName
             value: md5sum
+        exclude:
+          - types:
+              - Kubernetes::*
+            jsonpath: '.metadata.ownerReferences'
+          - types:
+              - Kubernetes::Pod
+            jsonpath: '.metadata.generateName'
         changes:
           exclude:
             - 'details.source.component == "canary-checker" && details.reason == "Failed"'

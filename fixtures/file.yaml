@@ -5,6 +5,7 @@ metadata:
 spec:
   file:
     - type: $.Config.InstanceType
+      class: $.Config.InstanceType
       id: $.Config.InstanceId
       path:
         - config*.json

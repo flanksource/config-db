@@ -11,8 +11,15 @@ import (
 	"github.com/flanksource/gomplate/v3"
 )
 
-type Filter struct {
-	JSONPath string `json:"jsonpath,omitempty"`
+// ConfigFieldExclusion defines fields with JSONPath that needs to
+// be removed from the config.
+type ConfigFieldExclusion struct {
+	// Optionally specify the config types
+	// from which the JSONPath fields need to be removed.
+	// If left empty, all config types are considered.
+	Types []string `json:"types,omitempty"`
+
+	JSONPath string `json:"jsonpath"`
 }
 
 type Script struct {
@@ -89,12 +96,15 @@ type TransformChange struct {
 	Exclude []string `json:"exclude,omitempty"`
 }
 
+func (t *TransformChange) IsEmpty() bool {
+	return len(t.Exclude) == 0
+}
+
 type Transform struct {
-	Script  Script   `yaml:",inline" json:",inline"`
-	Include []Filter `json:"include,omitempty"`
+	Script Script `yaml:",inline" json:",inline"`
 	// Fields to remove from the config, useful for removing sensitive data and fields
 	// that change often without a material impact i.e. Last Scraped Time
-	Exclude []Filter `json:"exclude,omitempty"`
+	Exclude []ConfigFieldExclusion `json:"exclude,omitempty"`
 	// Masks consist of configurations to replace sensitive fields
 	// with hash functions or static string.
 	Masks  MaskList        `json:"mask,omitempty"`
@@ -102,7 +112,7 @@ type Transform struct {
 }
 
 func (t Transform) IsEmpty() bool {
-	return t.Script.IsEmpty() && len(t.Include) == 0 && len(t.Exclude) == 0 && t.Masks.IsEmpty()
+	return t.Script.IsEmpty() && t.Change.IsEmpty() && len(t.Exclude) == 0 && t.Masks.IsEmpty()
 }
 
 func (t Transform) String() string {
@@ -112,16 +122,17 @@ func (t Transform) String() string {
 	}
 
 	if !t.Masks.IsEmpty() {
-		s += fmt.Sprintf("masks=%s", t.Masks)
-	}
-
-	if len(t.Include) > 0 {
-		s += fmt.Sprintf(" include=%s", t.Include)
+		s += fmt.Sprintf(" masks=%s", t.Masks)
 	}
 
 	if len(t.Exclude) > 0 {
 		s += fmt.Sprintf(" exclude=%s", t.Exclude)
 	}
+
+	if !t.Change.IsEmpty() {
+		s += fmt.Sprintf(" change=%s", t.Change)
+	}
+
 	return s
 }
 
@@ -140,7 +151,10 @@ type BaseScraper struct {
 	// items are extracted first and then the ID,Name,Type and transformations are applied for each item.
 	Items string `json:"items,omitempty"`
 	// A static value or JSONPath expression to use as the type for the resource.
-	Type      string    `json:"type,omitempty"`
+	Type string `json:"type,omitempty"`
+	// A static value or JSONPath expression to use as the class for the resource.
+	Class string `json:"class,omitempty"`
+
 	Transform Transform `json:"transform,omitempty"`
 	// Format of config item, defaults to JSON, available options are JSON, properties
 	Format string `json:"format,omitempty"`

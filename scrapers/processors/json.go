@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/types"
@@ -44,13 +45,19 @@ type Transform struct {
 	Masks  []Mask
 }
 
+// ConfigFieldExclusion instructs what fields from the given config types should be removed.
+type ConfigFieldExclusion struct {
+	jp          jp.Expr
+	configTypes []string
+}
+
 type Extract struct {
-	ID, Type, Name       jp.Expr
-	CreatedAt, DeletedAt []jp.Expr
-	Items                *jp.Expr
-	Config               v1.BaseScraper
-	Excludes             []jp.Expr
-	Transform            Transform
+	ID, Type, Class, Name jp.Expr
+	CreatedAt, DeletedAt  []jp.Expr
+	Items                 *jp.Expr
+	Config                v1.BaseScraper
+	Excludes              []ConfigFieldExclusion
+	Transform             Transform
 }
 
 func (e Extract) WithoutItems() Extract {
@@ -92,6 +99,13 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 			extract.Type = x
 		}
 	}
+	if isJSONPath(config.Class) {
+		if x, err := jp.ParseString(config.Class); err != nil {
+			return extract, fmt.Errorf("failed to parse class: %s: %v", config.Class, err)
+		} else {
+			extract.Class = x
+		}
+	}
 	if config.Items != "" {
 		if x, err := jp.ParseString(config.Items); err != nil {
 			return extract, fmt.Errorf("failed to parse items: %s: %v", config.Items, err)
@@ -125,10 +139,10 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 	}
 
 	for _, exclude := range config.Transform.Exclude {
-		if x, err := jp.ParseString(exclude.JSONPath); err != nil {
+		if expr, err := jp.ParseString(exclude.JSONPath); err != nil {
 			return extract, fmt.Errorf("failed to parse exclude: %s: %v", exclude.JSONPath, err)
 		} else {
-			extract.Excludes = append(extract.Excludes, x)
+			extract.Excludes = append(extract.Excludes, ConfigFieldExclusion{jp: expr, configTypes: exclude.Types})
 		}
 	}
 
@@ -161,6 +175,9 @@ func (e Extract) String() string {
 	}
 	if e.Type != nil {
 		s += fmt.Sprintf(" Type: %s", e.Type)
+	}
+	if e.Class != nil {
+		s += fmt.Sprintf(" Class: %s", e.Class)
 	}
 	if e.Name != nil {
 		s += fmt.Sprintf(" Name: %s", e.Name)
@@ -375,20 +392,38 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 		input.Name = input.ID
 	}
 
+	if input.Type == "" {
+		input.Type, err = getString(e.Type, input.Config, e.Config.Type)
+		if err != nil {
+			return input, err
+		}
+	}
+
+	if input.Type == "" {
+		return input, fmt.Errorf("no config type defined for: %s", input)
+	}
+
 	if input.ConfigClass == "" {
-		input.ConfigClass, err = getString(e.Type, input.Config, e.Config.Type)
+		defaultClass := e.Config.Class
+		if defaultClass == "" {
+			defaultClass = input.Type
+		}
+
+		input.ConfigClass, err = getString(e.Class, input.Config, defaultClass)
 		if err != nil {
 			return input, err
 		}
 	}
 
 	if input.ConfigClass == "" {
-		return input, fmt.Errorf("no type defined for: %s", input)
+		return input, fmt.Errorf("no class defined for: %s", input)
 	}
 
 	for _, exclude := range e.Excludes {
-		if err := exclude.Del(input.Config); err != nil {
-			return input, err
+		if len(exclude.configTypes) == 0 || collections.MatchItems(input.Type, exclude.configTypes...) {
+			if err := exclude.jp.Del(input.Config); err != nil {
+				return input, err
+			}
 		}
 	}
 

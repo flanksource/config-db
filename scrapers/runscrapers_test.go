@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/samber/lo"
 
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -137,6 +138,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			"file-script",
 			"file-script-gotemplate",
 			"file-mask",
+			"file-exclusion",
 			"file-postgres-properties",
 		}
 
@@ -163,6 +165,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 					got := results[i]
 
 					Expect(want.ID).To(Equal(got.ID))
+					Expect(want.Type).To(Equal(got.Type))
 					Expect(want.ConfigClass).To(Equal(got.ConfigClass))
 					wantJSON, _ := json.Marshal(want.Config)
 					gotJSON, _ := json.Marshal(got.Config)
@@ -190,7 +193,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(err).To(BeNil())
 
 			configItemID, err := db.FindConfigItemID(v1.ExternalID{
-				ConfigType: "",               // Comes from file-car.yaml
+				ConfigType: "Car",            // Comes from file-car.yaml
 				ExternalID: []string{"A123"}, // Comes from the config mentioned in file-car.yaml
 			})
 			Expect(err).To(BeNil())
@@ -213,7 +216,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(err).To(BeNil())
 
 			configItemID, err := db.FindConfigItemID(v1.ExternalID{
-				ConfigType: "",               // Comes from file-car.yaml
+				ConfigType: "Car",            // Comes from file-car.yaml
 				ExternalID: []string{"A123"}, // Comes from the config mentioned in file-car.yaml
 			})
 			Expect(err).To(BeNil())
@@ -228,7 +231,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 
 		It("should not change the original config", func() {
 			configItemID, err := db.FindConfigItemID(v1.ExternalID{
-				ConfigType: "",               // Comes from file-car.yaml
+				ConfigType: "Car",            // Comes from file-car.yaml
 				ExternalID: []string{"A123"}, // Comes from the config mentioned in file-car.yaml
 			})
 			Expect(err).To(BeNil())
@@ -254,6 +257,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			dummyCI := models.ConfigItem{
 				ID:          configItemID,
 				ConfigClass: "Test",
+				Type:        lo.ToPtr("Test"),
 				ScraperID:   &dummyScraper.ID,
 			}
 			configItemID2 := uuid.New().String()

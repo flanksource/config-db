@@ -5,6 +5,7 @@ metadata:
 spec:
   file:
     - type: Car
+      class: Car
       id: $.reg_no
       paths:
         - fixtures/data/car.json
