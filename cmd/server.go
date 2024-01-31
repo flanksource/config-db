@@ -105,7 +105,8 @@ func startScraperCron(configFiles []string) {
 	for _, scraper := range scraperConfigsDB {
 		_scraper, err := v1.ScrapeConfigFromModel(scraper)
 		if err != nil {
-			logger.Fatalf("Error parsing config scraper: %v", err)
+			logger.Errorf("Error parsing config scraper[%s]: %v", scraper.ID, err)
+			continue
 		}
 		scrapers.AddToCron(_scraper)
 
