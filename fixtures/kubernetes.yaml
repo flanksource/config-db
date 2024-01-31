@@ -19,18 +19,18 @@ spec:
             - 'details.source.component == "canary-checker" && details.reason == "Failed"'
             - 'details.source.component == "canary-checker" && details.reason == "Succeeded"'
       properties:
-        'Kubernetes::Pod':
-          - name: Logs
-            icon: opensearch
-            links:
-              - text: opensearch
-                url: https://opensearch.svc/_dashboards/app/discover#/?_a=(query:(language:kuery,query:'kubernetes_pod_id:{{.id}}'))
-        'Kubernetes::Node':
-          - name: Grafana
-            icon: grafana
-            links:
-              - text: grafana
-                url: https://grafana.svc/d/85a562078cdf77779eaa1add43ccec1e/kubernetes-compute-resources-namespace-pods?var-namespace={{.name}}
+        - filter: 'config_type == "Kubernetes::Pod"'
+          name: Logs
+          icon: opensearch
+          links:
+            - text: opensearch
+              url: https://opensearch.svc/_dashboards/app/discover#/?_a=(query:(language:kuery,query:'kubernetes_pod_id:{{.id}}'))
+        - filter: 'config_type == "Kubernetes::Node"'
+          name: Grafana
+          icon: grafana
+          links:
+            - text: grafana
+              url: https://grafana.svc/d/85a562078cdf77779eaa1add43ccec1e/kubernetes-compute-resources-namespace-pods?var-namespace={{.name}}
       exclusions:
         name:
           - junit*
