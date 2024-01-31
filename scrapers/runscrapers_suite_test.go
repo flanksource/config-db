@@ -31,6 +31,8 @@ func TestRunScrapers(t *testing.T) {
 var (
 	postgres *epg.EmbeddedPostgres
 	gormDB   *gorm.DB
+
+	DefaultContext *context.Context
 )
 
 const (
@@ -47,15 +49,14 @@ var _ = BeforeSuite(func() {
 	}
 
 	logger.Infof("Started postgres on port %d", pgPort)
-	if _, err := duty.NewDB(pgUrl); err != nil {
-		Fail(err.Error())
-	}
+	DefaultContext, err := duty.InitDB(pgUrl, nil)
+	Expect(err).ToNot(HaveOccurred())
+
 	if err := db.Init(context.Background(), pgUrl); err != nil {
 		Fail(err.Error())
 	}
 
-	gormDB, err = duty.NewGorm(pgUrl, duty.DefaultGormConfig())
-	Expect(err).ToNot(HaveOccurred())
+	gormDB = DefaultContext.DB()
 
 	if err := os.Chdir(".."); err != nil {
 		Fail(err.Error())

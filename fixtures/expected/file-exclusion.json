@@ -1,30 +1,25 @@
 [
   {
     "last_modified": "0001-01-01T00:00:00Z",
-    "config_class": "Config",
-    "config_type": "Config",
+    "config_type": "Config1",
+    "config_class": "MySecrets",
     "name": "Config1",
     "id": "1",
     "config": {
-      "added": "a",
       "id": 1,
       "name": "Config1",
-      "password": "p1",
       "secret": "secret_1"
     }
   },
   {
     "last_modified": "0001-01-01T00:00:00Z",
-    "config_class": "Config",
-    "config_type": "Config",
+    "config_type": "Config2",
+    "config_class": "MySecrets",
     "name": "Config2",
     "id": "2",
     "config": {
-      "added": "a",
       "id": 2,
-      "name": "Config2",
-      "password": "p2",
-      "secret": "secret_2"
+      "name": "Config2"
     }
   }
 ]

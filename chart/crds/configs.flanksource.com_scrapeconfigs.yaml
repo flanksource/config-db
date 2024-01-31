@@ -84,6 +84,10 @@ spec:
                       type: object
                     assumeRole:
                       type: string
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
                     cloudtrail:
                       properties:
                         exclude:
@@ -298,22 +302,26 @@ spec:
                             removing sensitive data and fields that change often without
                             a material impact i.e. Last Scraped Time
                           items:
+                            description: ConfigFieldExclusion defines fields with
+                              JSONPath that needs to be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
+                              types:
+                                description: Optionally specify the config types from
+                                  which the JSONPath fields need to be removed. If
+                                  left empty, all config types are considered.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - jsonpath
                             type: object
                           type: array
                         expr:
                           type: string
                         gotemplate:
                           type: string
-                        include:
-                          items:
-                            properties:
-                              jsonpath:
-                                type: string
-                            type: object
-                          type: array
                         javascript:
                           type: string
                         jsonpath:
@@ -351,6 +359,10 @@ spec:
               azure:
                 items:
                   properties:
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
                     clientID:
                       properties:
                         name:
@@ -578,22 +590,26 @@ spec:
                             removing sensitive data and fields that change often without
                             a material impact i.e. Last Scraped Time
                           items:
+                            description: ConfigFieldExclusion defines fields with
+                              JSONPath that needs to be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
+                              types:
+                                description: Optionally specify the config types from
+                                  which the JSONPath fields need to be removed. If
+                                  left empty, all config types are considered.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - jsonpath
                             type: object
                           type: array
                         expr:
                           type: string
                         gotemplate:
                           type: string
-                        include:
-                          items:
-                            properties:
-                              jsonpath:
-                                type: string
-                            type: object
-                          type: array
                         javascript:
                           type: string
                         jsonpath:
@@ -631,6 +647,10 @@ spec:
               azureDevops:
                 items:
                   properties:
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
                     connection:
                       type: string
                     createFields:
@@ -809,22 +829,26 @@ spec:
                             removing sensitive data and fields that change often without
                             a material impact i.e. Last Scraped Time
                           items:
+                            description: ConfigFieldExclusion defines fields with
+                              JSONPath that needs to be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
+                              types:
+                                description: Optionally specify the config types from
+                                  which the JSONPath fields need to be removed. If
+                                  left empty, all config types are considered.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - jsonpath
                             type: object
                           type: array
                         expr:
                           type: string
                         gotemplate:
                           type: string
-                        include:
-                          items:
-                            properties:
-                              jsonpath:
-                                type: string
-                            type: object
-                          type: array
                         javascript:
                           type: string
                         jsonpath:
@@ -862,6 +886,10 @@ spec:
                 items:
                   description: File ...
                   properties:
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
                     connection:
                       description: ConnectionName is used to populate the URL
                       type: string
@@ -998,22 +1026,26 @@ spec:
                             removing sensitive data and fields that change often without
                             a material impact i.e. Last Scraped Time
                           items:
+                            description: ConfigFieldExclusion defines fields with
+                              JSONPath that needs to be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
+                              types:
+                                description: Optionally specify the config types from
+                                  which the JSONPath fields need to be removed. If
+                                  left empty, all config types are considered.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - jsonpath
                             type: object
                           type: array
                         expr:
                           type: string
                         gotemplate:
                           type: string
-                        include:
-                          items:
-                            properties:
-                              jsonpath:
-                                type: string
-                            type: object
-                          type: array
                         javascript:
                           type: string
                         jsonpath:
@@ -1053,6 +1085,10 @@ spec:
               githubActions:
                 items:
                   properties:
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
                     connection:
                       description: ConnectionName, if provided, will be used to populate
                         personalAccessToken
@@ -1227,22 +1263,26 @@ spec:
                             removing sensitive data and fields that change often without
                             a material impact i.e. Last Scraped Time
                           items:
+                            description: ConfigFieldExclusion defines fields with
+                              JSONPath that needs to be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
+                              types:
+                                description: Optionally specify the config types from
+                                  which the JSONPath fields need to be removed. If
+                                  left empty, all config types are considered.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - jsonpath
                             type: object
                           type: array
                         expr:
                           type: string
                         gotemplate:
                           type: string
-                        include:
-                          items:
-                            properties:
-                              jsonpath:
-                                type: string
-                            type: object
-                          type: array
                         javascript:
                           type: string
                         jsonpath:
@@ -1287,6 +1327,10 @@ spec:
                   properties:
                     allowIncomplete:
                       type: boolean
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
                     clusterName:
                       type: string
                     createFields:
@@ -1566,22 +1610,26 @@ spec:
                             removing sensitive data and fields that change often without
                             a material impact i.e. Last Scraped Time
                           items:
+                            description: ConfigFieldExclusion defines fields with
+                              JSONPath that needs to be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
+                              types:
+                                description: Optionally specify the config types from
+                                  which the JSONPath fields need to be removed. If
+                                  left empty, all config types are considered.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - jsonpath
                             type: object
                           type: array
                         expr:
                           type: string
                         gotemplate:
                           type: string
-                        include:
-                          items:
-                            properties:
-                              jsonpath:
-                                type: string
-                            type: object
-                          type: array
                         javascript:
                           type: string
                         jsonpath:
@@ -1617,6 +1665,10 @@ spec:
               kubernetesFile:
                 items:
                   properties:
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
                     container:
                       type: string
                     createFields:
@@ -1766,22 +1818,26 @@ spec:
                             removing sensitive data and fields that change often without
                             a material impact i.e. Last Scraped Time
                           items:
+                            description: ConfigFieldExclusion defines fields with
+                              JSONPath that needs to be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
+                              types:
+                                description: Optionally specify the config types from
+                                  which the JSONPath fields need to be removed. If
+                                  left empty, all config types are considered.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - jsonpath
                             type: object
                           type: array
                         expr:
                           type: string
                         gotemplate:
                           type: string
-                        include:
-                          items:
-                            properties:
-                              jsonpath:
-                                type: string
-                            type: object
-                          type: array
                         javascript:
                           type: string
                         jsonpath:
@@ -1941,6 +1997,10 @@ spec:
                       - password
                       - username
                       type: object
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
                     connection:
                       description: Connection is either the name of the connection
                         to lookup or the connection string itself.
@@ -2072,22 +2132,26 @@ spec:
                             removing sensitive data and fields that change often without
                             a material impact i.e. Last Scraped Time
                           items:
+                            description: ConfigFieldExclusion defines fields with
+                              JSONPath that needs to be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
+                              types:
+                                description: Optionally specify the config types from
+                                  which the JSONPath fields need to be removed. If
+                                  left empty, all config types are considered.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - jsonpath
                             type: object
                           type: array
                         expr:
                           type: string
                         gotemplate:
                           type: string
-                        include:
-                          items:
-                            properties:
-                              jsonpath:
-                                type: string
-                            type: object
-                          type: array
                         javascript:
                           type: string
                         jsonpath:
@@ -2124,6 +2188,10 @@ spec:
               trivy:
                 items:
                   properties:
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
                     compliance:
                       items:
                         type: string
@@ -2284,22 +2352,26 @@ spec:
                             removing sensitive data and fields that change often without
                             a material impact i.e. Last Scraped Time
                           items:
+                            description: ConfigFieldExclusion defines fields with
+                              JSONPath that needs to be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
+                              types:
+                                description: Optionally specify the config types from
+                                  which the JSONPath fields need to be removed. If
+                                  left empty, all config types are considered.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - jsonpath
                             type: object
                           type: array
                         expr:
                           type: string
                         gotemplate:
                           type: string
-                        include:
-                          items:
-                            properties:
-                              jsonpath:
-                                type: string
-                            type: object
-                          type: array
                         javascript:
                           type: string
                         jsonpath:

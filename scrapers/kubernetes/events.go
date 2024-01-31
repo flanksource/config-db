@@ -5,19 +5,19 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/utils"
 	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 func getSeverityFromReason(reason string, errKeywords, warnKeywords []string) string {
-	if utils.MatchItems(reason, errKeywords...) {
+	if collections.MatchItems(reason, errKeywords...) {
 		return "error"
 	}
 
-	if utils.MatchItems(reason, warnKeywords...) {
+	if collections.MatchItems(reason, warnKeywords...) {
 		return "warn"
 	}
 

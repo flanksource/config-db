@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/utils"
 )
 
 const WorkflowRun = "GitHubActions::WorkflowRun"
@@ -36,7 +36,7 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 
 		for _, workflow := range workflows {
-			if !utils.MatchItems(workflow.Name, config.Workflows...) {
+			if !collections.MatchItems(workflow.Name, config.Workflows...) {
 				continue
 			}
 			runs, err := getNewWorkflowRuns(client, workflow)

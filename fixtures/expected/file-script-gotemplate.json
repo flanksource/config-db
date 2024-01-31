@@ -1,6 +1,7 @@
 [
   {
     "config_class": "MyConfig",
+    "config_type": "MyConfig",
     "name": "scraped",
     "id": "1",
     "config": {

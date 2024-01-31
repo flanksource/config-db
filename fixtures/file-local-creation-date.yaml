@@ -5,6 +5,7 @@ metadata:
 spec:
   file:
     - type: $.aws[0].region
+      class: AWS
       id: $.aws[0].region
       createFields:
         - $.aws[0].made_at

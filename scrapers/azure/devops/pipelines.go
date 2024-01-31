@@ -3,9 +3,9 @@ package devops
 import (
 	"fmt"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/utils"
 )
 
 const PipelineRun = "AzureDevops::PipelineRun"
@@ -33,9 +33,9 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			results.Errorf(err, "failed to get projects for %s", config.Organization)
 			continue
 		}
-		for _, project := range projects {
 
-			if !utils.MatchItems(project.Name, config.Projects...) {
+		for _, project := range projects {
+			if !collections.MatchItems(project.Name, config.Projects...) {
 				continue
 			}
 
@@ -48,7 +48,7 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			for _, _pipeline := range pipelines {
 				var pipeline = _pipeline
 
-				if !utils.MatchItems(pipeline.Name, config.Pipelines...) {
+				if !collections.MatchItems(pipeline.Name, config.Pipelines...) {
 					continue
 				}
 

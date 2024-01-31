@@ -1,0 +1,24 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exclude-file-secrets
+spec:
+  file:
+    - type: $.name
+      id: $.id
+      name: $.name
+      class: MySecrets
+      transform:
+        script:
+          javascript: |+
+            for (var i = 0; i < config.length; i++) {
+              config[i].id = i + 1
+            }
+            JSON.stringify(config)
+        exclude:
+          - jsonpath: '.password'
+          - types:
+              - Config2
+            jsonpath: '.secret'
+      paths:
+        - fixtures/data/multiple-configs.json
