@@ -42,7 +42,7 @@ var Root = &cobra.Command{
 		count, _ := cmd.Flags().GetCount("loglevel")
 		// logger.StandardLogger().(logsrusapi.Logger).Out = os.Stderr
 		logger.StandardLogger().SetLogLevel(count)
-		logger.UseZap(cmd.Flags())
+		logger.UseZap()
 		var err error
 
 		if api.KubernetesClient, api.KubernetesRestConfig, err = kube.NewK8sClient(); err != nil {

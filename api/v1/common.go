@@ -4,14 +4,11 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
-	"sort"
 	"strings"
 
-	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
-	"github.com/samber/lo"
 )
 
 // ConfigFieldExclusion defines fields with JSONPath that needs to
@@ -132,44 +129,36 @@ func (t *RelationshipLookup) Eval(labels map[string]string, envVar map[string]an
 }
 
 func (t RelationshipLookup) IsEmpty() bool {
-	if t.Value == "" && t.Label == "" && t.Expr == "" {
-		return true
-	}
-
-	return false
+	return t.Value == "" && t.Label == "" && t.Expr == ""
 }
 
 // RelationshipSelector is the evaluated output of RelationshipSelector.
-//
-// NOTE: The fields are pointers because we need to differentiate between
-// empty filter (null value) and empty result (output of the filter).
 type RelationshipSelector struct {
-	ID     *string           `json:"id,omitempty"`
-	Name   *string           `json:"name,omitempty"`
-	Type   *string           `json:"type,omitempty"`
-	Agent  *string           `json:"agent,omitempty"`
+	ID     string            `json:"id,omitempty"`
+	Name   string            `json:"name,omitempty"`
+	Type   string            `json:"type,omitempty"`
+	Agent  string            `json:"agent,omitempty"`
 	Labels map[string]string `json:"labels,omitempty"`
 }
 
-func (t *RelationshipSelector) Hash() string {
-	items := []string{
-		lo.FromPtr(t.ID),
-		lo.FromPtr(t.Name),
-		lo.FromPtr(t.Type),
-		lo.FromPtr(t.Agent),
-	}
-
-	labelkeys := lo.Keys(t.Labels)
-	sort.Slice(labelkeys, func(i, j int) bool { return labelkeys[i] < labelkeys[j] })
-	for _, k := range labelkeys {
-		items = append(items, fmt.Sprintf("%s=%s", k, t.Labels[k]))
-	}
-
-	return hash.Sha256Hex(strings.Join(items, "|"))
+func (t *RelationshipSelector) IsEmpty() bool {
+	return t.ID == "" && t.Name == "" && t.Type == "" && t.Agent == "" && len(t.Labels) == 0
 }
 
-func (t *RelationshipSelector) IsEmpty() bool {
-	return t.ID == nil && t.Name == nil && t.Type == nil && t.Agent == nil && len(t.Labels) == 0
+func (t *RelationshipSelector) ToResourceSelector() types.ResourceSelector {
+	var labelSelector string
+	for k, v := range t.Labels {
+		labelSelector += fmt.Sprintf("%s=%s,", k, v)
+	}
+	labelSelector = strings.TrimSuffix(labelSelector, ",")
+
+	return types.ResourceSelector{
+		ID:            t.ID,
+		Name:          t.Name,
+		Types:         []string{t.Type},
+		Agent:         t.Agent,
+		LabelSelector: labelSelector,
+	}
 }
 
 type RelationshipSelectorTemplate struct {
@@ -188,38 +177,46 @@ func (t *RelationshipSelectorTemplate) IsEmpty() bool {
 	return t.ID.IsEmpty() && t.Name.IsEmpty() && t.Type.IsEmpty() && t.Agent.IsEmpty() && len(t.Labels) == 0
 }
 
+// Eval evaluates the template and returns a RelationshipSelector.
+// If any of the filter returns an empty value, the evaluation results to a nil selector.
+// i.e. if a lookup is non-empty, it must return a non-empty value.
 func (t *RelationshipSelectorTemplate) Eval(labels map[string]string, env map[string]any) (*RelationshipSelector, error) {
+	if t.IsEmpty() {
+		return nil, nil
+	}
+
 	var output RelationshipSelector
+	var err error
 
 	if !t.ID.IsEmpty() {
-		if res, err := t.ID.Eval(labels, env); err != nil {
+		if output.ID, err = t.ID.Eval(labels, env); err != nil {
 			return nil, fmt.Errorf("failed to evaluate id: %v for config relationship: %w", t.ID, err)
-		} else {
-			output.ID = &res
+		} else if output.ID == "" {
+			return nil, nil
 		}
 	}
 
 	if !t.Name.IsEmpty() {
-		if res, err := t.Name.Eval(labels, env); err != nil {
+		if output.Name, err = t.Name.Eval(labels, env); err != nil {
 			return nil, fmt.Errorf("failed to evaluate name: %v for config relationship: %w", t.Name, err)
-		} else {
-			output.Name = &res
+		} else if output.Name == "" {
+			return nil, nil
 		}
 	}
 
 	if !t.Type.IsEmpty() {
-		if res, err := t.Type.Eval(labels, env); err != nil {
+		if output.Type, err = t.Type.Eval(labels, env); err != nil {
 			return nil, fmt.Errorf("failed to evaluate type: %v for config relationship: %w", t.Type, err)
-		} else {
-			output.Type = &res
+		} else if output.Type == "" {
+			return nil, nil
 		}
 	}
 
 	if !t.Agent.IsEmpty() {
-		if res, err := t.Agent.Eval(labels, env); err != nil {
+		if output.Agent, err = t.Agent.Eval(labels, env); err != nil {
 			return nil, fmt.Errorf("failed to evaluate agent_id: %v for config relationship: %w", t.Agent, err)
-		} else {
-			output.Agent = &res
+		} else if output.Agent == "" {
+			return nil, nil
 		}
 	}
 

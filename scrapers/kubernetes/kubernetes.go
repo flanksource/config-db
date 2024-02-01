@@ -284,36 +284,21 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 				env["spec"] = map[string]any{}
 			}
 
-			kind, err := f.Kind.Eval(obj.GetLabels(), env)
-			if err != nil {
-				return results.Errorf(err, "failed to evaluate kind: %v for config relationship", f.Kind)
-			}
-
-			name, err := f.Name.Eval(obj.GetLabels(), env)
-			if err != nil {
-				return results.Errorf(err, "failed to evaluate name: %v for config relationship", f.Name)
-			}
-
-			namespace, err := f.Namespace.Eval(obj.GetLabels(), env)
-			if err != nil {
-				return results.Errorf(err, "failed to evaluate namespace: %v for config relationship", f.Namespace)
-			}
-
-			linkedConfigItemIDs, err := db.FindConfigIDsByNamespaceNameClass(ctx, namespace, name, kind)
-			if err != nil {
-				return results.Errorf(err, "failed to get linked config items: name=%s, namespace=%s", name, namespace)
-			}
-
-			for _, id := range linkedConfigItemIDs {
-				rel := v1.RelationshipResult{
-					ConfigExternalID: v1.ExternalID{
-						ExternalID: []string{string(obj.GetUID())},
-						ConfigType: ConfigTypePrefix + obj.GetKind(),
-					},
-					RelatedConfigID: id.String(),
-					Relationship:    kind + obj.GetKind(),
+			if selector, err := f.Eval(obj.GetLabels(), env); err != nil {
+				return results.Errorf(err, "failed to evaluate selector: %v for config relationship", f)
+			} else if selector != nil {
+				linkedConfigItemIDs, err := db.FindConfigIDsByNamespaceNameClass(ctx, selector.Namespace, selector.Name, selector.Kind)
+				if err != nil {
+					return results.Errorf(err, "failed to get linked config items by kubernetes selector(%v)", selector)
 				}
-				relationships = append(relationships, rel)
+
+				for _, id := range linkedConfigItemIDs {
+					rel := v1.RelationshipResult{
+						ConfigExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + obj.GetKind()},
+						RelatedConfigID:  id.String(),
+					}
+					relationships = append(relationships, rel)
+				}
 			}
 		}
 

@@ -242,8 +242,7 @@ func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.Scrap
 			for _, itemToLink := range linkedConfigItems {
 				rel := v1.RelationshipResult{
 					ConfigExternalID: v1.ExternalID{ExternalID: []string{input.ID}, ConfigType: input.Type},
-					RelatedConfigID:  itemToLink.ID,
-					Relationship:     itemToLink.Type + input.Type,
+					RelatedConfigID:  itemToLink.ID.String(),
 				}
 
 				relationships = append(relationships, rel)

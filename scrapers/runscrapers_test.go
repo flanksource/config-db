@@ -50,7 +50,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			scrapeConfig.Spec.Kubernetes[0].Kubeconfig = &types.EnvVar{
 				ValueStatic: kubeConfigPath,
 			}
-			scrapeConfig.Spec.Kubernetes[0].Relationships = append(scrapeConfig.Spec.Kubernetes[0].Relationships, v1.KubernetesRelationship{
+			scrapeConfig.Spec.Kubernetes[0].Relationships = append(scrapeConfig.Spec.Kubernetes[0].Relationships, v1.KubernetesRelationshipSelectorTemplate{
 				Kind:      v1.RelationshipLookup{Value: "ConfigMap"},
 				Name:      v1.RelationshipLookup{Label: "flanksource/name"},
 				Namespace: v1.RelationshipLookup{Label: "flanksource/namespace"},
@@ -117,6 +117,8 @@ var _ = Describe("Scrapers test", Ordered, func() {
 		})
 
 		It("should correctly setup kubernetes relationship", func() {
+			duty.CleanCache()
+
 			scraperCtx := api.NewScrapeContext(gocontext.TODO(), gormDB, nil).WithScrapeConfig(&scrapeConfig)
 			_, err := RunScraper(scraperCtx)
 			Expect(err).To(BeNil())

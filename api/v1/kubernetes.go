@@ -103,13 +103,61 @@ func (t *KubernetesExclusionConfig) Filter(name, namespace, kind string, labels 
 	return false
 }
 
-type KubernetesRelationship struct {
+type KubernetesRelationshipSelector struct {
+	Kind      string `json:"kind" yaml:"kind"`
+	Name      string `json:"name" yaml:"name"`
+	Namespace string `json:"namespace" yaml:"namespace"`
+}
+
+type KubernetesRelationshipSelectorTemplate struct {
 	// Kind defines which field to use for the kind lookup
 	Kind RelationshipLookup `json:"kind" yaml:"kind"`
 	// Name defines which field to use for the name lookup
 	Name RelationshipLookup `json:"name" yaml:"name"`
 	// Namespace defines which field to use for the namespace lookup
 	Namespace RelationshipLookup `json:"namespace" yaml:"namespace"`
+}
+
+func (t *KubernetesRelationshipSelectorTemplate) IsEmpty() bool {
+	return t.Kind.IsEmpty() && t.Name.IsEmpty() && t.Namespace.IsEmpty()
+}
+
+// Eval evaluates the template and returns a KubernetesRelationshipSelector.
+// If any of the filter returns an empty value, the evaluation results to a nil selector.
+// i.e. if a lookup is non-empty, it must return a non-empty value.
+func (t *KubernetesRelationshipSelectorTemplate) Eval(labels map[string]string, env map[string]any) (*KubernetesRelationshipSelector, error) {
+	if t.IsEmpty() {
+		return nil, nil
+	}
+
+	var output KubernetesRelationshipSelector
+	var err error
+
+	if !t.Name.IsEmpty() {
+		if output.Name, err = t.Name.Eval(labels, env); err != nil {
+			return nil, fmt.Errorf("failed to evaluate Name: %s: %w", t.Name, err)
+		} else if output.Name == "" {
+			return nil, nil
+		}
+	}
+
+	if !t.Kind.IsEmpty() {
+		if output.Kind, err = t.Kind.Eval(labels, env); err != nil {
+			return nil, fmt.Errorf("failed to evaluate kind: %s: %w", t.Kind, err)
+		} else if output.Kind == "" {
+			return nil, nil
+		}
+	}
+
+	if !t.Namespace.IsEmpty() {
+		if output.Namespace, err = t.Namespace.Eval(labels, env); err != nil {
+			return nil, fmt.Errorf("failed to evaluate namespace: %s: %w", t.Namespace, err)
+		} else if output.Namespace == "" {
+			return nil, nil
+		}
+	}
+
+	return &output, nil
 }
 
 type Kubernetes struct {
@@ -128,7 +176,7 @@ type Kubernetes struct {
 	Event           KubernetesEventConfig     `json:"event,omitempty"`
 
 	// Relationships specify the fields to use to relate Kubernetes objects.
-	Relationships []KubernetesRelationship `json:"relationships,omitempty"`
+	Relationships []KubernetesRelationshipSelectorTemplate `json:"relationships,omitempty"`
 }
 
 type KubernetesFile struct {

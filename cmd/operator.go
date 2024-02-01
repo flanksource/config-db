@@ -52,9 +52,10 @@ func run(cmd *cobra.Command, args []string) {
 	loggr := ctrlzap.NewRaw(
 		ctrlzap.UseDevMode(true),
 		ctrlzap.WriteTo(os.Stderr),
-		ctrlzap.Level(zapLogger.Level),
-		ctrlzap.StacktraceLevel(zapLogger.StackTraceLevel),
-		ctrlzap.Encoder(zapLogger.GetEncoder()),
+		// FIXME: Breaking after duty bump.
+		// ctrlzap.Level(zapLogger.Level),
+		// ctrlzap.StacktraceLevel(zapLogger.StackTraceLevel),
+		// ctrlzap.Encoder(zapLogger.GetEncoder()),
 	)
 
 	ctrl.SetLogger(zapr.NewLogger(loggr))
