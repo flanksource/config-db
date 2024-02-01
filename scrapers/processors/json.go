@@ -3,6 +3,7 @@ package processors
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/magiconair/properties"
@@ -41,8 +44,9 @@ func (t *Mask) Filter(in v1.ScrapeResult) (bool, error) {
 }
 
 type Transform struct {
-	Script v1.Script
-	Masks  []Mask
+	Script       v1.Script
+	Masks        []Mask
+	Relationship []v1.RelationshipConfig
 }
 
 // ConfigFieldExclusion instructs what fields from the given config types should be removed.
@@ -147,6 +151,7 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 	}
 
 	extract.Transform.Script = config.Transform.Script
+	extract.Transform.Relationship = config.Transform.Relationship
 
 	for _, mask := range config.Transform.Masks {
 		if mask.Selector == "" {
@@ -191,7 +196,65 @@ func (e Extract) String() string {
 	return s
 }
 
-func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
+func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]v1.RelationshipResult, error) {
+	var relationships []v1.RelationshipResult
+
+	for _, rc := range relationshipConfigs {
+		if rc.Filter != "" {
+			filterOutput, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: rc.Filter})
+			if err != nil {
+				return nil, err
+			}
+
+			if ok, err := strconv.ParseBool(filterOutput); err != nil {
+				return nil, err
+			} else if !ok {
+				continue
+			}
+		}
+
+		var relationshipSelectors []v1.RelationshipSelector
+		if rc.Expr != "" {
+			celOutput, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: rc.Expr})
+			if err != nil {
+				return nil, err
+			}
+
+			var output []v1.RelationshipSelector
+			if err := json.Unmarshal([]byte(celOutput), &output); err != nil {
+				return nil, err
+			}
+			relationshipSelectors = append(relationshipSelectors, output...)
+		} else {
+			if compiled, err := rc.RelationshipSelectorTemplate.Eval(input.Tags, input.AsMap()); err != nil {
+				return nil, err
+			} else if compiled != nil {
+				relationshipSelectors = append(relationshipSelectors, *compiled)
+			}
+		}
+
+		for _, selector := range relationshipSelectors {
+			linkedConfigItems, err := db.FindConfigsByRelationshipSelector(ctx, selector)
+			if err != nil {
+				return nil, fmt.Errorf("failed to find config items by relationship selector: %w", err)
+			}
+
+			for _, itemToLink := range linkedConfigItems {
+				rel := v1.RelationshipResult{
+					ConfigExternalID: v1.ExternalID{ExternalID: []string{input.ID}, ConfigType: input.Type},
+					RelatedConfigID:  itemToLink.ID,
+					Relationship:     itemToLink.Type + input.Type,
+				}
+
+				relationships = append(relationships, rel)
+			}
+		}
+	}
+
+	return relationships, nil
+}
+
+func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 	var results []v1.ScrapeResult
 	var err error
 
@@ -203,6 +266,13 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			if _, ok := input.Tags[k]; !ok {
 				input.Tags[k] = v
 			}
+		}
+
+		// Form new relationships based on the transform configs
+		if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, input, e.Transform.Relationship); err != nil {
+			return results, err
+		} else if len(newRelationships) > 0 {
+			input.RelationshipResults = append(input.RelationshipResults, newRelationships...)
 		}
 
 		for i, configProperty := range input.BaseScraper.Properties {
@@ -304,7 +374,7 @@ func (e Extract) Extract(inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 			items := e.Items.Get(parsedConfig)
 			logger.Debugf("extracted %d items with %s", len(items), *e.Items)
 			for _, item := range items {
-				extracted, err := e.WithoutItems().Extract(input.Clone(item))
+				extracted, err := e.WithoutItems().Extract(ctx, input.Clone(item))
 				if err != nil {
 					return results, fmt.Errorf("failed to extract items: %v", err)
 				}

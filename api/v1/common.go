@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 
+	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
+	"github.com/samber/lo"
 )
 
 // ConfigFieldExclusion defines fields with JSONPath that needs to
@@ -100,6 +103,139 @@ func (t *TransformChange) IsEmpty() bool {
 	return len(t.Exclude) == 0
 }
 
+// RelationshipLookup offers different ways to specify a lookup value
+type RelationshipLookup struct {
+	Expr  string `json:"expr,omitempty"`
+	Value string `json:"value,omitempty"`
+	Label string `json:"label,omitempty"`
+}
+
+func (t *RelationshipLookup) Eval(labels map[string]string, envVar map[string]any) (string, error) {
+	if t.Value != "" {
+		return t.Value, nil
+	}
+
+	if t.Label != "" {
+		return labels[t.Label], nil
+	}
+
+	if t.Expr != "" {
+		res, err := gomplate.RunTemplate(envVar, gomplate.Template{Expression: t.Expr})
+		if err != nil {
+			return "", err
+		}
+
+		return res, nil
+	}
+
+	return "", nil
+}
+
+func (t RelationshipLookup) IsEmpty() bool {
+	if t.Value == "" && t.Label == "" && t.Expr == "" {
+		return true
+	}
+
+	return false
+}
+
+// RelationshipSelector is the evaluated output of RelationshipSelector.
+//
+// NOTE: The fields are pointers because we need to differentiate between
+// empty filter (null value) and empty result (output of the filter).
+type RelationshipSelector struct {
+	ID     *string           `json:"id,omitempty"`
+	Name   *string           `json:"name,omitempty"`
+	Type   *string           `json:"type,omitempty"`
+	Agent  *string           `json:"agent,omitempty"`
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+func (t *RelationshipSelector) Hash() string {
+	items := []string{
+		lo.FromPtr(t.ID),
+		lo.FromPtr(t.Name),
+		lo.FromPtr(t.Type),
+		lo.FromPtr(t.Agent),
+	}
+
+	labelkeys := lo.Keys(t.Labels)
+	sort.Slice(labelkeys, func(i, j int) bool { return labelkeys[i] < labelkeys[j] })
+	for _, k := range labelkeys {
+		items = append(items, fmt.Sprintf("%s=%s", k, t.Labels[k]))
+	}
+
+	return hash.Sha256Hex(strings.Join(items, "|"))
+}
+
+func (t *RelationshipSelector) IsEmpty() bool {
+	return t.ID == nil && t.Name == nil && t.Type == nil && t.Agent == nil && len(t.Labels) == 0
+}
+
+type RelationshipSelectorTemplate struct {
+	ID   RelationshipLookup `json:"id,omitempty"`
+	Name RelationshipLookup `json:"name,omitempty"`
+	Type RelationshipLookup `json:"type,omitempty"`
+	// Agent can be one of
+	//  - agent id
+	//  - agent name
+	//  - 'self' (no agent)
+	Agent  RelationshipLookup `json:"agent,omitempty"`
+	Labels map[string]string  `json:"labels,omitempty"`
+}
+
+func (t *RelationshipSelectorTemplate) IsEmpty() bool {
+	return t.ID.IsEmpty() && t.Name.IsEmpty() && t.Type.IsEmpty() && t.Agent.IsEmpty() && len(t.Labels) == 0
+}
+
+func (t *RelationshipSelectorTemplate) Eval(labels map[string]string, env map[string]any) (*RelationshipSelector, error) {
+	var output RelationshipSelector
+
+	if !t.ID.IsEmpty() {
+		if res, err := t.ID.Eval(labels, env); err != nil {
+			return nil, fmt.Errorf("failed to evaluate id: %v for config relationship: %w", t.ID, err)
+		} else {
+			output.ID = &res
+		}
+	}
+
+	if !t.Name.IsEmpty() {
+		if res, err := t.Name.Eval(labels, env); err != nil {
+			return nil, fmt.Errorf("failed to evaluate name: %v for config relationship: %w", t.Name, err)
+		} else {
+			output.Name = &res
+		}
+	}
+
+	if !t.Type.IsEmpty() {
+		if res, err := t.Type.Eval(labels, env); err != nil {
+			return nil, fmt.Errorf("failed to evaluate type: %v for config relationship: %w", t.Type, err)
+		} else {
+			output.Type = &res
+		}
+	}
+
+	if !t.Agent.IsEmpty() {
+		if res, err := t.Agent.Eval(labels, env); err != nil {
+			return nil, fmt.Errorf("failed to evaluate agent_id: %v for config relationship: %w", t.Agent, err)
+		} else {
+			output.Agent = &res
+		}
+	}
+
+	return &output, nil
+}
+
+type RelationshipConfig struct {
+	RelationshipSelectorTemplate `json:",inline"`
+	// Alternately, a single cel-expression can be used
+	// that returns a list of relationship selector.
+	Expr string `json:"expr,omitempty"`
+	// Filter is a CEL expression that selects on what config items
+	// the relationship needs to be applied
+	Filter string `json:"filter,omitempty"`
+}
+
 type Transform struct {
 	Script Script `yaml:",inline" json:",inline"`
 	// Fields to remove from the config, useful for removing sensitive data and fields
@@ -107,12 +243,14 @@ type Transform struct {
 	Exclude []ConfigFieldExclusion `json:"exclude,omitempty"`
 	// Masks consist of configurations to replace sensitive fields
 	// with hash functions or static string.
-	Masks  MaskList        `json:"mask,omitempty"`
-	Change TransformChange `json:"changes,omitempty"`
+	Masks MaskList `json:"mask,omitempty"`
+	// Relationship allows you to form relationships between config items using selectors.
+	Relationship []RelationshipConfig `json:"relationship,omitempty"`
+	Change       TransformChange      `json:"changes,omitempty"`
 }
 
 func (t Transform) IsEmpty() bool {
-	return t.Script.IsEmpty() && t.Change.IsEmpty() && len(t.Exclude) == 0 && t.Masks.IsEmpty()
+	return t.Script.IsEmpty() && t.Change.IsEmpty() && len(t.Exclude) == 0 && t.Masks.IsEmpty() && len(t.Relationship) == 0
 }
 
 func (t Transform) String() string {
@@ -133,6 +271,7 @@ func (t Transform) String() string {
 		s += fmt.Sprintf(" change=%s", t.Change)
 	}
 
+	s += fmt.Sprintf(" relationships=%d", len(t.Relationship))
 	return s
 }
 

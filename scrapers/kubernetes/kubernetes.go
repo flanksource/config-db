@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -370,6 +371,11 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			}
 		}
 
+		configObj, err := cleanKubernetesObject(obj.Object)
+		if err != nil {
+			return results.Errorf(err, "failed to clean kubernetes object")
+		}
+
 		parentType, parentExternalID := getKubernetesParent(obj, resourceIDMap)
 		results = append(results, v1.ScrapeResult{
 			BaseScraper:         config.BaseScraper,
@@ -382,7 +388,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			CreatedAt:           &createdAt,
 			DeletedAt:           deletedAt,
 			DeleteReason:        deleteReason,
-			Config:              cleanKubernetesObject(obj.Object),
+			Config:              configObj,
 			ID:                  string(obj.GetUID()),
 			Tags:                stripLabels(tags, "-hash"),
 			Aliases:             getKubernetesAlias(obj),
@@ -489,7 +495,7 @@ func getResourceIDsFromObjs(objs []*unstructured.Unstructured) map[string]map[st
 }
 
 //nolint:errcheck
-func cleanKubernetesObject(obj map[string]any) string {
+func cleanKubernetesObject(obj map[string]any) (map[string]any, error) {
 	o := gabs.Wrap(obj)
 	o.Delete("metadata", "generation")
 	o.Delete("metadata", "resourceVersion")
@@ -521,7 +527,8 @@ func cleanKubernetesObject(obj map[string]any) string {
 		o.Delete("status", "checkStatus", k, "uptime1h")
 	}
 
-	return o.String()
+	var output map[string]any
+	return output, json.Unmarshal(o.Bytes(), &output)
 }
 
 var arnRegexp = regexp.MustCompile(`arn:aws:iam::(\d+):role/`)

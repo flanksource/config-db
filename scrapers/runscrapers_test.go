@@ -51,9 +51,9 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				ValueStatic: kubeConfigPath,
 			}
 			scrapeConfig.Spec.Kubernetes[0].Relationships = append(scrapeConfig.Spec.Kubernetes[0].Relationships, v1.KubernetesRelationship{
-				Kind:      v1.KubernetesRelationshipLookup{Value: "ConfigMap"},
-				Name:      v1.KubernetesRelationshipLookup{Label: "flanksource/name"},
-				Namespace: v1.KubernetesRelationshipLookup{Label: "flanksource/namespace"},
+				Kind:      v1.RelationshipLookup{Value: "ConfigMap"},
+				Name:      v1.RelationshipLookup{Label: "flanksource/name"},
+				Namespace: v1.RelationshipLookup{Label: "flanksource/namespace"},
 			})
 		})
 
