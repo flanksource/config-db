@@ -6,6 +6,21 @@ spec:
   kubernetes:
     - clusterName: local-kind-cluster
       transform:
+        relationship:
+          # Link a service to a deployment (adjust the label selector accordingly)
+          - filter: config_type == "Kubernetes::Service"
+            type:
+              value: 'Kubernetes::Deployment'
+            name:
+              expr: |
+                has(config.spec.selector) && has(config.spec.selector.name) ? config.spec.selector.name : ''
+          # Link Pods to PVCs
+          - filter: config_type == 'Kubernetes::Pod'
+            expr: |
+              config.spec.volumes.
+                filter(item, has(item.persistentVolumeClaim)).
+                map(item, {"type": "Kubernetes::PersistentVolumeClaim", "name": item.persistentVolumeClaim.claimName}).
+                toJSON()
         mask:
           - selector: |
               has(config.kind) ? config.kind == 'Certificate' : false

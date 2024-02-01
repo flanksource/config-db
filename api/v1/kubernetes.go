@@ -2,13 +2,11 @@ package v1
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty/types"
-	"github.com/flanksource/gomplate/v3"
 	"github.com/flanksource/mapstructure"
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -105,47 +103,13 @@ func (t *KubernetesExclusionConfig) Filter(name, namespace, kind string, labels 
 	return false
 }
 
-type KubernetesRelationshipLookup struct {
-	Expr  string `json:"expr,omitempty"`
-	Value string `json:"value,omitempty"`
-	Label string `json:"label,omitempty"`
-}
-
-func (t *KubernetesRelationshipLookup) Eval(labels map[string]string, envVar map[string]any) (string, error) {
-	if t.Value != "" {
-		return t.Value, nil
-	}
-
-	if t.Label != "" {
-		return labels[t.Label], nil
-	}
-
-	if t.Expr != "" {
-		res, err := gomplate.RunTemplate(envVar, gomplate.Template{Expression: t.Expr})
-		if err != nil {
-			return "", err
-		}
-
-		return res, nil
-	}
-
-	return "", errors.New("unknown kubernetes relationship lookup type")
-}
-
-func (t KubernetesRelationshipLookup) IsEmpty() bool {
-	if t.Value == "" && t.Label == "" && t.Expr == "" {
-		return true
-	}
-	return false
-}
-
 type KubernetesRelationship struct {
 	// Kind defines which field to use for the kind lookup
-	Kind KubernetesRelationshipLookup `json:"kind" yaml:"kind"`
+	Kind RelationshipLookup `json:"kind" yaml:"kind"`
 	// Name defines which field to use for the name lookup
-	Name KubernetesRelationshipLookup `json:"name" yaml:"name"`
+	Name RelationshipLookup `json:"name" yaml:"name"`
 	// Namespace defines which field to use for the namespace lookup
-	Namespace KubernetesRelationshipLookup `json:"namespace" yaml:"namespace"`
+	Namespace RelationshipLookup `json:"namespace" yaml:"namespace"`
 }
 
 type Kubernetes struct {

@@ -345,6 +345,71 @@ spec:
                                 type: string
                             type: object
                           type: array
+                        relationship:
+                          description: Relationship allows you to form relationships
+                            between config items using selectors.
+                          items:
+                            properties:
+                              agent:
+                                description: Agent can be one of - agent id - agent
+                                  name - 'self' (no agent)
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              expr:
+                                description: Alternately, a single cel-expression
+                                  can be used that returns a list of relationship
+                                  selector.
+                                type: string
+                              filter:
+                                description: Filter is a CEL expression that selects
+                                  on what config items the relationship needs to be
+                                  applied
+                                type: string
+                              id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                            type: object
+                          type: array
                       type: object
                     trusted_advisor_check:
                       type: boolean
@@ -633,6 +698,71 @@ spec:
                                 type: string
                             type: object
                           type: array
+                        relationship:
+                          description: Relationship allows you to form relationships
+                            between config items using selectors.
+                          items:
+                            properties:
+                              agent:
+                                description: Agent can be one of - agent id - agent
+                                  name - 'self' (no agent)
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              expr:
+                                description: Alternately, a single cel-expression
+                                  can be used that returns a list of relationship
+                                  selector.
+                                type: string
+                              filter:
+                                description: Filter is a CEL expression that selects
+                                  on what config items the relationship needs to be
+                                  applied
+                                type: string
+                              id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                            type: object
+                          type: array
                       type: object
                     type:
                       description: A static value or JSONPath expression to use as
@@ -872,6 +1002,71 @@ spec:
                                 type: string
                             type: object
                           type: array
+                        relationship:
+                          description: Relationship allows you to form relationships
+                            between config items using selectors.
+                          items:
+                            properties:
+                              agent:
+                                description: Agent can be one of - agent id - agent
+                                  name - 'self' (no agent)
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              expr:
+                                description: Alternately, a single cel-expression
+                                  can be used that returns a list of relationship
+                                  selector.
+                                type: string
+                              filter:
+                                description: Filter is a CEL expression that selects
+                                  on what config items the relationship needs to be
+                                  applied
+                                type: string
+                              id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                            type: object
+                          type: array
                       type: object
                     type:
                       description: A static value or JSONPath expression to use as
@@ -1067,6 +1262,71 @@ spec:
                                 description: Value can be a hash function name or
                                   just a string
                                 type: string
+                            type: object
+                          type: array
+                        relationship:
+                          description: Relationship allows you to form relationships
+                            between config items using selectors.
+                          items:
+                            properties:
+                              agent:
+                                description: Agent can be one of - agent id - agent
+                                  name - 'self' (no agent)
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              expr:
+                                description: Alternately, a single cel-expression
+                                  can be used that returns a list of relationship
+                                  selector.
+                                type: string
+                              filter:
+                                description: Filter is a CEL expression that selects
+                                  on what config items the relationship needs to be
+                                  applied
+                                type: string
+                              id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                             type: object
                           type: array
                       type: object
@@ -1304,6 +1564,71 @@ spec:
                                 description: Value can be a hash function name or
                                   just a string
                                 type: string
+                            type: object
+                          type: array
+                        relationship:
+                          description: Relationship allows you to form relationships
+                            between config items using selectors.
+                          items:
+                            properties:
+                              agent:
+                                description: Agent can be one of - agent id - agent
+                                  name - 'self' (no agent)
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              expr:
+                                description: Alternately, a single cel-expression
+                                  can be used that returns a list of relationship
+                                  selector.
+                                type: string
+                              filter:
+                                description: Filter is a CEL expression that selects
+                                  on what config items the relationship needs to be
+                                  applied
+                                type: string
+                              id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                             type: object
                           type: array
                       type: object
@@ -1653,6 +1978,71 @@ spec:
                                 type: string
                             type: object
                           type: array
+                        relationship:
+                          description: Relationship allows you to form relationships
+                            between config items using selectors.
+                          items:
+                            properties:
+                              agent:
+                                description: Agent can be one of - agent id - agent
+                                  name - 'self' (no agent)
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              expr:
+                                description: Alternately, a single cel-expression
+                                  can be used that returns a list of relationship
+                                  selector.
+                                type: string
+                              filter:
+                                description: Filter is a CEL expression that selects
+                                  on what config items the relationship needs to be
+                                  applied
+                                type: string
+                              id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                            type: object
+                          type: array
                       type: object
                     type:
                       description: A static value or JSONPath expression to use as
@@ -1859,6 +2249,71 @@ spec:
                                 description: Value can be a hash function name or
                                   just a string
                                 type: string
+                            type: object
+                          type: array
+                        relationship:
+                          description: Relationship allows you to form relationships
+                            between config items using selectors.
+                          items:
+                            properties:
+                              agent:
+                                description: Agent can be one of - agent id - agent
+                                  name - 'self' (no agent)
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              expr:
+                                description: Alternately, a single cel-expression
+                                  can be used that returns a list of relationship
+                                  selector.
+                                type: string
+                              filter:
+                                description: Filter is a CEL expression that selects
+                                  on what config items the relationship needs to be
+                                  applied
+                                type: string
+                              id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                             type: object
                           type: array
                       type: object
@@ -2175,6 +2630,71 @@ spec:
                                 type: string
                             type: object
                           type: array
+                        relationship:
+                          description: Relationship allows you to form relationships
+                            between config items using selectors.
+                          items:
+                            properties:
+                              agent:
+                                description: Agent can be one of - agent id - agent
+                                  name - 'self' (no agent)
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              expr:
+                                description: Alternately, a single cel-expression
+                                  can be used that returns a list of relationship
+                                  selector.
+                                type: string
+                              filter:
+                                description: Filter is a CEL expression that selects
+                                  on what config items the relationship needs to be
+                                  applied
+                                type: string
+                              id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                            type: object
+                          type: array
                       type: object
                     type:
                       description: A static value or JSONPath expression to use as
@@ -2393,6 +2913,71 @@ spec:
                                 description: Value can be a hash function name or
                                   just a string
                                 type: string
+                            type: object
+                          type: array
+                        relationship:
+                          description: Relationship allows you to form relationships
+                            between config items using selectors.
+                          items:
+                            properties:
+                              agent:
+                                description: Agent can be one of - agent id - agent
+                                  name - 'self' (no agent)
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              expr:
+                                description: Alternately, a single cel-expression
+                                  can be used that returns a list of relationship
+                                  selector.
+                                type: string
+                              filter:
+                                description: Filter is a CEL expression that selects
+                                  on what config items the relationship needs to be
+                                  applied
+                                type: string
+                              id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                             type: object
                           type: array
                       type: object

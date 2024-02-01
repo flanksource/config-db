@@ -16,6 +16,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/scrapers/processors"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 )
 
@@ -34,7 +35,7 @@ func runK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, ids []
 	var results v1.ScrapeResults
 	var scraper kubernetes.KubernetesScraper
 	for _, result := range scraper.IncrementalScrape(ctx, config, ids) {
-		scraped := processScrapeResult(ctx.ScrapeConfig().Spec, result)
+		scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, result)
 
 		for i := range scraped {
 			if scraped[i].Error != nil {
@@ -82,7 +83,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 
 		logger.Debugf("Starting to scrape [%s]", jobHistory.Name)
 		for _, result := range scraper.Scrape(ctx) {
-			scraped := processScrapeResult(ctx.ScrapeConfig().Spec, result)
+			scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, result)
 
 			for i := range scraped {
 				if scraped[i].Error != nil {
@@ -133,7 +134,7 @@ func summarizeChanges(changes []v1.ChangeResult) []v1.ChangeResult {
 }
 
 // processScrapeResult extracts possibly more configs from the result
-func processScrapeResult(config v1.ScraperSpec, result v1.ScrapeResult) v1.ScrapeResults {
+func processScrapeResult(ctx context.Context, config v1.ScraperSpec, result v1.ScrapeResult) v1.ScrapeResults {
 	if result.AnalysisResult != nil {
 		if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
 			result.AnalysisResult.AnalysisType = models.AnalysisType(rule.Category)
@@ -156,7 +157,7 @@ func processScrapeResult(config v1.ScraperSpec, result v1.ScrapeResult) v1.Scrap
 		return []v1.ScrapeResult{result}
 	}
 
-	scraped, err := extractor.Extract(result)
+	scraped, err := extractor.Extract(ctx, result)
 	if err != nil {
 		result.Error = err
 		return []v1.ScrapeResult{result}
