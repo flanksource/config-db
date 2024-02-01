@@ -1,8 +1,11 @@
 package jobs
 
 import (
+	gocontext "context"
+
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 )
 
@@ -19,7 +22,8 @@ var (
 )
 
 func DeleteOldConfigAnalysis() {
-	jobHistory := models.NewJobHistory("DeleteOldConfigAnalysis", "", "").Start()
+	ctx := context.NewContext(gocontext.Background()).WithDB(db.DefaultDB(), db.Pool)
+	jobHistory := models.NewJobHistory(ctx.Logger, "DeleteOldConfigAnalysis", "", "").Start()
 	_ = db.PersistJobHistory(jobHistory)
 
 	if ConfigAnalysisRetentionDays <= 0 {
@@ -43,7 +47,8 @@ func DeleteOldConfigAnalysis() {
 }
 
 func DeleteOldConfigChanges() {
-	jobHistory := models.NewJobHistory("DeleteOldConfigChanges", "", "").Start()
+	ctx := context.NewContext(gocontext.Background()).WithDB(db.DefaultDB(), db.Pool)
+	jobHistory := models.NewJobHistory(ctx.Logger, "DeleteOldConfigChanges", "", "").Start()
 	_ = db.PersistJobHistory(jobHistory)
 
 	if ConfigChangeRetentionDays <= 0 {
@@ -67,7 +72,8 @@ func DeleteOldConfigChanges() {
 }
 
 func CleanupConfigItems() {
-	jobHistory := models.NewJobHistory("CleanupConfigItems", "", "").Start()
+	ctx := context.NewContext(gocontext.Background()).WithDB(db.DefaultDB(), db.Pool)
+	jobHistory := models.NewJobHistory(ctx.Logger, "CleanupConfigItems", "", "").Start()
 	_ = db.PersistJobHistory(jobHistory)
 	defer func() {
 		_ = db.PersistJobHistory(jobHistory.End())

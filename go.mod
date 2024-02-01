@@ -40,8 +40,8 @@ require (
 	github.com/aws/smithy-go v1.13.5
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.25.0
-	github.com/flanksource/commons v1.20.0
-	github.com/flanksource/duty v1.0.282
+	github.com/flanksource/commons v1.22.0
+	github.com/flanksource/duty v1.0.321
 	github.com/flanksource/is-healthy v1.0.1
 	github.com/flanksource/ketall v1.1.3
 	github.com/flanksource/mapstructure v1.6.0
@@ -95,6 +95,8 @@ require (
 	github.com/asecurityteam/rolling v2.0.4+incompatible // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/eko/gocache/lib/v4 v4.1.5 // indirect
+	github.com/eko/gocache/store/go_cache/v4 v4.2.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.7.0 // indirect
 	github.com/exaring/otelpgx v0.5.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -106,6 +108,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/pprof v0.0.0-20231212022811-ec68065c825e // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
@@ -147,7 +150,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240102182953-50ed04b92917 // indirect
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 	gorm.io/driver/postgres v1.5.3 // indirect
-	gorm.io/plugin/opentelemetry v0.1.4 // indirect
 	k8s.io/component-base v0.28.0 // indirect
 	layeh.com/gopher-json v0.0.0-20201124131017-552bb3c4c3bf // indirect
 	sigs.k8s.io/kustomize v2.0.3+incompatible // indirect

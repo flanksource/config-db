@@ -5,27 +5,21 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/utils"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
 	"github.com/patrickmn/go-cache"
+	"github.com/samber/lo"
 	"gorm.io/gorm/clause"
-)
-
-var (
-	configIDCache = cache.New(cache.NoExpiration, cache.NoExpiration)
-
-	configRelationshipSelectorCache = cache.New(cache.NoExpiration, cache.NoExpiration)
-
-	configRelationshipSelectorMutableCache = cache.New(time.Minute*5, time.Minute*5)
 )
 
 // GetConfigItem returns a single config item result
@@ -108,89 +102,27 @@ func UpdateConfigItem(ci *models.ConfigItem) error {
 	return nil
 }
 
-// ConfigRelationshipSelectorResult represents the a subset of columns in the config item database table.
-type ConfigRelationshipSelectorResult struct {
-	ID   string `json:"id"`
-	Type string `json:"type"`
-}
-
-func (t *ConfigRelationshipSelectorResult) TableName() string {
-	return "config_items"
-}
-
-func FindConfigsByRelationshipSelector(ctx context.Context, selector v1.RelationshipSelector) ([]ConfigRelationshipSelectorResult, error) {
+func FindConfigsByRelationshipSelector(ctx context.Context, selector v1.RelationshipSelector) ([]dutyModels.ConfigItem, error) {
 	if selector.IsEmpty() {
 		return nil, nil
 	}
 
-	var cacheToUse = configRelationshipSelectorCache
-	if len(selector.Labels) != 0 {
-		cacheToUse = configRelationshipSelectorMutableCache
-	}
-
-	if val, ok := cacheToUse.Get(selector.Hash()); ok {
-		return val.([]ConfigRelationshipSelectorResult), nil
-	}
-
-	var items []ConfigRelationshipSelectorResult
-	query := ctx.DB().Select("config_items.id, config_items.type")
-	if selector.Name != nil {
-		query = query.Where("config_items.name = ?", *selector.Name)
-	}
-
-	if selector.Type != nil {
-		query = query.Where("config_items.type = ?", *selector.Type)
-	}
-
-	if selector.Agent != nil {
-		if *selector.Agent == "self" {
-			query = query.Where("config_items.agent_id = ?", uuid.Nil)
-		} else if uid, err := uuid.Parse(*selector.Agent); err == nil {
-			query = query.Where("config_items.agent_id = ?", uid)
-		} else { // assume it's an agent name
-			query = query.Joins("LEFT JOIN agents ON config_items.agent_id = agents.id").Where("agents.name = ?", *selector.Agent).Where("config_items.agent_id = ?", uid)
-		}
-	}
-
-	if len(selector.Labels) > 0 {
-		query = query.Where("config_items.labels @> ?", selector.Labels)
-	}
-
-	if err := query.Find(&items).Error; err != nil {
-		return nil, err
-	}
-
-	if len(items) > 0 {
-		cacheToUse.SetDefault(selector.Hash(), items)
-	} else {
-		cacheToUse.Set(selector.Hash(), items, time.Minute*5)
-	}
-
-	return items, nil
+	return duty.FindConfigs(ctx, []types.ResourceSelector{selector.ToResourceSelector()}, duty.PickColumns("id"))
 }
 
 // FindConfigIDsByNamespaceNameClass returns the uuid of config items which matches the given type, name & namespace
 func FindConfigIDsByNamespaceNameClass(ctx context.Context, namespace, name, configClass string) ([]uuid.UUID, error) {
-	cacheKey := fmt.Sprintf("%s|%s|%s", namespace, name, configClass)
-	if val, ok := configIDCache.Get(cacheKey); ok {
-		return val.([]uuid.UUID), nil
+	rs := types.ResourceSelector{
+		Name:          name,
+		Namespace:     namespace,
+		FieldSelector: fmt.Sprintf("config_class=%s", configClass),
 	}
-
-	var ids []uuid.UUID
-	err := ctx.DB().Model(&models.ConfigItem{}).Select("id").
-		Where("name = ?", name).
-		Where("namespace = ?", namespace).
-		Where("config_class = ?", configClass).
-		Find(&ids).Error
+	items, err := duty.FindConfigs(ctx, []types.ResourceSelector{rs}, duty.PickColumns("id"))
 	if err != nil {
 		return nil, err
 	}
 
-	if len(ids) > 0 {
-		configIDCache.SetDefault(cacheKey, ids)
-	}
-
-	return ids, err
+	return lo.Map(items, func(c dutyModels.ConfigItem, _ int) uuid.UUID { return c.ID }), nil
 }
 
 // QueryConfigItems ...

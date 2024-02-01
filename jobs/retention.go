@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty/context"
@@ -14,7 +14,7 @@ import (
 
 func ProcessChangeRetentionRules() {
 	ctx := context.NewContext(gocontext.Background()).WithDB(db.DefaultDB(), db.Pool)
-	jobHistory := models.NewJobHistory("ProcessChangeRetentionRules", "", "").Start()
+	jobHistory := models.NewJobHistory(ctx.Logger, "ProcessChangeRetentionRules", "", "").Start()
 	_ = db.PersistJobHistory(jobHistory)
 	defer func() {
 		_ = db.PersistJobHistory(jobHistory.End())
