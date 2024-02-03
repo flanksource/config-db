@@ -70,14 +70,15 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 			continue
 		}
 
-		jobHistory := models.JobHistory{
-			Name:         fmt.Sprintf("scraper:%T", scraper),
-			ResourceType: "config_scraper",
-			ResourceID:   string(ctx.ScrapeConfig().GetUID()),
-		}
+		jobHistory := models.NewJobHistory(
+			ctx.DutyContext().Logger,
+			fmt.Sprintf("scraper:%T", scraper),
+			"config_scraper",
+			string(ctx.ScrapeConfig().GetUID()),
+		)
 
 		jobHistory.Start()
-		if err := db.PersistJobHistory(&jobHistory); err != nil {
+		if err := db.PersistJobHistory(jobHistory); err != nil {
 			logger.Errorf("Error persisting job history: %v", err)
 		}
 
@@ -100,7 +101,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 		}
 
 		jobHistory.End()
-		if err := db.PersistJobHistory(&jobHistory); err != nil {
+		if err := db.PersistJobHistory(jobHistory); err != nil {
 			logger.Errorf("Error persisting job history: %v", err)
 		}
 	}
