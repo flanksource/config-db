@@ -31,25 +31,31 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
 }
 
-func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, config v1.Kubernetes, resources []*v1.InvolvedObject) v1.ScrapeResults {
-	logger.Debugf("Scraping %d resources", len(resources))
+func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) v1.ScrapeResults {
+	logger.Debugf("incremntally scraping %d resources", len(events))
 
 	var objects []*unstructured.Unstructured
-	for _, resource := range resources {
+	for _, event := range events {
+		resource := event.InvolvedObject
 		logger.WithValues("name", resource.Name).WithValues("namespace", resource.Namespace).WithValues("kind", resource.Kind).Debugf("ketOne")
 		obj, err := ketall.KetOne(ctx, resource.Name, resource.Namespace, resource.Kind, options.NewDefaultCmdOptions())
 		if err != nil {
 			logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
 			continue
 		} else if obj == nil {
-			logger.WithValues("name", resource.Name).WithValues("namespace", resource.Namespace).WithValues("kind", resource.Kind).Debugf("resource from event not found")
-			continue
+			// If the object isn't found then it's probably deleted.
+			// We form the event and let the change pipeline handle it.
+			obj, err = event.ToUnstructured()
+			if err != nil {
+				logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
+				continue
+			}
 		}
 
 		objects = append(objects, obj)
 	}
 
-	logger.Debugf("Found %d objects for %d ids", len(objects), len(resources))
+	logger.Debugf("Found %d objects for %d ids", len(objects), len(events))
 
 	return extractResults(ctx.DutyContext(), config, objects)
 }

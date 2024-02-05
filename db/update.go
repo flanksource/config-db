@@ -31,11 +31,12 @@ import (
 
 func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	var deletedAt interface{}
-	if change.CreatedAt != nil {
+	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {
 		deletedAt = change.CreatedAt
 	} else {
 		deletedAt = gorm.Expr("NOW()")
 	}
+
 	configs := []models.ConfigItem{}
 	tx := db.Model(&configs).
 		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
@@ -50,7 +51,7 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 		return nil
 	}
 
-	logger.Infof("Deleted %s from change %s", configs[0].ID, change)
+	logger.Debugf("Deleted %s from change %s", configs[0].ID, change)
 	return nil
 }
 

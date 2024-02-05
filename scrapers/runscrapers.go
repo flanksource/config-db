@@ -20,7 +20,7 @@ import (
 	"github.com/flanksource/duty/models"
 )
 
-func runK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, ids []*v1.InvolvedObject) ([]v1.ScrapeResult, error) {
+func runK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) ([]v1.ScrapeResult, error) {
 	jobHistory := models.JobHistory{
 		Name:         "K8IncrementalScraper",
 		ResourceType: "config_scraper",
@@ -34,7 +34,7 @@ func runK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, ids []
 
 	var results v1.ScrapeResults
 	var scraper kubernetes.KubernetesScraper
-	for _, result := range scraper.IncrementalScrape(ctx, config, ids) {
+	for _, result := range scraper.IncrementalScrape(ctx, config, events) {
 		scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, result)
 
 		for i := range scraped {
