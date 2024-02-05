@@ -81,6 +81,9 @@ func Init(ctx context.Context, connection string) error {
 		if connection, err = embeddedDB(EmbeddedPGDB, EmbeddedPGPort); err != nil {
 			return fmt.Errorf("failed to setup embedded postgres: %w", err)
 		}
+
+		// Update globally for postgrest
+		ConnectionString = connection
 	}
 
 	Pool, err = duty.NewPgxPool(connection)
