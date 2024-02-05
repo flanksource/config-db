@@ -64,7 +64,7 @@ func serve(ctx context.Context, configFiles []string) {
 
 	go startScraperCron(configFiles)
 
-	go jobs.ScheduleJobs()
+	go jobs.ScheduleJobs(api.DefaultContext.DutyContext())
 
 	go func() {
 		if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil {
