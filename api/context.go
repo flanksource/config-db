@@ -17,7 +17,7 @@ import (
 )
 
 type ScrapeContext interface {
-	duty.DBContext
+	context.Context
 	DutyContext() dutyCtx.Context
 
 	IsTrace() bool

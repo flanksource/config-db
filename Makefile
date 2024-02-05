@@ -19,6 +19,12 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+.PHONY: tidy
+tidy:
+	go mod tidy
+	git add go.mod go.sum
+	cd hack/generate-schemas && go mod tidy && 	git add go.mod go.sum
+
 docker:
 	docker build . -f build/Dockerfile -t ${IMG}
 
