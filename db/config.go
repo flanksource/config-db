@@ -243,7 +243,7 @@ func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
 	// Doing it in a for loop to avoid
 	// ERROR: ON CONFLICT DO UPDATE command cannot affect row a second time
 	for _, rel := range relationships {
-		err := db.Debug().Clauses(clause.OnConflict{
+		err := db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
 			UpdateAll: true,
 		}).Create(&rel).Error

@@ -21,8 +21,8 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 	return results, nil
 }
 
-func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, resources []*v1.InvolvedObject) error {
-	results, scraperErr := runK8IncrementalScraper(ctx, config, resources)
+func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) error {
+	results, scraperErr := runK8IncrementalScraper(ctx, config, events)
 	if scraperErr != nil {
 		return fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig().Name, scraperErr)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/mapstructure"
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // SeverityKeywords is used to identify the severity
@@ -233,6 +234,17 @@ type KubernetesEvent struct {
 	Source         map[string]string  `json:"source,omitempty"`
 	Metadata       *metav1.ObjectMeta `json:"metadata,omitempty" mapstructure:"metadata"`
 	InvolvedObject *InvolvedObject    `json:"involvedObject,omitempty"`
+}
+
+func (t *KubernetesEvent) ToUnstructured() (*unstructured.Unstructured, error) {
+	b, err := t.AsMap()
+	if err != nil {
+		return nil, nil
+	}
+
+	b["kind"] = "Event"
+
+	return &unstructured.Unstructured{Object: b}, nil
 }
 
 func (t *KubernetesEvent) GetUID() string {

@@ -8,7 +8,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
+	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -18,12 +18,11 @@ var (
 	refetchEventResourceInterval = time.Second * 10
 )
 
-type consumerFunc func(ctx api.ScrapeContext, config v1.Kubernetes, involvedObjects []*v1.InvolvedObject) error
+type consumerFunc func(ctx api.ScrapeContext, config v1.Kubernetes, involvedObjects []v1.KubernetesEvent) error
 
 type eventWatcher struct {
-	// involvedObjects keeps record of all the involved objects from events
-	// by the resource kind.
-	involvedObjects map[string]map[string]*v1.InvolvedObject
+	// eventBuffer keeps record of all the events grouped by the involvedObject.
+	eventBuffer map[string]v1.KubernetesEvent
 
 	// lock for involvedObjects.
 	lock *sync.Mutex
@@ -31,8 +30,8 @@ type eventWatcher struct {
 
 func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes, consume consumerFunc) error {
 	watcher := &eventWatcher{
-		lock:            &sync.Mutex{},
-		involvedObjects: make(map[string]map[string]*v1.InvolvedObject),
+		lock:        &sync.Mutex{},
+		eventBuffer: make(map[string]v1.KubernetesEvent),
 	}
 
 	go watcher.consumeChangeEvents(ctx, config, consume)
@@ -66,20 +65,8 @@ func (t *eventWatcher) Watch(ctx api.ScrapeContext, config v1.Kubernetes) error 
 			continue
 		}
 
-		if !config.Event.Exclusions.Filter(event) {
-			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
-			if change != nil {
-				if err := db.SaveResults(ctx, []v1.ScrapeResult{{Changes: []v1.ChangeResult{*change}}}); err != nil {
-					logger.Errorf("error saving config change (event=%s): %v", event.Reason, err)
-				}
-			}
-		}
-
 		t.lock.Lock()
-		if _, ok := t.involvedObjects[event.InvolvedObject.Kind]; !ok {
-			t.involvedObjects[event.InvolvedObject.Kind] = make(map[string]*v1.InvolvedObject)
-		}
-		t.involvedObjects[event.InvolvedObject.Kind][event.GetUID()] = event.InvolvedObject
+		t.eventBuffer[string(event.InvolvedObject.UID)] = event
 		t.lock.Unlock()
 	}
 
@@ -92,23 +79,17 @@ func (t *eventWatcher) consumeChangeEvents(ctx api.ScrapeContext, config v1.Kube
 	for {
 		time.Sleep(refetchEventResourceInterval)
 
-		if len(t.involvedObjects) == 0 {
+		if len(t.eventBuffer) == 0 {
 			continue
 		}
 
 		t.lock.Lock()
-		var resourceIDs []*v1.InvolvedObject
-		for _, resources := range t.involvedObjects {
-			for _, r := range resources {
-				resourceIDs = append(resourceIDs, r)
-			}
-		}
+		allEvents := lo.Values(t.eventBuffer)
+		t.eventBuffer = make(map[string]v1.KubernetesEvent)
 		t.lock.Unlock()
 
-		if err := consume(ctx, config, resourceIDs); err != nil {
+		if err := consume(ctx, config, allEvents); err != nil {
 			logger.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig().Name, err)
 		}
-
-		t.involvedObjects = make(map[string]map[string]*v1.InvolvedObject)
 	}
 }
