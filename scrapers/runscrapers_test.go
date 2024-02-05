@@ -15,6 +15,7 @@ import (
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/context"
 	dutymodels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -117,7 +118,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 		})
 
 		It("should correctly setup kubernetes relationship", func() {
-			duty.CleanCache()
+			query.FlushGettersCache()
 
 			scraperCtx := api.NewScrapeContext(gocontext.TODO(), gormDB, nil).WithScrapeConfig(&scrapeConfig)
 			_, err := RunScraper(scraperCtx)

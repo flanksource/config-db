@@ -234,15 +234,15 @@ func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.Scrap
 		}
 
 		for _, selector := range relationshipSelectors {
-			linkedConfigItems, err := db.FindConfigsByRelationshipSelector(ctx, selector)
+			linkedConfigIDs, err := db.FindConfigIDsByRelationshipSelector(ctx, selector)
 			if err != nil {
 				return nil, fmt.Errorf("failed to find config items by relationship selector: %w", err)
 			}
 
-			for _, itemToLink := range linkedConfigItems {
+			for _, id := range linkedConfigIDs {
 				rel := v1.RelationshipResult{
 					ConfigExternalID: v1.ExternalID{ExternalID: []string{input.ID}, ConfigType: input.Type},
-					RelatedConfigID:  itemToLink.ID.String(),
+					RelatedConfigID:  id.String(),
 				}
 
 				relationships = append(relationships, rel)

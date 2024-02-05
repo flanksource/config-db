@@ -27,7 +27,7 @@ const (
 	eventQueueUpdateChannel = "event_queue_updates"
 )
 
-var SyncConfigChanges = job.Job{
+var SyncConfigChanges = &job.Job{
 	Name:       "SyncConfigChanges",
 	JobHistory: true,
 	Singleton:  true,
@@ -43,7 +43,7 @@ var SyncConfigChanges = job.Job{
 	},
 }
 
-var SyncConfigAnalyses = job.Job{
+var SyncConfigAnalyses = &job.Job{
 	Name:       "SyncConfigAnalyses",
 	JobHistory: true,
 	Singleton:  true,
@@ -59,7 +59,7 @@ var SyncConfigAnalyses = job.Job{
 	},
 }
 
-var ReconcileConfigScrapersAndItems = job.Job{
+var ReconcileConfigScrapersAndItems = &job.Job{
 	Name:       "ReconcileConfigScrapersAndItems",
 	JobHistory: true,
 	Singleton:  true,
@@ -87,7 +87,7 @@ var ReconcileConfigScrapersAndItems = job.Job{
 	},
 }
 
-var PullUpstreamConfigScrapers = job.Job{
+var PullUpstreamConfigScrapers = &job.Job{
 	Name:       "PullUpstreamConfigScrapers",
 	JobHistory: true,
 	Singleton:  true,
@@ -102,7 +102,7 @@ var PullUpstreamConfigScrapers = job.Job{
 	},
 }
 
-var UpstreamJobs = []job.Job{
+var UpstreamJobs = []*job.Job{
 	SyncConfigChanges,
 	SyncConfigAnalyses,
 	PullUpstreamConfigScrapers,

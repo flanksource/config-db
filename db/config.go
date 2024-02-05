@@ -10,15 +10,14 @@ import (
 	"github.com/flanksource/commons/utils"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
-	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
 	"github.com/patrickmn/go-cache"
-	"github.com/samber/lo"
 	"gorm.io/gorm/clause"
 )
 
@@ -102,12 +101,12 @@ func UpdateConfigItem(ci *models.ConfigItem) error {
 	return nil
 }
 
-func FindConfigsByRelationshipSelector(ctx context.Context, selector v1.RelationshipSelector) ([]dutyModels.ConfigItem, error) {
+func FindConfigIDsByRelationshipSelector(ctx context.Context, selector v1.RelationshipSelector) ([]uuid.UUID, error) {
 	if selector.IsEmpty() {
 		return nil, nil
 	}
 
-	return duty.FindConfigs(ctx, []types.ResourceSelector{selector.ToResourceSelector()}, duty.PickColumns("id"))
+	return query.FindConfigIDsByResourceSelector(ctx, selector.ToResourceSelector())
 }
 
 // FindConfigIDsByNamespaceNameClass returns the uuid of config items which matches the given type, name & namespace
@@ -117,12 +116,8 @@ func FindConfigIDsByNamespaceNameClass(ctx context.Context, namespace, name, con
 		Namespace:     namespace,
 		FieldSelector: fmt.Sprintf("config_class=%s", configClass),
 	}
-	items, err := duty.FindConfigs(ctx, []types.ResourceSelector{rs}, duty.PickColumns("id"))
-	if err != nil {
-		return nil, err
-	}
 
-	return lo.Map(items, func(c dutyModels.ConfigItem, _ int) uuid.UUID { return c.ID }), nil
+	return query.FindConfigIDsByResourceSelector(ctx, rs)
 }
 
 // QueryConfigItems ...
