@@ -8,22 +8,17 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+const JobResourceType = "configs"
+
 var FuncScheduler = cron.New()
 
 func ScheduleJobs(ctx context.Context) {
-	if err := job.NewJob(ctx, "Delete Old Config Changes", "@every 24h", DeleteOldConfigChanges).
-		RunOnStart().AddToScheduler(FuncScheduler); err != nil {
-		logger.Errorf("Failed to schedule sync jobs for team component: %v", err)
-	}
-
-	if err := job.NewJob(ctx, "Delete Old Config Analyses", "@every 24h", DeleteOldConfigAnalysis).
-		RunOnStart().AddToScheduler(FuncScheduler); err != nil {
-		logger.Errorf("Failed to schedule sync jobs for team component: %v", err)
-	}
-
-	if err := job.NewJob(ctx, "Cleanup Config Items", "@every 24h", CleanupConfigItems).
-		RunOnStart().AddToScheduler(FuncScheduler); err != nil {
-		logger.Errorf("Failed to schedule sync jobs for team component: %v", err)
+	for _, j := range cleanupJobs {
+		var job = j
+		job.Context = ctx
+		if err := job.AddToScheduler(FuncScheduler); err != nil {
+			logger.Fatalf(err.Error())
+		}
 	}
 
 	if err := job.NewJob(ctx, "Process Change Retention Rules", "@every 1h", ProcessChangeRetentionRules).

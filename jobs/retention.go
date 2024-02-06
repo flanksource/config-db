@@ -11,6 +11,7 @@ import (
 )
 
 func ProcessChangeRetentionRules(ctx job.JobRuntime) error {
+	ctx.History.ResourceType = JobResourceType
 	var activeScrapers []models.ConfigScraper
 	if err := ctx.DB().Where("deleted_at IS NULL").Find(&activeScrapers).Error; err != nil {
 		return err
