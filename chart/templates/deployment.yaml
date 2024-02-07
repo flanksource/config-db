@@ -87,8 +87,6 @@ spec:
             - name: NAMESPACE
               value: {{ .Values.namespace | default .Release.Namespace }}
             {{- if .Values.upstream.enabled}}
-            - name: AGENT_NAME
-              value: '{{ .Values.upstream.agentName }}'
             - name: UPSTREAM_PAGE_SIZE
               value: '{{ .Values.upstream.pageSize }}'
             {{- end}}
