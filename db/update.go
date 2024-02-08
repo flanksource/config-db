@@ -185,7 +185,6 @@ func updateChange(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 			if err := deleteChangeHandler(ctx, changeResult); err != nil {
 				return err
 			}
-			continue
 		}
 
 		change := models.NewConfigChangeFromV1(*result, changeResult)
