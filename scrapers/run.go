@@ -2,13 +2,22 @@ package scrapers
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 )
 
+type contextKey string
+
+const (
+	contextKeyScrapeStart contextKey = "scrape_start_time"
+)
+
 func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
+	ctx = ctx.WithValue(contextKeyScrapeStart, time.Now())
+
 	results, scraperErr := Run(ctx)
 	if scraperErr != nil {
 		return nil, fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig().Name, scraperErr)
@@ -22,6 +31,8 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 }
 
 func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) error {
+	ctx = ctx.WithValue(contextKeyScrapeStart, time.Now())
+
 	results, scraperErr := runK8IncrementalScraper(ctx, config, events)
 	if scraperErr != nil {
 		return fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig().Name, scraperErr)
@@ -45,7 +56,7 @@ func saveResults(ctx api.ScrapeContext, results v1.ScrapeResults) error {
 	if persistedID != nil {
 		// If error in any of the scrape results, don't delete old items
 		if len(results) > 0 && !v1.ScrapeResults(results).HasErr() {
-			if err := DeleteStaleConfigItems(ctx.DutyContext(), *persistedID); err != nil {
+			if err := DeleteStaleConfigItems(ctx, *persistedID); err != nil {
 				return fmt.Errorf("error deleting stale config items: %w", err)
 			}
 		}
