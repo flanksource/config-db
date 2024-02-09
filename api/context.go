@@ -23,6 +23,7 @@ type ScrapeContext interface {
 	IsTrace() bool
 
 	WithContext(ctx context.Context) ScrapeContext
+	WithValue(key, val any) ScrapeContext
 
 	WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContext
 	ScrapeConfig() *v1.ScrapeConfig
@@ -60,6 +61,11 @@ func NewScrapeContext(ctx context.Context, db *gorm.DB, pool *pgxpool.Pool) Scra
 		db:                   db,
 		pool:                 pool,
 	}
+}
+
+func (ctx scrapeContext) WithValue(key, val any) ScrapeContext {
+	ctx.Context = context.WithValue(ctx.Context, key, val)
+	return &ctx
 }
 
 func (ctx scrapeContext) WithContext(from context.Context) ScrapeContext {
