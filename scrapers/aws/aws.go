@@ -1138,7 +1138,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				continue
 			}
 
-			logger.Infof("Scrapping %s", awsCtx)
+			logger.Infof("Scraping %s", awsCtx)
 			aws.subnets(awsCtx, awsConfig, results)
 			aws.instances(awsCtx, awsConfig, results)
 			aws.vpcs(awsCtx, awsConfig, results)

@@ -151,7 +151,7 @@ func getFiles(ctx api.ScrapeContext, dst, url string, paths []string) (matches [
 func findFiles(ctx api.ScrapeContext, dir string, paths []string) []string {
 	matches := []string{}
 	if paths == nil {
-		logger.Debugf("no paths specified, scrapping all json and yaml/yml files")
+		logger.Debugf("no paths specified, scraping all json and yaml/yml files")
 		paths = append(paths, "**.json", "**.yaml", "**.yml")
 	}
 
