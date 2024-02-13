@@ -69,6 +69,10 @@ type Scraper struct {
 	ctx    context.Context
 	cred   *azidentity.ClientSecretCredential
 	config *v1.Azure
+
+	// Populate these first with list of all resource groups
+	// to fetch items grouped by resourceGroups
+	resourceGroups []string
 }
 
 func (azure Scraper) CanScrape(configs v1.ScraperSpec) bool {
@@ -127,6 +131,7 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		azure.config = &config
 		azure.cred = cred
 
+		// We fetch resource groups first as they are used to fetch further resources
 		results = append(results, azure.fetchResourceGroups()...)
 		results = append(results, azure.fetchVirtualMachines()...)
 		results = append(results, azure.fetchLoadBalancers()...)
@@ -521,11 +526,66 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 		}
 	}
 
+	vmScaleSetClient, err := armcompute.NewVirtualMachineScaleSetsClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate virtual machine scale set client: %w", err)})
+	}
+
+	vmScaleSetVMsClient, err := armcompute.NewVirtualMachineScaleSetVMsClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate virtual machine scale set vms client: %w", err)})
+	}
+
+	vmScaleSetPager := vmScaleSetClient.NewListAllPager(nil)
+	for vmScaleSetPager.More() {
+		nextPage, err := vmScaleSetPager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed read virtual machine scale set page: %w", err)})
+		}
+
+		for _, vmScaleSet := range nextPage.Value {
+			results = append(results, v1.ScrapeResult{
+				ConfigID:    vmScaleSet.Properties.UniqueID,
+				BaseScraper: azure.config.BaseScraper,
+				ID:          getARMID(vmScaleSet.ID),
+				Name:        deref(vmScaleSet.Name),
+				Config:      vmScaleSet,
+				ConfigClass: models.ConfigClassNode,
+				Type:        getARMType(vmScaleSet.Type),
+			})
+
+			for _, rg := range azure.resourceGroups {
+				scaleSetVMsPager := vmScaleSetVMsClient.NewListPager(rg, deref(vmScaleSet.Name), nil)
+				for scaleSetVMsPager.More() {
+					nextPage, err := scaleSetVMsPager.NextPage(azure.ctx)
+					if err != nil {
+						// There are chances no VMS exist in that given resource group
+						// so we ignore and move on
+						break
+					}
+					for _, v := range nextPage.Value {
+						results = append(results, v1.ScrapeResult{
+							ConfigID:    v.Properties.VMID,
+							BaseScraper: azure.config.BaseScraper,
+							ID:          getARMID(v.ID),
+							Name:        deref(v.Name),
+							Config:      v,
+							ConfigClass: models.ConfigClassVirtualMachine,
+							Type:        getARMType(v.Type),
+							Aliases:     []string{*v.Properties.OSProfile.ComputerName},
+						})
+					}
+				}
+			}
+		}
+
+	}
+
 	return results
 }
 
 // fetchResourceGroups gets resource groups in a subscription.
-func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
+func (azure *Scraper) fetchResourceGroups() v1.ScrapeResults {
 	logger.Debugf("fetching resource groups for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
@@ -550,6 +610,8 @@ func (azure Scraper) fetchResourceGroups() v1.ScrapeResults {
 				ConfigClass: "ResourceGroup",
 				Type:        getARMType(v.Type),
 			})
+
+			azure.resourceGroups = append(azure.resourceGroups, deref(v.Name))
 		}
 	}
 	return results
