@@ -73,7 +73,7 @@ func FindConfigItemFromType(configType string) ([]models.ConfigItem, error) {
 
 // CreateConfigItem inserts a new config item row in the db
 func CreateConfigItem(ci *models.ConfigItem) error {
-	if err := db.Create(ci).Error; err != nil {
+	if err := db.Clauses(clause.OnConflict{UpdateAll: true}).Create(ci).Error; err != nil {
 		return err
 	}
 	return nil
