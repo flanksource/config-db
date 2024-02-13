@@ -54,6 +54,14 @@ spec:
           - filter: config_type == 'AWS::IAM::Role'
             expr: |
               [{"type": "Kubernetes::Node", "labels": {"iam-role": config["Arn"]}}].toJSON()
+          # ZoneID to Kubernetes Node
+          - filter: config_type == 'AWS::AvailabilityZoneID'
+            expr: |
+              [{"type": "Kubernetes::Node", "labels": {"topology.kubernetes.io/region": config["RegionName"]}}].toJSON()
+          # Subnet to Kubernetes Node
+          - filter: config_type == 'AWS::EC2:Subnet'
+            expr: |
+              [{"type": "Kubernetes::Node", "labels": {"vpc-id": config["VpcId"]}}].toJSON()
         exclude:
           - jsonpath: $.tags
           - jsonpath: $.privateDnsNameOptionsOnLaunch
