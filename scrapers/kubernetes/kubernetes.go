@@ -248,14 +248,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 							RelatedExternalID: v1.ExternalID{ExternalID: []string{ec2InstanceID}, ConfigType: "AWS::EC2::Instance"},
 							Relationship:      "EC2InstanceNode",
 						})
-					} else if strings.HasPrefix(providerID, "azure:///") && len(splits) > 0 {
-						relationships = append(relationships, v1.RelationshipResult{
-							ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + "Node"},
-							RelatedExternalID: v1.ExternalID{ExternalID: []string{obj.GetName()}, ConfigType: "Azure::Microsoft.Compute/virtualMachineScaleSets/virtualMachines"},
-							Relationship:      "VirtualMachineNode",
-						})
 					}
-
 				}
 			}
 		}
