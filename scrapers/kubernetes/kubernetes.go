@@ -294,11 +294,11 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 					accountID = extractAccountIDFromARN(mapRolesYAML)
 				}
 
+				globalLabels["aws/account-id"] = accountID
+
 				if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
 					clusterScrapeResult["aws-auth"] = cm
 					clusterScrapeResult["account-id"] = accountID
-
-					globalLabels["aws/account-id"] = accountID
 				}
 			}
 		}
@@ -375,6 +375,11 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		})
 	}
 
+	results = append(results, changeResults...)
+	if withCluster {
+		results = append([]v1.ScrapeResult{cluster}, results...)
+	}
+
 	for i := range results {
 		results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), globalLabels)
 
@@ -390,11 +395,6 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 				results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), l)
 			}
 		}
-	}
-
-	results = append(results, changeResults...)
-	if withCluster {
-		results = append([]v1.ScrapeResult{cluster}, results...)
 	}
 
 	return results

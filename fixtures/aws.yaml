@@ -39,12 +39,12 @@ spec:
       # - SecurityGroup
       transform:
         relationship:
-          # EKS Cluster to Kubernetes Cluster & Kubernetes Node
+           # EKS Cluster to Kubernetes Cluster & Kubernetes Node
           - filter: config_type == 'AWS::EKS::Cluster'
             expr: |
               [
-                {"type": "Kubernetes::Cluster", "labels": {"eks-cluster-name": tags["alpha.eksctl.io/cluster-name"]}},
-                {"type": "Kubernetes::Node", "labels": {"alpha.eksctl.io/cluster-name": tags["alpha.eksctl.io/cluster-name"]}}
+                {"type": "Kubernetes::Cluster","labels": {"aws/account-id": tags['account'],"eks-cluster-name": tags["alpha.eksctl.io/cluster-name"]}},
+                {"type": "Kubernetes::Node","labels": {"aws/account-id": tags['account'],"alpha.eksctl.io/cluster-name": tags["alpha.eksctl.io/cluster-name"]}}
               ].toJSON()
           # EC2 Instance to kubernetes node
           - filter: config_type == 'AWS::EC2:Instance'
@@ -54,10 +54,6 @@ spec:
           - filter: config_type == 'AWS::IAM::Role'
             expr: |
               [{"type": "Kubernetes::Node", "labels": {"aws/iam-role": config["Arn"]}}].toJSON()
-          # Subnet to Kubernetes Node
-          - filter: config_type == 'AWS::EC2:Subnet'
-            expr: |
-              [{"type": "Kubernetes::Node", "labels": {"aws/account-id": tags['account'], "aws/vpc-id": config["VpcId"]}}].toJSON()
           # AvailabilityZone to Zone ID & Kubernetes Node
           - filter: config_type == 'AWS::AvailabilityZone'
             expr: |
@@ -65,13 +61,10 @@ spec:
                 {"type": "Kubernetes::Node", "labels": {"aws/account-id": tags['account'], "topology.kubernetes.io/region": config["RegionName"]}},
                 {"type": "AWS::AvailabilityZoneID", "name": config["ZoneId"]}
               ].toJSON()
-          # Region to AvailabilityZone & ZoneID
+          # Region to ZoneID
           - filter: config_type == 'AWS::Region'
             expr: |
-              [
-                {"type": "AWS::AvailabilityZone", "labels": {"region": name}},
-                {"type": "AWS::AvailabilityZoneID", "labels": {"region": name}}
-              ].toJSON()
+              [{"type": "AWS::AvailabilityZoneID", "labels": {"region": name}}].toJSON()
         exclude:
           - jsonpath: $.tags
           - jsonpath: $.privateDnsNameOptionsOnLaunch
