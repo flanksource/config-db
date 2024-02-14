@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -59,6 +60,20 @@ func saveResults(ctx api.ScrapeContext, results v1.ScrapeResults) error {
 			if err := DeleteStaleConfigItems(ctx, *persistedID); err != nil {
 				return fmt.Errorf("error deleting stale config items: %w", err)
 			}
+		}
+	}
+
+	// Any config item that was previously marked as deleted should be un-deleted
+	// if the item was re-discovered in this run.
+	if val := ctx.Value(contextKeyScrapeStart); val != nil {
+		if start, ok := val.(time.Time); ok {
+			query := `UPDATE config_items SET deleted_at = NULL WHERE deleted_at IS NOT NULL AND ((NOW() - updated_at) <= INTERVAL '1 SECOND' * ?)`
+			tx := ctx.DutyContext().DB().Exec(query, time.Since(start).Seconds())
+			if err := tx.Error; err != nil {
+				return fmt.Errorf("error un-deleting stale config items: %w", err)
+			}
+
+			logger.Debugf("undeleted %d stale config items", tx.RowsAffected)
 		}
 	}
 
