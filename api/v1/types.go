@@ -82,7 +82,7 @@ type ExternalID struct {
 }
 
 func (e ExternalID) String() string {
-	return fmt.Sprintf("%s/%s", e.ConfigType, strings.Join(e.ExternalID, ","))
+	return fmt.Sprintf("type=%s externalids=%s", e.ConfigType, strings.Join(e.ExternalID, ","))
 }
 
 func (e ExternalID) IsEmpty() bool {

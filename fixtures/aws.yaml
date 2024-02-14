@@ -53,15 +53,25 @@ spec:
           # IAM Role to Kubernetes Node
           - filter: config_type == 'AWS::IAM::Role'
             expr: |
-              [{"type": "Kubernetes::Node", "labels": {"iam-role": config["Arn"]}}].toJSON()
-          # ZoneID to Kubernetes Node
-          - filter: config_type == 'AWS::AvailabilityZoneID'
-            expr: |
-              [{"type": "Kubernetes::Node", "labels": {"topology.kubernetes.io/region": config["RegionName"]}}].toJSON()
+              [{"type": "Kubernetes::Node", "labels": {"aws/iam-role": config["Arn"]}}].toJSON()
           # Subnet to Kubernetes Node
           - filter: config_type == 'AWS::EC2:Subnet'
             expr: |
-              [{"type": "Kubernetes::Node", "labels": {"vpc-id": config["VpcId"]}}].toJSON()
+              [{"type": "Kubernetes::Node", "labels": {"aws/account-id": tags['account'], "aws/vpc-id": config["VpcId"]}}].toJSON()
+          # AvailabilityZone to Zone ID & Kubernetes Node
+          - filter: config_type == 'AWS::AvailabilityZone'
+            expr: |
+              [
+                {"type": "Kubernetes::Node", "labels": {"aws/account-id": tags['account'], "topology.kubernetes.io/region": config["RegionName"]}},
+                {"type": "AWS::AvailabilityZoneID", "name": config["ZoneId"]}
+              ].toJSON()
+          # Region to AvailabilityZone & ZoneID
+          - filter: config_type == 'AWS::Region'
+            expr: |
+              [
+                {"type": "AWS::AvailabilityZone", "labels": {"region": name}},
+                {"type": "AWS::AvailabilityZoneID", "labels": {"region": name}}
+              ].toJSON()
         exclude:
           - jsonpath: $.tags
           - jsonpath: $.privateDnsNameOptionsOnLaunch

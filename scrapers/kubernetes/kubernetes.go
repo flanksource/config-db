@@ -107,6 +107,15 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 	var (
 		results       v1.ScrapeResults
 		changeResults v1.ScrapeResults
+
+		// Labels that are added to the kubernetes nodes once all the objects are visited
+		labelsToAddToNode = map[string]map[string]string{}
+
+		// labelsForIPBasedResources are common labels for any IP based kubernetes resource
+		labelsForIPBasedResources = map[string]string{}
+
+		// globalLabels are common labels for any kubernetes resource
+		globalLabels = map[string]string{}
 	)
 
 	clusterID := "Kubernetes/Cluster/" + config.ClusterName
@@ -124,9 +133,6 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 	resourceIDMap[""]["Cluster"] = make(map[string]string)
 	resourceIDMap[""]["Cluster"][config.ClusterName] = clusterID
 	resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
-
-	// Labels that are added to the kubernetes nodes once all the objects are visited
-	var labelsToAddToNode = map[string]map[string]string{}
 
 	for _, obj := range objs {
 		if string(obj.GetUID()) == "" {
@@ -162,6 +168,17 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		}
 
 		var relationships v1.RelationshipResults
+
+		if obj.GetKind() == "Node" {
+			if val, ok := obj.GetLabels()["topology.kubernetes.io/region"]; ok {
+				labelsForIPBasedResources["aws/region"] = val
+			}
+
+			if val, ok := obj.GetLabels()["topology.kubernetes.io/zone"]; ok {
+				labelsForIPBasedResources["aws/zone"] = val
+			}
+		}
+
 		if obj.GetKind() == "Pod" {
 			spec := obj.Object["spec"].(map[string]interface{})
 			var nodeName string
@@ -182,15 +199,20 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 							awsRoleARN  = getContainerEnv(spec, "AWS_ROLE_ARN")
 							vpcID       = getContainerEnv(spec, "VPC_ID")
 							clusterName = getContainerEnv(spec, "CLUSTER_NAME")
+							region      = getContainerEnv(spec, "AWS_REGION")
 						)
 
 						labelsToAddToNode[nodeName] = make(map[string]string)
+						if region != "" {
+							labelsForIPBasedResources["aws/region"] = region
+						}
+
 						if awsRoleARN != "" {
-							labelsToAddToNode[nodeName]["iam-role"] = awsRoleARN
+							labelsToAddToNode[nodeName]["aws/iam-role"] = awsRoleARN
 						}
 
 						if vpcID != "" {
-							labelsToAddToNode[nodeName]["vpc-id"] = vpcID
+							labelsForIPBasedResources["aws/vpc-id"] = vpcID
 
 							if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
 								clusterScrapeResult["vpc-id"] = vpcID
@@ -275,6 +297,8 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 				if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
 					clusterScrapeResult["aws-auth"] = cm
 					clusterScrapeResult["account-id"] = accountID
+
+					globalLabels["aws/account-id"] = accountID
 				}
 			}
 		}
@@ -289,6 +313,12 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			tags["namespace"] = obj.GetNamespace()
 		}
 		tags["cluster"] = config.ClusterName
+
+		if obj.GetKind() == "Service" {
+			if spec, ok := obj.Object["spec"].(map[string]any); ok {
+				tags["service-type"] = spec["type"].(string)
+			}
+		}
 
 		// Add health metadata
 		var status, description string
@@ -345,10 +375,19 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		})
 	}
 
-	if len(labelsToAddToNode) != 0 {
-		for i := range results {
-			if labels, ok := labelsToAddToNode[results[i].Name]; ok {
-				results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), labels)
+	for i := range results {
+		results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), globalLabels)
+
+		switch results[i].Type {
+		case ConfigTypePrefix + "Service":
+			if results[i].Tags["service-type"] == "LoadBalancer" {
+				results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), labelsForIPBasedResources)
+			}
+
+		case ConfigTypePrefix + "Node":
+			results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), labelsForIPBasedResources)
+			if l, ok := labelsToAddToNode[results[i].Name]; ok {
+				results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), l)
 			}
 		}
 	}

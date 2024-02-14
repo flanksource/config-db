@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 
 	"github.com/aws/aws-sdk-go-v2/service/support"
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -323,28 +324,18 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			BaseScraper:      config.BaseScraper,
 			Config:           az,
 			ConfigClass:      "AvailabilityZone",
+			Tags:             collections.MergeMap(tags, map[string]string{"region": lo.FromPtr(az.RegionName)}),
 			Aliases:          nil,
 			Name:             lo.FromPtr(az.ZoneName),
 			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
 			ParentType:       v1.AWSAccount,
-			RelationshipResults: []v1.RelationshipResult{
-				{
-					ConfigExternalID:  v1.ExternalID{ConfigType: v1.AWSAvailabilityZone, ExternalID: []string{lo.FromPtr(az.ZoneName)}},
-					RelatedExternalID: v1.ExternalID{ConfigType: v1.AWSAvailabilityZoneID, ExternalID: []string{lo.FromPtr(az.ZoneId)}},
-					Relationship:      "AvailabilityZoneIDAvailabilityZone",
-				},
-				{
-					ConfigExternalID:  v1.ExternalID{ConfigType: v1.AWSAvailabilityZone, ExternalID: []string{lo.FromPtr(az.ZoneName)}},
-					RelatedExternalID: v1.ExternalID{ConfigType: v1.AWSRegion, ExternalID: []string{lo.FromPtr(az.RegionName)}},
-					Relationship:      "RegionAvailabilityZone",
-				},
-			},
 		})
 
 		if _, ok := uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)]; !ok {
 			*results = append(*results, v1.ScrapeResult{
 				ID:               lo.FromPtr(az.ZoneId),
 				Type:             v1.AWSAvailabilityZoneID,
+				Tags:             map[string]string{"region": lo.FromPtr(az.RegionName)},
 				BaseScraper:      config.BaseScraper,
 				Config:           map[string]string{"RegionName": *az.RegionName},
 				ConfigClass:      "AvailabilityZone",
