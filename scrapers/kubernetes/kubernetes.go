@@ -32,7 +32,7 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 }
 
 func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) v1.ScrapeResults {
-	logger.Debugf("incremntally scraping %d resources", len(events))
+	logger.Debugf("incrementally scraping %d resources", len(events))
 
 	var objects []*unstructured.Unstructured
 	for _, event := range events {

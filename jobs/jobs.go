@@ -12,6 +12,12 @@ const JobResourceType = "configs"
 
 var FuncScheduler = cron.New()
 
+// ScheduleJobs schedules the given job
+func ScheduleJob(ctx context.Context, j *job.Job) {
+	j.Context = ctx
+	j.AddToScheduler(FuncScheduler)
+}
+
 func ScheduleJobs(ctx context.Context) {
 	for _, j := range cleanupJobs {
 		var job = j

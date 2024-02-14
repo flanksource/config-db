@@ -180,6 +180,11 @@ type Kubernetes struct {
 	Relationships []KubernetesRelationshipSelectorTemplate `json:"relationships,omitempty"`
 }
 
+// Hash returns an identifier to uniquely identify this kubernetes config
+func (t *Kubernetes) Hash() string {
+	return t.ClusterName
+}
+
 type KubernetesFile struct {
 	BaseScraper `json:",inline"`
 	Selector    ResourceSelector `json:"selector" yaml:"selector"`

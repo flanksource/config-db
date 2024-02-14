@@ -17,43 +17,16 @@ import (
 	"github.com/flanksource/config-db/scrapers/processors"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/job"
 	"github.com/flanksource/duty/models"
 )
 
-func runK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) ([]v1.ScrapeResult, error) {
-	jobHistory := models.JobHistory{
-		Name:         "K8IncrementalScraper",
-		ResourceType: "config_scraper",
-		ResourceID:   string(ctx.ScrapeConfig().GetUID()),
-	}
-
-	jobHistory.Start()
-	if err := db.PersistJobHistory(&jobHistory); err != nil {
-		logger.Errorf("Error persisting job history: %v", err)
-	}
-
+func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) ([]v1.ScrapeResult, error) {
 	var results v1.ScrapeResults
 	var scraper kubernetes.KubernetesScraper
 	for _, result := range scraper.IncrementalScrape(ctx, config, events) {
 		scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, result)
-
-		for i := range scraped {
-			if scraped[i].Error != nil {
-				logger.Errorf("Error scraping %s: %v", scraped[i].ID, scraped[i].Error)
-				jobHistory.AddError(scraped[i].Error.Error())
-			}
-		}
-
-		if !scraped.HasErr() {
-			jobHistory.IncrSuccess()
-		}
-
 		results = append(results, scraped...)
-	}
-
-	jobHistory.End()
-	if err := db.PersistJobHistory(&jobHistory); err != nil {
-		logger.Errorf("Error persisting job history: %v", err)
 	}
 
 	return results, nil
@@ -73,7 +46,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 		jobHistory := models.NewJobHistory(
 			ctx.DutyContext().Logger,
 			fmt.Sprintf("scraper:%T", scraper),
-			"config_scraper",
+			job.ResourceTypeScraper,
 			string(ctx.ScrapeConfig().GetUID()),
 		)
 

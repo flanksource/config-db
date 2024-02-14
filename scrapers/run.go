@@ -24,29 +24,14 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 		return nil, fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig().Name, scraperErr)
 	}
 
-	if err := saveResults(ctx, results); err != nil {
+	if err := SaveResults(ctx, results); err != nil {
 		return nil, fmt.Errorf("failed to save results: %w", err)
 	}
 
 	return results, nil
 }
 
-func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) error {
-	ctx = ctx.WithValue(contextKeyScrapeStart, time.Now())
-
-	results, scraperErr := runK8IncrementalScraper(ctx, config, events)
-	if scraperErr != nil {
-		return fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig().Name, scraperErr)
-	}
-
-	if err := saveResults(ctx, results); err != nil {
-		return fmt.Errorf("failed to save results: %w", err)
-	}
-
-	return nil
-}
-
-func saveResults(ctx api.ScrapeContext, results v1.ScrapeResults) error {
+func SaveResults(ctx api.ScrapeContext, results v1.ScrapeResults) error {
 	dbErr := db.SaveResults(ctx, results)
 	if dbErr != nil {
 		//FIXME cache results to save to db later
