@@ -32,12 +32,23 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 }
 
 func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) v1.ScrapeResults {
-	logger.Debugf("incrementally scraping %d resources", len(events))
+	ctx.DutyContext().Debugf("incrementally scraping resources in %d events", len(events))
 
-	var objects []*unstructured.Unstructured
+	var (
+		// seenObjects helps in avoiding fetching the same object in this run.
+		seenObjects = make(map[string]struct{})
+		objects     = make([]*unstructured.Unstructured, 0, len(events))
+	)
+
 	for _, event := range events {
 		resource := event.InvolvedObject
-		logger.WithValues("name", resource.Name).WithValues("namespace", resource.Namespace).WithValues("kind", resource.Kind).Debugf("ketOne")
+
+		cacheKey := fmt.Sprintf("%s/%s/%s", resource.Namespace, resource.Kind, resource.Name)
+		if _, ok := seenObjects[cacheKey]; ok {
+			continue
+		}
+
+		ctx.DutyContext().Debugf("ketone namespace=%s name=%s kind=%s", resource.Namespace, resource.Name, resource.Kind)
 		obj, err := ketall.KetOne(ctx, resource.Name, resource.Namespace, resource.Kind, options.NewDefaultCmdOptions())
 		if err != nil {
 			logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
@@ -50,13 +61,14 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 				logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
 				continue
 			}
+		} else {
+			seenObjects[cacheKey] = struct{}{} // mark it as seen so we don't run ketall.KetOne again (in this run)
 		}
 
 		objects = append(objects, obj)
 	}
 
-	logger.Debugf("Found %d objects for %d ids", len(objects), len(events))
-
+	ctx.DutyContext().Debugf("found %d objects for %d ids", len(objects), len(events))
 	return extractResults(ctx.DutyContext(), config, objects)
 }
 

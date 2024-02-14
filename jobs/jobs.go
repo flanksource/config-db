@@ -13,9 +13,9 @@ const JobResourceType = "configs"
 var FuncScheduler = cron.New()
 
 // ScheduleJobs schedules the given job
-func ScheduleJob(ctx context.Context, j *job.Job) {
+func ScheduleJob(ctx context.Context, j *job.Job) error {
 	j.Context = ctx
-	j.AddToScheduler(FuncScheduler)
+	return j.AddToScheduler(FuncScheduler)
 }
 
 func ScheduleJobs(ctx context.Context) {

@@ -10,7 +10,9 @@ import (
 	"github.com/flanksource/duty/job"
 )
 
-func ConsumeKubernetesWatchEventsGenerator(scrapeConfig v1.ScrapeConfig, config v1.Kubernetes) *job.Job {
+// ConsumeKubernetesWatchEventsJobFunc returns a job that consumes kubernetes watch events
+// for the given config of the scrapeconfig.
+func ConsumeKubernetesWatchEventsJobFunc(scrapeConfig v1.ScrapeConfig, config v1.Kubernetes) *job.Job {
 	return &job.Job{
 		Name:       "ConsumeKubernetesWatchEvents",
 		JobHistory: true,

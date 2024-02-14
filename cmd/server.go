@@ -122,7 +122,9 @@ func startScraperCron(configFiles []string) {
 			ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
 			go watchKubernetesEventsWithRetry(ctx, config)
 
-			jobs.ScheduleJob(ctx.DutyContext(), jobs.ConsumeKubernetesWatchEventsGenerator(_scraper, config))
+			if err := jobs.ScheduleJob(ctx.DutyContext(), jobs.ConsumeKubernetesWatchEventsJobFunc(_scraper, config)); err != nil {
+				logger.Fatalf("failed to schedule kubernetes watch event consumer job: %v", err)
+			}
 		}
 	}
 }
