@@ -36,17 +36,18 @@ func ConsumeKubernetesWatchEventsJobFunc(scrapeConfig v1.ScrapeConfig, config v1
 				return err
 			}
 
-			for i := range results {
-				if results[i].Error != nil {
-					ctx.History.AddError(results[i].Error.Error())
-				}
-			}
-
 			if err := scrapers.SaveResults(cc, results); err != nil {
 				return fmt.Errorf("failed to save results: %w", err)
 			}
 
-			ctx.History.SuccessCount = len(events)
+			for i := range results {
+				if results[i].Error != nil {
+					ctx.History.AddError(results[i].Error.Error())
+				} else {
+					ctx.History.SuccessCount++
+				}
+			}
+
 			return nil
 		},
 	}
