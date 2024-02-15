@@ -20,7 +20,8 @@ func ProcessChangeRetentionRules(ctx job.JobRuntime) error {
 	for _, s := range activeScrapers {
 		var spec v1.ScraperSpec
 		if err := json.Unmarshal([]byte(s.Spec), &spec); err != nil {
-			return err
+			ctx.History.AddErrorf("failed to unmarshal scraper spec (%s): %v", s.ID, err)
+			continue
 		}
 
 		for _, changeSpec := range spec.Retention.Changes {
