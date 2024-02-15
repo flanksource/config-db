@@ -109,10 +109,10 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		changeResults v1.ScrapeResults
 
 		// Labels that are added to the kubernetes nodes once all the objects are visited
-		labelsToAddToNode = map[string]map[string]string{}
+		labelsPerNode = map[string]map[string]string{}
 
-		// labelsForIPBasedResources are common labels for any IP based kubernetes resource
-		labelsForIPBasedResources = map[string]string{}
+		// labelsForAllNode are common labels applicable to all the nodes in the cluster
+		labelsForAllNode = map[string]string{}
 
 		// globalLabels are common labels for any kubernetes resource
 		globalLabels = map[string]string{}
@@ -169,16 +169,6 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 		var relationships v1.RelationshipResults
 
-		if obj.GetKind() == "Node" {
-			if val, ok := obj.GetLabels()["topology.kubernetes.io/region"]; ok {
-				labelsForIPBasedResources["aws/region"] = val
-			}
-
-			if val, ok := obj.GetLabels()["topology.kubernetes.io/zone"]; ok {
-				labelsForIPBasedResources["aws/zone"] = val
-			}
-		}
-
 		if obj.GetKind() == "Pod" {
 			spec := obj.Object["spec"].(map[string]interface{})
 			var nodeName string
@@ -199,20 +189,16 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 							awsRoleARN  = getContainerEnv(spec, "AWS_ROLE_ARN")
 							vpcID       = getContainerEnv(spec, "VPC_ID")
 							clusterName = getContainerEnv(spec, "CLUSTER_NAME")
-							region      = getContainerEnv(spec, "AWS_REGION")
 						)
 
-						labelsToAddToNode[nodeName] = make(map[string]string)
-						if region != "" {
-							labelsForIPBasedResources["aws/region"] = region
-						}
+						labelsPerNode[nodeName] = make(map[string]string)
 
 						if awsRoleARN != "" {
-							labelsToAddToNode[nodeName]["aws/iam-role"] = awsRoleARN
+							labelsPerNode[nodeName]["aws/iam-role"] = awsRoleARN
 						}
 
 						if vpcID != "" {
-							labelsForIPBasedResources["aws/vpc-id"] = vpcID
+							labelsForAllNode["aws/vpc-id"] = vpcID
 
 							if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
 								clusterScrapeResult["vpc-id"] = vpcID
@@ -316,7 +302,28 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 		if obj.GetKind() == "Service" {
 			if spec, ok := obj.Object["spec"].(map[string]any); ok {
-				tags["service-type"] = spec["type"].(string)
+				serviceType := spec["type"].(string)
+				tags["service-type"] = serviceType
+
+				if serviceType == "LoadBalancer" {
+					if status, ok := obj.Object["status"].(map[string]any); ok {
+						if lb, ok := status["loadBalancer"].(map[string]any); ok {
+							if ingresses, ok := lb["ingress"].([]any); ok {
+								for _, ing := range ingresses {
+									if ingress, ok := ing.(map[string]any); ok {
+										if hostname, ok := ingress["hostname"].(string); ok && hostname != "" {
+											tags["hostname"] = hostname
+										}
+
+										if ip, ok := ingress["ip"].(string); ok && ip != "" {
+											tags["ip"] = ip
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 
@@ -384,14 +391,9 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), globalLabels)
 
 		switch results[i].Type {
-		case ConfigTypePrefix + "Service":
-			if results[i].Tags["service-type"] == "LoadBalancer" {
-				results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), labelsForIPBasedResources)
-			}
-
 		case ConfigTypePrefix + "Node":
-			results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), labelsForIPBasedResources)
-			if l, ok := labelsToAddToNode[results[i].Name]; ok {
+			results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), labelsForAllNode)
+			if l, ok := labelsPerNode[results[i].Name]; ok {
 				results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), l)
 			}
 		}

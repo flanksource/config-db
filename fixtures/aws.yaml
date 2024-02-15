@@ -58,7 +58,7 @@ spec:
           - filter: config_type == 'AWS::AvailabilityZone'
             expr: |
               [
-                {"type": "Kubernetes::Node", "labels": {"aws/account-id": tags['account'], "topology.kubernetes.io/region": config["RegionName"]}},
+                {"type": "Kubernetes::Node", "labels": {"aws/account-id": tags['account'], "topology.kubernetes.io/zone": name}},
                 {"type": "AWS::AvailabilityZoneID", "name": config["ZoneId"]}
               ].toJSON()
           # Region to ZoneID
