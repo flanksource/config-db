@@ -17,6 +17,7 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/query"
+	dutyContext "github.com/flanksource/duty/context"
 	"github.com/google/uuid"
 
 	"github.com/flanksource/config-db/scrapers"
@@ -26,16 +27,22 @@ import (
 // Serve ...
 var Serve = &cobra.Command{
 	Use: "serve",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
 		db.MustInit(ctx)
+
+		api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
+		if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
+			return fmt.Errorf("failed to load properties: %v", err)
+		}
+
 		serve(ctx, args)
+		return nil
 	},
 }
 
 func serve(ctx context.Context, configFiles []string) {
-	api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
 
 	e := echo.New()
 	// PostgREST needs to know how it is exposed to create the correct links
