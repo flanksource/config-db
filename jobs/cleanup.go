@@ -95,7 +95,9 @@ var CleanupConfigItems = &job.Job{
 		SELECT config_id FROM config_changes WHERE id IN (SELECT config_change_id FROM evidences)
 		UNION
 		SELECT config_id FROM config_analysis WHERE id IN (SELECT config_analysis_id FROM evidences)
-	`
+		UNION
+		SELECT config_id FROM playbook_RUNS WHERE config_id IS NOT NULL
+		`
 
 		relationshipDeleteQuery := fmt.Sprintf(`
 		DELETE FROM config_relationships 
