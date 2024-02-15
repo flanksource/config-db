@@ -6,19 +6,23 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// WatchEventBuffers stores a sync buffer per kubernetes config
-var WatchEventBuffers = make(map[string]*utils.SyncBuffer[v1.KubernetesEvent])
+var (
+	// BufferSize is the size of the channel that buffers kubernetes watch events
+	BufferSize = 5000
+
+	// WatchEventBuffers stores a sync buffer per kubernetes config
+	WatchEventBuffers = make(map[string]chan v1.KubernetesEvent)
+)
 
 // WatchEvents watches Kubernetes events for any config changes & fetches
 // the referenced config items in batches.
 func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	logger.Infof("Watching kubernetes events. namespace=%s cluster=%s", config.Namespace, config.ClusterName)
 
-	buffer := utils.NewSyncBuffer[v1.KubernetesEvent](100)
+	buffer := make(chan v1.KubernetesEvent, BufferSize)
 	WatchEventBuffers[config.Hash()] = buffer
 
 	watcher, err := ctx.Kubernetes().CoreV1().Events(config.Namespace).Watch(ctx, metav1.ListOptions{})
@@ -42,7 +46,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 			continue
 		}
 
-		buffer.Append(event)
+		buffer <- event
 	}
 
 	return nil

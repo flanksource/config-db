@@ -8,6 +8,7 @@ import (
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/duty/job"
+	"github.com/samber/lo"
 )
 
 // ConsumeKubernetesWatchEventsJobFunc returns a job that consumes kubernetes watch events
@@ -24,11 +25,11 @@ func ConsumeKubernetesWatchEventsJobFunc(scrapeConfig v1.ScrapeConfig, config v1
 			ctx.History.ResourceType = job.ResourceTypeScraper
 			ctx.History.ResourceID = string(scrapeConfig.GetUID())
 
-			buffer, ok := kubernetes.WatchEventBuffers[config.Hash()]
+			ch, ok := kubernetes.WatchEventBuffers[config.Hash()]
 			if !ok {
 				return fmt.Errorf("no watcher found for config (scrapeconfig: %s) %s", scrapeConfig.GetUID(), config.Hash())
 			}
-			events := buffer.Drain()
+			events, _, _, _ := lo.Buffer(ch, len(ch))
 
 			cc := api.NewScrapeContext(ctx.Context, ctx.DB(), ctx.Pool()).WithScrapeConfig(&scrapeConfig)
 			results, err := scrapers.RunK8IncrementalScraper(cc, config, events)
