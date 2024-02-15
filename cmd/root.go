@@ -21,6 +21,7 @@ var dev bool
 var httpPort, metricsPort, devGuiPort int
 var disableKubernetes bool
 var publicEndpoint = "http://localhost:8080"
+var propertiesFile = "config.properties"
 var disablePostgrest bool
 var (
 	version = "dev"

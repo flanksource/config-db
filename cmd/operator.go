@@ -17,6 +17,7 @@ import (
 	configsv1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/controllers"
 	"github.com/flanksource/config-db/db"
+	dutyContext "github.com/flanksource/duty/context"
 	"github.com/go-logr/zapr"
 	"github.com/spf13/cobra"
 )
@@ -27,7 +28,7 @@ var operatorExecutor bool
 var Operator = &cobra.Command{
 	Use:   "operator",
 	Short: "Start the kubernetes operator",
-	Run:   run,
+	RunE:  run,
 }
 
 func init() {
@@ -37,16 +38,18 @@ func init() {
 	Operator.Flags().BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enabling this will ensure there is only one active controller manager")
 }
 
-func run(cmd *cobra.Command, args []string) {
+func run(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
 	db.MustInit(ctx)
 	api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
+	if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
+		return fmt.Errorf("failed to load properties: %v", err)
+	}
 
 	zapLogger := logger.GetZapLogger()
 	if zapLogger == nil {
-		logger.Fatalf("failed to get zap logger")
-		return
+		return fmt.Errorf("failed to get zap logger")
 	}
 
 	loggr := ctrlzap.NewRaw(
@@ -95,4 +98,5 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	return nil
 }

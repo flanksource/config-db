@@ -22,7 +22,7 @@ var (
 func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	logger.Infof("Watching kubernetes events. namespace=%s cluster=%s", config.Namespace, config.ClusterName)
 
-	buffer := make(chan v1.KubernetesEvent, BufferSize)
+	buffer := make(chan v1.KubernetesEvent, ctx.DutyContext().Properties().Int("kubernetes.watch.events.bufferSize", BufferSize))
 	WatchEventBuffers[config.Hash()] = buffer
 
 	watcher, err := ctx.Kubernetes().CoreV1().Events(config.Namespace).Watch(ctx, metav1.ListOptions{})
