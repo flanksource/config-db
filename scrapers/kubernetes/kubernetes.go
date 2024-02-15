@@ -69,7 +69,11 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 	}
 
 	ctx.DutyContext().Debugf("found %d objects for %d ids", len(objects), len(events))
-	return extractResults(ctx.DutyContext(), config, objects)
+	if len(objects) == 0 {
+		return nil
+	}
+
+	return extractResults(ctx.DutyContext(), config, objects, false)
 }
 
 func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
@@ -90,22 +94,23 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 		}
 		objs := ketall.KetAll(opts)
 
-		extracted := extractResults(ctx.DutyContext(), config, objs)
+		extracted := extractResults(ctx.DutyContext(), config, objs, true)
 		results = append(results, extracted...)
 	}
 
 	return results
 }
 
-func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructured.Unstructured) v1.ScrapeResults {
+// extractResults extracts scrape results from the given list of kuberenetes objects.
+//   - withCluster: if true, will create & add a scrape result for the kubernetes cluster.
+func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructured.Unstructured, withCluster bool) v1.ScrapeResults {
 	var (
 		results       v1.ScrapeResults
 		changeResults v1.ScrapeResults
 	)
 
-	// Add Cluster object first
 	clusterID := "Kubernetes/Cluster/" + config.ClusterName
-	results = append(results, v1.ScrapeResult{
+	cluster := v1.ScrapeResult{
 		BaseScraper: config.BaseScraper,
 		Name:        config.ClusterName,
 		ConfigClass: "Cluster",
@@ -113,7 +118,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		Config:      make(map[string]any),
 		Tags:        make(v1.JSONStringMap),
 		ID:          clusterID,
-	})
+	}
 
 	resourceIDMap := getResourceIDsFromObjs(objs)
 	resourceIDMap[""]["Cluster"] = make(map[string]string)
@@ -187,17 +192,17 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 						if vpcID != "" {
 							labelsToAddToNode[nodeName]["vpc-id"] = vpcID
 
-							if clusterScrapeResult, ok := results[0].Config.(map[string]any); ok {
+							if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
 								clusterScrapeResult["vpc-id"] = vpcID
 							}
 						}
 
 						if clusterName != "" {
-							if clusterScrapeResult, ok := results[0].Config.(map[string]any); ok {
+							if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
 								clusterScrapeResult["cluster-name"] = clusterName
 							}
 
-							results[0].Tags["eks-cluster-name"] = clusterName
+							cluster.Tags["eks-cluster-name"] = clusterName
 						}
 					}
 				}
@@ -267,7 +272,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 					accountID = extractAccountIDFromARN(mapRolesYAML)
 				}
 
-				if clusterScrapeResult, ok := results[0].Config.(map[string]any); ok {
+				if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
 					clusterScrapeResult["aws-auth"] = cm
 					clusterScrapeResult["account-id"] = accountID
 				}
@@ -349,6 +354,10 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 	}
 
 	results = append(results, changeResults...)
+	if withCluster {
+		results = append([]v1.ScrapeResult{cluster}, results...)
+	}
+
 	return results
 }
 
