@@ -121,6 +121,10 @@ func startScraperCron(configFiles []string) {
 		for _, config := range _scraper.Spec.Kubernetes {
 			ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
 			go watchKubernetesEventsWithRetry(ctx, config)
+
+			if err := jobs.ScheduleJob(ctx.DutyContext(), jobs.ConsumeKubernetesWatchEventsJobFunc(_scraper, config)); err != nil {
+				logger.Fatalf("failed to schedule kubernetes watch event consumer job: %v", err)
+			}
 		}
 	}
 }
@@ -156,7 +160,7 @@ func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes)
 		backoff := retry.WithMaxDuration(timeout, retry.NewExponential(exponentialBaseDuration))
 		err := retry.Do(ctx, backoff, func(ctxt context.Context) error {
 			ctx := ctxt.(api.ScrapeContext)
-			if err := kubernetes.WatchEvents(ctx, config, scrapers.RunK8IncrementalScraper); err != nil {
+			if err := kubernetes.WatchEvents(ctx, config); err != nil {
 				return retry.RetryableError(err)
 			}
 

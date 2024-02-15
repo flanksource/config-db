@@ -21,7 +21,7 @@ require (
 	github.com/aws/aws-sdk-go v1.49.16 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/flanksource/duty v1.0.331 // indirect
+	github.com/flanksource/duty v1.0.339 // indirect
 	github.com/flanksource/gomplate/v3 v3.20.30 // indirect
 	github.com/flanksource/is-healthy v1.0.1 // indirect
 	github.com/flanksource/mapstructure v1.6.0 // indirect
