@@ -136,10 +136,9 @@ func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 	}
 
 	if changes != nil {
+		logger.Debugf("[%s/%s] detected changes", ci.Type, ci.ExternalID[0])
 		err := db.Create(changes).Error
-		if nil == err {
-			logger.Infof("[%s/%s] detected changes", ci.ConfigClass, ci.ExternalID[0])
-		} else {
+		if err != nil {
 			if IsUniqueConstraintPGErr(err) {
 				logger.Debugf("[%s] changes not stored. Another row with the same config_id & external_change_id exists.", ci)
 			} else {
