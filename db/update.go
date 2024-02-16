@@ -17,6 +17,7 @@ import (
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/db/ulid"
 	"github.com/flanksource/config-db/utils"
+	dutyContext "github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/google/uuid"
@@ -275,9 +276,16 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		return fmt.Errorf("unable to get current db time: %w", err)
 	}
 
-	// Keep note of the all the relationships in each of the results
-	// so we can create them once the all the configs are saved.
-	var relationshipToForm []v1.RelationshipResult
+	var (
+		// Keep note of the all the relationships in each of the results
+		// so we can create them once the all the configs are saved.
+		relationshipToForm []v1.RelationshipResult
+
+		// resultsWithRelationshipSelectors is a list of scraped results that have
+		// relationship selectors. These selectors are stored here to be processed
+		// once the all the scraped results are saved.
+		resultsWithRelationshipSelectors []v1.ScrapeResult
+	)
 
 	for _, result := range results {
 		if result.Config != nil {
@@ -304,6 +312,13 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 
 		relationshipToForm = append(relationshipToForm, result.RelationshipResults...)
+		resultsWithRelationshipSelectors = append(resultsWithRelationshipSelectors, result)
+	}
+
+	if res, err := relationshipSelectorToResults(ctx.DutyContext(), resultsWithRelationshipSelectors); err != nil {
+		return fmt.Errorf("failed to get relationship results from relationship selectors: %w", err)
+	} else {
+		relationshipToForm = append(relationshipToForm, res...)
 	}
 
 	if err := relationshipResultHandler(relationshipToForm); err != nil {
@@ -392,6 +407,31 @@ func generateConfigChange(newConf, prev models.ConfigItem) (*dutyModels.ConfigCh
 		Patches:          string(patch),
 		Summary:          strings.Join(utils.ExtractLeafNodesAndCommonParents(patchJSON), ", "),
 	}, nil
+}
+
+func relationshipSelectorToResults(ctx dutyContext.Context, inputs []v1.ScrapeResult) ([]v1.RelationshipResult, error) {
+	var relationships []v1.RelationshipResult
+
+	for _, input := range inputs {
+		for _, selector := range input.RelationshipSelectors {
+			linkedConfigIDs, err := FindConfigIDsByRelationshipSelector(ctx, selector)
+			if err != nil {
+				return nil, fmt.Errorf("failed to find config items by relationship selector: %w", err)
+			}
+
+			for _, id := range linkedConfigIDs {
+				rel := v1.RelationshipResult{
+					ConfigExternalID: v1.ExternalID{ExternalID: []string{input.ID}, ConfigType: input.Type},
+					RelatedConfigID:  id.String(),
+				}
+
+				relationships = append(relationships, rel)
+			}
+		}
+	}
+
+	logger.Debugf("forming %d relationships from selectors", len(relationships))
+	return relationships, nil
 }
 
 func relationshipResultHandler(relationships v1.RelationshipResults) error {
