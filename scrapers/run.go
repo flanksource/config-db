@@ -28,6 +28,7 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 		return nil, fmt.Errorf("failed to save results: %w", err)
 	}
 
+	logger.WithValues("duration", time.Since(ctx.Value(contextKeyScrapeStart).(time.Time))).Infof("completed scraping %v", ctx.ScrapeConfig().Name)
 	return results, nil
 }
 
