@@ -232,6 +232,11 @@ type ScrapeResult struct {
 	ParentExternalID    string              `json:"-"`
 	ParentType          string              `json:"-"`
 	Properties          types.Properties    `json:"properties,omitempty"`
+
+	// RelationshipSelectors are used to form relationship of this scraped item with other items.
+	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without
+	// knowing the external ids of the item to be linked.
+	RelationshipSelectors []RelationshipSelector `json:"-"`
 }
 
 func (s ScrapeResult) AsMap() map[string]any {

@@ -12,7 +12,6 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
@@ -196,8 +195,8 @@ func (e Extract) String() string {
 	return s
 }
 
-func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]v1.RelationshipResult, error) {
-	var relationships []v1.RelationshipResult
+func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]v1.RelationshipSelector, error) {
+	var output []v1.RelationshipSelector
 
 	for _, rc := range relationshipConfigs {
 		if rc.Filter != "" {
@@ -233,24 +232,10 @@ func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.Scrap
 			}
 		}
 
-		for _, selector := range relationshipSelectors {
-			linkedConfigIDs, err := db.FindConfigIDsByRelationshipSelector(ctx, selector)
-			if err != nil {
-				return nil, fmt.Errorf("failed to find config items by relationship selector: %w", err)
-			}
-
-			for _, id := range linkedConfigIDs {
-				rel := v1.RelationshipResult{
-					ConfigExternalID: v1.ExternalID{ExternalID: []string{input.ID}, ConfigType: input.Type},
-					RelatedConfigID:  id.String(),
-				}
-
-				relationships = append(relationships, rel)
-			}
-		}
+		output = append(output, relationshipSelectors...)
 	}
 
-	return relationships, nil
+	return output, nil
 }
 
 func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
@@ -271,7 +256,7 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 		if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, input, e.Transform.Relationship); err != nil {
 			return results, err
 		} else if len(newRelationships) > 0 {
-			input.RelationshipResults = append(input.RelationshipResults, newRelationships...)
+			input.RelationshipSelectors = append(input.RelationshipSelectors, newRelationships...)
 		}
 
 		for i, configProperty := range input.BaseScraper.Properties {
