@@ -25,7 +25,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 
 	"github.com/aws/aws-sdk-go-v2/service/support"
-	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -239,6 +238,49 @@ func (aws Scraper) efs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	}
 }
 
+// availabilityZones fetches all the availability zones in the region set in givne the aws session.
+func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	azDescribeInput := &ec2.DescribeAvailabilityZonesInput{}
+	azDescribeOutput, err := ctx.EC2.DescribeAvailabilityZones(ctx, azDescribeInput)
+	if err != nil {
+		results.Errorf(err, "failed to describe availability zones")
+		return
+	}
+
+	var uniqueAvailabilityZoneIDs = map[string]struct{}{}
+	for _, az := range azDescribeOutput.AvailabilityZones {
+		*results = append(*results, v1.ScrapeResult{
+			ID:               lo.FromPtr(az.ZoneName),
+			Type:             v1.AWSAvailabilityZone,
+			BaseScraper:      config.BaseScraper,
+			Config:           az,
+			ConfigClass:      "AvailabilityZone",
+			Tags:             map[string]string{"account": lo.FromPtr(ctx.Caller.Account), "region": lo.FromPtr(az.RegionName)},
+			Aliases:          nil,
+			Name:             lo.FromPtr(az.ZoneName),
+			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
+			ParentType:       v1.AWSAccount,
+		})
+
+		if _, ok := uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)]; !ok {
+			*results = append(*results, v1.ScrapeResult{
+				ID:               lo.FromPtr(az.ZoneId),
+				Type:             v1.AWSAvailabilityZoneID,
+				Tags:             map[string]string{"region": lo.FromPtr(az.RegionName)},
+				BaseScraper:      config.BaseScraper,
+				Config:           map[string]string{"RegionName": *az.RegionName},
+				ConfigClass:      "AvailabilityZone",
+				Aliases:          nil,
+				Name:             lo.FromPtr(az.ZoneId),
+				ParentExternalID: lo.FromPtr(az.RegionName),
+				ParentType:       v1.AWSRegion,
+			})
+
+			uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)] = struct{}{}
+		}
+	}
+}
+
 func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
 	if !config.Includes("Account") {
 		return
@@ -307,46 +349,6 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			Tags:        tags,
 			ID:          *region.RegionName,
 		})
-	}
-
-	azDescribeInput := &ec2.DescribeAvailabilityZonesInput{}
-	azDescribeOutput, err := ctx.EC2.DescribeAvailabilityZones(ctx, azDescribeInput)
-	if err != nil {
-		results.Errorf(err, "failed to describe availability zones")
-		return
-	}
-
-	var uniqueAvailabilityZoneIDs = map[string]struct{}{}
-	for _, az := range azDescribeOutput.AvailabilityZones {
-		*results = append(*results, v1.ScrapeResult{
-			ID:               lo.FromPtr(az.ZoneName),
-			Type:             v1.AWSAvailabilityZone,
-			BaseScraper:      config.BaseScraper,
-			Config:           az,
-			ConfigClass:      "AvailabilityZone",
-			Tags:             collections.MergeMap(tags, map[string]string{"region": lo.FromPtr(az.RegionName)}),
-			Aliases:          nil,
-			Name:             lo.FromPtr(az.ZoneName),
-			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
-			ParentType:       v1.AWSAccount,
-		})
-
-		if _, ok := uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)]; !ok {
-			*results = append(*results, v1.ScrapeResult{
-				ID:               lo.FromPtr(az.ZoneId),
-				Type:             v1.AWSAvailabilityZoneID,
-				Tags:             map[string]string{"region": lo.FromPtr(az.RegionName)},
-				BaseScraper:      config.BaseScraper,
-				Config:           map[string]string{"RegionName": *az.RegionName},
-				ConfigClass:      "AvailabilityZone",
-				Aliases:          nil,
-				Name:             lo.FromPtr(az.ZoneId),
-				ParentExternalID: lo.FromPtr(az.RegionName),
-				ParentType:       v1.AWSRegion,
-			})
-
-			uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)] = struct{}{}
-		}
 	}
 }
 
@@ -1144,6 +1146,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			aws.loadBalancers(awsCtx, awsConfig, results)
 			aws.containerImages(awsCtx, awsConfig, results)
 			aws.cloudtrail(awsCtx, awsConfig, results)
+			aws.availabilityZones(awsCtx, awsConfig, results)
 			// We are querying half a million amis, need to optimize for this
 			// aws.ami(awsCtx, awsConfig, results)
 		}
