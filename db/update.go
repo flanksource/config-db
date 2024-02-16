@@ -275,6 +275,10 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		return fmt.Errorf("unable to get current db time: %w", err)
 	}
 
+	// Keep note of the all the relationships in each of the results
+	// so we can create them once the all the configs are saved.
+	var relationshipToForm []v1.RelationshipResult
+
 	for _, result := range results {
 		if result.Config != nil {
 			ci, err := NewConfigItemFromResult(result)
@@ -299,11 +303,11 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 			return err
 		}
 
-		if result.RelationshipResults != nil {
-			if err := relationshipResultHandler(result.RelationshipResults); err != nil {
-				return err
-			}
-		}
+		relationshipToForm = append(relationshipToForm, result.RelationshipResults...)
+	}
+
+	if err := relationshipResultHandler(relationshipToForm); err != nil {
+		return fmt.Errorf("failed to form relationships: %w", err)
 	}
 
 	if !startTime.IsZero() && ctx.ScrapeConfig().GetPersistedID() != nil {
@@ -313,7 +317,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 	}
 
-	logger.Tracef("Saved %d results.", len(results))
+	logger.Debugf("saved %d results.", len(results))
 	return nil
 }
 
@@ -391,6 +395,8 @@ func generateConfigChange(newConf, prev models.ConfigItem) (*dutyModels.ConfigCh
 }
 
 func relationshipResultHandler(relationships v1.RelationshipResults) error {
+	logger.Debugf("saving %d relationships", len(relationships))
+
 	var configItemRelationships []models.ConfigRelationship
 	for _, relationship := range relationships {
 		configID, err := FindConfigItemID(relationship.ConfigExternalID)
@@ -418,8 +424,9 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 			}
 		}
 
-		// In first iteration, the database is not completely populated
-		// so there can be missing references to config items
+		// The configs in the relationships might not be found for various reasons.
+		// - the related configs might have been excluded in the scrape config
+		// - the config might have been deleted
 		if relatedID == nil || configID == nil {
 			continue
 		}
