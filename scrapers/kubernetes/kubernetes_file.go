@@ -136,7 +136,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 			config.Selector.Kind = "Pod"
 		}
 
-		logger.Debugf("Scrapping pods %s => %s", config.Selector, config.Files)
+		logger.Debugf("Scraping pods %s => %s", config.Selector, config.Files)
 
 		if startsWith(config.Selector.Kind, "pod") {
 			podList, err := findPods(ctx, ctx.Kubernetes(), config.Selector)
