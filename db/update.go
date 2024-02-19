@@ -17,6 +17,7 @@ import (
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/db/ulid"
 	"github.com/flanksource/config-db/utils"
+	dutyContext "github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/google/uuid"
@@ -150,7 +151,7 @@ func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 	return nil
 }
 
-func shouldExcludeChange(exclusions []string, changeResult v1.ChangeResult) (bool, error) {
+func shouldExcludeChange(ctx dutyContext.Context, exclusions []string, changeResult v1.ChangeResult) (bool, error) {
 	for _, expr := range exclusions {
 		if res, err := gomplate.RunTemplate(changeResult.AsMap(), gomplate.Template{Expression: expr}); err != nil {
 			return false, fmt.Errorf("failed to evaluate change exclusion expression(%s): %w", expr, err)
@@ -170,13 +171,10 @@ func updateChange(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 			continue
 		}
 
-		if exclude, err := shouldExcludeChange(result.BaseScraper.Transform.Change.Exclude, changeResult); err != nil {
+		if exclude, err := shouldExcludeChange(ctx.DutyContext(), result.BaseScraper.Transform.Change.Exclude, changeResult); err != nil {
 			return err
 		} else if exclude {
-			if ctx.IsTrace() {
-				logger.Tracef("excluded change: %v", changeResult)
-			}
-
+			ctx.DutyContext().Tracef("excluded change: %v", changeResult)
 			continue
 		}
 
