@@ -135,6 +135,11 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 	resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
 
 	for _, obj := range objs {
+		if config.Exclusions.Filter(obj.GetName(), obj.GetNamespace(), obj.GetKind(), obj.GetLabels()) {
+			ctx.Infof("excluding object: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			continue
+		}
+
 		if string(obj.GetUID()) == "" {
 			logger.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 			continue

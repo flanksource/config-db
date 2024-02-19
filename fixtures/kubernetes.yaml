@@ -78,6 +78,8 @@ spec:
           - controllerrevision
           - certificaterequest
           - orders.acme.cert-manager.io
+        label:
+          canary-checker.flanksource.com/generated: "true"
       relationships:
         - kind:
             expr: "has(spec.claimRef) ? spec.claimRef.kind : ''"

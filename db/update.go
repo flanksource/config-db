@@ -136,7 +136,7 @@ func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 	}
 
 	if changes != nil {
-		logger.Debugf("[%s/%s] detected changes", ci.Type, ci.ExternalID[0])
+		logger.Debugf("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
 		err := db.Create(changes).Error
 		if err != nil {
 			if IsUniqueConstraintPGErr(err) {
