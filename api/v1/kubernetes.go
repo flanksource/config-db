@@ -50,8 +50,10 @@ func (t *KubernetesEventExclusions) Filter(event KubernetesEvent) bool {
 }
 
 type KubernetesEventConfig struct {
-	Exclusions       KubernetesEventExclusions `json:"exclusions,omitempty"`
-	SeverityKeywords SeverityKeywords          `json:"severityKeywords,omitempty"`
+	// Exclusions defines what events needs to be dropped.
+	Exclusions KubernetesEventExclusions `json:"exclusions,omitempty"`
+
+	SeverityKeywords SeverityKeywords `json:"severityKeywords,omitempty"`
 }
 
 type KubernetesExclusionConfig struct {
@@ -163,18 +165,22 @@ func (t *KubernetesRelationshipSelectorTemplate) Eval(labels map[string]string, 
 
 type Kubernetes struct {
 	BaseScraper     `json:",inline"`
-	ClusterName     string                    `json:"clusterName,omitempty"`
-	Namespace       string                    `json:"namespace,omitempty"`
-	UseCache        bool                      `json:"useCache,omitempty"`
-	AllowIncomplete bool                      `json:"allowIncomplete,omitempty"`
-	Scope           string                    `json:"scope,omitempty"`
-	Since           string                    `json:"since,omitempty"`
-	Selector        string                    `json:"selector,omitempty"`
-	FieldSelector   string                    `json:"fieldSelector,omitempty"`
-	MaxInflight     int64                     `json:"maxInflight,omitempty"`
-	Exclusions      KubernetesExclusionConfig `json:"exclusions,omitempty"`
-	Kubeconfig      *types.EnvVar             `json:"kubeconfig,omitempty"`
-	Event           KubernetesEventConfig     `json:"event,omitempty"`
+	ClusterName     string        `json:"clusterName,omitempty"`
+	Namespace       string        `json:"namespace,omitempty"`
+	UseCache        bool          `json:"useCache,omitempty"`
+	AllowIncomplete bool          `json:"allowIncomplete,omitempty"`
+	Scope           string        `json:"scope,omitempty"`
+	Since           string        `json:"since,omitempty"`
+	Selector        string        `json:"selector,omitempty"`
+	FieldSelector   string        `json:"fieldSelector,omitempty"`
+	MaxInflight     int64         `json:"maxInflight,omitempty"`
+	Kubeconfig      *types.EnvVar `json:"kubeconfig,omitempty"`
+
+	// Event specifies how the Kubernetes event should be handled.
+	Event KubernetesEventConfig `json:"event,omitempty"`
+
+	// Exclusions excludes certain kubernetes objects from being scraped.
+	Exclusions KubernetesExclusionConfig `json:"exclusions,omitempty"`
 
 	// Relationships specify the fields to use to relate Kubernetes objects.
 	Relationships []KubernetesRelationshipSelectorTemplate `json:"relationships,omitempty"`
@@ -244,7 +250,7 @@ type KubernetesEvent struct {
 func (t *KubernetesEvent) ToUnstructured() (*unstructured.Unstructured, error) {
 	b, err := t.AsMap()
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	b["kind"] = "Event"

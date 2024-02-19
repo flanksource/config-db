@@ -41,31 +41,27 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 	)
 
 	for _, event := range events {
-		resource := event.InvolvedObject
-
-		cacheKey := fmt.Sprintf("%s/%s/%s", resource.Namespace, resource.Kind, resource.Name)
-		if _, ok := seenObjects[cacheKey]; ok {
+		if eventObj, err := event.ToUnstructured(); err != nil {
+			logger.Errorf("failed to convert event to unstructured: %v", err)
 			continue
+		} else {
+			objects = append(objects, eventObj)
 		}
 
-		ctx.DutyContext().Debugf("ketone namespace=%s name=%s kind=%s", resource.Namespace, resource.Name, resource.Kind)
-		obj, err := ketall.KetOne(ctx, resource.Name, resource.Namespace, resource.Kind, options.NewDefaultCmdOptions())
-		if err != nil {
-			logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
-			continue
-		} else if obj == nil {
-			// If the object isn't found then it's probably deleted.
-			// We form the event and let the change pipeline handle it.
-			obj, err = event.ToUnstructured()
+		// Add the involved object
+		resource := event.InvolvedObject
+		cacheKey := fmt.Sprintf("%s/%s/%s", resource.Namespace, resource.Kind, resource.Name)
+		if _, ok := seenObjects[cacheKey]; !ok {
+			ctx.DutyContext().Debugf("ketone namespace=%s name=%s kind=%s", resource.Namespace, resource.Name, resource.Kind)
+			obj, err := ketall.KetOne(ctx, resource.Name, resource.Namespace, resource.Kind, options.NewDefaultCmdOptions())
 			if err != nil {
 				logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
 				continue
+			} else if obj != nil {
+				seenObjects[cacheKey] = struct{}{} // mark it as seen so we don't run ketall.KetOne again (in this run)
+				objects = append(objects, obj)
 			}
-		} else {
-			seenObjects[cacheKey] = struct{}{} // mark it as seen so we don't run ketall.KetOne again (in this run)
 		}
-
-		objects = append(objects, obj)
 	}
 
 	ctx.DutyContext().Debugf("found %d objects for %d ids", len(objects), len(events))
@@ -136,7 +132,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 	for _, obj := range objs {
 		if config.Exclusions.Filter(obj.GetName(), obj.GetNamespace(), obj.GetKind(), obj.GetLabels()) {
-			ctx.Infof("excluding object: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			ctx.Tracef("excluding object: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 			continue
 		}
 
@@ -164,7 +160,8 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
 			if change != nil {
 				changeResults = append(changeResults, v1.ScrapeResult{
-					Changes: []v1.ChangeResult{*change},
+					BaseScraper: config.BaseScraper,
+					Changes:     []v1.ChangeResult{*change},
 				})
 			}
 

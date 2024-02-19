@@ -41,7 +41,9 @@ func getDetailsFromEvent(event v1.KubernetesEvent) map[string]any {
 		return nil
 	}
 
-	delete(details, "involvedObject")
+	// Don't remove involved object as it can be useful when
+	// excluding changes during transformation.
+	// delete(details, "involvedObject")
 
 	if metadata, ok := details["metadata"].(map[string]any); ok {
 		delete(metadata, "managedFields")
