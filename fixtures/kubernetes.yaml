@@ -42,7 +42,6 @@ spec:
             - 'config_type == "Kubernetes::Endpoints" && details.message == "metadata.annotations.endpoints.kubernetes.io/last-change-trigger-time"'
             - 'config_type == "Kubernetes::Node" && details.message == "status.images"'
             - 'details.source.component == "canary-checker" && (change_type == "Failed" || change_type == "Pass")'
-            - 'details.source.component == "canary-checker" && (change_type == "Failed" || change_type == "Pass")'
       properties:
         - filter: 'config_type == "Kubernetes::Pod"'
           name: Logs
@@ -115,3 +114,4 @@ spec:
           warn:
             - backoff
             - nodeoutofmemory
+

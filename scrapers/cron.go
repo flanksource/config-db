@@ -14,15 +14,15 @@ var (
 	DefaultSchedule   string
 	cronIDFunctionMap map[string]cron.EntryID
 
-	// concurrentJobLocks keeps track of the currently running jobs.
-	concurrentJobLocks sync.Map
+	// ConcurrentJobLocks keeps track of the currently running jobs.
+	ConcurrentJobLocks sync.Map
 )
 
 // AtomicRunner wraps the given function, identified by a unique ID,
 // with a mutex so that the function executes only once at a time, preventing concurrent executions.
 func AtomicRunner(id string, fn func()) func() {
 	return func() {
-		val, _ := concurrentJobLocks.LoadOrStore(id, &sync.Mutex{})
+		val, _ := ConcurrentJobLocks.LoadOrStore(id, &sync.Mutex{})
 		lock, ok := val.(*sync.Mutex)
 		if !ok {
 			logger.Warnf("expected mutex but got %T for scraper(id=%s)", lock, id)
