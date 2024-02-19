@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/flanksource/config-db/api"
-	configsv1 "github.com/flanksource/config-db/api/v1"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
@@ -69,6 +68,8 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
+	isFirstGeneration := scrapeConfig.GetGeneration() == 1
+
 	// Check if it is deleted, remove scrape config
 	if !scrapeConfig.DeletionTimestamp.IsZero() {
 		logger.Info("Deleting scrape config", "id", scrapeConfig.GetUID())
@@ -97,13 +98,19 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Sync jobs if new scrape config is created
-	if changed || scrapeConfig.Generation == 1 {
-		ctx := api.DefaultContext.WithScrapeConfig(scrapeConfig)
-		if _, err := scrapers.RunScraper(ctx); err != nil {
-			logger.Error(err, "failed to run scraper")
-			return ctrl.Result{Requeue: true, RequeueAfter: 2 * time.Minute}, err
-		}
+	if changed {
 		scrapers.AddToCron(*scrapeConfig)
+
+		// Run now if it's a new scrape config
+		if isFirstGeneration {
+			if _, ok := scrapers.ConcurrentJobLocks.Load(string(scrapeConfig.GetUID())); !ok {
+				ctx := api.DefaultContext.WithScrapeConfig(scrapeConfig)
+				if _, err := scrapers.RunScraper(ctx); err != nil {
+					logger.Error(err, "failed to run scraper")
+					return ctrl.Result{Requeue: true, RequeueAfter: 2 * time.Minute}, err
+				}
+			}
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -112,6 +119,6 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 // SetupWithManager sets up the controller with the Manager.
 func (r *ScrapeConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&configsv1.ScrapeConfig{}).
+		For(&v1.ScrapeConfig{}).
 		Complete(r)
 }
