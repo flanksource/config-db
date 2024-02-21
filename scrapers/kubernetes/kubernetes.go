@@ -171,6 +171,23 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 		var relationships v1.RelationshipResults
 
+		if obj.GetKind() == "Node" {
+			if clusterName, ok := obj.GetLabels()["kubernetes.azure.com/cluster"]; ok {
+				// kubernetes.azure.com/cluster doesn't actually contain the
+				// AKS cluster name - it contains the node resource group.
+				// The cluster name isn't available in the node.
+				cluster.Tags["aks-nodeResourceGroup"] = clusterName
+			}
+
+			if spec, ok := obj.Object["spec"].(map[string]interface{}); ok {
+				if providerID, ok := spec["providerID"].(string); ok {
+					if p := extractAzureSubscriptionIDFromProvider(providerID); p != "" {
+						globalLabels["azure/subscription-id"] = p
+					}
+				}
+			}
+		}
+
 		if obj.GetKind() == "Pod" {
 			spec := obj.Object["spec"].(map[string]interface{})
 			var nodeName string
@@ -556,4 +573,14 @@ func getContainerEnv(podSpec map[string]any, envName string) string {
 	}
 
 	return ""
+}
+
+func extractAzureSubscriptionIDFromProvider(provider string) string {
+	if !strings.HasPrefix(provider, "azure:///subscriptions/") {
+		return ""
+	}
+
+	provider = strings.TrimPrefix(provider, "azure:///subscriptions/")
+	split := strings.Split(provider, "/")
+	return split[0]
 }

@@ -369,6 +369,9 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "KubernetesCluster",
 				Type:        getARMType(v.Type),
+				Tags: map[string]string{
+					"azure-subscription-id": azure.config.SubscriptionID,
+				},
 			})
 		}
 	}

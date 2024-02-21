@@ -4,7 +4,18 @@ metadata:
   name: azure-scraper
 spec:
   azure:
-    - organisation: flanksource
-      subscriptionId: e3911016-5810-415f-b075-682db169988f
-      region:
-        - eu-west-2
+    - connection: connection://azure/flanksource
+      organisation: flanksource
+      subscriptionID: e3911016-5810-415f-b075-682db169988f
+      transform:
+        relationship:
+          # Link AKS Cluster to Kubernetes Cluster
+          - filter: config_class == 'KubernetesCluster'
+            expr: |
+              [{
+                "type": "Kubernetes::Cluster",
+                "labels": {
+                  "aks-nodeResourceGroup": config["properties"]["nodeResourceGroup"],
+                  "azure/subscription-id": tags["azure-subscription-id"]
+                },
+              }].toJSON()

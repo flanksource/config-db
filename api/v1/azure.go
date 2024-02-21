@@ -20,7 +20,7 @@ type Azure struct {
 	Organisation   string           `yaml:"organisation" json:"organisation"`
 	ClientID       types.EnvVar     `yaml:"clientID,omitempty" json:"clientID,omitempty"`
 	ClientSecret   types.EnvVar     `yaml:"clientSecret,omitempty" json:"clientSecret,omitempty"`
-	TenantID       string           `yaml:"tenantID" json:"tenantID"`
+	TenantID       string           `yaml:"tenantID,omitempty" json:"tenantID,omitempty"`
 	Exclusions     *AzureExclusions `yaml:"exclusions,omitempty" json:"exclusions,omitempty"`
 }
 
