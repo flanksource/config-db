@@ -24,6 +24,9 @@ scrapeRuleConfigMaps:
 
 db:
   runMigrations: true
+  connectionPooler:
+    enabled: false
+    secretKeyRef: ""
   embedded:
     # If the database is embedded, setting this to true will persist the contents of the database
     # through a persistent volume
