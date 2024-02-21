@@ -202,11 +202,11 @@ func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.Scrap
 		if rc.Filter != "" {
 			filterOutput, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: rc.Filter})
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to evaluate relationship config filter: %s: %v", rc.Filter, err)
 			}
 
 			if ok, err := strconv.ParseBool(filterOutput); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("relationship config filter did not evaulate to a boolean: %s", filterOutput)
 			} else if !ok {
 				continue
 			}
@@ -216,17 +216,17 @@ func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.Scrap
 		if rc.Expr != "" {
 			celOutput, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: rc.Expr})
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to evaluate relationship config expr: %s: %v", rc.Expr, err)
 			}
 
 			var output []v1.RelationshipSelector
 			if err := json.Unmarshal([]byte(celOutput), &output); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("relationship config expr (%s) did not evaulate to a list of relationship selectors: %w", rc.Expr, err)
 			}
 			relationshipSelectors = append(relationshipSelectors, output...)
 		} else {
 			if compiled, err := rc.RelationshipSelectorTemplate.Eval(input.Tags, input.AsMap()); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("relationship selector is invalid: %w", err)
 			} else if compiled != nil {
 				relationshipSelectors = append(relationshipSelectors, *compiled)
 			}
@@ -254,7 +254,7 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 
 		// Form new relationships based on the transform configs
 		if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, input, e.Transform.Relationship); err != nil {
-			return results, err
+			return results, fmt.Errorf("failed to get relationships from relationship configs: %w", err)
 		} else if len(newRelationships) > 0 {
 			input.RelationshipSelectors = append(input.RelationshipSelectors, newRelationships...)
 		}
