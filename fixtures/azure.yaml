@@ -19,3 +19,13 @@ spec:
                   "azure/subscription-id": tags["azure-subscription-id"]
                 },
               }].toJSON()
+          # Link Azure Virtual Machine Scale Sets to the Kubernetes Nodes
+          - filter: config_class == 'Node'
+            expr: |
+              [{
+                "type": "Kubernetes::Node",
+                "labels": {
+                  "azure/vm-scale-set": name,
+                  "azure/subscription-id": tags["azure-subscription-id"]
+                },
+              }].toJSON()

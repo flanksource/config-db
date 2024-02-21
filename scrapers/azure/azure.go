@@ -150,6 +150,14 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		results = append(results, azure.fetchPublicIPAddresses()...)
 		results = append(results, azure.fetchAdvisorAnalysis()...)
 		results = append(results, azure.fetchActivityLogs()...)
+
+		// Post processing of all results
+		for i := range results {
+			// Add subscription-id tag to all the resources
+			results[i].Tags = collections.MergeMap(results[i].Tags, map[string]string{
+				"azure-subscription-id": azure.config.SubscriptionID,
+			})
+		}
 	}
 
 	// Establish relationship of all resources to the corresponding subscription & resource group
@@ -369,9 +377,6 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "KubernetesCluster",
 				Type:        getARMType(v.Type),
-				Tags: map[string]string{
-					"azure-subscription-id": azure.config.SubscriptionID,
-				},
 			})
 		}
 	}
