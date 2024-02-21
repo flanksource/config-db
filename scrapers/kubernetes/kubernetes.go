@@ -169,7 +169,14 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			continue
 		}
 
-		var relationships v1.RelationshipResults
+		var (
+			relationships v1.RelationshipResults
+			tags          = make(map[string]string)
+		)
+
+		if obj.GetLabels() != nil {
+			tags = obj.GetLabels()
+		}
 
 		if obj.GetKind() == "Node" {
 			if clusterName, ok := obj.GetLabels()["kubernetes.azure.com/cluster"]; ok {
@@ -181,8 +188,12 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 			if spec, ok := obj.Object["spec"].(map[string]interface{}); ok {
 				if providerID, ok := spec["providerID"].(string); ok {
-					if p := extractAzureSubscriptionIDFromProvider(providerID); p != "" {
-						globalLabels["azure/subscription-id"] = p
+					subID, vmScaleSetID := parseAzureURI(providerID)
+					if subID != "" {
+						globalLabels["azure/subscription-id"] = subID
+					}
+					if vmScaleSetID != "" {
+						tags["azure/vm-scale-set"] = vmScaleSetID
 					}
 				}
 			}
@@ -308,10 +319,6 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			}
 		}
 
-		tags := make(map[string]string)
-		if obj.GetLabels() != nil {
-			tags = obj.GetLabels()
-		}
 		tags["cluster"] = config.ClusterName
 		tags["apiVersion"] = obj.GetAPIVersion()
 		if obj.GetNamespace() != "" {
@@ -575,12 +582,23 @@ func getContainerEnv(podSpec map[string]any, envName string) string {
 	return ""
 }
 
-func extractAzureSubscriptionIDFromProvider(provider string) string {
-	if !strings.HasPrefix(provider, "azure:///subscriptions/") {
-		return ""
+func parseAzureURI(uri string) (string, string) {
+	if !strings.HasPrefix(uri, "azure:///subscriptions/") {
+		return "", ""
 	}
 
-	provider = strings.TrimPrefix(provider, "azure:///subscriptions/")
-	split := strings.Split(provider, "/")
-	return split[0]
+	parts := strings.Split(uri, "/")
+	var subscriptionID, vmScaleSetID string
+	for i := 0; i < len(parts); i++ {
+		if parts[i] == "subscriptions" && i+1 < len(parts) {
+			subscriptionID = parts[i+1]
+		}
+
+		if parts[i] == "virtualMachineScaleSets" && i+1 < len(parts) {
+			vmScaleSetID = parts[i+1]
+			break
+		}
+	}
+
+	return subscriptionID, vmScaleSetID
 }
