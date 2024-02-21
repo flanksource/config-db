@@ -1,6 +1,8 @@
 package kubernetes
 
-import "testing"
+import (
+	"testing"
+)
 
 func Test_extractAccountIDFromARN(t *testing.T) {
 	type args struct {
@@ -21,6 +23,27 @@ func Test_extractAccountIDFromARN(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := extractAccountIDFromARN(tt.args.input); got != tt.want {
 				t.Errorf("extractAccountIDFromARN() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_extractAzureSubscriptionIDFromProvider(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		want     string
+	}{
+		{
+			name:     "basic",
+			provider: "azure:///subscriptions/3da0f5ee-405a-4dd4-a408-a635799995ea/resourceGroups/mc_demo_demo_francecentral/providers/Microsoft.Compute/virtualMachineScaleSets/aks-pool1-37358073-vmss/virtualMachines/9",
+			want:     "3da0f5ee-405a-4dd4-a408-a635799995ea",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := extractAzureSubscriptionIDFromProvider(tt.provider); got != tt.want {
+				t.Errorf("extractAzureSubscriptionIDFromProvider() = %v, want %v", got, tt.want)
 			}
 		})
 	}

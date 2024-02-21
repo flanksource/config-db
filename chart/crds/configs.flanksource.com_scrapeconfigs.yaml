@@ -771,7 +771,6 @@ spec:
                   required:
                   - organisation
                   - subscriptionID
-                  - tenantID
                   type: object
                 type: array
               azureDevops:
@@ -1673,8 +1672,12 @@ spec:
                         type: string
                       type: array
                     event:
+                      description: Event specifies how the Kubernetes event should
+                        be handled.
                       properties:
                         exclusions:
+                          description: Exclusions defines what events needs to be
+                            dropped.
                           properties:
                             name:
                               items:
@@ -1704,6 +1707,8 @@ spec:
                           type: object
                       type: object
                     exclusions:
+                      description: Exclusions excludes certain kubernetes objects
+                        from being scraped.
                       properties:
                         kind:
                           items:

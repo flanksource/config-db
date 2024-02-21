@@ -469,13 +469,13 @@ func (in JSONStringMap) DeepCopy() JSONStringMap {
 func (in *Kubernetes) DeepCopyInto(out *Kubernetes) {
 	*out = *in
 	in.BaseScraper.DeepCopyInto(&out.BaseScraper)
-	in.Exclusions.DeepCopyInto(&out.Exclusions)
 	if in.Kubeconfig != nil {
 		in, out := &in.Kubeconfig, &out.Kubeconfig
 		*out = new(types.EnvVar)
 		(*in).DeepCopyInto(*out)
 	}
 	in.Event.DeepCopyInto(&out.Event)
+	in.Exclusions.DeepCopyInto(&out.Exclusions)
 	if in.Relationships != nil {
 		in, out := &in.Relationships, &out.Relationships
 		*out = make([]KubernetesRelationshipSelectorTemplate, len(*in))
