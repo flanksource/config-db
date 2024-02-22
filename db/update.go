@@ -16,6 +16,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/db/ulid"
+	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/utils"
 	dutyContext "github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
@@ -131,15 +132,19 @@ func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 		}
 	}
 
-	changes, err := generateConfigChange(ci, *existing)
+	changeResult, err := generateConfigChange(ci, *existing)
 	if err != nil {
 		logger.Errorf("[%s] failed to check for changes: %v", ci, err)
-	}
-
-	if changes != nil {
+	} else if changeResult != nil {
 		logger.Debugf("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
-		err := db.Create(changes).Error
-		if err != nil {
+
+		res := &v1.ScrapeResult{Changes: []v1.ChangeResult{*changeResult}}
+		changes.ProcessRules(res)
+
+		change := models.NewConfigChangeFromV1(v1.ScrapeResult{}, res.Changes[0])
+		change.ConfigID = ci.ID
+
+		if err := db.Create(change).Error; err != nil {
 			if IsUniqueConstraintPGErr(err) {
 				logger.Debugf("[%s] changes not stored. Another row with the same config_id & external_change_id exists.", ci)
 			} else {
@@ -374,7 +379,7 @@ func generateDiff(newConf, prevConfig string) (string, error) {
 
 // generateConfigChange calculates the diff (git style) and patches between the
 // given 2 config items and returns a ConfigChange object if there are any changes.
-func generateConfigChange(newConf, prev models.ConfigItem) (*dutyModels.ConfigChange, error) {
+func generateConfigChange(newConf, prev models.ConfigItem) (*v1.ChangeResult, error) {
 	diff, err := generateDiff(*newConf.Config, *prev.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate diff: %w", err)
@@ -394,12 +399,10 @@ func generateConfigChange(newConf, prev models.ConfigItem) (*dutyModels.ConfigCh
 		return nil, fmt.Errorf("failed to unmarshal patch: %w", err)
 	}
 
-	return &dutyModels.ConfigChange{
-		ConfigID:         newConf.ID,
+	return &v1.ChangeResult{
 		ChangeType:       "diff",
-		ExternalChangeId: utils.Sha256Hex(string(patch)),
-		ID:               ulid.MustNew().AsUUID(),
-		Diff:             diff,
+		ExternalChangeID: utils.Sha256Hex(string(patch)),
+		Diff:             &diff,
 		Patches:          string(patch),
 		Summary:          strings.Join(utils.ExtractLeafNodesAndCommonParents(patchJSON), ", "),
 	}, nil

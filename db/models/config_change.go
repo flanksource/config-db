@@ -18,6 +18,7 @@ type ConfigChange struct {
 	ID                string     `gorm:"primaryKey;unique_index;not null;column:id" json:"id"`
 	ConfigID          string     `gorm:"column:config_id;default:''" json:"config_id"`
 	ChangeType        string     `gorm:"column:change_type" json:"change_type"`
+	Diff              *string    `gorm:"column:diff" json:"diff,omitempty"`
 	Severity          string     `gorm:"column:severity" json:"severity"`
 	Source            string     `gorm:"column:source" json:"source"`
 	Summary           string     `gorm:"column:summary;default:null" json:"summary,omitempty"`
@@ -46,6 +47,7 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 		ExternalChangeId: change.ExternalChangeID,
 		ChangeType:       change.ChangeType,
 		Source:           change.Source,
+		Diff:             change.Diff,
 		Severity:         change.Severity,
 		Details:          v1.JSON(change.Details),
 		Summary:          change.Summary,
