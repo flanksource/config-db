@@ -45,7 +45,7 @@ db:
     # Setting enabled to true will use an external postgres DB.
     # You can either use the embedded db or an external db.
     # If both is enabled, then embedded db will take precedence.
-    enabled: true
+    enabled: false
     # Setting create:true will create
     #   - a postgres stateful set
     #   - the secret &
