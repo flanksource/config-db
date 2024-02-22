@@ -94,7 +94,14 @@ func getParentPath(parentExternalUID v1.ExternalID) string {
 	return path
 }
 
-func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
+func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) error {
+	ci, err := NewConfigItemFromResult(result)
+	if err != nil {
+		return errors.Wrapf(err, "unable to create config item: %s", result)
+	}
+
+	ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
+
 	existing, err := GetConfigItem(*ci.Type, ci.ID)
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return errors.Wrapf(err, "unable to lookup existing config: %s", ci)
@@ -112,9 +119,10 @@ func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 			ci.ID = id.String()
 		}
 
-		if err := CreateConfigItem(&ci); err != nil {
+		if err := CreateConfigItem(ci); err != nil {
 			logger.Errorf("[%s] failed to create item %v", ci, err)
 		}
+
 		return nil
 	}
 
@@ -126,22 +134,22 @@ func updateCI(ctx api.ScrapeContext, ci models.ConfigItem) error {
 		ci.TouchDeletedAt = true
 	}
 
-	if err := UpdateConfigItem(&ci); err != nil {
-		if err := CreateConfigItem(&ci); err != nil {
+	if err := UpdateConfigItem(ci); err != nil {
+		if err := CreateConfigItem(ci); err != nil {
 			return fmt.Errorf("[%s] failed to update item %v", ci, err)
 		}
 	}
 
-	changeResult, err := generateConfigChange(ci, *existing)
+	changeResult, err := generateConfigChange(*ci, *existing)
 	if err != nil {
 		logger.Errorf("[%s] failed to check for changes: %v", ci, err)
 	} else if changeResult != nil {
 		logger.Debugf("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
 
-		res := &v1.ScrapeResult{Changes: []v1.ChangeResult{*changeResult}}
-		changes.ProcessRules(res)
+		result.Changes = []v1.ChangeResult{*changeResult}
+		changes.ProcessRules(&result, result.BaseScraper.Transform.Change.Mapping...)
 
-		change := models.NewConfigChangeFromV1(v1.ScrapeResult{}, res.Changes[0])
+		change := models.NewConfigChangeFromV1(v1.ScrapeResult{}, result.Changes[0])
 		change.ConfigID = ci.ID
 
 		if err := db.Create(change).Error; err != nil {
@@ -290,14 +298,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 
 	for _, result := range results {
 		if result.Config != nil {
-			ci, err := NewConfigItemFromResult(result)
-			if err != nil {
-				return errors.Wrapf(err, "unable to create config item: %s", result)
-			}
-
-			ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
-
-			if err := updateCI(ctx, *ci); err != nil {
+			if err := updateCI(ctx, result); err != nil {
 				return err
 			}
 		}

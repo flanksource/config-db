@@ -91,7 +91,16 @@ func (s MaskList) String() string {
 	return fmt.Sprintf("total_masks=%d", len(s))
 }
 
+type ChangeMapping struct {
+	// Filter selects what change to apply the mapping to
+	Filter string `json:"filter,omitempty"`
+	// Type is the type to be set on the change
+	Type string `json:"type,omitempty"`
+}
+
 type TransformChange struct {
+	// Mapping is a list of CEL expressions that maps a change to the specified type
+	Mapping []ChangeMapping `json:"mapping,omitempty"`
 	// Exclude is a list of CEL expressions that excludes a given change
 	Exclude []string `json:"exclude,omitempty"`
 }
