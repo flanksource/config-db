@@ -21,7 +21,13 @@ configAnalysisRetentionDays: 60
 # a list of configmaps to load scrape rules from, the configmap should have a single entry called "config.yaml"
 scrapeRuleConfigMaps:
   - config-db-rules
-
+global:
+  db:
+    connectionPooler:
+      enabled: false
+      secretKeyRef:
+        name: mission-control-connection-pooler
+        key: DB_URL
 db:
   runMigrations: true
   connectionPooler:
@@ -39,7 +45,7 @@ db:
     # Setting enabled to true will use an external postgres DB.
     # You can either use the embedded db or an external db.
     # If both is enabled, then embedded db will take precedence.
-    enabled: false
+    enabled: true
     # Setting create:true will create
     #   - a postgres stateful set
     #   - the secret &
