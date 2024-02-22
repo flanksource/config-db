@@ -79,6 +79,10 @@ func init() {
 // using the change rules.
 func ProcessRules(result *v1.ScrapeResult) {
 	for _, rule := range Rules {
+		if len(result.Changes) == 0 {
+			continue
+		}
+
 		if match, err := rule.match(result); err != nil {
 			logger.Errorf("Failed to match filter %s: %s", rule.Filter, err)
 			continue
