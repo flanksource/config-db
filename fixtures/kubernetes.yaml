@@ -3,6 +3,11 @@ kind: ScrapeConfig
 metadata:
   name: kubernetes-scraper
 spec:
+  retention:
+    changes:
+      - name: PodCrashLooping
+        count: 10
+        age: 72h
   kubernetes:
     - clusterName: local-kind-cluster
       transform:
@@ -37,6 +42,13 @@ spec:
               - Kubernetes::Pod
             jsonpath: '.metadata.generateName'
         changes:
+          mapping:
+            - filter: >
+                change.change_type == 'diff' && change.summary == "status.containerStatuses" && 
+                patch != null && has(patch.status) && has(patch.status.containerStatuses) && 
+                patch.status.containerStatuses.size() > 0 &&
+                has(patch.status.containerStatuses[0].restartCount)
+              type: PodCrashLooping
           exclude:
             - 'config_type == "Kubernetes::Application" && details.message == "status.reconciledAt" && change_type == "diff" && details.involvedObject.apiVersion == "argoproj.io/v1alpha1"'
             - 'config_type == "Kubernetes::Endpoints" && details.message == "metadata.annotations.endpoints.kubernetes.io/last-change-trigger-time"'
@@ -114,4 +126,3 @@ spec:
           warn:
             - backoff
             - nodeoutofmemory
-

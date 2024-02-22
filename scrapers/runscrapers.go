@@ -116,7 +116,7 @@ func processScrapeResult(ctx context.Context, config v1.ScraperSpec, result v1.S
 		}
 	}
 
-	changes.ProcessRules(&result)
+	changes.ProcessRules(&result, result.BaseScraper.Transform.Change.Mapping...)
 
 	result.Changes = summarizeChanges(result.Changes)
 

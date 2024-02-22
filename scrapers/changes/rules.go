@@ -40,7 +40,7 @@ func (t *changeRule) process(change *v1.ChangeResult) error {
 	}
 
 	if ok, err := evaluateCelExpression(t.Rule, env, "change", "patch"); err != nil {
-		return fmt.Errorf("Failed to evaluate rule %s: %w", t.Rule, err)
+		return fmt.Errorf("failed to evaluate rule %s: %w", t.Rule, err)
 	} else if !ok {
 		return nil
 	}
@@ -56,7 +56,7 @@ func (t *changeRule) process(change *v1.ChangeResult) error {
 	if t.Summary != "" {
 		summary, err := evaluateGoTemplate(t.Summary, env)
 		if err != nil {
-			return fmt.Errorf("Failed to evaluate template %s: %w", t.Summary, err)
+			return fmt.Errorf("failed to evaluate summary template %s: %w", t.Summary, err)
 		}
 
 		change.Summary = summary
@@ -77,8 +77,16 @@ func init() {
 
 // ProcessRules modifies the scraped changes in-place
 // using the change rules.
-func ProcessRules(result *v1.ScrapeResult) {
-	for _, rule := range Rules {
+func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) {
+	allRules := Rules
+	for _, r := range rules {
+		allRules = append(allRules, changeRule{
+			Rule: r.Filter,
+			Type: r.Type,
+		})
+	}
+
+	for _, rule := range allRules {
 		if len(result.Changes) == 0 {
 			continue
 		}
