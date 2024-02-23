@@ -12,7 +12,6 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers/analysis"
-	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/scrapers/processors"
 	"github.com/flanksource/config-db/utils"
@@ -55,7 +54,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 			logger.Errorf("Error persisting job history: %v", err)
 		}
 
-		logger.Debugf("Starting to scrape [%s]", jobHistory.Name)
+		ctx.DutyContext().Infof("Starting %s %s", jobHistory.Name, ctx.ScrapeConfig().Name)
 		for _, result := range scraper.Scrape(ctx) {
 			scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, result)
 
@@ -116,7 +115,8 @@ func processScrapeResult(ctx context.Context, config v1.ScraperSpec, result v1.S
 		}
 	}
 
-	changes.ProcessRules(&result, result.BaseScraper.Transform.Change.Mapping...)
+	// TODO: Decide if this can be removed here. It's newly placed on func updateChange.
+	// changes.ProcessRules(&result, result.BaseScraper.Transform.Change.Mapping...)
 
 	result.Changes = summarizeChanges(result.Changes)
 
