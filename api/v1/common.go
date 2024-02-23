@@ -106,7 +106,7 @@ type TransformChange struct {
 }
 
 func (t *TransformChange) IsEmpty() bool {
-	return len(t.Exclude) == 0
+	return len(t.Exclude) == 0 && len(t.Mapping) == 0
 }
 
 // RelationshipLookup offers different ways to specify a lookup value

@@ -27,6 +27,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -145,19 +146,9 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) error {
 		logger.Errorf("[%s] failed to check for changes: %v", ci, err)
 	} else if changeResult != nil {
 		logger.Debugf("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
-
 		result.Changes = []v1.ChangeResult{*changeResult}
-		changes.ProcessRules(&result, result.BaseScraper.Transform.Change.Mapping...)
-
-		change := models.NewConfigChangeFromV1(v1.ScrapeResult{}, result.Changes[0])
-		change.ConfigID = ci.ID
-
-		if err := db.Create(change).Error; err != nil {
-			if IsUniqueConstraintPGErr(err) {
-				logger.Debugf("[%s] changes not stored. Another row with the same config_id & external_change_id exists.", ci)
-			} else {
-				logger.Errorf("[%s] failed to update with changes %v", ci, err)
-			}
+		if err := saveChanges(ctx, &result); err != nil {
+			return fmt.Errorf("[%s] failed to save %d changes: %w", ci, len(result.Changes), err)
 		}
 	}
 
@@ -178,7 +169,9 @@ func shouldExcludeChange(ctx dutyContext.Context, exclusions []string, changeRes
 	return false, nil
 }
 
-func updateChange(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
+func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
+	changes.ProcessRules(result, result.BaseScraper.Transform.Change.Mapping...)
+
 	for _, changeResult := range result.Changes {
 		if changeResult.Action == v1.Ignore {
 			continue
@@ -309,7 +302,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 			}
 		}
 
-		if err := updateChange(ctx, &result); err != nil {
+		if err := saveChanges(ctx, &result); err != nil {
 			return err
 		}
 
@@ -401,6 +394,7 @@ func generateConfigChange(newConf, prev models.ConfigItem) (*v1.ChangeResult, er
 	}
 
 	return &v1.ChangeResult{
+		ConfigType:       lo.FromPtr(newConf.Type),
 		ChangeType:       "diff",
 		ExternalChangeID: utils.Sha256Hex(string(patch)),
 		Diff:             &diff,
