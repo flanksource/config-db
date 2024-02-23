@@ -155,9 +155,14 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) error {
 	return nil
 }
 
-func shouldExcludeChange(ctx dutyContext.Context, exclusions []string, changeResult v1.ChangeResult) (bool, error) {
+func shouldExcludeChange(ctx dutyContext.Context, result *v1.ScrapeResult, changeResult v1.ChangeResult) (bool, error) {
+	exclusions := result.BaseScraper.Transform.Change.Exclude
+
+	env := changeResult.AsMap()
+	env["config"] = result.Config
+
 	for _, expr := range exclusions {
-		if res, err := gomplate.RunTemplate(changeResult.AsMap(), gomplate.Template{Expression: expr}); err != nil {
+		if res, err := gomplate.RunTemplate(env, gomplate.Template{Expression: expr}); err != nil {
 			return false, fmt.Errorf("failed to evaluate change exclusion expression(%s): %w", expr, err)
 		} else if skipChange, err := strconv.ParseBool(res); err != nil {
 			return false, fmt.Errorf("change exclusion expression(%s) didn't evaluate to a boolean: %w", expr, err)
@@ -177,7 +182,7 @@ func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 			continue
 		}
 
-		if exclude, err := shouldExcludeChange(ctx.DutyContext(), result.BaseScraper.Transform.Change.Exclude, changeResult); err != nil {
+		if exclude, err := shouldExcludeChange(ctx.DutyContext(), result, changeResult); err != nil {
 			return err
 		} else if exclude {
 			ctx.DutyContext().Tracef("excluded change: %v", changeResult)
