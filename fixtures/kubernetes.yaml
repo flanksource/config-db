@@ -27,11 +27,14 @@ spec:
                 map(item, {"type": "Kubernetes::PersistentVolumeClaim", "name": item.persistentVolumeClaim.claimName}).
                 toJSON()
           # Link Argo Application to the resources
-          - filter: config_type == "kubernetes::Application" && config.apiVersion == "argoproj.io/v1alpha1"
+          - filter: config_type == "Kubernetes::Application" && config.apiVersion == "argoproj.io/v1alpha1"
             expr: |
               config.status.resources.map(item, {
                 "type": "Kubernetes::" + item.kind,
-                "name": item.name,                
+                "name": item.name,
+                "labels": {
+                  "namespace": item.namespace,
+                },
               }).toJSON()
         mask:
           - selector: |
@@ -58,7 +61,7 @@ spec:
               type: PodCrashLooping
           exclude:
             - 'config_type == "Kubernetes::Endpoints" && details.message == "metadata.annotations.endpoints.kubernetes.io/last-change-trigger-time"'
-            - 'config_type == "Kubernetes::Node" && details.message == "status.images"'
+            - 'config_type == "Kubernetes::Node" && has(details.message) && details.message == "status.images"'
             - 'details.source.component == "canary-checker" && (change_type == "Failed" || change_type == "Pass")'
             - >
               change_type == "diff" && summary == "status.reconciledAt" && 
