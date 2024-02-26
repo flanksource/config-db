@@ -28,6 +28,10 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 		return nil, fmt.Errorf("failed to save results: %w", err)
 	}
 
+	if err := UpdateStaleConfigItems(ctx, results); err != nil {
+		return nil, fmt.Errorf("failed to update stale config items: %w", err)
+	}
+
 	logger.WithValues("duration", time.Since(ctx.Value(contextKeyScrapeStart).(time.Time))).Infof("completed scraping %v", ctx.ScrapeConfig().Name)
 	return results, nil
 }
@@ -39,6 +43,10 @@ func SaveResults(ctx api.ScrapeContext, results v1.ScrapeResults) error {
 		return fmt.Errorf("failed to update db: %w", dbErr)
 	}
 
+	return nil
+}
+
+func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) error {
 	persistedID := ctx.ScrapeConfig().GetPersistedID()
 	if persistedID != nil {
 		// If error in any of the scrape results, don't delete old items
