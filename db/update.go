@@ -312,7 +312,10 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 
 		relationshipToForm = append(relationshipToForm, result.RelationshipResults...)
-		resultsWithRelationshipSelectors = append(resultsWithRelationshipSelectors, result)
+
+		if len(result.RelationshipSelectors) != 0 {
+			resultsWithRelationshipSelectors = append(resultsWithRelationshipSelectors, result)
+		}
 	}
 
 	if res, err := relationshipSelectorToResults(ctx.DutyContext(), resultsWithRelationshipSelectors); err != nil {

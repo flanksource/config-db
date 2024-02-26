@@ -174,6 +174,10 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			tags          = make(map[string]string)
 		)
 
+		if obj.GetNamespace() != "" {
+			tags["namespace"] = obj.GetNamespace()
+		}
+
 		if obj.GetLabels() != nil {
 			tags = obj.GetLabels()
 		}
