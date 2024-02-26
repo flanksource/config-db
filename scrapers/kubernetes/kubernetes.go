@@ -281,7 +281,9 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		}
 
 		for _, f := range config.Relationships {
-			env := map[string]any{}
+			env := map[string]any{
+				"metadata": obj.Object["metadata"],
+			}
 			if spec, ok := obj.Object["spec"].(map[string]any); ok {
 				env["spec"] = spec
 			} else {
