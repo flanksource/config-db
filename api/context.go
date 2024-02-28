@@ -95,7 +95,12 @@ func (ctx scrapeContext) DutyContext() dutyCtx.Context {
 }
 
 func (ctx scrapeContext) JobHistory() *models.JobHistory {
-	return ctx.JobHistory()
+	h := ctx.jobHistory
+	if h == nil {
+		// Return dummy job history if unset
+		return &models.JobHistory{}
+	}
+	return h
 }
 
 func (ctx scrapeContext) DB() *gorm.DB {
