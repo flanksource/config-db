@@ -243,7 +243,7 @@ type RelationshipConfig struct {
 }
 
 type Transform struct {
-	Script Script `yaml:",inline" json:",inline"`
+	Script `yaml:",inline" json:",inline"`
 	// Fields to remove from the config, useful for removing sensitive data and fields
 	// that change often without a material impact i.e. Last Scraped Time
 	Exclude []ConfigFieldExclusion `json:"exclude,omitempty"`
