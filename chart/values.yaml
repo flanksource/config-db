@@ -104,7 +104,7 @@ serviceAccount:
 upstream:
   enabled: false
   secretKeyRef:
-    name: config-db-upstream # Must contain: AGENT_NAME, UPSTREAM_USER, UPSTREAM_PASS & UPSTREAM_HOST
+    name: config-db-upstream # Must contain: AGENT_NAME, UPSTREAM_USER, UPSTREAM_PASSWORD & UPSTREAM_HOST
   pageSize: 500
 
 extra:
