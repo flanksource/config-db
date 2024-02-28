@@ -10,13 +10,11 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers/analysis"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/scrapers/processors"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/context"
-	"github.com/flanksource/duty/job"
 	"github.com/flanksource/duty/models"
 )
 
@@ -42,39 +40,22 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 			continue
 		}
 
-		jobHistory := models.NewJobHistory(
-			ctx.DutyContext().Logger,
-			fmt.Sprintf("scraper:%T", scraper),
-			job.ResourceTypeScraper,
-			string(ctx.ScrapeConfig().GetUID()),
-		)
-
-		jobHistory.Start()
-		if err := db.PersistJobHistory(jobHistory); err != nil {
-			logger.Errorf("Error persisting job history: %v", err)
-		}
-
-		ctx.DutyContext().Infof("Starting %s %s", jobHistory.Name, ctx.ScrapeConfig().Name)
+		ctx.DutyContext().Infof("Starting %s %s", ctx.JobHistory().Name, ctx.ScrapeConfig().Name)
 		for _, result := range scraper.Scrape(ctx) {
 			scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, result)
 
 			for i := range scraped {
 				if scraped[i].Error != nil {
 					logger.Errorf("Error scraping %s: %v", scraped[i].ID, scraped[i].Error)
-					jobHistory.AddError(scraped[i].Error.Error())
+					ctx.JobHistory().AddError(scraped[i].Error.Error())
 				}
 			}
 
 			if !scraped.HasErr() {
-				jobHistory.IncrSuccess()
+				ctx.JobHistory().IncrSuccess()
 			}
 
 			results = append(results, scraped...)
-		}
-
-		jobHistory.End()
-		if err := db.PersistJobHistory(jobHistory); err != nil {
-			logger.Errorf("Error persisting job history: %v", err)
 		}
 	}
 

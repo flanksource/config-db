@@ -20,6 +20,9 @@ type ScrapeContext interface {
 	context.Context
 	DutyContext() dutyCtx.Context
 
+	WithJobHistory(*models.JobHistory) ScrapeContext
+	JobHistory() *models.JobHistory
+
 	IsTrace() bool
 
 	WithContext(ctx context.Context) ScrapeContext
@@ -49,6 +52,7 @@ type scrapeContext struct {
 	kubernetes           *kubernetes.Clientset
 	kubernetesRestConfig *rest.Config
 
+	jobHistory   *models.JobHistory
 	scrapeConfig *v1.ScrapeConfig
 }
 
@@ -78,11 +82,20 @@ func (ctx scrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContex
 	return &ctx
 }
 
+func (ctx scrapeContext) WithJobHistory(jobHistory *models.JobHistory) ScrapeContext {
+	ctx.jobHistory = jobHistory
+	return &ctx
+}
+
 func (ctx scrapeContext) DutyContext() dutyCtx.Context {
 	return dutyCtx.NewContext(ctx).
 		WithKubernetes(ctx.kubernetes).
 		WithDB(ctx.db, ctx.pool).
 		WithNamespace(ctx.namespace)
+}
+
+func (ctx scrapeContext) JobHistory() *models.JobHistory {
+	return ctx.JobHistory()
 }
 
 func (ctx scrapeContext) DB() *gorm.DB {

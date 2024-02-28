@@ -115,15 +115,9 @@ func startScraperCron(configFiles []string) {
 			logger.Errorf("Error parsing config scraper[%s]: %v", scraper.ID, err)
 			continue
 		}
-		scrapers.AddToCron(_scraper)
 
-		fn := func() {
-			ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
-			if _, err := scrapers.RunScraper(ctx); err != nil {
-				logger.Errorf("Error running scraper(id=%s): %v", scraper.ID, err)
-			}
-		}
-		go scrapers.AtomicRunner(scraper.ID.String(), fn)()
+		ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
+		scrapers.SyncScrapeJob(ctx)
 
 		for _, config := range _scraper.Spec.Kubernetes {
 			ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
@@ -134,6 +128,25 @@ func startScraperCron(configFiles []string) {
 			}
 		}
 	}
+
+	time.Sleep(10 * time.Minute)
+	// Do it every 10 minutes to handle deletes
+	scraperConfigsDB, err = db.GetScrapeConfigsOfAgent(uuid.Nil)
+	if err != nil {
+		logger.Fatalf("error getting configs from database: %v", err)
+	}
+
+	logger.Infof("Starting %d scrapers", len(scraperConfigsDB))
+	for _, scraper := range scraperConfigsDB {
+		_scraper, err := v1.ScrapeConfigFromModel(scraper)
+		if err != nil {
+			logger.Errorf("Error parsing config scraper[%s]: %v", scraper.ID, err)
+			continue
+		}
+		ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
+		scrapers.SyncScrapeJob(ctx)
+	}
+
 }
 
 func forward(e *echo.Echo, prefix string, target string) {
