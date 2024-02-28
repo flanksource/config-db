@@ -68,8 +68,6 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	isFirstGeneration := scrapeConfig.GetGeneration() == 1
-
 	// Check if it is deleted, remove scrape config
 	if !scrapeConfig.DeletionTimestamp.IsZero() {
 		logger.Info("Deleting scrape config", "id", scrapeConfig.GetUID())
@@ -77,7 +75,7 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			logger.Error(err, "failed to delete scrape config")
 			return ctrl.Result{Requeue: true, RequeueAfter: 2 * time.Minute}, err
 		}
-		scrapers.RemoveFromCron(string(scrapeConfig.GetUID()))
+		scrapers.DeleteScrapeJob(string(scrapeConfig.GetUID()))
 		controllerutil.RemoveFinalizer(scrapeConfig, ScrapeConfigFinalizerName)
 		return ctrl.Result{}, r.Update(ctx, scrapeConfig)
 	}
@@ -99,18 +97,8 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Sync jobs if new scrape config is created
 	if changed {
-		scrapers.AddToCron(*scrapeConfig)
-
-		// Run now if it's a new scrape config
-		if isFirstGeneration {
-			if _, ok := scrapers.ConcurrentJobLocks.Load(string(scrapeConfig.GetUID())); !ok {
-				ctx := api.DefaultContext.WithScrapeConfig(scrapeConfig)
-				if _, err := scrapers.RunScraper(ctx); err != nil {
-					logger.Error(err, "failed to run scraper")
-					return ctrl.Result{Requeue: true, RequeueAfter: 2 * time.Minute}, err
-				}
-			}
-		}
+		ctx := api.DefaultContext.WithScrapeConfig(scrapeConfig)
+		scrapers.SyncScrapeJob(ctx)
 	}
 
 	return ctrl.Result{}, nil

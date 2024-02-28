@@ -82,6 +82,14 @@ func newScrapeJob(sc api.ScrapeContext) *job.Job {
 	return j
 }
 
+func DeleteScrapeJob(id string) {
+	if j, ok := scrapeJobs.Load(id); ok {
+		existingJob := j.(*job.Job)
+		existingJob.Unschedule()
+		scrapeJobs.Delete(id)
+	}
+}
+
 // AtomicRunner wraps the given function, identified by a unique ID,
 // with a mutex so that the function executes only once at a time, preventing concurrent executions.
 func AtomicRunner(id string, fn func()) func() {
