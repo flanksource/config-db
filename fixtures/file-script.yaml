@@ -8,11 +8,10 @@ spec:
       id: $.id
       name: $.name
       transform:
-        script:
-          javascript: |+
-            for (var i = 0; i < config.length; i++) {
-              config[i].added ="a"
-            }
-            JSON.stringify(config)
+        javascript: |+
+          for (var i = 0; i < config.length; i++) {
+            config[i].added ="a"
+          }
+          JSON.stringify(config)
       paths:
         - fixtures/data/multiple-configs.json

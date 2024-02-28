@@ -9,12 +9,11 @@ spec:
       name: $.name
       class: MySecrets
       transform:
-        script:
-          javascript: |+
-            for (var i = 0; i < config.length; i++) {
-              config[i].id = i + 1
-            }
-            JSON.stringify(config)
+        javascript: |+
+          for (var i = 0; i < config.length; i++) {
+            config[i].id = i + 1
+          }
+          JSON.stringify(config)
         exclude:
           - jsonpath: '.password'
           - types:
