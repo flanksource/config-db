@@ -243,8 +243,6 @@ github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/flanksource/commons v1.22.0 h1:LI839ZOVJ6qrNuGKqb6Z4JyIxFHXGhfDxJbXUj5VimQ=
 github.com/flanksource/commons v1.22.0/go.mod h1:GD5+yGvmYFPIW3WMNN+y1JkeDMJY74e05pQAsRbrvwY=
-github.com/flanksource/duty v1.0.350 h1:PtlQ97S7QeA7xbRUoZLI2zoFRcKzngmJHgCjKL4IeoA=
-github.com/flanksource/duty v1.0.350/go.mod h1:uvaxTD6RY6GkNcmoHGolsR2H+7/xYVLAv2InSZEfFuU=
 github.com/flanksource/gomplate/v3 v3.24.0 h1:wwW6aIfy8EyOZqB3UjXqxVNEmBmb5WM97xTy9uzhHQQ=
 github.com/flanksource/gomplate/v3 v3.24.0/go.mod h1:l6qN3L0Covtdrbei0nUSe4tqNlDcpTWsiHhRhHdVmCw=
 github.com/flanksource/is-healthy v1.0.1 h1:cr36GHndzge4rb6GDw+kSh5M6bUpglcZNbqqaTDAZeE=
@@ -547,7 +545,8 @@ go.opentelemetry.io/otel/sdk v1.22.0 h1:6coWHw9xw7EfClIC/+O31R8IY3/+EiRFHevmHafB
 go.opentelemetry.io/otel/trace v1.22.0 h1:Hg6pPujv0XG9QaVbGOBVHunyuLcCC3jN7WEhPx83XD0=
 go.opentelemetry.io/otel/trace v1.22.0/go.mod h1:RbbHXVqKES9QhzZq/fE5UnOSILqRt40a21sPw2He1xo=
 go.opentelemetry.io/proto/otlp v0.7.0/go.mod h1:PqfVotwruBrMGOCsRd/89rSnXhoiJIqeYNgFYFoEGnI=
-go.uber.org/goleak v1.2.1 h1:NBol2c7O1ZokfZ0LEU9K6Whx/KnwvepVetCUhtKja4A=
+go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
+go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
 go.uber.org/multierr v1.11.0 h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=
 go.uber.org/multierr v1.11.0/go.mod h1:20+QtiLqy0Nd6FdQB9TLXag12DsQkrbs3htMFfDN80Y=
 go.uber.org/zap v1.26.0 h1:sI7k6L95XOKS281NhVKOFCUNIvv9e0w4BF8N3u+tCRo=
