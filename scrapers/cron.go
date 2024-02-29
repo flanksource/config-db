@@ -53,7 +53,8 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 				}
 
 				if err := SyncScrapeJob(sc.WithScrapeConfig(&_scraper)); err != nil {
-					jr.History.AddErrorf("TODO YASH")
+					jr.History.AddErrorf("Error syncing scrape job[%s]: %v", scraper.ID, err)
+					continue
 				}
 
 				jr.History.SuccessCount += 1
