@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"time"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/sethvargo/go-retry"
 	"github.com/spf13/cobra"
 
 	"github.com/flanksource/config-db/api"
@@ -18,10 +16,8 @@ import (
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/query"
 	dutyContext "github.com/flanksource/duty/context"
-	"github.com/google/uuid"
 
 	"github.com/flanksource/config-db/scrapers"
-	"github.com/flanksource/config-db/scrapers/kubernetes"
 )
 
 // Serve ...
@@ -103,49 +99,7 @@ func startScraperCron(configFiles []string) {
 		}
 	}
 
-	scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(uuid.Nil)
-	if err != nil {
-		logger.Fatalf("error getting configs from database: %v", err)
-	}
-
-	logger.Infof("Starting %d scrapers", len(scraperConfigsDB))
-	for _, scraper := range scraperConfigsDB {
-		_scraper, err := v1.ScrapeConfigFromModel(scraper)
-		if err != nil {
-			logger.Errorf("Error parsing config scraper[%s]: %v", scraper.ID, err)
-			continue
-		}
-
-		ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
-		scrapers.SyncScrapeJob(ctx)
-
-		for _, config := range _scraper.Spec.Kubernetes {
-			ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
-			go watchKubernetesEventsWithRetry(ctx, config)
-
-			if err := jobs.ScheduleJob(ctx.DutyContext(), jobs.ConsumeKubernetesWatchEventsJobFunc(_scraper, config)); err != nil {
-				logger.Fatalf("failed to schedule kubernetes watch event consumer job: %v", err)
-			}
-		}
-	}
-
-	time.Sleep(10 * time.Minute)
-	// Do it every 10 minutes to handle deletes
-	scraperConfigsDB, err = db.GetScrapeConfigsOfAgent(uuid.Nil)
-	if err != nil {
-		logger.Fatalf("error getting configs from database: %v", err)
-	}
-
-	logger.Infof("Starting %d scrapers", len(scraperConfigsDB))
-	for _, scraper := range scraperConfigsDB {
-		_scraper, err := v1.ScrapeConfigFromModel(scraper)
-		if err != nil {
-			logger.Errorf("Error parsing config scraper[%s]: %v", scraper.ID, err)
-			continue
-		}
-		ctx := api.DefaultContext.WithScrapeConfig(&_scraper)
-		scrapers.SyncScrapeJob(ctx)
-	}
+	scrapers.SyncScrapeConfigs(api.DefaultContext)
 
 }
 
@@ -168,25 +122,4 @@ func forward(e *echo.Echo, prefix string, target string) {
 
 func init() {
 	ServerFlags(Serve.Flags())
-}
-
-func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes) {
-	const (
-		timeout                 = time.Minute // how long to keep retrying before we reset and retry again
-		exponentialBaseDuration = time.Second
-	)
-
-	for {
-		backoff := retry.WithMaxDuration(timeout, retry.NewExponential(exponentialBaseDuration))
-		err := retry.Do(ctx, backoff, func(ctxt context.Context) error {
-			ctx := ctxt.(api.ScrapeContext)
-			if err := kubernetes.WatchEvents(ctx, config); err != nil {
-				return retry.RetryableError(err)
-			}
-
-			return nil
-		})
-
-		logger.Errorf("Failed to watch kubernetes events. name=%s namespace=%s cluster=%s: %v", config.Name, config.Namespace, config.ClusterName, err)
-	}
 }
