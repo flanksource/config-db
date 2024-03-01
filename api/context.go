@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty"
 	dutyCtx "github.com/flanksource/duty/context"
@@ -98,7 +99,7 @@ func (ctx scrapeContext) JobHistory() *models.JobHistory {
 	h := ctx.jobHistory
 	if h == nil {
 		// Return dummy job history if unset
-		return &models.JobHistory{}
+		return models.NewJobHistory(logger.GetZapLogger().Named("dummy_logger"), "dummy", "dummy", "dummy")
 	}
 	return h
 }

@@ -169,14 +169,13 @@ func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kuberne
 		Fn: func(ctx job.JobRuntime) error {
 			ctx.History.ResourceType = job.ResourceTypeScraper
 			ctx.History.ResourceID = string(scrapeConfig.GetUID())
-
 			ch, ok := kubernetes.WatchEventBuffers[config.Hash()]
 			if !ok {
 				return fmt.Errorf("no watcher found for config (scrapeconfig: %s) %s", scrapeConfig.GetUID(), config.Hash())
 			}
 			events, _, _, _ := lo.Buffer(ch, len(ch))
 
-			cc := api.NewScrapeContext(ctx.Context, ctx.DB(), ctx.Pool()).WithScrapeConfig(&scrapeConfig)
+			cc := api.NewScrapeContext(ctx.Context, ctx.DB(), ctx.Pool()).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History)
 			results, err := RunK8IncrementalScraper(cc, config, events)
 			if err != nil {
 				return err
