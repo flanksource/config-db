@@ -108,7 +108,12 @@ func Init(ctx context.Context, connection string) error {
 
 	if runMigrations {
 		opts := &migrate.MigrateOptions{
-			IgnoreFiles: []string{"012_changelog_triggers_checks.sql", "012_changelog_triggers_others.sql"},
+			IgnoreFiles: []string{
+				"012_changelog_triggers_checks.sql",
+				"012_changelog_triggers_others.sql",
+				"026_is_pushed_agent_config_db.sql",
+				"026_is_pushed_agent_mc.sql",
+			},
 		}
 		if err = duty.Migrate(connection, opts); err != nil {
 			return err

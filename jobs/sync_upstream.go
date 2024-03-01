@@ -4,10 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"time"
 
+	"github.com/flanksource/commons/http"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/utils"
 	"github.com/flanksource/config-db/api"
@@ -60,7 +59,7 @@ var SyncConfigAnalyses = &job.Job{
 }
 
 var ReconcileConfigScrapersAndItems = &job.Job{
-	Name:       "ReconcileConfigScrapersAndItems",
+	Name:       "ReconcileConfigScrapers",
 	JobHistory: true,
 	Singleton:  true,
 	Retention:  job.RetentionDay,
@@ -69,15 +68,14 @@ var ReconcileConfigScrapersAndItems = &job.Job{
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = job.ResourceTypeUpstream
 		ctx.History.ResourceID = api.UpstreamConfig.Host
-		if count, err := upstream.NewUpstreamReconciler(api.UpstreamConfig, ReconcilePageSize).
-			Sync(ctx.Context, "config_scrapers"); err != nil {
+
+		if count, err := upstream.ReconcileTable[models.ConfigScraper](ctx.Context, api.UpstreamConfig, ReconcilePageSize); err != nil {
 			ctx.History.AddError(err.Error())
 		} else {
 			ctx.History.SuccessCount += count
 		}
 
-		if count, err := upstream.NewUpstreamReconciler(api.UpstreamConfig, ReconcilePageSize).
-			Sync(ctx.Context, "config_items"); err != nil {
+		if count, err := upstream.ReconcileTable[models.ConfigItem](ctx.Context, api.UpstreamConfig, ReconcilePageSize); err != nil {
 			ctx.History.AddError(err.Error())
 		} else {
 			ctx.History.SuccessCount += count
@@ -91,6 +89,7 @@ var PullUpstreamConfigScrapers = &job.Job{
 	Name:       "PullUpstreamConfigScrapers",
 	JobHistory: true,
 	Singleton:  true,
+	RunNow:     true,
 	Schedule:   "@every 10m",
 	Retention:  job.RetentionHour,
 	Fn: func(ctx job.JobRuntime) error {
@@ -115,30 +114,17 @@ var configScrapersPullLastRuntime time.Time
 func pullUpstreamConfigScrapers(ctx context.Context, config upstream.UpstreamConfig) (int, error) {
 	logger.Tracef("pulling scrape configs from upstream since: %v", configScrapersPullLastRuntime)
 
-	endpoint, err := url.JoinPath(config.Host, "upstream", "scrapeconfig", "pull", config.AgentName)
-	if err != nil {
-		return 0, fmt.Errorf("error creating url endpoint for host %s: %w", config.Host, err)
-	}
+	req := http.NewClient().BaseURL(config.Host).Auth(config.Username, config.Password).R(ctx).
+		QueryParam("since", configScrapersPullLastRuntime.Format(time.RFC3339Nano)).
+		QueryParam(upstream.AgentNameQueryParam, config.AgentName)
 
-	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
-	if err != nil {
-		return 0, fmt.Errorf("error creating new http request: %w", err)
-	}
-
-	req.SetBasicAuth(config.Username, config.Password)
-
-	params := url.Values{}
-	params.Add("since", configScrapersPullLastRuntime.Format(time.RFC3339Nano))
-	req.URL.RawQuery = params.Encode()
-
-	httpClient := &http.Client{}
-	resp, err := httpClient.Do(req)
+	resp, err := req.Get("upstream/scrapeconfig/pull")
 	if err != nil {
 		return 0, fmt.Errorf("error making request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if !resp.IsOK() {
 		body, _ := io.ReadAll(resp.Body)
 		return 0, fmt.Errorf("server returned unexpected status:%s (%s)", resp.Status, body)
 	}
