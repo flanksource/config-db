@@ -183,7 +183,7 @@ func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 		}
 
 		if exclude, err := shouldExcludeChange(ctx.DutyContext(), result, changeResult); err != nil {
-			logger.Errorf("error running change exclusion: %v", err)
+			ctx.JobHistory().AddError(fmt.Sprintf("error running change exclusion: %v", err))
 		} else if exclude {
 			ctx.DutyContext().Tracef("excluded change: %v", changeResult)
 			continue

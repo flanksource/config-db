@@ -1,84 +1,204 @@
 package scrapers
 
 import (
+	gocontext "context"
+	"fmt"
+	"reflect"
 	"sync"
+	"time"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/scrapers/kubernetes"
+	"github.com/flanksource/duty/job"
+	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
+	"github.com/samber/lo"
+	"github.com/sethvargo/go-retry"
 )
 
 var (
-	cronManger        *cron.Cron
-	DefaultSchedule   string
-	cronIDFunctionMap map[string]cron.EntryID
+	DefaultSchedule string
 
-	// ConcurrentJobLocks keeps track of the currently running jobs.
-	ConcurrentJobLocks sync.Map
+	scrapeJobScheduler = cron.New()
+	scrapeJobs         sync.Map
 )
 
-// AtomicRunner wraps the given function, identified by a unique ID,
-// with a mutex so that the function executes only once at a time, preventing concurrent executions.
-func AtomicRunner(id string, fn func()) func() {
-	return func() {
-		val, _ := ConcurrentJobLocks.LoadOrStore(id, &sync.Mutex{})
-		lock, ok := val.(*sync.Mutex)
-		if !ok {
-			logger.Warnf("expected mutex but got %T for scraper(id=%s)", lock, id)
-			return
+func SyncScrapeConfigs(sc api.ScrapeContext) {
+	j := &job.Job{
+		Name:       "ConfigScraperSync",
+		Context:    sc.DutyContext(),
+		Schedule:   "@every 10m",
+		Singleton:  true,
+		JobHistory: true,
+		Retention:  job.RetentionHour,
+		RunNow:     true,
+		Fn: func(jr job.JobRuntime) error {
+			scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(uuid.Nil)
+			if err != nil {
+				logger.Fatalf("error getting configs from database: %v", err)
+			}
+
+			logger.Infof("Starting %d scrapers", len(scraperConfigsDB))
+			for _, scraper := range scraperConfigsDB {
+				_scraper, err := v1.ScrapeConfigFromModel(scraper)
+				if err != nil {
+					jr.History.AddErrorf("Error parsing config scraper[%s]: %v", scraper.ID, err)
+					continue
+				}
+
+				if err := SyncScrapeJob(sc.WithScrapeConfig(&_scraper)); err != nil {
+					jr.History.AddErrorf("Error syncing scrape job[%s]: %v", scraper.ID, err)
+					continue
+				}
+
+				jr.History.SuccessCount += 1
+			}
+			return nil
+		},
+	}
+	if err := j.AddToScheduler(scrapeJobScheduler); err != nil {
+		logger.Fatalf("error scheduling ConfigScraperSync job: %v", err)
+	}
+}
+
+func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes) {
+	const (
+		timeout                 = time.Minute // how long to keep retrying before we reset and retry again
+		exponentialBaseDuration = time.Second
+	)
+
+	for {
+		backoff := retry.WithMaxDuration(timeout, retry.NewExponential(exponentialBaseDuration))
+		err := retry.Do(ctx, backoff, func(ctxt gocontext.Context) error {
+			ctx := ctxt.(api.ScrapeContext)
+			if err := kubernetes.WatchEvents(ctx, config); err != nil {
+				return retry.RetryableError(err)
+			}
+
+			return nil
+		})
+
+		logger.Errorf("Failed to watch kubernetes events. name=%s namespace=%s cluster=%s: %v", config.Name, config.Namespace, config.ClusterName, err)
+	}
+}
+
+func SyncScrapeJob(sc api.ScrapeContext) error {
+	id := sc.ScrapeConfig().GetPersistedID().String()
+
+	var existingJob *job.Job
+	if j, ok := scrapeJobs.Load(id); ok {
+		existingJob = j.(*job.Job)
+	}
+
+	if sc.ScrapeConfig().GetDeletionTimestamp() != nil || sc.ScrapeConfig().Spec.Schedule == "@never" {
+		existingJob.Unschedule()
+		scrapeJobs.Delete(id)
+		return nil
+	}
+
+	if existingJob == nil {
+		newScrapeJob(sc)
+		return nil
+	}
+
+	existingScraper := existingJob.Context.Value("scraper")
+	if existingScraper != nil && !reflect.DeepEqual(existingScraper.(*v1.ScrapeConfig).Spec, sc.ScrapeConfig()) {
+		sc.DutyContext().Debugf("Rescheduling %s scraper with updated specs", sc.ScrapeConfig().Name)
+		existingJob.Unschedule()
+		newScrapeJob(sc)
+	}
+	return nil
+}
+
+func newScrapeJob(sc api.ScrapeContext) *job.Job {
+	schedule, _ := lo.Coalesce(sc.ScrapeConfig().Spec.Schedule, DefaultSchedule)
+	j := &job.Job{
+		Name:         "Scraper",
+		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", sc.ScrapeConfig()),
+		Schedule:     schedule,
+		Singleton:    true,
+		JobHistory:   true,
+		Retention:    job.RetentionDay,
+		ResourceID:   sc.ScrapeConfig().GetPersistedID().String(),
+		ResourceType: job.ResourceTypeScraper,
+		RunNow:       true,
+		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
+		Fn: func(jr job.JobRuntime) error {
+			results, err := RunScraper(sc.WithJobHistory(jr.History))
+			if err != nil {
+				jr.History.AddError(err.Error())
+				return fmt.Errorf("error running scraper[%s]: %w", sc.ScrapeConfig().Name, err)
+			}
+			jr.History.SuccessCount = len(results)
+			return nil
+		},
+	}
+	scrapeJobs.Store(sc.ScrapeConfig().GetPersistedID().String(), j)
+	if err := j.AddToScheduler(scrapeJobScheduler); err != nil {
+		logger.Errorf("[%s] failed to schedule %v", j.Name, err)
+	}
+
+	for _, config := range sc.ScrapeConfig().Spec.Kubernetes {
+		go watchKubernetesEventsWithRetry(sc, config)
+		k8sWatchJob := ConsumeKubernetesWatchEventsJobFunc(sc, config)
+		if err := k8sWatchJob.AddToScheduler(scrapeJobScheduler); err != nil {
+			logger.Fatalf("failed to schedule kubernetes watch event consumer job: %v", err)
 		}
+	}
+	return j
+}
 
-		if !lock.TryLock() {
-			logger.Debugf("scraper (id=%s) is already running. skipping this run ...", id)
-			return
-		}
-		defer lock.Unlock()
+// ConsumeKubernetesWatchEventsJobFunc returns a job that consumes kubernetes watch events
+// for the given config of the scrapeconfig.
+func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *job.Job {
+	scrapeConfig := *sc.ScrapeConfig()
+	return &job.Job{
+		Name:       "ConsumeKubernetesWatchEvents",
+		Context:    sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta),
+		JobHistory: true,
+		Singleton:  false, // This job is run per scrapeconfig per kubernetes config
+		Retention:  job.RetentionShort,
+		RunNow:     true,
+		Schedule:   "@every 15s",
+		Fn: func(ctx job.JobRuntime) error {
+			ctx.History.ResourceType = job.ResourceTypeScraper
+			ctx.History.ResourceID = string(scrapeConfig.GetUID())
+			ch, ok := kubernetes.WatchEventBuffers[config.Hash()]
+			if !ok {
+				return fmt.Errorf("no watcher found for config (scrapeconfig: %s) %s", scrapeConfig.GetUID(), config.Hash())
+			}
+			events, _, _, _ := lo.Buffer(ch, len(ch))
 
-		fn()
+			cc := api.NewScrapeContext(ctx.Context, ctx.DB(), ctx.Pool()).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History)
+			results, err := RunK8IncrementalScraper(cc, config, events)
+			if err != nil {
+				return err
+			}
+
+			if err := SaveResults(cc, results); err != nil {
+				return fmt.Errorf("failed to save results: %w", err)
+			}
+
+			for i := range results {
+				if results[i].Error != nil {
+					ctx.History.AddError(results[i].Error.Error())
+				} else {
+					ctx.History.SuccessCount++
+				}
+			}
+
+			return nil
+		},
 	}
 }
 
-func AddToCron(scrapeConfig v1.ScrapeConfig) {
-	fn := func() {
-		ctx := api.DefaultContext.WithScrapeConfig(&scrapeConfig)
-		if _, err := RunScraper(ctx); err != nil {
-			logger.Errorf("failed to run scraper %s: %v", ctx.ScrapeConfig().GetUID(), err)
-		}
+func DeleteScrapeJob(id string) {
+	if j, ok := scrapeJobs.Load(id); ok {
+		existingJob := j.(*job.Job)
+		existingJob.Unschedule()
+		scrapeJobs.Delete(id)
 	}
-
-	AddFuncToCron(string(scrapeConfig.GetUID()), scrapeConfig.Spec.Schedule, fn)
-}
-
-func AddFuncToCron(id, schedule string, fn func()) {
-	if schedule == "" {
-		schedule = DefaultSchedule
-	}
-
-	// Remove existing cronjob
-	RemoveFromCron(id)
-
-	// Schedule a new job
-	entryID, err := cronManger.AddFunc(schedule, AtomicRunner(id, fn))
-	if err != nil {
-		logger.Errorf("Failed to schedule cron using: %v", err)
-		return
-	}
-
-	// Add non empty ids to the map
-	if id != "" {
-		cronIDFunctionMap[id] = entryID
-	}
-}
-
-func RemoveFromCron(id string) {
-	if entryID, exists := cronIDFunctionMap[id]; exists {
-		cronManger.Remove(entryID)
-	}
-}
-
-func init() {
-	cronIDFunctionMap = make(map[string]cron.EntryID)
-	cronManger = cron.New()
-	cronManger.Start()
 }
