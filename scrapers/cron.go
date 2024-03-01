@@ -22,9 +22,6 @@ import (
 var (
 	DefaultSchedule string
 
-	// ConcurrentJobLocks keeps track of the currently running jobs.
-	ConcurrentJobLocks sync.Map
-
 	scrapeJobScheduler = cron.New()
 	scrapeJobs         sync.Map
 )
@@ -36,7 +33,7 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 		Schedule:   "@every 10m",
 		Singleton:  true,
 		JobHistory: true,
-		Retention:  job.RetentionDay,
+		Retention:  job.RetentionHour,
 		RunNow:     true,
 		Fn: func(jr job.JobRuntime) error {
 			scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(uuid.Nil)
@@ -203,26 +200,5 @@ func DeleteScrapeJob(id string) {
 		existingJob := j.(*job.Job)
 		existingJob.Unschedule()
 		scrapeJobs.Delete(id)
-	}
-}
-
-// AtomicRunner wraps the given function, identified by a unique ID,
-// with a mutex so that the function executes only once at a time, preventing concurrent executions.
-func AtomicRunner(id string, fn func()) func() {
-	return func() {
-		val, _ := ConcurrentJobLocks.LoadOrStore(id, &sync.Mutex{})
-		lock, ok := val.(*sync.Mutex)
-		if !ok {
-			logger.Warnf("expected mutex but got %T for scraper(id=%s)", lock, id)
-			return
-		}
-
-		if !lock.TryLock() {
-			logger.Debugf("scraper (id=%s) is already running. skipping this run ...", id)
-			return
-		}
-		defer lock.Unlock()
-
-		fn()
 	}
 }
