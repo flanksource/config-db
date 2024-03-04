@@ -19,6 +19,33 @@ import (
 
 var ReconcilePageSize int
 
+var tablesToReconcile = []string{
+	"config_scrapers",
+	"config_items",
+	"config_changes", "config_analysis",
+	"config_relationships",
+}
+
+var ReconcileConfigs = &job.Job{
+	Name:       "ReconcileConfigs",
+	Schedule:   "@every 1m",
+	Retention:  job.Retention3Day,
+	Singleton:  true,
+	JobHistory: true,
+	RunNow:     true,
+	Fn: func(ctx job.JobRuntime) error {
+		ctx.History.ResourceType = job.ResourceTypeUpstream
+		ctx.History.ResourceID = api.UpstreamConfig.Host
+		if count, err := upstream.ReconcileSome(ctx.Context, api.UpstreamConfig, ReconcilePageSize, tablesToReconcile...); err != nil {
+			ctx.History.AddError(err.Error())
+		} else {
+			ctx.History.SuccessCount += count
+		}
+
+		return nil
+	},
+}
+
 var PullUpstreamConfigScrapers = &job.Job{
 	Name:       "PullUpstreamConfigScrapers",
 	JobHistory: true,
@@ -37,6 +64,7 @@ var PullUpstreamConfigScrapers = &job.Job{
 
 var UpstreamJobs = []*job.Job{
 	PullUpstreamConfigScrapers,
+	ReconcileConfigs,
 }
 
 // configScrapersPullLastRuntime pulls scrape configs from the upstream server
