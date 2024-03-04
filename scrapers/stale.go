@@ -36,7 +36,7 @@ func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
             deleted_at = NOW(),
             delete_reason = ?
         WHERE
-            ((NOW() - updated_at) > INTERVAL '1 SECOND' * ?) AND
+            ((NOW() - last_scraped_time) > INTERVAL '1 SECOND' * ?) AND
             deleted_at IS NULL AND
             scraper_id = ?`
 

@@ -175,16 +175,17 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	}
 
 	ci := &models.ConfigItem{
-		ExternalID:  append(result.Aliases, result.ID),
-		ID:          utils.Deref(result.ConfigID),
-		ConfigClass: result.ConfigClass,
-		Type:        &result.Type,
-		Name:        &result.Name,
-		Namespace:   &result.Namespace,
-		Source:      &result.Source,
-		Tags:        &result.Tags,
-		Properties:  &result.Properties,
-		Config:      &dataStr,
+		ExternalID:      append(result.Aliases, result.ID),
+		ID:              utils.Deref(result.ConfigID),
+		ConfigClass:     result.ConfigClass,
+		Type:            &result.Type,
+		Name:            &result.Name,
+		Namespace:       &result.Namespace,
+		Source:          &result.Source,
+		Tags:            &result.Tags,
+		Properties:      &result.Properties,
+		Config:          &dataStr,
+		LastScrapedTime: result.LastScrapedTime,
 	}
 
 	// If the config result hasn't specified an id for the config,

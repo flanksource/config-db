@@ -48,7 +48,7 @@ func SaveResults(ctx api.ScrapeContext, results v1.ScrapeResults) error {
 
 func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) error {
 	persistedID := ctx.ScrapeConfig().GetPersistedID()
-	if persistedID != nil {
+	if persistedID != nil && ctx.ScrapeConfig().Spec.EnableStaleTimeout {
 		// If error in any of the scrape results, don't delete old items
 		if len(results) > 0 && !v1.ScrapeResults(results).HasErr() {
 			if err := DeleteStaleConfigItems(ctx, *persistedID); err != nil {

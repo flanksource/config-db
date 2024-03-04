@@ -42,18 +42,20 @@ type RetentionSpec struct {
 
 // ScraperSpec defines the desired state of Config scraper
 type ScraperSpec struct {
-	LogLevel       string           `json:"logLevel,omitempty"`
-	Schedule       string           `json:"schedule,omitempty"`
-	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
-	File           []File           `json:"file,omitempty" yaml:"file,omitempty"`
-	Kubernetes     []Kubernetes     `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
-	KubernetesFile []KubernetesFile `json:"kubernetesFile,omitempty" yaml:"kubernetesFile,omitempty"`
-	AzureDevops    []AzureDevops    `json:"azureDevops,omitempty" yaml:"azureDevops,omitempty"`
-	GithubActions  []GitHubActions  `json:"githubActions,omitempty" yaml:"githubActions,omitempty"`
-	Azure          []Azure          `json:"azure,omitempty" yaml:"azure,omitempty"`
-	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
-	Trivy          []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
-	Retention      RetentionSpec    `json:"retention,omitempty"`
+	LogLevel string `json:"logLevel,omitempty"`
+	Schedule string `json:"schedule,omitempty"`
+	// TODO: Better variable name, and it should be enabled by default and disable on user change
+	EnableStaleTimeout bool             `json:"enableStaleTimeout"`
+	AWS                []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
+	File               []File           `json:"file,omitempty" yaml:"file,omitempty"`
+	Kubernetes         []Kubernetes     `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
+	KubernetesFile     []KubernetesFile `json:"kubernetesFile,omitempty" yaml:"kubernetesFile,omitempty"`
+	AzureDevops        []AzureDevops    `json:"azureDevops,omitempty" yaml:"azureDevops,omitempty"`
+	GithubActions      []GitHubActions  `json:"githubActions,omitempty" yaml:"githubActions,omitempty"`
+	Azure              []Azure          `json:"azure,omitempty" yaml:"azure,omitempty"`
+	SQL                []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
+	Trivy              []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
+	Retention          RetentionSpec    `json:"retention,omitempty"`
 
 	// Full flag when set will try to extract out changes from the scraped config.
 	Full bool `json:"full,omitempty"`
