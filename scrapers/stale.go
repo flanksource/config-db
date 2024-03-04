@@ -25,7 +25,6 @@ func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
 
 	staleTimeout := ctx.ScrapeConfig().Spec.Retention.StaleItemAge
 	if staleTimeout == "keep" {
-		ctx.DutyContext().Tracef("Skipping deletetion of stale config items")
 		return nil
 	} else if staleTimeout == "" {
 		staleTimeout = DefaultStaleTimeout
