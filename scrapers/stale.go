@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	StaleTimeout string
+	DefaultStaleTimeout = "30m"
 )
 
 func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
@@ -23,8 +23,16 @@ func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
 		}
 	}
 
-	if parsed, err := duration.ParseDuration(StaleTimeout); err != nil {
-		return fmt.Errorf("failed to parse stale timeout %s: %w", StaleTimeout, err)
+	staleTimeout := ctx.ScrapeConfig().Spec.Retention.StaleItemAge
+	if staleTimeout == "keep" {
+		ctx.DutyContext().Tracef("Skipping deletetion of stale config items")
+		return nil
+	} else if staleTimeout == "" {
+		staleTimeout = DefaultStaleTimeout
+	}
+
+	if parsed, err := duration.ParseDuration(staleTimeout); err != nil {
+		return fmt.Errorf("failed to parse stale timeout %s: %w", staleTimeout, err)
 	} else if time.Duration(parsed) > staleDuration {
 		// Use which ever is greater
 		staleDuration = time.Duration(parsed)
