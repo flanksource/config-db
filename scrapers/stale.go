@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	DefaultStaleTimeout = "30m"
+	DefaultStaleTimeout = "24h"
 )
 
 func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
@@ -27,7 +27,11 @@ func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
 	if staleTimeout == "keep" {
 		return nil
 	} else if staleTimeout == "" {
-		staleTimeout = DefaultStaleTimeout
+		if defaultVal, exists := ctx.DutyContext().Properties()["config.retention.stale_item_age"]; exists {
+			staleTimeout = defaultVal
+		} else {
+			staleTimeout = DefaultStaleTimeout
+		}
 	}
 
 	if parsed, err := duration.ParseDuration(staleTimeout); err != nil {
