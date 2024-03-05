@@ -334,21 +334,22 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 		if obj.GetKind() == "Service" {
 			if spec, ok := obj.Object["spec"].(map[string]any); ok {
-				serviceType := spec["type"].(string)
-				tags["service-type"] = serviceType
+				if serviceType, ok := spec["type"].(string); ok {
+					tags["service-type"] = serviceType
 
-				if serviceType == "LoadBalancer" {
-					if status, ok := obj.Object["status"].(map[string]any); ok {
-						if lb, ok := status["loadBalancer"].(map[string]any); ok {
-							if ingresses, ok := lb["ingress"].([]any); ok {
-								for _, ing := range ingresses {
-									if ingress, ok := ing.(map[string]any); ok {
-										if hostname, ok := ingress["hostname"].(string); ok && hostname != "" {
-											tags["hostname"] = hostname
-										}
+					if serviceType == "LoadBalancer" {
+						if status, ok := obj.Object["status"].(map[string]any); ok {
+							if lb, ok := status["loadBalancer"].(map[string]any); ok {
+								if ingresses, ok := lb["ingress"].([]any); ok {
+									for _, ing := range ingresses {
+										if ingress, ok := ing.(map[string]any); ok {
+											if hostname, ok := ingress["hostname"].(string); ok && hostname != "" {
+												tags["hostname"] = hostname
+											}
 
-										if ip, ok := ingress["ip"].(string); ok && ip != "" {
-											tags["ip"] = ip
+											if ip, ok := ingress["ip"].(string); ok && ip != "" {
+												tags["ip"] = ip
+											}
 										}
 									}
 								}
