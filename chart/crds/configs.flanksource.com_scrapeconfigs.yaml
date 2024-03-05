@@ -3,8 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: scrapeconfigs.configs.flanksource.com
 spec:
   group: configs.flanksource.com
@@ -21,14 +20,19 @@ spec:
         description: ScrapeConfig is the Schema for the scrapeconfigs API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -115,16 +119,16 @@ spec:
                           type: string
                       type: object
                     createFields:
-                      description: CreateFields is a list of JSONPath expression used
-                        to identify the created time of the config. If multiple fields
-                        are specified, the first non-empty value will be used.
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
                     deleteFields:
-                      description: DeleteFields is a JSONPath expression used to identify
-                        the deleted time of the config. If multiple fields are specified,
-                        the first non-empty value will be used.
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
@@ -149,10 +153,9 @@ spec:
                     inventory:
                       type: boolean
                     items:
-                      description: A JSONPath expression to use to extract individual
-                        items from the resource, items are extracted first and then
-                        the ID,Name,Type and transformations are applied for each
-                        item.
+                      description: |-
+                        A JSONPath expression to use to extract individual items from the resource,
+                        items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
                     name:
                       description: A static value or JSONPath expression to use as
@@ -163,8 +166,9 @@ spec:
                     patch_states:
                       type: boolean
                     properties:
-                      description: Properties are custom templatable properties for
-                        the scraped config items grouped by the config type.
+                      description: |-
+                        Properties are custom templatable properties for the scraped config items
+                        grouped by the config type.
                       items:
                         properties:
                           color:
@@ -282,9 +286,10 @@ spec:
                         config items.
                       type: object
                     timestampFormat:
-                      description: TimestampFormat is a Go time format string used
-                        to parse timestamps in createFields and DeletedFields. If
-                        not specified, the default is RFC3339.
+                      description: |-
+                        TimestampFormat is a Go time format string used to
+                        parse timestamps in createFields and DeletedFields.
+                        If not specified, the default is RFC3339.
                       type: string
                     transform:
                       properties:
@@ -313,19 +318,21 @@ spec:
                               type: array
                           type: object
                         exclude:
-                          description: Fields to remove from the config, useful for
-                            removing sensitive data and fields that change often without
-                            a material impact i.e. Last Scraped Time
+                          description: |-
+                            Fields to remove from the config, useful for removing sensitive data and fields
+                            that change often without a material impact i.e. Last Scraped Time
                           items:
-                            description: ConfigFieldExclusion defines fields with
-                              JSONPath that needs to be removed from the config.
+                            description: |-
+                              ConfigFieldExclusion defines fields with JSONPath that needs to
+                              be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
                               types:
-                                description: Optionally specify the config types from
-                                  which the JSONPath fields need to be removed. If
-                                  left empty, all config types are considered.
+                                description: |-
+                                  Optionally specify the config types
+                                  from which the JSONPath fields need to be removed.
+                                  If left empty, all config types are considered.
                                 items:
                                   type: string
                                 type: array
@@ -342,8 +349,9 @@ spec:
                         jsonpath:
                           type: string
                         mask:
-                          description: Masks consist of configurations to replace
-                            sensitive fields with hash functions or static string.
+                          description: |-
+                            Masks consist of configurations to replace sensitive fields
+                            with hash functions or static string.
                           items:
                             properties:
                               jsonpath:
@@ -366,8 +374,11 @@ spec:
                           items:
                             properties:
                               agent:
-                                description: Agent can be one of - agent id - agent
-                                  name - 'self' (no agent)
+                                description: |-
+                                  Agent can be one of
+                                   - agent id
+                                   - agent name
+                                   - 'self' (no agent)
                                 properties:
                                   expr:
                                     type: string
@@ -377,14 +388,14 @@ spec:
                                     type: string
                                 type: object
                               expr:
-                                description: Alternately, a single cel-expression
-                                  can be used that returns a list of relationship
-                                  selector.
+                                description: |-
+                                  Alternately, a single cel-expression can be used
+                                  that returns a list of relationship selector.
                                 type: string
                               filter:
-                                description: Filter is a CEL expression that selects
-                                  on what config items the relationship needs to be
-                                  applied
+                                description: |-
+                                  Filter is a CEL expression that selects on what config items
+                                  the relationship needs to be applied
                                 type: string
                               id:
                                 description: RelationshipLookup offers different ways
@@ -532,25 +543,27 @@ spec:
                     connection:
                       type: string
                     createFields:
-                      description: CreateFields is a list of JSONPath expression used
-                        to identify the created time of the config. If multiple fields
-                        are specified, the first non-empty value will be used.
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
                     deleteFields:
-                      description: DeleteFields is a JSONPath expression used to identify
-                        the deleted time of the config. If multiple fields are specified,
-                        the first non-empty value will be used.
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
                     exclusions:
                       properties:
                         activityLogs:
-                          description: 'ActivityLogs is a list of operations to exclude
-                            from activity logs. Example: "Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action"
-                            "Microsoft.ContainerService/managedClusters/listClusterUserCredential/action"'
+                          description: |-
+                            ActivityLogs is a list of operations to exclude from activity logs.
+                            Example:
+                             "Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action"
+                             "Microsoft.ContainerService/managedClusters/listClusterUserCredential/action"
                           items:
                             type: string
                           type: array
@@ -564,10 +577,9 @@ spec:
                         the ID for the resource.
                       type: string
                     items:
-                      description: A JSONPath expression to use to extract individual
-                        items from the resource, items are extracted first and then
-                        the ID,Name,Type and transformations are applied for each
-                        item.
+                      description: |-
+                        A JSONPath expression to use to extract individual items from the resource,
+                        items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
                     name:
                       description: A static value or JSONPath expression to use as
@@ -576,8 +588,9 @@ spec:
                     organisation:
                       type: string
                     properties:
-                      description: Properties are custom templatable properties for
-                        the scraped config items grouped by the config type.
+                      description: |-
+                        Properties are custom templatable properties for the scraped config items
+                        grouped by the config type.
                       items:
                         properties:
                           color:
@@ -650,9 +663,10 @@ spec:
                     tenantID:
                       type: string
                     timestampFormat:
-                      description: TimestampFormat is a Go time format string used
-                        to parse timestamps in createFields and DeletedFields. If
-                        not specified, the default is RFC3339.
+                      description: |-
+                        TimestampFormat is a Go time format string used to
+                        parse timestamps in createFields and DeletedFields.
+                        If not specified, the default is RFC3339.
                       type: string
                     transform:
                       properties:
@@ -681,19 +695,21 @@ spec:
                               type: array
                           type: object
                         exclude:
-                          description: Fields to remove from the config, useful for
-                            removing sensitive data and fields that change often without
-                            a material impact i.e. Last Scraped Time
+                          description: |-
+                            Fields to remove from the config, useful for removing sensitive data and fields
+                            that change often without a material impact i.e. Last Scraped Time
                           items:
-                            description: ConfigFieldExclusion defines fields with
-                              JSONPath that needs to be removed from the config.
+                            description: |-
+                              ConfigFieldExclusion defines fields with JSONPath that needs to
+                              be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
                               types:
-                                description: Optionally specify the config types from
-                                  which the JSONPath fields need to be removed. If
-                                  left empty, all config types are considered.
+                                description: |-
+                                  Optionally specify the config types
+                                  from which the JSONPath fields need to be removed.
+                                  If left empty, all config types are considered.
                                 items:
                                   type: string
                                 type: array
@@ -710,8 +726,9 @@ spec:
                         jsonpath:
                           type: string
                         mask:
-                          description: Masks consist of configurations to replace
-                            sensitive fields with hash functions or static string.
+                          description: |-
+                            Masks consist of configurations to replace sensitive fields
+                            with hash functions or static string.
                           items:
                             properties:
                               jsonpath:
@@ -734,8 +751,11 @@ spec:
                           items:
                             properties:
                               agent:
-                                description: Agent can be one of - agent id - agent
-                                  name - 'self' (no agent)
+                                description: |-
+                                  Agent can be one of
+                                   - agent id
+                                   - agent name
+                                   - 'self' (no agent)
                                 properties:
                                   expr:
                                     type: string
@@ -745,14 +765,14 @@ spec:
                                     type: string
                                 type: object
                               expr:
-                                description: Alternately, a single cel-expression
-                                  can be used that returns a list of relationship
-                                  selector.
+                                description: |-
+                                  Alternately, a single cel-expression can be used
+                                  that returns a list of relationship selector.
                                 type: string
                               filter:
-                                description: Filter is a CEL expression that selects
-                                  on what config items the relationship needs to be
-                                  applied
+                                description: |-
+                                  Filter is a CEL expression that selects on what config items
+                                  the relationship needs to be applied
                                 type: string
                               id:
                                 description: RelationshipLookup offers different ways
@@ -813,16 +833,16 @@ spec:
                     connection:
                       type: string
                     createFields:
-                      description: CreateFields is a list of JSONPath expression used
-                        to identify the created time of the config. If multiple fields
-                        are specified, the first non-empty value will be used.
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
                     deleteFields:
-                      description: DeleteFields is a JSONPath expression used to identify
-                        the deleted time of the config. If multiple fields are specified,
-                        the first non-empty value will be used.
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
@@ -835,10 +855,9 @@ spec:
                         the ID for the resource.
                       type: string
                     items:
-                      description: A JSONPath expression to use to extract individual
-                        items from the resource, items are extracted first and then
-                        the ID,Name,Type and transformations are applied for each
-                        item.
+                      description: |-
+                        A JSONPath expression to use to extract individual items from the resource,
+                        items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
                     name:
                       description: A static value or JSONPath expression to use as
@@ -898,8 +917,9 @@ spec:
                         type: string
                       type: array
                     properties:
-                      description: Properties are custom templatable properties for
-                        the scraped config items grouped by the config type.
+                      description: |-
+                        Properties are custom templatable properties for the scraped config items
+                        grouped by the config type.
                       items:
                         properties:
                           color:
@@ -968,9 +988,10 @@ spec:
                         config items.
                       type: object
                     timestampFormat:
-                      description: TimestampFormat is a Go time format string used
-                        to parse timestamps in createFields and DeletedFields. If
-                        not specified, the default is RFC3339.
+                      description: |-
+                        TimestampFormat is a Go time format string used to
+                        parse timestamps in createFields and DeletedFields.
+                        If not specified, the default is RFC3339.
                       type: string
                     transform:
                       properties:
@@ -999,19 +1020,21 @@ spec:
                               type: array
                           type: object
                         exclude:
-                          description: Fields to remove from the config, useful for
-                            removing sensitive data and fields that change often without
-                            a material impact i.e. Last Scraped Time
+                          description: |-
+                            Fields to remove from the config, useful for removing sensitive data and fields
+                            that change often without a material impact i.e. Last Scraped Time
                           items:
-                            description: ConfigFieldExclusion defines fields with
-                              JSONPath that needs to be removed from the config.
+                            description: |-
+                              ConfigFieldExclusion defines fields with JSONPath that needs to
+                              be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
                               types:
-                                description: Optionally specify the config types from
-                                  which the JSONPath fields need to be removed. If
-                                  left empty, all config types are considered.
+                                description: |-
+                                  Optionally specify the config types
+                                  from which the JSONPath fields need to be removed.
+                                  If left empty, all config types are considered.
                                 items:
                                   type: string
                                 type: array
@@ -1028,8 +1051,9 @@ spec:
                         jsonpath:
                           type: string
                         mask:
-                          description: Masks consist of configurations to replace
-                            sensitive fields with hash functions or static string.
+                          description: |-
+                            Masks consist of configurations to replace sensitive fields
+                            with hash functions or static string.
                           items:
                             properties:
                               jsonpath:
@@ -1052,8 +1076,11 @@ spec:
                           items:
                             properties:
                               agent:
-                                description: Agent can be one of - agent id - agent
-                                  name - 'self' (no agent)
+                                description: |-
+                                  Agent can be one of
+                                   - agent id
+                                   - agent name
+                                   - 'self' (no agent)
                                 properties:
                                   expr:
                                     type: string
@@ -1063,14 +1090,14 @@ spec:
                                     type: string
                                 type: object
                               expr:
-                                description: Alternately, a single cel-expression
-                                  can be used that returns a list of relationship
-                                  selector.
+                                description: |-
+                                  Alternately, a single cel-expression can be used
+                                  that returns a list of relationship selector.
                                 type: string
                               filter:
-                                description: Filter is a CEL expression that selects
-                                  on what config items the relationship needs to be
-                                  applied
+                                description: |-
+                                  Filter is a CEL expression that selects on what config items
+                                  the relationship needs to be applied
                                 type: string
                               id:
                                 description: RelationshipLookup offers different ways
@@ -1133,16 +1160,16 @@ spec:
                       description: ConnectionName is used to populate the URL
                       type: string
                     createFields:
-                      description: CreateFields is a list of JSONPath expression used
-                        to identify the created time of the config. If multiple fields
-                        are specified, the first non-empty value will be used.
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
                     deleteFields:
-                      description: DeleteFields is a JSONPath expression used to identify
-                        the deleted time of the config. If multiple fields are specified,
-                        the first non-empty value will be used.
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
@@ -1161,10 +1188,9 @@ spec:
                         type: string
                       type: array
                     items:
-                      description: A JSONPath expression to use to extract individual
-                        items from the resource, items are extracted first and then
-                        the ID,Name,Type and transformations are applied for each
-                        item.
+                      description: |-
+                        A JSONPath expression to use to extract individual items from the resource,
+                        items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
                     name:
                       description: A static value or JSONPath expression to use as
@@ -1175,8 +1201,9 @@ spec:
                         type: string
                       type: array
                     properties:
-                      description: Properties are custom templatable properties for
-                        the scraped config items grouped by the config type.
+                      description: |-
+                        Properties are custom templatable properties for the scraped config items
+                        grouped by the config type.
                       items:
                         properties:
                           color:
@@ -1245,9 +1272,10 @@ spec:
                         config items.
                       type: object
                     timestampFormat:
-                      description: TimestampFormat is a Go time format string used
-                        to parse timestamps in createFields and DeletedFields. If
-                        not specified, the default is RFC3339.
+                      description: |-
+                        TimestampFormat is a Go time format string used to
+                        parse timestamps in createFields and DeletedFields.
+                        If not specified, the default is RFC3339.
                       type: string
                     transform:
                       properties:
@@ -1276,19 +1304,21 @@ spec:
                               type: array
                           type: object
                         exclude:
-                          description: Fields to remove from the config, useful for
-                            removing sensitive data and fields that change often without
-                            a material impact i.e. Last Scraped Time
+                          description: |-
+                            Fields to remove from the config, useful for removing sensitive data and fields
+                            that change often without a material impact i.e. Last Scraped Time
                           items:
-                            description: ConfigFieldExclusion defines fields with
-                              JSONPath that needs to be removed from the config.
+                            description: |-
+                              ConfigFieldExclusion defines fields with JSONPath that needs to
+                              be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
                               types:
-                                description: Optionally specify the config types from
-                                  which the JSONPath fields need to be removed. If
-                                  left empty, all config types are considered.
+                                description: |-
+                                  Optionally specify the config types
+                                  from which the JSONPath fields need to be removed.
+                                  If left empty, all config types are considered.
                                 items:
                                   type: string
                                 type: array
@@ -1305,8 +1335,9 @@ spec:
                         jsonpath:
                           type: string
                         mask:
-                          description: Masks consist of configurations to replace
-                            sensitive fields with hash functions or static string.
+                          description: |-
+                            Masks consist of configurations to replace sensitive fields
+                            with hash functions or static string.
                           items:
                             properties:
                               jsonpath:
@@ -1329,8 +1360,11 @@ spec:
                           items:
                             properties:
                               agent:
-                                description: Agent can be one of - agent id - agent
-                                  name - 'self' (no agent)
+                                description: |-
+                                  Agent can be one of
+                                   - agent id
+                                   - agent name
+                                   - 'self' (no agent)
                                 properties:
                                   expr:
                                     type: string
@@ -1340,14 +1374,14 @@ spec:
                                     type: string
                                 type: object
                               expr:
-                                description: Alternately, a single cel-expression
-                                  can be used that returns a list of relationship
-                                  selector.
+                                description: |-
+                                  Alternately, a single cel-expression can be used
+                                  that returns a list of relationship selector.
                                 type: string
                               filter:
-                                description: Filter is a CEL expression that selects
-                                  on what config items the relationship needs to be
-                                  applied
+                                description: |-
+                                  Filter is a CEL expression that selects on what config items
+                                  the relationship needs to be applied
                                 type: string
                               id:
                                 description: RelationshipLookup offers different ways
@@ -1413,16 +1447,16 @@ spec:
                         personalAccessToken
                       type: string
                     createFields:
-                      description: CreateFields is a list of JSONPath expression used
-                        to identify the created time of the config. If multiple fields
-                        are specified, the first non-empty value will be used.
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
                     deleteFields:
-                      description: DeleteFields is a JSONPath expression used to identify
-                        the deleted time of the config. If multiple fields are specified,
-                        the first non-empty value will be used.
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
@@ -1435,10 +1469,9 @@ spec:
                         the ID for the resource.
                       type: string
                     items:
-                      description: A JSONPath expression to use to extract individual
-                        items from the resource, items are extracted first and then
-                        the ID,Name,Type and transformations are applied for each
-                        item.
+                      description: |-
+                        A JSONPath expression to use to extract individual items from the resource,
+                        items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
                     name:
                       description: A static value or JSONPath expression to use as
@@ -1490,8 +1523,9 @@ spec:
                           type: object
                       type: object
                     properties:
-                      description: Properties are custom templatable properties for
-                        the scraped config items grouped by the config type.
+                      description: |-
+                        Properties are custom templatable properties for the scraped config items
+                        grouped by the config type.
                       items:
                         properties:
                           color:
@@ -1562,9 +1596,10 @@ spec:
                         config items.
                       type: object
                     timestampFormat:
-                      description: TimestampFormat is a Go time format string used
-                        to parse timestamps in createFields and DeletedFields. If
-                        not specified, the default is RFC3339.
+                      description: |-
+                        TimestampFormat is a Go time format string used to
+                        parse timestamps in createFields and DeletedFields.
+                        If not specified, the default is RFC3339.
                       type: string
                     transform:
                       properties:
@@ -1593,19 +1628,21 @@ spec:
                               type: array
                           type: object
                         exclude:
-                          description: Fields to remove from the config, useful for
-                            removing sensitive data and fields that change often without
-                            a material impact i.e. Last Scraped Time
+                          description: |-
+                            Fields to remove from the config, useful for removing sensitive data and fields
+                            that change often without a material impact i.e. Last Scraped Time
                           items:
-                            description: ConfigFieldExclusion defines fields with
-                              JSONPath that needs to be removed from the config.
+                            description: |-
+                              ConfigFieldExclusion defines fields with JSONPath that needs to
+                              be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
                               types:
-                                description: Optionally specify the config types from
-                                  which the JSONPath fields need to be removed. If
-                                  left empty, all config types are considered.
+                                description: |-
+                                  Optionally specify the config types
+                                  from which the JSONPath fields need to be removed.
+                                  If left empty, all config types are considered.
                                 items:
                                   type: string
                                 type: array
@@ -1622,8 +1659,9 @@ spec:
                         jsonpath:
                           type: string
                         mask:
-                          description: Masks consist of configurations to replace
-                            sensitive fields with hash functions or static string.
+                          description: |-
+                            Masks consist of configurations to replace sensitive fields
+                            with hash functions or static string.
                           items:
                             properties:
                               jsonpath:
@@ -1646,8 +1684,11 @@ spec:
                           items:
                             properties:
                               agent:
-                                description: Agent can be one of - agent id - agent
-                                  name - 'self' (no agent)
+                                description: |-
+                                  Agent can be one of
+                                   - agent id
+                                   - agent name
+                                   - 'self' (no agent)
                                 properties:
                                   expr:
                                     type: string
@@ -1657,14 +1698,14 @@ spec:
                                     type: string
                                 type: object
                               expr:
-                                description: Alternately, a single cel-expression
-                                  can be used that returns a list of relationship
-                                  selector.
+                                description: |-
+                                  Alternately, a single cel-expression can be used
+                                  that returns a list of relationship selector.
                                 type: string
                               filter:
-                                description: Filter is a CEL expression that selects
-                                  on what config items the relationship needs to be
-                                  applied
+                                description: |-
+                                  Filter is a CEL expression that selects on what config items
+                                  the relationship needs to be applied
                                 type: string
                               id:
                                 description: RelationshipLookup offers different ways
@@ -1733,16 +1774,16 @@ spec:
                     clusterName:
                       type: string
                     createFields:
-                      description: CreateFields is a list of JSONPath expression used
-                        to identify the created time of the config. If multiple fields
-                        are specified, the first non-empty value will be used.
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
                     deleteFields:
-                      description: DeleteFields is a JSONPath expression used to identify
-                        the deleted time of the config. If multiple fields are specified,
-                        the first non-empty value will be used.
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
@@ -1768,7 +1809,8 @@ spec:
                               type: array
                           type: object
                         severityKeywords:
-                          description: SeverityKeywords is used to identify the severity
+                          description: |-
+                            SeverityKeywords is used to identify the severity
                             from the Kubernetes Event reason.
                           properties:
                             error:
@@ -1817,10 +1859,9 @@ spec:
                         the ID for the resource.
                       type: string
                     items:
-                      description: A JSONPath expression to use to extract individual
-                        items from the resource, items are extracted first and then
-                        the ID,Name,Type and transformations are applied for each
-                        item.
+                      description: |-
+                        A JSONPath expression to use to extract individual items from the resource,
+                        items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
                     kubeconfig:
                       properties:
@@ -1875,8 +1916,9 @@ spec:
                     namespace:
                       type: string
                     properties:
-                      description: Properties are custom templatable properties for
-                        the scraped config items grouped by the config type.
+                      description: |-
+                        Properties are custom templatable properties for the scraped config items
+                        grouped by the config type.
                       items:
                         properties:
                           color:
@@ -1995,9 +2037,10 @@ spec:
                         config items.
                       type: object
                     timestampFormat:
-                      description: TimestampFormat is a Go time format string used
-                        to parse timestamps in createFields and DeletedFields. If
-                        not specified, the default is RFC3339.
+                      description: |-
+                        TimestampFormat is a Go time format string used to
+                        parse timestamps in createFields and DeletedFields.
+                        If not specified, the default is RFC3339.
                       type: string
                     transform:
                       properties:
@@ -2026,19 +2069,21 @@ spec:
                               type: array
                           type: object
                         exclude:
-                          description: Fields to remove from the config, useful for
-                            removing sensitive data and fields that change often without
-                            a material impact i.e. Last Scraped Time
+                          description: |-
+                            Fields to remove from the config, useful for removing sensitive data and fields
+                            that change often without a material impact i.e. Last Scraped Time
                           items:
-                            description: ConfigFieldExclusion defines fields with
-                              JSONPath that needs to be removed from the config.
+                            description: |-
+                              ConfigFieldExclusion defines fields with JSONPath that needs to
+                              be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
                               types:
-                                description: Optionally specify the config types from
-                                  which the JSONPath fields need to be removed. If
-                                  left empty, all config types are considered.
+                                description: |-
+                                  Optionally specify the config types
+                                  from which the JSONPath fields need to be removed.
+                                  If left empty, all config types are considered.
                                 items:
                                   type: string
                                 type: array
@@ -2055,8 +2100,9 @@ spec:
                         jsonpath:
                           type: string
                         mask:
-                          description: Masks consist of configurations to replace
-                            sensitive fields with hash functions or static string.
+                          description: |-
+                            Masks consist of configurations to replace sensitive fields
+                            with hash functions or static string.
                           items:
                             properties:
                               jsonpath:
@@ -2079,8 +2125,11 @@ spec:
                           items:
                             properties:
                               agent:
-                                description: Agent can be one of - agent id - agent
-                                  name - 'self' (no agent)
+                                description: |-
+                                  Agent can be one of
+                                   - agent id
+                                   - agent name
+                                   - 'self' (no agent)
                                 properties:
                                   expr:
                                     type: string
@@ -2090,14 +2139,14 @@ spec:
                                     type: string
                                 type: object
                               expr:
-                                description: Alternately, a single cel-expression
-                                  can be used that returns a list of relationship
-                                  selector.
+                                description: |-
+                                  Alternately, a single cel-expression can be used
+                                  that returns a list of relationship selector.
                                 type: string
                               filter:
-                                description: Filter is a CEL expression that selects
-                                  on what config items the relationship needs to be
-                                  applied
+                                description: |-
+                                  Filter is a CEL expression that selects on what config items
+                                  the relationship needs to be applied
                                 type: string
                               id:
                                 description: RelationshipLookup offers different ways
@@ -2157,16 +2206,16 @@ spec:
                     container:
                       type: string
                     createFields:
-                      description: CreateFields is a list of JSONPath expression used
-                        to identify the created time of the config. If multiple fields
-                        are specified, the first non-empty value will be used.
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
                     deleteFields:
-                      description: DeleteFields is a JSONPath expression used to identify
-                        the deleted time of the config. If multiple fields are specified,
-                        the first non-empty value will be used.
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
@@ -2190,18 +2239,18 @@ spec:
                         the ID for the resource.
                       type: string
                     items:
-                      description: A JSONPath expression to use to extract individual
-                        items from the resource, items are extracted first and then
-                        the ID,Name,Type and transformations are applied for each
-                        item.
+                      description: |-
+                        A JSONPath expression to use to extract individual items from the resource,
+                        items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
                     properties:
-                      description: Properties are custom templatable properties for
-                        the scraped config items grouped by the config type.
+                      description: |-
+                        Properties are custom templatable properties for the scraped config items
+                        grouped by the config type.
                       items:
                         properties:
                           color:
@@ -2283,9 +2332,10 @@ spec:
                         config items.
                       type: object
                     timestampFormat:
-                      description: TimestampFormat is a Go time format string used
-                        to parse timestamps in createFields and DeletedFields. If
-                        not specified, the default is RFC3339.
+                      description: |-
+                        TimestampFormat is a Go time format string used to
+                        parse timestamps in createFields and DeletedFields.
+                        If not specified, the default is RFC3339.
                       type: string
                     transform:
                       properties:
@@ -2314,19 +2364,21 @@ spec:
                               type: array
                           type: object
                         exclude:
-                          description: Fields to remove from the config, useful for
-                            removing sensitive data and fields that change often without
-                            a material impact i.e. Last Scraped Time
+                          description: |-
+                            Fields to remove from the config, useful for removing sensitive data and fields
+                            that change often without a material impact i.e. Last Scraped Time
                           items:
-                            description: ConfigFieldExclusion defines fields with
-                              JSONPath that needs to be removed from the config.
+                            description: |-
+                              ConfigFieldExclusion defines fields with JSONPath that needs to
+                              be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
                               types:
-                                description: Optionally specify the config types from
-                                  which the JSONPath fields need to be removed. If
-                                  left empty, all config types are considered.
+                                description: |-
+                                  Optionally specify the config types
+                                  from which the JSONPath fields need to be removed.
+                                  If left empty, all config types are considered.
                                 items:
                                   type: string
                                 type: array
@@ -2343,8 +2395,9 @@ spec:
                         jsonpath:
                           type: string
                         mask:
-                          description: Masks consist of configurations to replace
-                            sensitive fields with hash functions or static string.
+                          description: |-
+                            Masks consist of configurations to replace sensitive fields
+                            with hash functions or static string.
                           items:
                             properties:
                               jsonpath:
@@ -2367,8 +2420,11 @@ spec:
                           items:
                             properties:
                               agent:
-                                description: Agent can be one of - agent id - agent
-                                  name - 'self' (no agent)
+                                description: |-
+                                  Agent can be one of
+                                   - agent id
+                                   - agent name
+                                   - 'self' (no agent)
                                 properties:
                                   expr:
                                     type: string
@@ -2378,14 +2434,14 @@ spec:
                                     type: string
                                 type: object
                               expr:
-                                description: Alternately, a single cel-expression
-                                  can be used that returns a list of relationship
-                                  selector.
+                                description: |-
+                                  Alternately, a single cel-expression can be used
+                                  that returns a list of relationship selector.
                                 type: string
                               filter:
-                                description: Filter is a CEL expression that selects
-                                  on what config items the relationship needs to be
-                                  applied
+                                description: |-
+                                  Filter is a CEL expression that selects on what config items
+                                  the relationship needs to be applied
                                 type: string
                               id:
                                 description: RelationshipLookup offers different ways
@@ -2450,6 +2506,8 @@ spec:
                           type: string
                       type: object
                     type: array
+                  staleItemAge:
+                    type: string
                   types:
                     items:
                       properties:
@@ -2567,20 +2625,21 @@ spec:
                         the class for the resource.
                       type: string
                     connection:
-                      description: Connection is either the name of the connection
-                        to lookup or the connection string itself.
+                      description: |-
+                        Connection is either the name of the connection to lookup
+                        or the connection string itself.
                       type: string
                     createFields:
-                      description: CreateFields is a list of JSONPath expression used
-                        to identify the created time of the config. If multiple fields
-                        are specified, the first non-empty value will be used.
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
                     deleteFields:
-                      description: DeleteFields is a JSONPath expression used to identify
-                        the deleted time of the config. If multiple fields are specified,
-                        the first non-empty value will be used.
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
@@ -2595,18 +2654,18 @@ spec:
                         the ID for the resource.
                       type: string
                     items:
-                      description: A JSONPath expression to use to extract individual
-                        items from the resource, items are extracted first and then
-                        the ID,Name,Type and transformations are applied for each
-                        item.
+                      description: |-
+                        A JSONPath expression to use to extract individual items from the resource,
+                        items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
                     properties:
-                      description: Properties are custom templatable properties for
-                        the scraped config items grouped by the config type.
+                      description: |-
+                        Properties are custom templatable properties for the scraped config items
+                        grouped by the config type.
                       items:
                         properties:
                           color:
@@ -2677,9 +2736,10 @@ spec:
                         config items.
                       type: object
                     timestampFormat:
-                      description: TimestampFormat is a Go time format string used
-                        to parse timestamps in createFields and DeletedFields. If
-                        not specified, the default is RFC3339.
+                      description: |-
+                        TimestampFormat is a Go time format string used to
+                        parse timestamps in createFields and DeletedFields.
+                        If not specified, the default is RFC3339.
                       type: string
                     transform:
                       properties:
@@ -2708,19 +2768,21 @@ spec:
                               type: array
                           type: object
                         exclude:
-                          description: Fields to remove from the config, useful for
-                            removing sensitive data and fields that change often without
-                            a material impact i.e. Last Scraped Time
+                          description: |-
+                            Fields to remove from the config, useful for removing sensitive data and fields
+                            that change often without a material impact i.e. Last Scraped Time
                           items:
-                            description: ConfigFieldExclusion defines fields with
-                              JSONPath that needs to be removed from the config.
+                            description: |-
+                              ConfigFieldExclusion defines fields with JSONPath that needs to
+                              be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
                               types:
-                                description: Optionally specify the config types from
-                                  which the JSONPath fields need to be removed. If
-                                  left empty, all config types are considered.
+                                description: |-
+                                  Optionally specify the config types
+                                  from which the JSONPath fields need to be removed.
+                                  If left empty, all config types are considered.
                                 items:
                                   type: string
                                 type: array
@@ -2737,8 +2799,9 @@ spec:
                         jsonpath:
                           type: string
                         mask:
-                          description: Masks consist of configurations to replace
-                            sensitive fields with hash functions or static string.
+                          description: |-
+                            Masks consist of configurations to replace sensitive fields
+                            with hash functions or static string.
                           items:
                             properties:
                               jsonpath:
@@ -2761,8 +2824,11 @@ spec:
                           items:
                             properties:
                               agent:
-                                description: Agent can be one of - agent id - agent
-                                  name - 'self' (no agent)
+                                description: |-
+                                  Agent can be one of
+                                   - agent id
+                                   - agent name
+                                   - 'self' (no agent)
                                 properties:
                                   expr:
                                     type: string
@@ -2772,14 +2838,14 @@ spec:
                                     type: string
                                 type: object
                               expr:
-                                description: Alternately, a single cel-expression
-                                  can be used that returns a list of relationship
-                                  selector.
+                                description: |-
+                                  Alternately, a single cel-expression can be used
+                                  that returns a list of relationship selector.
                                 type: string
                               filter:
-                                description: Filter is a CEL expression that selects
-                                  on what config items the relationship needs to be
-                                  applied
+                                description: |-
+                                  Filter is a CEL expression that selects on what config items
+                                  the relationship needs to be applied
                                 type: string
                               id:
                                 description: RelationshipLookup offers different ways
@@ -2842,16 +2908,16 @@ spec:
                         type: string
                       type: array
                     createFields:
-                      description: CreateFields is a list of JSONPath expression used
-                        to identify the created time of the config. If multiple fields
-                        are specified, the first non-empty value will be used.
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
                     deleteFields:
-                      description: DeleteFields is a JSONPath expression used to identify
-                        the deleted time of the config. If multiple fields are specified,
-                        the first non-empty value will be used.
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
                       items:
                         type: string
                       type: array
@@ -2870,10 +2936,9 @@ spec:
                         type: string
                       type: array
                     items:
-                      description: A JSONPath expression to use to extract individual
-                        items from the resource, items are extracted first and then
-                        the ID,Name,Type and transformations are applied for each
-                        item.
+                      description: |-
+                        A JSONPath expression to use to extract individual items from the resource,
+                        items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
                     kubernetes:
                       description: TrivyK8sOptions holds in Trivy flags that are Kubernetes
@@ -2897,8 +2962,9 @@ spec:
                         the ID for the resource.
                       type: string
                     properties:
-                      description: Properties are custom templatable properties for
-                        the scraped config items grouped by the config type.
+                      description: |-
+                        Properties are custom templatable properties for the scraped config items
+                        grouped by the config type.
                       items:
                         properties:
                           color:
@@ -2977,9 +3043,10 @@ spec:
                     timeout:
                       type: string
                     timestampFormat:
-                      description: TimestampFormat is a Go time format string used
-                        to parse timestamps in createFields and DeletedFields. If
-                        not specified, the default is RFC3339.
+                      description: |-
+                        TimestampFormat is a Go time format string used to
+                        parse timestamps in createFields and DeletedFields.
+                        If not specified, the default is RFC3339.
                       type: string
                     transform:
                       properties:
@@ -3008,19 +3075,21 @@ spec:
                               type: array
                           type: object
                         exclude:
-                          description: Fields to remove from the config, useful for
-                            removing sensitive data and fields that change often without
-                            a material impact i.e. Last Scraped Time
+                          description: |-
+                            Fields to remove from the config, useful for removing sensitive data and fields
+                            that change often without a material impact i.e. Last Scraped Time
                           items:
-                            description: ConfigFieldExclusion defines fields with
-                              JSONPath that needs to be removed from the config.
+                            description: |-
+                              ConfigFieldExclusion defines fields with JSONPath that needs to
+                              be removed from the config.
                             properties:
                               jsonpath:
                                 type: string
                               types:
-                                description: Optionally specify the config types from
-                                  which the JSONPath fields need to be removed. If
-                                  left empty, all config types are considered.
+                                description: |-
+                                  Optionally specify the config types
+                                  from which the JSONPath fields need to be removed.
+                                  If left empty, all config types are considered.
                                 items:
                                   type: string
                                 type: array
@@ -3037,8 +3106,9 @@ spec:
                         jsonpath:
                           type: string
                         mask:
-                          description: Masks consist of configurations to replace
-                            sensitive fields with hash functions or static string.
+                          description: |-
+                            Masks consist of configurations to replace sensitive fields
+                            with hash functions or static string.
                           items:
                             properties:
                               jsonpath:
@@ -3061,8 +3131,11 @@ spec:
                           items:
                             properties:
                               agent:
-                                description: Agent can be one of - agent id - agent
-                                  name - 'self' (no agent)
+                                description: |-
+                                  Agent can be one of
+                                   - agent id
+                                   - agent name
+                                   - 'self' (no agent)
                                 properties:
                                   expr:
                                     type: string
@@ -3072,14 +3145,14 @@ spec:
                                     type: string
                                 type: object
                               expr:
-                                description: Alternately, a single cel-expression
-                                  can be used that returns a list of relationship
-                                  selector.
+                                description: |-
+                                  Alternately, a single cel-expression can be used
+                                  that returns a list of relationship selector.
                                 type: string
                               filter:
-                                description: Filter is a CEL expression that selects
-                                  on what config items the relationship needs to be
-                                  applied
+                                description: |-
+                                  Filter is a CEL expression that selects on what config items
+                                  the relationship needs to be applied
                                 type: string
                               id:
                                 description: RelationshipLookup offers different ways

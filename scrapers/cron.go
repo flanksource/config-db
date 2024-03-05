@@ -94,8 +94,7 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 	}
 
 	if sc.ScrapeConfig().GetDeletionTimestamp() != nil || sc.ScrapeConfig().Spec.Schedule == "@never" {
-		existingJob.Unschedule()
-		scrapeJobs.Delete(id)
+		DeleteScrapeJob(id)
 		return nil
 	}
 
@@ -107,7 +106,7 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 	existingScraper := existingJob.Context.Value("scraper")
 	if existingScraper != nil && !reflect.DeepEqual(existingScraper.(*v1.ScrapeConfig).Spec, sc.ScrapeConfig()) {
 		sc.DutyContext().Debugf("Rescheduling %s scraper with updated specs", sc.ScrapeConfig().Name)
-		existingJob.Unschedule()
+		DeleteScrapeJob(id)
 		newScrapeJob(sc)
 	}
 	return nil

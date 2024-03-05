@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	StaleTimeout string
+	DefaultStaleTimeout = "24h"
 )
 
 func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
@@ -23,8 +23,19 @@ func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
 		}
 	}
 
-	if parsed, err := duration.ParseDuration(StaleTimeout); err != nil {
-		return fmt.Errorf("failed to parse stale timeout %s: %w", StaleTimeout, err)
+	staleTimeout := ctx.ScrapeConfig().Spec.Retention.StaleItemAge
+	if staleTimeout == "keep" {
+		return nil
+	} else if staleTimeout == "" {
+		if defaultVal, exists := ctx.DutyContext().Properties()["config.retention.stale_item_age"]; exists {
+			staleTimeout = defaultVal
+		} else {
+			staleTimeout = DefaultStaleTimeout
+		}
+	}
+
+	if parsed, err := duration.ParseDuration(staleTimeout); err != nil {
+		return fmt.Errorf("failed to parse stale timeout %s: %w", staleTimeout, err)
 	} else if time.Duration(parsed) > staleDuration {
 		// Use which ever is greater
 		staleDuration = time.Duration(parsed)
@@ -36,7 +47,7 @@ func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
             deleted_at = NOW(),
             delete_reason = ?
         WHERE
-            ((NOW() - updated_at) > INTERVAL '1 SECOND' * ?) AND
+            ((NOW() - last_scraped_time) > INTERVAL '1 SECOND' * ?) AND
             deleted_at IS NULL AND
             scraper_id = ?`
 

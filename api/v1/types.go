@@ -36,8 +36,9 @@ type TypeRetentionSpec struct {
 }
 
 type RetentionSpec struct {
-	Changes []ChangeRetentionSpec `json:"changes,omitempty"`
-	Types   []TypeRetentionSpec   `json:"types,omitempty"`
+	Changes      []ChangeRetentionSpec `json:"changes,omitempty"`
+	Types        []TypeRetentionSpec   `json:"types,omitempty"`
+	StaleItemAge string                `json:"staleItemAge,omitempty"`
 }
 
 // ScraperSpec defines the desired state of Config scraper

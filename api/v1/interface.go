@@ -233,6 +233,7 @@ type ScrapeResult struct {
 	ParentExternalID    string              `json:"-"`
 	ParentType          string              `json:"-"`
 	Properties          types.Properties    `json:"properties,omitempty"`
+	LastScrapedTime     *time.Time          `json:"last_scraped_time"`
 
 	// RelationshipSelectors are used to form relationship of this scraped item with other items.
 	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without

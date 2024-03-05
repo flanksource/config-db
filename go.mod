@@ -41,7 +41,7 @@ require (
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.22.0
-	github.com/flanksource/duty v1.0.356
+	github.com/flanksource/duty v1.0.359
 	github.com/flanksource/is-healthy v1.0.1
 	github.com/flanksource/ketall v1.1.3
 	github.com/flanksource/mapstructure v1.6.0
@@ -103,7 +103,7 @@ require (
 	github.com/exaring/otelpgx v0.5.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/flanksource/kommons v0.31.4 // indirect
-	github.com/flanksource/kubectl-neat v1.0.2 // indirect
+	github.com/flanksource/kubectl-neat v1.0.3 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect

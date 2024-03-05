@@ -295,6 +295,8 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 	)
 
 	for _, result := range results {
+		result.LastScrapedTime = &startTime
+
 		if result.Config != nil {
 			if err := updateCI(ctx, result); err != nil {
 				return err

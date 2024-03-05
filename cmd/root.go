@@ -74,7 +74,6 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.BoolVar(&dev, "dev", false, "Run in development mode")
 	flags.BoolVar(&disablePostgrest, "disable-postgrest", false, "Disable the postgrest server")
 	flags.StringVar(&scrapers.DefaultSchedule, "default-schedule", "@every 60m", "Default schedule for configs that don't specfiy one")
-	flags.StringVar(&scrapers.StaleTimeout, "stale-timeout", "30m", "Delete config items not scraped within the timeout")
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
 	flags.IntVar(&kubernetes.BufferSize, "watch-event-buffer", kubernetes.BufferSize, "Buffer size for kubernetes events")
 
