@@ -14,76 +14,10 @@ import (
 	"github.com/flanksource/duty/job"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/upstream"
-	"github.com/flanksource/postq"
-	"github.com/flanksource/postq/pg"
 	"gorm.io/gorm/clause"
 )
 
 var ReconcilePageSize int
-
-const (
-	EventPushQueueCreate    = "push_queue.create"
-	eventQueueUpdateChannel = "event_queue_updates"
-)
-
-var SyncConfigChanges = &job.Job{
-	Name:       "SyncConfigChanges",
-	JobHistory: true,
-	Singleton:  true,
-	Retention:  job.RetentionHour,
-	RunNow:     true,
-	Schedule:   "@every 30s",
-	Fn: func(ctx job.JobRuntime) error {
-		ctx.History.ResourceType = job.ResourceTypeUpstream
-		ctx.History.ResourceID = api.UpstreamConfig.Host
-		count, err := upstream.SyncConfigChanges(ctx.Context, api.UpstreamConfig, ReconcilePageSize)
-		ctx.History.SuccessCount = count
-		return err
-	},
-}
-
-var SyncConfigAnalyses = &job.Job{
-	Name:       "SyncConfigAnalyses",
-	JobHistory: true,
-	Singleton:  true,
-	Retention:  job.RetentionHour,
-	RunNow:     true,
-	Schedule:   "@every 30s",
-	Fn: func(ctx job.JobRuntime) error {
-		ctx.History.ResourceType = job.ResourceTypeUpstream
-		ctx.History.ResourceID = api.UpstreamConfig.Host
-		count, err := upstream.SyncConfigAnalyses(ctx.Context, api.UpstreamConfig, ReconcilePageSize)
-		ctx.History.SuccessCount = count
-		return err
-	},
-}
-
-var ReconcileConfigScrapersAndItems = &job.Job{
-	Name:       "ReconcileConfigScrapers",
-	JobHistory: true,
-	Singleton:  true,
-	Retention:  job.RetentionDay,
-	RunNow:     true,
-	Schedule:   "@every 30m",
-	Fn: func(ctx job.JobRuntime) error {
-		ctx.History.ResourceType = job.ResourceTypeUpstream
-		ctx.History.ResourceID = api.UpstreamConfig.Host
-
-		if count, err := upstream.ReconcileTable[models.ConfigScraper](ctx.Context, api.UpstreamConfig, ReconcilePageSize); err != nil {
-			ctx.History.AddError(err.Error())
-		} else {
-			ctx.History.SuccessCount += count
-		}
-
-		if count, err := upstream.ReconcileTable[models.ConfigItem](ctx.Context, api.UpstreamConfig, ReconcilePageSize); err != nil {
-			ctx.History.AddError(err.Error())
-		} else {
-			ctx.History.SuccessCount += count
-		}
-
-		return nil
-	},
-}
 
 var PullUpstreamConfigScrapers = &job.Job{
 	Name:       "PullUpstreamConfigScrapers",
@@ -102,10 +36,7 @@ var PullUpstreamConfigScrapers = &job.Job{
 }
 
 var UpstreamJobs = []*job.Job{
-	SyncConfigChanges,
-	SyncConfigAnalyses,
 	PullUpstreamConfigScrapers,
-	ReconcileConfigScrapersAndItems,
 }
 
 // configScrapersPullLastRuntime pulls scrape configs from the upstream server
@@ -145,33 +76,4 @@ func pullUpstreamConfigScrapers(ctx context.Context, config upstream.UpstreamCon
 		Columns:   []clause.Column{{Name: "id"}},
 		UpdateAll: true,
 	}).Create(&scrapeConfigs).Error
-}
-
-func StartUpstreamConsumer(ctx context.Context) error {
-	asyncConsumer := postq.AsyncEventConsumer{
-		WatchEvents: []string{EventPushQueueCreate},
-		Consumer: func(_ctx postq.Context, e postq.Events) postq.Events {
-			return upstream.NewPushUpstreamConsumer(api.UpstreamConfig)(ctx, e)
-		},
-		BatchSize: 50,
-		ConsumerOption: &postq.ConsumerOption{
-			NumConsumers: 5,
-			ErrorHandler: func(ctx postq.Context, err error) bool {
-				logger.Errorf("error consuming upstream push_queue.create events: %v", err)
-				time.Sleep(time.Second)
-				return true
-			},
-		},
-	}
-
-	consumer, err := asyncConsumer.EventConsumer()
-	if err != nil {
-		return err
-	}
-
-	pgNotifyChannel := make(chan string)
-	go pg.Listen(ctx, eventQueueUpdateChannel, pgNotifyChannel)
-
-	go consumer.Listen(ctx, pgNotifyChannel)
-	return nil
 }
