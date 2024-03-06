@@ -155,16 +155,16 @@ func newScrapeJob(sc api.ScrapeContext) *job.Job {
 func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *job.Job {
 	scrapeConfig := *sc.ScrapeConfig()
 	return &job.Job{
-		Name:       "ConsumeKubernetesWatchEvents",
-		Context:    sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta),
-		JobHistory: true,
-		Singleton:  false, // This job is run per scrapeconfig per kubernetes config
-		Retention:  job.RetentionShort,
-		RunNow:     true,
-		Schedule:   "@every 15s",
+		Name:         "ConsumeKubernetesWatchEvents",
+		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta),
+		JobHistory:   true,
+		Singleton:    true,
+		Retention:    job.RetentionShort,
+		RunNow:       true,
+		Schedule:     "@every 15s",
+		ResourceID:   string(scrapeConfig.GetUID()),
+		ResourceType: job.ResourceTypeScraper,
 		Fn: func(ctx job.JobRuntime) error {
-			ctx.History.ResourceType = job.ResourceTypeScraper
-			ctx.History.ResourceID = string(scrapeConfig.GetUID())
 			ch, ok := kubernetes.WatchEventBuffers[config.Hash()]
 			if !ok {
 				return fmt.Errorf("no watcher found for config (scrapeconfig: %s) %s", scrapeConfig.GetUID(), config.Hash())
