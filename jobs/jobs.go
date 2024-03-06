@@ -33,11 +33,6 @@ func ScheduleJobs(ctx context.Context) {
 	}
 
 	if api.UpstreamConfig.Valid() {
-		// Syncs config_items to upstream in real-time
-		if err := StartUpstreamConsumer(ctx); err != nil {
-			logger.Fatalf("Failed to start event consumer: %v", err)
-		}
-
 		for _, j := range UpstreamJobs {
 			var job = j
 			job.Context = ctx

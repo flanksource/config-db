@@ -11,7 +11,6 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
-	"github.com/flanksource/duty/migrate"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/pflag"
 	"gorm.io/gorm"
@@ -107,10 +106,7 @@ func Init(ctx context.Context, connection string) error {
 	}
 
 	if runMigrations {
-		opts := &migrate.MigrateOptions{
-			IgnoreFiles: []string{"012_changelog_triggers_checks.sql", "012_changelog_triggers_others.sql"},
-		}
-		if err = duty.Migrate(connection, opts); err != nil {
+		if err = duty.Migrate(connection, nil); err != nil {
 			return err
 		}
 	}
