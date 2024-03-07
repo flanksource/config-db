@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
-	github.com/flanksource/commons v1.22.0
+	github.com/flanksource/commons v1.22.1
 	github.com/flanksource/config-db v0.0.65
 	github.com/spf13/cobra v1.7.0
 )
@@ -22,7 +22,7 @@ require (
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/flanksource/duty v1.0.369 // indirect
+	github.com/flanksource/duty v1.0.370 // indirect
 	github.com/flanksource/gomplate/v3 v3.24.2 // indirect
 	github.com/flanksource/is-healthy v1.0.1 // indirect
 	github.com/flanksource/kubectl-neat v1.0.4 // indirect

@@ -40,8 +40,8 @@ require (
 	github.com/aws/smithy-go v1.13.5
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.25.0
-	github.com/flanksource/commons v1.22.0
-	github.com/flanksource/duty v1.0.369
+	github.com/flanksource/commons v1.22.1
+	github.com/flanksource/duty v1.0.370
 	github.com/flanksource/is-healthy v1.0.1
 	github.com/flanksource/ketall v1.1.3
 	github.com/flanksource/mapstructure v1.6.0
