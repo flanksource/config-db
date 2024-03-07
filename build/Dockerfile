@@ -10,7 +10,7 @@ RUN go mod download
 COPY ./ ./
 RUN make build
 
-FROM flanksource/base-image:v1.0.6
+FROM flanksource/base-image:v0.0.6
 WORKDIR /app
 
 COPY --from=builder /app/.bin/config-db /app
