@@ -52,8 +52,10 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 		Details:          v1.JSON(change.Details),
 		Summary:          change.Summary,
 		Patches:          change.Patches,
-		CreatedAt:        change.CreatedAt,
 		CreatedBy:        change.CreatedBy,
+	}
+	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {
+		_change.CreatedAt = change.CreatedAt
 	}
 	if _change.ExternalID == "" {
 		_change.ExternalID = result.ID
@@ -70,10 +72,6 @@ func (c *ConfigChange) BeforeCreate(tx *gorm.DB) (err error) {
 		c.ID = uuid.New().String()
 	}
 
-	if c.CreatedAt == nil {
-		now := time.Now()
-		c.CreatedAt = &now
-	}
 	tx.Statement.AddClause(clause.OnConflict{DoNothing: true})
 	return
 }

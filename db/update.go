@@ -155,7 +155,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) error {
 	return nil
 }
 
-func shouldExcludeChange(ctx dutyContext.Context, result *v1.ScrapeResult, changeResult v1.ChangeResult) (bool, error) {
+func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) (bool, error) {
 	exclusions := result.BaseScraper.Transform.Change.Exclude
 
 	env := changeResult.AsMap()
@@ -182,7 +182,7 @@ func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 			continue
 		}
 
-		if exclude, err := shouldExcludeChange(ctx.DutyContext(), result, changeResult); err != nil {
+		if exclude, err := shouldExcludeChange(result, changeResult); err != nil {
 			ctx.JobHistory().AddError(fmt.Sprintf("error running change exclusion: %v", err))
 		} else if exclude {
 			ctx.DutyContext().Tracef("excluded change: %v", changeResult)
