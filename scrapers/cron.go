@@ -104,7 +104,7 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 	}
 
 	existingScraper := existingJob.Context.Value("scraper")
-	if existingScraper != nil && !reflect.DeepEqual(existingScraper.(*v1.ScrapeConfig).Spec, sc.ScrapeConfig()) {
+	if existingScraper != nil && !reflect.DeepEqual(existingScraper.(*v1.ScrapeConfig).Spec, sc.ScrapeConfig().Spec) {
 		sc.DutyContext().Debugf("Rescheduling %s scraper with updated specs", sc.ScrapeConfig().Name)
 		DeleteScrapeJob(id)
 		newScrapeJob(sc)
