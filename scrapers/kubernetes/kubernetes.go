@@ -12,6 +12,7 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/context"
+	"gopkg.in/flanksource/yaml.v3"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -487,7 +488,11 @@ func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.K
 			return nil, err
 		}
 
-		opts.GenericCliFlags.KubeConfig = &val
+		if strings.HasPrefix(val, "/") {
+			opts.Flags.ConfigFlags.KubeConfig = &val
+		} else if err := yaml.Unmarshal([]byte(val), &opts.Flags.KubeConfig); err != nil {
+			return nil, err
+		}
 	}
 
 	return opts, nil
