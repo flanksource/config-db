@@ -92,11 +92,14 @@ spec:
             {{- end}}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- if $embeddedDB}}
             - name: config-db-embedded-database
               mountPath: "/opt/database"
             {{- end }}
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
       {{- with .Values.extra }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
