@@ -254,29 +254,17 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 		if obj.GetNamespace() != "" {
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID: v1.ExternalID{
-					ExternalID: []string{string(obj.GetUID())},
-					ConfigType: ConfigTypePrefix + obj.GetKind(),
-				},
-				RelatedExternalID: v1.ExternalID{
-					ExternalID: []string{fmt.Sprintf("Kubernetes/Namespace//%s", obj.GetNamespace())},
-					ConfigType: ConfigTypePrefix + "Namespace",
-				},
-				Relationship: "Namespace" + obj.GetKind(),
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{fmt.Sprintf("Kubernetes/Namespace//%s", obj.GetNamespace())}, ConfigType: ConfigTypePrefix + "Namespace"},
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + obj.GetKind()},
+				Relationship:      "Namespace" + obj.GetKind(),
 			})
 		}
 
 		for _, ownerRef := range obj.GetOwnerReferences() {
 			rel := v1.RelationshipResult{
-				ConfigExternalID: v1.ExternalID{
-					ExternalID: []string{string(obj.GetUID())},
-					ConfigType: ConfigTypePrefix + obj.GetKind(),
-				},
-				RelatedExternalID: v1.ExternalID{
-					ExternalID: []string{string(ownerRef.UID)},
-					ConfigType: ConfigTypePrefix + ownerRef.Kind,
-				},
-				Relationship: ownerRef.Kind + obj.GetKind(),
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(ownerRef.UID)}, ConfigType: ConfigTypePrefix + ownerRef.Kind},
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + obj.GetKind()},
+				Relationship:      ownerRef.Kind + obj.GetKind(),
 			}
 			relationships = append(relationships, rel)
 		}

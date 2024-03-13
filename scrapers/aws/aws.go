@@ -546,12 +546,9 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			// SecurityGroup relationships
 			for _, sg := range i.SecurityGroups {
 				relationships = append(relationships, v1.RelationshipResult{
-					ConfigExternalID: selfExternalID,
-					RelatedExternalID: v1.ExternalID{
-						ExternalID: []string{*sg.GroupId},
-						ConfigType: v1.AWSEC2SecurityGroup,
-					},
-					Relationship: "InstanceSecurityGroup",
+					ConfigExternalID:  v1.ExternalID{ExternalID: []string{*sg.GroupId}, ConfigType: v1.AWSEC2SecurityGroup},
+					RelatedExternalID: selfExternalID,
+					Relationship:      "SecurityGroupInstance",
 				})
 			}
 
@@ -559,12 +556,9 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			for _, tag := range i.Tags {
 				if *tag.Key == "aws:eks:cluster-name" {
 					relationships = append(relationships, v1.RelationshipResult{
-						ConfigExternalID: selfExternalID,
-						RelatedExternalID: v1.ExternalID{
-							ExternalID: []string{*tag.Value},
-							ConfigType: v1.AWSEKSCluster,
-						},
-						Relationship: "EKSNode",
+						ConfigExternalID:  v1.ExternalID{ExternalID: []string{*tag.Value}, ConfigType: v1.AWSEKSCluster},
+						RelatedExternalID: selfExternalID,
+						Relationship:      "ClusterInstance",
 					})
 				}
 			}
@@ -572,62 +566,47 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			// Volume relationships
 			for _, vol := range i.BlockDeviceMappings {
 				relationships = append(relationships, v1.RelationshipResult{
-					ConfigExternalID: selfExternalID,
-					RelatedExternalID: v1.ExternalID{
-						ExternalID: []string{*vol.Ebs.VolumeId},
-						ConfigType: v1.AWSEBSVolume,
-					},
-					Relationship: "AttachedVolume",
+					ConfigExternalID:  selfExternalID,
+					RelatedExternalID: v1.ExternalID{ExternalID: []string{*vol.Ebs.VolumeId}, ConfigType: v1.AWSEBSVolume},
+					Relationship:      "EC2InstanceVolume",
 				})
 			}
 
 			if i.IamInstanceProfile != nil {
 				relationships = append(relationships, v1.RelationshipResult{
-					ConfigExternalID: selfExternalID,
-					RelatedExternalID: v1.ExternalID{
-						ExternalID: []string{*i.IamInstanceProfile.Id},
-						ConfigType: v1.AWSIAMInstanceProfile,
-					},
-					Relationship: "IAMInstanceProfile",
+					ConfigExternalID:  v1.ExternalID{ExternalID: []string{*i.IamInstanceProfile.Id}, ConfigType: v1.AWSIAMInstanceProfile},
+					RelatedExternalID: selfExternalID,
+					Relationship:      "IAMInstanceProfileEC2Instance",
 				})
 			}
 
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID: selfExternalID,
-				RelatedExternalID: v1.ExternalID{
-					ExternalID: []string{*i.ImageId},
-					ConfigType: v1.AWSEC2AMI,
-				},
-				Relationship: "InstanceAMI",
-			})
-
-			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID: selfExternalID,
-				RelatedExternalID: v1.ExternalID{
-					ExternalID: []string{"Kubernetes/Node//" + *i.PrivateDnsName},
-					ConfigType: "Kubernetes::Node",
-				},
-				Relationship: "Instance-KuberenetesNode",
-			})
-
-			// Instance to Subnet relationship
-			relationships = append(relationships, v1.RelationshipResult{
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{*i.ImageId}, ConfigType: v1.AWSEC2AMI},
 				RelatedExternalID: selfExternalID,
+				Relationship:      "AMIInstance",
+			})
+
+			relationships = append(relationships, v1.RelationshipResult{
+				ConfigExternalID:  selfExternalID,
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{"Kubernetes/Node//" + *i.PrivateDnsName}, ConfigType: "Kubernetes::Node"},
+				Relationship:      "InstanceKuberenetesNode",
+			})
+
+			relationships = append(relationships, v1.RelationshipResult{
 				ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(i.SubnetId)}, ConfigType: v1.AWSEC2Subnet},
+				RelatedExternalID: selfExternalID,
 				Relationship:      "SubnetInstance",
 			})
 
-			// Instance to Region relationship
 			relationships = append(relationships, v1.RelationshipResult{
-				RelatedExternalID: selfExternalID,
 				ConfigExternalID:  v1.ExternalID{ExternalID: []string{ctx.Session.Region}, ConfigType: v1.AWSRegion},
+				RelatedExternalID: selfExternalID,
 				Relationship:      "RegionInstance",
 			})
 
-			// Instance to zone relationship
 			relationships = append(relationships, v1.RelationshipResult{
-				RelatedExternalID: selfExternalID,
 				ConfigExternalID:  v1.ExternalID{ExternalID: []string{ctx.Subnets[lo.FromPtr(i.SubnetId)].Zone}, ConfigType: v1.AWSZone},
+				RelatedExternalID: selfExternalID,
 				Relationship:      "ZoneInstance",
 			})
 
