@@ -160,13 +160,19 @@ func (t *ScrapeResults) Add(r ...ScrapeResult) {
 }
 
 type RelationshipResult struct {
+	// Config ID of the parent
+	ConfigID string
+	// ConfigExternalID is the external id to lookup the actual config item ID.
+	// used when the config id is not known.
 	ConfigExternalID ExternalID
+
 	// Related External ID to lookup the actual config item ID.
-	// Used when the config id is not known.
+	// Used when the related config id is not known.
 	RelatedExternalID ExternalID
 	// Config ID of the related config.
 	RelatedConfigID string
-	Relationship    string
+
+	Relationship string
 }
 
 type RelationshipResults []RelationshipResult

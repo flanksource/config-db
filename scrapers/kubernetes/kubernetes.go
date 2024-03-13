@@ -261,12 +261,11 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		}
 
 		for _, ownerRef := range obj.GetOwnerReferences() {
-			rel := v1.RelationshipResult{
+			relationships = append(relationships, v1.RelationshipResult{
 				ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(ownerRef.UID)}, ConfigType: ConfigTypePrefix + ownerRef.Kind},
 				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + obj.GetKind()},
 				Relationship:      ownerRef.Kind + obj.GetKind(),
-			}
-			relationships = append(relationships, rel)
+			})
 		}
 
 		for _, f := range config.Relationships {
@@ -289,8 +288,8 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 				for _, id := range linkedConfigItemIDs {
 					rel := v1.RelationshipResult{
-						ConfigExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + obj.GetKind()},
-						RelatedConfigID:  id.String(),
+						RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + obj.GetKind()},
+						ConfigID:          id.String(),
 					}
 					relationships = append(relationships, rel)
 				}
