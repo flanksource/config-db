@@ -181,18 +181,18 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 		if relateSubscription {
 			results[i].RelationshipResults = append(results[i].RelationshipResults, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{r.ID}, ConfigType: r.Type},
-				RelatedExternalID: v1.ExternalID{ExternalID: []string{"/subscriptions/" + azure.config.SubscriptionID}, ConfigType: ConfigTypePrefix + "SUBSCRIPTION"},
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{"/subscriptions/" + azure.config.SubscriptionID}, ConfigType: ConfigTypePrefix + "SUBSCRIPTION"},
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{r.ID}, ConfigType: r.Type},
 				Relationship:      "Subscription" + strings.TrimPrefix(r.Type, ConfigTypePrefix),
 			})
 		}
 
 		if relateResourceGroup && extractResourceGroup(r.ID) != "" {
 			results[i].RelationshipResults = append(results[i].RelationshipResults, v1.RelationshipResult{
-				ConfigExternalID: v1.ExternalID{ExternalID: []string{r.ID}, ConfigType: r.Type},
-				RelatedExternalID: v1.ExternalID{
-					ExternalID: []string{fmt.Sprintf("/subscriptions/%s/resourcegroups/%s", azure.config.SubscriptionID, extractResourceGroup(r.ID))},
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{r.ID}, ConfigType: r.Type},
+				ConfigExternalID: v1.ExternalID{
 					ConfigType: ConfigTypePrefix + "MICROSOFT.RESOURCES/RESOURCEGROUPS",
+					ExternalID: []string{fmt.Sprintf("/subscriptions/%s/resourcegroups/%s", azure.config.SubscriptionID, extractResourceGroup(r.ID))},
 				},
 				Relationship: "Resourcegroup" + strings.TrimPrefix(r.Type, ConfigTypePrefix),
 			})

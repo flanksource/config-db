@@ -41,7 +41,7 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	}
 
 	configs := []models.ConfigItem{}
-	tx := db.Model(&configs).
+	tx := ctx.DutyContext().DB().Model(&configs).
 		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 		Where("type = ? and external_id  @> ?", change.ConfigType, pq.StringArray{change.ExternalID}).
 		Update("deleted_at", deletedAt)
@@ -443,14 +443,21 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 
 	var configItemRelationships []models.ConfigRelationship
 	for _, relationship := range relationships {
-		configID, err := FindConfigItemID(relationship.ConfigExternalID)
-		if err != nil {
-			logger.Errorf("error fetching config item(id=%s): %v", relationship.ConfigExternalID, err)
-			continue
-		}
-		if configID == nil {
-			logger.Warnf("unable to form relationship. failed to find config %s", relationship.ConfigExternalID)
-			continue
+		var err error
+
+		var configID *string
+		if relationship.ConfigID != "" {
+			configID = &relationship.ConfigID
+		} else {
+			configID, err = FindConfigItemID(relationship.ConfigExternalID)
+			if err != nil {
+				logger.Errorf("error fetching config item(id=%s): %v", relationship.ConfigExternalID, err)
+				continue
+			}
+			if configID == nil {
+				logger.Warnf("unable to form relationship. failed to find the parent config %s", relationship.ConfigExternalID)
+				continue
+			}
 		}
 
 		var relatedID *string
@@ -463,7 +470,7 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 				continue
 			}
 			if relatedID == nil {
-				logger.Warnf("unable to form relationship. failed to find related config %s.", relationship.RelatedExternalID)
+				logger.Warnf("unable to form relationship. failed to find the child config %s.", relationship.RelatedExternalID)
 				continue
 			}
 		}
