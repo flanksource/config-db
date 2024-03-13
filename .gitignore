@@ -7,3 +7,4 @@ scraped/
 
 .config-db
 cover.out
+ginkgo.report

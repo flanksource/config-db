@@ -449,7 +449,7 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 		if relationship.ConfigID != "" {
 			configID = &relationship.ConfigID
 		} else {
-			configID, err := FindConfigItemID(relationship.ConfigExternalID)
+			configID, err = FindConfigItemID(relationship.ConfigExternalID)
 			if err != nil {
 				logger.Errorf("error fetching config item(id=%s): %v", relationship.ConfigExternalID, err)
 				continue
