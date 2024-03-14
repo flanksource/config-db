@@ -24,9 +24,3 @@ jobs:
             cache-
       - name: Test
         run: make test
-      - name: Publish Unit Test Results
-        uses: EnricoMi/publish-unit-test-result-action@b9f6c61d965bcaa18acc02d6daf706373a448f02 # v1.40
-        if: always()
-        with:
-          files: test/test-results.xml
-          check_name: E2E - ${{matrix.suite}}
