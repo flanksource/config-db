@@ -2,10 +2,13 @@ package devops
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/gomplate/v3"
 )
 
 const PipelineRun = "AzureDevops::PipelineRun"
@@ -39,12 +42,13 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				continue
 			}
 
-			fmt.Printf("%v\n", project.Name)
 			pipelines, err := client.GetPipelines(project.Name)
 			if err != nil {
 				results.Errorf(err, "failed to get pipelines for %s", project.Name)
 				continue
 			}
+			logger.Debugf("[%s] found %d pipelines", project.Name, len(pipelines))
+
 			for _, _pipeline := range pipelines {
 				var pipeline = _pipeline
 
@@ -53,7 +57,6 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				}
 
 				var uniquePipelines = make(map[string]Pipeline)
-				fmt.Printf("\t->%v\n", pipeline.Name)
 
 				runs, err := client.GetPipelineRuns(project.Name, pipeline)
 				if err != nil {
@@ -66,7 +69,23 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					pipeline.TemplateParameters = run.TemplateParameters
 					pipeline.Variables = run.Variables
 					delete(pipeline.Links, "self")
-					var id = pipeline.GetID()
+					var id string
+					if config.ID != "" {
+						env := map[string]any{
+							"project":      project,
+							"pipeline":     pipeline,
+							"organization": config.Organization,
+						}
+
+						id, err = gomplate.RunTemplate(env, gomplate.Template{
+							Expression: config.ID,
+						})
+						if err != nil {
+							return results.Errorf(err, "failed to render id template for %s/%s", project.Name, pipeline.Name)
+						}
+					} else {
+						id = pipeline.GetID()
+					}
 
 					if _, ok := uniquePipelines[id]; !ok {
 						uniquePipelines[id] = pipeline
@@ -89,6 +108,7 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 						ExternalID:       id,
 						ConfigType:       PipelineRun,
 						Source:           run.Links["web"].Href,
+						Summary:          fmt.Sprintf("%s,  %s in %s", run.Name, run.State, time.Millisecond*time.Duration(run.Duration)),
 						Details:          v1.NewJSON(run),
 						ExternalChangeID: fmt.Sprintf("%s/%d/%d", project.Name, pipeline.ID, run.ID),
 					})
