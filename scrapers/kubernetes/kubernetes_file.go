@@ -223,7 +223,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 					BaseScraper: pod.Config.BaseScraper,
 					Tags:        pod.Labels,
 					Format:      file.Format,
-					ConfigClass: "File",
+					Type:        "File",
 					ID:          pod.ID + "/" + p,
 					Name:        path.Base(p),
 					Config:      stdout,
