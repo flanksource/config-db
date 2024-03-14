@@ -470,7 +470,7 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 				continue
 			}
 			if relatedID == nil {
-				logger.Warnf("unable to form relationship. failed to find the child config %s.", relationship.RelatedExternalID)
+				logger.V(6).Infof("related external config item(id=%s) not found.", relationship.RelatedExternalID)
 				continue
 			}
 		}
