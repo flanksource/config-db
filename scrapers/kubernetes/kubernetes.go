@@ -10,7 +10,6 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/context"
 	"gopkg.in/flanksource/yaml.v3"
 
@@ -33,7 +32,7 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 }
 
 func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) v1.ScrapeResults {
-	ctx.DutyContext().Debugf("incrementally scraping resources in %d events", len(events))
+	ctx.DutyContext().Tracef("incrementally scraping resources from %d events", len(events))
 
 	var (
 		// seenObjects helps in avoiding fetching the same object in this run.
@@ -43,7 +42,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 
 	for _, event := range events {
 		if eventObj, err := event.ToUnstructured(); err != nil {
-			logger.Errorf("failed to convert event to unstructured: %v", err)
+			ctx.DutyContext().Errorf("failed to convert event to unstructured: %v", err)
 			continue
 		} else {
 			objects = append(objects, eventObj)
@@ -53,10 +52,10 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		resource := event.InvolvedObject
 		cacheKey := fmt.Sprintf("%s/%s/%s", resource.Namespace, resource.Kind, resource.Name)
 		if _, ok := seenObjects[cacheKey]; !ok {
-			ctx.DutyContext().Debugf("ketone namespace=%s name=%s kind=%s", resource.Namespace, resource.Name, resource.Kind)
+			ctx.DutyContext().Logger.V(5).Infof("ketone namespace=%s name=%s kind=%s", resource.Namespace, resource.Name, resource.Kind)
 			obj, err := ketall.KetOne(ctx, resource.Name, resource.Namespace, resource.Kind, options.NewDefaultCmdOptions())
 			if err != nil {
-				logger.Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
+				ctx.DutyContext().Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
 				continue
 			} else if obj != nil {
 				seenObjects[cacheKey] = struct{}{} // mark it as seen so we don't run ketall.KetOne again (in this run)
@@ -65,7 +64,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		}
 	}
 
-	ctx.DutyContext().Debugf("found %d objects for %d ids", len(objects), len(events))
+	ctx.DutyContext().Tracef("found %d objects for %d ids", len(objects), len(events))
 	if len(objects) == 0 {
 		return nil
 	}
@@ -138,14 +137,14 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		}
 
 		if string(obj.GetUID()) == "" {
-			logger.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			ctx.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 			continue
 		}
 
 		if obj.GetKind() == "Event" {
 			var event v1.KubernetesEvent
 			if err := event.FromObjMap(obj.Object); err != nil {
-				logger.Errorf("failed to parse event: %v", err)
+				ctx.Errorf("failed to parse event: %v", err)
 				return nil
 			}
 
@@ -154,7 +153,9 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			}
 
 			if config.Event.Exclusions.Filter(event) {
-				logger.WithValues("name", event.InvolvedObject.Name).WithValues("namespace", event.InvolvedObject.Namespace).WithValues("reason", event.Reason).V(3).Infof("excluding event object")
+				ctx.Logger.V(4).Infof("excluding event object %s/%s/%s: %s",
+					event.InvolvedObject.Namespace, event.InvolvedObject.Name,
+					event.InvolvedObject.Kind, event.Reason)
 				continue
 			}
 
@@ -318,7 +319,6 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		if obj.GetNamespace() != "" {
 			tags["namespace"] = obj.GetNamespace()
 		}
-		tags["cluster"] = config.ClusterName
 
 		if obj.GetKind() == "Service" {
 			if spec, ok := obj.Object["spec"].(map[string]any); ok {
