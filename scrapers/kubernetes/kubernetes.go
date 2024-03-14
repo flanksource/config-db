@@ -154,7 +154,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			}
 
 			if config.Event.Exclusions.Filter(event) {
-				logger.WithValues("name", event.InvolvedObject.Name).WithValues("namespace", event.InvolvedObject.Namespace).WithValues("reason", event.Reason).Debugf("excluding event object")
+				logger.WithValues("name", event.InvolvedObject.Name).WithValues("namespace", event.InvolvedObject.Namespace).WithValues("reason", event.Reason).V(3).Infof("excluding event object")
 				continue
 			}
 
