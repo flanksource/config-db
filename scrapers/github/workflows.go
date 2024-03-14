@@ -45,7 +45,7 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				continue
 			}
 			results = append(results, v1.ScrapeResult{
-				ConfigClass: "GithubWorkflow",
+				ConfigClass: "Deployment",
 				Config:      workflow,
 				Type:        WorkflowRun,
 				ID:          workflow.GetID(),
@@ -67,7 +67,7 @@ func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.Ch
 	var allRuns []v1.ChangeResult
 	for _, run := range runs.Value {
 		allRuns = append(allRuns, v1.ChangeResult{
-			ChangeType:       "GithubWorkflowRun",
+			ChangeType:       "GithubAction",
 			CreatedAt:        &run.CreatedAt,
 			Severity:         fmt.Sprint(run.Conclusion),
 			ExternalID:       workflow.GetID(),
