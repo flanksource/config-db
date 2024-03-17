@@ -175,6 +175,24 @@ type RelationshipResult struct {
 	Relationship string
 }
 
+func (r RelationshipResult) String() string {
+	s := ""
+	if r.ConfigID != "" {
+		s += fmt.Sprintf("config_id=%s ", r.ConfigID)
+	}
+	if !r.ConfigExternalID.IsEmpty() {
+		s += fmt.Sprintf("config_external_id=%s ", r.ConfigExternalID)
+	}
+	if r.RelatedConfigID != "" {
+		s += fmt.Sprintf("related_config_id=%s ", r.RelatedConfigID)
+	}
+	if !r.RelatedExternalID.IsEmpty() {
+		s += fmt.Sprintf("related_external_id=%s ", r.RelatedExternalID)
+	}
+	s += fmt.Sprintf("relationship=%s", r.Relationship)
+	return s
+}
+
 type RelationshipResults []RelationshipResult
 
 func (s *ScrapeResults) AddChange(change ChangeResult) *ScrapeResults {
@@ -210,7 +228,8 @@ type ScrapeResult struct {
 	// If it's a valid UUID & ConfigID is nil, it'll be used as the primary key id of the config item in the database.
 	ID string `json:"id,omitempty"`
 
-	// Config ID is used as the primary key id of the config item in the database.
+	// Config ID is the globally unique and persistent uuid of config item,
+	// if no suitable ID exists, then it will be generated.
 	ConfigID *string `json:"-"`
 
 	CreatedAt           *time.Time          `json:"created_at,omitempty"`
