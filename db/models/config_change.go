@@ -57,12 +57,6 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {
 		_change.CreatedAt = change.CreatedAt
 	}
-	if _change.ExternalID == "" {
-		_change.ExternalID = result.ID
-	}
-	if _change.ConfigType == "" {
-		_change.ConfigType = result.Type
-	}
 
 	return &_change
 }
