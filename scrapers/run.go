@@ -70,7 +70,7 @@ func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) err
 				SET deleted_at = NULL
 				WHERE deleted_at IS NOT NULL
 					AND deleted_at != updated_at
-					AND ((NOW() - updated_at) <= INTERVAL '1 SECOND' * ?)`
+					AND ((NOW() - last_scraped_time) <= INTERVAL '1 SECOND' * ?)`
 			tx := ctx.DutyContext().DB().Exec(query, time.Since(start).Seconds())
 			if err := tx.Error; err != nil {
 				return fmt.Errorf("error un-deleting stale config items: %w", err)
