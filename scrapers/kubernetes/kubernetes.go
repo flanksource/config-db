@@ -11,6 +11,7 @@ import (
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty/context"
+	"github.com/samber/lo"
 	"gopkg.in/flanksource/yaml.v3"
 
 	"github.com/flanksource/config-db/api"
@@ -394,6 +395,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			DeletedAt:           deletedAt,
 			DeleteReason:        deleteReason,
 			Config:              configObj,
+			ConfigID:            lo.ToPtr(string(obj.GetUID())),
 			ID:                  string(obj.GetUID()),
 			Tags:                stripLabels(tags, "-hash"),
 			Aliases:             getKubernetesAlias(obj),
