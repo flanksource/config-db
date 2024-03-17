@@ -55,7 +55,9 @@ func getDetailsFromEvent(event v1.KubernetesEvent) map[string]any {
 func getChangeFromEvent(event v1.KubernetesEvent, severityKeywords v1.SeverityKeywords) *v1.ChangeResult {
 	_, err := uuid.Parse(string(event.InvolvedObject.UID))
 	if err != nil {
-		event.InvolvedObject.UID = types.UID(fmt.Sprintf("Kubernetes/%s/%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name))
+		path := fmt.Sprintf("Kubernetes/%s/%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name)
+		logger.Warnf("failed to parse uid (%s), using default path %s: %v", event.InvolvedObject.UID, path, err)
+		event.InvolvedObject.UID = types.UID(path)
 	}
 
 	return &v1.ChangeResult{

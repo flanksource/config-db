@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -25,7 +26,6 @@ import (
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
 	"github.com/lib/pq"
-	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -58,63 +58,108 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	return nil
 }
 
-func getConfigItemParentID(id string) string {
-	cacheKey := parentIDCacheKey(id)
-	if parentID, exists := cacheStore.Get(cacheKey); exists {
-		return parentID.(string)
-	}
-
-	ci, err := GetConfigItemFromID(id)
-	if err != nil {
-		logger.Errorf("Error fetching config item with id: %s", id)
-		return ""
-	}
-	if ci.ParentID == nil {
-		return ""
-	}
-	cacheStore.Set(cacheKey, *ci.ParentID, cache.DefaultExpiration)
-	return *ci.ParentID
-}
-
-func getParentPath(parentExternalUID v1.ExternalID) string {
+func getParentPath(ctx api.ScrapeContext, id string) string {
 	var path string
-	parentID, _ := FindConfigItemID(parentExternalUID)
-	if parentID == nil {
-		return ""
-	}
 
-	id := *parentID
+	var err error
 	path += id
 	for {
-		id = getConfigItemParentID(id)
-		if id == "" {
+		parent, _ := ctx.TempCache().Get(id)
+		if parent == nil || err != nil {
 			break
 		}
+		id = *parent.ParentID
 		path += "." + id
 	}
 	return path
 }
 
-func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) error {
-	ci, err := NewConfigItemFromResult(result)
+func sliceEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	sort.Strings(a)
+	sort.Strings(b)
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func stringEqual(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+func mapStringEqual(a, b *v1.JSONStringMap) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if len(*a) != len(*b) {
+		return false
+	}
+	for k, v := range *a {
+		if (*b)[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func mapEqual(a, b map[string]interface{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem, bool, error) {
+	db := ctx.DutyContext().DB()
+	ci, err := NewConfigItemFromResult(ctx, result)
 	if err != nil {
-		return errors.Wrapf(err, "unable to create config item: %s", result)
+		return nil, false, errors.Wrapf(err, "unable to create config item: %s", result)
 	}
 
 	ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
+	existing := &models.ConfigItem{}
 
-	existing, err := GetConfigItem(*ci.Type, ci.ID)
-	if err != nil && err != gorm.ErrRecordNotFound {
-		return errors.Wrapf(err, "unable to lookup existing config: %s", ci)
+	if len(ci.ExternalID) == 0 {
+		return nil, false, fmt.Errorf("config item %s has no external id", ci)
+	}
+	if ci.ID != "" {
+		if uuid.Validate(ci.ID); err == nil {
+			if existing, err = ctx.TempCache().Get(ci.ID); err != nil {
+				return nil, false, errors.Wrapf(err, "unable to lookup existing config: %s", ci)
+			}
+		}
+	} else {
+		if existing, err = ctx.TempCache().Find(*ci.Type, ci.ExternalID[0]); err != nil {
+			return nil, false, errors.Wrapf(err, "unable to lookup external id: %s", ci)
+		}
 	}
 
-	if existing == nil {
+	if existing == nil || existing.ID == "" {
 		// Use the resource id as the config item's primary key.
 		// If it isn't a valid UUID, we generate a new one.
 		if parsed, err := uuid.Parse(ci.ID); err != nil || parsed == uuid.Nil {
 			id, err := hash.DeterministicUUID(ci.ID)
 			if err != nil {
-				return fmt.Errorf("error generating uuid for config (id:%s): %w", ci.ID, err)
+				return nil, false, fmt.Errorf("error generating uuid for config (id:%s): %w", ci.ID, err)
 			}
 
 			ci.ID = id.String()
@@ -124,21 +169,30 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) error {
 			logger.Errorf("[%s] failed to create item %v", ci, err)
 		}
 
-		return nil
+		return ci, false, nil
 	}
 
 	ci.ID = existing.ID
+
+	if ci.ParentID != nil {
+		if parent, err := ctx.TempCache().Get(*ci.ParentID); err != nil {
+			return nil, false, errors.Wrapf(err, "unable to find parent %s", *ci.ParentID)
+		} else if parent == nil {
+			return nil, false, fmt.Errorf("parent %s not found", *ci.ParentID)
+		} else if parent.Path != "" {
+			ci.Path = parent.Path + "." + ci.ID
+		} else {
+			ci.Path = parent.ID + "." + ci.ID
+		}
+	}
+
+	updates := make(map[string]interface{})
 
 	// In case a resource was marked as deleted but is un-deleted now
 	// we set an update flag as gorm ignores nil pointers
 	if ci.DeletedAt != existing.DeletedAt {
 		ci.TouchDeletedAt = true
-	}
-
-	if err := UpdateConfigItem(ci); err != nil {
-		if err := CreateConfigItem(ci); err != nil {
-			return fmt.Errorf("[%s] failed to update item %v", ci, err)
-		}
+		updates["deleted_at"] = ci.DeletedAt
 	}
 
 	changeResult, err := generateConfigChange(*ci, *existing)
@@ -147,12 +201,72 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) error {
 	} else if changeResult != nil {
 		logger.Debugf("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
 		result.Changes = []v1.ChangeResult{*changeResult}
-		if err := saveChanges(ctx, &result); err != nil {
-			return fmt.Errorf("[%s] failed to save %d changes: %w", ci, len(result.Changes), err)
+		if err := saveChanges(ctx, &result, ci); err != nil {
+			return nil, false, fmt.Errorf("[%s] failed to save %d changes: %w", ci, len(result.Changes), err)
 		}
+		updates["config"] = *ci.Config
+		updates["updated_at"] = gorm.Expr("NOW()")
 	}
 
-	return nil
+	if ci.ConfigClass != existing.ConfigClass {
+		updates["config_class"] = ci.ConfigClass
+	}
+	if !stringEqual(ci.Source, existing.Source) {
+		updates["source"] = ci.Source
+	}
+	if !stringEqual(ci.Type, existing.Type) {
+		updates["type"] = ci.Type
+	}
+	if !stringEqual(ci.Status, existing.Status) {
+		updates["status"] = ci.Status
+		updates["updated_at"] = gorm.Expr("NOW()")
+	}
+	if !stringEqual(ci.Name, existing.Name) {
+		updates["name"] = ci.Name
+	}
+
+	if !stringEqual(ci.Namespace, existing.Namespace) {
+		updates["namespace"] = ci.Namespace
+	}
+
+	if !stringEqual(ci.ParentID, existing.ParentID) {
+		updates["parent_id"] = ci.ParentID
+	}
+
+	if ci.Path != existing.Path {
+		updates["path"] = ci.Path
+	}
+
+	if ci.CreatedAt != existing.CreatedAt {
+		updates["created_at"] = ci.CreatedAt
+	}
+
+	if !sliceEqual(ci.ExternalID, existing.ExternalID) {
+		updates["external_id"] = ci.ExternalID
+	}
+	if !mapStringEqual(ci.Tags, existing.Tags) {
+		updates["tags"] = ci.Tags
+	}
+	if ci.Properties != nil && len(*ci.Properties) > 0 && (existing.Properties == nil || !mapEqual(ci.Properties.AsMap(), existing.Properties.AsMap())) {
+		updates["properties"] = *ci.Properties
+	}
+
+	if ci.TouchDeletedAt && ci.DeleteReason != v1.DeletedReasonFromEvent {
+		updates["deleted_at"] = nil
+		updates["delete_reason"] = nil
+	}
+
+	if len(updates) == 0 {
+		return ci, false, nil
+	}
+
+	updates["last_scraped_time"] = gorm.Expr("NOW()")
+
+	if err := db.Model(ci).Updates(updates).Error; err != nil {
+		return nil, false, errors.Wrapf(err, "unable to update config item: %s", ci)
+	}
+
+	return ci, true, nil
 }
 
 func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) (bool, error) {
@@ -174,7 +288,7 @@ func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) 
 	return false, nil
 }
 
-func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
+func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.ConfigItem) error {
 	changes.ProcessRules(result, result.BaseScraper.Transform.Change.Mapping...)
 
 	for _, changeResult := range result.Changes {
@@ -209,15 +323,18 @@ func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 			}
 		}
 
-		id, err := FindConfigItemID(change.GetExternalID())
-		if err != nil {
-			return err
-		} else if id == nil {
-			logger.Warnf("[Source=%s] [%s/%s] unable to find config item for change: %v", change.Source, change.ConfigType, change.ExternalID, change.ChangeType)
-			return nil
+		if change.ConfigID == "" && change.GetExternalID().IsEmpty() && ci != nil {
+			change.ConfigID = ci.ID
+		} else if !change.GetExternalID().IsEmpty() {
+			if ci, err := ctx.TempCache().FindExternalID(change.GetExternalID()); err != nil {
+				return err
+			} else if ci != "" {
+				change.ConfigID = ci
+			} else if ci == "" {
+				logger.Warnf("[%s/%s] unable to find config item for change: %v", change.ConfigType, change.ExternalID, change.ChangeType)
+				continue
+			}
 		}
-
-		change.ConfigID = *id
 
 		if changeResult.UpdateExisting {
 			if err := db.Save(change).Error; err != nil {
@@ -235,10 +352,10 @@ func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
-	ciID, err := FindConfigItemID(v1.ExternalID{
-		ConfigType: analysis.ConfigType,
-		ExternalID: []string{analysis.ExternalID},
-	})
+	ciID, err := ctx.TempCache().Find(analysis.ConfigType, analysis.ExternalID)
+	if err != nil {
+		return err
+	}
 	if ciID == nil {
 		logger.Warnf("[Source=%s] [%s/%s] unable to find config item for analysis: %+v", analysis.Source, analysis.ConfigType, analysis.ExternalID, analysis)
 		return nil
@@ -247,7 +364,7 @@ func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	}
 
 	logger.Tracef("[%s/%s] ==> %s", analysis.ConfigType, analysis.ExternalID, analysis)
-	analysis.ConfigID, err = uuid.Parse(*ciID)
+	analysis.ConfigID = uuid.MustParse(ciID.ID)
 	if err != nil {
 		return err
 	}
@@ -276,7 +393,7 @@ func UpdateAnalysisStatusBefore(ctx context.Context, before time.Time, scraperID
 		Error
 }
 
-// SaveResults creates or update a configuartion with config changes
+// SaveResults creates or update a configuration with config changes
 func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 	startTime, err := GetCurrentDBTime(ctx)
 	if err != nil {
@@ -294,12 +411,17 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		resultsWithRelationshipSelectors []v1.ScrapeResult
 	)
 
+	var toTouch []string
 	for _, result := range results {
 		result.LastScrapedTime = &startTime
 
+		var ci *models.ConfigItem
 		if result.Config != nil {
-			if err := updateCI(ctx, result); err != nil {
+			var updated bool
+			if ci, updated, err = updateCI(ctx, result); err != nil {
 				return err
+			} else if !updated {
+				toTouch = append(toTouch, ci.ID)
 			}
 		}
 
@@ -309,7 +431,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 			}
 		}
 
-		if err := saveChanges(ctx, &result); err != nil {
+		if err := saveChanges(ctx, &result, ci); err != nil {
 			return err
 		}
 
@@ -326,7 +448,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		relationshipToForm = append(relationshipToForm, res...)
 	}
 
-	if err := relationshipResultHandler(relationshipToForm); err != nil {
+	if err := relationshipResultHandler(ctx, relationshipToForm); err != nil {
 		return fmt.Errorf("failed to form relationships: %w", err)
 	}
 
@@ -334,6 +456,21 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		// Any analysis that weren't observed again will be marked as resolved
 		if err := UpdateAnalysisStatusBefore(ctx, startTime, string(ctx.ScrapeConfig().GetUID()), dutyModels.AnalysisStatusResolved); err != nil {
 			logger.Errorf("failed to mark analysis before %v as healthy: %v", startTime, err)
+		}
+	}
+
+	if len(toTouch) > 0 {
+		for i := 0; i < len(toTouch); i = i + 5000 {
+			end := i + 5000
+			if end > len(toTouch) {
+				end = len(toTouch)
+			}
+
+			if err := db.WithContext(ctx).Table("config_items").
+				Where("id in (?)", toTouch[i:end]).
+				Update("last_scraped_time", gorm.Expr("NOW()")).Error; err != nil {
+				return err
+			}
 		}
 	}
 
@@ -438,38 +575,38 @@ func relationshipSelectorToResults(ctx dutyContext.Context, inputs []v1.ScrapeRe
 	return relationships, nil
 }
 
-func relationshipResultHandler(relationships v1.RelationshipResults) error {
+func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.RelationshipResults) error {
 	logger.Debugf("saving %d relationships", len(relationships))
 
 	var configItemRelationships []models.ConfigRelationship
 	for _, relationship := range relationships {
 		var err error
 
-		var configID *string
+		var configID string
 		if relationship.ConfigID != "" {
-			configID = &relationship.ConfigID
+			configID = relationship.ConfigID
 		} else {
-			configID, err = FindConfigItemID(relationship.ConfigExternalID)
+			configID, err = ctx.TempCache().FindExternalID(relationship.ConfigExternalID)
 			if err != nil {
 				logger.Errorf("error fetching config item(id=%s): %v", relationship.ConfigExternalID, err)
 				continue
 			}
-			if configID == nil {
+			if configID == "" {
 				logger.Warnf("unable to form relationship. failed to find the parent config %s", relationship.ConfigExternalID)
 				continue
 			}
 		}
 
-		var relatedID *string
+		var relatedID string
 		if relationship.RelatedConfigID != "" {
-			relatedID = &relationship.RelatedConfigID
+			relatedID = relationship.RelatedConfigID
 		} else {
-			relatedID, err = FindConfigItemID(relationship.RelatedExternalID)
+			relatedID, err = ctx.TempCache().FindExternalID(relationship.RelatedExternalID)
 			if err != nil {
 				logger.Errorf("error fetching external config item(id=%s): %v", relationship.RelatedExternalID, err)
 				continue
 			}
-			if relatedID == nil {
+			if relatedID == "" {
 				logger.V(6).Infof("related external config item(id=%s) not found.", relationship.RelatedExternalID)
 				continue
 			}
@@ -478,13 +615,13 @@ func relationshipResultHandler(relationships v1.RelationshipResults) error {
 		// The configs in the relationships might not be found for various reasons.
 		// - the related configs might have been excluded in the scrape config
 		// - the config might have been deleted
-		if relatedID == nil || configID == nil {
+		if relatedID == "" || configID == "" {
 			continue
 		}
 
 		configItemRelationships = append(configItemRelationships, models.ConfigRelationship{
-			ConfigID:  *configID,
-			RelatedID: *relatedID,
+			ConfigID:  configID,
+			RelatedID: relatedID,
 			Relation:  relationship.Relationship,
 		})
 	}

@@ -2,12 +2,12 @@ package db
 
 import (
 	gocontext "context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/utils"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty/context"
@@ -17,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
-	"github.com/patrickmn/go-cache"
 	"gorm.io/gorm/clause"
 )
 
@@ -45,59 +44,11 @@ func GetConfigItemFromID(id string) (*models.ConfigItem, error) {
 	return &ci, err
 }
 
-// FindConfigItemID returns the uuid of config_item which matches the externalUID
-func FindConfigItemID(externalID v1.ExternalID) (*string, error) {
-	if ciID, exists := cacheStore.Get(externalID.CacheKey()); exists {
-		return ciID.(*string), nil
-	}
-
-	var ci models.ConfigItem
-	queryDB := externalID.WhereClause(db)
-	tx := queryDB.Select("id").Limit(1).Find(&ci)
-	if tx.RowsAffected == 0 {
-		return nil, nil
-	}
-	if tx.Error != nil {
-		return nil, tx.Error
-	}
-
-	cacheStore.Set(externalID.CacheKey(), &ci.ID, cache.DefaultExpiration)
-	return &ci.ID, nil
-}
-
-func FindConfigItemFromType(configType string) ([]models.ConfigItem, error) {
-	var ci []models.ConfigItem
-	err := db.Find(&ci, "type = @type OR config_class = @type", sql.Named("type", configType)).Error
-	return ci, err
-}
-
 // CreateConfigItem inserts a new config item row in the db
 func CreateConfigItem(ci *models.ConfigItem) error {
 	if err := db.Clauses(clause.OnConflict{UpdateAll: true}).Create(ci).Error; err != nil {
 		return err
 	}
-	return nil
-}
-
-// UpdateConfigItem updates all the fields of a given config item row
-func UpdateConfigItem(ci *models.ConfigItem) error {
-	if err := db.Updates(ci).Error; err != nil {
-		return err
-	}
-
-	// Since gorm ignores nil fields, we are setting deleted_at explicitly
-	// TODO Add deleted reason check
-	if ci.TouchDeletedAt && ci.DeleteReason != v1.DeletedReasonFromEvent {
-		if err := db.Table("config_items").
-			Where("id = ?", ci.ID).
-			Updates(map[string]any{
-				"deleted_at":    nil,
-				"delete_reason": nil,
-			}).Error; err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -157,7 +108,7 @@ func QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, error) {
 }
 
 // NewConfigItemFromResult creates a new config item instance from result
-func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error) {
+func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem, error) {
 	var dataStr string
 	switch data := result.Config.(type) {
 	case string:
@@ -190,7 +141,7 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 
 	// If the config result hasn't specified an id for the config,
 	// we try to use the external id as the primary key of the config item.
-	if ci.ID == "" {
+	if ci.ID == "" && uuid.Validate(result.ID) == nil {
 		ci.ID = result.ID
 	}
 
@@ -212,21 +163,12 @@ func NewConfigItemFromResult(result v1.ScrapeResult) (*models.ConfigItem, error)
 	}
 
 	if result.ParentExternalID != "" && result.ParentType != "" {
-		parentExternalID := v1.ExternalID{
-			ConfigType: result.ParentType,
-			ExternalID: []string{result.ParentExternalID},
-		}
 
-		var err error
-		ci.ParentID, err = FindConfigItemID(parentExternalID)
-		if err != nil {
-			logger.Errorf("Error fetching parent for %v", parentExternalID)
+		if found, err := ctx.TempCache().Find(result.ParentType, result.ParentExternalID); err != nil {
+			return nil, err
+		} else {
+			ci.ParentID = &found.ID
 		}
-
-		// Path will be correct after second iteration of scraping since
-		// the first iteration will populate the parent_ids
-		// in a non deterministic order
-		ci.Path = getParentPath(parentExternalID)
 	}
 
 	return ci, nil
@@ -241,19 +183,10 @@ func GetJSON(ci models.ConfigItem) []byte {
 }
 
 func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
-	// Doing it in a for loop to avoid
-	// ERROR: ON CONFLICT DO UPDATE command cannot affect row a second time
-	for _, rel := range relationships {
-		err := db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
-			UpdateAll: true,
-		}).Create(&rel).Error
-		if err != nil {
-			return err
-		}
-
-	}
-	return nil
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
+		DoNothing: true,
+	}).CreateInBatches(relationships, 200).Error
 }
 
 // FindConfigChangesByItemID returns all the changes of the given config item

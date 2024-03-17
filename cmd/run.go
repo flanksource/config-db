@@ -33,6 +33,9 @@ var Run = &cobra.Command{
 		if db.ConnectionString != "" {
 			db.MustInit(ctx)
 			api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
+		} else {
+			api.DefaultContext = api.NewScrapeContext(ctx, nil, nil)
+
 		}
 
 		if db.ConnectionString == "" && outputDir == "" {
@@ -58,7 +61,6 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 	if err != nil {
 		return err
 	}
-
 	if db.ConnectionString != "" {
 		logger.Infof("Exporting %d resources to DB", len(results))
 		return db.SaveResults(ctx, results)
