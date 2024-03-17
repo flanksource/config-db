@@ -390,7 +390,7 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 		}
 
 		if !input.BaseScraper.Transform.Masks.IsEmpty() {
-			logger.Debugf("Applying mask transformation")
+
 			results, err = e.applyMask(results)
 			if err != nil {
 				return results, fmt.Errorf("e.applyMask(); %w", err)
@@ -501,6 +501,7 @@ func (e Extract) applyMask(results []v1.ScrapeResult) ([]v1.ScrapeResult, error)
 				continue
 			}
 
+			logger.V(4).Infof("Masking %s with %s", input.ID, m.JSONPath)
 			identified := m.JSONPath.Get(input.Config)
 			for _, y := range identified {
 				switch m.Value {

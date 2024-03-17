@@ -34,7 +34,7 @@ type ConfigItem struct {
 	Tags            *v1.JSONStringMap     `gorm:"column:tags;default:null" json:"tags,omitempty"`
 	Properties      *types.Properties     `gorm:"column:properties;default:null" json:"properties,omitempty"`
 	CreatedAt       time.Time             `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt       time.Time             `gorm:"column:updated_at" json:"updated_at"`
+	UpdatedAt       *time.Time            `gorm:"column:updated_at;autoUpdateTime:false;<-:update" json:"updated_at"`
 	DeletedAt       *time.Time            `gorm:"column:deleted_at" json:"deleted_at"`
 	LastScrapedTime *time.Time            `gorm:"column:last_scraped_time" json:"last_scraped_time"`
 	DeleteReason    v1.ConfigDeleteReason `gorm:"column:delete_reason" json:"delete_reason"`
@@ -42,7 +42,10 @@ type ConfigItem struct {
 }
 
 func (ci ConfigItem) String() string {
-	return fmt.Sprintf("%s/%s", ci.ConfigClass, ci.ID)
+	if len(ci.ExternalID) == 0 {
+		return fmt.Sprintf("%s/%s", *ci.Type, *ci.Name)
+	}
+	return fmt.Sprintf("%s/%s id=%s", *ci.Type, *ci.Name, ci.ExternalID[0])
 }
 
 func (ci ConfigItem) ConfigJSONStringMap() (map[string]interface{}, error) {
