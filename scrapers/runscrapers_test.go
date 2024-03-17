@@ -187,6 +187,8 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(err).To(BeNil())
 
 			ctx := api.NewScrapeContext(gocontext.Background(), nil, nil).WithScrapeConfig(&config)
+			ctx, err = ctx.InitTempCache()
+			Expect(err).To(BeNil())
 
 			results, err := Run(ctx)
 			Expect(err).To(BeNil())
@@ -195,14 +197,11 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			err = db.SaveResults(ctx, results)
 			Expect(err).To(BeNil())
 
-			configItemID, err := db.FindConfigItemID(v1.ExternalID{
-				ConfigType: "Car",            // Comes from file-car.yaml
-				ExternalID: []string{"A123"}, // Comes from the config mentioned in file-car.yaml
-			})
+			configItemID, err := db.GetConfigItem("Car", "A123")
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
 
-			storedConfigItem, err = db.GetConfigItemFromID(*configItemID)
+			storedConfigItem, err = db.GetConfigItemFromID(*&configItemID.ID)
 			Expect(err).To(BeNil())
 			Expect(storedConfigItem).ToNot(BeNil())
 		})
@@ -218,29 +217,23 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			err = db.SaveResults(ctx, results)
 			Expect(err).To(BeNil())
 
-			configItemID, err := db.FindConfigItemID(v1.ExternalID{
-				ConfigType: "Car",            // Comes from file-car.yaml
-				ExternalID: []string{"A123"}, // Comes from the config mentioned in file-car.yaml
-			})
+			configItemID, err := db.GetConfigItem("Car", "A123")
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
 
 			// Expect the config_changes to be stored
-			items, err := db.FindConfigChangesByItemID(gocontext.Background(), *configItemID)
+			items, err := db.FindConfigChangesByItemID(gocontext.Background(), *&configItemID.ID)
 			Expect(err).To(BeNil())
 			Expect(len(items)).To(Equal(1))
 			Expect(items[0].ConfigID).To(Equal(storedConfigItem.ID))
 		})
 
 		It("should not change the original config", func() {
-			configItemID, err := db.FindConfigItemID(v1.ExternalID{
-				ConfigType: "Car",            // Comes from file-car.yaml
-				ExternalID: []string{"A123"}, // Comes from the config mentioned in file-car.yaml
-			})
+			configItemID, err := db.GetConfigItem("Car", "A123")
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
 
-			configItem, err := db.GetConfigItemFromID(*configItemID)
+			configItem, err := db.GetConfigItemFromID(configItemID.ID)
 			Expect(err).To(BeNil())
 			Expect(storedConfigItem).ToNot(BeNil())
 

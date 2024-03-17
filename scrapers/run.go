@@ -17,6 +17,11 @@ const (
 )
 
 func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
+	ctx, err := ctx.InitTempCache()
+	if err != nil {
+		return nil, err
+	}
+
 	ctx = ctx.WithValue(contextKeyScrapeStart, time.Now())
 
 	results, scraperErr := Run(ctx)
@@ -61,9 +66,9 @@ func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) err
 	// if the item was re-discovered in this run.
 	if val := ctx.Value(contextKeyScrapeStart); val != nil {
 		if start, ok := val.(time.Time); ok {
-			query := `UPDATE config_items 
-				SET deleted_at = NULL 
-				WHERE deleted_at IS NOT NULL 
+			query := `UPDATE config_items
+				SET deleted_at = NULL
+				WHERE deleted_at IS NOT NULL
 					AND deleted_at != updated_at
 					AND ((NOW() - updated_at) <= INTERVAL '1 SECOND' * ?)`
 			tx := ctx.DutyContext().DB().Exec(query, time.Since(start).Seconds())

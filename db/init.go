@@ -111,8 +111,6 @@ func Init(ctx context.Context, connection string) error {
 		}
 	}
 
-	// initialize cache
-	initCache()
 	return nil
 }
 
