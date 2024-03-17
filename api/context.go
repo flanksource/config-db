@@ -30,6 +30,13 @@ type ScrapeContext interface {
 	WithValue(key, val any) ScrapeContext
 
 	WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContext
+
+	WithTempCache(cache *TempCache) ScrapeContext
+
+	TempCache() *TempCache
+
+	InitTempCache() (ScrapeContext, error)
+
 	ScrapeConfig() *v1.ScrapeConfig
 
 	Namespace() string
@@ -45,6 +52,8 @@ type ScrapeContext interface {
 
 type scrapeContext struct {
 	context.Context
+
+	temp *TempCache
 
 	db   *gorm.DB
 	pool *pgxpool.Pool
@@ -63,9 +72,35 @@ func NewScrapeContext(ctx context.Context, db *gorm.DB, pool *pgxpool.Pool) Scra
 		namespace:            Namespace,
 		kubernetes:           KubernetesClient,
 		kubernetesRestConfig: KubernetesRestConfig,
-		db:                   db,
-		pool:                 pool,
+		temp: &TempCache{
+			db: db,
+		},
+		db:   db,
+		pool: pool,
 	}
+}
+
+func (ctx scrapeContext) TempCache() *TempCache {
+	return ctx.temp
+}
+
+func (ctx scrapeContext) WithTempCache(cache *TempCache) ScrapeContext {
+	ctx.temp = cache
+	return &ctx
+}
+func (ctx scrapeContext) InitTempCache() (ScrapeContext, error) {
+	if ctx.ScrapeConfig().GetPersistedID() == nil {
+		cache, err := QueryCache(ctx.DutyContext(), "scraper_id IS NULL")
+		if err != nil {
+			return &ctx, err
+		}
+		return ctx.WithTempCache(cache), nil
+	}
+	cache, err := QueryCache(ctx.DutyContext(), "scraper_id = ?", ctx.ScrapeConfig().GetPersistedID())
+	if err != nil {
+		return &ctx, err
+	}
+	return ctx.WithTempCache(cache), nil
 }
 
 func (ctx scrapeContext) WithValue(key, val any) ScrapeContext {

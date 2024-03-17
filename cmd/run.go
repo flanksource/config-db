@@ -49,6 +49,11 @@ var Run = &cobra.Command{
 }
 
 func scrapeAndStore(ctx api.ScrapeContext) error {
+	ctx, err := ctx.InitTempCache()
+	if err != nil {
+		return err
+	}
+
 	results, err := scrapers.Run(ctx)
 	if err != nil {
 		return err
