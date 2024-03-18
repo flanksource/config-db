@@ -166,8 +166,10 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 
 		if found, err := ctx.TempCache().Find(result.ParentType, result.ParentExternalID); err != nil {
 			return nil, err
-		} else {
+		} else if found != nil {
 			ci.ParentID = &found.ID
+		} else {
+			ctx.DutyContext().Infof("[%s] parent %s/%s not found", ci, result.ParentType, result.ParentExternalID)
 		}
 	}
 
