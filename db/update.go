@@ -58,22 +58,6 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	return nil
 }
 
-func getParentPath(ctx api.ScrapeContext, id string) string {
-	var path string
-
-	var err error
-	path += id
-	for {
-		parent, _ := ctx.TempCache().Get(id)
-		if parent == nil || err != nil {
-			break
-		}
-		id = *parent.ParentID
-		path += "." + id
-	}
-	return path
-}
-
 func sliceEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -142,7 +126,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 		return nil, false, fmt.Errorf("config item %s has no external id", ci)
 	}
 	if ci.ID != "" {
-		if uuid.Validate(ci.ID); err == nil {
+		if err := uuid.Validate(ci.ID); err == nil {
 			if existing, err = ctx.TempCache().Get(ci.ID); err != nil {
 				return nil, false, errors.Wrapf(err, "unable to lookup existing config: %s", ci)
 			}

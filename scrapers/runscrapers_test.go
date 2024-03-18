@@ -201,7 +201,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
 
-			storedConfigItem, err = db.GetConfigItemFromID(*&configItemID.ID)
+			storedConfigItem, err = db.GetConfigItemFromID(configItemID.ID)
 			Expect(err).To(BeNil())
 			Expect(storedConfigItem).ToNot(BeNil())
 		})
@@ -222,7 +222,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(configItemID).ToNot(BeNil())
 
 			// Expect the config_changes to be stored
-			items, err := db.FindConfigChangesByItemID(gocontext.Background(), *&configItemID.ID)
+			items, err := db.FindConfigChangesByItemID(gocontext.Background(), configItemID.ID)
 			Expect(err).To(BeNil())
 			Expect(len(items)).To(Equal(1))
 			Expect(items[0].ConfigID).To(Equal(storedConfigItem.ID))
