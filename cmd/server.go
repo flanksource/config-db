@@ -14,7 +14,6 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
-	"github.com/flanksource/config-db/query"
 	dutyContext "github.com/flanksource/duty/context"
 
 	"github.com/flanksource/config-db/scrapers"
@@ -59,7 +58,6 @@ func serve(ctx context.Context, configFiles []string) {
 		})
 	}
 
-	e.GET("/query", query.Handler)
 	e.POST("/run/:id", scrapers.RunNowHandler)
 
 	go startScraperCron(configFiles)
