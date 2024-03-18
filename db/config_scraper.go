@@ -6,16 +6,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-func FindScraper(id string) (*models.ConfigScraper, error) {
+func FindScraper(ctx api.ScrapeContext, id string) (*models.ConfigScraper, error) {
 	var configScraper models.ConfigScraper
-	if err := db.Where("id = ?", id).First(&configScraper).Error; err != nil {
+	if err := ctx.DB().Where("id = ?", id).First(&configScraper).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -26,8 +28,8 @@ func FindScraper(id string) (*models.ConfigScraper, error) {
 	return &configScraper, nil
 }
 
-func DeleteScrapeConfig(id string) error {
-	if err := db.Table("config_scrapers").
+func DeleteScrapeConfig(ctx api.ScrapeContext, id string) error {
+	if err := ctx.DB().Table("config_scrapers").
 		Where("id = ?", id).
 		Update("deleted_at", time.Now()).
 		Error; err != nil {
@@ -46,7 +48,7 @@ func DeleteScrapeConfig(id string) error {
 	selectQuery := strings.Join(selectQueryItems, " UNION ")
 
 	// Remove scraper_id from linked config_items
-	if err := db.Exec(fmt.Sprintf(`
+	if err := ctx.DB().Exec(fmt.Sprintf(`
         UPDATE config_items
         SET scraper_id = NULL
         WHERE id IN (%s) AND scraper_id = ?
@@ -55,7 +57,7 @@ func DeleteScrapeConfig(id string) error {
 	}
 
 	// Soft delete remaining config_items
-	if err := db.Exec(fmt.Sprintf(`
+	if err := ctx.DB().Exec(fmt.Sprintf(`
         UPDATE config_items
         SET deleted_at = NOW()
         WHERE id NOT IN (%s) AND scraper_id = ?
@@ -65,7 +67,7 @@ func DeleteScrapeConfig(id string) error {
 	return nil
 }
 
-func PersistScrapeConfigFromCRD(scrapeConfig *v1.ScrapeConfig) (bool, error) {
+func PersistScrapeConfigFromCRD(ctx context.Context, scrapeConfig *v1.ScrapeConfig) (bool, error) {
 	configScraper := models.ConfigScraper{
 		ID:     uuid.MustParse(string(scrapeConfig.GetUID())),
 		Name:   fmt.Sprintf("%s/%s", scrapeConfig.Namespace, scrapeConfig.Name),
@@ -73,23 +75,23 @@ func PersistScrapeConfigFromCRD(scrapeConfig *v1.ScrapeConfig) (bool, error) {
 	}
 	configScraper.Spec, _ = utils.StructToJSON(scrapeConfig.Spec)
 
-	tx := db.Table("config_scrapers").Save(&configScraper)
+	tx := ctx.DB().Table("config_scrapers").Save(&configScraper)
 	return tx.RowsAffected > 0, tx.Error
 }
 
-func GetScrapeConfigsOfAgent(agentID uuid.UUID) ([]models.ConfigScraper, error) {
+func GetScrapeConfigsOfAgent(ctx api.ScrapeContext, agentID uuid.UUID) ([]models.ConfigScraper, error) {
 	var configScrapers []models.ConfigScraper
-	err := db.Find(&configScrapers, "agent_id = ?", agentID).Error
+	err := ctx.DB().Find(&configScrapers, "agent_id = ?", agentID).Error
 	return configScrapers, err
 }
 
-func PersistScrapeConfigFromFile(scrapeConfig v1.ScrapeConfig) (models.ConfigScraper, error) {
+func PersistScrapeConfigFromFile(ctx api.ScrapeContext, scrapeConfig v1.ScrapeConfig) (models.ConfigScraper, error) {
 	configScraper, err := scrapeConfig.ToModel()
 	if err != nil {
 		return configScraper, err
 	}
 
-	tx := db.Table("config_scrapers").Where("spec = ?", configScraper.Spec).Find(&configScraper)
+	tx := ctx.DB().Table("config_scrapers").Where("spec = ?", configScraper.Spec).Find(&configScraper)
 	if tx.Error != nil {
 		return configScraper, tx.Error
 	}
@@ -102,5 +104,5 @@ func PersistScrapeConfigFromFile(scrapeConfig v1.ScrapeConfig) (models.ConfigScr
 	if err != nil {
 		return configScraper, err
 	}
-	return configScraper, db.Create(&configScraper).Error
+	return configScraper, ctx.DB().Create(&configScraper).Error
 }

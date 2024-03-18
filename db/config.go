@@ -1,7 +1,6 @@
 package db
 
 import (
-	gocontext "context"
 	"encoding/json"
 	"fmt"
 
@@ -21,9 +20,9 @@ import (
 )
 
 // GetConfigItem returns a single config item result
-func GetConfigItem(extType, extID string) (*models.ConfigItem, error) {
+func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.ConfigItem, error) {
 	ci := models.ConfigItem{}
-	tx := db.
+	tx := ctx.DB().
 		Select("id", "config_class", "type", "config", "created_at", "updated_at", "deleted_at").
 		Limit(1).
 		Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{extID})
@@ -38,15 +37,15 @@ func GetConfigItem(extType, extID string) (*models.ConfigItem, error) {
 }
 
 // GetConfigItemFromID returns a single config item result
-func GetConfigItemFromID(id string) (*models.ConfigItem, error) {
+func GetConfigItemFromID(ctx api.ScrapeContext, id string) (*models.ConfigItem, error) {
 	var ci models.ConfigItem
-	err := db.Limit(1).Omit("config").Find(&ci, "id = ?", id).Error
+	err := ctx.DB().Limit(1).Omit("config").Find(&ci, "id = ?", id).Error
 	return &ci, err
 }
 
 // CreateConfigItem inserts a new config item row in the db
-func CreateConfigItem(ci *models.ConfigItem) error {
-	if err := db.Clauses(clause.OnConflict{UpdateAll: true}).Create(ci).Error; err != nil {
+func CreateConfigItem(ctx api.ScrapeContext, ci *models.ConfigItem) error {
+	if err := ctx.DB().Clauses(clause.OnConflict{UpdateAll: true}).Create(ci).Error; err != nil {
 		return err
 	}
 	return nil
@@ -72,8 +71,8 @@ func FindConfigIDsByNamespaceNameClass(ctx context.Context, namespace, name, con
 }
 
 // QueryConfigItems ...
-func QueryConfigItems(request v1.QueryRequest) (*v1.QueryResult, error) {
-	results := db.Raw(request.Query)
+func QueryConfigItems(ctx api.ScrapeContext, request v1.QueryRequest) (*v1.QueryResult, error) {
+	results := ctx.DB().Raw(request.Query)
 	logger.Tracef(request.Query)
 	if results.Error != nil {
 		return nil, fmt.Errorf("failed to parse query: %s -> %s", request.Query, results.Error)
@@ -184,17 +183,17 @@ func GetJSON(ci models.ConfigItem) []byte {
 	return data
 }
 
-func UpdateConfigRelatonships(relationships []models.ConfigRelationship) error {
-	return db.Clauses(clause.OnConflict{
+func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.ConfigRelationship) error {
+	return ctx.DB().Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
 		DoNothing: true,
 	}).CreateInBatches(relationships, 200).Error
 }
 
 // FindConfigChangesByItemID returns all the changes of the given config item
-func FindConfigChangesByItemID(ctx gocontext.Context, configItemID string) ([]dutyModels.ConfigChange, error) {
+func FindConfigChangesByItemID(ctx api.ScrapeContext, configItemID string) ([]dutyModels.ConfigChange, error) {
 	var ci []dutyModels.ConfigChange
-	tx := db.WithContext(ctx).Where("config_id = ?", configItemID).Find(&ci)
+	tx := ctx.DB().Where("config_id = ?", configItemID).Find(&ci)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}

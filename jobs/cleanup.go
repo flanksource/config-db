@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty/job"
 )
 
@@ -39,7 +38,7 @@ var CleanupConfigAnalysis = &job.Job{
 			ConfigAnalysisRetentionDays = DefaultConfigAnalysisRetentionDays
 		}
 
-		tx := db.DefaultDB().Exec(`
+		tx := ctx.DB().Exec(`
         DELETE FROM config_analysis
         WHERE
             (NOW() - last_observed) > INTERVAL '1 day' * ? AND
@@ -64,7 +63,7 @@ var CleanupConfigChanges = &job.Job{
 			ConfigChangeRetentionDays = DefaultConfigChangeRetentionDays
 		}
 
-		tx := db.DefaultDB().Exec(`
+		tx := ctx.DB().Exec(`
         DELETE FROM config_changes
         WHERE
             (NOW() - created_at) > INTERVAL '1 day' * ? AND
@@ -100,9 +99,9 @@ var CleanupConfigItems = &job.Job{
 		`
 
 		relationshipDeleteQuery := fmt.Sprintf(`
-		DELETE FROM config_relationships 
-		WHERE deleted_at < NOW() - interval '1 SECONDS' * ? 
-		OR config_id in (SELECT id FROM config_items WHERE id NOT IN (%s) AND deleted_at < NOW() - interval '1 SECONDS' * ?) 
+		DELETE FROM config_relationships
+		WHERE deleted_at < NOW() - interval '1 SECONDS' * ?
+		OR config_id in (SELECT id FROM config_items WHERE id NOT IN (%s) AND deleted_at < NOW() - interval '1 SECONDS' * ?)
 		OR related_id in (SELECT id FROM config_items WHERE id NOT IN (%s) AND deleted_at < NOW() - interval '1 SECONDS' * ?)`, linkedConfigsQuery, linkedConfigsQuery)
 		if tx := ctx.Context.DB().Exec(relationshipDeleteQuery, seconds, seconds, seconds); tx.Error != nil {
 			return fmt.Errorf("failed to delete config relationships: %w", tx.Error)
@@ -112,8 +111,8 @@ var CleanupConfigItems = &job.Job{
 
 		// break the parent relationship of deleted configs
 		breakParentRelationshipQuery := fmt.Sprintf(`
-		UPDATE config_items 
-		SET parent_id = NULL 
+		UPDATE config_items
+		SET parent_id = NULL
 			WHERE id IN (%s) AND parent_id IS NOT NULL AND deleted_at < NOW() - interval '7 days'`,
 			linkedConfigsQuery)
 		if tx := ctx.Context.DB().Exec(breakParentRelationshipQuery); tx.Error != nil {

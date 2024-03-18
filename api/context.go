@@ -1,136 +1,86 @@
 package api
 
 import (
-	"context"
-	"errors"
-	"fmt"
-
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/duty"
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
-	"github.com/flanksource/duty/types"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"gorm.io/gorm"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
-type ScrapeContext interface {
-	context.Context
-	DutyContext() dutyCtx.Context
-
-	WithJobHistory(*models.JobHistory) ScrapeContext
-	JobHistory() *models.JobHistory
-
-	IsTrace() bool
-
-	WithContext(ctx context.Context) ScrapeContext
-	WithValue(key, val any) ScrapeContext
-
-	WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContext
-
-	WithTempCache(cache *TempCache) ScrapeContext
-
-	TempCache() *TempCache
-
-	InitTempCache() (ScrapeContext, error)
-
-	ScrapeConfig() *v1.ScrapeConfig
-
-	Namespace() string
-	Kubernetes() kubernetes.Interface
-	KubernetesRestConfig() *rest.Config
-
-	GetEnvVarValue(input types.EnvVar) (string, error)
-	GetEnvValueFromCache(env types.EnvVar) (string, error)
-
-	HydrateConnection(connectionIdentifier string) (*models.Connection, error)
-	HydrateConnectionModel(models.Connection) (*models.Connection, error)
-}
-
-type scrapeContext struct {
-	context.Context
+type ScrapeContext struct {
+	dutyCtx.Context
 
 	temp *TempCache
 
-	db   *gorm.DB
-	pool *pgxpool.Pool
-
 	namespace            string
-	kubernetes           *kubernetes.Clientset
 	kubernetesRestConfig *rest.Config
 
 	jobHistory   *models.JobHistory
 	scrapeConfig *v1.ScrapeConfig
 }
 
-func NewScrapeContext(ctx context.Context, db *gorm.DB, pool *pgxpool.Pool) ScrapeContext {
-	return &scrapeContext{
-		Context:              ctx,
-		namespace:            Namespace,
-		kubernetes:           KubernetesClient,
-		kubernetesRestConfig: KubernetesRestConfig,
+func NewScrapeContext(ctx dutyCtx.Context) ScrapeContext {
+	return ScrapeContext{
+		Context: ctx,
 		temp: &TempCache{
-			db: db,
+			ctx: ctx,
 		},
-		db:   db,
-		pool: pool,
 	}
 }
 
-func (ctx scrapeContext) TempCache() *TempCache {
+func (ctx ScrapeContext) TempCache() *TempCache {
 	return ctx.temp
 }
 
-func (ctx scrapeContext) WithTempCache(cache *TempCache) ScrapeContext {
+func (ctx ScrapeContext) withTempCache(cache *TempCache) ScrapeContext {
 	ctx.temp = cache
-	return &ctx
+	return ctx
 }
-func (ctx scrapeContext) InitTempCache() (ScrapeContext, error) {
+func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	if ctx.ScrapeConfig().GetPersistedID() == nil {
-		cache, err := QueryCache(ctx.DutyContext(), "scraper_id IS NULL")
+		cache, err := QueryCache(ctx.Context, "scraper_id IS NULL")
 		if err != nil {
-			return &ctx, err
+			return ctx, err
 		}
-		return ctx.WithTempCache(cache), nil
+		return ctx.withTempCache(cache), nil
 	}
-	cache, err := QueryCache(ctx.DutyContext(), "scraper_id = ?", ctx.ScrapeConfig().GetPersistedID())
+	cache, err := QueryCache(ctx.Context, "scraper_id = ?", ctx.ScrapeConfig().GetPersistedID())
 	if err != nil {
-		return &ctx, err
+		return ctx, err
 	}
-	return ctx.WithTempCache(cache), nil
+	return ctx.withTempCache(cache), nil
 }
 
-func (ctx scrapeContext) WithValue(key, val any) ScrapeContext {
-	ctx.Context = context.WithValue(ctx.Context, key, val)
-	return &ctx
+func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
+	return ScrapeContext{
+		Context: dutyCtx.Context{
+			Context: ctx.Context.WithValue(key, val),
+		},
+		temp:                 ctx.temp,
+		namespace:            ctx.namespace,
+		kubernetesRestConfig: ctx.kubernetesRestConfig,
+		jobHistory:           ctx.jobHistory,
+		scrapeConfig:         ctx.scrapeConfig,
+	}
+
 }
 
-func (ctx scrapeContext) WithContext(from context.Context) ScrapeContext {
-	ctx.Context = from
-	return &ctx
-}
-
-func (ctx scrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContext {
+func (ctx ScrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContext {
 	ctx.scrapeConfig = scraper
-	return &ctx
+	return ctx
 }
 
-func (ctx scrapeContext) WithJobHistory(jobHistory *models.JobHistory) ScrapeContext {
+func (ctx ScrapeContext) WithJobHistory(jobHistory *models.JobHistory) ScrapeContext {
 	ctx.jobHistory = jobHistory
-	return &ctx
+	return ctx
 }
 
-func (ctx scrapeContext) DutyContext() dutyCtx.Context {
-	return dutyCtx.NewContext(ctx).
-		WithKubernetes(ctx.kubernetes).
-		WithDB(ctx.db, ctx.pool).
-		WithNamespace(ctx.namespace)
+func (ctx ScrapeContext) DutyContext() dutyCtx.Context {
+	return ctx.Context
 }
 
-func (ctx scrapeContext) JobHistory() *models.JobHistory {
+func (ctx ScrapeContext) JobHistory() *models.JobHistory {
 	h := ctx.jobHistory
 	if h == nil {
 		// Return dummy job history if unset
@@ -139,96 +89,18 @@ func (ctx scrapeContext) JobHistory() *models.JobHistory {
 	return h
 }
 
-func (ctx scrapeContext) DB() *gorm.DB {
-	return ctx.db
-}
-
-func (ctx scrapeContext) Pool() *pgxpool.Pool {
-	return ctx.pool
-}
-
-func (ctx scrapeContext) ScrapeConfig() *v1.ScrapeConfig {
+func (ctx ScrapeContext) ScrapeConfig() *v1.ScrapeConfig {
 	return ctx.scrapeConfig
 }
 
-func (ctx scrapeContext) Namespace() string {
+func (ctx ScrapeContext) Namespace() string {
 	return ctx.namespace
 }
 
-func (c scrapeContext) Kubernetes() kubernetes.Interface {
-	return c.kubernetes
-}
-
-func (c scrapeContext) KubernetesRestConfig() *rest.Config {
+func (c ScrapeContext) KubernetesRestConfig() *rest.Config {
 	return c.kubernetesRestConfig
 }
 
-func (ctx scrapeContext) IsTrace() bool {
+func (ctx ScrapeContext) IsTrace() bool {
 	return ctx.scrapeConfig.Spec.IsTrace()
-}
-
-func (ctx *scrapeContext) HydrateConnection(connectionName string) (*models.Connection, error) {
-	if connectionName == "" {
-		return nil, nil
-	}
-
-	if ctx.db == nil {
-		return nil, errors.New("db has not been initialized")
-	}
-
-	if ctx.pool == nil {
-		return nil, errors.New("pool has not been initialized")
-	}
-
-	if ctx.kubernetes == nil {
-		return nil, errors.New("kubernetes clientset has not been initialized")
-	}
-
-	connection, err := dutyCtx.HydrateConnectionByURL(ctx.DutyContext(), connectionName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Connection name was explicitly provided but was not found.
-	// That's an error.
-	if connection == nil {
-		return nil, fmt.Errorf("connection %s not found", connectionName)
-	}
-
-	return connection, nil
-}
-
-func (ctx *scrapeContext) HydrateConnectionModel(c models.Connection) (*models.Connection, error) {
-	if ctx.db == nil {
-		return nil, errors.New("db has not been initialized")
-	}
-
-	if ctx.pool == nil {
-		return nil, errors.New("pool has not been initialized")
-	}
-
-	if ctx.kubernetes == nil {
-		return nil, errors.New("kubernetes clientset has not been initialized")
-	}
-
-	connection, err := dutyCtx.HydrateConnection(ctx.DutyContext(), &c)
-	if err != nil {
-		return nil, err
-	}
-
-	// Connection name was explicitly provided but was not found.
-	// That's an error.
-	if connection == nil {
-		return nil, fmt.Errorf("connection %s not found", c.Name)
-	}
-
-	return connection, nil
-}
-
-func (c *scrapeContext) GetEnvVarValue(input types.EnvVar) (string, error) {
-	return duty.GetEnvValueFromCache(c.kubernetes, input, c.namespace)
-}
-
-func (ctx *scrapeContext) GetEnvValueFromCache(env types.EnvVar) (string, error) {
-	return duty.GetEnvValueFromCache(ctx.kubernetes, env, ctx.namespace)
 }

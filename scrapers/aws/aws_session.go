@@ -45,7 +45,7 @@ func (e EndpointResolver) ResolveEndpoint(service, region string, options ...int
 
 func loadConfig(ctx api.ScrapeContext, conn v1.AWSConnection, region string) (*aws.Config, error) {
 	if conn.ConnectionName != "" {
-		connection, err := ctx.HydrateConnection(conn.ConnectionName)
+		connection, err := ctx.HydrateConnectionByURL(conn.ConnectionName)
 		if err != nil {
 			return nil, fmt.Errorf("could not hydrate connection: %w", err)
 		} else if connection == nil {

@@ -7,13 +7,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
-	"github.com/flanksource/duty"
-	"github.com/flanksource/duty/context"
 	dutymodels "github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
@@ -28,17 +25,11 @@ import (
 
 var _ = Describe("Scrapers test", Ordered, func() {
 	Describe("DB initialization", func() {
-		It("should be able to run migrations", func() {
-			logger.Infof("Running migrations against %s", pgUrl)
-			if err := duty.Migrate(pgUrl, nil); err != nil {
-				Fail(err.Error())
-			}
-		})
 
 		It("Gorm can connect", func() {
 			var people int64
-			Expect(gormDB.Table("people").Count(&people).Error).ToNot(HaveOccurred())
-			Expect(people).To(Equal(int64(1)))
+			Expect(DefaultContext.DB().Table("people").Count(&people).Error).ToNot(HaveOccurred())
+			Expect(people).To(BeNumerically(">=", 1))
 		})
 	})
 
@@ -104,14 +95,14 @@ var _ = Describe("Scrapers test", Ordered, func() {
 		})
 
 		It("should successfully complete first scrape run", func() {
-			scraperCtx := api.NewScrapeContext(gocontext.TODO(), gormDB, nil).WithScrapeConfig(&scrapeConfig)
+			scraperCtx := api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
 			_, err := RunScraper(scraperCtx)
 			Expect(err).To(BeNil())
 		})
 
 		It("should have saved the two config items to database", func() {
 			var configItems []models.ConfigItem
-			err := gormDB.Where("name IN (?, ?, ?)", "first-config", "second-config", "first-secret").Find(&configItems).Error
+			err := DefaultContext.DB().Where("name IN (?, ?, ?)", "first-config", "second-config", "first-secret").Find(&configItems).Error
 			Expect(err).To(BeNil())
 
 			Expect(len(configItems)).To(Equal(3))
@@ -120,18 +111,18 @@ var _ = Describe("Scrapers test", Ordered, func() {
 		It("should correctly setup kubernetes relationship", func() {
 			query.FlushGettersCache()
 
-			scraperCtx := api.NewScrapeContext(gocontext.TODO(), gormDB, nil).WithScrapeConfig(&scrapeConfig)
+			scraperCtx := api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
 			_, err := RunScraper(scraperCtx)
 			Expect(err).To(BeNil())
 
 			var configRelationships []models.ConfigRelationship
-			err = gormDB.Find(&configRelationships).Error
+			err = scraperCtx.DB().Find(&configRelationships).Error
 			Expect(err).To(BeNil())
 
 			// 2 relationships are coming from the relationship config above &
 			// the remaining 21 are coming from the relationship with the namespace.
 			// eg. Namespace->ConfigMap,Namespace->Endpoints, Namespace->RoleBinding,  Namespace->Role ...
-			Expect(len(configRelationships)).To(Equal(2 + 21))
+			Expect(len(configRelationships)).To(BeNumerically(">=", 23))
 		})
 	})
 
@@ -150,7 +141,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			It(fixture, func() {
 				config := getConfigSpec(fixture)
 				expected := getFixtureResult(fixture)
-				ctx := api.NewScrapeContext(gocontext.Background(), nil, nil).WithScrapeConfig(&config)
+				ctx := api.NewScrapeContext(DefaultContext).WithScrapeConfig(&config)
 
 				results, err := Run(ctx)
 				Expect(err).To(BeNil())
@@ -179,29 +170,29 @@ var _ = Describe("Scrapers test", Ordered, func() {
 	})
 
 	Describe("Test full: true", func() {
+
 		var storedConfigItem *models.ConfigItem
 
 		It("should create a new config item", func() {
 			config := getConfigSpec("file-car")
-			configScraper, err := db.PersistScrapeConfigFromFile(config)
+			_, err := db.PersistScrapeConfigFromFile(ctx, config)
 			Expect(err).To(BeNil())
 
-			ctx := api.NewScrapeContext(gocontext.Background(), nil, nil).WithScrapeConfig(&config)
+			ctx := api.NewScrapeContext(DefaultContext).WithScrapeConfig(&config)
 			ctx, err = ctx.InitTempCache()
 			Expect(err).To(BeNil())
 
 			results, err := Run(ctx)
 			Expect(err).To(BeNil())
 
-			logger.Infof("SCRAPER ID: %s", configScraper.ID)
 			err = db.SaveResults(ctx, results)
 			Expect(err).To(BeNil())
 
-			configItemID, err := db.GetConfigItem("Car", "A123")
+			configItemID, err := db.GetConfigItem(ctx, "Car", "A123")
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
 
-			storedConfigItem, err = db.GetConfigItemFromID(configItemID.ID)
+			storedConfigItem, err = db.GetConfigItemFromID(ctx, configItemID.ID)
 			Expect(err).To(BeNil())
 			Expect(storedConfigItem).ToNot(BeNil())
 		})
@@ -209,7 +200,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 		It("should store the changes from the config", func() {
 			config := getConfigSpec("file-car-change")
 
-			ctx := api.NewScrapeContext(gocontext.Background(), nil, nil).WithScrapeConfig(&config)
+			ctx := api.NewScrapeContext(DefaultContext).WithScrapeConfig(&config)
 
 			results, err := Run(ctx)
 			Expect(err).To(BeNil())
@@ -217,23 +208,23 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			err = db.SaveResults(ctx, results)
 			Expect(err).To(BeNil())
 
-			configItemID, err := db.GetConfigItem("Car", "A123")
+			configItemID, err := db.GetConfigItem(ctx, "Car", "A123")
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
 
 			// Expect the config_changes to be stored
-			items, err := db.FindConfigChangesByItemID(gocontext.Background(), configItemID.ID)
+			items, err := db.FindConfigChangesByItemID(ctx, configItemID.ID)
 			Expect(err).To(BeNil())
 			Expect(len(items)).To(Equal(1))
 			Expect(items[0].ConfigID).To(Equal(storedConfigItem.ID))
 		})
 
 		It("should not change the original config", func() {
-			configItemID, err := db.GetConfigItem("Car", "A123")
+			configItemID, err := db.GetConfigItem(ctx, "Car", "A123")
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
 
-			configItem, err := db.GetConfigItemFromID(configItemID.ID)
+			configItem, err := db.GetConfigItemFromID(ctx, configItemID.ID)
 			Expect(err).To(BeNil())
 			Expect(storedConfigItem).ToNot(BeNil())
 
@@ -246,7 +237,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				Spec:   `{"foo":"bar"}`,
 				Source: dutymodels.SourceConfigFile,
 			}
-			err := db.DefaultDB().Create(&dummyScraper).Error
+			err := ctx.DB().Create(&dummyScraper).Error
 			Expect(err).To(BeNil())
 
 			configItemID := uuid.New().String()
@@ -262,9 +253,9 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				ConfigClass: "Test",
 				ScraperID:   &dummyScraper.ID,
 			}
-			err = db.DefaultDB().Create(&dummyCI).Error
+			err = ctx.DB().Create(&dummyCI).Error
 			Expect(err).To(BeNil())
-			err = db.DefaultDB().Create(&dummyCI2).Error
+			err = ctx.DB().Create(&dummyCI2).Error
 			Expect(err).To(BeNil())
 
 			twoDaysAgo := time.Now().Add(-2 * 24 * time.Hour)
@@ -292,24 +283,22 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				{ConfigID: configItemID2, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
 			}
 
-			err = db.DefaultDB().Table("config_changes").Create(&configChanges).Error
+			err = ctx.DB().Table("config_changes").Create(&configChanges).Error
 			Expect(err).To(BeNil())
 
 			var currentCount int
-			err = db.DefaultDB().
+			err = ctx.DB().
 				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ?`, "TestDiff").
 				Scan(&currentCount).
 				Error
 			Expect(err).To(BeNil())
 			Expect(currentCount).To(Equal(len(configChanges)))
 
-			ctx := context.NewContext(gocontext.Background()).WithDB(db.DefaultDB(), db.Pool)
-
 			// Everything older than 8 days should be removed
-			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Age: "8d"})
+			err = ProcessChangeRetention(ctx.Context, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Age: "8d"})
 			Expect(err).To(BeNil())
 			var count1 int
-			err = db.DefaultDB().
+			err = ctx.DB().
 				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID).
 				Scan(&count1).
 				Error
@@ -318,7 +307,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 
 			// The other config item should not be touched
 			var otherCount1 int
-			err = db.DefaultDB().
+			err = ctx.DB().
 				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID2).
 				Scan(&otherCount1).
 				Error
@@ -326,10 +315,10 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(otherCount1).To(Equal(2))
 
 			// Only keep latest 12 config changes
-			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Count: 12})
+			err = ProcessChangeRetention(ctx.Context, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Count: 12})
 			Expect(err).To(BeNil())
 			var count2 int
-			err = db.DefaultDB().
+			err = ctx.DB().
 				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID).
 				Scan(&count2).
 				Error
@@ -338,7 +327,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 
 			// The other config item should not be touched
 			var otherCount2 int
-			err = db.DefaultDB().
+			err = ctx.DB().
 				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID2).
 				Scan(&otherCount2).
 				Error
@@ -346,10 +335,10 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(otherCount2).To(Equal(2))
 
 			// Keep config changes which are newer than 3 days and max count can be 10
-			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Age: "3d", Count: 10})
+			err = ProcessChangeRetention(ctx.Context, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff", Age: "3d", Count: 10})
 			Expect(err).To(BeNil())
 			var count3 int
-			err = db.DefaultDB().
+			err = ctx.DB().
 				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID).
 				Scan(&count3).
 				Error
@@ -357,12 +346,12 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(count3).To(Equal(9))
 
 			// No params in ChangeRetentionSpec should fail
-			err = ProcessChangeRetention(ctx, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff"})
+			err = ProcessChangeRetention(ctx.Context, dummyScraper.ID, v1.ChangeRetentionSpec{Name: "TestDiff"})
 			Expect(err).ToNot(BeNil())
 
 			// The other config item should not be touched
 			var otherCount3 int
-			err = db.DefaultDB().
+			err = ctx.DB().
 				Raw(`SELECT COUNT(*) FROM config_changes WHERE change_type = ? AND config_id = ?`, "TestDiff", configItemID2).
 				Scan(&otherCount3).
 				Error

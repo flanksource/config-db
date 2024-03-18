@@ -55,11 +55,11 @@ type ScrapeConfigReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
-func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ScrapeConfigReconciler) Reconcile(c context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := r.Log.WithValues("scrape_config", req.NamespacedName)
 
 	scrapeConfig := &v1.ScrapeConfig{}
-	err := r.Get(ctx, req.NamespacedName, scrapeConfig)
+	err := r.Get(c, req.NamespacedName, scrapeConfig)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			logger.Error(err, "ScrapeConfig not found")
@@ -68,10 +68,12 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
+	ctx := api.DefaultContext.WithScrapeConfig(scrapeConfig)
+
 	// Check if it is deleted, remove scrape config
 	if !scrapeConfig.DeletionTimestamp.IsZero() {
 		logger.Info("Deleting scrape config", "id", scrapeConfig.GetUID())
-		if err := db.DeleteScrapeConfig(string(scrapeConfig.GetUID())); err != nil {
+		if err := db.DeleteScrapeConfig(ctx, string(scrapeConfig.GetUID())); err != nil {
 			logger.Error(err, "failed to delete scrape config")
 			return ctrl.Result{Requeue: true, RequeueAfter: 2 * time.Minute}, err
 		}
@@ -89,7 +91,7 @@ func (r *ScrapeConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	changed, err := db.PersistScrapeConfigFromCRD(scrapeConfig)
+	changed, err := db.PersistScrapeConfigFromCRD(ctx.Context, scrapeConfig)
 	if err != nil {
 		logger.Error(err, "failed to persist scrape config")
 		return ctrl.Result{}, err

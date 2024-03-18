@@ -78,7 +78,7 @@ type GitHubActionsClient struct {
 
 func NewGitHubActionsClient(ctx api.ScrapeContext, gha v1.GitHubActions) (*GitHubActionsClient, error) {
 	var token string
-	if connection, err := ctx.HydrateConnection(gha.ConnectionName); err != nil {
+	if connection, err := ctx.HydrateConnectionByURL(gha.ConnectionName); err != nil {
 		return nil, err
 	} else if connection != nil {
 		token = connection.Password

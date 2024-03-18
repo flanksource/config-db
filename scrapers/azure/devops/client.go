@@ -112,7 +112,7 @@ type AzureDevopsClient struct {
 
 func NewAzureDevopsClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*AzureDevopsClient, error) {
 	var token string
-	if connection, err := ctx.HydrateConnection(ado.ConnectionName); err != nil {
+	if connection, err := ctx.HydrateConnectionByURL(ado.ConnectionName); err != nil {
 		return nil, fmt.Errorf("failed to find connection: %w", err)
 	} else if connection != nil {
 		token = connection.Password

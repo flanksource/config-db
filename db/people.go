@@ -1,16 +1,16 @@
 package db
 
 import (
-	"context"
 	"errors"
 
+	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/models"
 	"gorm.io/gorm"
 )
 
-func FindPersonByEmail(ctx context.Context, email string) (*models.Person, error) {
+func FindPersonByEmail(ctx api.ScrapeContext, email string) (*models.Person, error) {
 	var person models.Person
-	err := db.WithContext(ctx).Where("email = ?", email).First(&person).Error
+	err := ctx.DB().Where("email = ?", email).First(&person).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"go.uber.org/zap/zapcore"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -25,6 +26,7 @@ import (
 var webhookPort int
 var enableLeaderElection bool
 var operatorExecutor bool
+var k8sLogLevel int
 var Operator = &cobra.Command{
 	Use:   "operator",
 	Short: "Start the kubernetes operator",
@@ -35,14 +37,14 @@ func init() {
 	ServerFlags(Operator.Flags())
 	Operator.Flags().BoolVar(&operatorExecutor, "executor", true, "If false, only serve the UI and sync the configs")
 	Operator.Flags().IntVar(&webhookPort, "webhookPort", 8082, "Port for webhooks ")
+	Operator.Flags().IntVar(&k8sLogLevel, "k8s-log-level", -1, "Kubernetes controller log level")
 	Operator.Flags().BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enabling this will ensure there is only one active controller manager")
 }
 
 func run(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
-	db.MustInit(ctx)
-	api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
+	api.DefaultContext = api.NewScrapeContext(db.MustInit())
 	if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
 		return fmt.Errorf("failed to load properties: %v", err)
 	}
@@ -53,13 +55,9 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	loggr := ctrlzap.NewRaw(
-		ctrlzap.UseDevMode(true),
-		ctrlzap.WriteTo(os.Stderr),
-		// FIXME: Breaking after duty bump.
-		// ctrlzap.Level(zapLogger.Level),
-		// ctrlzap.StacktraceLevel(zapLogger.StackTraceLevel),
-		// ctrlzap.Encoder(zapLogger.GetEncoder()),
-	)
+		ctrlzap.Encoder(logger.NewZapEncoder()),
+		ctrlzap.Level(zapcore.Level(k8sLogLevel*-1)),
+	).Named("operator")
 
 	ctrl.SetLogger(zapr.NewLogger(loggr))
 	setupLog := ctrl.Log.WithName("setup")

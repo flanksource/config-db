@@ -36,7 +36,7 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 		Retention:  job.RetentionHour,
 		RunNow:     true,
 		Fn: func(jr job.JobRuntime) error {
-			scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(uuid.Nil)
+			scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(sc, uuid.Nil)
 			if err != nil {
 				logger.Fatalf("error getting configs from database: %v", err)
 			}
@@ -171,7 +171,7 @@ func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kuberne
 			}
 			events, _, _, _ := lo.Buffer(ch, len(ch))
 
-			cc := api.NewScrapeContext(ctx.Context, ctx.DB(), ctx.Pool()).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History)
+			cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History)
 			results, err := RunK8IncrementalScraper(cc, config, events)
 			if err != nil {
 				return err
