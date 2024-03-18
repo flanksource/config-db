@@ -83,7 +83,7 @@ func (azure Scraper) CanScrape(configs v1.ScraperSpec) bool {
 // else it'll try to fetch the credentials from kubernetes secrets.
 func (azure Scraper) hydrateConnection(ctx api.ScrapeContext, t v1.Azure) (v1.Azure, error) {
 	if t.ConnectionName != "" {
-		connection, err := ctx.HydrateConnection(t.ConnectionName)
+		connection, err := ctx.HydrateConnectionByURL(t.ConnectionName)
 		if err != nil {
 			return t, fmt.Errorf("could not hydrate connection: %w", err)
 		} else if connection == nil {

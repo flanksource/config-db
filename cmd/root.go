@@ -41,9 +41,6 @@ func readFromEnv(v string) string {
 var Root = &cobra.Command{
 	Use: "config-db",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		count, _ := cmd.Flags().GetCount("loglevel")
-		// logger.StandardLogger().(logsrusapi.Logger).Out = os.Stderr
-		logger.StandardLogger().SetLogLevel(count)
 		logger.UseZap()
 		var err error
 

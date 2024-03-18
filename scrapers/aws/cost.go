@@ -10,7 +10,6 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
 	athena "github.com/uber/athenadriver/go"
 )
 
@@ -162,7 +161,7 @@ func (awsCost CostScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			return results.Errorf(err, "failed to fetch costs")
 		}
 
-		gormDB := db.DefaultDB()
+		gormDB := ctx.DB()
 		var accountTotal1h, accountTotal1d, accountTotal7d, accountTotal30d float64
 		for _, row := range rows {
 			tx := gormDB.Exec(`

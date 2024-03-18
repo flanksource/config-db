@@ -76,7 +76,7 @@ func (file FileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 	for _, config := range ctx.ScrapeConfig().Spec.File {
 		url := config.URL
-		if connection, err := ctx.HydrateConnection(config.ConnectionName); err != nil {
+		if connection, err := ctx.HydrateConnectionByURL(config.ConnectionName); err != nil {
 			results.Errorf(err, "failed to find connection")
 			continue
 		} else if connection != nil {

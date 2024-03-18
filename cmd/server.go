@@ -24,16 +24,13 @@ import (
 var Serve = &cobra.Command{
 	Use: "serve",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := cmd.Context()
+		api.DefaultContext = api.NewScrapeContext(db.MustInit())
 
-		db.MustInit(ctx)
-
-		api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
 		if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
 			return fmt.Errorf("failed to load properties: %v", err)
 		}
 
-		serve(ctx, args)
+		serve(context.Background(), args)
 		return nil
 	},
 }
@@ -93,7 +90,7 @@ func startScraperCron(configFiles []string) {
 
 	logger.Infof("Persisting %d config files", len(scraperConfigsFiles))
 	for _, scrapeConfig := range scraperConfigsFiles {
-		_, err := db.PersistScrapeConfigFromFile(scrapeConfig)
+		_, err := db.PersistScrapeConfigFromFile(api.DefaultContext, scrapeConfig)
 		if err != nil {
 			logger.Fatalf("Error persisting scrape config to db: %v", err)
 		}

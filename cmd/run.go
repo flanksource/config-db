@@ -11,6 +11,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
+	"github.com/flanksource/duty/context"
 	"github.com/spf13/cobra"
 )
 
@@ -22,8 +23,6 @@ var Run = &cobra.Command{
 	Use:   "run <scraper.yaml>",
 	Short: "Run scrapers and return",
 	Run: func(cmd *cobra.Command, configFiles []string) {
-		ctx := cmd.Context()
-
 		logger.Infof("Scraping %v", configFiles)
 		scraperConfigs, err := v1.ParseConfigs(configFiles...)
 		if err != nil {
@@ -31,10 +30,9 @@ var Run = &cobra.Command{
 		}
 
 		if db.ConnectionString != "" {
-			db.MustInit(ctx)
-			api.DefaultContext = api.NewScrapeContext(ctx, db.DefaultDB(), db.Pool)
+			api.DefaultContext = api.NewScrapeContext(db.MustInit())
 		} else {
-			api.DefaultContext = api.NewScrapeContext(ctx, nil, nil)
+			api.DefaultContext = api.NewScrapeContext(context.New())
 
 		}
 

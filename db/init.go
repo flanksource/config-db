@@ -11,6 +11,7 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
+	dutycontext "github.com/flanksource/duty/context"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/pflag"
 	"gorm.io/gorm"
@@ -22,7 +23,6 @@ var (
 	Schema           = "public"
 	PGRSTLogLevel    = "info"
 	HTTPEndpoint     = "http://localhost:8080/db"
-	db               *gorm.DB
 	runMigrations    = false
 
 	EmbeddedPGServer *embeddedpostgres.EmbeddedPostgres
@@ -42,9 +42,12 @@ func Flags(flags *pflag.FlagSet) {
 var Pool *pgxpool.Pool
 
 // MustInit initializes the database or fatally exits
-func MustInit(ctx context.Context) {
-	if err := Init(ctx, ConnectionString); err != nil {
+func MustInit() dutycontext.Context {
+	if c, err := Init(ConnectionString); err != nil {
 		logger.Fatalf("Failed to initialize db: %v", err.Error())
+		return dutycontext.New()
+	} else {
+		return *c
 	}
 }
 
@@ -73,12 +76,12 @@ func embeddedDB(database string, port uint32) (string, error) {
 }
 
 // Init ...
-func Init(ctx context.Context, connection string) error {
+func Init(connection string) (*dutycontext.Context, error) {
 	var err error
 
 	if strings.HasPrefix(ConnectionString, "embedded://") {
 		if connection, err = embeddedDB(EmbeddedPGDB, EmbeddedPGPort); err != nil {
-			return fmt.Errorf("failed to setup embedded postgres: %w", err)
+			return nil, fmt.Errorf("failed to setup embedded postgres: %w", err)
 		}
 
 		// Update globally for postgrest
@@ -87,47 +90,38 @@ func Init(ctx context.Context, connection string) error {
 
 	Pool, err = duty.NewPgxPool(connection)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	conn, err := Pool.Acquire(ctx)
+	conn, err := Pool.Acquire(context.TODO())
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer conn.Release()
 
-	if err := conn.Ping(ctx); err != nil {
-		return err
+	if err := conn.Ping(context.TODO()); err != nil {
+		return nil, err
 	}
 
+	var db *gorm.DB
 	db, err = duty.NewGorm(connection, duty.DefaultGormConfig())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if runMigrations {
 		if err = duty.Migrate(connection, nil); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	dutyCtx := dutycontext.New().WithDB(db, Pool)
+	return &dutyCtx, nil
 }
 
 // GetDB ...
 func GetDB(connection string) (*sql.DB, error) {
 	return duty.NewDB(connection)
-}
-
-// Ping pings the database for health check
-func Ping() error {
-	d, _ := db.DB() // returns *sql.DB
-	return d.Ping()
-}
-
-// DefaultDB returns the default database connection instance
-func DefaultDB() *gorm.DB {
-	return db
 }
 
 func StopEmbeddedPGServer() error {

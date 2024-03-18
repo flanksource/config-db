@@ -1,7 +1,6 @@
 package db
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -41,7 +40,7 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	}
 
 	configs := []models.ConfigItem{}
-	tx := ctx.DutyContext().DB().Model(&configs).
+	tx := ctx.DB().Model(&configs).
 		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 		Where("type = ? and external_id  @> ?", change.ConfigType, pq.StringArray{change.ExternalID}).
 		Update("deleted_at", deletedAt)
@@ -149,8 +148,8 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 			ci.ID = id.String()
 		}
 
-		if err := CreateConfigItem(ci); err != nil {
-			logger.Errorf("[%s] failed to create item %v", ci, err)
+		if err := ctx.DB().Clauses(clause.OnConflict{UpdateAll: true}).Create(ci).Error; err != nil {
+			return nil, false, err
 		}
 
 		return ci, false, nil
@@ -275,6 +274,8 @@ func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) 
 func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.ConfigItem) error {
 	changes.ProcessRules(result, result.BaseScraper.Transform.Change.Mapping...)
 
+	db := ctx.DB()
+
 	for _, changeResult := range result.Changes {
 		if changeResult.Action == v1.Ignore {
 			continue
@@ -358,18 +359,18 @@ func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 		analysis.Status = dutyModels.AnalysisStatusOpen
 	}
 
-	return CreateAnalysis(analysis)
+	return CreateAnalysis(ctx, analysis)
 }
 
-func GetCurrentDBTime(ctx context.Context) (time.Time, error) {
+func GetCurrentDBTime(ctx api.ScrapeContext) (time.Time, error) {
 	var now time.Time
-	err := db.WithContext(ctx).Raw(`SELECT CURRENT_TIMESTAMP`).Scan(&now).Error
+	err := ctx.DB().Raw(`SELECT CURRENT_TIMESTAMP`).Scan(&now).Error
 	return now, err
 }
 
 // UpdateAnalysisStatusBefore updates the status of config analyses that were last observed before the specified time.
-func UpdateAnalysisStatusBefore(ctx context.Context, before time.Time, scraperID, status string) error {
-	return db.WithContext(ctx).
+func UpdateAnalysisStatusBefore(ctx api.ScrapeContext, before time.Time, scraperID, status string) error {
+	return ctx.DB().
 		Model(&dutyModels.ConfigAnalysis{}).
 		Where("last_observed <= ? AND first_observed <= ?", before, before).
 		Where("scraper_id = ?", scraperID).
@@ -450,7 +451,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 				end = len(toTouch)
 			}
 
-			if err := db.WithContext(ctx).Table("config_items").
+			if err := ctx.DB().Table("config_items").
 				Where("id in (?)", toTouch[i:end]).
 				Update("last_scraped_time", gorm.Expr("NOW()")).Error; err != nil {
 				return err
@@ -610,5 +611,5 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 		})
 	}
 
-	return UpdateConfigRelatonships(configItemRelationships)
+	return UpdateConfigRelatonships(ctx, configItemRelationships)
 }

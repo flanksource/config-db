@@ -79,7 +79,7 @@ func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.Ch
 	}
 
 	// Get total runs from DB for that workflow
-	totalRunsInDB, err := db.GetWorkflowRunCount(workflow.GetID())
+	totalRunsInDB, err := db.GetWorkflowRunCount(client.ScrapeContext, workflow.GetID())
 	if err != nil {
 		return nil, err
 	}
