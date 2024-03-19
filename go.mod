@@ -43,7 +43,7 @@ require (
 	github.com/flanksource/commons v1.22.1
 	github.com/flanksource/duty v1.0.387
 	github.com/flanksource/is-healthy v1.0.1
-	github.com/flanksource/ketall v1.1.4
+	github.com/flanksource/ketall v1.1.5
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/go-logr/zapr v1.2.4
 	github.com/gobwas/glob v0.2.3
@@ -267,7 +267,7 @@ require (
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.26.0 // indirect
+	go.uber.org/zap v1.26.0
 	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/oauth2 v0.15.0 // indirect

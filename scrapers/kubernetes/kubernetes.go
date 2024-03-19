@@ -12,7 +12,7 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty/context"
 	"github.com/samber/lo"
-	"gopkg.in/flanksource/yaml.v3"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -479,8 +479,18 @@ func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.K
 
 		if strings.HasPrefix(val, "/") {
 			opts.Flags.ConfigFlags.KubeConfig = &val
-		} else if err := yaml.Unmarshal([]byte(val), &opts.Flags.KubeConfig); err != nil {
-			return nil, err
+		} else {
+			clientCfg, err := clientcmd.NewClientConfigFromBytes([]byte(val))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create client config: %w", err)
+			}
+
+			restConfig, err := clientCfg.ClientConfig()
+			if err != nil {
+				return nil, err
+			}
+
+			opts.Flags.KubeConfig = restConfig
 		}
 	}
 
