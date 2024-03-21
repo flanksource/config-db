@@ -88,7 +88,7 @@ serviceAccount:
   annotations: {}
   rbac:
     # Whether to create cluster-wide or namespaced roles
-    cluster_role: true
+    clusterRole: true
     
     # for secret management with valueFrom
     tokenRequest: true
