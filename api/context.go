@@ -22,7 +22,7 @@ type ScrapeContext struct {
 
 func NewScrapeContext(ctx dutyCtx.Context) ScrapeContext {
 	return ScrapeContext{
-		Context: ctx,
+		Context: ctx.WithKubernetes(KubernetesClient),
 		temp: &TempCache{
 			ctx: ctx,
 		},
@@ -77,7 +77,7 @@ func (ctx ScrapeContext) WithJobHistory(jobHistory *models.JobHistory) ScrapeCon
 }
 
 func (ctx ScrapeContext) DutyContext() dutyCtx.Context {
-	return ctx.Context
+	return ctx.Context.WithNamespace(ctx.Namespace())
 }
 
 func (ctx ScrapeContext) JobHistory() *models.JobHistory {
@@ -94,7 +94,13 @@ func (ctx ScrapeContext) ScrapeConfig() *v1.ScrapeConfig {
 }
 
 func (ctx ScrapeContext) Namespace() string {
-	return ctx.namespace
+	if ctx.namespace != "" {
+		return ctx.namespace
+	}
+	if ctx.ScrapeConfig() != nil {
+		return ctx.ScrapeConfig().Namespace
+	}
+	return ""
 }
 
 func (c ScrapeContext) KubernetesRestConfig() *rest.Config {
