@@ -30,7 +30,7 @@ import (
 )
 
 // NewK8sClient ...
-func NewK8sClient() (*kubernetes.Clientset, *rest.Config, error) {
+func NewK8sClient() (kubernetes.Interface, *rest.Config, error) {
 	kubeconfig := os.Getenv("KUBECONFIG")
 	if kubeconfig == "" {
 		kubeconfig = os.ExpandEnv("$HOME/.kube/config")

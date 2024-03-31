@@ -29,12 +29,11 @@ var Run = &cobra.Command{
 			logger.Fatalf(err.Error())
 		}
 
+		dutyCtx := context.New()
 		if db.ConnectionString != "" {
-			api.DefaultContext = api.NewScrapeContext(db.MustInit())
-		} else {
-			api.DefaultContext = api.NewScrapeContext(context.New())
-
+			dutyCtx = db.MustInit()
 		}
+		api.DefaultContext = api.NewScrapeContext(dutyCtx)
 
 		if db.ConnectionString == "" && outputDir == "" {
 			logger.Fatalf("skipping export: neither --output-dir nor --db is specified")

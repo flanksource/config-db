@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	KubernetesClient     *kubernetes.Clientset
+	KubernetesClient     kubernetes.Interface
 	KubernetesRestConfig *rest.Config
 	Namespace            string
 	DefaultContext       ScrapeContext

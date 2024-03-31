@@ -472,7 +472,7 @@ func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.K
 	opts.Exclusions = config.Exclusions.List()
 	opts.Since = config.Since
 	if config.Kubeconfig != nil {
-		val, err := ctx.GetEnvValueFromCache(*config.Kubeconfig)
+		val, err := ctx.GetEnvValueFromCache(*config.Kubeconfig, ctx.GetNamespace())
 		if err != nil {
 			return nil, err
 		}

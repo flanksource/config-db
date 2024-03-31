@@ -44,7 +44,7 @@ func init() {
 func run(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
-	api.DefaultContext = api.NewScrapeContext(db.MustInit())
+	api.DefaultContext = api.NewScrapeContext(db.MustInit().WithKubernetes(api.KubernetesClient))
 	if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
 		return fmt.Errorf("failed to load properties: %v", err)
 	}
