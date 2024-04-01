@@ -106,7 +106,7 @@ spec:
           - controllerrevision
           - certificaterequest
           - orders.acme.cert-manager.io
-        label:
+        labels:
           canary-checker.flanksource.com/generated: 'true'
       relationships:
         - kind:
