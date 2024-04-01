@@ -88,6 +88,7 @@ func (r *ScrapeConfigReconciler) Reconcile(c context.Context, req ctrl.Request) 
 		controllerutil.AddFinalizer(scrapeConfig, ScrapeConfigFinalizerName)
 		if err := r.Update(ctx, scrapeConfig); err != nil {
 			logger.Error(err, "failed to update finalizers")
+			return ctrl.Result{Requeue: true, RequeueAfter: 2 * time.Minute}, err
 		}
 	}
 

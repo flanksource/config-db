@@ -150,8 +150,6 @@ spec:
                       items:
                         type: string
                       type: array
-                    inventory:
-                      type: boolean
                     items:
                       description: |-
                         A JSONPath expression to use to extract individual items from the resource,
@@ -161,10 +159,6 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
-                    patch_details:
-                      type: boolean
-                    patch_states:
-                      type: boolean
                     properties:
                       description: |-
                         Properties are custom templatable properties for the scraped config items
@@ -437,8 +431,6 @@ spec:
                             type: object
                           type: array
                       type: object
-                    trusted_advisor_check:
-                      type: boolean
                     type:
                       description: A static value or JSONPath expression to use as
                         the type for the resource.
