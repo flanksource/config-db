@@ -12,6 +12,7 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
@@ -88,21 +89,21 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 	extract := Extract{
 		Config: config,
 	}
-	if isJSONPath(config.ID) {
+	if utils.IsJSONPath(config.ID) {
 		if x, err := jp.ParseString(config.ID); err != nil {
 			return extract, fmt.Errorf("failed to parse id: %s: %v", config.ID, err)
 		} else {
 			extract.ID = x
 		}
 	}
-	if isJSONPath(config.Type) {
+	if utils.IsJSONPath(config.Type) {
 		if x, err := jp.ParseString(config.Type); err != nil {
 			return extract, fmt.Errorf("failed to parse type: %s: %v", config.Type, err)
 		} else {
 			extract.Type = x
 		}
 	}
-	if isJSONPath(config.Class) {
+	if utils.IsJSONPath(config.Class) {
 		if x, err := jp.ParseString(config.Class); err != nil {
 			return extract, fmt.Errorf("failed to parse class: %s: %v", config.Class, err)
 		} else {
@@ -118,7 +119,7 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 	}
 
 	for _, createdField := range config.CreateFields {
-		if isJSONPath(createdField) {
+		if utils.IsJSONPath(createdField) {
 			if x, err := jp.ParseString(createdField); nil == err {
 				extract.CreatedAt = append(extract.CreatedAt, x)
 			}
@@ -126,14 +127,14 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 	}
 
 	for _, deletedField := range config.DeleteFields {
-		if isJSONPath(deletedField) {
+		if utils.IsJSONPath(deletedField) {
 			if x, err := jp.ParseString(deletedField); nil == err {
 				extract.DeletedAt = append(extract.DeletedAt, x)
 			}
 		}
 	}
 
-	if isJSONPath(config.Name) {
+	if utils.IsJSONPath(config.Name) {
 		if x, err := jp.ParseString(config.Name); err != nil {
 			return extract, fmt.Errorf("failed to parse name: %s: %v", config.Name, err)
 		} else {
@@ -547,10 +548,6 @@ func getString(expr jp.Expr, data any, def string) (string, error) {
 	}
 	s := fmt.Sprintf("%v", o[0])
 	return s, nil
-}
-
-func isJSONPath(path string) bool {
-	return strings.HasPrefix(path, "$") || strings.HasPrefix(path, "@")
 }
 
 func md5SumHex(i any) string {

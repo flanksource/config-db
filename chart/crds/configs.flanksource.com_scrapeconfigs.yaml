@@ -279,6 +279,24 @@ spec:
                       type: object
                     skipTLSVerify:
                       type: boolean
+                    tags:
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -652,6 +670,24 @@ spec:
                       type: array
                     subscriptionID:
                       type: string
+                    tags:
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     tenantID:
                       type: string
                     timestampFormat:
@@ -979,6 +1015,24 @@ spec:
                             type: integer
                         type: object
                       type: array
+                    tags:
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -1261,6 +1315,24 @@ spec:
                           value:
                             format: int64
                             type: integer
+                        type: object
+                      type: array
+                    tags:
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
                         type: object
                       type: array
                     timestampFormat:
@@ -1587,6 +1659,24 @@ spec:
                       type: array
                     repository:
                       type: string
+                    tags:
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -2024,6 +2114,24 @@ spec:
                       type: string
                     since:
                       type: string
+                    tags:
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -2319,6 +2427,24 @@ spec:
                         namespace:
                           type: string
                       type: object
+                    tags:
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -2723,6 +2849,24 @@ spec:
                       type: array
                     query:
                       type: string
+                    tags:
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -3027,6 +3171,24 @@ spec:
                     severity:
                       items:
                         type: string
+                      type: array
+                    tags:
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
                       type: array
                     timeout:
                       type: string

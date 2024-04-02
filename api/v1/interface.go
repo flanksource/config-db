@@ -7,9 +7,14 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	"github.com/ohler55/ojg/jp"
+	"github.com/ohler55/ojg/oj"
 )
+
+const maxTagsCount = 5
 
 // Analyzer ...
 // +kubebuilder:object:generate=false
@@ -220,6 +225,92 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 	return *s
 }
 
+type Tag struct {
+	Name     string `json:"name"`
+	Label    string `json:"label,omitempty"`
+	JSONPath string `json:"jsonpath,omitempty"`
+	Value    string `json:"value,omitempty"`
+}
+
+type Tags []Tag
+
+func (t Tags) sanitize() Tags {
+	for i := range t {
+		t[i].Name = strings.TrimSpace(t[i].Name)
+		t[i].Label = strings.TrimSpace(t[i].Label)
+		t[i].JSONPath = strings.TrimSpace(t[i].JSONPath)
+		t[i].Value = strings.TrimSpace(t[i].Value)
+	}
+
+	return t
+}
+
+func (t Tags) valid() error {
+	if len(t) > maxTagsCount {
+		return fmt.Errorf("too many tags. only %d allowed", maxTagsCount)
+	}
+
+	seen := make(map[string]struct{})
+	for _, tag := range t {
+		if tag.Name == "" {
+			return fmt.Errorf("tag with an empty name")
+		}
+
+		if _, ok := seen[tag.Name]; ok {
+			return fmt.Errorf("tag name %s is duplicated", tag.Name)
+		}
+
+		if tag.Value == "" && tag.JSONPath == "" && tag.Label == "" {
+			return fmt.Errorf("tag %q should specify either value, jsonpath or label", tag.Name)
+		}
+
+		seen[tag.Name] = struct{}{}
+	}
+
+	return nil
+}
+
+func (t Tags) Eval(labels map[string]string, config string) (map[string]string, error) {
+	if len(t) == 0 {
+		return nil, nil
+	}
+
+	t = t.sanitize()
+	if err := t.valid(); err != nil {
+		return nil, err
+	}
+
+	output := make(map[string]string, len(t))
+	for _, tag := range t {
+		if tag.Value != "" {
+			output[tag.Name] = tag.Value
+		} else if tag.Label != "" {
+			if val, ok := labels[tag.Label]; ok {
+				output[tag.Name] = val
+			}
+		} else if tag.JSONPath != "" {
+			if !utils.IsJSONPath(tag.JSONPath) {
+				return nil, fmt.Errorf("tag %q has an invalid json path %s", tag.Name, tag.JSONPath)
+			}
+
+			if jsonExpr, err := jp.ParseString(tag.JSONPath); err != nil {
+				return nil, fmt.Errorf("failed to parse jsonpath: %s: %v", tag.JSONPath, err)
+			} else {
+				parsedConfig, err := oj.ParseString(config)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse config: %w", err)
+				}
+
+				if extractedValues := jsonExpr.Get(parsedConfig); len(extractedValues) > 0 {
+					output[tag.Name] = fmt.Sprintf("%v", extractedValues[0])
+				}
+			}
+		}
+	}
+
+	return output, nil
+}
+
 // ScrapeResult ...
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
@@ -247,6 +338,7 @@ type ScrapeResult struct {
 	Format              string              `json:"format,omitempty"`
 	Icon                string              `json:"icon,omitempty"`
 	Labels              JSONStringMap       `json:"labels,omitempty"`
+	Tags                Tags                `json:"tags,omitempty"`
 	BaseScraper         BaseScraper         `json:"-"`
 	Error               error               `json:"-"`
 	AnalysisResult      *AnalysisResult     `json:"analysis,omitempty"`
@@ -314,6 +406,7 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 		Source:       s.Source,
 		Config:       config,
 		Labels:       s.Labels,
+		Tags:         s.Tags,
 		BaseScraper:  s.BaseScraper,
 		Format:       s.Format,
 		Error:        s.Error,

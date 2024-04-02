@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
+	"github.com/samber/lo"
 	"gorm.io/gorm/clause"
 )
 
@@ -138,6 +139,12 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		LastScrapedTime: result.LastScrapedTime,
 	}
 
+	if parsed, err := result.Tags.Eval(lo.FromPtr(ci.Labels), lo.FromPtr(ci.Config)); err != nil {
+		return nil, err
+	} else {
+		ci.Tags = parsed
+	}
+
 	// If the config result hasn't specified an id for the config,
 	// we try to use the external id as the primary key of the config item.
 	if ci.ID == "" {
@@ -170,7 +177,6 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 	}
 
 	if result.ParentExternalID != "" && result.ParentType != "" {
-
 		if found, err := ctx.TempCache().Find(result.ParentType, result.ParentExternalID); err != nil {
 			return nil, err
 		} else if found != nil {

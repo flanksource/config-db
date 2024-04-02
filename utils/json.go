@@ -3,7 +3,12 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
+
+func IsJSONPath(path string) bool {
+	return strings.HasPrefix(path, "$") || strings.HasPrefix(path, "@")
+}
 
 func StructToJSON(v any) (string, error) {
 	b, err := json.Marshal(&v)

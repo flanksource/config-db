@@ -80,18 +80,18 @@ func stringEqual(a, b *string) bool {
 	return *a == *b
 }
 
-func mapStringEqual(a, b *v1.JSONStringMap) bool {
+func mapStringEqual(a, b map[string]string) bool {
 	if a == nil && b == nil {
 		return true
 	}
 	if a == nil || b == nil {
 		return false
 	}
-	if len(*a) != len(*b) {
+	if len(a) != len(b) {
 		return false
 	}
-	for k, v := range *a {
-		if (*b)[k] != v {
+	for k, v := range a {
+		if (b)[k] != v {
 			return false
 		}
 	}
@@ -211,8 +211,11 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 	if !sliceEqual(ci.ExternalID, existing.ExternalID) {
 		updates["external_id"] = ci.ExternalID
 	}
-	if !mapStringEqual(ci.Labels, existing.Labels) {
+	if !mapStringEqual(lo.FromPtr(ci.Labels), lo.FromPtr(existing.Labels)) {
 		updates["labels"] = ci.Labels
+	}
+	if !mapStringEqual(existing.Tags, ci.Tags) {
+		updates["tags"] = ci.Tags
 	}
 	if ci.Properties != nil && len(*ci.Properties) > 0 && (existing.Properties == nil || !mapEqual(ci.Properties.AsMap(), existing.Properties.AsMap())) {
 		updates["properties"] = *ci.Properties

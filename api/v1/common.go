@@ -320,6 +320,10 @@ type BaseScraper struct {
 	// Labels allow you to set custom labels on the scraped config items.
 	Labels JSONStringMap `json:"labels,omitempty"`
 
+	// Tags for each config item.
+	// Max allowed: 5
+	Tags Tags `json:"tags,omitempty"`
+
 	// Properties are custom templatable properties for the scraped config items
 	// grouped by the config type.
 	Properties []ConfigProperties `json:"properties,omitempty" template:"true"`

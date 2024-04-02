@@ -316,11 +316,15 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			}
 		}
 
-		labels["cluster"] = config.ClusterName
-		labels["apiVersion"] = obj.GetAPIVersion()
-		if obj.GetNamespace() != "" {
-			labels["namespace"] = obj.GetNamespace()
+		tags := config.Tags
+		if config.ClusterName != "" {
+			tags = append(tags, v1.Tag{Name: "cluster", Value: config.ClusterName})
 		}
+		if obj.GetNamespace() != "" {
+			tags = append(tags, v1.Tag{Name: "namespace", Value: obj.GetNamespace()})
+		}
+
+		labels["apiVersion"] = obj.GetAPIVersion()
 
 		if obj.GetKind() == "Service" {
 			if spec, ok := obj.Object["spec"].(map[string]any); ok {
@@ -398,6 +402,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			ConfigID:            lo.ToPtr(string(obj.GetUID())),
 			ID:                  string(obj.GetUID()),
 			Labels:              stripLabels(labels, "-hash"),
+			Tags:                tags,
 			Aliases:             getKubernetesAlias(obj),
 			ParentExternalID:    parentExternalID,
 			ParentType:          ConfigTypePrefix + parentType,
