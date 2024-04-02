@@ -57,9 +57,9 @@ type KubernetesEventConfig struct {
 }
 
 type KubernetesExclusionConfig struct {
-	Names      []string          `json:"name" yaml:"name"`
-	Kinds      []string          `json:"kind" yaml:"kind"`
-	Namespaces []string          `json:"namespace" yaml:"namespace"`
+	Names      []string          `json:"name,omitempty" yaml:"name,omitempty"`
+	Kinds      []string          `json:"kind,omitempty" yaml:"kind,omitempty"`
+	Namespaces []string          `json:"namespace,omitempty" yaml:"namespace,omitempty"`
 	Labels     map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 }
 
