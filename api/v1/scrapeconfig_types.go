@@ -18,6 +18,7 @@ package v1
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
@@ -61,9 +62,18 @@ func ScrapeConfigFromModel(m models.ConfigScraper) (ScrapeConfig, error) {
 		return ScrapeConfig{}, err
 	}
 
+	name := m.Name
+	namespace := "default"
+
+	// For CRDs we keep DB name as namespace/name
+	if s := strings.Split(m.Name, "/"); len(s) == 2 {
+		namespace, name = s[0], s[1]
+	}
+
 	sc := ScrapeConfig{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: m.Name,
+			Name:      name,
+			Namespace: namespace,
 			Annotations: map[string]string{
 				"source": m.Source,
 			},
