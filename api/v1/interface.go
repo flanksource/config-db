@@ -234,6 +234,16 @@ type Tag struct {
 
 type Tags []Tag
 
+func (t Tags) Has(name string) bool {
+	for _, item := range t {
+		if item.Name == name {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (t Tags) sanitize() Tags {
 	for i := range t {
 		t[i].Name = strings.TrimSpace(t[i].Name)
@@ -377,6 +387,7 @@ func NewScrapeResult(base BaseScraper) *ScrapeResult {
 	return &ScrapeResult{
 		BaseScraper: base,
 		Format:      base.Format,
+		Tags:        base.Tags,
 		Labels:      base.Labels,
 	}
 }

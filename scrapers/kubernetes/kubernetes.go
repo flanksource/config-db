@@ -114,6 +114,8 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 		// globalLabels are common labels for any kubernetes resource
 		globalLabels = map[string]string{}
+
+		tags = config.Tags
 	)
 
 	clusterID := "Kubernetes/Cluster/" + config.ClusterName
@@ -177,10 +179,6 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			relationships v1.RelationshipResults
 			labels        = make(map[string]string)
 		)
-
-		if obj.GetNamespace() != "" {
-			labels["namespace"] = obj.GetNamespace()
-		}
 
 		if obj.GetLabels() != nil {
 			labels = obj.GetLabels()
@@ -248,7 +246,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 								clusterScrapeResult["cluster-name"] = clusterName
 							}
 
-							cluster.Labels["eks-cluster-name"] = clusterName
+							cluster.Tags = append(cluster.Tags, v1.Tag{Name: "cluster", Value: clusterName})
 						}
 					}
 				}
@@ -307,7 +305,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 					accountID = extractAccountIDFromARN(mapRolesYAML)
 				}
 
-				globalLabels["aws/account-id"] = accountID
+				tags = append(tags, v1.Tag{Name: "account", Value: accountID})
 
 				if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
 					clusterScrapeResult["aws-auth"] = cm
@@ -316,8 +314,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			}
 		}
 
-		tags := config.Tags
-		if config.ClusterName != "" {
+		if config.ClusterName != "" && !tags.Has("cluster") {
 			tags = append(tags, v1.Tag{Name: "cluster", Value: config.ClusterName})
 		}
 		if obj.GetNamespace() != "" {
