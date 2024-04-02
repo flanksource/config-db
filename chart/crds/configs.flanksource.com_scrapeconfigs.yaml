@@ -1835,10 +1835,6 @@ spec:
                           items:
                             type: string
                           type: array
-                      required:
-                      - kind
-                      - name
-                      - namespace
                       type: object
                     fieldSelector:
                       type: string
