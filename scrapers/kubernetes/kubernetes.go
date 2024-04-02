@@ -387,7 +387,6 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		results = append(results, v1.ScrapeResult{
 			BaseScraper:         config.BaseScraper,
 			Name:                obj.GetName(),
-			Namespace:           obj.GetNamespace(),
 			ConfigClass:         obj.GetKind(),
 			Type:                ConfigTypePrefix + obj.GetKind(),
 			Status:              status,

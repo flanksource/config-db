@@ -240,7 +240,6 @@ type ScrapeResult struct {
 	Type                string              `json:"config_type,omitempty"`
 	Status              string              `json:"status,omitempty"` // status extracted from the config itself
 	Name                string              `json:"name,omitempty"`
-	Namespace           string              `json:"namespace,omitempty"`
 	Description         string              `json:"description,omitempty"`
 	Aliases             []string            `json:"aliases,omitempty"`
 	Source              string              `json:"source,omitempty"`
@@ -311,7 +310,6 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 		Aliases:      s.Aliases,
 		ConfigClass:  s.ConfigClass,
 		Name:         s.Name,
-		Namespace:    s.Namespace,
 		ID:           s.ID,
 		Source:       s.Source,
 		Config:       config,

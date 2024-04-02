@@ -12,6 +12,7 @@ import (
 )
 
 // ConfigItem represents the config item database table
+// Deprecated: Use models.ConfigItem from duty.
 type ConfigItem struct {
 	ID              string                `gorm:"primaryKey;unique_index;not null;column:id;default:generate_ulid()" json:"id"  `
 	ScraperID       *uuid.UUID            `gorm:"column:scraper_id;default:null" json:"scraper_id,omitempty"`
@@ -20,9 +21,7 @@ type ConfigItem struct {
 	Type            *string               `gorm:"column:type;default:null" json:"type,omitempty"  `
 	Status          *string               `gorm:"column:status;default:null" json:"status,omitempty"  `
 	Name            *string               `gorm:"column:name;default:null" json:"name,omitempty"  `
-	Namespace       *string               `gorm:"column:namespace;default:null" json:"namespace,omitempty"  `
 	Description     *string               `gorm:"column:description;default:null" json:"description,omitempty"  `
-	Account         *string               `gorm:"column:account;default:null" json:"account,omitempty"  `
 	Config          *string               `gorm:"column:config;default:null" json:"config,omitempty"  `
 	Source          *string               `gorm:"column:source;default:null" json:"source,omitempty"  `
 	ParentID        *string               `gorm:"column:parent_id;default:null" json:"parent_id,omitempty"`

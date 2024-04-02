@@ -131,7 +131,6 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		ConfigClass:     result.ConfigClass,
 		Type:            &result.Type,
 		Name:            &result.Name,
-		Namespace:       &result.Namespace,
 		Source:          &result.Source,
 		Tags:            &result.Tags,
 		Properties:      &result.Properties,

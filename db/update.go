@@ -196,10 +196,6 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 		updates["name"] = ci.Name
 	}
 
-	if !stringEqual(ci.Namespace, existing.Namespace) {
-		updates["namespace"] = ci.Namespace
-	}
-
 	if !stringEqual(ci.ParentID, existing.ParentID) {
 		updates["parent_id"] = ci.ParentID
 	}
@@ -332,15 +328,10 @@ func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	if ciID == nil {
 		logger.Warnf("[Source=%s] [%s/%s] unable to find config item for analysis: %+v", analysis.Source, analysis.ConfigType, analysis.ExternalID, analysis)
 		return nil
-	} else if err != nil {
-		return err
 	}
 
 	logger.Tracef("[%s/%s] ==> %s", analysis.ConfigType, analysis.ExternalID, analysis)
 	analysis.ConfigID = uuid.MustParse(ciID.ID)
-	if err != nil {
-		return err
-	}
 	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
 	analysis.ScraperID = ctx.ScrapeConfig().GetPersistedID()
 	if analysis.Status == "" {
