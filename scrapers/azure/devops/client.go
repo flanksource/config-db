@@ -43,12 +43,12 @@ type Pipeline struct {
 	Runs               []v1.ChangeResult   `json:"-"`
 }
 
-func (p Pipeline) GetTags() map[string]string {
-	var tags = p.TemplateParameters
+func (p Pipeline) GetLabels() map[string]string {
+	var labels = p.TemplateParameters
 	for k, v := range p.Variables {
-		tags[k] = v.Value
+		labels[k] = v.Value
 	}
-	return tags
+	return labels
 }
 
 // GetID returns a repeatable ID for a pipeline with variables / parameters

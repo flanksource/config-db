@@ -221,7 +221,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 				pod.Labels = stripLabels(pod.Labels, "-hash", "pod", "eks.amazonaws.com/fargate-profile")
 				results = append(results, v1.ScrapeResult{
 					BaseScraper: pod.Config.BaseScraper,
-					Tags:        pod.Labels,
+					Labels:      pod.Labels,
 					Format:      file.Format,
 					Type:        "File",
 					ID:          pod.ID + "/" + p,

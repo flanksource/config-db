@@ -317,8 +317,8 @@ type BaseScraper struct {
 	// If multiple fields are specified, the first non-empty value will be used.
 	DeleteFields []string `json:"deleteFields,omitempty"`
 
-	// Tags allow you to set custom tags on the scraped config items.
-	Tags JSONStringMap `json:"tags,omitempty"`
+	// Labels allow you to set custom labels on the scraped config items.
+	Labels JSONStringMap `json:"labels,omitempty"`
 
 	// Properties are custom templatable properties for the scraped config items
 	// grouped by the config type.

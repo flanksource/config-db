@@ -211,8 +211,8 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 	if !sliceEqual(ci.ExternalID, existing.ExternalID) {
 		updates["external_id"] = ci.ExternalID
 	}
-	if !mapStringEqual(ci.Tags, existing.Tags) {
-		updates["tags"] = ci.Tags
+	if !mapStringEqual(ci.Labels, existing.Labels) {
+		updates["labels"] = ci.Labels
 	}
 	if ci.Properties != nil && len(*ci.Properties) > 0 && (existing.Properties == nil || !mapEqual(ci.Properties.AsMap(), existing.Properties.AsMap())) {
 		updates["properties"] = *ci.Properties

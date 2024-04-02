@@ -225,7 +225,7 @@ func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.Scrap
 			}
 			relationshipSelectors = append(relationshipSelectors, output...)
 		} else {
-			if compiled, err := rc.RelationshipSelectorTemplate.Eval(input.Tags, input.AsMap()); err != nil {
+			if compiled, err := rc.RelationshipSelectorTemplate.Eval(input.Labels, input.AsMap()); err != nil {
 				return nil, fmt.Errorf("relationship selector is invalid: %w", err)
 			} else if compiled != nil {
 				relationshipSelectors = append(relationshipSelectors, *compiled)
@@ -243,12 +243,12 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 	var err error
 
 	for _, input := range inputs {
-		for k, v := range input.BaseScraper.Tags {
-			if input.Tags == nil {
-				input.Tags = map[string]string{}
+		for k, v := range input.BaseScraper.Labels {
+			if input.Labels == nil {
+				input.Labels = map[string]string{}
 			}
-			if _, ok := input.Tags[k]; !ok {
-				input.Tags[k] = v
+			if _, ok := input.Labels[k]; !ok {
+				input.Labels[k] = v
 			}
 		}
 

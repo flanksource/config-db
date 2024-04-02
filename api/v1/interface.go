@@ -246,7 +246,7 @@ type ScrapeResult struct {
 	Config              interface{}         `json:"config,omitempty"`
 	Format              string              `json:"format,omitempty"`
 	Icon                string              `json:"icon,omitempty"`
-	Tags                JSONStringMap       `json:"tags,omitempty"`
+	Labels              JSONStringMap       `json:"labels,omitempty"`
 	BaseScraper         BaseScraper         `json:"-"`
 	Error               error               `json:"-"`
 	AnalysisResult      *AnalysisResult     `json:"analysis,omitempty"`
@@ -285,7 +285,7 @@ func NewScrapeResult(base BaseScraper) *ScrapeResult {
 	return &ScrapeResult{
 		BaseScraper: base,
 		Format:      base.Format,
-		Tags:        base.Tags,
+		Labels:      base.Labels,
 	}
 }
 
@@ -313,7 +313,7 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 		ID:           s.ID,
 		Source:       s.Source,
 		Config:       config,
-		Tags:         s.Tags,
+		Labels:       s.Labels,
 		BaseScraper:  s.BaseScraper,
 		Format:       s.Format,
 		Error:        s.Error,

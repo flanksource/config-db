@@ -123,7 +123,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		ConfigClass: "Cluster",
 		Type:        ConfigTypePrefix + "Cluster",
 		Config:      make(map[string]any),
-		Tags:        make(v1.JSONStringMap),
+		Labels:      make(v1.JSONStringMap),
 		ID:          clusterID,
 	}
 
@@ -175,15 +175,15 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 		var (
 			relationships v1.RelationshipResults
-			tags          = make(map[string]string)
+			labels        = make(map[string]string)
 		)
 
 		if obj.GetNamespace() != "" {
-			tags["namespace"] = obj.GetNamespace()
+			labels["namespace"] = obj.GetNamespace()
 		}
 
 		if obj.GetLabels() != nil {
-			tags = obj.GetLabels()
+			labels = obj.GetLabels()
 		}
 
 		if obj.GetKind() == "Node" {
@@ -191,7 +191,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 				// kubernetes.azure.com/cluster doesn't actually contain the
 				// AKS cluster name - it contains the node resource group.
 				// The cluster name isn't available in the node.
-				cluster.Tags["aks-nodeResourceGroup"] = clusterName
+				cluster.Labels["aks-nodeResourceGroup"] = clusterName
 			}
 
 			if spec, ok := obj.Object["spec"].(map[string]interface{}); ok {
@@ -201,7 +201,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 						globalLabels["azure/subscription-id"] = subID
 					}
 					if vmScaleSetID != "" {
-						tags["azure/vm-scale-set"] = vmScaleSetID
+						labels["azure/vm-scale-set"] = vmScaleSetID
 					}
 				}
 			}
@@ -248,7 +248,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 								clusterScrapeResult["cluster-name"] = clusterName
 							}
 
-							cluster.Tags["eks-cluster-name"] = clusterName
+							cluster.Labels["eks-cluster-name"] = clusterName
 						}
 					}
 				}
@@ -316,16 +316,16 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			}
 		}
 
-		tags["cluster"] = config.ClusterName
-		tags["apiVersion"] = obj.GetAPIVersion()
+		labels["cluster"] = config.ClusterName
+		labels["apiVersion"] = obj.GetAPIVersion()
 		if obj.GetNamespace() != "" {
-			tags["namespace"] = obj.GetNamespace()
+			labels["namespace"] = obj.GetNamespace()
 		}
 
 		if obj.GetKind() == "Service" {
 			if spec, ok := obj.Object["spec"].(map[string]any); ok {
 				if serviceType, ok := spec["type"].(string); ok {
-					tags["service-type"] = serviceType
+					labels["service-type"] = serviceType
 
 					if serviceType == "LoadBalancer" {
 						if status, ok := obj.Object["status"].(map[string]any); ok {
@@ -334,11 +334,11 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 									for _, ing := range ingresses {
 										if ingress, ok := ing.(map[string]any); ok {
 											if hostname, ok := ingress["hostname"].(string); ok && hostname != "" {
-												tags["hostname"] = hostname
+												labels["hostname"] = hostname
 											}
 
 											if ip, ok := ingress["ip"].(string); ok && ip != "" {
-												tags["ip"] = ip
+												labels["ip"] = ip
 											}
 										}
 									}
@@ -397,7 +397,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			Config:              configObj,
 			ConfigID:            lo.ToPtr(string(obj.GetUID())),
 			ID:                  string(obj.GetUID()),
-			Tags:                stripLabels(tags, "-hash"),
+			Labels:              stripLabels(labels, "-hash"),
 			Aliases:             getKubernetesAlias(obj),
 			ParentExternalID:    parentExternalID,
 			ParentType:          ConfigTypePrefix + parentType,
@@ -411,13 +411,13 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 	}
 
 	for i := range results {
-		results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), globalLabels)
+		results[i].Labels = collections.MergeMap(map[string]string(results[i].Labels), globalLabels)
 
 		switch results[i].Type {
 		case ConfigTypePrefix + "Node":
-			results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), labelsForAllNode)
+			results[i].Labels = collections.MergeMap(map[string]string(results[i].Labels), labelsForAllNode)
 			if l, ok := labelsPerNode[results[i].Name]; ok {
-				results[i].Tags = collections.MergeMap(map[string]string(results[i].Tags), l)
+				results[i].Labels = collections.MergeMap(map[string]string(results[i].Labels), l)
 			}
 		}
 	}

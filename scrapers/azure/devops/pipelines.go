@@ -123,7 +123,7 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 						Config:      pipeline,
 						Type:        PipelineRun,
 						ID:          id,
-						Tags:        pipeline.GetTags(),
+						Labels:      pipeline.GetLabels(),
 						Name:        pipeline.Name,
 						Changes:     changes,
 						Aliases:     []string{fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},

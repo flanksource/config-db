@@ -154,7 +154,7 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		// Post processing of all results
 		for i := range results {
 			// Add subscription-id tag to all the resources
-			results[i].Tags = collections.MergeMap(results[i].Tags, map[string]string{
+			results[i].Labels = collections.MergeMap(results[i].Labels, map[string]string{
 				"azure-subscription-id": azure.config.SubscriptionID,
 			})
 		}

@@ -48,7 +48,7 @@ type AWSContext struct {
 	Subnets map[string]Zone
 }
 
-func getTags(tags []ec2Types.Tag) v1.JSONStringMap {
+func getLabels(tags []ec2Types.Tag) v1.JSONStringMap {
 	result := make(v1.JSONStringMap)
 	for _, tag := range tags {
 		result[*tag.Key] = *tag.Value
@@ -115,15 +115,15 @@ func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.S
 		results.Errorf(err, "failed to get ecr")
 		return
 	}
-	tags := make(map[string]string)
-	tags["account"] = *ctx.Caller.Account
+	labels := make(map[string]string)
+	labels["account"] = *ctx.Caller.Account
 	for _, image := range images.Repositories {
 		*results = append(*results, v1.ScrapeResult{
 			CreatedAt:   image.CreatedAt,
 			Type:        "AWS::ECR::Repository",
 			BaseScraper: config.BaseScraper,
 			Config:      image,
-			Tags:        tags,
+			Labels:      labels,
 			ConfigClass: "ContainerRegistry",
 			Name:        *image.RepositoryName,
 			Aliases:     []string{*image.RepositoryArn, "AmazonECR/" + *image.RepositoryArn},
@@ -190,7 +190,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSEKSCluster,
 			CreatedAt:           cluster.Cluster.CreatedAt,
-			Tags:                cluster.Cluster.Tags,
+			Labels:              cluster.Cluster.Tags,
 			BaseScraper:         config.BaseScraper,
 			Config:              cluster.Cluster,
 			ConfigClass:         "KubernetesCluster",
@@ -220,19 +220,19 @@ func (aws Scraper) efs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	}
 
 	for _, fs := range describeOutput.FileSystems {
-		tags := make(v1.JSONStringMap)
+		labels := make(v1.JSONStringMap)
 		for _, tag := range fs.Tags {
-			tags[*tag.Key] = *tag.Value
+			labels[*tag.Key] = *tag.Value
 		}
-		tags["account"] = *ctx.Caller.Account
+		labels["account"] = *ctx.Caller.Account
 
 		*results = append(*results, v1.ScrapeResult{
 			Type:        "AWS::EFS::FileSystem",
-			Tags:        tags,
+			Labels:      labels,
 			BaseScraper: config.BaseScraper,
 			Config:      fs,
 			ConfigClass: "FileSystem",
-			Name:        getName(tags, *fs.FileSystemId),
+			Name:        getName(labels, *fs.FileSystemId),
 			ID:          *fs.FileSystemId,
 		})
 	}
@@ -255,7 +255,7 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 			BaseScraper:      config.BaseScraper,
 			Config:           az,
 			ConfigClass:      "AvailabilityZone",
-			Tags:             map[string]string{"account": lo.FromPtr(ctx.Caller.Account), "region": lo.FromPtr(az.RegionName)},
+			Labels:           map[string]string{"account": lo.FromPtr(ctx.Caller.Account), "region": lo.FromPtr(az.RegionName)},
 			Aliases:          nil,
 			Name:             lo.FromPtr(az.ZoneName),
 			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
@@ -266,7 +266,7 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 			*results = append(*results, v1.ScrapeResult{
 				ID:               lo.FromPtr(az.ZoneId),
 				Type:             v1.AWSAvailabilityZoneID,
-				Tags:             map[string]string{"region": lo.FromPtr(az.RegionName)},
+				Labels:           map[string]string{"region": lo.FromPtr(az.RegionName)},
 				BaseScraper:      config.BaseScraper,
 				Config:           map[string]string{"RegionName": *az.RegionName},
 				ConfigClass:      "AvailabilityZone",
@@ -303,15 +303,15 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		name = (*aliases).AccountAliases[0]
 	}
 
-	tags := make(map[string]string)
-	tags["account"] = *ctx.Caller.Account
+	labels := make(map[string]string)
+	labels["account"] = *ctx.Caller.Account
 	*results = append(*results, v1.ScrapeResult{
 		Type:        v1.AWSAccount,
 		BaseScraper: config.BaseScraper,
 		Config:      summary.SummaryMap,
 		ConfigClass: "Account",
 		Name:        name,
-		Tags:        tags,
+		Labels:      labels,
 		Aliases:     aliases.AccountAliases,
 		ID:          *ctx.Caller.Account,
 	})
@@ -320,7 +320,7 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		Type:             "AWS::IAM::User",
 		BaseScraper:      config.BaseScraper,
 		Config:           summary.SummaryMap,
-		Tags:             tags,
+		Labels:           labels,
 		ConfigClass:      "User",
 		Name:             "root",
 		Aliases:          []string{"<root account>"},
@@ -346,7 +346,7 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			BaseScraper: config.BaseScraper,
 			Config:      region,
 			Name:        *region.RegionName,
-			Tags:        tags,
+			Labels:      labels,
 			ID:          *region.RegionName,
 		})
 	}
@@ -362,8 +362,8 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 		return
 	}
 
-	tags := make(map[string]string)
-	tags["account"] = *ctx.Caller.Account
+	labels := make(map[string]string)
+	labels["account"] = *ctx.Caller.Account
 	for _, user := range users.Users {
 		*results = append(*results, v1.ScrapeResult{
 			Type:             "AWS::IAM::User",
@@ -371,7 +371,7 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 			BaseScraper:      config.BaseScraper,
 			Config:           user,
 			ConfigClass:      "User",
-			Tags:             tags,
+			Labels:           labels,
 			Name:             *user.UserName,
 			Aliases:          []string{*user.UserId, *user.Arn},
 			Ignore:           []string{"arn", "userId", "createDate", "userName"},
@@ -395,19 +395,19 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	}
 
 	for _, volume := range describeOutput.Volumes {
-		tags := getTags(volume.Tags)
-		tags["account"] = *ctx.Caller.Account
-		tags["zone"] = *volume.AvailabilityZone
+		labels := getLabels(volume.Tags)
+		labels["account"] = *ctx.Caller.Account
+		labels["zone"] = *volume.AvailabilityZone
 		// Remove last letter from zone
-		tags["region"] = tags["zone"][:len(tags["zone"])-1]
+		labels["region"] = labels["zone"][:len(labels["zone"])-1]
 		*results = append(*results, v1.ScrapeResult{
 			Type:             v1.AWSEBSVolume,
-			Tags:             tags,
+			Labels:           labels,
 			BaseScraper:      config.BaseScraper,
 			Config:           volume,
 			ConfigClass:      "DiskStorage",
 			Aliases:          []string{"AmazonEC2/" + *volume.VolumeId},
-			Name:             getName(tags, *volume.VolumeId),
+			Name:             getName(labels, *volume.VolumeId),
 			ID:               *volume.VolumeId,
 			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
 			ParentType:       v1.AWSAccount,
@@ -430,9 +430,9 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	}
 
 	for _, instance := range describeOutput.DBInstances {
-		tags := make(v1.JSONStringMap)
+		labels := make(v1.JSONStringMap)
 		for _, tag := range instance.TagList {
-			tags[*tag.Key] = *tag.Value
+			labels[*tag.Key] = *tag.Value
 		}
 
 		var relationships v1.RelationshipResults
@@ -451,15 +451,15 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			})
 		}
 
-		tags["account"] = *ctx.Caller.Account
-		tags["region"] = getRegionFromArn(*instance.DBInstanceArn, "rds")
+		labels["account"] = *ctx.Caller.Account
+		labels["region"] = getRegionFromArn(*instance.DBInstanceArn, "rds")
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSRDSInstance,
-			Tags:                tags,
+			Labels:              labels,
 			BaseScraper:         config.BaseScraper,
 			Config:              instance,
 			ConfigClass:         "RelationalDatabase",
-			Name:                getName(tags, *instance.DBInstanceIdentifier),
+			Name:                getName(labels, *instance.DBInstanceIdentifier),
 			ID:                  *instance.DBInstanceIdentifier,
 			Aliases:             []string{"AmazonRDS/" + *instance.DBInstanceArn},
 			ParentExternalID:    *instance.DBSubnetGroup.VpcId,
@@ -504,16 +504,16 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			Relationship:      "RegionVPC",
 		})
 
-		tags := getTags(vpc.Tags)
-		tags["account"] = *ctx.Caller.Account
-		tags["network"] = *vpc.VpcId
+		labels := getLabels(vpc.Tags)
+		labels["account"] = *ctx.Caller.Account
+		labels["network"] = *vpc.VpcId
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSEC2VPC,
-			Tags:                tags,
+			Labels:              labels,
 			BaseScraper:         config.BaseScraper,
 			Config:              vpc,
 			ConfigClass:         "VPC",
-			Name:                getName(tags, *vpc.VpcId),
+			Name:                getName(labels, *vpc.VpcId),
 			ID:                  *vpc.VpcId,
 			Aliases:             []string{"AmazonEC2/" + *vpc.VpcId},
 			ParentExternalID:    lo.FromPtr(ctx.Caller.Account),
@@ -611,20 +611,20 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			})
 
 			instance := NewInstance(i)
-			tags := instance.Tags
-			if tags == nil {
-				tags = make(map[string]string)
+			labels := instance.Tags
+			if labels == nil {
+				labels = make(map[string]string)
 			}
-			tags["zone"] = ctx.Subnets[instance.SubnetID].Zone
-			tags["region"] = ctx.Subnets[instance.SubnetID].Region
-			tags["account"] = *ctx.Caller.Account
-			tags["network"] = instance.VpcID
-			tags["subnet"] = instance.SubnetID
+			labels["zone"] = ctx.Subnets[instance.SubnetID].Zone
+			labels["region"] = ctx.Subnets[instance.SubnetID].Region
+			labels["account"] = *ctx.Caller.Account
+			labels["network"] = instance.VpcID
+			labels["subnet"] = instance.SubnetID
 
 			*results = append(*results, v1.ScrapeResult{
 				Type:                v1.AWSEC2Instance,
 				Status:              health.MapAWSStatus(string(i.State.Name), health.AWSResourceTypeEC2),
-				Tags:                tags,
+				Labels:              labels,
 				BaseScraper:         config.BaseScraper,
 				Config:              instance,
 				ConfigClass:         "VirtualMachine",
@@ -651,16 +651,16 @@ func (aws Scraper) securityGroups(ctx *AWSContext, config v1.AWS, results *v1.Sc
 		return
 	}
 	for _, sg := range describeOutput.SecurityGroups {
-		tags := getTags(sg.Tags)
-		tags["account"] = *ctx.Caller.Account
-		tags["network"] = *sg.VpcId
+		labels := getLabels(sg.Tags)
+		labels["account"] = *ctx.Caller.Account
+		labels["network"] = *sg.VpcId
 		*results = append(*results, v1.ScrapeResult{
 			Type:             v1.AWSEC2SecurityGroup,
-			Tags:             tags,
+			Labels:           labels,
 			BaseScraper:      config.BaseScraper,
 			Config:           sg,
 			ConfigClass:      "SecurityGroup",
-			Name:             getName(tags, *sg.GroupId),
+			Name:             getName(labels, *sg.GroupId),
 			ID:               *sg.GroupId,
 			ParentExternalID: *sg.VpcId,
 			ParentType:       v1.AWSEC2VPC,
@@ -679,16 +679,16 @@ func (aws Scraper) routes(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResu
 		return
 	}
 	for _, r := range describeOutput.RouteTables {
-		tags := getTags(r.Tags)
-		tags["account"] = *ctx.Caller.Account
-		tags["network"] = *r.VpcId
+		labels := getLabels(r.Tags)
+		labels["account"] = *ctx.Caller.Account
+		labels["network"] = *r.VpcId
 		*results = append(*results, v1.ScrapeResult{
 			Type:             "AWS::EC2::RouteTable",
-			Tags:             tags,
+			Labels:           labels,
 			BaseScraper:      config.BaseScraper,
 			Config:           r,
 			ConfigClass:      "Route",
-			Name:             getName(tags, *r.RouteTableId),
+			Name:             getName(labels, *r.RouteTableId),
 			ID:               *r.RouteTableId,
 			ParentExternalID: *r.VpcId,
 			ParentType:       v1.AWSEC2VPC,
@@ -709,15 +709,15 @@ func (aws Scraper) dhcp(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 	}
 
 	for _, d := range describeOutput.DhcpOptions {
-		tags := getTags(d.Tags)
-		tags["account"] = *ctx.Caller.Account
+		labels := getLabels(d.Tags)
+		labels["account"] = *ctx.Caller.Account
 		*results = append(*results, v1.ScrapeResult{
 			Type:             v1.AWSEC2DHCPOptions,
-			Tags:             tags,
+			Labels:           labels,
 			BaseScraper:      config.BaseScraper,
 			Config:           d,
 			ConfigClass:      "DHCP",
-			Name:             getName(tags, *d.DhcpOptionsId),
+			Name:             getName(labels, *d.DhcpOptionsId),
 			ID:               *d.DhcpOptionsId,
 			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
 			ParentType:       v1.AWSAccount,
@@ -736,8 +736,8 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 		return
 	}
 	for _, bucket := range buckets.Buckets {
-		tags := make(map[string]string)
-		tags["account"] = *ctx.Caller.Account
+		labels := make(map[string]string)
+		labels["account"] = *ctx.Caller.Account
 		*results = append(*results, v1.ScrapeResult{
 			Type:             v1.AWSS3Bucket,
 			CreatedAt:        bucket.CreationDate,
@@ -745,7 +745,7 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			Config:           bucket,
 			ConfigClass:      "ObjectStorage",
 			Name:             *bucket.Name,
-			Tags:             tags,
+			Labels:           labels,
 			Ignore:           []string{"name", "creationDate"},
 			Aliases:          []string{"AmazonS3/" + *bucket.Name},
 			ID:               *bucket.Name,
@@ -766,15 +766,15 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 		return
 	}
 	for _, zone := range zones.HostedZones {
-		tags := make(map[string]string)
-		tags["account"] = *ctx.Caller.Account
+		labels := make(map[string]string)
+		labels["account"] = *ctx.Caller.Account
 		*results = append(*results, v1.ScrapeResult{
 			Type:             "AWS::Route53::HostedZone",
 			BaseScraper:      config.BaseScraper,
 			Config:           zone,
 			ConfigClass:      "DNSZone",
 			Name:             *zone.Name,
-			Tags:             tags,
+			Labels:           labels,
 			Aliases:          []string{*zone.Id, *zone.Name, "AmazonRoute53/arn:aws:route53:::hostedzone/" + *zone.Id},
 			ID:               strings.ReplaceAll(*zone.Id, "/hostedzone/", ""),
 			ParentExternalID: *ctx.Caller.Account,
@@ -840,10 +840,10 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 
 		az := lb.AvailabilityZones[0]
 		region := az[:len(az)-1]
-		tags := make(map[string]string)
-		tags["zone"] = az
-		tags["region"] = region
-		tags["account"] = *ctx.Caller.Account
+		labels := make(map[string]string)
+		labels["zone"] = az
+		labels["region"] = region
+		labels["account"] = *ctx.Caller.Account
 		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, *ctx.Caller.Account, *lb.LoadBalancerName)
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSLoadBalancer,
@@ -853,7 +853,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Config:              lb,
 			ConfigClass:         "LoadBalancer",
 			Name:                *lb.LoadBalancerName,
-			Tags:                tags,
+			Labels:              labels,
 			Aliases:             []string{"AWSELB/" + arn, arn},
 			ID:                  *lb.LoadBalancerName,
 			ParentExternalID:    *lb.VPCId,
@@ -898,8 +898,8 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 				}
 			}
 		}
-		tags := make(map[string]string)
-		tags["account"] = *ctx.Caller.Account
+		labels := make(map[string]string)
+		labels["account"] = *ctx.Caller.Account
 
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSLoadBalancerV2,
@@ -911,7 +911,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Name:                *lb.LoadBalancerName,
 			Aliases:             []string{"AWSELB/" + *lb.LoadBalancerArn},
 			ID:                  *lb.LoadBalancerArn,
-			Tags:                tags,
+			Labels:              labels,
 			ParentExternalID:    *lb.VpcId,
 			ParentType:          v1.AWSEC2VPC,
 			RelationshipResults: relationships,
@@ -929,21 +929,21 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 	}
 
 	for _, subnet := range subnets.Subnets {
-		// Subnet tags are of the form [{Key: "<key>", Value:
+		// Subnet labels are of the form [{Key: "<key>", Value:
 		// "<value>"}, ...]
-		tags := make(v1.JSONStringMap)
+		labels := make(v1.JSONStringMap)
 		for _, tag := range subnet.Tags {
-			tags[*tag.Key] = *tag.Value
+			labels[*tag.Key] = *tag.Value
 		}
 
 		az := *subnet.AvailabilityZone
 		region := az[0 : len(az)-1]
 		ctx.Subnets[*subnet.SubnetId] = Zone{Zone: az, Region: region}
-		tags["zone"] = az
-		tags["region"] = region
-		tags["account"] = *ctx.Caller.Account
-		tags["network"] = *subnet.VpcId
-		tags["subnet"] = *subnet.SubnetId
+		labels["zone"] = az
+		labels["region"] = region
+		labels["account"] = *ctx.Caller.Account
+		labels["network"] = *subnet.VpcId
+		labels["subnet"] = *subnet.SubnetId
 
 		if !config.Includes("subnet") {
 			return
@@ -976,7 +976,7 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		result := v1.ScrapeResult{
 			Type:                v1.AWSEC2Subnet,
 			BaseScraper:         config.BaseScraper,
-			Tags:                tags,
+			Labels:              labels,
 			ConfigClass:         "Subnet",
 			ID:                  *subnet.SubnetId,
 			Config:              subnet,
@@ -1002,8 +1002,8 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 	}
 
 	for _, role := range roles.Roles {
-		tags := make(map[string]string)
-		tags["account"] = *ctx.Caller.Account
+		labels := make(map[string]string)
+		labels["account"] = *ctx.Caller.Account
 
 		*results = append(*results, v1.ScrapeResult{
 			Type:             v1.AWSIAMRole,
@@ -1011,7 +1011,7 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 			BaseScraper:      config.BaseScraper,
 			Config:           role,
 			ConfigClass:      "Role",
-			Tags:             tags,
+			Labels:           labels,
 			Name:             *role.RoleName,
 			Aliases:          []string{*role.RoleName, *role.Arn},
 			ID:               *role.RoleId,
@@ -1032,8 +1032,8 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 		return
 	}
 
-	tags := make(map[string]string)
-	tags["account"] = *ctx.Caller.Account
+	labels := make(map[string]string)
+	labels["account"] = *ctx.Caller.Account
 	for _, profile := range profiles.InstanceProfiles {
 		// Instance profile to IAM role relationships
 		var relationships []v1.RelationshipResult
@@ -1050,7 +1050,7 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			CreatedAt:           profile.CreateDate,
 			BaseScraper:         config.BaseScraper,
 			Config:              profile,
-			Tags:                tags,
+			Labels:              labels,
 			ConfigClass:         "Profile",
 			Name:                *profile.InstanceProfileName,
 			Aliases:             []string{*profile.InstanceProfileName, *profile.Arn},
@@ -1080,14 +1080,14 @@ func (aws Scraper) ami(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			createdAt = time.Now()
 		}
 
-		tags := make(map[string]string)
-		tags["region"] = *ctx.Caller.Account
+		labels := make(map[string]string)
+		labels["region"] = *ctx.Caller.Account
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSEC2AMI,
 			CreatedAt:   &createdAt,
 			BaseScraper: config.BaseScraper,
 			Config:      image,
-			Tags:        tags,
+			Labels:      labels,
 			ConfigClass: "Image",
 			Name:        ptr.ToString(image.Name),
 			ID:          *image.ImageId,
