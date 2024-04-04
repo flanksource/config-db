@@ -18,6 +18,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/is-healthy/pkg/health"
+	"github.com/flanksource/is-healthy/pkg/lua"
 	"github.com/flanksource/ketall"
 	"github.com/flanksource/ketall/options"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -351,7 +352,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 		// Add health metadata
 		var status, description string
-		if healthStatus, err := health.GetResourceHealth(obj, nil); err == nil && healthStatus != nil {
+		if healthStatus, err := health.GetResourceHealth(obj, lua.ResourceHealthOverrides{}); err == nil && healthStatus != nil {
 			status = string(healthStatus.Status)
 			description = healthStatus.Message
 		}
