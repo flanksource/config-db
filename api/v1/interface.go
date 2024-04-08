@@ -234,6 +234,18 @@ type Tag struct {
 
 type Tags []Tag
 
+func (t *Tags) Append(name, value string) {
+	if t == nil {
+		return
+	}
+
+	if *t == nil {
+		*t = make(Tags, 0, 1)
+	}
+
+	*t = append(*t, Tag{Name: name, Value: value})
+}
+
 func (t Tags) Has(name string) bool {
 	for _, item := range t {
 		if item.Name == name {
