@@ -257,7 +257,7 @@ func (t Tags) sanitize() Tags {
 
 func (t Tags) valid() error {
 	if len(t) > maxTagsCount {
-		return fmt.Errorf("too many tags. only %d allowed", maxTagsCount)
+		return fmt.Errorf("too many tags (%d). only %d allowed", len(t), maxTagsCount)
 	}
 
 	seen := make(map[string]struct{})
@@ -280,7 +280,20 @@ func (t Tags) valid() error {
 	return nil
 }
 
-func (t Tags) Eval(labels map[string]string, config string) (map[string]string, error) {
+func (t Tags) AsMap() (map[string]string, error) {
+	if len(t) == 0 {
+		return nil, nil
+	}
+
+	output := make(map[string]string, len(t))
+	for i := range t {
+		output[t[i].Name] = t[i].Value
+	}
+
+	return output, nil
+}
+
+func (t Tags) Eval(labels map[string]string, config string) (Tags, error) {
 	if len(t) == 0 {
 		return nil, nil
 	}
@@ -290,13 +303,12 @@ func (t Tags) Eval(labels map[string]string, config string) (map[string]string, 
 		return nil, err
 	}
 
-	output := make(map[string]string, len(t))
 	for _, tag := range t {
 		if tag.Value != "" {
-			output[tag.Name] = tag.Value
+			// do nothing
 		} else if tag.Label != "" {
 			if val, ok := labels[tag.Label]; ok {
-				output[tag.Name] = val
+				tag.Value = val
 			}
 		} else if tag.JSONPath != "" {
 			if !utils.IsJSONPath(tag.JSONPath) {
@@ -312,13 +324,13 @@ func (t Tags) Eval(labels map[string]string, config string) (map[string]string, 
 				}
 
 				if extractedValues := jsonExpr.Get(parsedConfig); len(extractedValues) > 0 {
-					output[tag.Name] = fmt.Sprintf("%v", extractedValues[0])
+					tag.Value = fmt.Sprintf("%v", extractedValues[0])
 				}
 			}
 		}
 	}
 
-	return output, nil
+	return t, nil
 }
 
 // ScrapeResult ...
@@ -380,6 +392,10 @@ func (s ScrapeResult) AsMap() map[string]any {
 		logger.Errorf("failed to unmarshal change result: %v", err)
 	}
 
+	// override tags because it's a slice
+	// make it a map so it's easier to use inside expressions.
+	output["tags"], _ = s.Tags.AsMap()
+
 	return output
 }
 
@@ -438,6 +454,24 @@ func (r ScrapeResult) String() string {
 		s += " analysis=1"
 	}
 	return s
+}
+
+// ConfigMap returns the underlying config as a map
+func (r ScrapeResult) ConfigString() string {
+
+	// If config is of type string, try unmarshal first
+	if v, ok := r.Config.(string); ok {
+		return v
+	}
+
+	// Marshal and unmarshal into json for other types
+	b, err := json.Marshal(r.Config)
+	if err != nil {
+		logger.Errorf("failed to marshal config: %v", err)
+		return ""
+	}
+
+	return string(b)
 }
 
 // ConfigMap returns the underlying config as a map

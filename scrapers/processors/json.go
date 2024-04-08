@@ -253,6 +253,12 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 			}
 		}
 
+		if parsed, err := input.Tags.Eval(input.Labels, input.ConfigString()); err != nil {
+			return nil, err
+		} else {
+			input.Tags = parsed
+		}
+
 		// Form new relationships based on the transform configs
 		if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, input, e.Transform.Relationship); err != nil {
 			return results, fmt.Errorf("failed to get relationships from relationship configs: %w", err)

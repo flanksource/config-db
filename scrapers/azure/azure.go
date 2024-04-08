@@ -73,6 +73,8 @@ type Scraper struct {
 	// Populate these first with list of all resource groups
 	// to fetch items grouped by resourceGroups
 	resourceGroups []string
+
+	subscriptionName string
 }
 
 func (azure Scraper) CanScrape(configs v1.ScraperSpec) bool {
@@ -153,9 +155,15 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 		// Post processing of all results
 		for i := range results {
-			// Add subscription-id tag to all the resources
-			results[i].Labels = collections.MergeMap(results[i].Labels, map[string]string{
-				"azure-subscription-id": azure.config.SubscriptionID,
+			// Add subscription id & name tag to all the resources
+			results[i].Tags = append(results[i].Tags, v1.Tag{
+				Name:  "subscriptionID",
+				Value: azure.config.SubscriptionID,
+			})
+
+			results[i].Tags = append(results[i].Tags, v1.Tag{
+				Name:  "subscriptionName",
+				Value: azure.subscriptionName,
 			})
 		}
 	}
@@ -195,6 +203,11 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					ExternalID: []string{fmt.Sprintf("/subscriptions/%s/resourcegroups/%s", azure.config.SubscriptionID, extractResourceGroup(r.ID))},
 				},
 				Relationship: "Resourcegroup" + strings.TrimPrefix(r.Type, ConfigTypePrefix),
+			})
+
+			results[i].Tags = append(results[i].Tags, v1.Tag{
+				Name:  "resourceGroup",
+				Value: extractResourceGroup(r.ID),
 			})
 		}
 	}
@@ -626,7 +639,7 @@ func (azure *Scraper) fetchResourceGroups() v1.ScrapeResults {
 }
 
 // fetchSubscriptions gets Azure subscriptions.
-func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
+func (azure *Scraper) fetchSubscriptions() v1.ScrapeResults {
 	logger.Debugf("fetching subscriptions")
 
 	var results v1.ScrapeResults
@@ -643,6 +656,8 @@ func (azure Scraper) fetchSubscriptions() v1.ScrapeResults {
 		}
 
 		for _, v := range respPage.Value {
+			azure.subscriptionName = deref(v.DisplayName)
+
 			results = append(results, v1.ScrapeResult{
 				BaseScraper: azure.config.BaseScraper,
 				ID:          getARMID(v.ID),
