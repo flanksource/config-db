@@ -114,8 +114,6 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 		// globalLabels are common labels for any kubernetes resource
 		globalLabels = map[string]string{}
-
-		tags = config.Tags
 	)
 
 	clusterID := "Kubernetes/Cluster/" + config.ClusterName
@@ -135,6 +133,8 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 	resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
 
 	for _, obj := range objs {
+		tags := config.Tags
+
 		if config.Exclusions.Filter(obj.GetName(), obj.GetNamespace(), obj.GetKind(), obj.GetLabels()) {
 			ctx.Tracef("excluding object: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 			continue
