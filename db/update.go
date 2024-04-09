@@ -10,7 +10,6 @@ import (
 
 	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
-	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -137,17 +136,6 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 	}
 
 	if existing == nil || existing.ID == "" {
-		// Use the resource id as the config item's primary key.
-		// If it isn't a valid UUID, we generate a new one.
-		if parsed, err := uuid.Parse(ci.ID); err != nil || parsed == uuid.Nil {
-			id, err := hash.DeterministicUUID(ci.ID)
-			if err != nil {
-				return nil, false, fmt.Errorf("error generating uuid for config (id:%s): %w", ci.ID, err)
-			}
-
-			ci.ID = id.String()
-		}
-
 		if err := ctx.DB().Clauses(clause.OnConflict{UpdateAll: true}).Create(ci).Error; err != nil {
 			return nil, false, err
 		}
