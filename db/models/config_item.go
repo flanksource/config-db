@@ -13,7 +13,7 @@ import (
 
 // ConfigItem represents the config item database table
 type ConfigItem struct {
-	ID              string                `gorm:"primaryKey;unique_index;not null;column:id" json:"id"  `
+	ID              string                `gorm:"primaryKey;unique_index;not null;column:id;default:generate_ulid()" json:"id"  `
 	ScraperID       *uuid.UUID            `gorm:"column:scraper_id;default:null" json:"scraper_id,omitempty"`
 	ConfigClass     string                `gorm:"column:config_class;default:''" json:"config_class"  `
 	ExternalID      pq.StringArray        `gorm:"column:external_id;type:[]text" json:"external_id,omitempty"  `
