@@ -131,12 +131,17 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		ConfigClass:     result.ConfigClass,
 		Type:            &result.Type,
 		Name:            &result.Name,
-		Namespace:       &result.Namespace,
 		Source:          &result.Source,
-		Tags:            &result.Tags,
+		Labels:          &result.Labels,
 		Properties:      &result.Properties,
 		Config:          &dataStr,
 		LastScrapedTime: result.LastScrapedTime,
+	}
+
+	if parsed, err := result.Tags.AsMap(); err != nil {
+		return nil, err
+	} else {
+		ci.Tags = parsed
 	}
 
 	// If the config result hasn't specified an id for the config,
@@ -171,7 +176,6 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 	}
 
 	if result.ParentExternalID != "" && result.ParentType != "" {
-
 		if found, err := ctx.TempCache().Find(result.ParentType, result.ParentExternalID); err != nil {
 			return nil, err
 		} else if found != nil {

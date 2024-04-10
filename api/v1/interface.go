@@ -7,9 +7,14 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	"github.com/ohler55/ojg/jp"
+	"github.com/ohler55/ojg/oj"
 )
+
+const maxTagsCount = 5
 
 // Analyzer ...
 // +kubebuilder:object:generate=false
@@ -220,6 +225,126 @@ func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeR
 	return *s
 }
 
+type Tag struct {
+	Name     string `json:"name"`
+	Label    string `json:"label,omitempty"`
+	JSONPath string `json:"jsonpath,omitempty"`
+	Value    string `json:"value,omitempty"`
+}
+
+type Tags []Tag
+
+func (t *Tags) Append(name, value string) {
+	if t == nil {
+		return
+	}
+
+	if *t == nil {
+		*t = make(Tags, 0, 1)
+	}
+
+	*t = append(*t, Tag{Name: name, Value: value})
+}
+
+func (t Tags) Has(name string) bool {
+	for _, item := range t {
+		if item.Name == name {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (t Tags) sanitize() Tags {
+	for i := range t {
+		t[i].Name = strings.TrimSpace(t[i].Name)
+		t[i].Label = strings.TrimSpace(t[i].Label)
+		t[i].JSONPath = strings.TrimSpace(t[i].JSONPath)
+		t[i].Value = strings.TrimSpace(t[i].Value)
+	}
+
+	return t
+}
+
+func (t Tags) valid() error {
+	if len(t) > maxTagsCount {
+		return fmt.Errorf("too many tags (%d). only %d allowed", len(t), maxTagsCount)
+	}
+
+	seen := make(map[string]struct{})
+	for _, tag := range t {
+		if tag.Name == "" {
+			return fmt.Errorf("tag with an empty name")
+		}
+
+		if _, ok := seen[tag.Name]; ok {
+			return fmt.Errorf("tag name %s is duplicated", tag.Name)
+		}
+
+		if tag.Value == "" && tag.JSONPath == "" && tag.Label == "" {
+			return fmt.Errorf("tag %q should specify either value, jsonpath or label", tag.Name)
+		}
+
+		seen[tag.Name] = struct{}{}
+	}
+
+	return nil
+}
+
+func (t Tags) AsMap() (map[string]string, error) {
+	if len(t) == 0 {
+		return nil, nil
+	}
+
+	output := make(map[string]string, len(t))
+	for i := range t {
+		output[t[i].Name] = t[i].Value
+	}
+
+	return output, nil
+}
+
+func (t Tags) Eval(labels map[string]string, config string) (Tags, error) {
+	if len(t) == 0 {
+		return nil, nil
+	}
+
+	t = t.sanitize()
+	if err := t.valid(); err != nil {
+		return nil, err
+	}
+
+	for _, tag := range t {
+		if tag.Value != "" {
+			// do nothing
+		} else if tag.Label != "" {
+			if val, ok := labels[tag.Label]; ok {
+				tag.Value = val
+			}
+		} else if tag.JSONPath != "" {
+			if !utils.IsJSONPath(tag.JSONPath) {
+				return nil, fmt.Errorf("tag %q has an invalid json path %s", tag.Name, tag.JSONPath)
+			}
+
+			if jsonExpr, err := jp.ParseString(tag.JSONPath); err != nil {
+				return nil, fmt.Errorf("failed to parse jsonpath: %s: %v", tag.JSONPath, err)
+			} else {
+				parsedConfig, err := oj.ParseString(config)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse config: %w", err)
+				}
+
+				if extractedValues := jsonExpr.Get(parsedConfig); len(extractedValues) > 0 {
+					tag.Value = fmt.Sprintf("%v", extractedValues[0])
+				}
+			}
+		}
+	}
+
+	return t, nil
+}
+
 // ScrapeResult ...
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
@@ -240,14 +365,14 @@ type ScrapeResult struct {
 	Type                string              `json:"config_type,omitempty"`
 	Status              string              `json:"status,omitempty"` // status extracted from the config itself
 	Name                string              `json:"name,omitempty"`
-	Namespace           string              `json:"namespace,omitempty"`
 	Description         string              `json:"description,omitempty"`
 	Aliases             []string            `json:"aliases,omitempty"`
 	Source              string              `json:"source,omitempty"`
 	Config              interface{}         `json:"config,omitempty"`
 	Format              string              `json:"format,omitempty"`
 	Icon                string              `json:"icon,omitempty"`
-	Tags                JSONStringMap       `json:"tags,omitempty"`
+	Labels              JSONStringMap       `json:"labels,omitempty"`
+	Tags                Tags                `json:"tags,omitempty"`
 	BaseScraper         BaseScraper         `json:"-"`
 	Error               error               `json:"-"`
 	AnalysisResult      *AnalysisResult     `json:"analysis,omitempty"`
@@ -279,6 +404,10 @@ func (s ScrapeResult) AsMap() map[string]any {
 		logger.Errorf("failed to unmarshal change result: %v", err)
 	}
 
+	// override tags because it's a slice
+	// make it a map so it's easier to use inside expressions.
+	output["tags"], _ = s.Tags.AsMap()
+
 	return output
 }
 
@@ -287,6 +416,7 @@ func NewScrapeResult(base BaseScraper) *ScrapeResult {
 		BaseScraper: base,
 		Format:      base.Format,
 		Tags:        base.Tags,
+		Labels:      base.Labels,
 	}
 }
 
@@ -311,10 +441,10 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 		Aliases:      s.Aliases,
 		ConfigClass:  s.ConfigClass,
 		Name:         s.Name,
-		Namespace:    s.Namespace,
 		ID:           s.ID,
 		Source:       s.Source,
 		Config:       config,
+		Labels:       s.Labels,
 		Tags:         s.Tags,
 		BaseScraper:  s.BaseScraper,
 		Format:       s.Format,
@@ -336,6 +466,24 @@ func (r ScrapeResult) String() string {
 		s += " analysis=1"
 	}
 	return s
+}
+
+// ConfigMap returns the underlying config as a map
+func (r ScrapeResult) ConfigString() string {
+
+	// If config is of type string, try unmarshal first
+	if v, ok := r.Config.(string); ok {
+		return v
+	}
+
+	// Marshal and unmarshal into json for other types
+	b, err := json.Marshal(r.Config)
+	if err != nil {
+		logger.Errorf("failed to marshal config: %v", err)
+		return ""
+	}
+
+	return string(b)
 }
 
 // ConfigMap returns the underlying config as a map

@@ -155,6 +155,12 @@ spec:
                         A JSONPath expression to use to extract individual items from the resource,
                         items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels allow you to set custom labels on the scraped
+                        config items.
+                      type: object
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
@@ -274,11 +280,23 @@ spec:
                     skipTLSVerify:
                       type: boolean
                     tags:
-                      additionalProperties:
-                        type: string
-                      description: Tags allow you to set custom tags on the scraped
-                        config items.
-                      type: object
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -573,6 +591,12 @@ spec:
                         A JSONPath expression to use to extract individual items from the resource,
                         items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels allow you to set custom labels on the scraped
+                        config items.
+                      type: object
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
@@ -647,11 +671,23 @@ spec:
                     subscriptionID:
                       type: string
                     tags:
-                      additionalProperties:
-                        type: string
-                      description: Tags allow you to set custom tags on the scraped
-                        config items.
-                      type: object
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     tenantID:
                       type: string
                     timestampFormat:
@@ -851,6 +887,12 @@ spec:
                         A JSONPath expression to use to extract individual items from the resource,
                         items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels allow you to set custom labels on the scraped
+                        config items.
+                      type: object
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
@@ -974,11 +1016,23 @@ spec:
                         type: object
                       type: array
                     tags:
-                      additionalProperties:
-                        type: string
-                      description: Tags allow you to set custom tags on the scraped
-                        config items.
-                      type: object
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -1184,6 +1238,12 @@ spec:
                         A JSONPath expression to use to extract individual items from the resource,
                         items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels allow you to set custom labels on the scraped
+                        config items.
+                      type: object
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
@@ -1258,11 +1318,23 @@ spec:
                         type: object
                       type: array
                     tags:
-                      additionalProperties:
-                        type: string
-                      description: Tags allow you to set custom tags on the scraped
-                        config items.
-                      type: object
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -1465,6 +1537,12 @@ spec:
                         A JSONPath expression to use to extract individual items from the resource,
                         items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels allow you to set custom labels on the scraped
+                        config items.
+                      type: object
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
@@ -1582,11 +1660,23 @@ spec:
                     repository:
                       type: string
                     tags:
-                      additionalProperties:
-                        type: string
-                      description: Tags allow you to set custom tags on the scraped
-                        config items.
-                      type: object
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -1894,6 +1984,12 @@ spec:
                               type: string
                           type: object
                       type: object
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels allow you to set custom labels on the scraped
+                        config items.
+                      type: object
                     maxInflight:
                       format: int64
                       type: integer
@@ -2019,11 +2115,23 @@ spec:
                     since:
                       type: string
                     tags:
-                      additionalProperties:
-                        type: string
-                      description: Tags allow you to set custom tags on the scraped
-                        config items.
-                      type: object
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -2231,6 +2339,12 @@ spec:
                         A JSONPath expression to use to extract individual items from the resource,
                         items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels allow you to set custom labels on the scraped
+                        config items.
+                      type: object
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
@@ -2314,11 +2428,23 @@ spec:
                           type: string
                       type: object
                     tags:
-                      additionalProperties:
-                        type: string
-                      description: Tags allow you to set custom tags on the scraped
-                        config items.
-                      type: object
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -2646,6 +2772,12 @@ spec:
                         A JSONPath expression to use to extract individual items from the resource,
                         items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels allow you to set custom labels on the scraped
+                        config items.
+                      type: object
                     name:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
@@ -2718,11 +2850,23 @@ spec:
                     query:
                       type: string
                     tags:
-                      additionalProperties:
-                        type: string
-                      description: Tags allow you to set custom tags on the scraped
-                        config items.
-                      type: object
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -2943,6 +3087,12 @@ spec:
                         namespace:
                           type: string
                       type: object
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels allow you to set custom labels on the scraped
+                        config items.
+                      type: object
                     licenseFull:
                       type: boolean
                     name:
@@ -3023,11 +3173,23 @@ spec:
                         type: string
                       type: array
                     tags:
-                      additionalProperties:
-                        type: string
-                      description: Tags allow you to set custom tags on the scraped
-                        config items.
-                      type: object
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                     timeout:
                       type: string
                     timestampFormat:

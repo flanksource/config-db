@@ -12,6 +12,7 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
@@ -88,21 +89,21 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 	extract := Extract{
 		Config: config,
 	}
-	if isJSONPath(config.ID) {
+	if utils.IsJSONPath(config.ID) {
 		if x, err := jp.ParseString(config.ID); err != nil {
 			return extract, fmt.Errorf("failed to parse id: %s: %v", config.ID, err)
 		} else {
 			extract.ID = x
 		}
 	}
-	if isJSONPath(config.Type) {
+	if utils.IsJSONPath(config.Type) {
 		if x, err := jp.ParseString(config.Type); err != nil {
 			return extract, fmt.Errorf("failed to parse type: %s: %v", config.Type, err)
 		} else {
 			extract.Type = x
 		}
 	}
-	if isJSONPath(config.Class) {
+	if utils.IsJSONPath(config.Class) {
 		if x, err := jp.ParseString(config.Class); err != nil {
 			return extract, fmt.Errorf("failed to parse class: %s: %v", config.Class, err)
 		} else {
@@ -118,7 +119,7 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 	}
 
 	for _, createdField := range config.CreateFields {
-		if isJSONPath(createdField) {
+		if utils.IsJSONPath(createdField) {
 			if x, err := jp.ParseString(createdField); nil == err {
 				extract.CreatedAt = append(extract.CreatedAt, x)
 			}
@@ -126,14 +127,14 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 	}
 
 	for _, deletedField := range config.DeleteFields {
-		if isJSONPath(deletedField) {
+		if utils.IsJSONPath(deletedField) {
 			if x, err := jp.ParseString(deletedField); nil == err {
 				extract.DeletedAt = append(extract.DeletedAt, x)
 			}
 		}
 	}
 
-	if isJSONPath(config.Name) {
+	if utils.IsJSONPath(config.Name) {
 		if x, err := jp.ParseString(config.Name); err != nil {
 			return extract, fmt.Errorf("failed to parse name: %s: %v", config.Name, err)
 		} else {
@@ -225,7 +226,7 @@ func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.Scrap
 			}
 			relationshipSelectors = append(relationshipSelectors, output...)
 		} else {
-			if compiled, err := rc.RelationshipSelectorTemplate.Eval(input.Tags, input.AsMap()); err != nil {
+			if compiled, err := rc.RelationshipSelectorTemplate.Eval(input.Labels, input.AsMap()); err != nil {
 				return nil, fmt.Errorf("relationship selector is invalid: %w", err)
 			} else if compiled != nil {
 				relationshipSelectors = append(relationshipSelectors, *compiled)
@@ -243,13 +244,19 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 	var err error
 
 	for _, input := range inputs {
-		for k, v := range input.BaseScraper.Tags {
-			if input.Tags == nil {
-				input.Tags = map[string]string{}
+		for k, v := range input.BaseScraper.Labels {
+			if input.Labels == nil {
+				input.Labels = map[string]string{}
 			}
-			if _, ok := input.Tags[k]; !ok {
-				input.Tags[k] = v
+			if _, ok := input.Labels[k]; !ok {
+				input.Labels[k] = v
 			}
+		}
+
+		if parsed, err := input.Tags.Eval(input.Labels, input.ConfigString()); err != nil {
+			return nil, err
+		} else {
+			input.Tags = parsed
 		}
 
 		// Form new relationships based on the transform configs
@@ -547,10 +554,6 @@ func getString(expr jp.Expr, data any, def string) (string, error) {
 	}
 	s := fmt.Sprintf("%v", o[0])
 	return s, nil
-}
-
-func isJSONPath(path string) bool {
-	return strings.HasPrefix(path, "$") || strings.HasPrefix(path, "@")
 }
 
 func md5SumHex(i any) string {

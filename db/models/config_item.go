@@ -12,6 +12,7 @@ import (
 )
 
 // ConfigItem represents the config item database table
+// Deprecated: Use models.ConfigItem from duty.
 type ConfigItem struct {
 	ID              string                `gorm:"primaryKey;unique_index;not null;column:id;default:generate_ulid()" json:"id"  `
 	ScraperID       *uuid.UUID            `gorm:"column:scraper_id;default:null" json:"scraper_id,omitempty"`
@@ -20,9 +21,7 @@ type ConfigItem struct {
 	Type            *string               `gorm:"column:type;default:null" json:"type,omitempty"  `
 	Status          *string               `gorm:"column:status;default:null" json:"status,omitempty"  `
 	Name            *string               `gorm:"column:name;default:null" json:"name,omitempty"  `
-	Namespace       *string               `gorm:"column:namespace;default:null" json:"namespace,omitempty"  `
 	Description     *string               `gorm:"column:description;default:null" json:"description,omitempty"  `
-	Account         *string               `gorm:"column:account;default:null" json:"account,omitempty"  `
 	Config          *string               `gorm:"column:config;default:null" json:"config,omitempty"  `
 	Source          *string               `gorm:"column:source;default:null" json:"source,omitempty"  `
 	ParentID        *string               `gorm:"column:parent_id;default:null" json:"parent_id,omitempty"`
@@ -31,7 +30,8 @@ type ConfigItem struct {
 	CostTotal1d     float64               `gorm:"column:cost_total_1d;default:null" json:"cost_total_1d,omitempty"`
 	CostTotal7d     float64               `gorm:"column:cost_total_7d;default:null" json:"cost_total_7d,omitempty"`
 	CostTotal30d    float64               `gorm:"column:cost_total_30d;default:null" json:"cost_total_30d,omitempty"`
-	Tags            *v1.JSONStringMap     `gorm:"column:tags;default:null" json:"tags,omitempty"`
+	Labels          *v1.JSONStringMap     `gorm:"column:labels;default:null" json:"labels,omitempty"`
+	Tags            types.JSONStringMap   `gorm:"column:tags;default:null" json:"tags,omitempty"`
 	Properties      *types.Properties     `gorm:"column:properties;default:null" json:"properties,omitempty"`
 	CreatedAt       time.Time             `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt       *time.Time            `gorm:"column:updated_at;autoUpdateTime:false;<-:update" json:"updated_at"`
