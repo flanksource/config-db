@@ -20,6 +20,7 @@ var (
 )
 
 var cleanupJobs = []*job.Job{
+	job.CleanupStaleHistoryJob(time.Hour*30, "Scraper", ""),
 	CleanupConfigAnalysis,
 	CleanupConfigChanges,
 	CleanupConfigItems,
@@ -30,7 +31,7 @@ var CleanupConfigAnalysis = &job.Job{
 	Schedule:   "@every 24h",
 	Singleton:  true,
 	JobHistory: true,
-	Retention:  job.Retention3Day,
+	Retention:  job.RetentionBalanced,
 	RunNow:     true,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
@@ -55,7 +56,7 @@ var CleanupConfigChanges = &job.Job{
 	Schedule:   "@every 24h",
 	Singleton:  true,
 	JobHistory: true,
-	Retention:  job.Retention3Day,
+	Retention:  job.RetentionBalanced,
 	RunNow:     true,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
@@ -79,7 +80,7 @@ var CleanupConfigItems = &job.Job{
 	Schedule:   "@every 24h",
 	Singleton:  true,
 	JobHistory: true,
-	Retention:  job.Retention3Day,
+	Retention:  job.RetentionBalanced,
 	RunNow:     true,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
