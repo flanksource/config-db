@@ -395,7 +395,7 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 
 		tags := v1.Tags{}
 		tags.Append("zone", *volume.AvailabilityZone)
-		tags.Append("region", labels["zone"][:len(labels["zone"])-1])
+		tags.Append("region", (*volume.AvailabilityZone)[:len(*volume.AvailabilityZone)-1])
 
 		*results = append(*results, v1.ScrapeResult{
 			Type:             v1.AWSEBSVolume,
