@@ -33,7 +33,7 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 		Schedule:   "@every 10m",
 		Singleton:  true,
 		JobHistory: true,
-		Retention:  job.RetentionHour,
+		Retention:  job.RetentionFew,
 		RunNow:     true,
 		Fn: func(jr job.JobRuntime) error {
 			scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(sc, uuid.Nil)
@@ -121,7 +121,7 @@ func newScrapeJob(sc api.ScrapeContext) *job.Job {
 		Schedule:     schedule,
 		Singleton:    true,
 		JobHistory:   true,
-		Retention:    job.RetentionDay,
+		Retention:    job.RetentionBalanced,
 		ResourceID:   sc.ScrapeConfig().GetPersistedID().String(),
 		ResourceType: job.ResourceTypeScraper,
 		RunNow:       true,
@@ -160,7 +160,7 @@ func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kuberne
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta),
 		JobHistory:   true,
 		Singleton:    true,
-		Retention:    job.RetentionShort,
+		Retention:    job.RetentionFew,
 		RunNow:       true,
 		Schedule:     "@every 15s",
 		ResourceID:   string(scrapeConfig.GetUID()),

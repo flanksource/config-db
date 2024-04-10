@@ -29,7 +29,7 @@ var tablesToReconcile = []string{
 var ReconcileConfigs = &job.Job{
 	Name:       "ReconcileConfigs",
 	Schedule:   "@every 1m",
-	Retention:  job.Retention3Day,
+	Retention:  job.RetentionBalanced,
 	Singleton:  true,
 	JobHistory: true,
 	RunNow:     true,
@@ -52,7 +52,7 @@ var PullUpstreamConfigScrapers = &job.Job{
 	Singleton:  true,
 	RunNow:     true,
 	Schedule:   "@every 10m",
-	Retention:  job.RetentionHour,
+	Retention:  job.RetentionFew,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = job.ResourceTypeUpstream
 		ctx.History.ResourceID = api.UpstreamConfig.Host
