@@ -40,7 +40,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 			continue
 		}
 
-		ctx.DutyContext().Infof("Starting %s %s", ctx.JobHistory().Name, ctx.ScrapeConfig().Name)
+		ctx.DutyContext().Logger.V(3).Infof("Starting scraper")
 		for _, result := range scraper.Scrape(ctx) {
 			scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, result)
 

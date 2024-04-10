@@ -109,6 +109,7 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 		DeleteScrapeJob(id)
 		newScrapeJob(sc)
 	}
+
 	return nil
 }
 

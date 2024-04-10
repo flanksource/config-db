@@ -23,6 +23,7 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 	}
 
 	ctx = ctx.WithValue(contextKeyScrapeStart, time.Now())
+	ctx.Context = ctx.WithName(fmt.Sprintf("scraper=%s", ctx.ScrapeConfig().Name))
 
 	results, scraperErr := Run(ctx)
 	if scraperErr != nil {

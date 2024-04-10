@@ -391,7 +391,7 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 			if extracted, err := e.extractAttributes(result); err != nil {
 				return results, fmt.Errorf("failed to extract attributes: %v", err)
 			} else {
-				logger.Debugf("Scraped %s", extracted)
+				ctx.Logger.V(3).Infof("Scraped %s", extracted)
 				results = append(results, extracted)
 			}
 		}
