@@ -109,6 +109,7 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 		DeleteScrapeJob(id)
 		newScrapeJob(sc)
 	}
+
 	return nil
 }
 
@@ -163,6 +164,7 @@ func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kuberne
 		RunNow:       true,
 		Schedule:     "@every 15s",
 		ResourceID:   string(scrapeConfig.GetUID()),
+		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
 		Fn: func(ctx job.JobRuntime) error {
 			ch, ok := kubernetes.WatchEventBuffers[config.Hash()]

@@ -65,7 +65,7 @@ func findDeployments(ctx api.ScrapeContext, client kubernetes.Interface, config 
 		if config.Name != "" {
 			deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, config.Name, metav1.GetOptions{})
 			if ctx.IsTrace() {
-				logger.Debugf("%s => %d", config, deployment)
+				ctx.Logger.V(3).Infof("%s => %d", config, deployment)
 			}
 			if errors.IsNotFound(err) {
 				continue
@@ -82,7 +82,7 @@ func findDeployments(ctx api.ScrapeContext, client kubernetes.Interface, config 
 		})
 
 		if ctx.IsTrace() {
-			logger.Debugf("%s => %d", config, deploymentList.Size())
+			ctx.Logger.V(3).Infof("%s => %d", config, deploymentList.Size())
 		}
 
 		if errors.IsNotFound(err) {
@@ -136,7 +136,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 			config.Selector.Kind = "Pod"
 		}
 
-		logger.Debugf("Scraping pods %s => %s", config.Selector, config.Files)
+		ctx.Logger.V(3).Infof("Scraping pods %s => %s", config.Selector, config.Files)
 
 		if startsWith(config.Selector.Kind, "pod") {
 			podList, err := findPods(ctx, ctx.Kubernetes(), config.Selector)
@@ -201,7 +201,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 		}
 	}
 
-	logger.Debugf("Found %d pods", len(pods))
+	ctx.Logger.V(3).Infof("Found %d pods", len(pods))
 	for _, pod := range pods {
 		for _, file := range pod.Config.Files {
 			for _, p := range file.Path {

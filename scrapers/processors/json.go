@@ -363,7 +363,7 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 
 		if e.Items != nil {
 			items := e.Items.Get(parsedConfig)
-			logger.Debugf("extracted %d items with %s", len(items), *e.Items)
+			ctx.Logger.V(3).Infof("extracted %d items with %s", len(items), *e.Items)
 			for _, item := range items {
 				extracted, err := e.WithoutItems().Extract(ctx, input.Clone(item))
 				if err != nil {
@@ -378,7 +378,7 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 
 		var ongoingInput v1.ScrapeResults = []v1.ScrapeResult{input}
 		if !input.BaseScraper.Transform.Script.IsEmpty() {
-			logger.Debugf("Applying script transformation")
+			ctx.Logger.V(3).Infof("Applying script transformation")
 			transformed, err := RunScript(input, input.BaseScraper.Transform.Script)
 			if err != nil {
 				return results, fmt.Errorf("failed to run script: %v", err)
@@ -391,7 +391,7 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 			if extracted, err := e.extractAttributes(result); err != nil {
 				return results, fmt.Errorf("failed to extract attributes: %v", err)
 			} else {
-				logger.Debugf("Scraped %s", extracted)
+				ctx.Logger.V(3).Infof("Scraped %s", extracted)
 				results = append(results, extracted)
 			}
 		}

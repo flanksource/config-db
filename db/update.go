@@ -52,7 +52,7 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 		return nil
 	}
 
-	logger.Debugf("Deleted %s from change %s", configs[0].ID, change)
+	ctx.Logger.V(3).Infof("Deleted %s from change %s", configs[0].ID, change)
 	return nil
 }
 
@@ -170,7 +170,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 	if err != nil {
 		logger.Errorf("[%s] failed to check for changes: %v", ci, err)
 	} else if changeResult != nil {
-		logger.Debugf("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
+		ctx.Logger.V(3).Infof("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
 		result.Changes = []v1.ChangeResult{*changeResult}
 		if err := saveChanges(ctx, &result, ci); err != nil {
 			return nil, false, fmt.Errorf("[%s] failed to save %d changes: %w", ci, len(result.Changes), err)
@@ -441,7 +441,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		}
 	}
 
-	logger.Debugf("saved %d results.", len(results))
+	ctx.Logger.V(3).Infof("saved %d results.", len(results))
 	return nil
 }
 
@@ -538,12 +538,12 @@ func relationshipSelectorToResults(ctx dutyContext.Context, inputs []v1.ScrapeRe
 		}
 	}
 
-	logger.Debugf("forming %d relationships from selectors", len(relationships))
+	ctx.Logger.V(3).Infof("forming %d relationships from selectors", len(relationships))
 	return relationships, nil
 }
 
 func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.RelationshipResults) error {
-	logger.Debugf("saving %d relationships", len(relationships))
+	ctx.Logger.V(3).Infof("saving %d relationships", len(relationships))
 
 	var configItemRelationships []models.ConfigRelationship
 	for _, relationship := range relationships {

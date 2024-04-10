@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/flanksource/commons/logger"
@@ -31,16 +30,13 @@ func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events
 
 // Run ...
 func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
-	cwd, _ := os.Getwd()
-	logger.Infof("Scraping configs from (PWD: %s)", cwd)
-
 	var results v1.ScrapeResults
 	for _, scraper := range All {
 		if !scraper.CanScrape(ctx.ScrapeConfig().Spec) {
 			continue
 		}
 
-		ctx.DutyContext().Infof("Starting %s %s", ctx.JobHistory().Name, ctx.ScrapeConfig().Name)
+		ctx.DutyContext().Logger.V(3).Infof("Starting scraper")
 		for _, result := range scraper.Scrape(ctx) {
 			scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, result)
 
@@ -59,7 +55,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 		}
 	}
 
-	logger.Infof("Completed scraping with %d results.", len(results))
+	ctx.Logger.V(1).Infof("Completed scraping with %d results.", len(results))
 	return results, nil
 }
 
