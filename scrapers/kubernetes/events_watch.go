@@ -20,7 +20,7 @@ var (
 // WatchEvents watches Kubernetes events for any config changes & fetches
 // the referenced config items in batches.
 func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
-	logger.Infof("Watching kubernetes events. namespace=%s cluster=%s", config.Namespace, config.ClusterName)
+	ctx.Logger.V(1).Infof("Watching kubernetes events. namespace=%s cluster=%s", config.Namespace, config.ClusterName)
 
 	buffer := make(chan v1.KubernetesEvent, ctx.DutyContext().Properties().Int("kubernetes.watch.events.bufferSize", BufferSize))
 	WatchEventBuffers[config.Hash()] = buffer

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -23,7 +22,7 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 	}
 
 	ctx = ctx.WithValue(contextKeyScrapeStart, time.Now())
-	ctx.Context = ctx.WithName(fmt.Sprintf("scraper=%s", ctx.ScrapeConfig().Name))
+	ctx.Context = ctx.WithName(fmt.Sprintf("%s/%s", ctx.ScrapeConfig().Namespace, ctx.ScrapeConfig().Name))
 
 	results, scraperErr := Run(ctx)
 	if scraperErr != nil {
@@ -38,7 +37,7 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 		return nil, fmt.Errorf("failed to update stale config items: %w", err)
 	}
 
-	logger.WithValues("duration", time.Since(ctx.Value(contextKeyScrapeStart).(time.Time))).Infof("completed scraping %v", ctx.ScrapeConfig().Name)
+	ctx.Logger.V(1).Infof("Completed scraping with %d results in %s", len(results), time.Since(ctx.Value(contextKeyScrapeStart).(time.Time)))
 	return results, nil
 }
 
@@ -77,7 +76,7 @@ func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) err
 				return fmt.Errorf("error un-deleting stale config items: %w", err)
 			}
 
-			logger.Debugf("undeleted %d stale config items", tx.RowsAffected)
+			ctx.Logger.V(3).Infof("undeleted %d stale config items", tx.RowsAffected)
 		}
 	}
 

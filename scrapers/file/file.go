@@ -89,7 +89,7 @@ func (file FileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			return results.Errorf(err, "failed to create cache dir: %v", tempDir)
 		}
 
-		logger.Debugf("Scraping file %s ==> %s", strippedURL, tempDir)
+		ctx.Logger.V(3).Infof("Scraping file %s ==> %s", strippedURL, tempDir)
 		var globMatches []string
 		if url != "" {
 			globMatches = getFiles(ctx, tempDir, url, config.Paths)
@@ -141,7 +141,7 @@ func (file FileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 }
 
 func getFiles(ctx api.ScrapeContext, dst, url string, paths []string) (matches []string) {
-	logger.Debugf("Downloading files from %s to %s", stripSecrets(url), dst)
+	ctx.Logger.V(3).Infof("Downloading files from %s to %s", stripSecrets(url), dst)
 	if err := getter.GetAny(dst, url); err != nil {
 		logger.Errorf("Error downloading file: %s", err)
 	}
@@ -151,17 +151,17 @@ func getFiles(ctx api.ScrapeContext, dst, url string, paths []string) (matches [
 func findFiles(ctx api.ScrapeContext, dir string, paths []string) []string {
 	matches := []string{}
 	if paths == nil {
-		logger.Debugf("no paths specified, scraping all json and yaml/yml files")
+		ctx.Logger.V(3).Infof("no paths specified, scraping all json and yaml/yml files")
 		paths = append(paths, "**.json", "**.yaml", "**.yml")
 	}
 
 	for _, path := range paths {
 		match, err := utils.Find(filepath.Join(dir, path))
 		if err != nil {
-			logger.Debugf("could not match glob pattern(%s): %v", dir+"/"+path, err)
+			ctx.Logger.V(3).Infof("could not match glob pattern(%s): %v", dir+"/"+path, err)
 			continue
 		} else if len(match) == 0 {
-			logger.Debugf("no files found in: %s", filepath.Join(dir, path))
+			ctx.Logger.V(3).Infof("no files found in: %s", filepath.Join(dir, path))
 		}
 
 		matches = append(matches, match...) // using a seperate slice to avoid nested loops and complexity

@@ -17,7 +17,7 @@ import (
 func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<- types.Event) error {
 	defer close(c)
 
-	logger.Debugf("Looking up events from %v", input.StartTime)
+	ctx.Logger.V(3).Infof("Looking up events from %v", input.StartTime)
 	CloudTrail := cloudtrail.NewFromConfig(*ctx.Session)
 	events, err := CloudTrail.LookupEvents(ctx, input)
 	if err != nil {

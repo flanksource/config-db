@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/collections"
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/gomplate/v3"
@@ -47,7 +46,7 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				results.Errorf(err, "failed to get pipelines for %s", project.Name)
 				continue
 			}
-			logger.Debugf("[%s] found %d pipelines", project.Name, len(pipelines))
+			ctx.Logger.V(3).Infof("[%s] found %d pipelines", project.Name, len(pipelines))
 
 			for _, _pipeline := range pipelines {
 				var pipeline = _pipeline

@@ -1,7 +1,6 @@
 package azure
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -66,7 +65,7 @@ var defaultExcludes = []v1.ConfigFieldExclusion{
 }
 
 type Scraper struct {
-	ctx    context.Context
+	ctx    api.ScrapeContext
 	cred   *azidentity.ClientSecretCredential
 	config *v1.Azure
 
@@ -129,7 +128,7 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 
-		azure.ctx = context.Background()
+		azure.ctx = ctx
 		azure.config = &config
 		azure.cred = cred
 
@@ -223,7 +222,7 @@ type activityChangeRecord struct {
 }
 
 func (azure Scraper) fetchActivityLogs() v1.ScrapeResults {
-	logger.Debugf("fetching activity logs for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching activity logs for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 
@@ -332,7 +331,7 @@ func getSeverityFromReason(v *armmonitor.EventData) models.Severity {
 
 // fetchDatabases gets all databases in a subscription.
 func (azure Scraper) fetchDatabases() v1.ScrapeResults {
-	logger.Debugf("fetching databases for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching databases for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	databases, err := armresources.NewClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -368,7 +367,7 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 
 // fetchK8s gets all kubernetes clusters in a subscription.
 func (azure Scraper) fetchK8s() v1.ScrapeResults {
-	logger.Debugf("fetching k8s for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching k8s for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	managedClustersClient, err := armcontainerservice.NewManagedClustersClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -398,7 +397,7 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 
 // fetchFirewalls gets all firewalls in a subscription.
 func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
-	logger.Debugf("fetching firewalls for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching firewalls for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	firewallClient, err := armnetwork.NewAzureFirewallsClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -428,7 +427,7 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 
 // fetchContainerRegistries gets container registries in a subscription.
 func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
-	logger.Debugf("fetching container registries for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching container registries for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	registriesClient, err := armcontainerregistry.NewRegistriesClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -457,7 +456,7 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 
 // fetchVirtualNetworks gets virtual machines in a subscription.
 func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
-	logger.Debugf("fetching virtual networks for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching virtual networks for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	virtualNetworksClient, err := armnetwork.NewVirtualNetworksClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -488,7 +487,7 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 
 // fetchLoadBalancers gets load balancers in a subscription.
 func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
-	logger.Debugf("fetching load balancers for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching load balancers for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	lbClient, err := armnetwork.NewLoadBalancersClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -520,7 +519,7 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 
 // fetchVirtualMachines gets virtual machines in a subscription.
 func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
-	logger.Debugf("fetching virtual machines for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching virtual machines for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	virtualMachineClient, err := armcompute.NewVirtualMachinesClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -607,7 +606,7 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 
 // fetchResourceGroups gets resource groups in a subscription.
 func (azure *Scraper) fetchResourceGroups() v1.ScrapeResults {
-	logger.Debugf("fetching resource groups for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching resource groups for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	resourceClient, err := armresources.NewResourceGroupsClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -640,7 +639,7 @@ func (azure *Scraper) fetchResourceGroups() v1.ScrapeResults {
 
 // fetchSubscriptions gets Azure subscriptions.
 func (azure *Scraper) fetchSubscriptions() v1.ScrapeResults {
-	logger.Debugf("fetching subscriptions")
+	azure.ctx.Logger.V(3).Infof("fetching subscriptions")
 
 	var results v1.ScrapeResults
 	client, err := armsubscription.NewSubscriptionsClient(azure.cred, nil)
@@ -674,7 +673,7 @@ func (azure *Scraper) fetchSubscriptions() v1.ScrapeResults {
 
 // fetchStorageAccounts gets storage accounts in a subscription.
 func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
-	logger.Debugf("fetching storage accounts for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching storage accounts for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	client, err := armstorage.NewAccountsClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -706,7 +705,7 @@ func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
 
 // fetchAppServices gets Azure app services in a subscription.
 func (azure Scraper) fetchAppServices() v1.ScrapeResults {
-	logger.Debugf("fetching web services for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching web services for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	client, err := armappservice.NewWebAppsClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -738,7 +737,7 @@ func (azure Scraper) fetchAppServices() v1.ScrapeResults {
 
 // fetchDNS gets Azure app services in a subscription.
 func (azure Scraper) fetchDNS() v1.ScrapeResults {
-	logger.Debugf("fetching dns zones for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching dns zones for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	client, err := armdns.NewZonesClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -770,7 +769,7 @@ func (azure Scraper) fetchDNS() v1.ScrapeResults {
 
 // fetchPrivateDNSZones gets Azure app services in a subscription.
 func (azure Scraper) fetchPrivateDNSZones() v1.ScrapeResults {
-	logger.Debugf("fetching private DNS zones for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching private DNS zones for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	client, err := armprivatedns.NewPrivateZonesClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -802,7 +801,7 @@ func (azure Scraper) fetchPrivateDNSZones() v1.ScrapeResults {
 
 // fetchTrafficManagerProfiles gets traffic manager profiles in a subscription.
 func (azure Scraper) fetchTrafficManagerProfiles() v1.ScrapeResults {
-	logger.Debugf("fetching traffic manager profiles for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching traffic manager profiles for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	client, err := armtrafficmanager.NewProfilesClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -834,7 +833,7 @@ func (azure Scraper) fetchTrafficManagerProfiles() v1.ScrapeResults {
 
 // fetchNetworkSecurityGroups gets network security groups in a subscription.
 func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
-	logger.Debugf("fetching network security groups for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching network security groups for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	client, err := armnetwork.NewSecurityGroupsClient(azure.config.SubscriptionID, azure.cred, nil)
@@ -867,7 +866,7 @@ func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
 
 // fetchPublicIPAddresses gets Azure public IP addresses in a subscription.
 func (azure Scraper) fetchPublicIPAddresses() v1.ScrapeResults {
-	logger.Debugf("fetching public IP addresses for subscription %s", azure.config.SubscriptionID)
+	azure.ctx.Logger.V(3).Infof("fetching public IP addresses for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	client, err := armnetwork.NewPublicIPAddressesClient(azure.config.SubscriptionID, azure.cred, nil)

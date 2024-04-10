@@ -35,7 +35,7 @@ func (t Scanner) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 	for i, config := range ctx.ScrapeConfig().Spec.Trivy {
 		if config.IsEmpty() {
-			logger.Debugf("Trivy config [%d] is empty. Skipping ...", i+1)
+			ctx.Logger.V(3).Infof("Trivy config [%d] is empty. Skipping ...", i+1)
 			continue
 		}
 

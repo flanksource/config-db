@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/duration"
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/google/uuid"
@@ -57,7 +56,7 @@ func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
 	}
 
 	if result.RowsAffected > 0 {
-		logger.Debugf("Deleted %d stale config items", result.RowsAffected)
+		ctx.Logger.V(3).Infof("Deleted %d stale config items", result.RowsAffected)
 	}
 
 	return nil
