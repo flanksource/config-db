@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -25,7 +26,6 @@ import (
 
 var _ = Describe("Scrapers test", Ordered, func() {
 	Describe("DB initialization", func() {
-
 		It("Gorm can connect", func() {
 			var people int64
 			Expect(DefaultContext.DB().Table("people").Count(&people).Error).ToNot(HaveOccurred())
@@ -106,6 +106,19 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(err).To(BeNil())
 
 			Expect(len(configItems)).To(Equal(3))
+		})
+
+		It("should have saved all tags as labels", func() {
+			var configItems []models.ConfigItem
+			err := DefaultContext.DB().
+				Where("NOT (labels @> tags)").
+				Where("name IN (?, ?, ?)", "first-config", "second-config", "first-secret").Find(&configItems).Error
+			Expect(err).To(BeNil())
+			for _, c := range configItems {
+				logger.Errorf("config (%s/%s) doesn't have all the tags(%v) as labels(%v)",
+					c.ID, lo.FromPtr(c.Name), c.Tags, c.Labels)
+			}
+			Expect(len(configItems)).To(Equal(0))
 		})
 
 		It("should correctly setup kubernetes relationship", func() {

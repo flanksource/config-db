@@ -259,6 +259,15 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 			input.Tags = parsed
 		}
 
+		// All tags are stored as labels.
+		// This is so that end users do not need to worry about tags/labels as
+		// everything will be available as labels when writing cel expressions.
+		if tags, err := input.Tags.AsMap(); err != nil {
+			return nil, fmt.Errorf("error converting tags to json string map: %w", err)
+		} else {
+			input.Labels = collections.MergeMap(input.Labels, tags)
+		}
+
 		// Form new relationships based on the transform configs
 		if newRelationships, err := getRelationshipsFromRelationshipConfigs(input, e.Transform.Relationship); err != nil {
 			return results, fmt.Errorf("failed to get relationships from relationship configs: %w", err)
