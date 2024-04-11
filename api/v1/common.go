@@ -194,8 +194,10 @@ func (t *RelationshipSelectorTemplate) Eval(labels map[string]string, env map[st
 		return nil, nil
 	}
 
-	var output RelationshipSelector
 	var err error
+	var output = RelationshipSelector{
+		Labels: t.Labels,
+	}
 
 	if !t.ID.IsEmpty() {
 		if output.ID, err = t.ID.Eval(labels, env); err != nil {

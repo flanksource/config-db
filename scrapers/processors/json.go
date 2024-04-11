@@ -196,7 +196,7 @@ func (e Extract) String() string {
 	return s
 }
 
-func getRelationshipsFromRelationshipConfigs(ctx context.Context, input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]v1.RelationshipSelector, error) {
+func getRelationshipsFromRelationshipConfigs(input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]v1.RelationshipSelector, error) {
 	var output []v1.RelationshipSelector
 
 	for _, rc := range relationshipConfigs {
@@ -260,7 +260,7 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 		}
 
 		// Form new relationships based on the transform configs
-		if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, input, e.Transform.Relationship); err != nil {
+		if newRelationships, err := getRelationshipsFromRelationshipConfigs(input, e.Transform.Relationship); err != nil {
 			return results, fmt.Errorf("failed to get relationships from relationship configs: %w", err)
 		} else if len(newRelationships) > 0 {
 			input.RelationshipSelectors = append(input.RelationshipSelectors, newRelationships...)
