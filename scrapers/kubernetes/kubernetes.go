@@ -34,13 +34,24 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 }
 
 func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) v1.ScrapeResults {
-	ctx.DutyContext().Tracef("incrementally scraping resources from %d events", len(events))
+	if len(events) == 0 {
+		return nil
+	}
+	ctx.DutyContext().Logger.V(5).Infof("incrementally scraping resources from %d events", len(events))
 
 	var (
 		// seenObjects helps in avoiding fetching the same object in this run.
 		seenObjects = make(map[string]struct{})
 		objects     = make([]*unstructured.Unstructured, 0, len(events))
 	)
+
+	opts := options.NewDefaultCmdOptions()
+	opts, err := updateOptions(ctx.DutyContext(), opts, config)
+	if err != nil {
+		r := v1.ScrapeResults{}
+		r.Add(v1.ScrapeResult{}.Errorf("failed to setup ketall options: %v", err))
+		return r
+	}
 
 	for _, event := range events {
 		if eventObj, err := event.ToUnstructured(); err != nil {
@@ -55,7 +66,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		cacheKey := fmt.Sprintf("%s/%s/%s", resource.Namespace, resource.Kind, resource.Name)
 		if _, ok := seenObjects[cacheKey]; !ok {
 			ctx.DutyContext().Logger.V(5).Infof("ketone namespace=%s name=%s kind=%s", resource.Namespace, resource.Name, resource.Kind)
-			obj, err := ketall.KetOne(ctx, resource.Name, resource.Namespace, resource.Kind, options.NewDefaultCmdOptions())
+			obj, err := ketall.KetOne(ctx, resource.Name, resource.Namespace, resource.Kind, opts)
 			if err != nil {
 				ctx.DutyContext().Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
 				continue
@@ -66,7 +77,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		}
 	}
 
-	ctx.DutyContext().Tracef("found %d objects for %d ids", len(objects), len(events))
+	ctx.DutyContext().Logger.V(5).Infof("found %d objects for %d ids", len(objects), len(events))
 	if len(objects) == 0 {
 		return nil
 	}
@@ -125,6 +136,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		Config:      make(map[string]any),
 		Labels:      make(v1.JSONStringMap),
 		ID:          clusterID,
+		Tags:        v1.Tags{{Name: "cluster", Value: config.ClusterName}},
 	}
 
 	resourceIDMap := getResourceIDsFromObjs(objs)
@@ -222,9 +234,9 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 				for _, ownerRef := range obj.GetOwnerReferences() {
 					if ownerRef.Kind == "DaemonSet" && ownerRef.Name == "aws-node" {
 						var (
-							awsRoleARN  = getContainerEnv(spec, "AWS_ROLE_ARN")
-							vpcID       = getContainerEnv(spec, "VPC_ID")
-							clusterName = getContainerEnv(spec, "CLUSTER_NAME")
+							awsRoleARN     = getContainerEnv(spec, "AWS_ROLE_ARN")
+							vpcID          = getContainerEnv(spec, "VPC_ID")
+							awsClusterName = getContainerEnv(spec, "CLUSTER_NAME")
 						)
 
 						labelsPerNode[nodeName] = make(map[string]string)
@@ -241,12 +253,10 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 							}
 						}
 
-						if clusterName != "" {
+						if awsClusterName != "" {
 							if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
-								clusterScrapeResult["cluster-name"] = clusterName
+								clusterScrapeResult["cluster-name"] = awsClusterName
 							}
-
-							cluster.Tags = append(cluster.Tags, v1.Tag{Name: "cluster", Value: clusterName})
 						}
 					}
 				}
@@ -305,7 +315,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 					accountID = extractAccountIDFromARN(mapRolesYAML)
 				}
 
-				tags = append(tags, v1.Tag{Name: "account", Value: accountID})
+				tags.Append("account", accountID)
 
 				if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
 					clusterScrapeResult["aws-auth"] = cm
@@ -314,11 +324,11 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			}
 		}
 
-		if config.ClusterName != "" && !tags.Has("cluster") {
-			tags = append(tags, v1.Tag{Name: "cluster", Value: config.ClusterName})
+		if cluster.Name != "" {
+			tags.Append("cluster", cluster.Name)
 		}
 		if obj.GetNamespace() != "" {
-			tags = append(tags, v1.Tag{Name: "namespace", Value: obj.GetNamespace()})
+			tags.Append("namespace", obj.GetNamespace())
 		}
 
 		labels["apiVersion"] = obj.GetAPIVersion()
