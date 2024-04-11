@@ -20,7 +20,6 @@ var (
 )
 
 var cleanupJobs = []*job.Job{
-	job.CleanupStaleHistoryJob(time.Hour*30, "Scraper", ""),
 	CleanupConfigAnalysis,
 	CleanupConfigChanges,
 	CleanupConfigItems,
