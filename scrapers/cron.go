@@ -147,8 +147,14 @@ func newScrapeJob(sc api.ScrapeContext) *job.Job {
 		if err := k8sWatchJob.AddToScheduler(scrapeJobScheduler); err != nil {
 			logger.Fatalf("failed to schedule kubernetes watch event consumer job: %v", err)
 		}
+		scrapeJobs.Store(consumeKubernetesWatchEventsJobKey(sc.ScrapeConfig().GetPersistedID().String()), k8sWatchJob)
 	}
+
 	return j
+}
+
+func consumeKubernetesWatchEventsJobKey(id string) string {
+	return id + "-consume-kubernetes-watch-events"
 }
 
 // ConsumeKubernetesWatchEventsJobFunc returns a job that consumes kubernetes watch events
@@ -198,6 +204,12 @@ func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kuberne
 
 func DeleteScrapeJob(id string) {
 	if j, ok := scrapeJobs.Load(id); ok {
+		existingJob := j.(*job.Job)
+		existingJob.Unschedule()
+		scrapeJobs.Delete(id)
+	}
+
+	if j, ok := scrapeJobs.Load(consumeKubernetesWatchEventsJobKey(id)); ok {
 		existingJob := j.(*job.Job)
 		existingJob.Unschedule()
 		scrapeJobs.Delete(id)
