@@ -15,6 +15,7 @@ import (
 	"github.com/flanksource/duty"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/klog/v2"
 )
 
 var dev bool
@@ -42,8 +43,12 @@ var Root = &cobra.Command{
 	Use: "config-db",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		logger.UseZap()
-		var err error
 
+		// sync the log level for klogs (used by ketall)
+		var l klog.Level
+		_ = l.Set(fmt.Sprintf("%d", logger.StandardLogger().GetLevel()))
+
+		var err error
 		if api.KubernetesClient, api.KubernetesRestConfig, err = kube.NewK8sClient(); err != nil {
 			logger.Errorf("failed to get kubernetes client: %v", err)
 		}

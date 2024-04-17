@@ -101,7 +101,11 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 		if err != nil {
 			return results.Errorf(err, "error setting up kube config")
 		}
-		objs := ketall.KetAll(opts)
+
+		objs, err := ketall.KetAll(ctx, opts)
+		if err != nil {
+			return results.Errorf(err, "failed to fetch resources")
+		}
 
 		extracted := extractResults(ctx.DutyContext(), config, objs, true)
 		results = append(results, extracted...)
