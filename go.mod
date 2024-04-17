@@ -1,6 +1,6 @@
 module github.com/flanksource/config-db
 
-go 1.20
+go 1.22.2
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.0
@@ -41,7 +41,7 @@ require (
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.22.1
-	github.com/flanksource/duty v1.0.418
+	github.com/flanksource/duty v1.0.419
 	github.com/flanksource/is-healthy v1.0.1
 	github.com/flanksource/ketall v1.1.5
 	github.com/flanksource/mapstructure v1.6.0
