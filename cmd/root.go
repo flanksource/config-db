@@ -46,7 +46,7 @@ var Root = &cobra.Command{
 
 		// sync the log level for klogs (used by ketall)
 		var l klog.Level
-		l.Set(fmt.Sprintf("%d", logger.StandardLogger().GetLevel()))
+		_ = l.Set(fmt.Sprintf("%d", logger.StandardLogger().GetLevel()))
 
 		var err error
 		if api.KubernetesClient, api.KubernetesRestConfig, err = kube.NewK8sClient(); err != nil {
