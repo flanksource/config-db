@@ -41,7 +41,7 @@ require (
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.22.1
-	github.com/flanksource/duty v1.0.419
+	github.com/flanksource/duty v1.0.422
 	github.com/flanksource/is-healthy v1.0.1
 	github.com/flanksource/ketall v1.1.6
 	github.com/flanksource/mapstructure v1.6.0
@@ -88,6 +88,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/RaveNoX/go-jsonmerge v1.0.0 // indirect
 	github.com/TomOnTime/utfutil v0.0.0-20210710122150-437f72b26edf // indirect
+	github.com/WinterYukky/gorm-extra-clause-plugin v0.2.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
