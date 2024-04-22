@@ -382,14 +382,14 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		}
 
 		// Evicted Pods must be considered deleted
-		if obj.GetKind() == "Pod" && string(resourceHealth.Status) == string(health.HealthStatusDegraded) {
-			objStatus := obj.Object["status"].(map[string]any)
-			if val, ok := objStatus["reason"].(string); ok && val == "Evicted" {
-				// Use time.Now() as default and try to parse the evict time
-				timeNow := time.Now()
-				deletedAt = &timeNow
-				if evictTime, err := time.Parse(time.RFC3339, objStatus["startTime"].(string)); err != nil {
-					deletedAt = &evictTime
+		if obj.GetKind() == "Pod" {
+			if objStatus, ok := obj.Object["status"].(map[string]any); ok {
+				if val, ok := objStatus["reason"].(string); ok && val == "Evicted" {
+					// Use time.Now() as default and try to parse the evict time
+					deletedAt = lo.ToPtr(time.Now())
+					if evictTime, err := time.Parse(time.RFC3339, objStatus["startTime"].(string)); err != nil {
+						deletedAt = &evictTime
+					}
 				}
 			}
 		}
