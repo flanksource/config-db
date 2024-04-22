@@ -364,6 +364,8 @@ type ScrapeResult struct {
 	ConfigClass         string              `json:"config_class,omitempty"`
 	Type                string              `json:"config_type,omitempty"`
 	Status              string              `json:"status,omitempty"` // status extracted from the config itself
+	Health              models.Health       `json:"health,omitempty"`
+	Ready               bool                `json:"ready,omitempty"`
 	Name                string              `json:"name,omitempty"`
 	Description         string              `json:"description,omitempty"`
 	Aliases             []string            `json:"aliases,omitempty"`

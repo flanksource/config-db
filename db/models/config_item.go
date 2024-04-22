@@ -6,6 +6,7 @@ import (
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -20,6 +21,8 @@ type ConfigItem struct {
 	ExternalID      pq.StringArray        `gorm:"column:external_id;type:[]text" json:"external_id,omitempty"  `
 	Type            *string               `gorm:"column:type;default:null" json:"type,omitempty"  `
 	Status          *string               `gorm:"column:status;default:null" json:"status,omitempty"  `
+	Ready           bool                  `json:"ready,omitempty"  `
+	Health          *models.Health        `json:"health,omitempty"`
 	Name            *string               `gorm:"column:name;default:null" json:"name,omitempty"  `
 	Description     *string               `gorm:"column:description;default:null" json:"description,omitempty"  `
 	Config          *string               `gorm:"column:config;default:null" json:"config,omitempty"  `

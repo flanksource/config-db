@@ -135,6 +135,7 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Labels:          &result.Labels,
 		Properties:      &result.Properties,
 		Config:          &dataStr,
+		Ready:           result.Ready,
 		LastScrapedTime: result.LastScrapedTime,
 	}
 
@@ -160,6 +161,10 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 
 	if result.Status != "" {
 		ci.Status = &result.Status
+	}
+
+	if result.Health != "" {
+		ci.Health = &result.Health
 	}
 
 	if result.Description != "" {

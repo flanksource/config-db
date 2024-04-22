@@ -190,7 +190,12 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 	}
 	if !stringEqual(ci.Status, existing.Status) {
 		updates["status"] = ci.Status
-		updates["updated_at"] = gorm.Expr("NOW()")
+	}
+	if ci.Ready != existing.Ready {
+		updates["ready"] = ci.Ready
+	}
+	if lo.FromPtr(ci.Health) != lo.FromPtr(existing.Health) {
+		updates["health"] = ci.Health
 	}
 	if !stringEqual(ci.Name, existing.Name) {
 		updates["name"] = ci.Name
