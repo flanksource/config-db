@@ -6,15 +6,16 @@ import (
 	"net/url"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/spf13/cobra"
-
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
 	dutyContext "github.com/flanksource/duty/context"
+	"github.com/labstack/echo-contrib/echoprometheus"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	prom "github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/cobra"
 
 	"github.com/flanksource/config-db/scrapers"
 )
@@ -59,6 +60,14 @@ func serve(ctx context.Context, configFiles []string) {
 	}
 
 	e.POST("/run/:id", scrapers.RunNowHandler)
+
+	e.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
+		Registerer: prom.DefaultRegisterer,
+	}))
+
+	e.GET("/metrics", echoprometheus.NewHandlerWithConfig(echoprometheus.HandlerConfig{
+		Gatherer: prom.DefaultGatherer,
+	}))
 
 	go startScraperCron(configFiles)
 
