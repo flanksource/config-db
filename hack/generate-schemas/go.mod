@@ -24,7 +24,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/flanksource/duty v1.0.422 // indirect
 	github.com/flanksource/gomplate/v3 v3.24.2 // indirect
-	github.com/flanksource/is-healthy v1.0.1 // indirect
+	github.com/flanksource/is-healthy v1.0.4 // indirect
 	github.com/flanksource/kubectl-neat v1.0.4 // indirect
 	github.com/flanksource/mapstructure v1.6.0 // indirect
 	github.com/flanksource/postq v0.1.3 // indirect

@@ -249,8 +249,8 @@ github.com/flanksource/duty v1.0.422 h1:QjgsyGze5gEwlE149Gv5Ace7akC+VkCgK1mL3iAr
 github.com/flanksource/duty v1.0.422/go.mod h1:uXl1FjlZvcpZ8U2ql5nHdy1YYl8P7cI5ohzrxD1U3Ts=
 github.com/flanksource/gomplate/v3 v3.24.2 h1:WZSriw1MaBhzrDV1IOP9eNsupIPxIHy0yTaMOVhCvsk=
 github.com/flanksource/gomplate/v3 v3.24.2/go.mod h1:94BxYobZqouGdVezuz6LNto5C+yLMG0LnNnM9CUPyoo=
-github.com/flanksource/is-healthy v1.0.1 h1:cr36GHndzge4rb6GDw+kSh5M6bUpglcZNbqqaTDAZeE=
-github.com/flanksource/is-healthy v1.0.1/go.mod h1:cFejm0MapnJzgeoG3iizMv+tCIPthe0XqO+3nrhM79c=
+github.com/flanksource/is-healthy v1.0.4 h1:r/dVsi7keR5NGLCTpgO/M6Hah2jRtYNfMh/XJNnxacc=
+github.com/flanksource/is-healthy v1.0.4/go.mod h1:ijdyDDpdRzDtIt1UVZv5WNpAnb8V4hGUz75rnr3Ubhk=
 github.com/flanksource/kubectl-neat v1.0.4 h1:t5/9CqgE84oEtB0KitgJ2+WIeLfD+RhXSxYrqb4X8yI=
 github.com/flanksource/kubectl-neat v1.0.4/go.mod h1:Un/Voyh3cmiZNKQrW/TkAl28nAA7vwnwDGVjRErKjOw=
 github.com/flanksource/mapstructure v1.6.0 h1:+1kJ+QsO1SxjAgktfLlpZXetsVSJ0uCLhGKrA4BtwTE=

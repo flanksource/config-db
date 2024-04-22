@@ -11,6 +11,7 @@ import (
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/models"
 	"github.com/samber/lo"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -366,10 +367,10 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		}
 
 		// Add health metadata
-		var status, description string
-		if healthStatus, err := health.GetResourceHealth(obj, lua.ResourceHealthOverrides{}); err == nil && healthStatus != nil {
-			status = string(healthStatus.Status)
-			description = healthStatus.Message
+		resourceHealth, err := health.GetResourceHealth(obj, lua.ResourceHealthOverrides{})
+		if err != nil {
+			ctx.Errorf("failed to get resource health: %v", err)
+			resourceHealth = &health.HealthStatus{}
 		}
 
 		createdAt := obj.GetCreationTimestamp().Time
@@ -381,7 +382,7 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		}
 
 		// Evicted Pods must be considered deleted
-		if obj.GetKind() == "Pod" && status == string(health.HealthStatusDegraded) {
+		if obj.GetKind() == "Pod" && string(resourceHealth.Status) == string(health.HealthStatusDegraded) {
 			objStatus := obj.Object["status"].(map[string]any)
 			if val, ok := objStatus["reason"].(string); ok && val == "Evicted" {
 				// Use time.Now() as default and try to parse the evict time
@@ -404,8 +405,10 @@ func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			Name:                obj.GetName(),
 			ConfigClass:         obj.GetKind(),
 			Type:                ConfigTypePrefix + obj.GetKind(),
-			Status:              status,
-			Description:         description,
+			Status:              string(resourceHealth.Status),
+			Health:              models.Health(resourceHealth.Health),
+			Ready:               resourceHealth.Ready,
+			Description:         resourceHealth.Message,
 			CreatedAt:           &createdAt,
 			DeletedAt:           deletedAt,
 			DeleteReason:        deleteReason,
