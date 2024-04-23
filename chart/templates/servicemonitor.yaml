@@ -8,7 +8,7 @@ metadata:
 spec:
   jobLabel: {{ include "config-db.name" . }}
   endpoints:
-    - port: metrics
+    - port: http
       interval: 30s
   selector:
     matchLabels:
