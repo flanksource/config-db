@@ -68,15 +68,38 @@ func DeleteScrapeConfig(ctx api.ScrapeContext, id string) error {
 }
 
 func PersistScrapeConfigFromCRD(ctx context.Context, scrapeConfig *v1.ScrapeConfig) (bool, error) {
+	var changed bool
+
+	spec, err := utils.StructToJSON(scrapeConfig.Spec)
+	if err != nil {
+		return changed, fmt.Errorf("error converting to json: %w", err)
+	}
+
+	var existing models.ConfigScraper
+	err = ctx.DB().Where("id = ?", string(scrapeConfig.GetUID())).First(&existing).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return changed, err
+	}
+
+	if existing.ID == uuid.Nil {
+		changed = true
+	} else {
+		change, err := generateDiff(existing.Spec, spec)
+		if err != nil {
+			return changed, err
+		}
+
+		changed = change != ""
+	}
+
 	configScraper := models.ConfigScraper{
 		ID:     uuid.MustParse(string(scrapeConfig.GetUID())),
 		Name:   fmt.Sprintf("%s/%s", scrapeConfig.Namespace, scrapeConfig.Name),
+		Spec:   spec,
 		Source: models.SourceCRD,
 	}
-	configScraper.Spec, _ = utils.StructToJSON(scrapeConfig.Spec)
-
-	tx := ctx.DB().Table("config_scrapers").Save(&configScraper)
-	return tx.RowsAffected > 0, tx.Error
+	tx := ctx.DB().Save(&configScraper)
+	return changed, tx.Error
 }
 
 func GetScrapeConfigsOfAgent(ctx api.ScrapeContext, agentID uuid.UUID) ([]models.ConfigScraper, error) {
