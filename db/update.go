@@ -191,6 +191,9 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 	if !stringEqual(ci.Status, existing.Status) {
 		updates["status"] = ci.Status
 	}
+	if !stringEqual(ci.Description, existing.Description) {
+		updates["description"] = ci.Description
+	}
 	if ci.Ready != existing.Ready {
 		updates["ready"] = ci.Ready
 	}
