@@ -72,7 +72,7 @@ func PersistScrapeConfigFromCRD(ctx context.Context, scrapeConfig *v1.ScrapeConf
 
 	spec, err := utils.StructToJSON(scrapeConfig.Spec)
 	if err != nil {
-		return changed, err
+		return changed, fmt.Errorf("error converting to json: %w", err)
 	}
 
 	var existing models.ConfigScraper
