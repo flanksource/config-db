@@ -18,16 +18,99 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
+	"k8s.io/client-go/discovery/cached/disk"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/flanksource/commons/files"
 	"gopkg.in/flanksource/yaml.v3"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/homedir"
 )
+
+func getRestMapper(config *rest.Config) (meta.RESTMapper, error) {
+	// re-use kubectl cache
+	host := config.Host
+	host = strings.ReplaceAll(host, "https://", "")
+	host = strings.ReplaceAll(host, "-", "_")
+	host = strings.ReplaceAll(host, ":", "_")
+	cacheDir := os.ExpandEnv("$HOME/.kube/cache/discovery/" + host)
+	cache, err := disk.NewCachedDiscoveryClientForConfig(config, cacheDir, "", 10*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+
+	return restmapper.NewDeferredDiscoveryRESTMapper(cache), nil
+}
+
+func GetKindClient(cfg *rest.Config, kind string) (dynamic.NamespaceableResourceInterface, error) {
+	dc, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	rm, err := getRestMapper(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	gvk, err := rm.KindFor(schema.GroupVersionResource{Resource: kind})
+	if err != nil {
+		return nil, err
+	}
+
+	gk := schema.GroupKind{Group: gvk.Group, Kind: gvk.Kind}
+	mapping, err := rm.RESTMapping(gk, gvk.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	return dc.Resource(mapping.Resource), nil
+}
+
+func NewKubeClientWithConfigPath(kubeConfigPath string) (kubernetes.Interface, *rest.Config, error) {
+	config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
+	if err != nil {
+		return fake.NewSimpleClientset(), nil, err
+	}
+
+	client, err := kubernetes.NewForConfig(config)
+	return client, config, err
+}
+
+func NewKubeClientWithConfig(kubeConfig string) (kubernetes.Interface, *rest.Config, error) {
+	getter := func() (*clientcmdapi.Config, error) {
+		clientCfg, err := clientcmd.NewClientConfigFromBytes([]byte(kubeConfig))
+		if err != nil {
+			return nil, err
+		}
+
+		apiCfg, err := clientCfg.RawConfig()
+		if err != nil {
+			return nil, err
+		}
+
+		return &apiCfg, nil
+	}
+
+	config, err := clientcmd.BuildConfigFromKubeconfigGetter("", getter)
+	if err != nil {
+		return fake.NewSimpleClientset(), nil, err
+	}
+
+	client, err := kubernetes.NewForConfig(config)
+	return client, config, err
+}
 
 // NewK8sClient ...
 func NewK8sClient() (kubernetes.Interface, *rest.Config, error) {
@@ -90,4 +173,9 @@ func GetKubeconfig() string {
 		}
 	}
 	return kubeConfig
+}
+
+func DefaultRestConfig() (*rest.Config, error) {
+	kubeConfig := GetKubeconfig()
+	return clientcmd.BuildConfigFromFlags("", kubeConfig)
 }

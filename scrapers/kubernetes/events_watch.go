@@ -6,18 +6,17 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/types"
-	"github.com/flanksource/kommons"
+	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/client-go/rest"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/config-db/utils/kube"
 )
 
 var (
@@ -38,35 +37,30 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	buffer := make(chan *unstructured.Unstructured, ctx.DutyContext().Properties().Int("kubernetes.watch.resources.bufferSize", WatchResourceBufferSize))
 	WatchResourceBuffer[config.Hash()] = buffer
 
+	var restConfig *rest.Config
+	var err error
 	if config.Kubeconfig != nil {
-		var err error
-		ctx, err = applyKubeconfig(ctx, *config.Kubeconfig)
+		ctx, restConfig, err = applyKubeconfig(ctx, *config.Kubeconfig)
+		if err != nil {
+			return fmt.Errorf("failed to apply kube config")
+		}
+	} else {
+		restConfig, err = kube.DefaultRestConfig()
 		if err != nil {
 			return fmt.Errorf("failed to apply kube config")
 		}
 	}
 
 	var channels []<-chan watch.Event
-	for _, k := range config.WatchKinds {
-		// TODO: Refactor client creation
-		kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			clientcmd.NewDefaultClientConfigLoadingRules(),
-			&clientcmd.ConfigOverrides{},
-		)
-		config, err := kubeconfig.ClientConfig()
+	for _, k := range lo.Uniq(config.WatchKinds) {
+		client, err := kube.GetKindClient(restConfig, k)
 		if err != nil {
-			return err
-		}
-
-		kommons := kommons.NewClient(config, nil)
-		client, err := kommons.GetClientByKind(k)
-		if err != nil {
-			return err
+			return fmt.Errorf("failed to create client for kind(%s): %v", k, err)
 		}
 
 		watcher, err := client.Watch(ctx, metav1.ListOptions{})
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create watcher for kind(%s): %v", k, err)
 		}
 		defer watcher.Stop()
 
@@ -91,7 +85,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 
 	if config.Kubeconfig != nil {
 		var err error
-		ctx, err = applyKubeconfig(ctx, *config.Kubeconfig)
+		ctx, _, err = applyKubeconfig(ctx, *config.Kubeconfig)
 		if err != nil {
 			return fmt.Errorf("failed to apply kube config")
 		}
@@ -125,59 +119,27 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	return nil
 }
 
-func applyKubeconfig(ctx api.ScrapeContext, kubeConfig types.EnvVar) (api.ScrapeContext, error) {
+func applyKubeconfig(ctx api.ScrapeContext, kubeConfig types.EnvVar) (api.ScrapeContext, *rest.Config, error) {
 	val, err := ctx.GetEnvValueFromCache(kubeConfig)
 	if err != nil {
-		return ctx, fmt.Errorf("failed to get kubeconfig from env: %w", err)
+		return ctx, nil, fmt.Errorf("failed to get kubeconfig from env: %w", err)
 	}
 
+	var client kubernetes.Interface
+	var restConfig *rest.Config
 	if strings.HasPrefix(val, "/") {
-		kube, err := newKubeClientWithConfigPath(val)
+		client, restConfig, err = kube.NewKubeClientWithConfigPath(val)
 		if err != nil {
-			return ctx, fmt.Errorf("failed to initialize kubernetes client from the provided kubeconfig: %w", err)
+			return ctx, nil, fmt.Errorf("failed to initialize kubernetes client from the provided kubeconfig: %w", err)
 		}
-
-		ctx.Context = ctx.WithKubernetes(kube)
 	} else {
-		kube, err := newKubeClientWithConfig(val)
+		client, restConfig, err = kube.NewKubeClientWithConfig(val)
 		if err != nil {
-			return ctx, fmt.Errorf("failed to initialize kubernetes client from the provided kubeconfig: %w", err)
+			return ctx, nil, fmt.Errorf("failed to initialize kubernetes client from the provided kubeconfig: %w", err)
 		}
-
-		ctx.Context = ctx.WithKubernetes(kube)
 	}
 
-	return ctx, nil
-}
+	ctx.Context = ctx.WithKubernetes(client)
 
-func newKubeClientWithConfigPath(kubeConfigPath string) (kubernetes.Interface, error) {
-	config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
-	if err != nil {
-		return fake.NewSimpleClientset(), err
-	}
-
-	return kubernetes.NewForConfig(config)
-}
-
-func newKubeClientWithConfig(kubeConfig string) (kubernetes.Interface, error) {
-	getter := func() (*clientcmdapi.Config, error) {
-		clientCfg, err := clientcmd.NewClientConfigFromBytes([]byte(kubeConfig))
-		if err != nil {
-			return nil, err
-		}
-
-		apiCfg, err := clientCfg.RawConfig()
-		if err != nil {
-			return nil, err
-		}
-
-		return &apiCfg, nil
-	}
-
-	config, err := clientcmd.BuildConfigFromKubeconfigGetter("", getter)
-	if err != nil {
-		return fake.NewSimpleClientset(), err
-	}
-
-	return kubernetes.NewForConfig(config)
+	return ctx, restConfig, nil
 }
