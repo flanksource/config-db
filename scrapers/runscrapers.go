@@ -15,8 +15,22 @@ import (
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// RunK8ObjScraper extracts & saves the given kubernetes objects.
+func RunK8ObjScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured) ([]v1.ScrapeResult, error) {
+	var results v1.ScrapeResults
+	res := kubernetes.ExtractResults(ctx.DutyContext(), config, objs, false)
+	for i := range res {
+		scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, res[i])
+		results = append(results, scraped...)
+	}
+
+	return results, nil
+}
+
+// RunK8IncrementalScraper scrapes the involved objects in the given events.
 func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) ([]v1.ScrapeResult, error) {
 	var results v1.ScrapeResults
 	var scraper kubernetes.KubernetesScraper

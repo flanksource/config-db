@@ -493,6 +493,11 @@ func (in *Kubernetes) DeepCopyInto(out *Kubernetes) {
 		*out = new(types.EnvVar)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.WatchKinds != nil {
+		in, out := &in.WatchKinds, &out.WatchKinds
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	in.Event.DeepCopyInto(&out.Event)
 	in.Exclusions.DeepCopyInto(&out.Exclusions)
 	if in.Relationships != nil {
