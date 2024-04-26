@@ -98,7 +98,7 @@ spec:
                           items:
                             type: string
                           type: array
-                        max_age:
+                        maxAge:
                           type: string
                       type: object
                     compliance:
@@ -107,13 +107,13 @@ spec:
                       description: ConnectionName of the connection. It'll be used
                         to populate the endpoint, accessKey and secretKey.
                       type: string
-                    cost_reporting:
+                    costReporting:
                       properties:
                         database:
                           type: string
                         region:
                           type: string
-                        s3_bucket_path:
+                        s3BucketPath:
                           type: string
                         table:
                           type: string

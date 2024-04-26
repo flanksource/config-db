@@ -21,8 +21,8 @@ spec:
       patch_states: false
       trusted_advisor_check: false
       patch_details: false
-      cost_reporting:
-        s3_bucket_path: s3://flanksource-cost-reports/query-results
+      costReporting:
+        s3BucketPath: s3://flanksource-cost-reports/query-results
         database: athenacurcfn_flanksource_report
         table: flanksource_report
         region: af-south-1

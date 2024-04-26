@@ -15,12 +15,12 @@ type AWS struct {
 	CloudTrail     CloudTrail    `json:"cloudtrail,omitempty"`
 	Include        []string      `json:"include,omitempty"`
 	Exclude        []string      `json:"exclude,omitempty"`
-	CostReporting  CostReporting `json:"cost_reporting,omitempty"`
+	CostReporting  CostReporting `json:"costReporting,omitempty"`
 }
 
 type CloudTrail struct {
 	Exclude []string `json:"exclude,omitempty"`
-	MaxAge  string   `json:"max_age,omitempty"`
+	MaxAge  string   `json:"maxAge,omitempty"`
 }
 
 func (c CloudTrail) GetMaxAge() time.Duration {
@@ -36,7 +36,7 @@ func (c CloudTrail) GetMaxAge() time.Duration {
 }
 
 type CostReporting struct {
-	S3BucketPath string `json:"s3_bucket_path,omitempty"`
+	S3BucketPath string `json:"s3BucketPath,omitempty"`
 	Table        string `json:"table,omitempty"`
 	Database     string `json:"database,omitempty"`
 	Region       string `json:"region,omitempty"`
