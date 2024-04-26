@@ -54,6 +54,8 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		return r
 	}
 
+	resourcesWatching := lo.Map(config.Watch, func(k v1.KubernetesResourceToWatch, _ int) string { return k.Kind })
+
 	for _, event := range events {
 		if eventObj, err := event.ToUnstructured(); err != nil {
 			ctx.DutyContext().Errorf("failed to convert event to unstructured: %v", err)
@@ -63,7 +65,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		}
 
 		// Add the involved object
-		if lo.Contains(config.WatchKinds, event.InvolvedObject.Kind) {
+		if lo.Contains(resourcesWatching, event.InvolvedObject.Kind) {
 			// If we're already watching the resource then we don't need to fetch it again.
 			continue
 		}

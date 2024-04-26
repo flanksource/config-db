@@ -52,8 +52,8 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	}
 
 	var channels []<-chan watch.Event
-	for _, k := range lo.Uniq(config.WatchKinds) {
-		client, err := kube.GetKindClient(restConfig, k)
+	for _, k := range lo.Uniq(config.Watch) {
+		client, err := kube.GetClientByGroupVersionKind(restConfig, k.ApiVersion, k.Kind)
 		if err != nil {
 			return fmt.Errorf("failed to create client for kind(%s): %v", k, err)
 		}

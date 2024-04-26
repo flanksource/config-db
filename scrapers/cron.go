@@ -164,8 +164,8 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 	}
 
 	for _, config := range sc.ScrapeConfig().Spec.Kubernetes {
-		if len(config.WatchKinds) == 0 {
-			config.WatchKinds = v1.DefaultWatchKinds
+		if len(config.Watch) == 0 {
+			config.Watch = v1.DefaultWatchKinds
 		}
 
 		go watchKubernetesEventsWithRetry(sc, config)

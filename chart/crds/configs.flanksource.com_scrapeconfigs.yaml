@@ -2290,9 +2290,21 @@ spec:
                       type: string
                     useCache:
                       type: boolean
-                    watchKinds:
+                    watch:
+                      description: |-
+                        Watch specifies which Kubernetes resources should be watched.
+                        This allows for near real-time updates of the config items
+                        without having to wait for the scraper on the specified interval.
                       items:
-                        type: string
+                        properties:
+                          apiVersion:
+                            type: string
+                          kind:
+                            type: string
+                        required:
+                        - apiVersion
+                        - kind
+                        type: object
                       type: array
                   type: object
                 type: array
