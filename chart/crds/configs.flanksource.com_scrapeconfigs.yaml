@@ -2290,6 +2290,10 @@ spec:
                       type: string
                     useCache:
                       type: boolean
+                    watchKinds:
+                      items:
+                        type: string
+                      type: array
                   type: object
                 type: array
               kubernetesFile:

@@ -44,6 +44,7 @@ require (
 	github.com/flanksource/duty v1.0.425
 	github.com/flanksource/is-healthy v1.0.4
 	github.com/flanksource/ketall v1.1.6
+	github.com/flanksource/kommons v0.31.4
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/go-logr/zapr v1.2.4
 	github.com/gobwas/glob v0.2.3
@@ -104,7 +105,6 @@ require (
 	github.com/evanphx/json-patch/v5 v5.7.0 // indirect
 	github.com/exaring/otelpgx v0.5.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/flanksource/kommons v0.31.4 // indirect
 	github.com/flanksource/kubectl-neat v1.0.4 // indirect
 	github.com/flanksource/postq v0.1.3 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect

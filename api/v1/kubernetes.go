@@ -163,6 +163,8 @@ func (t *KubernetesRelationshipSelectorTemplate) Eval(labels map[string]string, 
 	return &output, nil
 }
 
+var DefaultWatchKinds = []string{"Pod", "Deployment", "StatefulSet", "Daemonset", "ReplicaSet", "CronJob", "Job"}
+
 type Kubernetes struct {
 	BaseScraper     `json:",inline"`
 	ClusterName     string        `json:"clusterName,omitempty"`
@@ -175,6 +177,8 @@ type Kubernetes struct {
 	FieldSelector   string        `json:"fieldSelector,omitempty"`
 	MaxInflight     int64         `json:"maxInflight,omitempty"`
 	Kubeconfig      *types.EnvVar `json:"kubeconfig,omitempty"`
+
+	WatchKinds []string `json:"watchKinds,omitempty"`
 
 	// Event specifies how the Kubernetes event should be handled.
 	Event KubernetesEventConfig `json:"event,omitempty"`

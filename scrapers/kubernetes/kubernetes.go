@@ -63,6 +63,11 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		}
 
 		// Add the involved object
+		if lo.Contains(config.WatchKinds, event.InvolvedObject.Kind) {
+			// If we're already watching the resource then we don't need to fetch it again.
+			continue
+		}
+
 		resource := event.InvolvedObject
 		cacheKey := fmt.Sprintf("%s/%s/%s", resource.Namespace, resource.Kind, resource.Name)
 		if _, ok := seenObjects[cacheKey]; !ok {
@@ -83,7 +88,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		return nil
 	}
 
-	return extractResults(ctx.DutyContext(), config, objects, false)
+	return ExtractResults(ctx.DutyContext(), config, objects, false)
 }
 
 func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
@@ -108,16 +113,16 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 			return results.Errorf(err, "failed to fetch resources")
 		}
 
-		extracted := extractResults(ctx.DutyContext(), config, objs, true)
+		extracted := ExtractResults(ctx.DutyContext(), config, objs, true)
 		results = append(results, extracted...)
 	}
 
 	return results
 }
 
-// extractResults extracts scrape results from the given list of kuberenetes objects.
+// ExtractResults extracts scrape results from the given list of kuberenetes objects.
 //   - withCluster: if true, will create & add a scrape result for the kubernetes cluster.
-func extractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructured.Unstructured, withCluster bool) v1.ScrapeResults {
+func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructured.Unstructured, withCluster bool) v1.ScrapeResults {
 	var (
 		results       v1.ScrapeResults
 		changeResults v1.ScrapeResults
