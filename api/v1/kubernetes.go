@@ -163,7 +163,20 @@ func (t *KubernetesRelationshipSelectorTemplate) Eval(labels map[string]string, 
 	return &output, nil
 }
 
-var DefaultWatchKinds = []string{"Pod", "Deployment", "StatefulSet", "Daemonset", "ReplicaSet", "CronJob", "Job"}
+var DefaultWatchKinds = []KubernetesResourceToWatch{
+	{ApiVersion: "apps/v1", Kind: "DaemonSet"},
+	{ApiVersion: "apps/v1", Kind: "Deployment"},
+	{ApiVersion: "apps/v1", Kind: "ReplicaSet"},
+	{ApiVersion: "apps/v1", Kind: "StatefulSet"},
+	{ApiVersion: "batch/v1", Kind: "CronJob"},
+	{ApiVersion: "batch/v1", Kind: "Job"},
+	{ApiVersion: "v1", Kind: "Pod"},
+}
+
+type KubernetesResourceToWatch struct {
+	ApiVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+}
 
 type Kubernetes struct {
 	BaseScraper     `json:",inline"`
@@ -178,7 +191,10 @@ type Kubernetes struct {
 	MaxInflight     int64         `json:"maxInflight,omitempty"`
 	Kubeconfig      *types.EnvVar `json:"kubeconfig,omitempty"`
 
-	WatchKinds []string `json:"watchKinds,omitempty"`
+	// Watch specifies which Kubernetes resources should be watched.
+	// This allows for near real-time updates of the config items
+	// without having to wait for the scraper on the specified interval.
+	Watch []KubernetesResourceToWatch `json:"watch,omitempty"`
 
 	// Event specifies how the Kubernetes event should be handled.
 	Event KubernetesEventConfig `json:"event,omitempty"`

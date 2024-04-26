@@ -53,7 +53,16 @@ func getRestMapper(config *rest.Config) (meta.RESTMapper, error) {
 	return restmapper.NewDeferredDiscoveryRESTMapper(cache), nil
 }
 
-func GetKindClient(cfg *rest.Config, kind string) (dynamic.NamespaceableResourceInterface, error) {
+func getGroupVersion(apiVersion string) (string, string) {
+	split := strings.Split(apiVersion, "/")
+	if len(split) == 1 {
+		return "", apiVersion
+	}
+
+	return split[0], split[1]
+}
+
+func GetClientByGroupVersionKind(cfg *rest.Config, apiVersion, kind string) (dynamic.NamespaceableResourceInterface, error) {
 	dc, err := dynamic.NewForConfig(cfg)
 	if err != nil {
 		return nil, err
@@ -64,7 +73,8 @@ func GetKindClient(cfg *rest.Config, kind string) (dynamic.NamespaceableResource
 		return nil, err
 	}
 
-	gvk, err := rm.KindFor(schema.GroupVersionResource{Resource: kind})
+	group, version := getGroupVersion(apiVersion)
+	gvk, err := rm.KindFor(schema.GroupVersionResource{Group: group, Version: version, Resource: kind})
 	if err != nil {
 		return nil, err
 	}
