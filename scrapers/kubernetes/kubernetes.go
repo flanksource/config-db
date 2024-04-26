@@ -13,11 +13,15 @@ import (
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/samber/lo"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/flanksource/is-healthy/pkg/lua"
 	"github.com/flanksource/ketall"
@@ -38,23 +42,31 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 	if len(events) == 0 {
 		return nil
 	}
-	ctx.DutyContext().Logger.V(5).Infof("incrementally scraping resources from %d events", len(events))
+	ctx.DutyContext().Logger.V(4).Infof("incrementally scraping resources from %d events", len(events))
+
+	var r v1.ScrapeResults
+	var err error
+	var restConfig *rest.Config
+	if config.Kubeconfig != nil {
+		ctx, restConfig, err = applyKubeconfig(ctx, *config.Kubeconfig)
+		if err != nil {
+			return r.Errorf(err, "failed to apply custom kube config")
+		}
+	} else {
+		restConfig, err = kube.DefaultRestConfig()
+		if err != nil {
+			return r.Errorf(err, "failed to get default rest config")
+		}
+	}
 
 	var (
+		kindClientCache   = map[string]dynamic.NamespaceableResourceInterface{}
+		resourcesWatching = lo.Map(config.Watch, func(k v1.KubernetesResourceToWatch, _ int) string { return k.Kind })
+
 		// seenObjects helps in avoiding fetching the same object in this run.
 		seenObjects = make(map[string]struct{})
 		objects     = make([]*unstructured.Unstructured, 0, len(events))
 	)
-
-	opts := options.NewDefaultCmdOptions()
-	opts, err := updateOptions(ctx.DutyContext(), opts, config)
-	if err != nil {
-		r := v1.ScrapeResults{}
-		r.Add(v1.ScrapeResult{}.Errorf("failed to setup ketall options: %v", err))
-		return r
-	}
-
-	resourcesWatching := lo.Map(config.Watch, func(k v1.KubernetesResourceToWatch, _ int) string { return k.Kind })
 
 	for _, event := range events {
 		if eventObj, err := event.ToUnstructured(); err != nil {
@@ -73,8 +85,17 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		resource := event.InvolvedObject
 		cacheKey := fmt.Sprintf("%s/%s/%s", resource.Namespace, resource.Kind, resource.Name)
 		if _, ok := seenObjects[cacheKey]; !ok {
-			ctx.DutyContext().Logger.V(5).Infof("ketone namespace=%s name=%s kind=%s", resource.Namespace, resource.Name, resource.Kind)
-			obj, err := ketall.KetOne(ctx, resource.Name, resource.Namespace, resource.Kind, opts)
+			kclient, ok := kindClientCache[resource.APIVersion+resource.Kind]
+			if !ok {
+				kclient, err = kube.GetClientByGroupVersionKind(restConfig, resource.APIVersion, resource.Kind)
+				if err != nil {
+					continue
+				}
+				kindClientCache[resource.APIVersion+resource.Kind] = kclient
+			}
+
+			ctx.DutyContext().Logger.V(5).Infof("fetching resource namespace=%s name=%s kind=%s apiVersion=%s", resource.Namespace, resource.Name, resource.Kind, resource.APIVersion)
+			obj, err := kclient.Namespace(resource.Namespace).Get(ctx, resource.Name, metav1.GetOptions{})
 			if err != nil {
 				ctx.DutyContext().Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
 				continue
@@ -85,7 +106,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		}
 	}
 
-	ctx.DutyContext().Logger.V(5).Infof("found %d objects for %d ids", len(objects), len(events))
+	ctx.DutyContext().Logger.V(3).Infof("found %d objects for %d events", len(objects)-len(events), len(events))
 	if len(objects) == 0 {
 		return nil
 	}
