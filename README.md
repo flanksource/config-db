@@ -1,6 +1,6 @@
 # config-db
 
-**config-db** is developer first, JSON based configuration management database (CMDB).
+**config-db** is developer first, JSON based configuration management database (CMDB)
 
 ## Setup
 
