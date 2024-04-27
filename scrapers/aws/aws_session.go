@@ -100,12 +100,12 @@ func loadConfig(ctx api.ScrapeContext, conn v1.AWSConnection, region string) (*a
 
 // getAccessAndSecretKey retrieves the access and secret keys from the Kubernetes cache.
 func getAccessAndSecretKey(ctx api.ScrapeContext, conn v1.AWSConnection) (string, string, error) {
-	accessKey, err := ctx.GetEnvValueFromCache(conn.AccessKey)
+	accessKey, err := ctx.GetEnvValueFromCache(conn.AccessKey, ctx.Namespace())
 	if err != nil {
 		return "", "", fmt.Errorf("error getting access key: %w", err)
 	}
 
-	secretKey, err := ctx.GetEnvValueFromCache(conn.SecretKey)
+	secretKey, err := ctx.GetEnvValueFromCache(conn.SecretKey, ctx.Namespace())
 	if err != nil {
 		return "", "", fmt.Errorf("error getting secret key: %w", err)
 	}
