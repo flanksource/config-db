@@ -51,7 +51,7 @@ require (
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
 	github.com/google/cel-go v0.18.2
 	github.com/google/uuid v1.6.0
-	github.com/hashicorp/go-getter v1.7.3
+	github.com/hashicorp/go-getter v1.7.4
 	github.com/henvic/httpretty v0.1.2
 	github.com/hexops/gotextdiff v1.0.3
 	github.com/jackc/pgx/v5 v5.5.4
