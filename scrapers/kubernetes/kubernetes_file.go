@@ -129,8 +129,12 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 		return results
 	}
 
-	var pods []pod
+	restConfig, err := kube.DefaultRestConfig()
+	if err != nil {
+		return results.Errorf(err, "failed to get default kube rest config")
+	}
 
+	var pods []pod
 	for _, config := range ctx.ScrapeConfig().Spec.KubernetesFile {
 		if config.Selector.Kind == "" {
 			config.Selector.Kind = "Pod"
@@ -206,7 +210,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 		for _, file := range pod.Config.Files {
 			for _, p := range file.Path {
 				logger.Infof("Scraping %s/%s/%s/%s", pod.Namespace, pod.Name, pod.Container, p)
-				stdout, _, err := kube.ExecutePodf(ctx, ctx.Kubernetes(), ctx.KubernetesRestConfig(), pod.Namespace, pod.Name, pod.Container, "cat", p)
+				stdout, _, err := kube.ExecutePodf(ctx, ctx.Kubernetes(), restConfig, pod.Namespace, pod.Name, pod.Container, "cat", p)
 				if err != nil {
 					results.Errorf(err, "Failed to fetch %s/%s/%s: %v", pod.Namespace, pod.Name, pod.Container, p)
 					continue
