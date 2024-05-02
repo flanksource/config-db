@@ -31,7 +31,6 @@ var CleanupConfigAnalysis = &job.Job{
 	Singleton:  true,
 	JobHistory: true,
 	Retention:  job.RetentionBalanced,
-	RunNow:     true,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
 		if ConfigAnalysisRetentionDays <= 0 {
@@ -56,7 +55,6 @@ var CleanupConfigChanges = &job.Job{
 	Singleton:  true,
 	JobHistory: true,
 	Retention:  job.RetentionBalanced,
-	RunNow:     true,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
 		if ConfigChangeRetentionDays <= 0 {
@@ -80,7 +78,6 @@ var CleanupConfigItems = &job.Job{
 	Singleton:  true,
 	JobHistory: true,
 	Retention:  job.RetentionBalanced,
-	RunNow:     true,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
 		retention := ctx.Properties().Duration("config.retention.period", (time.Hour * 24 * time.Duration(ConfigItemRetentionDays)))

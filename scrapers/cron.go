@@ -145,7 +145,6 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		Retention:    job.RetentionBalanced,
 		ResourceID:   sc.ScrapeConfig().GetPersistedID().String(),
 		ResourceType: job.ResourceTypeScraper,
-		RunNow:       true,
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		Fn: func(jr job.JobRuntime) error {
 			results, err := RunScraper(sc.WithJobHistory(jr.History))
