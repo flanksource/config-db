@@ -5,7 +5,6 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
-	"k8s.io/client-go/rest"
 )
 
 type ScrapeContext struct {
@@ -13,8 +12,7 @@ type ScrapeContext struct {
 
 	temp *TempCache
 
-	namespace            string
-	kubernetesRestConfig *rest.Config
+	namespace string
 
 	jobHistory   *models.JobHistory
 	scrapeConfig *v1.ScrapeConfig
@@ -57,11 +55,10 @@ func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 		Context: dutyCtx.Context{
 			Context: ctx.Context.WithValue(key, val),
 		},
-		temp:                 ctx.temp,
-		namespace:            ctx.namespace,
-		kubernetesRestConfig: ctx.kubernetesRestConfig,
-		jobHistory:           ctx.jobHistory,
-		scrapeConfig:         ctx.scrapeConfig,
+		temp:         ctx.temp,
+		namespace:    ctx.namespace,
+		jobHistory:   ctx.jobHistory,
+		scrapeConfig: ctx.scrapeConfig,
 	}
 
 }
@@ -101,10 +98,6 @@ func (ctx ScrapeContext) Namespace() string {
 		return ctx.ScrapeConfig().Namespace
 	}
 	return ""
-}
-
-func (c ScrapeContext) KubernetesRestConfig() *rest.Config {
-	return c.kubernetesRestConfig
 }
 
 func (ctx ScrapeContext) IsTrace() bool {
