@@ -637,6 +637,11 @@ func (in *KubernetesExclusionConfig) DeepCopy() *KubernetesExclusionConfig {
 func (in *KubernetesFile) DeepCopyInto(out *KubernetesFile) {
 	*out = *in
 	in.BaseScraper.DeepCopyInto(&out.BaseScraper)
+	if in.Kubeconfig != nil {
+		in, out := &in.Kubeconfig, &out.Kubeconfig
+		*out = new(types.EnvVar)
+		(*in).DeepCopyInto(*out)
+	}
 	out.Selector = in.Selector
 	if in.Files != nil {
 		in, out := &in.Files, &out.Files
