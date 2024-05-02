@@ -1,10 +1,10 @@
-- filter: '' # match all configs
+- filter: "" # match all configs
   rule: change.change_type.startsWith('Delete') || change.change_type.startsWith('Remove') || change.change_type.startsWith('Terminate')
   action: delete
 - filter: config_type == 'HelmRelease'
   rule: change.change_type == 'diff' && patch.status.failures > 0
   type: HelmReconcileFailed
-  summary: 'Reconcile failed {{.patch.status.failures}}'
-- filter: '' # filter doesn't work for events
+  summary: "Reconcile failed {{.patch.status.failures}}"
+- filter: "" # filter doesn't work for events
   rule: change.change_type == 'Killing'
   action: delete
