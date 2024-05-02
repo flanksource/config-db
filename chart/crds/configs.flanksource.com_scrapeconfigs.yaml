@@ -2355,6 +2355,49 @@ spec:
                         A JSONPath expression to use to extract individual items from the resource,
                         items are extracted first and then the ID,Name,Type and transformations are applied for each item.
                       type: string
+                    kubeconfig:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            helmRef:
+                              properties:
+                                key:
+                                  description: Key is a JSONPath expression used to
+                                    fetch the key from the merged JSON.
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            serviceAccount:
+                              description: ServiceAccount specifies the service account
+                                whose token should be fetched
+                              type: string
+                          type: object
+                      type: object
                     labels:
                       additionalProperties:
                         type: string

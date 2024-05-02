@@ -7,10 +7,10 @@ import (
 
 	perrors "github.com/pkg/errors"
 
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils/kube"
+	"k8s.io/client-go/rest"
 
 	appsv1 "k8s.io/api/apps/v1"
 	k8sv1 "k8s.io/api/core/v1"
@@ -124,24 +124,30 @@ func (kubernetes KubernetesFileScraper) CanScrape(configs v1.ScraperSpec) bool {
 
 // Scrape ...
 func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
+	var err error
 	results := v1.ScrapeResults{}
-	if len(ctx.ScrapeConfig().Spec.KubernetesFile) == 0 {
-		return results
-	}
 
-	restConfig, err := kube.DefaultRestConfig()
-	if err != nil {
-		return results.Errorf(err, "failed to get default kube rest config")
-	}
-
-	var pods []pod
 	for _, config := range ctx.ScrapeConfig().Spec.KubernetesFile {
+		var restConfig *rest.Config
+		if config.Kubeconfig != nil {
+			ctx, restConfig, err = applyKubeconfig(ctx, *config.Kubeconfig)
+			if err != nil {
+				return results.Errorf(err, "failed to apply custom kube config")
+			}
+		} else {
+			restConfig, err = kube.DefaultRestConfig()
+			if err != nil {
+				return results.Errorf(err, "failed to get default rest config")
+			}
+		}
+
 		if config.Selector.Kind == "" {
 			config.Selector.Kind = "Pod"
 		}
 
 		ctx.Logger.V(3).Infof("Scraping pods %s => %s", config.Selector, config.Files)
 
+		var pods []pod
 		if startsWith(config.Selector.Kind, "pod") {
 			podList, err := findPods(ctx, ctx.Kubernetes(), config.Selector)
 			if err != nil {
@@ -169,7 +175,6 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 					pods = append(pods, _pods...)
 				}
 			}
-
 		} else if startsWith(config.Selector.Kind, "statefulset") {
 			if config.Selector.Name != "" {
 				statefulset, err := ctx.Kubernetes().AppsV1().StatefulSets(config.Selector.Namespace).Get(ctx, config.Selector.Name, metav1.GetOptions{})
@@ -203,35 +208,34 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 			results.Errorf(fmt.Errorf("kind %s is not supported", config.Selector.Kind), "failed to get resource")
 			continue
 		}
-	}
 
-	ctx.Logger.V(3).Infof("Found %d pods", len(pods))
-	for _, pod := range pods {
-		for _, file := range pod.Config.Files {
-			for _, p := range file.Path {
-				logger.Infof("Scraping %s/%s/%s/%s", pod.Namespace, pod.Name, pod.Container, p)
-				stdout, _, err := kube.ExecutePodf(ctx, ctx.Kubernetes(), restConfig, pod.Namespace, pod.Name, pod.Container, "cat", p)
-				if err != nil {
-					results.Errorf(err, "Failed to fetch %s/%s/%s: %v", pod.Namespace, pod.Name, pod.Container, p)
-					continue
-				}
+		ctx.Logger.V(3).Infof("Found %d pods", len(pods))
+		for _, pod := range pods {
+			for _, file := range pod.Config.Files {
+				for _, p := range file.Path {
+					stdout, _, err := kube.ExecutePodf(ctx, ctx.Kubernetes(), restConfig, pod.Namespace, pod.Name, pod.Container, "cat", p)
+					if err != nil {
+						results.Errorf(err, "Failed to fetch %s/%s/%s: %v", pod.Namespace, pod.Name, pod.Container, p)
+						continue
+					}
 
-				if _, ok := pod.Labels["namespace"]; !ok {
-					pod.Labels["namespace"] = pod.Namespace
+					if _, ok := pod.Labels["namespace"]; !ok {
+						pod.Labels["namespace"] = pod.Namespace
+					}
+					if _, ok := pod.Labels["pod"]; !ok {
+						pod.Labels["pod"] = pod.Name
+					}
+					pod.Labels = stripLabels(pod.Labels, "-hash", "pod", "eks.amazonaws.com/fargate-profile")
+					results = append(results, v1.ScrapeResult{
+						BaseScraper: pod.Config.BaseScraper,
+						Labels:      pod.Labels,
+						Format:      file.Format,
+						Type:        "File",
+						ID:          pod.ID + "/" + p,
+						Name:        path.Base(p),
+						Config:      stdout,
+					})
 				}
-				if _, ok := pod.Labels["pod"]; !ok {
-					pod.Labels["pod"] = pod.Name
-				}
-				pod.Labels = stripLabels(pod.Labels, "-hash", "pod", "eks.amazonaws.com/fargate-profile")
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: pod.Config.BaseScraper,
-					Labels:      pod.Labels,
-					Format:      file.Format,
-					Type:        "File",
-					ID:          pod.ID + "/" + p,
-					Name:        path.Base(p),
-					Config:      stdout,
-				})
 			}
 		}
 	}
@@ -240,15 +244,12 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 }
 
 func findPods(ctx api.ScrapeContext, client kubernetes.Interface, config v1.ResourceSelector) ([]k8sv1.Pod, error) {
-
-	logger.Infof("Finding pods for %s name=%s labels=%s fields=%s", config.Namespace, config.Name, config.LabelSelector, config.FieldSelector)
-
+	ctx.Logger.V(3).Infof("Finding pods for %s name=%s labels=%s fields=%s", config.Namespace, config.Name, config.LabelSelector, config.FieldSelector)
 	if config.IsEmpty() {
 		return nil, fmt.Errorf("resource selector is empty")
 	}
 
 	podsV1 := client.CoreV1().Pods(config.Namespace)
-
 	if config.Name != "" {
 		pod, err := podsV1.Get(ctx, config.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
@@ -258,6 +259,7 @@ func findPods(ctx api.ScrapeContext, client kubernetes.Interface, config v1.Reso
 		}
 		return []k8sv1.Pod{*pod}, nil
 	}
+
 	list, err := podsV1.List(ctx, metav1.ListOptions{LabelSelector: config.LabelSelector, FieldSelector: config.FieldSelector})
 	if errors.IsNotFound(err) {
 		return nil, nil

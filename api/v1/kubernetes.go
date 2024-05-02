@@ -213,6 +213,7 @@ func (t *Kubernetes) Hash() string {
 
 type KubernetesFile struct {
 	BaseScraper `json:",inline"`
+	Kubeconfig  *types.EnvVar    `json:"kubeconfig,omitempty"`
 	Selector    ResourceSelector `json:"selector" yaml:"selector"`
 	Container   string           `json:"container,omitempty" yaml:"container,omitempty"`
 	Files       []PodFile        `json:"files,omitempty" yaml:"files,omitempty"`
