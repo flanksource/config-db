@@ -78,19 +78,20 @@ func init() {
 // ProcessRules modifies the scraped changes in-place
 // using the change rules.
 func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) {
+	if len(result.Changes) == 0 {
+		return
+	}
+
 	allRules := Rules
 	for _, r := range rules {
 		allRules = append(allRules, changeRule{
-			Rule: r.Filter,
-			Type: r.Type,
+			Action: r.Action,
+			Rule:   r.Filter,
+			Type:   r.Type,
 		})
 	}
 
 	for _, rule := range allRules {
-		if len(result.Changes) == 0 {
-			continue
-		}
-
 		if match, err := rule.match(result); err != nil {
 			logger.Errorf("Failed to match filter %s: %s", rule.Filter, err)
 			continue

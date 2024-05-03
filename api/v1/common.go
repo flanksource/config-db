@@ -96,6 +96,10 @@ type ChangeMapping struct {
 	Filter string `json:"filter,omitempty"`
 	// Type is the type to be set on the change
 	Type string `json:"type,omitempty"`
+	// Action allows performing actions on the corresponding config item
+	// based on this change. Example: You can map EC2 instance's "TerminateInstances"
+	// change event to delete the corresponding EC2 instance config.
+	Action ChangeAction `json:"action,omitempty"`
 }
 
 type TransformChange struct {
