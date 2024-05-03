@@ -85,9 +85,10 @@ func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) {
 	allRules := Rules
 	for _, r := range rules {
 		allRules = append(allRules, changeRule{
-			Action: r.Action,
-			Rule:   r.Filter,
-			Type:   r.Type,
+			Action:  r.Action,
+			Rule:    r.Filter,
+			Type:    r.Type,
+			Summary: r.Summary,
 		})
 	}
 

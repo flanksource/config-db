@@ -142,7 +142,6 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		Schedule:     schedule,
 		Singleton:    true,
 		JobHistory:   true,
-		RunNow:       true,
 		Retention:    job.RetentionBalanced,
 		ResourceID:   sc.ScrapeConfig().GetPersistedID().String(),
 		ResourceType: job.ResourceTypeScraper,

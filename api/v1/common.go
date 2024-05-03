@@ -100,6 +100,8 @@ type ChangeMapping struct {
 	// based on this change. Example: You can map EC2 instance's "TerminateInstances"
 	// change event to delete the corresponding EC2 instance config.
 	Action ChangeAction `json:"action,omitempty"`
+	// Summary replaces the existing change summary.
+	Summary string `json:"summary,omitempty"`
 }
 
 type TransformChange struct {
