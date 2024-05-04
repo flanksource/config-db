@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -57,20 +56,6 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	return nil
 }
 
-func sliceEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	sort.Strings(a)
-	sort.Strings(b)
-	for i, v := range a {
-		if v != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func stringEqual(a, b *string) bool {
 	if a == nil && b == nil {
 		return true
@@ -99,7 +84,7 @@ func mapStringEqual(a, b map[string]string) bool {
 	return true
 }
 
-func mapEqual(a, b map[string]interface{}) bool {
+func mapEqual(a, b map[string]any) bool {
 	if len(a) != len(b) {
 		return false
 	}
