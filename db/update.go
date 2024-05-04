@@ -3,6 +3,7 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -216,7 +217,8 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 		updates["created_at"] = ci.CreatedAt
 	}
 
-	if !sliceEqual(ci.ExternalID, existing.ExternalID) {
+	// Order of externalID matters
+	if !slices.Equal(ci.ExternalID, existing.ExternalID) {
 		updates["external_id"] = ci.ExternalID
 	}
 	if !mapStringEqual(lo.FromPtr(ci.Labels), lo.FromPtr(existing.Labels)) {

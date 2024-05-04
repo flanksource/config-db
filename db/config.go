@@ -126,7 +126,7 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 	}
 
 	ci := &models.ConfigItem{
-		ExternalID:      append(result.Aliases, result.ID),
+		ExternalID:      append([]string{result.ID}, result.Aliases...),
 		ID:              utils.Deref(result.ConfigID),
 		ConfigClass:     result.ConfigClass,
 		Type:            &result.Type,
