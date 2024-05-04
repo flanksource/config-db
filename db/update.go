@@ -506,6 +506,7 @@ func generateConfigChange(newConf, prev models.ConfigItem) (*v1.ChangeResult, er
 		ConfigType:       lo.FromPtr(newConf.Type),
 		ChangeType:       "diff",
 		ExternalChangeID: utils.Sha256Hex(string(patch)),
+		ExternalID:       newConf.ExternalID[0],
 		Diff:             &diff,
 		Patches:          string(patch),
 		Summary:          strings.Join(utils.ExtractLeafNodesAndCommonParents(patchJSON), ", "),
