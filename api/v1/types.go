@@ -87,7 +87,7 @@ func (e ExternalID) String() string {
 }
 
 func (e ExternalID) IsEmpty() bool {
-	return e.ConfigType == "" && len(e.ExternalID) == 0
+	return e.ConfigType == "" || len(e.ExternalID) == 0
 }
 
 func (e ExternalID) CacheKey() string {
