@@ -318,9 +318,21 @@ spec:
                                 maps a change to the specified type
                               items:
                                 properties:
+                                  action:
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  summary:
+                                    description: Summary replaces the existing change
+                                      summary.
                                     type: string
                                   type:
                                     description: Type is the type to be set on the
@@ -711,9 +723,21 @@ spec:
                                 maps a change to the specified type
                               items:
                                 properties:
+                                  action:
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  summary:
+                                    description: Summary replaces the existing change
+                                      summary.
                                     type: string
                                   type:
                                     description: Type is the type to be set on the
@@ -1054,9 +1078,21 @@ spec:
                                 maps a change to the specified type
                               items:
                                 properties:
+                                  action:
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  summary:
+                                    description: Summary replaces the existing change
+                                      summary.
                                     type: string
                                   type:
                                     description: Type is the type to be set on the
@@ -1356,9 +1392,21 @@ spec:
                                 maps a change to the specified type
                               items:
                                 properties:
+                                  action:
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  summary:
+                                    description: Summary replaces the existing change
+                                      summary.
                                     type: string
                                   type:
                                     description: Type is the type to be set on the
@@ -1698,9 +1746,21 @@ spec:
                                 maps a change to the specified type
                               items:
                                 properties:
+                                  action:
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  summary:
+                                    description: Summary replaces the existing change
+                                      summary.
                                     type: string
                                   type:
                                     description: Type is the type to be set on the
@@ -2153,9 +2213,21 @@ spec:
                                 maps a change to the specified type
                               items:
                                 properties:
+                                  action:
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  summary:
+                                    description: Summary replaces the existing change
+                                      summary.
                                     type: string
                                   type:
                                     description: Type is the type to be set on the
@@ -2525,9 +2597,21 @@ spec:
                                 maps a change to the specified type
                               items:
                                 properties:
+                                  action:
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  summary:
+                                    description: Summary replaces the existing change
+                                      summary.
                                     type: string
                                   type:
                                     description: Type is the type to be set on the
@@ -2947,9 +3031,21 @@ spec:
                                 maps a change to the specified type
                               items:
                                 properties:
+                                  action:
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  summary:
+                                    description: Summary replaces the existing change
+                                      summary.
                                     type: string
                                   type:
                                     description: Type is the type to be set on the
@@ -3272,9 +3368,21 @@ spec:
                                 maps a change to the specified type
                               items:
                                 properties:
+                                  action:
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  summary:
+                                    description: Summary replaces the existing change
+                                      summary.
                                     type: string
                                   type:
                                     description: Type is the type to be set on the
