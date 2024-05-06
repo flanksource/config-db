@@ -319,10 +319,12 @@ spec:
                               items:
                                 properties:
                                   action:
-                                    description: |-
-                                      Action allows performing actions on the corresponding config item
-                                      based on this change. Example: You can map EC2 instance's "TerminateInstances"
-                                      change event to delete the corresponding EC2 instance config.
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
                                     type: string
                                   filter:
                                     description: Filter selects what change to apply
@@ -722,10 +724,12 @@ spec:
                               items:
                                 properties:
                                   action:
-                                    description: |-
-                                      Action allows performing actions on the corresponding config item
-                                      based on this change. Example: You can map EC2 instance's "TerminateInstances"
-                                      change event to delete the corresponding EC2 instance config.
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
                                     type: string
                                   filter:
                                     description: Filter selects what change to apply
@@ -1075,10 +1079,12 @@ spec:
                               items:
                                 properties:
                                   action:
-                                    description: |-
-                                      Action allows performing actions on the corresponding config item
-                                      based on this change. Example: You can map EC2 instance's "TerminateInstances"
-                                      change event to delete the corresponding EC2 instance config.
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
                                     type: string
                                   filter:
                                     description: Filter selects what change to apply
@@ -1387,10 +1393,12 @@ spec:
                               items:
                                 properties:
                                   action:
-                                    description: |-
-                                      Action allows performing actions on the corresponding config item
-                                      based on this change. Example: You can map EC2 instance's "TerminateInstances"
-                                      change event to delete the corresponding EC2 instance config.
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
                                     type: string
                                   filter:
                                     description: Filter selects what change to apply
@@ -1739,10 +1747,12 @@ spec:
                               items:
                                 properties:
                                   action:
-                                    description: |-
-                                      Action allows performing actions on the corresponding config item
-                                      based on this change. Example: You can map EC2 instance's "TerminateInstances"
-                                      change event to delete the corresponding EC2 instance config.
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
                                     type: string
                                   filter:
                                     description: Filter selects what change to apply
@@ -2204,10 +2214,12 @@ spec:
                               items:
                                 properties:
                                   action:
-                                    description: |-
-                                      Action allows performing actions on the corresponding config item
-                                      based on this change. Example: You can map EC2 instance's "TerminateInstances"
-                                      change event to delete the corresponding EC2 instance config.
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
                                     type: string
                                   filter:
                                     description: Filter selects what change to apply
@@ -2586,10 +2598,12 @@ spec:
                               items:
                                 properties:
                                   action:
-                                    description: |-
-                                      Action allows performing actions on the corresponding config item
-                                      based on this change. Example: You can map EC2 instance's "TerminateInstances"
-                                      change event to delete the corresponding EC2 instance config.
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
                                     type: string
                                   filter:
                                     description: Filter selects what change to apply
@@ -3018,10 +3032,12 @@ spec:
                               items:
                                 properties:
                                   action:
-                                    description: |-
-                                      Action allows performing actions on the corresponding config item
-                                      based on this change. Example: You can map EC2 instance's "TerminateInstances"
-                                      change event to delete the corresponding EC2 instance config.
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
                                     type: string
                                   filter:
                                     description: Filter selects what change to apply
@@ -3353,10 +3369,12 @@ spec:
                               items:
                                 properties:
                                   action:
-                                    description: |-
-                                      Action allows performing actions on the corresponding config item
-                                      based on this change. Example: You can map EC2 instance's "TerminateInstances"
-                                      change event to delete the corresponding EC2 instance config.
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
                                     type: string
                                   filter:
                                     description: Filter selects what change to apply
