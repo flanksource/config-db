@@ -28,10 +28,10 @@ var Serve = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		api.DefaultContext = api.NewScrapeContext(db.MustInit())
 
-		if ok, err := duty.HasMigrationRun(cmd.Context(), api.DefaultContext.Pool()); err != nil {
+		if ok, err := duty.HasMigrationsRun(cmd.Context(), api.DefaultContext.Pool()); err != nil {
 			return fmt.Errorf("failed to check if migrations have run: %w", err)
 		} else if !ok {
-			return errors.New("migrations haven't run yet")
+			return errors.New("Migrations not run, waiting for mission-control pod to start")
 		}
 
 		if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {

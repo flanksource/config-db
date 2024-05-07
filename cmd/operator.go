@@ -51,10 +51,10 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load properties: %v", err)
 	}
 
-	if ok, err := duty.HasMigrationRun(ctx, api.DefaultContext.Pool()); err != nil {
+	if ok, err := duty.HasMigrationsRun(ctx, api.DefaultContext.Pool()); err != nil {
 		return fmt.Errorf("failed to check if migrations have run: %w", err)
 	} else if !ok {
-		return errors.New("migrations haven't run yet")
+		return errors.New("Migrations not run, waiting for mission-control pod to start")
 	}
 
 	zapLogger := logger.GetZapLogger()
