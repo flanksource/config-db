@@ -59,7 +59,6 @@ var Root = &cobra.Command{
 		}
 		db.Schema = readFromEnv(db.Schema)
 		db.PGRSTLogLevel = readFromEnv(db.PGRSTLogLevel)
-
 	},
 }
 
