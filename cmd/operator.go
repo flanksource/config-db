@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -18,6 +19,7 @@ import (
 	configsv1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/controllers"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/go-logr/zapr"
 	"github.com/spf13/cobra"
@@ -47,6 +49,12 @@ func run(cmd *cobra.Command, args []string) error {
 	api.DefaultContext = api.NewScrapeContext(db.MustInit().WithKubernetes(api.KubernetesClient))
 	if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
 		return fmt.Errorf("failed to load properties: %v", err)
+	}
+
+	if ok, err := duty.HasMigrationRun(ctx, api.DefaultContext.Pool()); err != nil {
+		return fmt.Errorf("failed to check if migrations have run: %w", err)
+	} else if !ok {
+		return errors.New("migrations haven't run yet")
 	}
 
 	zapLogger := logger.GetZapLogger()

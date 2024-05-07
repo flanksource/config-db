@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -10,6 +11,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
+	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
@@ -25,6 +27,12 @@ var Serve = &cobra.Command{
 	Use: "serve",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		api.DefaultContext = api.NewScrapeContext(db.MustInit())
+
+		if ok, err := duty.HasMigrationRun(cmd.Context(), api.DefaultContext.Pool()); err != nil {
+			return fmt.Errorf("failed to check if migrations have run: %w", err)
+		} else if !ok {
+			return errors.New("migrations haven't run yet")
+		}
 
 		if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
 			return fmt.Errorf("failed to load properties: %v", err)
