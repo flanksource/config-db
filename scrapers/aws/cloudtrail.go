@@ -119,9 +119,10 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 					change.ConfigType = *resource.ResourceType
 				}
 
-				results.AddChange(change)
+				results.AddChange(config.BaseScraper, change)
 			}
 		}
+
 		LastEventTime.Store(lastEventKey, maxTime)
 		logger.Infof("Processed %d events, changes=%d ignored=%d", count, len(*results), ignored)
 		wg.Done()
