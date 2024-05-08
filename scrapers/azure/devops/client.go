@@ -118,7 +118,7 @@ func NewAzureDevopsClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 		token = connection.Password
 		ado.Organization = connection.Username
 	} else {
-		token, err = ctx.GetEnvValueFromCache(ado.PersonalAccessToken)
+		token, err = ctx.GetEnvValueFromCache(ado.PersonalAccessToken, ctx.GetNamespace())
 		if err != nil {
 			return nil, err
 		}

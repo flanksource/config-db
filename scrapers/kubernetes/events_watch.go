@@ -120,7 +120,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 }
 
 func applyKubeconfig(ctx api.ScrapeContext, kubeConfig types.EnvVar) (api.ScrapeContext, *rest.Config, error) {
-	val, err := ctx.GetEnvValueFromCache(kubeConfig)
+	val, err := ctx.GetEnvValueFromCache(kubeConfig, ctx.GetNamespace())
 	if err != nil {
 		return ctx, nil, fmt.Errorf("failed to get kubeconfig from env: %w", err)
 	}

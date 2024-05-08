@@ -42,14 +42,14 @@ func GetAuthValues(ctx api.ScrapeContext, auth *v1.Authentication) (*v1.Authenti
 	if auth == nil {
 		return authentication, nil
 	}
-	username, err := ctx.GetEnvValueFromCache(auth.Username)
+	username, err := ctx.GetEnvValueFromCache(auth.Username, ctx.GetNamespace())
 	if err != nil {
 		return nil, err
 	}
 	authentication.Username = types.EnvVar{
 		ValueStatic: username,
 	}
-	password, err := ctx.GetEnvValueFromCache(auth.Password)
+	password, err := ctx.GetEnvValueFromCache(auth.Password, ctx.GetNamespace())
 	if err != nil {
 		return nil, err
 	}
