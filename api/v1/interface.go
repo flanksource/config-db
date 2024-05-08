@@ -200,9 +200,10 @@ func (r RelationshipResult) String() string {
 
 type RelationshipResults []RelationshipResult
 
-func (s *ScrapeResults) AddChange(change ChangeResult) *ScrapeResults {
+func (s *ScrapeResults) AddChange(base BaseScraper, change ChangeResult) *ScrapeResults {
 	*s = append(*s, ScrapeResult{
-		Changes: []ChangeResult{change},
+		BaseScraper: base,
+		Changes:     []ChangeResult{change},
 	})
 	return s
 }
