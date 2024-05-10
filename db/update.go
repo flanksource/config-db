@@ -109,6 +109,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 	if len(ci.ExternalID) == 0 {
 		return nil, false, fmt.Errorf("config item %s has no external id", ci)
 	}
+
 	if ci.ID != "" {
 		if err := uuid.Validate(ci.ID); err == nil {
 			if existing, err = ctx.TempCache().Get(ci.ID); err != nil {
@@ -123,7 +124,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult) (*models.ConfigItem
 
 	if existing == nil || existing.ID == "" {
 		if err := ctx.DB().Clauses(clause.OnConflict{UpdateAll: true}).Create(ci).Error; err != nil {
-			return nil, false, err
+			return nil, false, fmt.Errorf("failed to create config: %w", err)
 		}
 
 		return ci, false, nil
@@ -272,7 +273,7 @@ func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.Conf
 
 		if changeResult.Action == v1.Delete {
 			if err := deleteChangeHandler(ctx, changeResult); err != nil {
-				return err
+				return fmt.Errorf("failed to delete config from change: %w", err)
 			}
 		}
 
@@ -294,7 +295,7 @@ func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.Conf
 			change.ConfigID = ci.ID
 		} else if !change.GetExternalID().IsEmpty() {
 			if ci, err := ctx.TempCache().FindExternalID(change.GetExternalID()); err != nil {
-				return err
+				return fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
 			} else if ci != "" {
 				change.ConfigID = ci
 			} else if ci == "" {
@@ -305,11 +306,11 @@ func saveChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.Conf
 
 		if changeResult.UpdateExisting {
 			if err := db.Save(change).Error; err != nil {
-				return err
+				return fmt.Errorf("failed to update config change: %w", err)
 			}
 		} else {
 			if err := db.Create(change).Error; err != nil {
-				return err
+				return fmt.Errorf("failed to create config change: %w", err)
 			}
 		}
 	}
@@ -373,6 +374,8 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		resultsWithRelationshipSelectors []v1.ScrapeResult
 	)
 
+	// TODO:: Sort the results so that parents are inserted first
+
 	var toTouch []string
 	for _, result := range results {
 		result.LastScrapedTime = &startTime
@@ -381,7 +384,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		if result.Config != nil {
 			var updated bool
 			if ci, updated, err = updateCI(ctx, result); err != nil {
-				return err
+				return fmt.Errorf("failed to save config item (%s): %w", result, err)
 			} else if !updated {
 				toTouch = append(toTouch, ci.ID)
 			}
@@ -389,12 +392,12 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 
 		if result.AnalysisResult != nil {
 			if err := upsertAnalysis(ctx, &result); err != nil {
-				return err
+				return fmt.Errorf("failed to analysis (%s): %w", result, err)
 			}
 		}
 
 		if err := saveChanges(ctx, &result, ci); err != nil {
-			return err
+			return fmt.Errorf("failed to changes (%s): %w", result, err)
 		}
 
 		relationshipToForm = append(relationshipToForm, result.RelationshipResults...)
@@ -431,7 +434,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 			if err := ctx.DB().Table("config_items").
 				Where("id in (?)", toTouch[i:end]).
 				Update("last_scraped_time", gorm.Expr("NOW()")).Error; err != nil {
-				return err
+				return fmt.Errorf("error updating last scraped time: %w", err)
 			}
 		}
 	}
