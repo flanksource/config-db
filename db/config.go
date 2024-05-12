@@ -180,16 +180,6 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		ci.DeleteReason = result.DeleteReason
 	}
 
-	if result.ParentExternalID != "" && result.ParentType != "" {
-		if found, err := ctx.TempCache().Find(result.ParentType, result.ParentExternalID); err != nil {
-			return nil, err
-		} else if found != nil {
-			ci.ParentID = &found.ID
-		} else {
-			ctx.DutyContext().Infof("[%s] parent %s/%s not found", ci, result.ParentType, result.ParentExternalID)
-		}
-	}
-
 	return ci, nil
 }
 

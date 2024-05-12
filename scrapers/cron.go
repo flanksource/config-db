@@ -17,6 +17,8 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/samber/lo"
 	"github.com/sethvargo/go-retry"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var (
@@ -142,6 +144,7 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		Schedule:     schedule,
 		Singleton:    true,
 		JobHistory:   true,
+		RunNow:       true, // TODO: remove this
 		Retention:    job.RetentionBalanced,
 		ResourceID:   sc.ScrapeConfig().GetPersistedID().String(),
 		ResourceType: job.ResourceTypeScraper,
@@ -167,8 +170,9 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 			config.Watch = v1.DefaultWatchKinds
 		}
 
-		go watchKubernetesEventsWithRetry(sc, config)
-		go watchKubernetesResourcesWithRetry(sc, config)
+		// TODO: Uncomment
+		// go watchKubernetesEventsWithRetry(sc, config)
+		// go watchKubernetesResourcesWithRetry(sc, config)
 
 		eventsWatchJob := ConsumeKubernetesWatchEventsJobFunc(sc, config)
 		if err := eventsWatchJob.AddToScheduler(scrapeJobScheduler); err != nil {
@@ -239,6 +243,23 @@ func consumeKubernetesWatchResourcesJobKey(id string) string {
 	return id + "-consume-kubernetes-watch-resources"
 }
 
+func dedup(objs []*unstructured.Unstructured) []*unstructured.Unstructured {
+	var output []*unstructured.Unstructured
+	var seen = make(map[types.UID]struct{})
+
+	// Iterate in reverse, cuz we want the latest
+	for i := len(objs) - 1; i >= 0; i-- {
+		if _, ok := seen[objs[i].GetUID()]; ok {
+			continue
+		}
+
+		seen[objs[i].GetUID()] = struct{}{}
+		output = append(output, objs[i])
+	}
+
+	return output
+}
+
 // ConsumeKubernetesWatchEventsJobFunc returns a job that consumes kubernetes watch events
 // for the given config of the scrapeconfig.
 func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *job.Job {
@@ -260,6 +281,16 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 				return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
 			}
 			objs, _, _, _ := lo.Buffer(ch, len(ch))
+
+			// NOTE: The resource watcher can return multiple objects for the same NEW resource.
+			// Example: if a new pod is created, we'll get that pod object multiple times for different events.
+			// Hence, we need to use the latest one otherwise saving fails
+			// as we'll be trying to INSERT multiple config items with the same id.
+			//
+			// In the process, we will lose diff changes though.
+			// If diff changes are necessary, then we can split up the results in such
+			// a way that no two objects in a batch have the same id.
+			objs = dedup(objs)
 
 			cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History)
 			results, err := RunK8ObjScraper(cc, config, objs)
