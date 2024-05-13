@@ -589,10 +589,6 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 			root = ci.ID
 		}
 
-		if err := tree.AddVertex(ci.ID); err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("unable to add vertex(%s): %w", ci, err)
-		}
-
 		parentExternalKey := configExternalKey{externalID: ci.ExternalID[0], parentType: lo.FromPtr(ci.Type)}
 		parentTypeToConfigMap[parentExternalKey] = ci.ID
 
@@ -609,6 +605,10 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 
 		allConfigs = append(allConfigs, ci)
 		if result.Config != nil {
+			if err := tree.AddVertex(ci.ID); err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("unable to add vertex(%s): %w", ci, err)
+			}
+
 			if existing == nil || existing.ID == "" {
 				newConfigs = append(newConfigs, ci)
 			} else {
