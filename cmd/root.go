@@ -11,6 +11,7 @@ import (
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
+	"github.com/flanksource/config-db/telemetry"
 	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/duty"
 	"github.com/spf13/cobra"
@@ -28,6 +29,12 @@ var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
+)
+
+var (
+	// Telemetry flag vars
+	otelcollectorURL string
+	otelServiceName  string
 )
 
 func readFromEnv(v string) string {
@@ -59,6 +66,11 @@ var Root = &cobra.Command{
 		}
 		db.Schema = readFromEnv(db.Schema)
 		db.PGRSTLogLevel = readFromEnv(db.PGRSTLogLevel)
+
+		if otelcollectorURL != "" {
+			logger.Infof("Sending traces to %s", otelcollectorURL)
+			_ = telemetry.InitTracer(otelServiceName, otelcollectorURL, true) // TODO: Setup runner
+		}
 	},
 }
 
@@ -77,6 +89,9 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&scrapers.DefaultSchedule, "default-schedule", "@every 60m", "Default schedule for configs that don't specfiy one")
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
 	flags.IntVar(&kubernetes.BufferSize, "watch-event-buffer", kubernetes.BufferSize, "Buffer size for kubernetes events")
+
+	flags.StringVar(&otelcollectorURL, "otel-collector-url", "", "OpenTelemetry gRPC Collector URL in host:port format")
+	flags.StringVar(&otelServiceName, "otel-service-name", "config-db", "OpenTelemetry service name for the resource")
 
 	// Flags for push/pull
 	var upstreamPageSizeDefault = 500
