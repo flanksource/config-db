@@ -427,7 +427,7 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			return results.Errorf(err, "failed to clean kubernetes object")
 		}
 
-		parentType, parentExternalID := getKubernetesParent(obj, resourceIDMap)
+		parentType, parentExternalID := getKubernetesParent(obj, config.Exclusions, resourceIDMap)
 		results = append(results, v1.ScrapeResult{
 			BaseScraper:         config.BaseScraper,
 			Name:                obj.GetName(),
@@ -472,14 +472,16 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 	return results
 }
 
-func getKubernetesParent(obj *unstructured.Unstructured, resourceIDMap map[string]map[string]map[string]string) (string, string) {
+func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.KubernetesExclusionConfig, resourceIDMap map[string]map[string]map[string]string) (string, string) {
 	var parentExternalID, parentConfigType string
 
 	// This will work for pods and replicasets
 	if len(obj.GetOwnerReferences()) > 0 {
 		ref := obj.GetOwnerReferences()[0]
-		if obj.GetKind() == "Pod" {
-			// We want pod's parents as Deployments
+
+		if obj.GetKind() == "Pod" && lo.Contains(exclusions.Kinds, "ReplicaSet") {
+			// If ReplicaSet is excluded then we want the pod's direct parent to
+			// be its Deployment
 			if ref.Kind == "ReplicaSet" {
 				deployName := extractDeployNameFromReplicaSet(ref.Name)
 				parentConfigType = "Deployment"
@@ -487,6 +489,7 @@ func getKubernetesParent(obj *unstructured.Unstructured, resourceIDMap map[strin
 				return parentConfigType, parentExternalID
 			}
 		}
+
 		parentConfigType = ref.Kind
 		parentExternalID = string(ref.UID)
 		return parentConfigType, parentExternalID

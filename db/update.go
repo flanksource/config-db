@@ -361,6 +361,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		// once the all the scraped results are saved.
 		resultsWithRelationshipSelectors []v1.ScrapeResult
 	)
+
 	for _, result := range results {
 		if result.AnalysisResult != nil {
 			if err := upsertAnalysis(ctx, &result); err != nil {
