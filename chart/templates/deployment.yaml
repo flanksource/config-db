@@ -69,6 +69,12 @@ spec:
             {{- if .Values.db.runMigrations}}
             - --db-migrations
             {{- end}}
+            {{- if (tpl .Values.otel.collector .) }}
+            - --otel-collector-url={{ tpl .Values.otel.collector . | default "" }}
+            {{- end }}
+            {{- if (tpl .Values.otel.serviceName .) }}
+            - --otel-service-name={{ tpl .Values.otel.serviceName . | default "config-db" }}
+            {{- end }}
           {{- if .Values.upstream.enabled}}
           envFrom:
             - secretRef:
@@ -89,6 +95,10 @@ spec:
             {{- if .Values.upstream.enabled}}
             - name: UPSTREAM_PAGE_SIZE
               value: '{{ .Values.upstream.pageSize }}'
+            {{- end}}
+            {{- if .Values.otel.labels}}
+            - name: OTEL_LABELS
+              value: '{{ .Values.otel.labels }}'
             {{- end}}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
