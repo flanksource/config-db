@@ -41,7 +41,10 @@ type ConfigItem struct {
 	DeletedAt       *time.Time            `gorm:"column:deleted_at" json:"deleted_at"`
 	LastScrapedTime *time.Time            `gorm:"column:last_scraped_time" json:"last_scraped_time"`
 	DeleteReason    v1.ConfigDeleteReason `gorm:"column:delete_reason" json:"delete_reason"`
-	TouchDeletedAt  bool                  `gorm:"-" json:"-"`
+
+	ParentExternalID string `gorm:"-" json:"-"`
+	ParentType       string `gorm:"-" json:"-"`
+	TouchDeletedAt   bool   `gorm:"-" json:"-"`
 }
 
 func (ci ConfigItem) String() string {

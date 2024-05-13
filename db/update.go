@@ -553,18 +553,9 @@ type updateConfigArgs struct {
 	New      *models.ConfigItem
 }
 
-type parentExternalKey struct {
+type configExternalKey struct {
 	externalID string
 	parentType string
-}
-
-func isTreeRoot(configType string) bool {
-	switch configType {
-	case "AWS::::Account", "Kubernetes::Cluster":
-		return true
-	}
-
-	return false
 }
 
 func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime time.Time, results []v1.ScrapeResult) ([]*models.ConfigItem, []*updateConfigArgs, []*models.ConfigChange, []*models.ConfigChange, error) {
@@ -579,16 +570,19 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 		tree       = graph.New(graph.StringHash, graph.Rooted(), graph.PreventCycles())
 		allConfigs = make([]*models.ConfigItem, 0, len(results))
 
-		configToExternalParentMap = make(map[string]parentExternalKey)
-		parentToConfigIDMap       = make(map[parentExternalKey]string)
+		parentTypeToConfigMap = make(map[configExternalKey]string)
 	)
 
 	for _, result := range results {
-
 		result.LastScrapedTime = &scrapeStartTime
 		ci, err := NewConfigItemFromResult(ctx, result)
 		if err != nil {
 			return nil, nil, nil, nil, fmt.Errorf("unable to create config item(%s): %w", result, err)
+		}
+
+		ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
+		if len(ci.ExternalID) == 0 {
+			return nil, nil, nil, nil, fmt.Errorf("config item %s has no external id", ci)
 		}
 
 		if isTreeRoot(lo.FromPtr(ci.Type)) {
@@ -599,22 +593,8 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 			return nil, nil, nil, nil, fmt.Errorf("unable to add vertex(%s): %w", ci, err)
 		}
 
-		if result.ParentExternalID != "" && result.ParentType != "" {
-			configToExternalParentMap[ci.ID] = parentExternalKey{
-				externalID: result.ParentExternalID,
-				parentType: result.ParentType,
-			}
-		}
-
-		parentToConfigIDMap[parentExternalKey{
-			externalID: ci.ExternalID[0],
-			parentType: lo.FromPtr(ci.Type),
-		}] = ci.ID
-
-		ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
-		if len(ci.ExternalID) == 0 {
-			return nil, nil, nil, nil, fmt.Errorf("config item %s has no external id", ci)
-		}
+		parentExternalKey := configExternalKey{externalID: ci.ExternalID[0], parentType: lo.FromPtr(ci.Type)}
+		parentTypeToConfigMap[parentExternalKey] = ci.ID
 
 		existing := &models.ConfigItem{}
 		if ci.ID != "" {
@@ -652,29 +632,8 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	// This is because, on the first run, we don't have any configs at all in the DB.
 	// So, all the parent lookups will return empty result and no parent will be set.
 	// This way, we can first look for the parents within the result set.
-	for i := range allConfigs {
-		ci := allConfigs[i]
-
-		externalParent, ok := configToExternalParentMap[ci.ID]
-		if !ok {
-			continue
-		}
-
-		if parentID, found := parentToConfigIDMap[parentExternalKey{
-			externalID: externalParent.externalID,
-			parentType: externalParent.parentType,
-		}]; found {
-			ci.ParentID = &parentID
-			continue
-		}
-
-		if found, err := ctx.TempCache().Find(externalParent.parentType, externalParent.externalID); err != nil {
-			return nil, nil, nil, nil, err
-		} else if found != nil {
-			ci.ParentID = &found.ID
-		} else {
-			ctx.Logger.V(0).Infof("[%s] parent %s/%s not found", ci, externalParent.parentType, externalParent.externalID)
-		}
+	if err := setConfigParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("unable to setup parents: %w", err)
 	}
 
 	if root != "" {
@@ -702,6 +661,32 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	return newConfigs, configsToUpdate, newChanges, changesToUpdate, nil
 }
 
+func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
+	for _, ci := range allConfigs {
+		if ci.ParentExternalID == "" || ci.ParentType == "" {
+			continue
+		}
+
+		if parentID, found := parentTypeToConfigMap[configExternalKey{
+			externalID: ci.ParentExternalID,
+			parentType: ci.ParentType,
+		}]; found {
+			ci.ParentID = &parentID
+			continue
+		}
+
+		if found, err := ctx.TempCache().Find(ci.ParentType, ci.ParentExternalID); err != nil {
+			return err
+		} else if found != nil {
+			ci.ParentID = &found.ID
+		} else {
+			ctx.Logger.V(0).Infof("[%s] parent %s/%s not found", ci, ci.ParentType, ci.ParentExternalID)
+		}
+	}
+
+	return nil
+}
+
 func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], root string, allConfigs []*models.ConfigItem) error {
 	for _, c := range allConfigs {
 		if c.ParentID != nil {
@@ -720,4 +705,13 @@ func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], roo
 	}
 
 	return nil
+}
+
+func isTreeRoot(configType string) bool {
+	switch configType {
+	case "AWS::::Account", "Kubernetes::Cluster":
+		return true
+	}
+
+	return false
 }
