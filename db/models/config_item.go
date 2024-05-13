@@ -49,9 +49,10 @@ type ConfigItem struct {
 
 func (ci ConfigItem) String() string {
 	if len(ci.ExternalID) == 0 {
-		return fmt.Sprintf("%s/%s", *ci.Type, *ci.Name)
+		return fmt.Sprintf("id=%s name=%s type=%s", ci.ID, *ci.Type, *ci.Name)
 	}
-	return fmt.Sprintf("%s/%s id=%s", *ci.Type, *ci.Name, ci.ExternalID[0])
+
+	return fmt.Sprintf("id=%s name=%s type=%s external_id=%s", ci.ID, *ci.Type, *ci.Name, ci.ExternalID[0])
 }
 
 func (ci ConfigItem) ConfigJSONStringMap() (map[string]interface{}, error) {
