@@ -144,7 +144,6 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		Schedule:     schedule,
 		Singleton:    true,
 		JobHistory:   true,
-		RunNow:       true, // TODO: remove this
 		Retention:    job.RetentionBalanced,
 		ResourceID:   sc.ScrapeConfig().GetPersistedID().String(),
 		ResourceType: job.ResourceTypeScraper,
@@ -170,9 +169,8 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 			config.Watch = v1.DefaultWatchKinds
 		}
 
-		// TODO: Uncomment
-		// go watchKubernetesEventsWithRetry(sc, config)
-		// go watchKubernetesResourcesWithRetry(sc, config)
+		go watchKubernetesEventsWithRetry(sc, config)
+		go watchKubernetesResourcesWithRetry(sc, config)
 
 		eventsWatchJob := ConsumeKubernetesWatchEventsJobFunc(sc, config)
 		if err := eventsWatchJob.AddToScheduler(scrapeJobScheduler); err != nil {
@@ -284,8 +282,9 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 
 			// NOTE: The resource watcher can return multiple objects for the same NEW resource.
 			// Example: if a new pod is created, we'll get that pod object multiple times for different events.
+			// All those resource objects are seen as distinct new config items.
 			// Hence, we need to use the latest one otherwise saving fails
-			// as we'll be trying to INSERT multiple config items with the same id.
+			// as we'll be trying to BATCH INSERT multiple config items with the same id.
 			//
 			// In the process, we will lose diff changes though.
 			// If diff changes are necessary, then we can split up the results in such
