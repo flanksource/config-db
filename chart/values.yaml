@@ -35,7 +35,7 @@ otel:
   collector: ''
   serviceName: config-db
   # labels in "a=b,c=d" format
-  labels: 
+  labels: ''
 
 db:
   runMigrations: true
