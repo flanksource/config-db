@@ -38,10 +38,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/support v1.14.7
 	github.com/aws/smithy-go v1.13.5
+	github.com/dominikbraun/graph v0.23.0
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.22.1
-	github.com/flanksource/duty v1.0.452
+	github.com/flanksource/duty v1.0.459
 	github.com/flanksource/is-healthy v1.0.4
 	github.com/flanksource/ketall v1.1.6
 	github.com/flanksource/mapstructure v1.6.0
@@ -105,7 +106,6 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
-	github.com/dominikbraun/graph v0.23.0 // indirect
 	github.com/eko/gocache/lib/v4 v4.1.5 // indirect
 	github.com/eko/gocache/store/go_cache/v4 v4.2.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.7.0 // indirect

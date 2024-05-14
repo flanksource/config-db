@@ -196,7 +196,7 @@ func GetJSON(ci models.ConfigItem) []byte {
 
 func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.ConfigRelationship) error {
 	return ctx.DB().Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "selector_id"}},
+		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "relation"}},
 		DoNothing: true,
 	}).CreateInBatches(relationships, 200).Error
 }
