@@ -96,9 +96,9 @@ spec:
             - name: UPSTREAM_PAGE_SIZE
               value: '{{ .Values.upstream.pageSize }}'
             {{- end}}
-            {{- if .Values.otel.labels}}
+            {{- if (tpl .Values.otel.labels .)}}
             - name: OTEL_LABELS
-              value: '{{ .Values.otel.labels }}'
+              value: '{{ tpl .Values.otel.labels .}}'
             {{- end}}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
