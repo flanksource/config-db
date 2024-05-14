@@ -124,7 +124,7 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 		}
 
 		LastEventTime.Store(lastEventKey, maxTime)
-		logger.Infof("Processed %d events, changes=%d ignored=%d", count, len(*results), ignored)
+		ctx.Logger.V(3).Infof("processed %d cloudtrail events, changes=%d ignored=%d", count, len(*results), ignored)
 		wg.Done()
 	}()
 
