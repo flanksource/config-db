@@ -627,6 +627,12 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 				if existing == nil || existing.ID == "" {
 					newConfigs = append(newConfigs, ci)
 				} else {
+					// In case, we are not able to derive the path & parent_id
+					// by forming a tree, we need to use the existing one
+					// otherwise they'll be updated to empty values
+					ci.ParentID = existing.ParentID
+					ci.Path = existing.Path
+
 					configsToUpdate = append(configsToUpdate, &updateConfigArgs{
 						Result:   result,
 						Existing: existing,
