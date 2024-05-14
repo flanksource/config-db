@@ -51,11 +51,11 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 		return errors.Wrapf(tx.Error, "unable to delete config item %s/%s", change.ConfigType, change.ExternalID)
 	}
 	if tx.RowsAffected == 0 || len(configs) == 0 {
-		logger.Warnf("Attempt to delete non-existent config item %s/%s", change.ConfigType, change.ExternalID)
+		ctx.Logger.V(2).Infof("attempt to delete non-existent config item %s/%s", change.ConfigType, change.ExternalID)
 		return nil
 	}
 
-	ctx.Logger.V(3).Infof("Deleted %s from change %s", configs[0].ID, change)
+	ctx.Logger.V(3).Infof("deleted %s from change %s", configs[0].ID, change)
 	return nil
 }
 
@@ -117,7 +117,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	} else if changeResult != nil {
 		ctx.Logger.V(3).Infof("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
 		result.Changes = []v1.ChangeResult{*changeResult}
-		if newChanges, _, err := extractChanges(ctx, &result, ci); err != nil {
+		if newChanges, _, err := extractChanges(ctx, &result); err != nil {
 			return nil, err
 		} else {
 			changes = append(changes, newChanges...)
@@ -214,7 +214,7 @@ func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) 
 	return false, nil
 }
 
-func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.ConfigItem) ([]*models.ConfigChange, []*models.ConfigChange, error) {
+func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) ([]*models.ConfigChange, []*models.ConfigChange, error) {
 	var (
 		newOnes = []*models.ConfigChange{}
 		updates = []*models.ConfigChange{}
@@ -229,7 +229,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		if exclude, err := shouldExcludeChange(result, changeResult); err != nil {
 			ctx.JobHistory().AddError(fmt.Sprintf("error running change exclusion: %v", err))
 		} else if exclude {
-			ctx.DutyContext().Tracef("excluded change: %v", changeResult)
+			ctx.Logger.V(3).Infof("excluded change: %v", changeResult)
 			continue
 		}
 
@@ -253,17 +253,20 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			}
 		}
 
-		if change.ConfigID == "" && change.GetExternalID().IsEmpty() && ci != nil {
-			change.ConfigID = ci.ID
-		} else if !change.GetExternalID().IsEmpty() {
+		if !change.GetExternalID().IsEmpty() {
 			if ci, err := ctx.TempCache().FindExternalID(change.GetExternalID()); err != nil {
 				return nil, nil, fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
 			} else if ci != "" {
 				change.ConfigID = ci
 			} else if ci == "" {
-				logger.Warnf("[%s/%s] unable to find config item for change: %v", change.ConfigType, change.ExternalID, change.ChangeType)
+				ctx.Logger.V(1).Infof("[%s/%s] unable to find config item for change: %v", change.ConfigType, change.ExternalID, change.ChangeType)
 				continue
 			}
+		}
+
+		if change.ConfigID == "" {
+			ctx.Logger.V(1).Infof("(type=%s source=%s) change doesn't have an associated config", change.ChangeType, change.Source)
+			continue
 		}
 
 		if changeResult.UpdateExisting {
@@ -621,7 +624,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 			}
 		}
 
-		if toCreate, toUpdate, err := extractChanges(ctx, &result, ci); err != nil {
+		if toCreate, toUpdate, err := extractChanges(ctx, &result); err != nil {
 			return nil, nil, nil, nil, err
 		} else {
 			newChanges = append(newChanges, toCreate...)

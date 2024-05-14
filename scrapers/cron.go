@@ -40,10 +40,9 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 		Fn: func(jr job.JobRuntime) error {
 			scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(sc, uuid.Nil)
 			if err != nil {
-				logger.Fatalf("error getting configs from database: %v", err)
+				return fmt.Errorf("error getting configs from database: %v", err)
 			}
 
-			logger.Infof("Starting %d scrapers", len(scraperConfigsDB))
 			for _, scraper := range scraperConfigsDB {
 				_scraper, err := v1.ScrapeConfigFromModel(scraper)
 				if err != nil {
@@ -58,6 +57,7 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 
 				jr.History.SuccessCount += 1
 			}
+
 			return nil
 		},
 	}
