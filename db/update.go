@@ -117,7 +117,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	} else if changeResult != nil {
 		ctx.Logger.V(3).Infof("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
 		result.Changes = []v1.ChangeResult{*changeResult}
-		if newChanges, _, err := extractChanges(ctx, &result); err != nil {
+		if newChanges, _, err := extractChanges(ctx, &result, ci); err != nil {
 			return nil, err
 		} else {
 			changes = append(changes, newChanges...)
@@ -214,7 +214,7 @@ func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) 
 	return false, nil
 }
 
-func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) ([]*models.ConfigChange, []*models.ConfigChange, error) {
+func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.ConfigItem) ([]*models.ConfigChange, []*models.ConfigChange, error) {
 	var (
 		newOnes = []*models.ConfigChange{}
 		updates = []*models.ConfigChange{}
@@ -253,7 +253,9 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) ([]*models.C
 			}
 		}
 
-		if !change.GetExternalID().IsEmpty() {
+		if change.ConfigID == "" && change.GetExternalID().IsEmpty() && ci != nil {
+			change.ConfigID = ci.ID
+		} else if !change.GetExternalID().IsEmpty() {
 			if ci, err := ctx.TempCache().FindExternalID(change.GetExternalID()); err != nil {
 				return nil, nil, fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
 			} else if ci != "" {
@@ -265,6 +267,8 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult) ([]*models.C
 		}
 
 		if change.ConfigID == "" {
+			// Some scrapers can generate changes for config items that don't exist on our db.
+			// Example: Cloudtrail scraper reporting changes for a resource that has been excluded.
 			ctx.Logger.V(1).Infof("(type=%s source=%s) change doesn't have an associated config", change.ChangeType, change.Source)
 			continue
 		}
@@ -514,7 +518,7 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 				continue
 			}
 			if configID == "" {
-				logger.Warnf("unable to form relationship. failed to find the parent config %s", relationship.ConfigExternalID)
+				ctx.Logger.V(1).Infof("unable to form relationship. failed to find the parent config %s", relationship.ConfigExternalID)
 				continue
 			}
 		}
@@ -579,52 +583,60 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 
 	for _, result := range results {
 		result.LastScrapedTime = &scrapeStartTime
-		ci, err := NewConfigItemFromResult(ctx, result)
-		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("unable to create config item(%s): %w", result, err)
-		}
 
-		ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
-		if len(ci.ExternalID) == 0 {
-			return nil, nil, nil, nil, fmt.Errorf("config item %s has no external id", ci)
-		}
+		var ci *models.ConfigItem
+		var err error
 
-		if isTreeRoot(lo.FromPtr(ci.Type)) {
-			root = ci.ID
-		}
-
-		parentExternalKey := configExternalKey{externalID: ci.ExternalID[0], parentType: lo.FromPtr(ci.Type)}
-		parentTypeToConfigMap[parentExternalKey] = ci.ID
-
-		existing := &models.ConfigItem{}
-		if ci.ID != "" {
-			if existing, err = ctx.TempCache().Get(ci.ID); err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("unable to lookup existing config(%s): %w", ci, err)
-			}
-		} else {
-			if existing, err = ctx.TempCache().Find(*ci.Type, ci.ExternalID[0]); err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("unable to lookup external id(%s): %w", ci, err)
-			}
-		}
-
-		allConfigs = append(allConfigs, ci)
-		if result.Config != nil {
-			if err := tree.AddVertex(ci.ID); err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("unable to add vertex(%s): %w", ci, err)
+		if result.ID != "" {
+			// A result that only contains changes (example a result created by Cloudtrail scraper)
+			// doesn't have any id.
+			ci, err = NewConfigItemFromResult(ctx, result)
+			if err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("unable to create config item(%s): %w", result, err)
 			}
 
-			if existing == nil || existing.ID == "" {
-				newConfigs = append(newConfigs, ci)
+			ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
+			if len(ci.ExternalID) == 0 {
+				return nil, nil, nil, nil, fmt.Errorf("config item %s has no external id", ci)
+			}
+
+			if isTreeRoot(lo.FromPtr(ci.Type)) {
+				root = ci.ID
+			}
+
+			parentExternalKey := configExternalKey{externalID: ci.ExternalID[0], parentType: lo.FromPtr(ci.Type)}
+			parentTypeToConfigMap[parentExternalKey] = ci.ID
+
+			existing := &models.ConfigItem{}
+			if ci.ID != "" {
+				if existing, err = ctx.TempCache().Get(ci.ID); err != nil {
+					return nil, nil, nil, nil, fmt.Errorf("unable to lookup existing config(%s): %w", ci, err)
+				}
 			} else {
-				configsToUpdate = append(configsToUpdate, &updateConfigArgs{
-					Result:   result,
-					Existing: existing,
-					New:      ci,
-				})
+				if existing, err = ctx.TempCache().Find(*ci.Type, ci.ExternalID[0]); err != nil {
+					return nil, nil, nil, nil, fmt.Errorf("unable to lookup external id(%s): %w", ci, err)
+				}
+			}
+
+			allConfigs = append(allConfigs, ci)
+			if result.Config != nil {
+				if err := tree.AddVertex(ci.ID); err != nil {
+					return nil, nil, nil, nil, fmt.Errorf("unable to add vertex(%s): %w", ci, err)
+				}
+
+				if existing == nil || existing.ID == "" {
+					newConfigs = append(newConfigs, ci)
+				} else {
+					configsToUpdate = append(configsToUpdate, &updateConfigArgs{
+						Result:   result,
+						Existing: existing,
+						New:      ci,
+					})
+				}
 			}
 		}
 
-		if toCreate, toUpdate, err := extractChanges(ctx, &result); err != nil {
+		if toCreate, toUpdate, err := extractChanges(ctx, &result, ci); err != nil {
 			return nil, nil, nil, nil, err
 		} else {
 			newChanges = append(newChanges, toCreate...)
