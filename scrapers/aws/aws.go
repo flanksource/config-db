@@ -28,6 +28,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
 )
 
@@ -121,6 +122,7 @@ func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.S
 			CreatedAt:   image.CreatedAt,
 			Type:        "AWS::ECR::Repository",
 			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, "AWS::ECR::Repository", lo.FromPtr(image.RepositoryName))},
 			Config:      image,
 			Labels:      labels,
 			ConfigClass: "ContainerRegistry",
@@ -191,6 +193,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			CreatedAt:           cluster.Cluster.CreatedAt,
 			Labels:              cluster.Cluster.Tags,
 			BaseScraper:         config.BaseScraper,
+			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEKSCluster, lo.FromPtr(cluster.Cluster.Name))},
 			Config:              cluster.Cluster,
 			ConfigClass:         "KubernetesCluster",
 			Name:                getName(cluster.Cluster.Tags, clusterName),
@@ -228,6 +231,7 @@ func (aws Scraper) efs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Type:        "AWS::EFS::FileSystem",
 			Labels:      labels,
 			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, "AWS::EFS::FileSystem", lo.FromPtr(fs.FileSystemId))},
 			Config:      fs,
 			ConfigClass: "FileSystem",
 			Name:        getName(labels, *fs.FileSystemId),
@@ -305,6 +309,7 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 	*results = append(*results, v1.ScrapeResult{
 		Type:        v1.AWSAccount,
 		BaseScraper: config.BaseScraper,
+		Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSAccount, "")},
 		Config:      summary.SummaryMap,
 		ConfigClass: "Account",
 		Name:        name,
@@ -314,8 +319,9 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 	})
 
 	*results = append(*results, v1.ScrapeResult{
-		Type:             "AWS::IAM::User",
+		Type:             v1.AWSIAMUser,
 		BaseScraper:      config.BaseScraper,
+		Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMUser, "root")},
 		Config:           summary.SummaryMap,
 		Labels:           labels,
 		ConfigClass:      "User",
@@ -362,9 +368,10 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 	labels := make(map[string]string)
 	for _, user := range users.Users {
 		*results = append(*results, v1.ScrapeResult{
-			Type:             "AWS::IAM::User",
+			Type:             v1.AWSIAMUser,
 			CreatedAt:        user.CreateDate,
 			BaseScraper:      config.BaseScraper,
+			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMUser, lo.FromPtr(user.UserName))},
 			Config:           user,
 			ConfigClass:      "User",
 			Labels:           labels,
@@ -402,6 +409,7 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Labels:           labels,
 			Tags:             tags,
 			BaseScraper:      config.BaseScraper,
+			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEBSVolume, lo.FromPtr(volume.VolumeId))},
 			Config:           volume,
 			ConfigClass:      "DiskStorage",
 			Aliases:          []string{"AmazonEC2/" + *volume.VolumeId},
@@ -454,6 +462,7 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Labels:              labels,
 			Tags:                []v1.Tag{{Name: "region", Value: getRegionFromArn(*instance.DBInstanceArn, "rds")}},
 			BaseScraper:         config.BaseScraper,
+			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSRDSInstance, lo.FromPtr(instance.DBInstanceIdentifier))},
 			Config:              instance,
 			ConfigClass:         "RelationalDatabase",
 			Name:                getName(labels, *instance.DBInstanceIdentifier),
@@ -507,6 +516,7 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			Type:                v1.AWSEC2VPC,
 			Labels:              labels,
 			BaseScraper:         config.BaseScraper,
+			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2VPC, lo.FromPtr(vpc.VpcId))},
 			Config:              vpc,
 			ConfigClass:         "VPC",
 			Name:                getName(labels, *vpc.VpcId),
@@ -623,6 +633,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				Status:              health.MapAWSStatus(string(i.State.Name), health.AWSResourceTypeEC2),
 				Labels:              labels,
 				BaseScraper:         config.BaseScraper,
+				Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2Instance, instance.InstanceID)},
 				Config:              instance,
 				ConfigClass:         "VirtualMachine",
 				Name:                instance.GetHostname(),
@@ -655,6 +666,7 @@ func (aws Scraper) securityGroups(ctx *AWSContext, config v1.AWS, results *v1.Sc
 			Type:             v1.AWSEC2SecurityGroup,
 			Labels:           labels,
 			BaseScraper:      config.BaseScraper,
+			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2SecurityGroup, lo.FromPtr(sg.GroupId))},
 			Config:           sg,
 			ConfigClass:      "SecurityGroup",
 			Name:             getName(labels, *sg.GroupId),
@@ -682,6 +694,7 @@ func (aws Scraper) routes(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResu
 			Type:             "AWS::EC2::RouteTable",
 			Labels:           labels,
 			BaseScraper:      config.BaseScraper,
+			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, "AWS::EC2::RouteTable", lo.FromPtr(r.RouteTableId))},
 			Config:           r,
 			ConfigClass:      "Route",
 			Name:             getName(labels, *r.RouteTableId),
@@ -710,6 +723,7 @@ func (aws Scraper) dhcp(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			Type:             v1.AWSEC2DHCPOptions,
 			Labels:           labels,
 			BaseScraper:      config.BaseScraper,
+			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2DHCPOptions, lo.FromPtr(d.DhcpOptionsId))},
 			Config:           d,
 			ConfigClass:      "DHCP",
 			Name:             getName(labels, *d.DhcpOptionsId),
@@ -747,6 +761,7 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			ID:               *bucket.Name,
 			ParentExternalID: *ctx.Caller.Account,
 			ParentType:       v1.AWSAccount,
+			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSS3Bucket, lo.FromPtr(bucket.Name))},
 		})
 	}
 }
@@ -764,8 +779,9 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 	for _, zone := range zones.HostedZones {
 		labels := make(map[string]string)
 		*results = append(*results, v1.ScrapeResult{
-			Type:             "AWS::Route53::HostedZone",
+			Type:             v1.AWSZone,
 			BaseScraper:      config.BaseScraper,
+			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSZone, strings.ReplaceAll(*zone.Id, "/hostedzone/", ""))},
 			Config:           zone,
 			ConfigClass:      "DNSZone",
 			Name:             *zone.Name,
@@ -845,6 +861,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			CreatedAt:           lb.CreatedTime,
 			Ignore:              []string{"createdTime"},
 			BaseScraper:         config.BaseScraper,
+			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSLoadBalancer, lo.FromPtr(lb.LoadBalancerName))},
 			Config:              lb,
 			ConfigClass:         "LoadBalancer",
 			Name:                *lb.LoadBalancerName,
@@ -899,6 +916,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSLoadBalancerV2,
 			BaseScraper:         config.BaseScraper,
+			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSLoadBalancerV2, lo.FromPtr(lb.LoadBalancerArn))},
 			Ignore:              []string{"createdTime", "loadBalancerArn", "loadBalancerName"},
 			CreatedAt:           lb.CreatedTime,
 			Config:              lb,
@@ -980,6 +998,7 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			ParentExternalID:    lo.FromPtr(subnet.VpcId),
 			ParentType:          v1.AWSEC2VPC,
 			Status:              health.MapAWSStatus(string(subnet.State), health.AWSResourceTypeSubnet),
+			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2Subnet, lo.FromPtr(subnet.SubnetId))},
 			RelationshipResults: relationships,
 		}
 
@@ -1005,6 +1024,7 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 			Type:             v1.AWSIAMRole,
 			CreatedAt:        role.CreateDate,
 			BaseScraper:      config.BaseScraper,
+			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMRole, lo.FromPtr(role.RoleName))},
 			Config:           role,
 			ConfigClass:      "Role",
 			Labels:           labels,
@@ -1044,6 +1064,7 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Type:                v1.AWSIAMInstanceProfile,
 			CreatedAt:           profile.CreateDate,
 			BaseScraper:         config.BaseScraper,
+			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMInstanceProfile, lo.FromPtr(profile.Arn))},
 			Config:              profile,
 			Labels:              labels,
 			ConfigClass:         "Profile",
@@ -1081,6 +1102,7 @@ func (aws Scraper) ami(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Type:        v1.AWSEC2AMI,
 			CreatedAt:   &createdAt,
 			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2AMI, lo.FromPtr(image.ImageId))},
 			Config:      image,
 			Labels:      labels,
 			ConfigClass: "Image",
@@ -1175,4 +1197,65 @@ func getConfigTypeById(id string) string {
 
 func getRegionFromArn(arn, resourceType string) string {
 	return strings.Split(strings.ReplaceAll(arn, fmt.Sprintf("arn:aws:%s:", resourceType), ""), ":")[0]
+}
+
+func getConsoleLink(region, resourceType, resourceID string) *types.Property {
+	var url string
+	switch resourceType {
+	case "AWS::ECR::Repository":
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ecr/repositories/%s", region, resourceID)
+	case "AWS::EFS::FileSystem":
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/elasticfilesystem/home?region=%s#file-systems:%s", region, region, resourceID)
+	case "AWS::EC2::RouteTable":
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?region=%s#RouteTableDetails:RouteTableId=%s", region, region, resourceID)
+	case v1.AWSS3Bucket:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/s3/buckets/%s", region, resourceID)
+	case v1.AWSEC2Subnet:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?region=%s#SubnetDetails:subnetId=%s", region, region, resourceID)
+	case v1.AWSEC2Instance:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#Instances:search=%s", region, region, resourceID)
+	case v1.AWSEKSCluster:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/eks/home?region=%s#/clusters/%s", region, region, resourceID)
+	case v1.AWSLoadBalancer:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ec2/home?region=%s#LoadBalancer:loadBalancerArn=%s;tab=listeners", region, region, resourceID)
+	case v1.AWSLoadBalancerV2:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#LoadBalancersV2:search=%s", region, region, resourceID)
+	case v1.AWSEBSVolume:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#VolumeDetails:volumeId=%s", region, region, resourceID)
+	case v1.AWSRDSInstance:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/rds/home?region=%s#database:id=%s", region, region, resourceID)
+	case v1.AWSEC2VPC:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpc/home?region=%s#VpcDetails:VpcId=%s", region, region, resourceID)
+	case v1.AWSAccount:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/console/home?region=%s", region, region)
+	case v1.AWSEC2SecurityGroup:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#SecurityGroups:group-id=%s", region, region, resourceID)
+	case v1.AWSIAMUser:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/iam/home?region=%s#users/%s", region, region, resourceID)
+	case v1.AWSIAMRole:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/iam/home?region=%s#roles/details/%s", region, region, resourceID)
+	case v1.AWSIAMInstanceProfile:
+		url = fmt.Sprintf("https://console.aws.amazon.com/go/view?arn=%s", resourceID)
+	case v1.AWSEC2AMI:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#AMIDetails:amisearch=%s", region, region, resourceID)
+	case v1.AWSEC2DHCPOptions:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?region=%s#DhcpOptionsDetails:DhcpOptionsId=%s", region, region, resourceID)
+	case v1.AWSZone:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/route53/v2/hostedzones?region=%s#ListRecordSets/%s", region, region, resourceID)
+
+	case v1.AWSRegion, v1.AWSAvailabilityZone, v1.AWSAvailabilityZoneID:
+		// Not applicable
+		return nil
+	}
+
+	return &types.Property{
+		Name: "URL",
+		Icon: resourceType,
+		Links: []types.Link{
+			{
+				Text: types.Text{Label: "Console"},
+				URL:  url,
+			},
+		},
+	}
 }
