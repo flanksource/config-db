@@ -24,6 +24,8 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/utils"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
+	"github.com/samber/lo"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -359,6 +361,7 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "RelationalDatabase",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -389,6 +392,7 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "KubernetesCluster",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -419,6 +423,7 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "Firewall",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -448,6 +453,7 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "ContainerRegistry",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -479,6 +485,7 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "VirtualNetwork",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -510,6 +517,7 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "LoadBalancer",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 
 		}
@@ -542,6 +550,7 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: models.ConfigClassVirtualMachine,
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -571,6 +580,7 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 				Name:        deref(vmScaleSet.Name),
 				Config:      vmScaleSet,
 				ConfigClass: models.ConfigClassNode,
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(vmScaleSet.ID), getARMType(vmScaleSet.Type))},
 				Type:        getARMType(vmScaleSet.Type),
 			})
 
@@ -592,7 +602,9 @@ func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 							Config:      v,
 							ConfigClass: models.ConfigClassVirtualMachine,
 							Type:        getARMType(v.Type),
-							Aliases:     []string{*v.Properties.OSProfile.ComputerName},
+							Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
+
+							Aliases: []string{*v.Properties.OSProfile.ComputerName},
 						})
 					}
 				}
@@ -629,6 +641,7 @@ func (azure *Scraper) fetchResourceGroups() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "ResourceGroup",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 
 			azure.resourceGroups = append(azure.resourceGroups, deref(v.Name))
@@ -664,6 +677,7 @@ func (azure *Scraper) fetchSubscriptions() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "Subscription",
 				Type:        getARMType(utils.Ptr("Subscription")),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(utils.Ptr("Subscription")))},
 			})
 		}
 	}
@@ -696,6 +710,7 @@ func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "StorageAccount",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -728,6 +743,7 @@ func (azure Scraper) fetchAppServices() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "AppService",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -760,6 +776,7 @@ func (azure Scraper) fetchDNS() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "DNSZone",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -792,6 +809,7 @@ func (azure Scraper) fetchPrivateDNSZones() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "PrivateDNSZone",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -824,6 +842,7 @@ func (azure Scraper) fetchTrafficManagerProfiles() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "TrafficManagerProfile",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -857,6 +876,7 @@ func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "SecurityGroup",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
@@ -890,11 +910,25 @@ func (azure Scraper) fetchPublicIPAddresses() v1.ScrapeResults {
 				Config:      v,
 				ConfigClass: "PublicIPAddress",
 				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
 			})
 		}
 	}
 
 	return results
+}
+
+func getConsoleLink(resourceID, resourceType string) *types.Property {
+	return &types.Property{
+		Name: "URL",
+		Icon: resourceType,
+		Links: []types.Link{
+			{
+				Text: types.Text{Label: "Console"},
+				URL:  fmt.Sprintf("https://portal.azure.com/#resource%s", resourceID),
+			},
+		},
+	}
 }
 
 // getARMID takes in an ID of a resource group
