@@ -7,7 +7,6 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // ConfigChange represents the config change database table
@@ -66,6 +65,5 @@ func (c *ConfigChange) BeforeCreate(tx *gorm.DB) (err error) {
 		c.ID = uuid.New().String()
 	}
 
-	tx.Statement.AddClause(clause.OnConflict{DoNothing: true})
 	return
 }

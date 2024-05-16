@@ -269,7 +269,11 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		if changeResult.UpdateExisting {
 			updates = append(updates, change)
 		} else {
-			newOnes = append(newOnes, change)
+			if ok, err := ctx.TempCache().IsChangePersisted(change.ConfigID, change.ExternalChangeId); err != nil {
+				return nil, nil, fmt.Errorf("failed to check if change is persisted: %w", err)
+			} else if !ok {
+				newOnes = append(newOnes, change)
+			}
 		}
 	}
 
