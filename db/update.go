@@ -705,63 +705,80 @@ func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExt
 	return nil
 }
 
-func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], root string, allConfigs []*models.ConfigItem) error {
-	if root == "" {
-		// When we have a partial result set from an incremental scraper
-		// we try to form a partial tree that's just sufficient to
-		// connects the config item back to the root.
-		//
-		// The way to do that is by finding the parent with a db lookup.
-		//
-		// Example: on a partial result set of just a new Deployment, ReplicaSet & Pod
-		// we only need to find the parent of the deployment, which is the namespace,
-		// from the db as both ReplicaSet's & Pod's parent is withint the result set.
+func generatePartialTree(ctx api.ScrapeContext, tree graph.Graph[string, string], allConfigs []*models.ConfigItem) (string, error) {
+	// When we have a partial result set from an incremental scraper
+	// we try to form a partial tree that's just sufficient to
+	// connect the config item back to the root.
+	//
+	// The way to do that is by finding the parent with a db lookup.
+	//
+	// Example: on a partial result set of just a new Deployment, ReplicaSet & Pod
+	// we only need to find the parent of the deployment, which is the namespace,
+	// from the db as both ReplicaSet's & Pod's parent is withint the result set.
 
-		configIDs := make(map[string]struct{})
-		for _, c := range allConfigs {
-			configIDs[c.ID] = struct{}{}
+	configIDs := make(map[string]struct{})
+	for _, c := range allConfigs {
+		configIDs[c.ID] = struct{}{}
+	}
+
+	var root string
+	for _, c := range allConfigs {
+		if c.ParentID == nil {
+			// We aren't supposed to hit this point, except when an incremental scraper runs before a full scrape
+			//
+			// We fail early here than failing on db insert.
+			return "", fmt.Errorf("a non root config found without a parent %s", c)
 		}
 
-		for _, c := range allConfigs {
-			if c.ParentID == nil {
-				// We aren't supposed to hit this point,
-				// except when an incremental scraper runs before a full scrape.
-				//
-				// We fail early here than failing on db insert.
-				return fmt.Errorf("a non root config found without a parent %s", c)
+		if _, found := configIDs[*c.ParentID]; found {
+			continue
+		}
+
+		parent, err := ctx.TempCache().Get(*c.ParentID)
+		if err != nil {
+			return "", fmt.Errorf("unable to get parent(%s): %w", c, err)
+		}
+
+		if parent.Path == "" {
+			if err := tree.AddVertex(parent.ID); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
+				return "", fmt.Errorf("unable to add vertex(%s): %w", parent, err)
+			}
+		} else {
+			nodes := strings.Split(parent.Path, ".")
+			for i, n := range nodes {
+				if err := tree.AddVertex(n); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
+					return "", fmt.Errorf("unable to add vertex(%s): %w", n, err)
+				}
+
+				if i != 0 {
+					if err := tree.AddEdge(nodes[i-1], n); err != nil && !errors.Is(err, graph.ErrEdgeAlreadyExists) {
+						return "", fmt.Errorf("unable to add edge(%s,%s): %w", nodes[i-1], n, err)
+					}
+				}
 			}
 
-			if _, found := configIDs[*c.ParentID]; found {
-				continue
+			if root == "" {
+				// If there's a path then we know for sure the first node is the root
+				root = nodes[0]
 			}
+		}
+	}
 
-			parent, err := ctx.TempCache().Get(*c.ParentID)
+	return root, nil
+}
+
+func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], root string, allConfigs []*models.ConfigItem) error {
+	var err error
+
+	if root == "" {
+		if !ctx.ScrapeConfig().IsCustom() {
+			root, err = generatePartialTree(ctx, tree, allConfigs)
 			if err != nil {
-				return fmt.Errorf("unable to get parent(%s): %w", c, err)
+				return err
 			}
-
-			if parent.Path == "" {
-				if err := tree.AddVertex(parent.ID); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
-					return fmt.Errorf("unable to add vertex(%s): %w", parent, err)
-				}
-			} else {
-				nodes := strings.Split(parent.Path, ".")
-				for i, n := range nodes {
-					if err := tree.AddVertex(n); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
-						return fmt.Errorf("unable to add vertex(%s): %w", n, err)
-					}
-
-					if i != 0 {
-						if err := tree.AddEdge(nodes[i-1], n); err != nil && !errors.Is(err, graph.ErrEdgeAlreadyExists) {
-							return fmt.Errorf("unable to add edge(%s,%s): %w", nodes[i-1], n, err)
-						}
-					}
-				}
-
-				if root == "" {
-					// If there's a path then we know for sure the first node is the root
-					root = nodes[0]
-				}
+		} else {
+			if err := tree.AddVertex(root); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
+				return fmt.Errorf("unable to add vertex(%s): %w", root, err)
 			}
 		}
 	}
@@ -775,6 +792,11 @@ func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], roo
 	}
 
 	for _, c := range allConfigs {
+		if c.ParentID == nil {
+			// Custom scrapers can generate configs without a parent.
+			continue
+		}
+
 		if paths, err := graph.ShortestPath(tree, root, c.ID); err != nil {
 			ctx.Logger.V(1).Infof("unable to get the path for config(%s): %v", c, err)
 		} else if len(paths) > 0 {

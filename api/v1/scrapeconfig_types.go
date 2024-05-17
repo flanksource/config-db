@@ -43,6 +43,15 @@ type ScrapeConfig struct {
 	Status ScrapeConfigStatus `json:"status,omitempty"`
 }
 
+// IsCustom returns true if the scraper is custom
+//
+// Custom scrapers are user crafted scrapers
+// Example: file scraper, SQL scraper, ...
+func (t *ScrapeConfig) IsCustom() bool {
+	return len(t.Spec.AWS) == 0 && len(t.Spec.Kubernetes) == 0 && len(t.Spec.KubernetesFile) == 0 &&
+		len(t.Spec.Azure) == 0 && len(t.Spec.AzureDevops) == 0
+}
+
 func (t *ScrapeConfig) ToModel() (models.ConfigScraper, error) {
 	spec, err := json.Marshal(t.Spec)
 	if err != nil {
