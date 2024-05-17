@@ -711,11 +711,12 @@ func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], roo
 		// we try to form a partial tree that's just sufficient to
 		// connects the config item back to the root.
 		//
-		// The way to do that is by finding the parent from a db lookup
+		// The way to do that is by finding the parent with a db lookup.
 		//
 		// Example: on a partial result set of just a new Deployment, ReplicaSet & Pod
 		// we only need to find the parent of the deployment, which is the namespace,
 		// from the db as both ReplicaSet's & Pod's parent is withint the result set.
+
 		configIDs := make(map[string]struct{})
 		for _, c := range allConfigs {
 			configIDs[c.ID] = struct{}{}
@@ -723,7 +724,11 @@ func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], roo
 
 		for _, c := range allConfigs {
 			if c.ParentID == nil {
-				continue
+				// We aren't supposed to hit this point,
+				// except when an incremental scraper runs before a full scrape.
+				//
+				// We fail early here than failing on db insert.
+				return fmt.Errorf("a non root config found without a parent %s", c)
 			}
 
 			if _, found := configIDs[*c.ParentID]; found {
