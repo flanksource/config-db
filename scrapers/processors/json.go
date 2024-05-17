@@ -20,6 +20,7 @@ import (
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 	kyaml "sigs.k8s.io/yaml"
 )
 
@@ -217,7 +218,7 @@ func getRelationshipsFromRelationshipConfigs(input v1.ScrapeResult, relationship
 		if rc.Expr != "" {
 			celOutput, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: rc.Expr})
 			if err != nil {
-				return nil, fmt.Errorf("failed to evaluate relationship config expr: %s: %v", rc.Expr, err)
+				return nil, fmt.Errorf("failed to evaluate relationship config (expr: %s, config_id: %s): %v", rc.Expr, lo.FromPtr(input.ConfigID), err)
 			}
 
 			var output []v1.RelationshipSelector
