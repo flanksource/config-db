@@ -45,7 +45,7 @@ func SaveResults(ctx api.ScrapeContext, results v1.ScrapeResults) error {
 	dbErr := db.SaveResults(ctx, results)
 	if dbErr != nil {
 		//FIXME cache results to save to db later
-		return fmt.Errorf("failed to update db: %w", dbErr)
+		return dbErr
 	}
 
 	return nil
