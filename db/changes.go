@@ -5,6 +5,8 @@ import (
 	"time"
 
 	sw "github.com/RussellLuo/slidingwindow"
+	"github.com/patrickmn/go-cache"
+	"github.com/samber/lo"
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/config-db/api"
@@ -18,6 +20,8 @@ const (
 
 	ChangeTypeTooManyChanges = "TooManyChanges"
 )
+
+var configChangesCache = cache.New(time.Hour*24, time.Hour*24)
 
 func GetWorkflowRunCount(ctx api.ScrapeContext, workflowID string) (int64, error) {
 	var count int64
@@ -122,6 +126,7 @@ func syncCurrentlyRateLimitedConfigs(ctx api.ScrapeContext, window time.Duration
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	output := make(map[string]struct{})
 	for rows.Next() {
@@ -156,6 +161,7 @@ func syncWindow(ctx api.ScrapeContext, max int, window time.Duration) error {
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var configID string
@@ -178,4 +184,55 @@ func syncWindow(ctx api.ScrapeContext, max int, window time.Duration) error {
 	}
 
 	return rows.Err()
+}
+
+// filterOutPersistedChanges returns only those changes that weren't seen in the db.
+func filterOutPersistedChanges(ctx api.ScrapeContext, changes []*models.ConfigChange) ([]*models.ConfigChange, error) {
+	// use cache to filter out ones that we've already seen before
+	changes = lo.Filter(changes, func(c *models.ConfigChange, _ int) bool {
+		_, found := configChangesCache.Get(c.ConfigID + c.ExternalChangeId)
+		if found {
+			_ = found
+		}
+		return !found
+	})
+
+	if len(changes) == 0 {
+		return nil, nil
+	}
+
+	query := `SELECT config_id, external_change_id
+  FROM config_changes
+  WHERE (config_id, external_change_id) IN ?`
+	args := lo.Map(changes, func(c *models.ConfigChange, _ int) []string {
+		return []string{c.ConfigID, c.ExternalChangeId}
+	})
+
+	rows, err := ctx.DB().Raw(query, args).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	existing := make(map[string]struct{})
+	for rows.Next() {
+		var configID, externalChangeID string
+		if err := rows.Scan(&configID, &externalChangeID); err != nil {
+			return nil, err
+		}
+
+		configChangesCache.SetDefault(configID+externalChangeID, struct{}{})
+		existing[configID+externalChangeID] = struct{}{}
+	}
+
+	newOnes := lo.Filter(changes, func(c *models.ConfigChange, _ int) bool {
+		_, found := existing[c.ConfigID+c.ExternalChangeId]
+		return !found
+	})
+
+	if len(newOnes) > 0 {
+		_ = query
+	}
+
+	return newOnes, nil
 }

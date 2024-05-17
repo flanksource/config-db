@@ -16,8 +16,6 @@ type TempCache struct {
 	ctx     context.Context
 	items   map[string]models.ConfigItem
 	aliases map[string]string
-
-	changes map[string]struct{}
 }
 
 func (t TempCache) FindExternal(ext v1.ExternalID) (*models.ConfigItem, error) {
@@ -76,38 +74,6 @@ func (t TempCache) Insert(item models.ConfigItem) {
 	}
 
 	t.items[strings.ToLower(item.ID)] = item
-}
-
-func (t TempCache) IsChangePersisted(configID, externalChangeID string) (bool, error) {
-	if configID == "" || externalChangeID == "" {
-		return false, nil
-	}
-
-	configID = strings.ToLower(configID)
-	externalChangeID = strings.ToLower(externalChangeID)
-
-	if t.changes == nil {
-		t.changes = make(map[string]struct{})
-	}
-
-	if _, ok := t.changes[configID+externalChangeID]; ok {
-		return true, nil
-	}
-
-	var result models.ConfigChange
-	if err := t.ctx.DB().Select("id").Where("config_id = ?", configID).
-		Where("external_change_id = ?", externalChangeID).
-		Limit(1).
-		Find(&result).Error; err != nil {
-		return false, err
-	}
-
-	if result.ID != "" {
-		t.changes[configID+externalChangeID] = struct{}{}
-		return true, nil
-	}
-
-	return false, nil
 }
 
 func (t TempCache) Get(id string) (*models.ConfigItem, error) {

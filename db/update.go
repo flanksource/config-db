@@ -209,8 +209,8 @@ func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) 
 
 func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.ConfigItem) ([]*models.ConfigChange, []*models.ConfigChange, error) {
 	var (
-		newOnes = []*models.ConfigChange{}
-		updates = []*models.ConfigChange{}
+		toInsert = []*models.ConfigChange{}
+		toUpdate = []*models.ConfigChange{}
 	)
 
 	changes.ProcessRules(result, result.BaseScraper.Transform.Change.Mapping...)
@@ -267,17 +267,19 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		}
 
 		if changeResult.UpdateExisting {
-			updates = append(updates, change)
+			toUpdate = append(toUpdate, change)
 		} else {
-			if ok, err := ctx.TempCache().IsChangePersisted(change.ConfigID, change.ExternalChangeId); err != nil {
-				return nil, nil, fmt.Errorf("failed to check if change is persisted: %w", err)
-			} else if !ok {
-				newOnes = append(newOnes, change)
-			}
+			toInsert = append(toInsert, change)
 		}
 	}
 
-	return newOnes, updates, nil
+	// Remove the changes that have already been inserted.
+	newOnes, err := filterOutPersistedChanges(ctx, toInsert)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return newOnes, toUpdate, nil
 }
 
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
