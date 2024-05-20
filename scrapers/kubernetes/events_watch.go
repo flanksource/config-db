@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/types"
@@ -24,18 +25,25 @@ var (
 	BufferSize = 5000
 
 	// WatchEventBuffers stores a sync buffer per kubernetes config
-	WatchEventBuffers = make(map[string]chan v1.KubernetesEvent)
+	WatchEventBuffers = sync.Map{}
 
 	WatchResourceBufferSize = 5000
 
 	// WatchEventBuffers stores a sync buffer per kubernetes config
-	WatchResourceBuffer = make(map[string]chan *unstructured.Unstructured)
+	WatchResourceBuffer = sync.Map{}
+
+	// DeleteResourceBuffer stores a buffer per kubernetes config
+	// that contains the ids of resources that have been deleted.
+	DeleteResourceBuffer = sync.Map{}
 )
 
 // WatchResources watches Kubernetes resources
 func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	buffer := make(chan *unstructured.Unstructured, ctx.DutyContext().Properties().Int("kubernetes.watch.resources.bufferSize", WatchResourceBufferSize))
-	WatchResourceBuffer[config.Hash()] = buffer
+	WatchResourceBuffer.Store(config.Hash(), buffer)
+
+	deleteBuffer := make(chan string, WatchResourceBufferSize)
+	DeleteResourceBuffer.Store(config.Hash(), deleteBuffer)
 
 	var restConfig *rest.Config
 	var err error
@@ -70,7 +78,11 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	for watchEvent := range utils.MergeChannels(channels...) {
 		obj, ok := watchEvent.Object.(*unstructured.Unstructured)
 		if ok {
-			buffer <- obj
+			if watchEvent.Type == watch.Deleted {
+				deleteBuffer <- string(obj.GetUID())
+			} else {
+				buffer <- obj
+			}
 		}
 	}
 
@@ -81,7 +93,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 // the referenced config items in batches.
 func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	buffer := make(chan v1.KubernetesEvent, ctx.DutyContext().Properties().Int("kubernetes.watch.events.bufferSize", BufferSize))
-	WatchEventBuffers[config.Hash()] = buffer
+	WatchEventBuffers.Store(config.Hash(), buffer)
 
 	if config.Kubeconfig != nil {
 		var err error

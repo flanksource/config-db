@@ -101,7 +101,8 @@ func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
 type ConfigDeleteReason string
 
 var (
-	// DeletedReasonStale is used when a config item doesn't get updated on a scrape run.
+	// DeletedReasonStale is used when a config item doesn't get updated
+	// for a period of `staleItemAge`.
 	DeletedReasonStale ConfigDeleteReason = "STALE"
 
 	// DeletedReasonFromAttribute is used when a deletion field (& reason)

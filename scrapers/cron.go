@@ -208,10 +208,12 @@ func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kuberne
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
 		Fn: func(ctx job.JobRuntime) error {
-			ch, ok := kubernetes.WatchEventBuffers[config.Hash()]
+			_ch, ok := kubernetes.WatchEventBuffers.Load(config.Hash())
 			if !ok {
 				return fmt.Errorf("no watcher found for config (scrapeconfig: %s) %s", scrapeConfig.GetUID(), config.Hash())
 			}
+
+			ch := _ch.(chan v1.KubernetesEvent)
 			events, _, _, _ := lo.Buffer(ch, len(ch))
 
 			cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History)
@@ -273,10 +275,11 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
 		Fn: func(ctx job.JobRuntime) error {
-			ch, ok := kubernetes.WatchResourceBuffer[config.Hash()]
+			_ch, ok := kubernetes.WatchResourceBuffer.Load(config.Hash())
 			if !ok {
 				return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
 			}
+			ch := _ch.(chan *unstructured.Unstructured)
 			objs, _, _, _ := lo.Buffer(ch, len(ch))
 
 			// NOTE: The resource watcher can return multiple objects for the same NEW resource.
@@ -305,6 +308,19 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 					ctx.History.AddError(results[i].Error.Error())
 				} else {
 					ctx.History.SuccessCount++
+				}
+			}
+
+			_deleteCh, ok := kubernetes.DeleteResourceBuffer.Load(config.Hash())
+			if !ok {
+				return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
+			}
+			deletChan := _deleteCh.(chan string)
+
+			if len(deletChan) > 0 {
+				deletedResourcesIDs, _, _, _ := lo.Buffer(deletChan, len(deletChan))
+				if err := db.SoftDeleteConfigItems(ctx.Context, deletedResourcesIDs); err != nil {
+					return fmt.Errorf("failed to delete %d resources: %w", len(deletedResourcesIDs), err)
 				}
 			}
 
