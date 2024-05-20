@@ -785,8 +785,8 @@ func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], roo
 
 	for _, c := range allConfigs {
 		if c.ParentID != nil {
-			if err := tree.AddEdge(*c.ParentID, c.ID); err != nil {
-				return fmt.Errorf("unable to add edge(%s): %w", c, err)
+			if err := tree.AddEdge(*c.ParentID, c.ID); err != nil && !errors.Is(err, graph.ErrEdgeAlreadyExists) {
+				return fmt.Errorf("unable to add edge(%s -> %s): %w", *c.ParentID, c.ID, err)
 			}
 		}
 	}

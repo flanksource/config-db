@@ -297,7 +297,7 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 			}
 
 			if err := SaveResults(cc, results); err != nil {
-				return fmt.Errorf("failed to save results: %w", err)
+				return fmt.Errorf("failed to save %d results: %w", len(results), err)
 			}
 
 			for i := range results {
