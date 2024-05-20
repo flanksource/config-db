@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -210,4 +211,16 @@ func FindConfigChangesByItemID(ctx api.ScrapeContext, configItemID string) ([]du
 	}
 
 	return ci, nil
+}
+
+func SoftDeleteConfigItems(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	return ctx.DB().
+		Model(&models.ConfigItem{}).
+		Where("id IN (?)", ids).
+		Update("deleted_at", gorm.Expr("NOW()")).
+		Error
 }

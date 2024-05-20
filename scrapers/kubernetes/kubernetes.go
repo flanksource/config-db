@@ -401,14 +401,8 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			resourceHealth = &health.HealthStatus{}
 		}
 
-		createdAt := obj.GetCreationTimestamp().Time
 		var deletedAt *time.Time
 		var deleteReason v1.ConfigDeleteReason
-		if !obj.GetDeletionTimestamp().IsZero() {
-			deletedAt = &obj.GetDeletionTimestamp().Time
-			deleteReason = v1.DeletedReasonFromAttribute
-		}
-
 		// Evicted Pods must be considered deleted
 		if obj.GetKind() == "Pod" {
 			if objStatus, ok := obj.Object["status"].(map[string]any); ok {
@@ -437,7 +431,7 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			Health:              models.Health(resourceHealth.Health),
 			Ready:               resourceHealth.Ready,
 			Description:         resourceHealth.Message,
-			CreatedAt:           &createdAt,
+			CreatedAt:           lo.ToPtr(obj.GetCreationTimestamp().Time),
 			DeletedAt:           deletedAt,
 			DeleteReason:        deleteReason,
 			Config:              configObj,

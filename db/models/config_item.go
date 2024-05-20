@@ -44,7 +44,6 @@ type ConfigItem struct {
 
 	ParentExternalID string `gorm:"-" json:"-"`
 	ParentType       string `gorm:"-" json:"-"`
-	TouchDeletedAt   bool   `gorm:"-" json:"-"`
 }
 
 func (ci ConfigItem) String() string {
