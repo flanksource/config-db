@@ -26,6 +26,8 @@ image:
 configChangeRetentionDays: 60
 configAnalysisRetentionDays: 60
 
+jsonLogs: true
+
 # a list of configmaps to load scrape rules from, the configmap should have a single entry called "config.yaml"
 scrapeRuleConfigMaps:
   - config-db-rules

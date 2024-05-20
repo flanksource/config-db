@@ -66,6 +66,9 @@ spec:
             - --disable-postgrest={{ .Values.disablePostgrest }}
             - --change-retention-days={{ .Values.configChangeRetentionDays }}
             - --analysis-retention-days={{ .Values.configAnalysisRetentionDays }}
+            {{- if .Values.jsonLogs }}
+            - --json-logs
+            {{- end }}
             {{- if .Values.db.runMigrations}}
             - --db-migrations
             {{- end}}
