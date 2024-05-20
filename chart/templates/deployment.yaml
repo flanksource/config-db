@@ -62,8 +62,8 @@ spec:
             - /app/config-db
           args:
             - operator
-            {{- if .Values.logLevel }}
-            - {{ .Values.logLevel }}
+            {{- if (tpl .Values.logLevel .)}}
+            - {{ tpl .Values.logLevel . }}
             {{- end }}
             - --disable-postgrest={{ .Values.disablePostgrest }}
             - --change-retention-days={{ .Values.configChangeRetentionDays }}
