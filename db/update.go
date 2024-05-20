@@ -104,11 +104,9 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	updates := make(map[string]interface{})
 	changes := make([]*models.ConfigChange, 0)
 
-	// In case a resource was marked as deleted but is un-deleted now
-	// we set an update flag as gorm ignores nil pointers
 	if ci.DeletedAt != existing.DeletedAt {
-		ci.TouchDeletedAt = true
 		updates["deleted_at"] = ci.DeletedAt
+		updates["delete_reason"] = ci.DeleteReason
 	}
 
 	changeResult, err := generateConfigChange(*ci, *existing)
@@ -176,11 +174,6 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	}
 	if ci.Properties != nil && len(*ci.Properties) > 0 && (existing.Properties == nil || !mapEqual(ci.Properties.AsMap(), existing.Properties.AsMap())) {
 		updates["properties"] = *ci.Properties
-	}
-
-	if ci.TouchDeletedAt && ci.DeleteReason != v1.DeletedReasonFromEvent {
-		updates["deleted_at"] = nil
-		updates["delete_reason"] = nil
 	}
 
 	if len(updates) == 0 {
