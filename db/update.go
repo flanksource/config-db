@@ -99,7 +99,7 @@ func mapEqual(a, b map[string]any) bool {
 	return true
 }
 
-func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *models.ConfigItem) ([]*models.ConfigChange, error) {
+func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *models.ConfigItem) (bool, []*models.ConfigChange, error) {
 	ci.ID = existing.ID
 	updates := make(map[string]interface{})
 	changes := make([]*models.ConfigChange, 0)
@@ -116,7 +116,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 		ctx.Logger.V(3).Infof("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
 		result.Changes = []v1.ChangeResult{*changeResult}
 		if newChanges, _, err := extractChanges(ctx, &result, ci); err != nil {
-			return nil, err
+			return false, nil, err
 		} else {
 			changes = append(changes, newChanges...)
 		}
@@ -177,15 +177,15 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	}
 
 	if len(updates) == 0 {
-		return changes, nil
+		return false, changes, nil
 	}
 
 	updates["last_scraped_time"] = gorm.Expr("NOW()")
 	if err := ctx.DutyContext().DB().Model(ci).Updates(updates).Error; err != nil {
-		return nil, errors.Wrapf(err, "unable to update config item: %s", ci)
+		return false, nil, errors.Wrapf(err, "unable to update config item: %s", ci)
 	}
 
-	return changes, nil
+	return true, changes, nil
 }
 
 func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) (bool, error) {
@@ -332,13 +332,28 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		return fmt.Errorf("failed to create config items: %w", err)
 	}
 
+	// nonUpdatedConfigs are existing configs that were not updated in this scrape.
+	// We keep track of them so that we can update their last scraped time.
+	var nonUpdatedConfigs []string
+
 	// TODO: Try this in batches as well
 	for _, config := range configsToUpdate {
-		if diffChanges, err := updateCI(ctx, config.Result, config.New, config.Existing); err != nil {
+		updated, diffChanges, err := updateCI(ctx, config.Result, config.New, config.Existing)
+		if err != nil {
 			return fmt.Errorf("failed to update config item (%s): %w", config.Existing, err)
-		} else if len(diffChanges) != 0 {
+		}
+
+		if !updated {
+			nonUpdatedConfigs = append(nonUpdatedConfigs, config.Existing.ID)
+		}
+
+		if len(diffChanges) != 0 {
 			newChanges = append(newChanges, diffChanges...)
 		}
+	}
+
+	if err := updateLastScrapedTime(ctx, nonUpdatedConfigs); err != nil {
+		return fmt.Errorf("failed to update last scraped time: %w", err)
 	}
 
 	if err := ctx.DB().CreateInBatches(newChanges, configItemsBulkInsertSize).Error; err != nil {
@@ -393,6 +408,28 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 	}
 
 	ctx.Logger.V(3).Infof("saved %d results.", len(results))
+	return nil
+}
+
+func updateLastScrapedTime(ctx api.ScrapeContext, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	for i := 0; i < len(ids); i = i + 5000 {
+		end := i + 5000
+		if end > len(ids) {
+			end = len(ids)
+		}
+
+		if err := ctx.DB().
+			Model(&models.ConfigItem{}).
+			Where("id in (?)", ids[i:end]).
+			Update("last_scraped_time", gorm.Expr("NOW()")).Error; err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
