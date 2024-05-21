@@ -282,12 +282,12 @@ func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	if err != nil {
 		return err
 	}
+
 	if ciID == nil {
-		logger.Warnf("[Source=%s] [%s/%s] unable to find config item for analysis: %+v", analysis.Source, analysis.ConfigType, analysis.ExternalID, analysis)
+		logger.Warnf("unable to find config item for analysis: (source=%s, configType=%s, externalID=%s, analysis: %+v)", analysis.Source, analysis.ConfigType, analysis.ExternalID, analysis)
 		return nil
 	}
 
-	logger.Tracef("[%s/%s] ==> %s", analysis.ConfigType, analysis.ExternalID, analysis)
 	analysis.ConfigID = uuid.MustParse(ciID.ID)
 	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
 	analysis.ScraperID = ctx.ScrapeConfig().GetPersistedID()
@@ -839,7 +839,7 @@ func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], roo
 
 func isTreeRoot(configType string) bool {
 	switch configType {
-	case "AWS::::Account", "Kubernetes::Cluster":
+	case "AWS::::Account", "Kubernetes::Cluster", "Azure::Tenant":
 		return true
 	}
 
