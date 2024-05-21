@@ -43,7 +43,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.22.1
 	github.com/flanksource/duty v1.0.470
-	github.com/flanksource/is-healthy v1.0.4
+	github.com/flanksource/is-healthy v1.0.7
 	github.com/flanksource/ketall v1.1.6
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/go-logr/zapr v1.2.4
@@ -308,4 +308,4 @@ replace go.opentelemetry.io/otel/trace => go.opentelemetry.io/otel/trace v1.22.0
 
 // replace github.com/flanksource/postq => ../postq
 
-replace github.com/flanksource/is-healthy => ../is-healthy
+// replace github.com/flanksource/is-healthy => ../is-healthy
