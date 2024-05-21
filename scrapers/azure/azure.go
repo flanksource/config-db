@@ -34,6 +34,9 @@ import (
 const (
 	ConfigTypePrefix         = "Azure::"
 	defaultActivityLogMaxage = time.Hour * 24 * 7
+
+	ResourceTypeTenant       = "Tenant"
+	ResourceTypeSubscription = "Subscription"
 )
 
 // activityLogLastRecordTime keeps track of the time of the last activity log per subscription.
@@ -134,6 +137,15 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		azure.config = &config
 		azure.cred = cred
 
+		// Craft a result for the tenant.
+		results = append(results, v1.ScrapeResult{
+			ID:          config.TenantID,
+			Type:        getARMType(lo.ToPtr(ResourceTypeTenant)),
+			BaseScraper: config.BaseScraper,
+			ConfigClass: "Tenant",
+			Config:      map[string]any{"id": config.TenantID},
+		})
+
 		// We fetch resource groups first as they are used to fetch further resources
 		results = append(results, azure.fetchResourceGroups()...)
 		results = append(results, azure.fetchVirtualMachines()...)
@@ -156,6 +168,10 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 		// Post processing of all results
 		for i := range results {
+			if results[i].ID == "" {
+				continue // changes & analysis only
+			}
+
 			// Add subscription id & name tag to all the resources
 			results[i].Tags = append(results[i].Tags, v1.Tag{
 				Name:  "subscriptionID",
@@ -166,6 +182,23 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				Name:  "subscriptionName",
 				Value: azure.subscriptionName,
 			})
+
+			// Set parents where missing
+			if results[i].ParentExternalID == "" {
+				switch results[i].Type {
+				case getARMType(lo.ToPtr(ResourceTypeTenant)):
+					continue // root
+
+				case getARMType(lo.ToPtr(ResourceTypeSubscription)):
+					results[i].ParentExternalID = config.TenantID
+					results[i].ParentType = getARMType(lo.ToPtr(ResourceTypeTenant))
+
+				default:
+					subscriptionID := strings.Split(results[i].ID, "/")[2]
+					results[i].ParentExternalID = getARMID(lo.ToPtr("/subscriptions/" + subscriptionID))
+					results[i].ParentType = getARMType(lo.ToPtr(ResourceTypeSubscription))
+				}
+			}
 		}
 	}
 
