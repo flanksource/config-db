@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strings"
+	"slices"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
@@ -47,14 +47,14 @@ var Serve = &cobra.Command{
 
 func serve(ctx context.Context, configFiles []string) {
 	e := echo.New()
-	e.Use(otelecho.Middleware("config-db", otelecho.WithSkipper(tracingURLSkipper)))
+	e.Use(otelecho.Middleware("config-db", otelecho.WithSkipper(telemetryURLSkipper)))
 
 	// PostgREST needs to know how it is exposed to create the correct links
 	db.HTTPEndpoint = publicEndpoint + "/db"
 
 	if logger.IsTraceEnabled() {
 		echoLogConfig := middleware.DefaultLoggerConfig
-		echoLogConfig.Skipper = tracingURLSkipper
+		echoLogConfig.Skipper = telemetryURLSkipper
 		e.Use(middleware.LoggerWithConfig(echoLogConfig))
 	}
 
@@ -77,6 +77,7 @@ func serve(ctx context.Context, configFiles []string) {
 
 	e.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
 		Registerer: prom.DefaultRegisterer,
+		Skipper:    telemetryURLSkipper,
 	}))
 
 	e.GET("/metrics", echoprometheus.NewHandlerWithConfig(echoprometheus.HandlerConfig{
@@ -142,13 +143,8 @@ func init() {
 	ServerFlags(Serve.Flags())
 }
 
-// tracingURLSkipper ignores metrics route on some middleware
-func tracingURLSkipper(c echo.Context) bool {
-	pathsToSkip := []string{"/health", "/metrics"}
-	for _, p := range pathsToSkip {
-		if strings.HasPrefix(c.Path(), p) {
-			return true
-		}
-	}
-	return false
+// telemetryURLSkipper ignores metrics route on some middleware
+func telemetryURLSkipper(c echo.Context) bool {
+	pathsToSkip := []string{"/live", "/ready", "/metrics"}
+	return slices.Contains(pathsToSkip, c.Path())
 }
