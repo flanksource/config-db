@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap/zapcore"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
@@ -14,6 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	configsv1 "github.com/flanksource/config-db/api/v1"
@@ -46,7 +48,9 @@ func init() {
 func run(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
-	api.DefaultContext = api.NewScrapeContext(db.MustInit().WithKubernetes(api.KubernetesClient))
+	dutyCtx := dutyContext.NewContext(db.MustInit(), commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
+	api.DefaultContext = api.NewScrapeContext(dutyCtx.WithKubernetes(api.KubernetesClient))
+
 	if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
 		return fmt.Errorf("failed to load properties: %v", err)
 	}
@@ -54,7 +58,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if ok, err := duty.HasMigrationsRun(ctx, api.DefaultContext.Pool()); err != nil {
 		return fmt.Errorf("failed to check if migrations have run: %w", err)
 	} else if !ok {
-		return errors.New("Migrations not run, waiting for mission-control pod to start")
+		return errors.New("migrations not run, waiting for mission-control pod to start")
 	}
 
 	zapLogger := logger.GetZapLogger()

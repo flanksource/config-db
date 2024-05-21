@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 
+	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -14,12 +15,14 @@ import (
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
+
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel"
 
 	"github.com/flanksource/config-db/scrapers"
 )
@@ -28,12 +31,13 @@ import (
 var Serve = &cobra.Command{
 	Use: "serve",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		api.DefaultContext = api.NewScrapeContext(db.MustInit())
+		dutyCtx := dutyContext.NewContext(db.MustInit(), commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
+		api.DefaultContext = api.NewScrapeContext(dutyCtx)
 
 		if ok, err := duty.HasMigrationsRun(cmd.Context(), api.DefaultContext.Pool()); err != nil {
 			return fmt.Errorf("failed to check if migrations have run: %w", err)
 		} else if !ok {
-			return errors.New("Migrations not run, waiting for mission-control pod to start")
+			return errors.New("migrations not run, waiting for mission-control pod to start")
 		}
 
 		if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
