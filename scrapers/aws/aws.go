@@ -185,7 +185,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Relationship:      "EKSSecuritygroups",
 		})
 
-		resourceHealth := health.GetAWSResourceHealth(string(cluster.Cluster.Status), health.AWSResourceTypeEKS)
+		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeEKS, string(cluster.Cluster.Status))
 
 		cluster.Cluster.Tags["account"] = *ctx.Caller.Account
 		cluster.Cluster.Tags["region"] = getRegionFromArn(*cluster.Cluster.Arn, "eks")
