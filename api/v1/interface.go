@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
 )
@@ -392,6 +393,24 @@ type ScrapeResult struct {
 	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without
 	// knowing the external ids of the item to be linked.
 	RelationshipSelectors []RelationshipSelector `json:"-"`
+}
+
+func (s ScrapeResult) WithHealthStatus(hs health.HealthStatus) ScrapeResult {
+	s.Ready = hs.Ready
+
+	if hs.Health != "" {
+		s.Health = models.Health(hs.Health)
+	}
+
+	if hs.Status != "" {
+		s.Status = string(hs.Status)
+	}
+
+	if hs.Message != "" {
+		s.Description = hs.Message
+	}
+
+	return s
 }
 
 func (s ScrapeResult) AsMap() map[string]any {
