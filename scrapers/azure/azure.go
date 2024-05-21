@@ -35,7 +35,6 @@ const (
 	ConfigTypePrefix         = "Azure::"
 	defaultActivityLogMaxage = time.Hour * 24 * 7
 
-	ResourceTypeTenant       = "Tenant"
 	ResourceTypeSubscription = "Subscription"
 )
 
@@ -137,15 +136,6 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		azure.config = &config
 		azure.cred = cred
 
-		// Craft a result for the tenant.
-		results = append(results, v1.ScrapeResult{
-			ID:          config.TenantID,
-			Type:        getARMType(lo.ToPtr(ResourceTypeTenant)),
-			BaseScraper: config.BaseScraper,
-			ConfigClass: "Tenant",
-			Config:      map[string]any{"id": config.TenantID},
-		})
-
 		// We fetch resource groups first as they are used to fetch further resources
 		results = append(results, azure.fetchResourceGroups()...)
 		results = append(results, azure.fetchVirtualMachines()...)
@@ -186,12 +176,8 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			// Set parents where missing
 			if results[i].ParentExternalID == "" {
 				switch results[i].Type {
-				case getARMType(lo.ToPtr(ResourceTypeTenant)):
-					continue // root
-
 				case getARMType(lo.ToPtr(ResourceTypeSubscription)):
-					results[i].ParentExternalID = config.TenantID
-					results[i].ParentType = getARMType(lo.ToPtr(ResourceTypeTenant))
+					continue // root
 
 				default:
 					subscriptionID := strings.Split(results[i].ID, "/")[2]

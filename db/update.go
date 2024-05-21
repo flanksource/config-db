@@ -839,7 +839,7 @@ func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], roo
 
 func isTreeRoot(configType string) bool {
 	switch configType {
-	case "AWS::::Account", "Kubernetes::Cluster", "Azure::Tenant":
+	case "AWS::::Account", "Kubernetes::Cluster", "Azure::Subscription":
 		return true
 	}
 
