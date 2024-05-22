@@ -1131,6 +1131,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			awsCtx, err := aws.getContext(ctx, awsConfig, region)
 			if err != nil {
 				results.Errorf(err, "failed to create AWS context")
+				allResults = append(allResults, *results...)
 				continue
 			}
 
@@ -1157,6 +1158,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		awsCtx, err := aws.getContext(ctx, awsConfig, "us-east-1")
 		if err != nil {
 			results.Errorf(err, "failed to create AWS context")
+			allResults = append(allResults, *results...)
 			continue
 		}
 
