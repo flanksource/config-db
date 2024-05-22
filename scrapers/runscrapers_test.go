@@ -264,6 +264,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			dummyCI2 := models.ConfigItem{
 				ID:          configItemID2,
 				ConfigClass: "Test",
+				Type:        lo.ToPtr("Test"),
 				ScraperID:   &dummyScraper.ID,
 			}
 			err = ctx.DB().Create(&dummyCI).Error
