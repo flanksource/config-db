@@ -2,6 +2,7 @@ package aws
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
 )
@@ -1066,12 +1068,35 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			})
 		}
 
+		profileMap, err := utils.ToJSONMap(profile)
+		if err != nil {
+			results.Errorf(err, "failed to convert profile into json")
+			return
+		}
+
+		for _, role := range profileMap["Roles"].([]map[string]any) {
+			if val, exists := role["AssumeRolePolicyDocument"]; exists {
+				policyDocEncoded := val.(string)
+				doc, err := url.QueryUnescape(policyDocEncoded)
+				if err != nil {
+					logger.Errorf("error escaping policy doc[%s]: %v", policyDocEncoded, err)
+					continue
+				}
+				docJSON, err := utils.ToJSONMap(doc)
+				if err != nil {
+					logger.Errorf("error dumping policy doc[%s] to json: %v", doc, err)
+					continue
+				}
+				role["AssumeRolePolicyDocument"] = docJSON
+			}
+		}
+
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSIAMInstanceProfile,
 			CreatedAt:           profile.CreateDate,
 			BaseScraper:         config.BaseScraper,
 			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMInstanceProfile, lo.FromPtr(profile.Arn))},
-			Config:              profile,
+			Config:              profileMap,
 			Labels:              labels,
 			ConfigClass:         "Profile",
 			Name:                *profile.InstanceProfileName,
