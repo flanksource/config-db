@@ -439,7 +439,7 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			ID:                  string(obj.GetUID()),
 			Labels:              stripLabels(labels, "-hash"),
 			Tags:                tags,
-			Aliases:             getKubernetesAlias(obj),
+			Aliases:             []string{getKubernetesAlias(obj.GetKind(), obj.GetNamespace(), obj.GetName())},
 			ParentExternalID:    parentExternalID,
 			ParentType:          ConfigTypePrefix + parentType,
 			RelationshipResults: relationships,
@@ -492,17 +492,25 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 	if obj.GetNamespace() != "" {
 		parentConfigType = "Namespace"
 		parentExternalID = resourceIDMap[""]["Namespace"][obj.GetNamespace()]
+
+		if parentExternalID == "" {
+			// An incremental scraper maynot have the Namespace object.
+			// We can instead use the alias as the external id.
+			parentExternalID = getKubernetesAlias("Namespace", "", obj.GetNamespace())
+		}
+
 		return parentConfigType, parentExternalID
 	}
 
 	// Everything which is not namespaced should be mapped to cluster
 	parentConfigType = "Cluster"
 	parentExternalID = resourceIDMap[""]["Cluster"]["selfRef"]
+
 	return parentConfigType, parentExternalID
 }
 
-func getKubernetesAlias(obj *unstructured.Unstructured) []string {
-	return []string{strings.Join([]string{"Kubernetes", obj.GetKind(), obj.GetNamespace(), obj.GetName()}, "/")}
+func getKubernetesAlias(kind, namespace, name string) string {
+	return strings.Join([]string{"Kubernetes", kind, namespace, name}, "/")
 }
 
 func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.Kubernetes) (*options.KetallOptions, error) {
