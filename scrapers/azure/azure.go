@@ -102,12 +102,12 @@ func (azure Scraper) hydrateConnection(ctx api.ScrapeContext, t v1.Azure) (v1.Az
 	}
 
 	var err error
-	t.ClientID.ValueStatic, err = ctx.GetEnvValueFromCache(t.ClientID, ctx.GetNamespace())
+	t.ClientID.ValueStatic, err = ctx.GetEnvValueFromCache(t.ClientID, ctx.Namespace())
 	if err != nil {
 		return t, fmt.Errorf("failed to get client id: %w", err)
 	}
 
-	t.ClientSecret.ValueStatic, err = ctx.GetEnvValueFromCache(t.ClientSecret, ctx.GetNamespace())
+	t.ClientSecret.ValueStatic, err = ctx.GetEnvValueFromCache(t.ClientSecret, ctx.Namespace())
 	if err != nil {
 		return t, fmt.Errorf("failed to get client secret: %w", err)
 	}
