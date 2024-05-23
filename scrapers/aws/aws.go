@@ -1074,6 +1074,13 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			return
 		}
 
+		// We need to cast roles as []map[string]any to update the policy doc
+		var profileRoles []map[string]any
+		for _, r := range profileMap["Roles"].([]any) {
+			profileRoles = append(profileRoles, r.(map[string]any))
+		}
+		profileMap["Roles"] = profileRoles
+
 		for _, role := range profileMap["Roles"].([]map[string]any) {
 			if val, exists := role["AssumeRolePolicyDocument"]; exists {
 				policyDocEncoded := val.(string)

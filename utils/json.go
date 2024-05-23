@@ -24,11 +24,11 @@ func ToJSONMap(s any) (map[string]any, error) {
 	var raw []byte
 	var err error
 
-	switch s.(type) {
+	switch s := s.(type) {
 	case string:
-		raw = []byte(s.(string))
+		raw = []byte(s)
 	case []byte:
-		raw = s.([]byte)
+		raw = s
 	default:
 		raw, err = json.Marshal(s)
 		if err != nil {
