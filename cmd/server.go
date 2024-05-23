@@ -80,8 +80,9 @@ func serve(ctx context.Context, configFiles []string) {
 	e.POST("/run/:id", scrapers.RunNowHandler)
 
 	e.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
-		Registerer: prom.DefaultRegisterer,
-		Skipper:    telemetryURLSkipper,
+		Registerer:                prom.DefaultRegisterer,
+		Skipper:                   telemetryURLSkipper,
+		DoNotUseRequestPathFor404: true,
 	}))
 
 	e.GET("/metrics", echoprometheus.NewHandlerWithConfig(echoprometheus.HandlerConfig{
