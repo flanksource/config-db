@@ -360,6 +360,11 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		return fmt.Errorf("failed to update last scraped time: %w", err)
 	}
 
+	newChanges, err = rateLimitChanges(ctx, newChanges)
+	if err != nil {
+		return fmt.Errorf("failed to rate limit changes: %w", err)
+	}
+
 	if err := ctx.DB().CreateInBatches(newChanges, configItemsBulkInsertSize).Error; err != nil {
 		return fmt.Errorf("failed to create config changes: %w", err)
 	}
