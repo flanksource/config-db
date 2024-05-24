@@ -360,13 +360,31 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		return fmt.Errorf("failed to update last scraped time: %w", err)
 	}
 
-	newChanges, err = rateLimitChanges(ctx, newChanges)
+	newChanges, rateLimitedThisRun, err := rateLimitChanges(ctx, newChanges)
 	if err != nil {
 		return fmt.Errorf("failed to rate limit changes: %w", err)
 	}
 
 	if err := ctx.DB().CreateInBatches(newChanges, configItemsBulkInsertSize).Error; err != nil {
 		return fmt.Errorf("failed to create config changes: %w", err)
+	}
+
+	// For all the rate limited configs, we add a new "TooManyChanges" change.
+	// This is intentionally inserted in a different batch from the new changes
+	// as "ChangeTypeTooManyChanges" will have the same created_at timestamp.
+	// We want these changes to be newer than the actual changes.
+	var rateLimitedChanges []*models.ConfigChange
+	for _, configID := range rateLimitedThisRun {
+		rateLimitedChanges = append(rateLimitedChanges, &models.ConfigChange{
+			ConfigID:         configID,
+			Summary:          "Changes on this config has been rate limited",
+			ChangeType:       ChangeTypeTooManyChanges,
+			ExternalChangeId: uuid.New().String(),
+		})
+	}
+
+	if err := ctx.DB().CreateInBatches(rateLimitedChanges, configItemsBulkInsertSize).Error; err != nil {
+		return fmt.Errorf("failed to create rate limited config changes: %w", err)
 	}
 
 	if len(changesToUpdate) != 0 {
