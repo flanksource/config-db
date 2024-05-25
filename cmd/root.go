@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/flanksource/commons/http"
+
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
@@ -66,6 +68,15 @@ var Root = &cobra.Command{
 		}
 		db.Schema = readFromEnv(db.Schema)
 		db.PGRSTLogLevel = readFromEnv(db.PGRSTLogLevel)
+
+		if api.UpstreamConfig.Valid() {
+			api.UpstreamConfig.Options = append(api.UpstreamConfig.Options, func(c *http.Client) {
+				c.UserAgent(fmt.Sprintf("config-db %s", version))
+			})
+			logger.Infof("pushing configs to %s", api.UpstreamConfig)
+		} else if partial, err := api.UpstreamConfig.IsPartiallyFilled(); partial && err != nil {
+			logger.Warnf("upstream is not fully configured: %s", api.UpstreamConfig)
+		}
 
 		if otelcollectorURL != "" {
 			logger.Infof("Sending traces to %s", otelcollectorURL)
