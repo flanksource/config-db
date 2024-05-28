@@ -28,16 +28,14 @@ func RunNowHandler(c echo.Context) error {
 	}
 
 	ctx := api.DefaultContext.WithScrapeConfig(&configScraper)
-	results, err := RunScraper(ctx)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to run scraper", err)
+	j := newScraperJob(ctx)
+	j.Run()
+	res := v1.RunNowResponse{
+		Total:   j.LastJob.SuccessCount + j.LastJob.ErrorCount,
+		Failed:  j.LastJob.ErrorCount,
+		Success: j.LastJob.SuccessCount,
+		Errors:  j.LastJob.Errors,
 	}
 
-	res := v1.RunNowResponse{
-		Total:  len(results),
-		Errors: results.Errors(),
-	}
-	res.Failed = len(res.Errors)
-	res.Success = res.Total - res.Failed
 	return c.JSON(http.StatusOK, res)
 }
