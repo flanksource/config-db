@@ -125,7 +125,7 @@ var CleanupConfigItems = &job.Job{
 			WHERE
 				deleted_at < NOW() - interval '1 SECONDS' * ? AND
 				id NOT IN (%s)
-			ORDER BY length(path)
+			ORDER BY length(path) DESC
 		)
 		DELETE FROM config_items
 		WHERE id IN (SELECT id FROM ordered_rows)`, linkedConfigsQuery)
