@@ -46,6 +46,7 @@ require (
 	github.com/flanksource/is-healthy v1.0.7
 	github.com/flanksource/ketall v1.1.6
 	github.com/flanksource/mapstructure v1.6.0
+	github.com/flanksource/slidingwindow v0.0.0-20240526171711-1e13c04e057b
 	github.com/go-logr/zapr v1.2.4
 	github.com/gobwas/glob v0.2.3
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a

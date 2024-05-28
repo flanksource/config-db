@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
@@ -21,6 +22,7 @@ import (
 	dutyContext "github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/gomplate/v3"
+	sw "github.com/flanksource/slidingwindow"
 	"github.com/google/uuid"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
@@ -31,7 +33,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const configItemsBulkInsertSize = 200
+const (
+	configItemsBulkInsertSize = 200
+
+	configChangesBulkInsertSize = 200
+)
 
 func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	var deletedAt interface{}
@@ -356,8 +362,67 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 		return fmt.Errorf("failed to update last scraped time: %w", err)
 	}
 
-	if err := ctx.DB().CreateInBatches(newChanges, configItemsBulkInsertSize).Error; err != nil {
-		return fmt.Errorf("failed to create config changes: %w", err)
+	newChanges, rateLimitedThisRun, err := rateLimitChanges(ctx, newChanges)
+	if err != nil {
+		return fmt.Errorf("failed to rate limit changes: %w", err)
+	}
+
+	// NOTE: Returning just the needed columns didn't work in gorm for some reason.
+	// So, returning * for now.
+	// returnClause := clause.Returning{Columns: []clause.Column{{Name: "id"}, {Name: "config_id"}, {Name: "external_change_id"}}}
+	returnClause := clause.Returning{}
+
+	// NOTE: Ran into a weird gorm behavior where CreateInBatches combined with a return clause
+	// panics. So, handling batching manually.
+	var rateLimitedAfterInsertion = map[string]struct{}{}
+	for _, batch := range lo.Chunk(newChanges, configChangesBulkInsertSize) {
+		if err := ctx.DB().Clauses(returnClause).Create(&batch).Error; err != nil {
+			return fmt.Errorf("failed to create config changes: %w", err)
+		}
+
+		if len(batch) != 0 {
+			// the `batch` slice now only contains those changes that were actually inserted.
+			// we increase the usage count on the rate limiter for those changes.
+			_l, _ := scraperLocks.LoadOrStore(ctx.ScrapeConfig().GetPersistedID().String(), &sync.Mutex{})
+			lock := _l.(*sync.Mutex)
+			lock.Lock()
+			for _, b := range batch {
+				rateLimiter, ok := configRateLimiters[b.ConfigID]
+				if !ok {
+					window := ctx.Properties().Duration("changes.max.window", rateLimitWindow)
+					max := ctx.Properties().Int("changes.max.count", maxChangesInWindow)
+					rateLimiter, _ = sw.NewLimiter(window, int64(max), func() (sw.Window, sw.StopFunc) {
+						return sw.NewLocalWindow()
+					})
+					configRateLimiters[b.ConfigID] = rateLimiter
+				}
+
+				if rateLimiter.Allow() {
+					rateLimitedAfterInsertion[b.ConfigID] = struct{}{}
+				}
+			}
+			lock.Unlock()
+		}
+	}
+
+	syncCurrentlyRatelimitedConfigMap(ctx, newChanges, rateLimitedAfterInsertion)
+
+	// For all the rate limited configs, we add a new "TooManyChanges" change.
+	// This is intentionally inserted in a different batch from the new changes
+	// as "ChangeTypeTooManyChanges" will have the same created_at timestamp.
+	// We want these changes to be newer than the actual changes.
+	var rateLimitedChanges []*models.ConfigChange
+	for _, configID := range rateLimitedThisRun {
+		rateLimitedChanges = append(rateLimitedChanges, &models.ConfigChange{
+			ConfigID:         configID,
+			Summary:          "Changes on this config has been rate limited",
+			ChangeType:       ChangeTypeTooManyChanges,
+			ExternalChangeId: uuid.New().String(),
+		})
+	}
+
+	if err := ctx.DB().CreateInBatches(rateLimitedChanges, configChangesBulkInsertSize).Error; err != nil {
+		return fmt.Errorf("failed to create rate limited config changes: %w", err)
 	}
 
 	if len(changesToUpdate) != 0 {
@@ -409,6 +474,27 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
 
 	ctx.Logger.V(3).Infof("saved %d results.", len(results))
 	return nil
+}
+
+func syncCurrentlyRatelimitedConfigMap(ctx api.ScrapeContext, insertedChanged []*models.ConfigChange, rateLimitedAfterInsertion map[string]struct{}) {
+	_l, _ := scraperLocks.LoadOrStore(ctx.ScrapeConfig().GetPersistedID().String(), &sync.Mutex{})
+	lock := _l.(*sync.Mutex)
+	lock.Lock()
+
+	m, _ := currentlyRateLimitedConfigsPerScraper.LoadOrStore(ctx.ScrapeConfig().GetPersistedID().String(), map[string]struct{}{})
+	mm := m.(map[string]struct{})
+	for _, c := range insertedChanged {
+		if _, ok := rateLimitedAfterInsertion[c.ConfigID]; !ok {
+			// All the configs that weren't rate limited, will need to be removed from the
+			// "currently rate limited" map
+			delete(mm, c.ConfigID)
+		} else {
+			mm[c.ConfigID] = struct{}{}
+		}
+	}
+
+	currentlyRateLimitedConfigsPerScraper.Store(ctx.ScrapeConfig().GetPersistedID().String(), mm)
+	lock.Unlock()
 }
 
 func updateLastScrapedTime(ctx api.ScrapeContext, ids []string) error {

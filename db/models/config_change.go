@@ -5,7 +5,6 @@ import (
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -15,8 +14,8 @@ type ConfigChange struct {
 	ExternalID        string     `gorm:"-"`
 	ConfigType        string     `gorm:"-"`
 	ExternalChangeId  string     `gorm:"column:external_change_id" json:"external_change_id"`
-	ID                string     `gorm:"primaryKey;unique_index;not null;column:id" json:"id"`
-	ConfigID          string     `gorm:"column:config_id;default:''" json:"config_id"`
+	ID                string     `gorm:"primaryKey;unique_index;not null;column:id;default:generate_ulid()" json:"id"`
+	ConfigID          string     `gorm:"column:config_id" json:"config_id"`
 	ChangeType        string     `gorm:"column:change_type" json:"change_type"`
 	Diff              *string    `gorm:"column:diff" json:"diff,omitempty"`
 	Severity          string     `gorm:"column:severity" json:"severity"`
@@ -62,10 +61,6 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 }
 
 func (c *ConfigChange) BeforeCreate(tx *gorm.DB) (err error) {
-	if c.ID == "" {
-		c.ID = uuid.New().String()
-	}
-
 	tx.Statement.AddClause(clause.OnConflict{DoNothing: true})
 	return
 }
