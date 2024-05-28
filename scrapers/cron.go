@@ -136,9 +136,9 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 	return nil
 }
 
-func scheduleScraperJob(sc api.ScrapeContext) error {
+func newScraperJob(sc api.ScrapeContext) *job.Job {
 	schedule, _ := lo.Coalesce(sc.ScrapeConfig().Spec.Schedule, DefaultSchedule)
-	j := &job.Job{
+	return &job.Job{
 		Name:         "Scraper",
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", sc.ScrapeConfig()),
 		Schedule:     schedule,
@@ -159,6 +159,10 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 			return nil
 		},
 	}
+}
+
+func scheduleScraperJob(sc api.ScrapeContext) error {
+	j := newScraperJob(sc)
 
 	scrapeJobs.Store(sc.ScrapeConfig().GetPersistedID().String(), j)
 	if err := j.AddToScheduler(scrapeJobScheduler); err != nil {
