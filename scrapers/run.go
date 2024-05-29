@@ -29,7 +29,7 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 		return nil, fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig().Name, scraperErr)
 	}
 
-	if err := SaveResults(ctx, results); err != nil {
+	if err := db.SaveResults(ctx, results); err != nil {
 		return nil, fmt.Errorf("failed to save results: %w", err)
 	}
 
@@ -39,16 +39,6 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 
 	ctx.Logger.V(1).Infof("Completed scraping with %d results in %s", len(results), time.Since(ctx.Value(contextKeyScrapeStart).(time.Time)))
 	return results, nil
-}
-
-func SaveResults(ctx api.ScrapeContext, results v1.ScrapeResults) error {
-	dbErr := db.SaveResults(ctx, results)
-	if dbErr != nil {
-		//FIXME cache results to save to db later
-		return dbErr
-	}
-
-	return nil
 }
 
 func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) error {
