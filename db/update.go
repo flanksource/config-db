@@ -253,9 +253,6 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 				return nil, nil, fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
 			} else if ci != "" {
 				change.ConfigID = ci
-			} else if ci == "" {
-				ctx.Logger.V(1).Infof("[%s/%s] unable to find config item for change: %v", change.ConfigType, change.ExternalID, change.ChangeType)
-				continue
 			}
 		}
 
@@ -684,7 +681,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	// This is because, on the first run, we don't have any configs at all in the DB.
 	// So, all the parent lookups will return empty result and no parent will be set.
 	// This way, we can first look for the parents within the result set.
-	if err := setConfigParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
+	if err := setConfigParents(ctx, root, parentTypeToConfigMap, allConfigs); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("unable to setup parents: %w", err)
 	}
 
@@ -709,14 +706,21 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	return newConfigs, configsToUpdate, newChanges, changesToUpdate, nil
 }
 
-func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
+func setConfigParents(ctx api.ScrapeContext, root string, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
 	for _, ci := range allConfigs {
 		if ci.ParentID != nil {
 			continue // existing item. Parent is already set.
 		}
 
 		if ci.ParentExternalID == "" || ci.ParentType == "" {
-			continue
+			if ci.ID == root || ctx.ScrapeConfig().IsCustom() {
+				continue
+			} else if lo.FromPtr(ci.Type) == v1.AWSRegion {
+				// Regions don't have parents but they are also not the root of the aws scraped resources
+				continue
+			} else {
+				return fmt.Errorf("config %s has no parent", ci)
+			}
 		}
 
 		if parentID, found := parentTypeToConfigMap[configExternalKey{
@@ -828,6 +832,17 @@ func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], roo
 	for _, c := range allConfigs {
 		if c.ParentID == nil {
 			// Custom scrapers can generate configs without a parent.
+			continue
+		}
+
+		// resources from the aws scraper are an anomaly because they form a
+		// graph of multiple roots (account & all the regions).
+		// In particular, the availability zone & availability zone id cannot
+		// be traced from the aws account so we cannot find their path.
+		// They are handled explicitly here.
+		switch lo.FromPtr(c.Type) {
+		case v1.AWSAvailabilityZone, v1.AWSAvailabilityZoneID:
+			c.Path = strings.Join([]string{lo.FromPtr(c.ParentID), c.ID}, ".")
 			continue
 		}
 

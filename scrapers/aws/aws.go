@@ -263,8 +263,8 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 			Tags:             []v1.Tag{{Name: "region", Value: lo.FromPtr(az.RegionName)}},
 			Aliases:          nil,
 			Name:             lo.FromPtr(az.ZoneName),
-			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
-			ParentType:       v1.AWSAccount,
+			ParentExternalID: lo.FromPtr(az.RegionName),
+			ParentType:       v1.AWSRegion,
 		})
 
 		if _, ok := uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)]; !ok {
