@@ -110,19 +110,25 @@ var CleanupConfigItems = &job.Job{
 		breakParentRelationshipQuery := fmt.Sprintf(`
 		UPDATE config_items
 		SET parent_id = NULL
-			WHERE id IN (%s) AND parent_id IS NOT NULL AND deleted_at < NOW() - interval '7 days'`,
+		WHERE id IN (%s) AND parent_id IS NOT NULL AND deleted_at < NOW() - interval '1 SECONDS' * ?`,
 			linkedConfigsQuery)
-		if tx := ctx.Context.DB().Exec(breakParentRelationshipQuery); tx.Error != nil {
+		if tx := ctx.Context.DB().Exec(breakParentRelationshipQuery, seconds); tx.Error != nil {
 			return fmt.Errorf("failed to remove config parent relationships: %w", tx.Error)
 		} else {
 			ctx.Tracef("removed %d config parent relationships", tx.RowsAffected)
 		}
 
 		configDeleteQuery := fmt.Sprintf(`
+		WITH ordered_rows AS (
+			SELECT id
+			FROM config_items
+			WHERE
+				deleted_at < NOW() - interval '1 SECONDS' * ? AND
+				id NOT IN (%s)
+			ORDER BY length(path) DESC
+		)
 		DELETE FROM config_items
-		WHERE
-			deleted_at < NOW() - interval '1 SECONDS' * ? AND
-			id NOT IN (%s)`, linkedConfigsQuery)
+		WHERE id IN (SELECT id FROM ordered_rows)`, linkedConfigsQuery)
 		for {
 			tx := ctx.Context.DB().Exec(configDeleteQuery, seconds)
 			if tx.Error != nil {
