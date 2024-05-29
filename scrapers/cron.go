@@ -226,7 +226,7 @@ func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kuberne
 				return err
 			}
 
-			if err := SaveResults(cc, results); err != nil {
+			if err := db.SavePartialResults(cc, results); err != nil {
 				return fmt.Errorf("failed to save results: %w", err)
 			}
 
@@ -303,7 +303,7 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 				return err
 			}
 
-			if err := SaveResults(cc, results); err != nil {
+			if err := db.SavePartialResults(cc, results); err != nil {
 				return fmt.Errorf("failed to save %d results: %w", len(results), err)
 			}
 

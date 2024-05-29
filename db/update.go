@@ -313,12 +313,21 @@ func UpdateAnalysisStatusBefore(ctx api.ScrapeContext, before time.Time, scraper
 
 // SaveResults creates or update a configuration with config changes
 func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
+	return saveResults(ctx, false, results)
+}
+
+// SaveResults creates or update a configuration with config changes
+func SavePartialResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error {
+	return saveResults(ctx, true, results)
+}
+
+func saveResults(ctx api.ScrapeContext, isPartialResultSet bool, results []v1.ScrapeResult) error {
 	startTime, err := GetCurrentDBTime(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to get current db time: %w", err)
 	}
 
-	newConfigs, configsToUpdate, newChanges, changesToUpdate, err := extractConfigsAndChangesFromResults(ctx, startTime, results)
+	newConfigs, configsToUpdate, newChanges, changesToUpdate, err := extractConfigsAndChangesFromResults(ctx, startTime, isPartialResultSet, results)
 	if err != nil {
 		return fmt.Errorf("failed to extract configs & changes from results: %w", err)
 	}
@@ -593,7 +602,7 @@ type configExternalKey struct {
 	parentType string
 }
 
-func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime time.Time, results []v1.ScrapeResult) ([]*models.ConfigItem, []*updateConfigArgs, []*models.ConfigChange, []*models.ConfigChange, error) {
+func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime time.Time, isPartialResultSet bool, results []v1.ScrapeResult) ([]*models.ConfigItem, []*updateConfigArgs, []*models.ConfigChange, []*models.ConfigChange, error) {
 	var (
 		newConfigs      = make([]*models.ConfigItem, 0, len(results))
 		configsToUpdate = make([]*updateConfigArgs, 0, len(results))
@@ -601,7 +610,6 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 		newChanges      = make([]*models.ConfigChange, 0, len(results))
 		changesToUpdate = make([]*models.ConfigChange, 0, len(results))
 
-		root       string
 		tree       = graph.New(graph.StringHash, graph.Rooted(), graph.PreventCycles())
 		allConfigs = make([]*models.ConfigItem, 0, len(results))
 
@@ -627,10 +635,6 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 				return nil, nil, nil, nil, fmt.Errorf("config item %s has no external id", ci)
 			}
 
-			if isTreeRoot(lo.FromPtr(ci.Type)) {
-				root = ci.ID
-			}
-
 			parentExternalKey := configExternalKey{externalID: ci.ExternalID[0], parentType: lo.FromPtr(ci.Type)}
 			parentTypeToConfigMap[parentExternalKey] = ci.ID
 
@@ -647,7 +651,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 
 			allConfigs = append(allConfigs, ci)
 			if result.Config != nil {
-				if err := tree.AddVertex(ci.ID); err != nil {
+				if err := tree.AddVertex(ci.ID); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
 					return nil, nil, nil, nil, fmt.Errorf("unable to add vertex(%s): %w", ci, err)
 				}
 
@@ -681,11 +685,11 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	// This is because, on the first run, we don't have any configs at all in the DB.
 	// So, all the parent lookups will return empty result and no parent will be set.
 	// This way, we can first look for the parents within the result set.
-	if err := setConfigParents(ctx, root, parentTypeToConfigMap, allConfigs); err != nil {
+	if err := setConfigParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("unable to setup parents: %w", err)
 	}
 
-	if err := setConfigPaths(ctx, tree, root, allConfigs); err != nil {
+	if err := setConfigPaths(ctx, tree, isPartialResultSet, allConfigs); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("unable to set config paths: %w", err)
 	}
 
@@ -706,21 +710,14 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	return newConfigs, configsToUpdate, newChanges, changesToUpdate, nil
 }
 
-func setConfigParents(ctx api.ScrapeContext, root string, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
+func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
 	for _, ci := range allConfigs {
 		if ci.ParentID != nil {
 			continue // existing item. Parent is already set.
 		}
 
 		if ci.ParentExternalID == "" || ci.ParentType == "" {
-			if ci.ID == root || ctx.ScrapeConfig().IsCustom() {
-				continue
-			} else if lo.FromPtr(ci.Type) == v1.AWSRegion {
-				// Regions don't have parents but they are also not the root of the aws scraped resources
-				continue
-			} else {
-				return fmt.Errorf("config %s has no parent", ci)
-			}
+			continue
 		}
 
 		if parentID, found := parentTypeToConfigMap[configExternalKey{
@@ -743,7 +740,7 @@ func setConfigParents(ctx api.ScrapeContext, root string, parentTypeToConfigMap 
 	return nil
 }
 
-func generatePartialTree(ctx api.ScrapeContext, tree graph.Graph[string, string], allConfigs []*models.ConfigItem) (string, error) {
+func generatePartialTree(ctx api.ScrapeContext, tree graph.Graph[string, string], root string, allConfigs []*models.ConfigItem) error {
 	// When we have a partial result set from an incremental scraper
 	// we try to form a partial tree that's just sufficient to
 	// connect the config item back to the root.
@@ -759,13 +756,12 @@ func generatePartialTree(ctx api.ScrapeContext, tree graph.Graph[string, string]
 		configIDs[c.ID] = struct{}{}
 	}
 
-	var root string
 	for _, c := range allConfigs {
 		if c.ParentID == nil {
 			// We aren't supposed to hit this point, except when an incremental scraper runs before a full scrape
 			//
 			// We fail early here than failing on db insert.
-			return "", fmt.Errorf("a non root config found without a parent %s", c)
+			return fmt.Errorf("a non root config found without a parent %s", c)
 		}
 
 		if _, found := configIDs[*c.ParentID]; found {
@@ -774,55 +770,61 @@ func generatePartialTree(ctx api.ScrapeContext, tree graph.Graph[string, string]
 
 		parent, err := ctx.TempCache().Get(*c.ParentID)
 		if err != nil {
-			return "", fmt.Errorf("unable to get parent(%s): %w", c, err)
+			return fmt.Errorf("unable to get parent(%s): %w", c, err)
 		}
 
-		if parent.Path == "" {
-			if err := tree.AddVertex(parent.ID); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
-				return "", fmt.Errorf("unable to add vertex(%s): %w", parent, err)
-			}
-		} else {
-			nodes := strings.Split(parent.Path, ".")
-			for i, n := range nodes {
-				if err := tree.AddVertex(n); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
-					return "", fmt.Errorf("unable to add vertex(%s): %w", n, err)
-				}
-
-				if i != 0 {
-					if err := tree.AddEdge(nodes[i-1], n); err != nil && !errors.Is(err, graph.ErrEdgeAlreadyExists) {
-						return "", fmt.Errorf("unable to add edge(%s,%s): %w", nodes[i-1], n, err)
-					}
-				}
+		nodes := strings.Split(parent.Path, ".")
+		for i, n := range nodes {
+			if err := tree.AddVertex(n); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
+				return fmt.Errorf("unable to add vertex(%s): %w", n, err)
 			}
 
-			if root == "" {
-				// If there's a path then we know for sure the first node is the root
-				root = nodes[0]
+			if i == 0 {
+				if err := tree.AddEdge(root, n); err != nil && !errors.Is(err, graph.ErrEdgeAlreadyExists) {
+					return fmt.Errorf("unable to add edge(%s,%s): %w", root, n, err)
+				}
+			} else {
+				if err := tree.AddEdge(nodes[i-1], n); err != nil && !errors.Is(err, graph.ErrEdgeAlreadyExists) {
+					return fmt.Errorf("unable to add edge(%s,%s): %w", nodes[i-1], n, err)
+				}
 			}
 		}
 	}
 
-	return root, nil
+	return nil
 }
 
-func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], root string, allConfigs []*models.ConfigItem) error {
-	var err error
+func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], isPartialResultSet bool, allConfigs []*models.ConfigItem) error {
+	if ctx.ScrapeConfig().IsCustom() {
+		// TODO: handle full mode
+		// When full:true, we have some edge cases.
+		return nil
+	}
 
-	if root == "" {
-		if !ctx.ScrapeConfig().IsCustom() {
-			root, err = generatePartialTree(ctx, tree, allConfigs)
-			if err != nil {
-				return err
-			}
-		} else {
-			if err := tree.AddVertex(root); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
-				return fmt.Errorf("unable to add vertex(%s): %w", root, err)
-			}
+	// Add a virtual vertex which will be the root for the graph.
+	// We do this so
+	// 1. we don't need to define which config in the result set is the root for each scraper manually
+	// 2. the virtual root can act as the root for all the config items
+	//    that do not have a parent. example: for aws scraper
+	//    all the aws regions & the aws account config does not have a parent.
+	//    This solves the problem where a results set has multiple roots (example: aws scraper)
+	var virtualRoot = "dummy"
+	if err := tree.AddVertex(virtualRoot); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
+		return fmt.Errorf("unable to add vertex(%s): %w", virtualRoot, err)
+	}
+
+	if isPartialResultSet {
+		if err := generatePartialTree(ctx, tree, virtualRoot, allConfigs); err != nil {
+			return err
 		}
 	}
 
 	for _, c := range allConfigs {
-		if c.ParentID != nil {
+		if c.ParentID == nil || lo.FromPtr(c.ParentID) == "" {
+			if err := tree.AddEdge(virtualRoot, c.ID); err != nil && !errors.Is(err, graph.ErrEdgeAlreadyExists) {
+				return fmt.Errorf("unable to add edge(%s -> %s): %w", virtualRoot, c.ID, err)
+			}
+		} else {
 			if err := tree.AddEdge(*c.ParentID, c.ID); err != nil && !errors.Is(err, graph.ErrEdgeAlreadyExists) {
 				return fmt.Errorf("unable to add edge(%s -> %s): %w", *c.ParentID, c.ID, err)
 			}
@@ -830,37 +832,14 @@ func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], roo
 	}
 
 	for _, c := range allConfigs {
-		if c.ParentID == nil {
-			// Custom scrapers can generate configs without a parent.
-			continue
-		}
-
-		// resources from the aws scraper are an anomaly because they form a
-		// graph of multiple roots (account & all the regions).
-		// In particular, the availability zone & availability zone id cannot
-		// be traced from the aws account so we cannot find their path.
-		// They are handled explicitly here.
-		switch lo.FromPtr(c.Type) {
-		case v1.AWSAvailabilityZone, v1.AWSAvailabilityZoneID:
-			c.Path = strings.Join([]string{lo.FromPtr(c.ParentID), c.ID}, ".")
-			continue
-		}
-
-		if paths, err := graph.ShortestPath(tree, root, c.ID); err != nil {
+		if paths, err := graph.ShortestPath(tree, virtualRoot, c.ID); err != nil {
 			ctx.Logger.V(1).Infof("unable to get the path for config(%s): %v", c, err)
-		} else if len(paths) > 0 {
+		} else {
+			// remove the virtual root
+			paths = paths[1:]
 			c.Path = strings.Join(paths, ".")
 		}
 	}
 
 	return nil
-}
-
-func isTreeRoot(configType string) bool {
-	switch configType {
-	case "AWS::::Account", "Kubernetes::Cluster", "Azure::Subscription":
-		return true
-	}
-
-	return false
 }
