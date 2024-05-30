@@ -118,6 +118,8 @@ var CleanupConfigItems = &job.Job{
 			ctx.Tracef("removed %d config parent relationships", tx.RowsAffected)
 		}
 
+		var iter int
+		deleteBatchSize := ctx.Properties().Int("config.retention.delete_batch_size", 500)
 		configDeleteQuery := fmt.Sprintf(`
 		WITH ordered_rows AS (
 			SELECT id
@@ -126,11 +128,13 @@ var CleanupConfigItems = &job.Job{
 				deleted_at < NOW() - interval '1 SECONDS' * ? AND
 				id NOT IN (%s)
 			ORDER BY length(path) DESC
+			LIMIT ?
 		)
 		DELETE FROM config_items
 		WHERE id IN (SELECT id FROM ordered_rows)`, linkedConfigsQuery)
 		for {
-			tx := ctx.Context.DB().Exec(configDeleteQuery, seconds)
+			iter++
+			tx := ctx.Context.DB().Exec(configDeleteQuery, seconds, deleteBatchSize)
 			if tx.Error != nil {
 				return fmt.Errorf("failed to delete config items: %w", tx.Error)
 			}
@@ -139,8 +143,8 @@ var CleanupConfigItems = &job.Job{
 				break
 			}
 
-			ctx.Tracef("removed %d config items", tx.RowsAffected)
-			ctx.History.SuccessCount = int(tx.RowsAffected)
+			ctx.Logger.V(2).Infof("hard deleted %d config items [iter=%d, batchsize=%d]", iter, deleteBatchSize, tx.RowsAffected)
+			ctx.History.SuccessCount += int(tx.RowsAffected)
 		}
 
 		return nil
