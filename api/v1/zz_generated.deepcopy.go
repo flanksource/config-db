@@ -30,11 +30,7 @@ import (
 func (in *AWS) DeepCopyInto(out *AWS) {
 	*out = *in
 	in.BaseScraper.DeepCopyInto(&out.BaseScraper)
-	if in.AWSConnection != nil {
-		in, out := &in.AWSConnection, &out.AWSConnection
-		*out = new(AWSConnection)
-		(*in).DeepCopyInto(*out)
-	}
+	in.AWSConnection.DeepCopyInto(&out.AWSConnection)
 	in.CloudTrail.DeepCopyInto(&out.CloudTrail)
 	if in.Include != nil {
 		in, out := &in.Include, &out.Include

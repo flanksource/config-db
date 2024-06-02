@@ -64,7 +64,7 @@ func (ctx AWSContext) String() string {
 }
 
 func (aws Scraper) getContext(ctx api.ScrapeContext, awsConfig v1.AWS, region string) (*AWSContext, error) {
-	session, err := NewSession(ctx, *awsConfig.AWSConnection, region)
+	session, err := NewSession(ctx, awsConfig.AWSConnection, region)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AWS session for region=%q: %w", region, err)
 	}

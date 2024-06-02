@@ -57,7 +57,7 @@ func getAWSAthenaConfig(ctx api.ScrapeContext, awsConfig v1.AWS) (*athena.Config
 		return nil, err
 	}
 
-	accessKey, secretKey, err := getAccessAndSecretKey(ctx, *awsConfig.AWSConnection)
+	accessKey, secretKey, err := getAccessAndSecretKey(ctx, awsConfig.AWSConnection)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func (awsCost CostScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
 	for _, awsConfig := range ctx.ScrapeConfig().Spec.AWS {
-		session, err := NewSession(ctx, *awsConfig.AWSConnection, awsConfig.Region[0])
+		session, err := NewSession(ctx, awsConfig.AWSConnection, awsConfig.Region[0])
 		if err != nil {
 			return results.Errorf(err, "failed to create AWS session")
 		}
