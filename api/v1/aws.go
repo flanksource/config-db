@@ -9,13 +9,13 @@ import (
 
 // AWS ...
 type AWS struct {
-	BaseScraper    `json:",inline"`
-	*AWSConnection `json:",inline"`
-	Compliance     bool          `json:"compliance,omitempty"`
-	CloudTrail     CloudTrail    `json:"cloudtrail,omitempty"`
-	Include        []string      `json:"include,omitempty"`
-	Exclude        []string      `json:"exclude,omitempty"`
-	CostReporting  CostReporting `json:"costReporting,omitempty"`
+	BaseScraper   `json:",inline"`
+	AWSConnection `json:",inline"`
+	Compliance    bool          `json:"compliance,omitempty"`
+	CloudTrail    CloudTrail    `json:"cloudtrail,omitempty"`
+	Include       []string      `json:"include,omitempty"`
+	Exclude       []string      `json:"exclude,omitempty"`
+	CostReporting CostReporting `json:"costReporting,omitempty"`
 }
 
 type CloudTrail struct {
