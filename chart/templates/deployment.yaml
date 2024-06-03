@@ -11,6 +11,7 @@ metadata:
   labels: {{- include "config-db.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicas }}
+  revisionHistoryLimit: 1
   selector:
     matchLabels: {{- include "config-db.selectorLabels" . | nindent 6 }}
   {{- if $embeddedDB }}
