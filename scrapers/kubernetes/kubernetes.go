@@ -34,6 +34,14 @@ type KubernetesScraper struct {
 
 const ConfigTypePrefix = "Kubernetes::"
 
+func getConfigTypePrefix(apiVersion string) string {
+	if strings.Contains(apiVersion, ".upbound.io") || strings.Contains(apiVersion, ".crossplane.io") {
+		return "Crossplane::"
+	}
+
+	return ConfigTypePrefix
+}
+
 func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
 }
@@ -299,15 +307,15 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		if obj.GetNamespace() != "" {
 			relationships = append(relationships, v1.RelationshipResult{
 				ConfigExternalID:  v1.ExternalID{ExternalID: []string{fmt.Sprintf("Kubernetes/Namespace//%s", obj.GetNamespace())}, ConfigType: ConfigTypePrefix + "Namespace"},
-				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + obj.GetKind()},
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
 				Relationship:      "Namespace" + obj.GetKind(),
 			})
 		}
 
 		for _, ownerRef := range obj.GetOwnerReferences() {
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(ownerRef.UID)}, ConfigType: ConfigTypePrefix + ownerRef.Kind},
-				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + obj.GetKind()},
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(ownerRef.UID)}, ConfigType: getConfigTypePrefix(ownerRef.APIVersion) + ownerRef.Kind},
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
 				Relationship:      ownerRef.Kind + obj.GetKind(),
 			})
 		}
@@ -332,7 +340,7 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 				for _, id := range linkedConfigItemIDs {
 					rel := v1.RelationshipResult{
-						RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + obj.GetKind()},
+						RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetKind()) + obj.GetKind()},
 						ConfigID:          id.String(),
 					}
 					relationships = append(relationships, rel)
@@ -426,7 +434,7 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			BaseScraper:         config.BaseScraper,
 			Name:                obj.GetName(),
 			ConfigClass:         obj.GetKind(),
-			Type:                ConfigTypePrefix + obj.GetKind(),
+			Type:                getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind(),
 			Status:              string(resourceHealth.Status),
 			Health:              models.Health(resourceHealth.Health),
 			Ready:               resourceHealth.Ready,
