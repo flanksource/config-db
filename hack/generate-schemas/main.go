@@ -5,9 +5,9 @@ import (
 	"os"
 	"path"
 
-	"github.com/alecthomas/jsonschema"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/schema/openapi"
 	"github.com/spf13/cobra"
 )
 
@@ -18,31 +18,18 @@ var schemas = map[string]any{
 var generateSchema = &cobra.Command{
 	Use: "generate-schema",
 	Run: func(cmd *cobra.Command, args []string) {
+		os.Mkdir(schemaPath, 0755)
 		for file, obj := range schemas {
-			schema := jsonschema.Reflect(obj)
-			data, err := schema.MarshalJSON()
-			if err != nil {
-				logger.Fatalf("error marshalling: %v", err)
-			}
-
-			os.Mkdir(schemaPath, 0755)
 			p := path.Join(schemaPath, file+".schema.json")
-			if err := os.WriteFile(p, data, 0644); err != nil {
+			if err := openapi.WriteSchemaToFile(p, obj); err != nil {
 				logger.Fatalf("unable to save schema: %v", err)
 			}
 			logger.Infof("Saved OpenAPI schema to %s", p)
 		}
 
 		for name, obj := range v1.AllScraperConfigs {
-			schema := jsonschema.Reflect(obj)
-			data, err := schema.MarshalJSON()
-			if err != nil {
-				logger.Fatalf("error marshalling (name=%s): %v", name, err)
-			}
-
-			os.Mkdir(schemaPath, 0755)
 			p := path.Join(schemaPath, fmt.Sprintf("config_%s.schema.json", name))
-			if err := os.WriteFile(p, data, 0644); err != nil {
+			if err := openapi.WriteSchemaToFile(p, obj); err != nil {
 				logger.Fatalf("unable to save schema: %v", err)
 			}
 			logger.Infof("Saved OpenAPI schema to %s", p)
