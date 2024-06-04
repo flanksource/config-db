@@ -1093,12 +1093,18 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 				logger.Errorf("error escaping policy doc[%s]: %v", policyDocEncoded, err)
 				continue
 			}
-			role.Set(policyDocObj, "AssumeRolePolicyDocument")
+			if _, err := role.Set(policyDocObj, "AssumeRolePolicyDocument"); err != nil {
+				logger.Errorf("error setting policy object[%s] in AssumeRolePolicyDocument: %v", policyDocObj.String(), err)
+				continue
+			}
 			for _, stmt := range policyDocObj.S("Statement").Children() {
 				// If Principal.Service is a list, sort that for cleaner change diff
 				if svcs, ok := stmt.Search("Principal", "Service").Data().([]string); ok {
 					slices.Sort(svcs)
-					stmt.Set(svcs, "Principal", "Service")
+					if _, err := stmt.Set(svcs, "Principal", "Service"); err != nil {
+						logger.Errorf("error setting services object[%v] in Principal.Services: %v", svcs, err)
+						continue
+					}
 				}
 			}
 		}
