@@ -3,9 +3,11 @@ package aws
 import (
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/Jeffail/gabs/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
 	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -1074,27 +1076,30 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			return
 		}
 
-		// We need to cast roles as []map[string]any to update the policy doc
-		var profileRoles []map[string]any
-		for _, r := range profileMap["Roles"].([]any) {
-			profileRoles = append(profileRoles, r.(map[string]any))
-		}
-		profileMap["Roles"] = profileRoles
-
-		for _, role := range profileMap["Roles"].([]map[string]any) {
-			if val, exists := role["AssumeRolePolicyDocument"]; exists {
-				policyDocEncoded := val.(string)
-				doc, err := url.QueryUnescape(policyDocEncoded)
-				if err != nil {
-					logger.Errorf("error escaping policy doc[%s]: %v", policyDocEncoded, err)
-					continue
+		profileObj := gabs.Wrap(profileMap)
+		for _, role := range profileObj.S("Roles").Children() {
+			policyDocEncoded, ok := role.S("AssumeRolePolicyDocument").Data().(string)
+			if !ok {
+				logger.Errorf("AssumeRolePolicyDocument key not found for role: %s", role.String())
+				continue
+			}
+			doc, err := url.QueryUnescape(policyDocEncoded)
+			if err != nil {
+				logger.Errorf("error escaping policy doc[%s]: %v", policyDocEncoded, err)
+				continue
+			}
+			policyDocObj, err := gabs.ParseJSON([]byte(doc))
+			if err != nil {
+				logger.Errorf("error escaping policy doc[%s]: %v", policyDocEncoded, err)
+				continue
+			}
+			role.Set(policyDocObj, "AssumeRolePolicyDocument")
+			for _, stmt := range policyDocObj.S("Statement").Children() {
+				// If Principal.Service is a list, sort that for cleaner change diff
+				if svcs, ok := stmt.Search("Principal", "Service").Data().([]string); ok {
+					slices.Sort(svcs)
+					stmt.Set(svcs, "Principal", "Service")
 				}
-				docJSON, err := utils.ToJSONMap(doc)
-				if err != nil {
-					logger.Errorf("error dumping policy doc[%s] to json: %v", doc, err)
-					continue
-				}
-				role["AssumeRolePolicyDocument"] = docJSON
 			}
 		}
 
@@ -1103,7 +1108,7 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			CreatedAt:           profile.CreateDate,
 			BaseScraper:         config.BaseScraper,
 			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMInstanceProfile, lo.FromPtr(profile.Arn))},
-			Config:              profileMap,
+			Config:              profileObj.String(),
 			Labels:              labels,
 			ConfigClass:         "Profile",
 			Name:                *profile.InstanceProfileName,
