@@ -815,7 +815,7 @@ func setConfigPaths(ctx api.ScrapeContext, tree graph.Graph[string, string], isP
 
 	if isPartialResultSet {
 		if err := generatePartialTree(ctx, tree, virtualRoot, allConfigs); err != nil {
-			return err
+			return fmt.Errorf("unable to form partial tree: %w", err)
 		}
 	}
 

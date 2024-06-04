@@ -170,6 +170,7 @@ var DefaultWatchKinds = []KubernetesResourceToWatch{
 	{ApiVersion: "apps/v1", Kind: "StatefulSet"},
 	{ApiVersion: "batch/v1", Kind: "CronJob"},
 	{ApiVersion: "batch/v1", Kind: "Job"},
+	{ApiVersion: "v1", Kind: "Node"},
 	{ApiVersion: "v1", Kind: "Pod"},
 }
 
