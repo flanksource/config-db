@@ -58,6 +58,7 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 
 // WatchResources watches Kubernetes resources
 func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
+
 	buffer := make(chan *unstructured.Unstructured, ctx.DutyContext().Properties().Int("kubernetes.watch.resources.bufferSize", WatchResourceBufferSize))
 	WatchResourceBuffer.Store(config.Hash(), buffer)
 
@@ -129,6 +130,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		go informer.Run(stopper)
 	}
 
+	ctx.Counter("kubernetes_scraper_resource_watcher", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()).String()).Add(1)
 	ctx.Logger.V(1).Infof("waiting for informers")
 	wg.Wait()
 
@@ -193,6 +195,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	}
 	defer watcher.Stop()
 
+	ctx.Counter("kubernetes_scraper_event_watcher", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()).String()).Add(1)
 	for watchEvent := range watcher.ResultChan() {
 		var event v1.KubernetesEvent
 		if err := event.FromObj(watchEvent.Object); err != nil {
