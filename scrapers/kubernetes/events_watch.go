@@ -58,33 +58,26 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 
 // WatchResources watches Kubernetes resources
 func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
-
 	buffer := make(chan *unstructured.Unstructured, ctx.DutyContext().Properties().Int("kubernetes.watch.resources.bufferSize", WatchResourceBufferSize))
 	WatchResourceBuffer.Store(config.Hash(), buffer)
 
 	deleteBuffer := make(chan string, WatchResourceBufferSize)
 	DeleteResourceBuffer.Store(config.Hash(), deleteBuffer)
 
-	var restConfig *rest.Config
 	var err error
 	if config.Kubeconfig != nil {
-		ctx, restConfig, err = applyKubeconfig(ctx, *config.Kubeconfig)
+		ctx, _, err = applyKubeconfig(ctx, *config.Kubeconfig)
 		if err != nil {
-			return fmt.Errorf("failed to apply kube config")
+			return fmt.Errorf("failed to apply custom kube config(%s): %w", config.Kubeconfig, err)
 		}
 	} else {
-		restConfig, err = kube.DefaultRestConfig()
+		_, err = kube.DefaultRestConfig()
 		if err != nil {
-			return fmt.Errorf("failed to apply kube config")
+			return fmt.Errorf("failed to apply default kube config: %w", err)
 		}
 	}
 
-	clientset, err := kube.ClientSetFromRestConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes clientset from rest config: %w", err)
-	}
-
-	factory := informers.NewSharedInformerFactory(clientset, 0)
+	factory := informers.NewSharedInformerFactory(ctx.Kubernetes(), 0)
 	stopper := make(chan struct{})
 	defer close(stopper)
 
@@ -133,8 +126,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		go informer.Run(stopper)
 	}
 
-	ctx.Counter("kubernetes_scraper_resource_watcher", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()).String()).Add(1)
-	ctx.Logger.V(1).Infof("waiting for informers")
+	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()).String()).Add(1)
 	wg.Wait()
 
 	return nil
@@ -198,7 +190,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	}
 	defer watcher.Stop()
 
-	ctx.Counter("kubernetes_scraper_event_watcher", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()).String()).Add(1)
+	ctx.Counter("kubernetes_scraper_event_watcher", "scraper_id", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()).String()).Add(1)
 	for watchEvent := range watcher.ResultChan() {
 		var event v1.KubernetesEvent
 		if err := event.FromObj(watchEvent.Object); err != nil {
