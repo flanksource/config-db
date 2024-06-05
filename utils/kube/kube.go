@@ -53,7 +53,7 @@ func getRestMapper(config *rest.Config) (meta.RESTMapper, error) {
 	return restmapper.NewDeferredDiscoveryRESTMapper(cache), nil
 }
 
-func getGroupVersion(apiVersion string) (string, string) {
+func GetGroupVersion(apiVersion string) (string, string) {
 	split := strings.Split(apiVersion, "/")
 	if len(split) == 1 {
 		return "", apiVersion
@@ -73,7 +73,7 @@ func GetClientByGroupVersionKind(cfg *rest.Config, apiVersion, kind string) (dyn
 		return nil, err
 	}
 
-	group, version := getGroupVersion(apiVersion)
+	group, version := GetGroupVersion(apiVersion)
 	gvk, err := rm.KindFor(schema.GroupVersionResource{Group: group, Version: version, Resource: kind})
 	if err != nil {
 		return nil, err

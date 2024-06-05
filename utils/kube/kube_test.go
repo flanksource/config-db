@@ -25,7 +25,7 @@ func TestGetGroupVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			group, version := getGroupVersion(tc.apiVersion)
+			group, version := GetGroupVersion(tc.apiVersion)
 			if group != tc.expectedGroup || version != tc.expectedVersion {
 				t.Errorf("getGroupVersion(%q) = %q, %q; expected %q, %q",
 					tc.apiVersion, group, version, tc.expectedGroup, tc.expectedVersion)
