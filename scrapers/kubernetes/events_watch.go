@@ -97,7 +97,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 			return fmt.Errorf("could not find informer for: apiVersion=%v kind=%v", watchResource.ApiVersion, watchResource.Kind)
 		}
 
-		informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj any) {
 				u, err := getUnstructuredFromInformedObj(watchResource, obj)
 				if err != nil {
@@ -126,6 +126,9 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 				deleteBuffer <- string(u.GetUID())
 			},
 		})
+		if err != nil {
+			return fmt.Errorf("failed to add informent event handlers: %w", err)
+		}
 
 		go informer.Run(stopper)
 	}
