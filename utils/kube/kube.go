@@ -14,7 +14,9 @@ limitations under the License.
 package kube
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,6 +31,8 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/flanksource/commons/files"
+	"github.com/patrickmn/go-cache"
+	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/flanksource/yaml.v3"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +41,36 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/homedir"
 )
+
+var (
+	kubeClientCreatedCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "kube_client_from_rest_count",
+			Help: "The total number of times kubernetes clientset were created from rest configs",
+		},
+		[]string{},
+	)
+
+	kubeClientCacheHitCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "kube_client_from_rest_count_cache_hit",
+			Help: "The total number of times kubernetes clientset were created from rest configs",
+		},
+		[]string{},
+	)
+
+	kubeClientCreatErrorCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "kube_client_from_rest_error_count",
+			Help: "The total number of times kubernetes clientset were failed to be created from rest configs",
+		},
+		[]string{},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(kubeClientCreatedCount, kubeClientCacheHitCount, kubeClientCreatErrorCount)
+}
 
 func getRestMapper(config *rest.Config) (meta.RESTMapper, error) {
 	// re-use kubectl cache
@@ -88,13 +122,52 @@ func GetClientByGroupVersionKind(cfg *rest.Config, apiVersion, kind string) (dyn
 	return dc.Resource(mapping.Resource), nil
 }
 
+var clientSetCache = cache.New(time.Hour*24, time.Hour*24)
+
+func ClientSetFromRestConfig(restConfig *rest.Config) (*kubernetes.Clientset, error) {
+	client, cached, err := clientSetFromRestConfigCached(restConfig)
+	if err != nil {
+		kubeClientCreatErrorCount.WithLabelValues().Inc()
+		return nil, err
+	}
+
+	if cached {
+		kubeClientCacheHitCount.WithLabelValues().Inc()
+	} else {
+		kubeClientCreatedCount.WithLabelValues().Inc()
+	}
+
+	return client, nil
+}
+
+func clientSetFromRestConfigCached(restConfig *rest.Config) (*kubernetes.Clientset, bool, error) {
+	// Using gob encoder because json encoder returned type error for transport wrapper func
+	var b bytes.Buffer
+	if err := gob.NewEncoder(&b).Encode(restConfig); err != nil {
+		return nil, false, fmt.Errorf("failed to gob encode restconfig: %w", err)
+	}
+	key := b.String()
+
+	if val, ok := clientSetCache.Get(key); ok {
+		return val.(*kubernetes.Clientset), true, nil
+	}
+
+	client, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return nil, false, err
+	}
+	clientSetCache.SetDefault(key, client)
+
+	return client, false, nil
+}
+
 func NewKubeClientWithConfigPath(kubeConfigPath string) (kubernetes.Interface, *rest.Config, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 	if err != nil {
 		return fake.NewSimpleClientset(), nil, err
 	}
 
-	client, err := kubernetes.NewForConfig(config)
+	client, err := ClientSetFromRestConfig(config)
 	return client, config, err
 }
 
@@ -118,7 +191,7 @@ func NewKubeClientWithConfig(kubeConfig string) (kubernetes.Interface, *rest.Con
 		return fake.NewSimpleClientset(), nil, err
 	}
 
-	client, err := kubernetes.NewForConfig(config)
+	client, err := ClientSetFromRestConfig(config)
 	return client, config, err
 }
 
@@ -149,13 +222,13 @@ func NewK8sClient() (kubernetes.Interface, *rest.Config, error) {
 		}
 	}
 
-	client, err := kubernetes.NewForConfig(restConfig)
+	client, err := ClientSetFromRestConfig(restConfig)
 	return client, restConfig, err
 }
 
 // GetClusterName ...
 func GetClusterName(config *rest.Config) string {
-	clientset, err := kubernetes.NewForConfig(config)
+	clientset, err := ClientSetFromRestConfig(config)
 	if err != nil {
 		return ""
 	}

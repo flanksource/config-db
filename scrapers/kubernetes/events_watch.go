@@ -78,7 +78,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		}
 	}
 
-	clientset, err := kubernetes.NewForConfig(restConfig)
+	clientset, err := kube.ClientSetFromRestConfig(restConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes clientset from rest config: %w", err)
 	}
@@ -129,7 +129,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		go informer.Run(stopper)
 	}
 
-	ctx.Logger.V(1).Infof("waiting for informers: %w", err)
+	ctx.Logger.V(1).Infof("waiting for informers")
 	wg.Wait()
 
 	return nil
