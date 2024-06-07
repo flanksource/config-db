@@ -16,6 +16,7 @@ import (
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/utils/kube"
 )
 
@@ -30,10 +31,6 @@ var (
 
 	// WatchEventBuffers stores a sync buffer per kubernetes config
 	WatchResourceBuffer = sync.Map{}
-
-	// DeleteResourceBuffer stores a buffer per kubernetes config
-	// that contains the ids of resources that have been deleted.
-	DeleteResourceBuffer = sync.Map{}
 )
 
 func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj any) (*unstructured.Unstructured, error) {
@@ -59,9 +56,6 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	buffer := make(chan *unstructured.Unstructured, ctx.DutyContext().Properties().Int("kubernetes.watch.resources.bufferSize", WatchResourceBufferSize))
 	WatchResourceBuffer.Store(config.Hash(), buffer)
 
-	deleteBuffer := make(chan string, WatchResourceBufferSize)
-	DeleteResourceBuffer.Store(config.Hash(), deleteBuffer)
-
 	var err error
 	if config.Kubeconfig != nil {
 		ctx, _, err = applyKubeconfig(ctx, *config.Kubeconfig)
@@ -76,7 +70,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	}
 
 	for _, watchResource := range lo.Uniq(config.Watch) {
-		if err := globalSharedInformerManager.Register(ctx, config.Kubeconfig.ValueStatic, watchResource, buffer, deleteBuffer); err != nil {
+		if err := globalSharedInformerManager.Register(ctx, config.Kubeconfig.ValueStatic, watchResource, buffer, db.SoftDeleteConfigItem); err != nil {
 			return fmt.Errorf("failed to register informer: %w", err)
 		}
 	}
