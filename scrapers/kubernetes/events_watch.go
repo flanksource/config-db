@@ -11,10 +11,8 @@ import (
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -56,7 +54,7 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 	return &unstructured.Unstructured{Object: m}, nil
 }
 
-// WatchResources watches Kubernetes resources
+// WatchResources watches Kubernetes resources with shared informers
 func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	buffer := make(chan *unstructured.Unstructured, ctx.DutyContext().Properties().Int("kubernetes.watch.resources.bufferSize", WatchResourceBufferSize))
 	WatchResourceBuffer.Store(config.Hash(), buffer)
@@ -77,95 +75,21 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		}
 	}
 
-	factory := informers.NewSharedInformerFactory(ctx.Kubernetes(), 0)
-	stopper := make(chan struct{})
-	defer close(stopper)
-
-	var wg sync.WaitGroup
 	for _, watchResource := range lo.Uniq(config.Watch) {
-		wg.Add(1)
-
-		informer := getInformer(factory, watchResource.ApiVersion, watchResource.Kind)
-		if informer == nil {
-			return fmt.Errorf("could not find informer for: apiVersion=%v kind=%v", watchResource.ApiVersion, watchResource.Kind)
+		if err := globalSharedInformerManager.Register(ctx, config.Kubeconfig.ValueStatic, watchResource, buffer, deleteBuffer); err != nil {
+			return fmt.Errorf("failed to register informer: %w", err)
 		}
-
-		_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj any) {
-				u, err := getUnstructuredFromInformedObj(watchResource, obj)
-				if err != nil {
-					logger.Errorf("failed to get unstructured from new object: %v", err)
-					return
-				}
-
-				buffer <- u
-			},
-			UpdateFunc: func(oldObj any, newObj any) {
-				u, err := getUnstructuredFromInformedObj(watchResource, newObj)
-				if err != nil {
-					logger.Errorf("failed to get unstructured from updated object: %v", err)
-					return
-				}
-
-				buffer <- u
-			},
-			DeleteFunc: func(obj any) {
-				u, err := getUnstructuredFromInformedObj(watchResource, obj)
-				if err != nil {
-					logger.Errorf("failed to get unstructured from deleted object: %v", err)
-					return
-				}
-
-				deleteBuffer <- string(u.GetUID())
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("failed to add informent event handlers: %w", err)
-		}
-
-		go informer.Run(stopper)
 	}
+
+	// Stop all the other active shared informers, if any, that were previously started
+	// but then removed from the config.
+	var existingWatches []string
+	for _, w := range config.Watch {
+		existingWatches = append(existingWatches, w.ApiVersion+w.Kind)
+	}
+	globalSharedInformerManager.stop(ctx, config.Kubeconfig.ValueStatic, existingWatches...)
 
 	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()).String()).Add(1)
-	wg.Wait()
-
-	return nil
-}
-
-func getInformer(factory informers.SharedInformerFactory, apiVersion, kind string) cache.SharedInformer {
-	// TODO: need to populate this
-
-	kind = strings.ToLower(kind)
-	switch strings.ToLower(apiVersion) {
-	case "v1":
-		switch kind {
-		case "pod":
-			return factory.Core().V1().Pods().Informer()
-		case "node":
-			return factory.Core().V1().Nodes().Informer()
-		}
-
-	case "apps/v1":
-		switch kind {
-		case "deployment":
-			return factory.Apps().V1().Deployments().Informer()
-		case "daemonset":
-			return factory.Apps().V1().DaemonSets().Informer()
-		case "replicaset":
-			return factory.Apps().V1().ReplicaSets().Informer()
-		case "statefulset":
-			return factory.Apps().V1().StatefulSets().Informer()
-		}
-
-	case "batch/v1":
-		switch kind {
-		case "cronjob":
-			return factory.Batch().V1().CronJobs().Informer()
-		case "job":
-			return factory.Batch().V1().Jobs().Informer()
-		}
-	}
-
 	return nil
 }
 

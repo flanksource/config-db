@@ -87,28 +87,6 @@ func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes)
 	}
 }
 
-func watchKubernetesResourcesWithRetry(ctx api.ScrapeContext, config v1.Kubernetes) {
-	const (
-		timeout                 = time.Minute // how long to keep retrying before we reset and retry again
-		exponentialBaseDuration = time.Second
-	)
-
-	for {
-		backoff := retry.WithMaxDuration(timeout, retry.NewExponential(exponentialBaseDuration))
-		err := retry.Do(ctx, backoff, func(ctxt gocontext.Context) error {
-			ctx := ctxt.(api.ScrapeContext)
-			if err := kubernetes.WatchResources(ctx, config); err != nil {
-				logger.Errorf("failed to watch resources: %v", err)
-				return retry.RetryableError(err)
-			}
-
-			return nil
-		})
-
-		logger.Errorf("failed to watch kubernetes resources. cluster=%s: %v", config.ClusterName, err)
-	}
-}
-
 func SyncScrapeJob(sc api.ScrapeContext) error {
 	id := sc.ScrapeConfig().GetPersistedID().String()
 
@@ -175,7 +153,10 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		}
 
 		go watchKubernetesEventsWithRetry(sc, config)
-		go watchKubernetesResourcesWithRetry(sc, config)
+
+		if err := kubernetes.WatchResources(sc, config); err != nil {
+			return fmt.Errorf("failed to watch kubernetes resources: %v", err)
+		}
 
 		eventsWatchJob := ConsumeKubernetesWatchEventsJobFunc(sc, config)
 		if err := eventsWatchJob.AddToScheduler(scrapeJobScheduler); err != nil {
