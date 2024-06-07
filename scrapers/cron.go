@@ -87,28 +87,6 @@ func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes)
 	}
 }
 
-func watchKubernetesResourcesWithRetry(ctx api.ScrapeContext, config v1.Kubernetes) {
-	const (
-		timeout                 = time.Minute // how long to keep retrying before we reset and retry again
-		exponentialBaseDuration = time.Second
-	)
-
-	for {
-		backoff := retry.WithMaxDuration(timeout, retry.NewExponential(exponentialBaseDuration))
-		err := retry.Do(ctx, backoff, func(ctxt gocontext.Context) error {
-			ctx := ctxt.(api.ScrapeContext)
-			if err := kubernetes.WatchResources(ctx, config); err != nil {
-				logger.Errorf("failed to watch resources: %v", err)
-				return retry.RetryableError(err)
-			}
-
-			return nil
-		})
-
-		logger.Errorf("failed to watch kubernetes resources. cluster=%s: %v", config.ClusterName, err)
-	}
-}
-
 func SyncScrapeJob(sc api.ScrapeContext) error {
 	id := sc.ScrapeConfig().GetPersistedID().String()
 
@@ -175,7 +153,10 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		}
 
 		go watchKubernetesEventsWithRetry(sc, config)
-		go watchKubernetesResourcesWithRetry(sc, config)
+
+		if err := kubernetes.WatchResources(sc, config); err != nil {
+			return fmt.Errorf("failed to watch kubernetes resources: %v", err)
+		}
 
 		eventsWatchJob := ConsumeKubernetesWatchEventsJobFunc(sc, config)
 		if err := eventsWatchJob.AddToScheduler(scrapeJobScheduler); err != nil {
@@ -312,19 +293,6 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 					ctx.History.AddError(results[i].Error.Error())
 				} else {
 					ctx.History.SuccessCount++
-				}
-			}
-
-			_deleteCh, ok := kubernetes.DeleteResourceBuffer.Load(config.Hash())
-			if !ok {
-				return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
-			}
-			deletChan := _deleteCh.(chan string)
-
-			if len(deletChan) > 0 {
-				deletedResourcesIDs, _, _, _ := lo.Buffer(deletChan, len(deletChan))
-				if err := db.SoftDeleteConfigItems(ctx.Context, deletedResourcesIDs); err != nil {
-					return fmt.Errorf("failed to delete %d resources: %w", len(deletedResourcesIDs), err)
 				}
 			}
 

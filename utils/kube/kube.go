@@ -29,6 +29,8 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/flanksource/commons/files"
+	"github.com/patrickmn/go-cache"
+	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/flanksource/yaml.v3"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +39,18 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/homedir"
 )
+
+var kubeClientCreatedCount = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "kube_client_created_count",
+		Help: "The total number of times kubernetes clientset were created from kube config",
+	},
+	[]string{"cached"},
+)
+
+func init() {
+	prometheus.MustRegister(kubeClientCreatedCount)
+}
 
 func getRestMapper(config *rest.Config) (meta.RESTMapper, error) {
 	// re-use kubectl cache
@@ -53,7 +67,7 @@ func getRestMapper(config *rest.Config) (meta.RESTMapper, error) {
 	return restmapper.NewDeferredDiscoveryRESTMapper(cache), nil
 }
 
-func getGroupVersion(apiVersion string) (string, string) {
+func GetGroupVersion(apiVersion string) (string, string) {
 	split := strings.Split(apiVersion, "/")
 	if len(split) == 1 {
 		return "", apiVersion
@@ -73,7 +87,7 @@ func GetClientByGroupVersionKind(cfg *rest.Config, apiVersion, kind string) (dyn
 		return nil, err
 	}
 
-	group, version := getGroupVersion(apiVersion)
+	group, version := GetGroupVersion(apiVersion)
 	gvk, err := rm.KindFor(schema.GroupVersionResource{Group: group, Version: version, Resource: kind})
 	if err != nil {
 		return nil, err
@@ -88,17 +102,44 @@ func GetClientByGroupVersionKind(cfg *rest.Config, apiVersion, kind string) (dyn
 	return dc.Resource(mapping.Resource), nil
 }
 
+var kubeCache = cache.New(time.Hour, time.Hour)
+
+type kubeCacheData struct {
+	Client kubernetes.Interface
+	Config *rest.Config
+}
+
 func NewKubeClientWithConfigPath(kubeConfigPath string) (kubernetes.Interface, *rest.Config, error) {
+	key := fmt.Sprintf("kube-config-path-%s", kubeConfigPath)
+	if val, ok := kubeCache.Get(key); ok {
+		d := val.(*kubeCacheData)
+		kubeClientCreatedCount.WithLabelValues("true").Inc()
+		return d.Client, d.Config, nil
+	}
+
 	config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 	if err != nil {
 		return fake.NewSimpleClientset(), nil, err
 	}
 
 	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fake.NewSimpleClientset(), nil, err
+	}
+
+	kubeCache.SetDefault(key, &kubeCacheData{Client: client, Config: config})
+	kubeClientCreatedCount.WithLabelValues("false").Inc()
 	return client, config, err
 }
 
 func NewKubeClientWithConfig(kubeConfig string) (kubernetes.Interface, *rest.Config, error) {
+	key := fmt.Sprintf("kube-config-%s", kubeConfig)
+	if val, ok := kubeCache.Get(key); ok {
+		kubeClientCreatedCount.WithLabelValues("true").Inc()
+		d := val.(*kubeCacheData)
+		return d.Client, d.Config, nil
+	}
+
 	getter := func() (*clientcmdapi.Config, error) {
 		clientCfg, err := clientcmd.NewClientConfigFromBytes([]byte(kubeConfig))
 		if err != nil {
@@ -119,6 +160,12 @@ func NewKubeClientWithConfig(kubeConfig string) (kubernetes.Interface, *rest.Con
 	}
 
 	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fake.NewSimpleClientset(), nil, err
+	}
+
+	kubeCache.SetDefault(key, &kubeCacheData{Client: client, Config: config})
+	kubeClientCreatedCount.WithLabelValues("false").Inc()
 	return client, config, err
 }
 
@@ -150,6 +197,10 @@ func NewK8sClient() (kubernetes.Interface, *rest.Config, error) {
 	}
 
 	client, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return fake.NewSimpleClientset(), nil, err
+	}
+
 	return client, restConfig, err
 }
 
