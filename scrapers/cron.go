@@ -7,11 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/duty/job"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
@@ -19,6 +16,11 @@ import (
 	"github.com/sethvargo/go-retry"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/scrapers/kubernetes"
 )
 
 var (
@@ -57,6 +59,25 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 
 				jr.History.SuccessCount += 1
 			}
+
+			// cleanup dangling scraper jobs
+			var existing []string
+			for _, m := range scraperConfigsDB {
+				existing = append(existing, m.ID.String())
+				existing = append(existing, consumeKubernetesWatchResourcesJobKey(m.ID.String()))
+				existing = append(existing, consumeKubernetesWatchEventsJobKey(m.ID.String()))
+			}
+
+			scrapeJobs.Range(func(_key, value any) bool {
+				key := _key.(string)
+				if collections.Contains(existing, key) {
+					return true
+				}
+
+				jr.Logger.V(0).Infof("found a dangling scraper job: %s", key)
+				DeleteScrapeJob(key)
+				return true
+			})
 
 			return nil
 		},
@@ -302,6 +323,8 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 }
 
 func DeleteScrapeJob(id string) {
+	logger.Debugf("deleting scraper job for %s", id)
+
 	if j, ok := scrapeJobs.Load(id); ok {
 		existingJob := j.(*job.Job)
 		existingJob.Unschedule()
@@ -309,6 +332,12 @@ func DeleteScrapeJob(id string) {
 	}
 
 	if j, ok := scrapeJobs.Load(consumeKubernetesWatchEventsJobKey(id)); ok {
+		existingJob := j.(*job.Job)
+		existingJob.Unschedule()
+		scrapeJobs.Delete(id)
+	}
+
+	if j, ok := scrapeJobs.Load(consumeKubernetesWatchResourcesJobKey(id)); ok {
 		existingJob := j.(*job.Job)
 		existingJob.Unschedule()
 		scrapeJobs.Delete(id)
