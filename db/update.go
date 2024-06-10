@@ -21,6 +21,7 @@ import (
 	dutyContext "github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/gomplate/v3"
+	"github.com/flanksource/is-healthy/events"
 	"github.com/google/uuid"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
@@ -254,6 +255,10 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			} else if ci != "" {
 				change.ConfigID = ci
 			}
+		}
+
+		if change.Severity == "" && change.ChangeType != "diff" {
+			change.Severity = events.GetSeverity(change.ChangeType)
 		}
 
 		if change.ConfigID == "" {
