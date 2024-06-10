@@ -67,12 +67,6 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		if err != nil {
 			return fmt.Errorf("failed to get kubeconfig from env: %w", err)
 		}
-
-	} else {
-		_, err = kube.DefaultRestConfig()
-		if err != nil {
-			return fmt.Errorf("failed to apply default kube config: %w", err)
-		}
 	}
 
 	for _, watchResource := range lo.Uniq(config.Watch) {
@@ -87,7 +81,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	for _, w := range config.Watch {
 		existingWatches = append(existingWatches, w.ApiVersion+w.Kind)
 	}
-	globalSharedInformerManager.stop(ctx, config.Kubeconfig.ValueStatic, existingWatches...)
+	globalSharedInformerManager.stop(ctx, kubeconfig, existingWatches...)
 
 	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()).String()).Add(1)
 	return nil
