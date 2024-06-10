@@ -138,9 +138,7 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Config:          &dataStr,
 		Ready:           result.Ready,
 		LastScrapedTime: result.LastScrapedTime,
-
-		ParentExternalID: result.ParentExternalID,
-		ParentType:       result.ParentType,
+		Parents:         result.Parents,
 	}
 
 	if parsed, err := result.Tags.AsMap(); err != nil {

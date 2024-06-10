@@ -429,7 +429,7 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			return results.Errorf(err, "failed to clean kubernetes object")
 		}
 
-		parentType, parentExternalID := getKubernetesParent(obj, config.Exclusions, resourceIDMap)
+		parents := getKubernetesParent(obj, config.Exclusions, resourceIDMap)
 		results = append(results, v1.ScrapeResult{
 			BaseScraper:         config.BaseScraper,
 			Name:                obj.GetName(),
@@ -448,8 +448,7 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			Labels:              stripLabels(labels, "-hash"),
 			Tags:                tags,
 			Aliases:             []string{getKubernetesAlias(obj.GetKind(), obj.GetNamespace(), obj.GetName())},
-			ParentExternalID:    parentExternalID,
-			ParentType:          ConfigTypePrefix + parentType,
+			Parents:             parents,
 			RelationshipResults: relationships,
 		})
 	}
@@ -474,47 +473,50 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 	return results
 }
 
-func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.KubernetesExclusionConfig, resourceIDMap map[string]map[string]map[string]string) (string, string) {
-	var parentExternalID, parentConfigType string
-
-	// This will work for pods and replicasets
-	if len(obj.GetOwnerReferences()) > 0 {
-		ref := obj.GetOwnerReferences()[0]
-
-		if obj.GetKind() == "Pod" && lo.Contains(exclusions.Kinds, "ReplicaSet") {
-			// If ReplicaSet is excluded then we want the pod's direct parent to
-			// be its Deployment
-			if ref.Kind == "ReplicaSet" {
-				deployName := extractDeployNameFromReplicaSet(ref.Name)
-				parentConfigType = "Deployment"
-				parentExternalID = resourceIDMap[obj.GetNamespace()]["Deployment"][deployName]
-				return parentConfigType, parentExternalID
-			}
-		}
-
-		parentConfigType = ref.Kind
-		parentExternalID = string(ref.UID)
-		return parentConfigType, parentExternalID
-	}
+// getKubernetesParent returns a list of potential parents in order.
+// Example: For a Pod the parents would be [Replicaset, Namespace, Cluster]
+func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.KubernetesExclusionConfig, resourceIDMap map[string]map[string]map[string]string) []v1.ConfigExternalKey {
+	var allParents []v1.ConfigExternalKey
+	allParents = append(allParents, v1.ConfigExternalKey{
+		Type:       ConfigTypePrefix + "Cluster",
+		ExternalID: resourceIDMap[""]["Cluster"]["selfRef"],
+	})
 
 	if obj.GetNamespace() != "" {
-		parentConfigType = "Namespace"
-		parentExternalID = resourceIDMap[""]["Namespace"][obj.GetNamespace()]
-
+		parentExternalID := resourceIDMap[""]["Namespace"][obj.GetNamespace()]
 		if parentExternalID == "" {
 			// An incremental scraper maynot have the Namespace object.
 			// We can instead use the alias as the external id.
 			parentExternalID = getKubernetesAlias("Namespace", "", obj.GetNamespace())
 		}
 
-		return parentConfigType, parentExternalID
+		allParents = append([]v1.ConfigExternalKey{{
+			Type:       ConfigTypePrefix + "Namespace",
+			ExternalID: parentExternalID,
+		}}, allParents...)
 	}
 
-	// Everything which is not namespaced should be mapped to cluster
-	parentConfigType = "Cluster"
-	parentExternalID = resourceIDMap[""]["Cluster"]["selfRef"]
+	if len(obj.GetOwnerReferences()) > 0 {
+		ref := obj.GetOwnerReferences()[0]
 
-	return parentConfigType, parentExternalID
+		// If ReplicaSet is excluded then we want the pod's direct parent to
+		// be its Deployment
+		if obj.GetKind() == "Pod" && lo.Contains(exclusions.Kinds, "ReplicaSet") && ref.Kind == "ReplicaSet" {
+			deployName := extractDeployNameFromReplicaSet(ref.Name)
+			parentExternalID := resourceIDMap[obj.GetNamespace()]["Deployment"][deployName]
+			allParents = append([]v1.ConfigExternalKey{{
+				Type:       ConfigTypePrefix + "Deployment",
+				ExternalID: parentExternalID,
+			}}, allParents...)
+		} else {
+			allParents = append([]v1.ConfigExternalKey{{
+				Type:       ConfigTypePrefix + ref.Kind,
+				ExternalID: string(ref.UID),
+			}}, allParents...)
+		}
+	}
+
+	return allParents
 }
 
 func getKubernetesAlias(kind, namespace, name string) string {

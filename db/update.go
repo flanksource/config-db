@@ -721,24 +721,33 @@ func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExt
 			continue // existing item. Parent is already set.
 		}
 
-		if ci.ParentExternalID == "" || ci.ParentType == "" {
-			continue
+		if len(ci.Parents) == 0 {
+			continue // these are root items.
 		}
 
-		if parentID, found := parentTypeToConfigMap[configExternalKey{
-			externalID: ci.ParentExternalID,
-			parentType: ci.ParentType,
-		}]; found {
-			ci.ParentID = &parentID
-			continue
+		for _, parent := range ci.Parents {
+			if parent.ExternalID == "" || parent.Type == "" {
+				continue
+			}
+
+			if parentID, found := parentTypeToConfigMap[configExternalKey{
+				externalID: parent.ExternalID,
+				parentType: parent.Type,
+			}]; found {
+				ci.ParentID = &parentID
+				break
+			}
+
+			if found, err := ctx.TempCache().Find(parent.Type, parent.ExternalID); err != nil {
+				return err
+			} else if found != nil {
+				ci.ParentID = &found.ID
+				break
+			}
 		}
 
-		if found, err := ctx.TempCache().Find(ci.ParentType, ci.ParentExternalID); err != nil {
-			return err
-		} else if found != nil {
-			ci.ParentID = &found.ID
-		} else {
-			ctx.Logger.V(0).Infof("[%s] parent %s/%s not found", ci, ci.ParentType, ci.ParentExternalID)
+		if ci.ParentID == nil {
+			ctx.Logger.V(0).Infof("parent not found for config [%s]", ci)
 		}
 	}
 

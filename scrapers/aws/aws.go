@@ -62,7 +62,7 @@ func getLabels(tags []ec2Types.Tag) v1.JSONStringMap {
 }
 
 func (ctx AWSContext) String() string {
-	return fmt.Sprintf("account=%s user=%s region=%s", *ctx.Caller.Account, *ctx.Caller.UserId, ctx.Session.Region)
+	return fmt.Sprintf("account=%s user=%s region=%s", lo.FromPtr(ctx.Caller.Account), *ctx.Caller.UserId, ctx.Session.Region)
 }
 
 func (aws Scraper) getContext(ctx api.ScrapeContext, awsConfig v1.AWS, region string) (*AWSContext, error) {
@@ -136,8 +136,7 @@ func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.S
 			Ignore: []string{
 				"CreatedAt", "RepositoryArn", "RepositoryUri", "RegistryId", "RepositoryName",
 			},
-			ParentExternalID: *ctx.Caller.Account,
-			ParentType:       v1.AWSAccount,
+			Parents: []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -191,7 +190,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 
 		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeEKS, string(cluster.Cluster.Status))
 
-		cluster.Cluster.Tags["account"] = *ctx.Caller.Account
+		cluster.Cluster.Tags["account"] = lo.FromPtr(ctx.Caller.Account)
 		cluster.Cluster.Tags["region"] = getRegionFromArn(*cluster.Cluster.Arn, "eks")
 
 		*results = append(*results, v1.ScrapeResult{
@@ -206,8 +205,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Aliases:             []string{*cluster.Cluster.Arn, "AmazonEKS/" + *cluster.Cluster.Arn},
 			ID:                  *cluster.Cluster.Name,
 			Ignore:              []string{"createdAt", "name"},
-			ParentExternalID:    *cluster.Cluster.ResourcesVpcConfig.VpcId,
-			ParentType:          v1.AWSEC2VPC,
+			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: *cluster.Cluster.ResourcesVpcConfig.VpcId}},
 			RelationshipResults: relationships,
 		}.WithHealthStatus(resourceHealth))
 	}
@@ -257,30 +255,28 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 	var uniqueAvailabilityZoneIDs = map[string]struct{}{}
 	for _, az := range azDescribeOutput.AvailabilityZones {
 		*results = append(*results, v1.ScrapeResult{
-			ID:               lo.FromPtr(az.ZoneName),
-			Type:             v1.AWSAvailabilityZone,
-			BaseScraper:      config.BaseScraper,
-			Config:           az,
-			ConfigClass:      "AvailabilityZone",
-			Tags:             []v1.Tag{{Name: "region", Value: lo.FromPtr(az.RegionName)}},
-			Aliases:          nil,
-			Name:             lo.FromPtr(az.ZoneName),
-			ParentExternalID: lo.FromPtr(az.RegionName),
-			ParentType:       v1.AWSRegion,
+			ID:          lo.FromPtr(az.ZoneName),
+			Type:        v1.AWSAvailabilityZone,
+			BaseScraper: config.BaseScraper,
+			Config:      az,
+			ConfigClass: "AvailabilityZone",
+			Tags:        []v1.Tag{{Name: "region", Value: lo.FromPtr(az.RegionName)}},
+			Aliases:     nil,
+			Name:        lo.FromPtr(az.ZoneName),
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSRegion, ExternalID: lo.FromPtr(az.RegionName)}},
 		})
 
 		if _, ok := uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)]; !ok {
 			*results = append(*results, v1.ScrapeResult{
-				ID:               lo.FromPtr(az.ZoneId),
-				Type:             v1.AWSAvailabilityZoneID,
-				Tags:             []v1.Tag{{Name: "region", Value: lo.FromPtr(az.RegionName)}},
-				BaseScraper:      config.BaseScraper,
-				Config:           map[string]string{"RegionName": *az.RegionName},
-				ConfigClass:      "AvailabilityZone",
-				Aliases:          nil,
-				Name:             lo.FromPtr(az.ZoneId),
-				ParentExternalID: lo.FromPtr(az.RegionName),
-				ParentType:       v1.AWSRegion,
+				ID:          lo.FromPtr(az.ZoneId),
+				Type:        v1.AWSAvailabilityZoneID,
+				Tags:        []v1.Tag{{Name: "region", Value: lo.FromPtr(az.RegionName)}},
+				BaseScraper: config.BaseScraper,
+				Config:      map[string]string{"RegionName": *az.RegionName},
+				ConfigClass: "AvailabilityZone",
+				Aliases:     nil,
+				Name:        lo.FromPtr(az.ZoneId),
+				Parents:     []v1.ConfigExternalKey{{Type: v1.AWSRegion, ExternalID: lo.FromPtr(az.RegionName)}},
 			})
 
 			uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)] = struct{}{}
@@ -305,7 +301,7 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		return
 	}
 
-	name := *ctx.Caller.Account
+	name := lo.FromPtr(ctx.Caller.Account)
 	if len(aliases.AccountAliases) > 0 {
 		name = (*aliases).AccountAliases[0]
 	}
@@ -320,21 +316,20 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		Name:        name,
 		Labels:      labels,
 		Aliases:     aliases.AccountAliases,
-		ID:          *ctx.Caller.Account,
+		ID:          lo.FromPtr(ctx.Caller.Account),
 	})
 
 	*results = append(*results, v1.ScrapeResult{
-		Type:             v1.AWSIAMUser,
-		BaseScraper:      config.BaseScraper,
-		Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMUser, "root")},
-		Config:           summary.SummaryMap,
-		Labels:           labels,
-		ConfigClass:      "User",
-		Name:             "root",
-		Aliases:          []string{"<root account>"},
-		ID:               "root",
-		ParentExternalID: lo.FromPtr(ctx.Caller.Account),
-		ParentType:       v1.AWSAccount,
+		Type:        v1.AWSIAMUser,
+		BaseScraper: config.BaseScraper,
+		Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMUser, "root")},
+		Config:      summary.SummaryMap,
+		Labels:      labels,
+		ConfigClass: "User",
+		Name:        "root",
+		Aliases:     []string{"<root account>"},
+		ID:          "root",
+		Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 	})
 
 	regions, err := ctx.EC2.DescribeRegions(ctx, &ec2.DescribeRegionsInput{})
@@ -373,19 +368,18 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 	labels := make(map[string]string)
 	for _, user := range users.Users {
 		*results = append(*results, v1.ScrapeResult{
-			Type:             v1.AWSIAMUser,
-			CreatedAt:        user.CreateDate,
-			BaseScraper:      config.BaseScraper,
-			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMUser, lo.FromPtr(user.UserName))},
-			Config:           user,
-			ConfigClass:      "User",
-			Labels:           labels,
-			Name:             *user.UserName,
-			Aliases:          []string{*user.UserId, *user.Arn},
-			Ignore:           []string{"arn", "userId", "createDate", "userName"},
-			ID:               *user.UserName, // UserId is not often referenced
-			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
-			ParentType:       v1.AWSAccount,
+			Type:        v1.AWSIAMUser,
+			CreatedAt:   user.CreateDate,
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMUser, lo.FromPtr(user.UserName))},
+			Config:      user,
+			ConfigClass: "User",
+			Labels:      labels,
+			Name:        *user.UserName,
+			Aliases:     []string{*user.UserId, *user.Arn},
+			Ignore:      []string{"arn", "userId", "createDate", "userName"},
+			ID:          *user.UserName, // UserId is not often referenced
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -412,18 +406,17 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeEBS, string(volume.State))
 
 		*results = append(*results, v1.ScrapeResult{
-			Type:             v1.AWSEBSVolume,
-			Labels:           labels,
-			Tags:             tags,
-			BaseScraper:      config.BaseScraper,
-			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEBSVolume, lo.FromPtr(volume.VolumeId))},
-			Config:           volume,
-			ConfigClass:      "DiskStorage",
-			Aliases:          []string{"AmazonEC2/" + *volume.VolumeId},
-			Name:             getName(labels, *volume.VolumeId),
-			ID:               *volume.VolumeId,
-			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
-			ParentType:       v1.AWSAccount,
+			Type:        v1.AWSEBSVolume,
+			Labels:      labels,
+			Tags:        tags,
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEBSVolume, lo.FromPtr(volume.VolumeId))},
+			Config:      volume,
+			ConfigClass: "DiskStorage",
+			Aliases:     []string{"AmazonEC2/" + *volume.VolumeId},
+			Name:        getName(labels, *volume.VolumeId),
+			ID:          *volume.VolumeId,
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		}.WithHealthStatus(resourceHealth))
 	}
 }
@@ -476,8 +469,7 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Name:                getName(labels, *instance.DBInstanceIdentifier),
 			ID:                  *instance.DBInstanceIdentifier,
 			Aliases:             []string{"AmazonRDS/" + *instance.DBInstanceArn},
-			ParentExternalID:    *instance.DBSubnetGroup.VpcId,
-			ParentType:          v1.AWSEC2VPC,
+			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(instance.DBSubnetGroup.VpcId)}},
 			RelationshipResults: relationships,
 		}.WithHealthStatus(resourceHealth))
 	}
@@ -531,8 +523,7 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			Name:                getName(labels, *vpc.VpcId),
 			ID:                  *vpc.VpcId,
 			Aliases:             []string{"AmazonEC2/" + *vpc.VpcId},
-			ParentExternalID:    lo.FromPtr(ctx.Caller.Account),
-			ParentType:          v1.AWSAccount,
+			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 			RelationshipResults: relationships,
 		}.WithHealthStatus(resourceHealth))
 	}
@@ -648,8 +639,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				Name:                instance.GetHostname(),
 				Aliases:             []string{"AmazonEC2/" + instance.InstanceID},
 				ID:                  instance.InstanceID,
-				ParentExternalID:    instance.VpcID,
-				ParentType:          v1.AWSEC2VPC,
+				Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: instance.VpcID}},
 				RelationshipResults: relationships,
 			}.WithHealthStatus(resourceHealth))
 		}
@@ -672,16 +662,15 @@ func (aws Scraper) securityGroups(ctx *AWSContext, config v1.AWS, results *v1.Sc
 		labels := getLabels(sg.Tags)
 		labels["network"] = *sg.VpcId
 		*results = append(*results, v1.ScrapeResult{
-			Type:             v1.AWSEC2SecurityGroup,
-			Labels:           labels,
-			BaseScraper:      config.BaseScraper,
-			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2SecurityGroup, lo.FromPtr(sg.GroupId))},
-			Config:           sg,
-			ConfigClass:      "SecurityGroup",
-			Name:             getName(labels, *sg.GroupId),
-			ID:               *sg.GroupId,
-			ParentExternalID: *sg.VpcId,
-			ParentType:       v1.AWSEC2VPC,
+			Type:        v1.AWSEC2SecurityGroup,
+			Labels:      labels,
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2SecurityGroup, lo.FromPtr(sg.GroupId))},
+			Config:      sg,
+			ConfigClass: "SecurityGroup",
+			Name:        getName(labels, *sg.GroupId),
+			ID:          *sg.GroupId,
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(sg.VpcId)}},
 		})
 	}
 }
@@ -700,16 +689,15 @@ func (aws Scraper) routes(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResu
 		labels := getLabels(r.Tags)
 		labels["network"] = *r.VpcId
 		*results = append(*results, v1.ScrapeResult{
-			Type:             "AWS::EC2::RouteTable",
-			Labels:           labels,
-			BaseScraper:      config.BaseScraper,
-			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, "AWS::EC2::RouteTable", lo.FromPtr(r.RouteTableId))},
-			Config:           r,
-			ConfigClass:      "Route",
-			Name:             getName(labels, *r.RouteTableId),
-			ID:               *r.RouteTableId,
-			ParentExternalID: *r.VpcId,
-			ParentType:       v1.AWSEC2VPC,
+			Type:        "AWS::EC2::RouteTable",
+			Labels:      labels,
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, "AWS::EC2::RouteTable", lo.FromPtr(r.RouteTableId))},
+			Config:      r,
+			ConfigClass: "Route",
+			Name:        getName(labels, *r.RouteTableId),
+			ID:          *r.RouteTableId,
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(r.VpcId)}},
 		})
 	}
 }
@@ -729,16 +717,15 @@ func (aws Scraper) dhcp(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 	for _, d := range describeOutput.DhcpOptions {
 		labels := getLabels(d.Tags)
 		*results = append(*results, v1.ScrapeResult{
-			Type:             v1.AWSEC2DHCPOptions,
-			Labels:           labels,
-			BaseScraper:      config.BaseScraper,
-			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2DHCPOptions, lo.FromPtr(d.DhcpOptionsId))},
-			Config:           d,
-			ConfigClass:      "DHCP",
-			Name:             getName(labels, *d.DhcpOptionsId),
-			ID:               *d.DhcpOptionsId,
-			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
-			ParentType:       v1.AWSAccount,
+			Type:        v1.AWSEC2DHCPOptions,
+			Labels:      labels,
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2DHCPOptions, lo.FromPtr(d.DhcpOptionsId))},
+			Config:      d,
+			ConfigClass: "DHCP",
+			Name:        getName(labels, *d.DhcpOptionsId),
+			ID:          *d.DhcpOptionsId,
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -758,19 +745,18 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	for _, bucket := range buckets.Buckets {
 		labels := make(map[string]string)
 		*results = append(*results, v1.ScrapeResult{
-			Type:             v1.AWSS3Bucket,
-			CreatedAt:        bucket.CreationDate,
-			BaseScraper:      config.BaseScraper,
-			Config:           bucket,
-			ConfigClass:      "ObjectStorage",
-			Name:             *bucket.Name,
-			Labels:           labels,
-			Ignore:           []string{"name", "creationDate"},
-			Aliases:          []string{"AmazonS3/" + *bucket.Name},
-			ID:               *bucket.Name,
-			ParentExternalID: *ctx.Caller.Account,
-			ParentType:       v1.AWSAccount,
-			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSS3Bucket, lo.FromPtr(bucket.Name))},
+			Type:        v1.AWSS3Bucket,
+			CreatedAt:   bucket.CreationDate,
+			BaseScraper: config.BaseScraper,
+			Config:      bucket,
+			ConfigClass: "ObjectStorage",
+			Name:        *bucket.Name,
+			Labels:      labels,
+			Ignore:      []string{"name", "creationDate"},
+			Aliases:     []string{"AmazonS3/" + *bucket.Name},
+			ID:          *bucket.Name,
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSS3Bucket, lo.FromPtr(bucket.Name))},
 		})
 	}
 }
@@ -788,17 +774,16 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 	for _, zone := range zones.HostedZones {
 		labels := make(map[string]string)
 		*results = append(*results, v1.ScrapeResult{
-			Type:             v1.AWSZone,
-			BaseScraper:      config.BaseScraper,
-			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSZone, strings.ReplaceAll(*zone.Id, "/hostedzone/", ""))},
-			Config:           zone,
-			ConfigClass:      "DNSZone",
-			Name:             *zone.Name,
-			Labels:           labels,
-			Aliases:          []string{*zone.Id, *zone.Name, "AmazonRoute53/arn:aws:route53:::hostedzone/" + *zone.Id},
-			ID:               strings.ReplaceAll(*zone.Id, "/hostedzone/", ""),
-			ParentExternalID: *ctx.Caller.Account,
-			ParentType:       v1.AWSAccount,
+			Type:        v1.AWSZone,
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSZone, strings.ReplaceAll(*zone.Id, "/hostedzone/", ""))},
+			Config:      zone,
+			ConfigClass: "DNSZone",
+			Name:        *zone.Name,
+			Labels:      labels,
+			Aliases:     []string{*zone.Id, *zone.Name, "AmazonRoute53/arn:aws:route53:::hostedzone/" + *zone.Id},
+			ID:          strings.ReplaceAll(*zone.Id, "/hostedzone/", ""),
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -864,7 +849,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 		tags := v1.Tags{}
 		tags.Append("zone", az)
 		tags.Append("region", region)
-		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, *ctx.Caller.Account, *lb.LoadBalancerName)
+		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, lo.FromPtr(ctx.Caller.Account), *lb.LoadBalancerName)
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSLoadBalancer,
 			CreatedAt:           lb.CreatedTime,
@@ -878,8 +863,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Tags:                tags,
 			Aliases:             []string{"AWSELB/" + arn, arn},
 			ID:                  *lb.LoadBalancerName,
-			ParentExternalID:    *lb.VPCId,
-			ParentType:          v1.AWSEC2VPC,
+			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(lb.VPCId)}},
 			RelationshipResults: relationships,
 		})
 	}
@@ -936,8 +920,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Aliases:             []string{"AWSELB/" + *lb.LoadBalancerArn},
 			ID:                  *lb.LoadBalancerArn,
 			Labels:              labels,
-			ParentExternalID:    *lb.VpcId,
-			ParentType:          v1.AWSEC2VPC,
+			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(lb.VpcId)}},
 			RelationshipResults: relationships,
 		}.WithHealthStatus(resourceHealth))
 	}
@@ -1006,8 +989,7 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			ConfigClass:         "Subnet",
 			ID:                  *subnet.SubnetId,
 			Config:              subnet,
-			ParentExternalID:    lo.FromPtr(subnet.VpcId),
-			ParentType:          v1.AWSEC2VPC,
+			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(subnet.VpcId)}},
 			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2Subnet, lo.FromPtr(subnet.SubnetId))},
 			RelationshipResults: relationships,
 		}.WithHealthStatus(resourceHealth)
@@ -1031,18 +1013,17 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 		labels := make(map[string]string)
 
 		*results = append(*results, v1.ScrapeResult{
-			Type:             v1.AWSIAMRole,
-			CreatedAt:        role.CreateDate,
-			BaseScraper:      config.BaseScraper,
-			Properties:       []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMRole, lo.FromPtr(role.RoleName))},
-			Config:           role,
-			ConfigClass:      "Role",
-			Labels:           labels,
-			Name:             *role.RoleName,
-			Aliases:          []string{*role.RoleName, *role.Arn},
-			ID:               *role.RoleId,
-			ParentExternalID: lo.FromPtr(ctx.Caller.Account),
-			ParentType:       v1.AWSAccount,
+			Type:        v1.AWSIAMRole,
+			CreatedAt:   role.CreateDate,
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMRole, lo.FromPtr(role.RoleName))},
+			Config:      role,
+			ConfigClass: "Role",
+			Labels:      labels,
+			Name:        *role.RoleName,
+			Aliases:     []string{*role.RoleName, *role.Arn},
+			ID:          *role.RoleId,
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -1120,9 +1101,8 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Name:                *profile.InstanceProfileName,
 			Aliases:             []string{*profile.InstanceProfileName, *profile.Arn},
 			ID:                  *profile.InstanceProfileId,
-			ParentExternalID:    lo.FromPtr(ctx.Caller.Account),
-			ParentType:          v1.AWSAccount,
 			RelationshipResults: relationships,
+			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -1146,7 +1126,7 @@ func (aws Scraper) ami(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 		}
 
 		labels := make(map[string]string)
-		labels["region"] = *ctx.Caller.Account
+		labels["region"] = lo.FromPtr(ctx.Caller.Account)
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSEC2AMI,
 			CreatedAt:   &createdAt,
