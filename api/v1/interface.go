@@ -347,6 +347,11 @@ func (t Tags) Eval(labels map[string]string, config string) (Tags, error) {
 	return t, nil
 }
 
+type ConfigExternalKey struct {
+	ExternalID string
+	Type       string
+}
+
 // ScrapeResult ...
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
@@ -384,10 +389,11 @@ type ScrapeResult struct {
 	RelationshipResults RelationshipResults `json:"-"`
 	Ignore              []string            `json:"-"`
 	Action              string              `json:",omitempty"`
-	ParentExternalID    string              `json:"-"`
-	ParentType          string              `json:"-"`
 	Properties          types.Properties    `json:"properties,omitempty"`
 	LastScrapedTime     *time.Time          `json:"last_scraped_time"`
+
+	// List of candidate parents in order of precision.
+	Parents []ConfigExternalKey `json:"-"`
 
 	// RelationshipSelectors are used to form relationship of this scraped item with other items.
 	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without

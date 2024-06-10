@@ -174,15 +174,17 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			})
 
 			// Set parents where missing
-			if results[i].ParentExternalID == "" {
-				switch results[i].Type {
-				case getARMType(lo.ToPtr(ResourceTypeSubscription)):
-					continue // root
+			for j, parent := range results[i].Parents {
+				if parent.ExternalID == "" {
+					switch parent.Type {
+					case getARMType(lo.ToPtr(ResourceTypeSubscription)):
+						continue // root
 
-				default:
-					subscriptionID := strings.Split(results[i].ID, "/")[2]
-					results[i].ParentExternalID = getARMID(lo.ToPtr("/subscriptions/" + subscriptionID))
-					results[i].ParentType = getARMType(lo.ToPtr(ResourceTypeSubscription))
+					default:
+						subscriptionID := strings.Split(results[i].ID, "/")[2]
+						results[i].Parents[j].ExternalID = getARMID(lo.ToPtr("/subscriptions/" + subscriptionID))
+						results[i].Parents[j].Type = getARMType(lo.ToPtr(ResourceTypeSubscription))
+					}
 				}
 			}
 		}
