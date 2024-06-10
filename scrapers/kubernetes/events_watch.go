@@ -57,11 +57,17 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	WatchResourceBuffer.Store(config.Hash(), buffer)
 
 	var err error
+	var kubeconfig string
 	if config.Kubeconfig != nil {
 		ctx, _, err = applyKubeconfig(ctx, *config.Kubeconfig)
 		if err != nil {
 			return fmt.Errorf("failed to apply custom kube config(%s): %w", config.Kubeconfig, err)
 		}
+		kubeconfig, err = ctx.GetEnvValueFromCache(*config.Kubeconfig, ctx.GetNamespace())
+		if err != nil {
+			return fmt.Errorf("failed to get kubeconfig from env: %w", err)
+		}
+
 	} else {
 		_, err = kube.DefaultRestConfig()
 		if err != nil {
@@ -70,7 +76,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	}
 
 	for _, watchResource := range lo.Uniq(config.Watch) {
-		if err := globalSharedInformerManager.Register(ctx, config.Kubeconfig.ValueStatic, watchResource, buffer, db.SoftDeleteConfigItem); err != nil {
+		if err := globalSharedInformerManager.Register(ctx, kubeconfig, watchResource, buffer, db.SoftDeleteConfigItem); err != nil {
 			return fmt.Errorf("failed to register informer: %w", err)
 		}
 	}
