@@ -594,6 +594,13 @@ func cleanKubernetesObject(obj map[string]any) (map[string]any, error) {
 	o.Delete("metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
 	o.Delete("metadata", "managedFields")
 
+	o.Delete("metadata", "labels", "controller-uid")
+	o.Delete("metadata", "labels", "batch.kubernetes.io/job-name")
+	o.Delete("metadata", "labels", "job-name")
+	o.Delete("metadata", "labels", "batch.kubernetes.io/controller-uid")
+	o.Delete("metadata", "labels", "kubernetes.io/metadata.name")
+	o.Delete("metadata", "labels", "pod-template-generation")
+
 	o.Delete("status", "artifact", "lastUpdateTime")
 	o.Delete("status", "observedGeneration")
 	o.Delete("status", "lastTransitionTime")
