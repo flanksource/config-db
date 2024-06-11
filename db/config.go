@@ -211,10 +211,10 @@ func FindConfigChangesByItemID(ctx api.ScrapeContext, configItemID string) ([]du
 	return ci, nil
 }
 
-func SoftDeleteConfigItems(ctx context.Context, ids ...string) error {
-	return ctx.DB().
+func SoftDeleteConfigItems(ctx context.Context, ids ...string) (int, error) {
+	tx := ctx.DB().
 		Model(&models.ConfigItem{}).
 		Where("id IN ?", ids).
-		Update("deleted_at", gorm.Expr("NOW()")).
-		Error
+		Update("deleted_at", gorm.Expr("NOW()"))
+	return int(tx.RowsAffected), tx.Error
 }
