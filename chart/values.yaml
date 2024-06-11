@@ -2,8 +2,7 @@
 # Declare variables to be passed into your templates.
 
 global:
-  image:
-    repository: docker.io/flanksource
+  imageRegistry: docker.io/flanksource
   db:
     connectionPooler:
       enabled: false
