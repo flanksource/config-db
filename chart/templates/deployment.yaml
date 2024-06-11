@@ -39,7 +39,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: {{ include "config-db.name" . }}
-          image: "{{ tpl .Values.image.repository . }}/{{ .Values.image.name }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: "{{ tpl .Values.global.image.repository . }}/{{ .Values.image.name }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           livenessProbe:
             failureThreshold: 3
