@@ -317,6 +317,19 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 				}
 			}
 
+			_deleteCh, ok := kubernetes.DeleteResourceBuffer.Load(config.Hash())
+			if !ok {
+				return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
+			}
+			deletChan := _deleteCh.(chan string)
+
+			if len(deletChan) > 0 {
+				deletedResourcesIDs, _, _, _ := lo.Buffer(deletChan, len(deletChan))
+				if err := db.SoftDeleteConfigItems(ctx.Context, deletedResourcesIDs...); err != nil {
+					return fmt.Errorf("failed to delete %d resources: %w", len(deletedResourcesIDs), err)
+				}
+			}
+
 			return nil
 		},
 	}
