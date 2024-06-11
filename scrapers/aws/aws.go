@@ -1198,6 +1198,9 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				Name:  "account",
 				Value: lo.FromPtr(awsCtx.Caller.Account),
 			})
+
+			delete((*results)[i].Labels, "name")
+			delete((*results)[i].Labels, "Name")
 		}
 
 		allResults = append(allResults, *results...)
