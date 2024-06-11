@@ -18,7 +18,8 @@ nameOverride: ''
 disablePostgrest: false
 
 image:
-  repository: docker.io/flanksource/config-db
+  repository: docker.io/flanksource
+  name: config-db
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: 'latest'
