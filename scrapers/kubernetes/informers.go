@@ -36,7 +36,7 @@ type SharedInformerManager struct {
 
 type DeleteObjHandler func(ctx context.Context, id string) error
 
-func (t *SharedInformerManager) Register(ctx api.ScrapeContext, kubeconfig string, watchResource v1.KubernetesResourceToWatch, buffer chan<- *unstructured.Unstructured, deleteHandler DeleteObjHandler) error {
+func (t *SharedInformerManager) Register(ctx api.ScrapeContext, kubeconfig string, watchResource v1.KubernetesResourceToWatch, buffer chan<- *unstructured.Unstructured, deleteBuffer chan<- string) error {
 	apiVersion, kind := watchResource.ApiVersion, watchResource.Kind
 
 	informer, stopper, isNew := t.getOrCreate(ctx, kubeconfig, apiVersion, kind)
@@ -79,11 +79,8 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, kubeconfig strin
 				return
 			}
 
-			if err := deleteHandler(ctx.Context, string(u.GetUID())); err != nil {
-				logToJobHistory(ctx.DutyContext(), "DeleteK8sWatchResource", ctx.ScrapeConfig().GetPersistedID(),
-					"failed to delete (%s) %s/%s/%s resources: %v", u.GetUID(), u.GetKind(), u.GetNamespace(), u.GetName(), err)
-				return
-			}
+			ctx.Logger.V(2).Infof("deleted: %s %s", u.GetKind(), u.GetName())
+			deleteBuffer <- string(u.GetUID())
 		},
 	})
 	if err != nil {
