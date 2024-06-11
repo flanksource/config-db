@@ -90,7 +90,7 @@ jobs:
       - name: Publish to AWS ECR
         uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b # v5
         with:
-          name: config-db
+          name: k4y9r6y5/config-db
           username: ${{ steps.ecr.outputs.username }}
           password: ${{ steps.ecr.outputs.password }}
           registry: ${{ steps.ecr.outputs.registry }}
