@@ -14,6 +14,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/samber/lo"
 	"github.com/sethvargo/go-retry"
+	"go.opentelemetry.io/otel/attribute"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -286,6 +287,7 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 				return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
 			}
 			ch := _ch.(chan *unstructured.Unstructured)
+
 			objs, _, _, _ := lo.Buffer(ch, len(ch))
 
 			// NOTE: The resource watcher can return multiple objects for the same NEW resource.
@@ -298,6 +300,15 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 			// If diff changes are necessary, then we can split up the results in such
 			// a way that no two objects in a batch have the same id.
 			objs = dedup(objs)
+
+			_deleteCh, ok := kubernetes.DeleteResourceBuffer.Load(config.Hash())
+			if !ok {
+				return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
+			}
+			deleteChan := _deleteCh.(chan string)
+			deletedResourcesIDs, _, _, _ := lo.Buffer(deleteChan, len(deleteChan))
+
+			ctx.Logger.V(2).Infof("received %d resources & %d deleted resources", len(objs), len(deletedResourcesIDs))
 
 			cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History)
 			results, err := RunK8ObjScraper(cc, config, objs)
@@ -317,17 +328,16 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 				}
 			}
 
-			_deleteCh, ok := kubernetes.DeleteResourceBuffer.Load(config.Hash())
-			if !ok {
-				return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
-			}
-			deletChan := _deleteCh.(chan string)
-
-			if len(deletChan) > 0 {
-				deletedResourcesIDs, _, _, _ := lo.Buffer(deletChan, len(deletChan))
-				if err := db.SoftDeleteConfigItems(ctx.Context, deletedResourcesIDs...); err != nil {
+			if len(deletedResourcesIDs) > 0 {
+				total, err := db.SoftDeleteConfigItems(ctx.Context, deletedResourcesIDs...)
+				if err != nil {
 					return fmt.Errorf("failed to delete %d resources: %w", len(deletedResourcesIDs), err)
+				} else if total != len(deletedResourcesIDs) {
+					ctx.GetSpan().SetAttributes(attribute.StringSlice("deletedResourcesIDs", deletedResourcesIDs))
+					ctx.Logger.Warnf("attempted to delete %d resources but only deleted %d", len(deletedResourcesIDs), total)
 				}
+
+				ctx.History.SuccessCount += total
 			}
 
 			return nil

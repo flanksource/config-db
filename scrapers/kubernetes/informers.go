@@ -59,7 +59,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, kubeconfig strin
 				return
 			}
 
-			ctx.Logger.V(2).Infof("added: %s %s", u.GetKind(), u.GetName())
+			ctx.Logger.V(2).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			buffer <- u
 		},
 		UpdateFunc: func(oldObj any, newObj any) {
@@ -69,7 +69,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, kubeconfig strin
 				return
 			}
 
-			ctx.Logger.V(2).Infof("updated: %s %s", u.GetKind(), u.GetName())
+			ctx.Logger.V(2).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			buffer <- u
 		},
 		DeleteFunc: func(obj any) {
@@ -79,7 +79,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, kubeconfig strin
 				return
 			}
 
-			ctx.Logger.V(2).Infof("deleted: %s %s", u.GetKind(), u.GetName())
+			ctx.Logger.V(2).Infof("deleted: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			deleteBuffer <- string(u.GetUID())
 		},
 	})

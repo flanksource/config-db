@@ -327,6 +327,10 @@ func SavePartialResults(ctx api.ScrapeContext, results []v1.ScrapeResult) error 
 }
 
 func saveResults(ctx api.ScrapeContext, isPartialResultSet bool, results []v1.ScrapeResult) error {
+	if len(results) == 0 {
+		return nil
+	}
+
 	startTime, err := GetCurrentDBTime(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to get current db time: %w", err)
