@@ -14,6 +14,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/samber/lo"
 	"github.com/sethvargo/go-retry"
+	"go.opentelemetry.io/otel/attribute"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -321,13 +322,20 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 			if !ok {
 				return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
 			}
-			deletChan := _deleteCh.(chan string)
+			deleteChan := _deleteCh.(chan string)
 
-			if len(deletChan) > 0 {
-				deletedResourcesIDs, _, _, _ := lo.Buffer(deletChan, len(deletChan))
-				if err := db.SoftDeleteConfigItems(ctx.Context, deletedResourcesIDs...); err != nil {
+			if len(deleteChan) > 0 {
+				deletedResourcesIDs, _, _, _ := lo.Buffer(deleteChan, len(deleteChan))
+
+				total, err := db.SoftDeleteConfigItems(ctx.Context, deletedResourcesIDs...)
+				if err != nil {
 					return fmt.Errorf("failed to delete %d resources: %w", len(deletedResourcesIDs), err)
+				} else if total != len(deletedResourcesIDs) {
+					ctx.GetSpan().SetAttributes(attribute.StringSlice("deletedResourcesIDs", deletedResourcesIDs))
+					ctx.Logger.Warnf("attempted to delete %d resources but only deleted %d", len(deletedResourcesIDs), total)
 				}
+
+				ctx.History.SuccessCount += total
 			}
 
 			return nil
