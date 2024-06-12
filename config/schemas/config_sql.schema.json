@@ -1,1 +1,444 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/flanksource/config-db/api/v1/sql","$ref":"#/$defs/SQL","$defs":{"Authentication":{"properties":{"username":{"$ref":"#/$defs/EnvVar"},"password":{"$ref":"#/$defs/EnvVar"}},"additionalProperties":false,"type":"object","required":["username","password"]},"ChangeMapping":{"properties":{"filter":{"type":"string"},"type":{"type":"string"},"action":{"type":"string"},"summary":{"type":"string"}},"additionalProperties":false,"type":"object"},"ConfigFieldExclusion":{"properties":{"types":{"items":{"type":"string"},"type":"array"},"jsonpath":{"type":"string"}},"additionalProperties":false,"type":"object","required":["jsonpath"]},"ConfigMapKeySelector":{"properties":{"name":{"type":"string"},"key":{"type":"string"}},"additionalProperties":false,"type":"object","required":["key"]},"ConfigProperties":{"properties":{"label":{"type":"string"},"name":{"type":"string"},"tooltip":{"type":"string"},"icon":{"type":"string"},"type":{"type":"string"},"color":{"type":"string"},"order":{"type":"integer"},"headline":{"type":"boolean"},"text":{"type":"string"},"value":{"type":"integer"},"unit":{"type":"string"},"max":{"type":"integer"},"min":{"type":"integer"},"status":{"type":"string"},"lastTransition":{"type":"string"},"links":{"items":{"$ref":"#/$defs/Link"},"type":"array"},"filter":{"type":"string"}},"additionalProperties":false,"type":"object"},"EnvVar":{"properties":{"name":{"type":"string"},"value":{"type":"string"},"valueFrom":{"$ref":"#/$defs/EnvVarSource"}},"additionalProperties":false,"type":"object"},"EnvVarSource":{"properties":{"serviceAccount":{"type":"string"},"helmRef":{"$ref":"#/$defs/HelmRefKeySelector"},"configMapKeyRef":{"$ref":"#/$defs/ConfigMapKeySelector"},"secretKeyRef":{"$ref":"#/$defs/SecretKeySelector"}},"additionalProperties":false,"type":"object"},"HelmRefKeySelector":{"properties":{"name":{"type":"string"},"key":{"type":"string"}},"additionalProperties":false,"type":"object","required":["key"]},"JSONStringMap":{"additionalProperties":{"type":"string"},"type":"object"},"Link":{"properties":{"type":{"type":"string"},"url":{"type":"string"},"tooltip":{"type":"string"},"icon":{"type":"string"},"text":{"type":"string"},"label":{"type":"string"}},"additionalProperties":false,"type":"object"},"Mask":{"properties":{"selector":{"type":"string"},"jsonpath":{"type":"string"},"value":{"type":"string"}},"additionalProperties":false,"type":"object"},"MaskList":{"items":{"$ref":"#/$defs/Mask"},"type":"array"},"RelationshipConfig":{"properties":{"id":{"$ref":"#/$defs/RelationshipLookup"},"name":{"$ref":"#/$defs/RelationshipLookup"},"type":{"$ref":"#/$defs/RelationshipLookup"},"agent":{"$ref":"#/$defs/RelationshipLookup"},"labels":{"additionalProperties":{"type":"string"},"type":"object"},"expr":{"type":"string"},"filter":{"type":"string"}},"additionalProperties":false,"type":"object"},"RelationshipLookup":{"properties":{"expr":{"type":"string"},"value":{"type":"string"},"label":{"type":"string"}},"additionalProperties":false,"type":"object"},"SQL":{"properties":{"id":{"type":"string"},"name":{"type":"string"},"items":{"type":"string"},"type":{"type":"string"},"class":{"type":"string"},"transform":{"$ref":"#/$defs/Transform"},"format":{"type":"string"},"timestampFormat":{"type":"string"},"createFields":{"items":{"type":"string"},"type":"array"},"deleteFields":{"items":{"type":"string"},"type":"array"},"labels":{"$ref":"#/$defs/JSONStringMap"},"tags":{"$ref":"#/$defs/Tags"},"properties":{"items":{"$ref":"#/$defs/ConfigProperties"},"type":"array"},"connection":{"type":"string"},"auth":{"$ref":"#/$defs/Authentication"},"driver":{"type":"string"},"query":{"type":"string"}},"additionalProperties":false,"type":"object","required":["connection","query"]},"SecretKeySelector":{"properties":{"name":{"type":"string"},"key":{"type":"string"}},"additionalProperties":false,"type":"object","required":["key"]},"Tag":{"properties":{"name":{"type":"string"},"label":{"type":"string"},"jsonpath":{"type":"string"},"value":{"type":"string"}},"additionalProperties":false,"type":"object","required":["name"]},"Tags":{"items":{"$ref":"#/$defs/Tag"},"type":"array"},"Transform":{"properties":{"gotemplate":{"type":"string"},"jsonpath":{"type":"string"},"expr":{"type":"string"},"javascript":{"type":"string"},"exclude":{"items":{"$ref":"#/$defs/ConfigFieldExclusion"},"type":"array"},"mask":{"$ref":"#/$defs/MaskList"},"relationship":{"items":{"$ref":"#/$defs/RelationshipConfig"},"type":"array"},"changes":{"$ref":"#/$defs/TransformChange"}},"additionalProperties":false,"type":"object"},"TransformChange":{"properties":{"mapping":{"items":{"$ref":"#/$defs/ChangeMapping"},"type":"array"},"exclude":{"items":{"type":"string"},"type":"array"}},"additionalProperties":false,"type":"object"}}}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/flanksource/config-db/api/v1/sql",
+  "$ref": "#/$defs/SQL",
+  "$defs": {
+    "Authentication": {
+      "properties": {
+        "username": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "password": {
+          "$ref": "#/$defs/EnvVar"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "username",
+        "password"
+      ]
+    },
+    "ChangeMapping": {
+      "properties": {
+        "filter": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ConfigFieldExclusion": {
+      "properties": {
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "jsonpath": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "jsonpath"
+      ]
+    },
+    "ConfigMapKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "ConfigProperties": {
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "headline": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "min": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "lastTransition": {
+          "type": "string"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/Link"
+          },
+          "type": "array"
+        },
+        "filter": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVar": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "valueFrom": {
+          "$ref": "#/$defs/EnvVarSource"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVarSource": {
+      "properties": {
+        "serviceAccount": {
+          "type": "string"
+        },
+        "helmRef": {
+          "$ref": "#/$defs/HelmRefKeySelector"
+        },
+        "configMapKeyRef": {
+          "$ref": "#/$defs/ConfigMapKeySelector"
+        },
+        "secretKeyRef": {
+          "$ref": "#/$defs/SecretKeySelector"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HelmRefKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "JSONStringMap": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "Link": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Mask": {
+      "properties": {
+        "selector": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MaskList": {
+      "items": {
+        "$ref": "#/$defs/Mask"
+      },
+      "type": "array"
+    },
+    "RelationshipConfig": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
+        "name": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
+        "type": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
+        "agent": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RelationshipLookup": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SQL": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "auth": {
+          "$ref": "#/$defs/Authentication"
+        },
+        "driver": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "connection",
+        "query"
+      ]
+    },
+    "SecretKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "Tag": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "Tags": {
+      "items": {
+        "$ref": "#/$defs/Tag"
+      },
+      "type": "array"
+    },
+    "Transform": {
+      "properties": {
+        "gotemplate": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "javascript": {
+          "type": "string"
+        },
+        "exclude": {
+          "items": {
+            "$ref": "#/$defs/ConfigFieldExclusion"
+          },
+          "type": "array"
+        },
+        "mask": {
+          "$ref": "#/$defs/MaskList"
+        },
+        "relationship": {
+          "items": {
+            "$ref": "#/$defs/RelationshipConfig"
+          },
+          "type": "array"
+        },
+        "changes": {
+          "$ref": "#/$defs/TransformChange"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TransformChange": {
+      "properties": {
+        "mapping": {
+          "items": {
+            "$ref": "#/$defs/ChangeMapping"
+          },
+          "type": "array"
+        },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}
