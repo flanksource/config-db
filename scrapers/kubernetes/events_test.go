@@ -21,7 +21,7 @@ func Test_getSourceFromEvent(t *testing.T) {
 					"host":      "minikube",
 				},
 			},
-			want: "kubernetes/component=kubelet,host=minikube",
+			want: "kubelet",
 		},
 		{
 			name: "empty", args: v1.KubernetesEvent{

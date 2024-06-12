@@ -25,6 +25,10 @@ func getSeverityFromReason(reason string, errKeywords, warnKeywords []string) st
 }
 
 func getSourceFromEvent(event v1.KubernetesEvent) string {
+	if component, ok := event.Source["component"]; ok {
+		return component
+	}
+
 	keyVals := make([]string, 0, len(event.Source))
 	for k, v := range event.Source {
 		keyVals = append(keyVals, fmt.Sprintf("%s=%s", k, v))

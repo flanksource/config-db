@@ -1,1 +1,1641 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/flanksource/config-db/api/v1/scrape-config","$ref":"#/$defs/ScrapeConfig","$defs":{"AWS":{"properties":{"id":{"type":"string"},"name":{"type":"string"},"items":{"type":"string"},"type":{"type":"string"},"class":{"type":"string"},"transform":{"$ref":"#/$defs/Transform"},"format":{"type":"string"},"timestampFormat":{"type":"string"},"createFields":{"items":{"type":"string"},"type":"array"},"deleteFields":{"items":{"type":"string"},"type":"array"},"labels":{"$ref":"#/$defs/JSONStringMap"},"tags":{"$ref":"#/$defs/Tags"},"properties":{"items":{"$ref":"#/$defs/ConfigProperties"},"type":"array"},"connection":{"type":"string"},"accessKey":{"$ref":"#/$defs/EnvVar"},"secretKey":{"$ref":"#/$defs/EnvVar"},"region":{"items":{"type":"string"},"type":"array"},"endpoint":{"type":"string"},"skipTLSVerify":{"type":"boolean"},"assumeRole":{"type":"string"},"compliance":{"type":"boolean"},"cloudtrail":{"$ref":"#/$defs/CloudTrail"},"include":{"items":{"type":"string"},"type":"array"},"exclude":{"items":{"type":"string"},"type":"array"},"costReporting":{"$ref":"#/$defs/CostReporting"}},"additionalProperties":false,"type":"object","required":["region"]},"Authentication":{"properties":{"username":{"$ref":"#/$defs/EnvVar"},"password":{"$ref":"#/$defs/EnvVar"}},"additionalProperties":false,"type":"object","required":["username","password"]},"Azure":{"properties":{"id":{"type":"string"},"name":{"type":"string"},"items":{"type":"string"},"type":{"type":"string"},"class":{"type":"string"},"transform":{"$ref":"#/$defs/Transform"},"format":{"type":"string"},"timestampFormat":{"type":"string"},"createFields":{"items":{"type":"string"},"type":"array"},"deleteFields":{"items":{"type":"string"},"type":"array"},"labels":{"$ref":"#/$defs/JSONStringMap"},"tags":{"$ref":"#/$defs/Tags"},"properties":{"items":{"$ref":"#/$defs/ConfigProperties"},"type":"array"},"connection":{"type":"string"},"subscriptionID":{"type":"string"},"organisation":{"type":"string"},"clientID":{"$ref":"#/$defs/EnvVar"},"clientSecret":{"$ref":"#/$defs/EnvVar"},"tenantID":{"type":"string"},"exclusions":{"$ref":"#/$defs/AzureExclusions"}},"additionalProperties":false,"type":"object","required":["subscriptionID","organisation"]},"AzureDevops":{"properties":{"id":{"type":"string"},"name":{"type":"string"},"items":{"type":"string"},"type":{"type":"string"},"class":{"type":"string"},"transform":{"$ref":"#/$defs/Transform"},"format":{"type":"string"},"timestampFormat":{"type":"string"},"createFields":{"items":{"type":"string"},"type":"array"},"deleteFields":{"items":{"type":"string"},"type":"array"},"labels":{"$ref":"#/$defs/JSONStringMap"},"tags":{"$ref":"#/$defs/Tags"},"properties":{"items":{"$ref":"#/$defs/ConfigProperties"},"type":"array"},"connection":{"type":"string"},"organization":{"type":"string"},"personalAccessToken":{"$ref":"#/$defs/EnvVar"},"projects":{"items":{"type":"string"},"type":"array"},"pipelines":{"items":{"type":"string"},"type":"array"}},"additionalProperties":false,"type":"object","required":["projects","pipelines"]},"AzureExclusions":{"properties":{"activityLogs":{"items":{"type":"string"},"type":"array"}},"additionalProperties":false,"type":"object"},"ChangeMapping":{"properties":{"filter":{"type":"string"},"type":{"type":"string"},"action":{"type":"string"},"summary":{"type":"string"}},"additionalProperties":false,"type":"object"},"ChangeRetentionSpec":{"properties":{"name":{"type":"string"},"age":{"type":"string"},"count":{"type":"integer"}},"additionalProperties":false,"type":"object"},"CloudTrail":{"properties":{"exclude":{"items":{"type":"string"},"type":"array"},"maxAge":{"type":"string"}},"additionalProperties":false,"type":"object"},"ConfigFieldExclusion":{"properties":{"types":{"items":{"type":"string"},"type":"array"},"jsonpath":{"type":"string"}},"additionalProperties":false,"type":"object","required":["jsonpath"]},"ConfigMapKeySelector":{"properties":{"name":{"type":"string"},"key":{"type":"string"}},"additionalProperties":false,"type":"object","required":["key"]},"ConfigProperties":{"properties":{"label":{"type":"string"},"name":{"type":"string"},"tooltip":{"type":"string"},"icon":{"type":"string"},"type":{"type":"string"},"color":{"type":"string"},"order":{"type":"integer"},"headline":{"type":"boolean"},"text":{"type":"string"},"value":{"type":"integer"},"unit":{"type":"string"},"max":{"type":"integer"},"min":{"type":"integer"},"status":{"type":"string"},"lastTransition":{"type":"string"},"links":{"items":{"$ref":"#/$defs/Link"},"type":"array"},"filter":{"type":"string"}},"additionalProperties":false,"type":"object"},"CostReporting":{"properties":{"s3BucketPath":{"type":"string"},"table":{"type":"string"},"database":{"type":"string"},"region":{"type":"string"}},"additionalProperties":false,"type":"object"},"EnvVar":{"properties":{"name":{"type":"string"},"value":{"type":"string"},"valueFrom":{"$ref":"#/$defs/EnvVarSource"}},"additionalProperties":false,"type":"object"},"EnvVarSource":{"properties":{"serviceAccount":{"type":"string"},"helmRef":{"$ref":"#/$defs/HelmRefKeySelector"},"configMapKeyRef":{"$ref":"#/$defs/ConfigMapKeySelector"},"secretKeyRef":{"$ref":"#/$defs/SecretKeySelector"}},"additionalProperties":false,"type":"object"},"FieldsV1":{"properties":{},"additionalProperties":false,"type":"object"},"File":{"properties":{"id":{"type":"string"},"name":{"type":"string"},"items":{"type":"string"},"type":{"type":"string"},"class":{"type":"string"},"transform":{"$ref":"#/$defs/Transform"},"format":{"type":"string"},"timestampFormat":{"type":"string"},"createFields":{"items":{"type":"string"},"type":"array"},"deleteFields":{"items":{"type":"string"},"type":"array"},"labels":{"$ref":"#/$defs/JSONStringMap"},"tags":{"$ref":"#/$defs/Tags"},"properties":{"items":{"$ref":"#/$defs/ConfigProperties"},"type":"array"},"url":{"type":"string"},"paths":{"items":{"type":"string"},"type":"array"},"ignore":{"items":{"type":"string"},"type":"array"},"icon":{"type":"string"},"connection":{"type":"string"}},"additionalProperties":false,"type":"object"},"GitHubActions":{"properties":{"id":{"type":"string"},"name":{"type":"string"},"items":{"type":"string"},"type":{"type":"string"},"class":{"type":"string"},"transform":{"$ref":"#/$defs/Transform"},"format":{"type":"string"},"timestampFormat":{"type":"string"},"createFields":{"items":{"type":"string"},"type":"array"},"deleteFields":{"items":{"type":"string"},"type":"array"},"labels":{"$ref":"#/$defs/JSONStringMap"},"tags":{"$ref":"#/$defs/Tags"},"properties":{"items":{"$ref":"#/$defs/ConfigProperties"},"type":"array"},"owner":{"type":"string"},"repository":{"type":"string"},"personalAccessToken":{"$ref":"#/$defs/EnvVar"},"connection":{"type":"string"},"workflows":{"items":{"type":"string"},"type":"array"}},"additionalProperties":false,"type":"object","required":["owner","repository","personalAccessToken","workflows"]},"HelmRefKeySelector":{"properties":{"name":{"type":"string"},"key":{"type":"string"}},"additionalProperties":false,"type":"object","required":["key"]},"JSONStringMap":{"additionalProperties":{"type":"string"},"type":"object"},"Kubernetes":{"properties":{"id":{"type":"string"},"name":{"type":"string"},"items":{"type":"string"},"type":{"type":"string"},"class":{"type":"string"},"transform":{"$ref":"#/$defs/Transform"},"format":{"type":"string"},"timestampFormat":{"type":"string"},"createFields":{"items":{"type":"string"},"type":"array"},"deleteFields":{"items":{"type":"string"},"type":"array"},"labels":{"$ref":"#/$defs/JSONStringMap"},"tags":{"$ref":"#/$defs/Tags"},"properties":{"items":{"$ref":"#/$defs/ConfigProperties"},"type":"array"},"clusterName":{"type":"string"},"namespace":{"type":"string"},"useCache":{"type":"boolean"},"allowIncomplete":{"type":"boolean"},"scope":{"type":"string"},"since":{"type":"string"},"selector":{"type":"string"},"fieldSelector":{"type":"string"},"maxInflight":{"type":"integer"},"kubeconfig":{"$ref":"#/$defs/EnvVar"},"watch":{"items":{"$ref":"#/$defs/KubernetesResourceToWatch"},"type":"array"},"event":{"$ref":"#/$defs/KubernetesEventConfig"},"exclusions":{"$ref":"#/$defs/KubernetesExclusionConfig"},"relationships":{"items":{"$ref":"#/$defs/KubernetesRelationshipSelectorTemplate"},"type":"array"}},"additionalProperties":false,"type":"object"},"KubernetesEventConfig":{"properties":{"exclusions":{"$ref":"#/$defs/KubernetesEventExclusions"},"severityKeywords":{"$ref":"#/$defs/SeverityKeywords"}},"additionalProperties":false,"type":"object"},"KubernetesEventExclusions":{"properties":{"name":{"items":{"type":"string"},"type":"array"},"namespace":{"items":{"type":"string"},"type":"array"},"reason":{"items":{"type":"string"},"type":"array"}},"additionalProperties":false,"type":"object"},"KubernetesExclusionConfig":{"properties":{"name":{"items":{"type":"string"},"type":"array"},"kind":{"items":{"type":"string"},"type":"array"},"namespace":{"items":{"type":"string"},"type":"array"},"labels":{"additionalProperties":{"type":"string"},"type":"object"}},"additionalProperties":false,"type":"object"},"KubernetesFile":{"properties":{"id":{"type":"string"},"name":{"type":"string"},"items":{"type":"string"},"type":{"type":"string"},"class":{"type":"string"},"transform":{"$ref":"#/$defs/Transform"},"format":{"type":"string"},"timestampFormat":{"type":"string"},"createFields":{"items":{"type":"string"},"type":"array"},"deleteFields":{"items":{"type":"string"},"type":"array"},"labels":{"$ref":"#/$defs/JSONStringMap"},"tags":{"$ref":"#/$defs/Tags"},"properties":{"items":{"$ref":"#/$defs/ConfigProperties"},"type":"array"},"kubeconfig":{"$ref":"#/$defs/EnvVar"},"selector":{"$ref":"#/$defs/ResourceSelector"},"container":{"type":"string"},"files":{"items":{"$ref":"#/$defs/PodFile"},"type":"array"}},"additionalProperties":false,"type":"object","required":["selector"]},"KubernetesRelationshipSelectorTemplate":{"properties":{"kind":{"$ref":"#/$defs/RelationshipLookup"},"name":{"$ref":"#/$defs/RelationshipLookup"},"namespace":{"$ref":"#/$defs/RelationshipLookup"}},"additionalProperties":false,"type":"object","required":["kind","name","namespace"]},"KubernetesResourceToWatch":{"properties":{"apiVersion":{"type":"string"},"kind":{"type":"string"}},"additionalProperties":false,"type":"object","required":["apiVersion","kind"]},"Link":{"properties":{"type":{"type":"string"},"url":{"type":"string"},"tooltip":{"type":"string"},"icon":{"type":"string"},"text":{"type":"string"},"label":{"type":"string"}},"additionalProperties":false,"type":"object"},"ManagedFieldsEntry":{"properties":{"manager":{"type":"string"},"operation":{"type":"string"},"apiVersion":{"type":"string"},"time":{"$ref":"#/$defs/Time"},"fieldsType":{"type":"string"},"fieldsV1":{"$ref":"#/$defs/FieldsV1"},"subresource":{"type":"string"}},"additionalProperties":false,"type":"object"},"Mask":{"properties":{"selector":{"type":"string"},"jsonpath":{"type":"string"},"value":{"type":"string"}},"additionalProperties":false,"type":"object"},"MaskList":{"items":{"$ref":"#/$defs/Mask"},"type":"array"},"ObjectMeta":{"properties":{"name":{"type":"string"},"generateName":{"type":"string"},"namespace":{"type":"string"},"selfLink":{"type":"string"},"uid":{"type":"string"},"resourceVersion":{"type":"string"},"generation":{"type":"integer"},"creationTimestamp":{"$ref":"#/$defs/Time"},"deletionTimestamp":{"$ref":"#/$defs/Time"},"deletionGracePeriodSeconds":{"type":"integer"},"labels":{"additionalProperties":{"type":"string"},"type":"object"},"annotations":{"additionalProperties":{"type":"string"},"type":"object"},"ownerReferences":{"items":{"$ref":"#/$defs/OwnerReference"},"type":"array"},"finalizers":{"items":{"type":"string"},"type":"array"},"managedFields":{"items":{"$ref":"#/$defs/ManagedFieldsEntry"},"type":"array"}},"additionalProperties":false,"type":"object"},"OwnerReference":{"properties":{"apiVersion":{"type":"string"},"kind":{"type":"string"},"name":{"type":"string"},"uid":{"type":"string"},"controller":{"type":"boolean"},"blockOwnerDeletion":{"type":"boolean"}},"additionalProperties":false,"type":"object","required":["apiVersion","kind","name","uid"]},"PodFile":{"properties":{"path":{"items":{"type":"string"},"type":"array"},"format":{"type":"string"}},"additionalProperties":false,"type":"object"},"RelationshipConfig":{"properties":{"id":{"$ref":"#/$defs/RelationshipLookup"},"name":{"$ref":"#/$defs/RelationshipLookup"},"type":{"$ref":"#/$defs/RelationshipLookup"},"agent":{"$ref":"#/$defs/RelationshipLookup"},"labels":{"additionalProperties":{"type":"string"},"type":"object"},"expr":{"type":"string"},"filter":{"type":"string"}},"additionalProperties":false,"type":"object"},"RelationshipLookup":{"properties":{"expr":{"type":"string"},"value":{"type":"string"},"label":{"type":"string"}},"additionalProperties":false,"type":"object"},"ResourceSelector":{"properties":{"namespace":{"type":"string"},"kind":{"type":"string"},"name":{"type":"string"},"labelSelector":{"type":"string"},"fieldSelector":{"type":"string"}},"additionalProperties":false,"type":"object"},"RetentionSpec":{"properties":{"changes":{"items":{"$ref":"#/$defs/ChangeRetentionSpec"},"type":"array"},"types":{"items":{"$ref":"#/$defs/TypeRetentionSpec"},"type":"array"},"staleItemAge":{"type":"string"}},"additionalProperties":false,"type":"object"},"SQL":{"properties":{"id":{"type":"string"},"name":{"type":"string"},"items":{"type":"string"},"type":{"type":"string"},"class":{"type":"string"},"transform":{"$ref":"#/$defs/Transform"},"format":{"type":"string"},"timestampFormat":{"type":"string"},"createFields":{"items":{"type":"string"},"type":"array"},"deleteFields":{"items":{"type":"string"},"type":"array"},"labels":{"$ref":"#/$defs/JSONStringMap"},"tags":{"$ref":"#/$defs/Tags"},"properties":{"items":{"$ref":"#/$defs/ConfigProperties"},"type":"array"},"connection":{"type":"string"},"auth":{"$ref":"#/$defs/Authentication"},"driver":{"type":"string"},"query":{"type":"string"}},"additionalProperties":false,"type":"object","required":["connection","query"]},"ScrapeConfig":{"properties":{"kind":{"type":"string"},"apiVersion":{"type":"string"},"metadata":{"$ref":"#/$defs/ObjectMeta"},"spec":{"$ref":"#/$defs/ScraperSpec"},"status":{"$ref":"#/$defs/ScrapeConfigStatus"}},"additionalProperties":false,"type":"object"},"ScrapeConfigStatus":{"properties":{"observedGeneration":{"type":"integer"}},"additionalProperties":false,"type":"object"},"ScraperSpec":{"properties":{"logLevel":{"type":"string"},"schedule":{"type":"string"},"aws":{"items":{"$ref":"#/$defs/AWS"},"type":"array"},"file":{"items":{"$ref":"#/$defs/File"},"type":"array"},"kubernetes":{"items":{"$ref":"#/$defs/Kubernetes"},"type":"array"},"kubernetesFile":{"items":{"$ref":"#/$defs/KubernetesFile"},"type":"array"},"azureDevops":{"items":{"$ref":"#/$defs/AzureDevops"},"type":"array"},"githubActions":{"items":{"$ref":"#/$defs/GitHubActions"},"type":"array"},"azure":{"items":{"$ref":"#/$defs/Azure"},"type":"array"},"sql":{"items":{"$ref":"#/$defs/SQL"},"type":"array"},"trivy":{"items":{"$ref":"#/$defs/Trivy"},"type":"array"},"retention":{"$ref":"#/$defs/RetentionSpec"},"full":{"type":"boolean"}},"additionalProperties":false,"type":"object"},"SecretKeySelector":{"properties":{"name":{"type":"string"},"key":{"type":"string"}},"additionalProperties":false,"type":"object","required":["key"]},"SeverityKeywords":{"properties":{"warn":{"items":{"type":"string"},"type":"array"},"error":{"items":{"type":"string"},"type":"array"}},"additionalProperties":false,"type":"object"},"Tag":{"properties":{"name":{"type":"string"},"label":{"type":"string"},"jsonpath":{"type":"string"},"value":{"type":"string"}},"additionalProperties":false,"type":"object","required":["name"]},"Tags":{"items":{"$ref":"#/$defs/Tag"},"type":"array"},"Time":{"properties":{},"additionalProperties":false,"type":"object"},"Transform":{"properties":{"gotemplate":{"type":"string"},"jsonpath":{"type":"string"},"expr":{"type":"string"},"javascript":{"type":"string"},"exclude":{"items":{"$ref":"#/$defs/ConfigFieldExclusion"},"type":"array"},"mask":{"$ref":"#/$defs/MaskList"},"relationship":{"items":{"$ref":"#/$defs/RelationshipConfig"},"type":"array"},"changes":{"$ref":"#/$defs/TransformChange"}},"additionalProperties":false,"type":"object"},"TransformChange":{"properties":{"mapping":{"items":{"$ref":"#/$defs/ChangeMapping"},"type":"array"},"exclude":{"items":{"type":"string"},"type":"array"}},"additionalProperties":false,"type":"object"},"Trivy":{"properties":{"id":{"type":"string"},"name":{"type":"string"},"items":{"type":"string"},"type":{"type":"string"},"class":{"type":"string"},"transform":{"$ref":"#/$defs/Transform"},"format":{"type":"string"},"timestampFormat":{"type":"string"},"createFields":{"items":{"type":"string"},"type":"array"},"deleteFields":{"items":{"type":"string"},"type":"array"},"labels":{"$ref":"#/$defs/JSONStringMap"},"tags":{"$ref":"#/$defs/Tags"},"properties":{"items":{"$ref":"#/$defs/ConfigProperties"},"type":"array"},"version":{"type":"string"},"compliance":{"items":{"type":"string"},"type":"array"},"ignoredLicenses":{"items":{"type":"string"},"type":"array"},"ignoreUnfixed":{"type":"boolean"},"licenseFull":{"type":"boolean"},"severity":{"items":{"type":"string"},"type":"array"},"vulnType":{"items":{"type":"string"},"type":"array"},"scanners":{"items":{"type":"string"},"type":"array"},"timeout":{"type":"string"},"kubernetes":{"$ref":"#/$defs/TrivyK8sOptions"}},"additionalProperties":false,"type":"object"},"TrivyK8sOptions":{"properties":{"components":{"items":{"type":"string"},"type":"array"},"context":{"type":"string"},"kubeconfig":{"type":"string"},"namespace":{"type":"string"}},"additionalProperties":false,"type":"object"},"TypeRetentionSpec":{"properties":{"name":{"type":"string"},"createdAge":{"type":"string"},"updatedAge":{"type":"string"},"deletedAge":{"type":"string"}},"additionalProperties":false,"type":"object"}}}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/flanksource/config-db/api/v1/scrape-config",
+  "$ref": "#/$defs/ScrapeConfig",
+  "$defs": {
+    "AWS": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "accessKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "secretKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "region": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "assumeRole": {
+          "type": "string"
+        },
+        "compliance": {
+          "type": "boolean"
+        },
+        "cloudtrail": {
+          "$ref": "#/$defs/CloudTrail"
+        },
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "costReporting": {
+          "$ref": "#/$defs/CostReporting"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "region"
+      ]
+    },
+    "Authentication": {
+      "properties": {
+        "username": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "password": {
+          "$ref": "#/$defs/EnvVar"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "username",
+        "password"
+      ]
+    },
+    "Azure": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "subscriptionID": {
+          "type": "string"
+        },
+        "organisation": {
+          "type": "string"
+        },
+        "clientID": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "clientSecret": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "tenantID": {
+          "type": "string"
+        },
+        "exclusions": {
+          "$ref": "#/$defs/AzureExclusions"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "subscriptionID",
+        "organisation"
+      ]
+    },
+    "AzureDevops": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "organization": {
+          "type": "string"
+        },
+        "personalAccessToken": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "projects": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pipelines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "projects",
+        "pipelines"
+      ]
+    },
+    "AzureExclusions": {
+      "properties": {
+        "activityLogs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ChangeMapping": {
+      "properties": {
+        "filter": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ChangeRetentionSpec": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "age": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CloudTrail": {
+      "properties": {
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "maxAge": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ConfigFieldExclusion": {
+      "properties": {
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "jsonpath": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "jsonpath"
+      ]
+    },
+    "ConfigMapKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "ConfigProperties": {
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "headline": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "min": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "lastTransition": {
+          "type": "string"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/Link"
+          },
+          "type": "array"
+        },
+        "filter": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CostReporting": {
+      "properties": {
+        "s3BucketPath": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        },
+        "database": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVar": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "valueFrom": {
+          "$ref": "#/$defs/EnvVarSource"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVarSource": {
+      "properties": {
+        "serviceAccount": {
+          "type": "string"
+        },
+        "helmRef": {
+          "$ref": "#/$defs/HelmRefKeySelector"
+        },
+        "configMapKeyRef": {
+          "$ref": "#/$defs/ConfigMapKeySelector"
+        },
+        "secretKeyRef": {
+          "$ref": "#/$defs/SecretKeySelector"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "FieldsV1": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "File": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "url": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ignore": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "connection": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GitHubActions": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "personalAccessToken": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "workflows": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "owner",
+        "repository",
+        "personalAccessToken",
+        "workflows"
+      ]
+    },
+    "HelmRefKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "JSONStringMap": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "Kubernetes": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "clusterName": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "useCache": {
+          "type": "boolean"
+        },
+        "allowIncomplete": {
+          "type": "boolean"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "since": {
+          "type": "string"
+        },
+        "selector": {
+          "type": "string"
+        },
+        "fieldSelector": {
+          "type": "string"
+        },
+        "maxInflight": {
+          "type": "integer"
+        },
+        "kubeconfig": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "watch": {
+          "items": {
+            "$ref": "#/$defs/KubernetesResourceToWatch"
+          },
+          "type": "array"
+        },
+        "event": {
+          "$ref": "#/$defs/KubernetesEventConfig"
+        },
+        "exclusions": {
+          "$ref": "#/$defs/KubernetesExclusionConfig"
+        },
+        "relationships": {
+          "items": {
+            "$ref": "#/$defs/KubernetesRelationshipSelectorTemplate"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "KubernetesEventConfig": {
+      "properties": {
+        "exclusions": {
+          "$ref": "#/$defs/KubernetesEventExclusions"
+        },
+        "severityKeywords": {
+          "$ref": "#/$defs/SeverityKeywords"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "KubernetesEventExclusions": {
+      "properties": {
+        "name": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "namespace": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reason": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "KubernetesExclusionConfig": {
+      "properties": {
+        "name": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "namespace": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "KubernetesFile": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "kubeconfig": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "selector": {
+          "$ref": "#/$defs/ResourceSelector"
+        },
+        "container": {
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/PodFile"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "selector"
+      ]
+    },
+    "KubernetesRelationshipSelectorTemplate": {
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
+        "name": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
+        "namespace": {
+          "$ref": "#/$defs/RelationshipLookup"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "namespace"
+      ]
+    },
+    "KubernetesResourceToWatch": {
+      "properties": {
+        "apiVersion": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "apiVersion",
+        "kind"
+      ]
+    },
+    "Link": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ManagedFieldsEntry": {
+      "properties": {
+        "manager": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "apiVersion": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/Time"
+        },
+        "fieldsType": {
+          "type": "string"
+        },
+        "fieldsV1": {
+          "$ref": "#/$defs/FieldsV1"
+        },
+        "subresource": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Mask": {
+      "properties": {
+        "selector": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MaskList": {
+      "items": {
+        "$ref": "#/$defs/Mask"
+      },
+      "type": "array"
+    },
+    "ObjectMeta": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "generateName": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "selfLink": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "resourceVersion": {
+          "type": "string"
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "creationTimestamp": {
+          "$ref": "#/$defs/Time"
+        },
+        "deletionTimestamp": {
+          "$ref": "#/$defs/Time"
+        },
+        "deletionGracePeriodSeconds": {
+          "type": "integer"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "annotations": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "ownerReferences": {
+          "items": {
+            "$ref": "#/$defs/OwnerReference"
+          },
+          "type": "array"
+        },
+        "finalizers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "managedFields": {
+          "items": {
+            "$ref": "#/$defs/ManagedFieldsEntry"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "OwnerReference": {
+      "properties": {
+        "apiVersion": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "controller": {
+          "type": "boolean"
+        },
+        "blockOwnerDeletion": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "apiVersion",
+        "kind",
+        "name",
+        "uid"
+      ]
+    },
+    "PodFile": {
+      "properties": {
+        "path": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "format": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RelationshipConfig": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
+        "name": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
+        "type": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
+        "agent": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RelationshipLookup": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ResourceSelector": {
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "labelSelector": {
+          "type": "string"
+        },
+        "fieldSelector": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RetentionSpec": {
+      "properties": {
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/ChangeRetentionSpec"
+          },
+          "type": "array"
+        },
+        "types": {
+          "items": {
+            "$ref": "#/$defs/TypeRetentionSpec"
+          },
+          "type": "array"
+        },
+        "staleItemAge": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SQL": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "auth": {
+          "$ref": "#/$defs/Authentication"
+        },
+        "driver": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "connection",
+        "query"
+      ]
+    },
+    "ScrapeConfig": {
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "apiVersion": {
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/$defs/ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/$defs/ScraperSpec"
+        },
+        "status": {
+          "$ref": "#/$defs/ScrapeConfigStatus"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ScrapeConfigStatus": {
+      "properties": {
+        "observedGeneration": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ScraperSpec": {
+      "properties": {
+        "logLevel": {
+          "type": "string"
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "aws": {
+          "items": {
+            "$ref": "#/$defs/AWS"
+          },
+          "type": "array"
+        },
+        "file": {
+          "items": {
+            "$ref": "#/$defs/File"
+          },
+          "type": "array"
+        },
+        "kubernetes": {
+          "items": {
+            "$ref": "#/$defs/Kubernetes"
+          },
+          "type": "array"
+        },
+        "kubernetesFile": {
+          "items": {
+            "$ref": "#/$defs/KubernetesFile"
+          },
+          "type": "array"
+        },
+        "azureDevops": {
+          "items": {
+            "$ref": "#/$defs/AzureDevops"
+          },
+          "type": "array"
+        },
+        "githubActions": {
+          "items": {
+            "$ref": "#/$defs/GitHubActions"
+          },
+          "type": "array"
+        },
+        "azure": {
+          "items": {
+            "$ref": "#/$defs/Azure"
+          },
+          "type": "array"
+        },
+        "sql": {
+          "items": {
+            "$ref": "#/$defs/SQL"
+          },
+          "type": "array"
+        },
+        "trivy": {
+          "items": {
+            "$ref": "#/$defs/Trivy"
+          },
+          "type": "array"
+        },
+        "retention": {
+          "$ref": "#/$defs/RetentionSpec"
+        },
+        "full": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SecretKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "SeverityKeywords": {
+      "properties": {
+        "warn": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "error": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Tag": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "Tags": {
+      "items": {
+        "$ref": "#/$defs/Tag"
+      },
+      "type": "array"
+    },
+    "Time": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Transform": {
+      "properties": {
+        "gotemplate": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "javascript": {
+          "type": "string"
+        },
+        "exclude": {
+          "items": {
+            "$ref": "#/$defs/ConfigFieldExclusion"
+          },
+          "type": "array"
+        },
+        "mask": {
+          "$ref": "#/$defs/MaskList"
+        },
+        "relationship": {
+          "items": {
+            "$ref": "#/$defs/RelationshipConfig"
+          },
+          "type": "array"
+        },
+        "changes": {
+          "$ref": "#/$defs/TransformChange"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TransformChange": {
+      "properties": {
+        "mapping": {
+          "items": {
+            "$ref": "#/$defs/ChangeMapping"
+          },
+          "type": "array"
+        },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Trivy": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "version": {
+          "type": "string"
+        },
+        "compliance": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ignoredLicenses": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ignoreUnfixed": {
+          "type": "boolean"
+        },
+        "licenseFull": {
+          "type": "boolean"
+        },
+        "severity": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vulnType": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scanners": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timeout": {
+          "type": "string"
+        },
+        "kubernetes": {
+          "$ref": "#/$defs/TrivyK8sOptions"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TrivyK8sOptions": {
+      "properties": {
+        "components": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "context": {
+          "type": "string"
+        },
+        "kubeconfig": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TypeRetentionSpec": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "createdAge": {
+          "type": "string"
+        },
+        "updatedAge": {
+          "type": "string"
+        },
+        "deletedAge": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}
