@@ -83,7 +83,7 @@ func NewGitHubActionsClient(ctx api.ScrapeContext, gha v1.GitHubActions) (*GitHu
 	} else if connection != nil {
 		token = connection.Password
 	} else {
-		token, err = ctx.GetEnvValueFromCache(gha.PersonalAccessToken, ctx.GetNamespace())
+		token, err = ctx.GetEnvValueFromCache(gha.PersonalAccessToken, ctx.Namespace())
 		if err != nil {
 			return nil, err
 		}
