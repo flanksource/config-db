@@ -21,7 +21,7 @@ import (
 // RunK8ObjScraper extracts & saves the given kubernetes objects.
 func RunK8ObjScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured) ([]v1.ScrapeResult, error) {
 	var results v1.ScrapeResults
-	res := kubernetes.ExtractResults(ctx.DutyContext(), config, objs, false)
+	res := kubernetes.ExtractResults(ctx, config, objs, false)
 	for i := range res {
 		scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, res[i])
 		results = append(results, scraped...)
