@@ -2,7 +2,7 @@
 # Declare variables to be passed into your templates.
 
 global:
-  imageRegistry: docker.io/flanksource
+  imageRegistry: public.ecr.aws/k4y9r6y5
   db:
     connectionPooler:
       enabled: false
@@ -96,7 +96,7 @@ resources:
 
 serviceAccount:
   create: true
-  name: ''
+  name: config-db-sa
   annotations: {}
   rbac:
     # Whether to create cluster-wide or namespaced roles
