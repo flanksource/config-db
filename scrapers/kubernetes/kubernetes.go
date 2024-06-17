@@ -12,8 +12,6 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
-	"github.com/ohler55/ojg/jp"
-	"github.com/ohler55/ojg/oj"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
@@ -35,14 +33,14 @@ const ConfigTypePrefix = "Kubernetes::"
 
 // ReservedAnnotations
 const (
-	// AnnotationExcludeConfig excludes the object from being scraped
-	AnnotationExcludeConfig = "config-db.flanksource.com/exclude"
+	// AnnotationIgnoreConfig excludes the object from being scraped
+	AnnotationIgnoreConfig = "config-db.flanksource.com/ignore"
 
-	// AnnotationExcludeChangeByType contains the list of change types to exclude
-	AnnotationExcludeChangeByType = "config-db.flanksource.com/exclude-changes"
+	// AnnotationIgnoreChangeByType contains the list of change types to ignore
+	AnnotationIgnoreChangeByType = "config-db.flanksource.com/ignore-changes"
 
-	// AnnotationExcludeChangeBySeverity contains the list of severity for the change types to exclude
-	AnnotationExcludeChangeBySeverity = "config-db.flanksource.com/exclude-change-severity"
+	// AnnotationIgnoreChangeBySeverity contains the list of severity for the change types to ignore
+	AnnotationIgnoreChangeBySeverity = "config-db.flanksource.com/ignore-change-severity"
 
 	// AnnotationCustomTags contains the list of tags to add to the scraped config
 	AnnotationCustomTags = "config-db.flanksource.com/tags"
@@ -172,8 +170,8 @@ func formObjChangeExclusionMap(objs []*unstructured.Unstructured) (map[string]st
 	exclusionByType := make(map[string]string)
 	exclusionBySeverity := make(map[string]string)
 	for _, obj := range objs {
-		exclusionByType[string(obj.GetUID())] = obj.GetAnnotations()[AnnotationExcludeChangeByType]
-		exclusionBySeverity[string(obj.GetUID())] = obj.GetAnnotations()[AnnotationExcludeChangeBySeverity]
+		exclusionByType[string(obj.GetUID())] = obj.GetAnnotations()[AnnotationIgnoreChangeByType]
+		exclusionBySeverity[string(obj.GetUID())] = obj.GetAnnotations()[AnnotationIgnoreChangeBySeverity]
 	}
 
 	return exclusionByType, exclusionBySeverity
@@ -205,26 +203,14 @@ func getObjectChangeExclusionAnnotations(ctx api.ScrapeContext, id string, exclu
 	item, err := ctx.TempCache().Get(id)
 	if err != nil {
 		return "", "", err
-	} else if item != nil && item.Config != nil {
-		expr, err := jp.ParseString("metadata.annotations")
-		if err != nil {
-			return "", "", err
+	} else if item != nil && item.Labels != nil {
+		labels := lo.FromPtr(item.Labels)
+		if v, ok := labels[AnnotationIgnoreChangeByType]; ok {
+			changeTypeExclusion = v
 		}
 
-		data, err := oj.ParseString(*item.Config)
-		if err != nil {
-			return "", "", err
-		}
-
-		for _, a := range expr.Get(data) {
-			if annotation, ok := a.(map[string]any); ok {
-				if v, ok := annotation[AnnotationExcludeChangeByType]; ok {
-					changeTypeExclusion = v.(string)
-				}
-				if v, ok := annotation[AnnotationExcludeChangeBySeverity]; ok {
-					changeSeverityExclusion = v.(string)
-				}
-			}
+		if v, ok := labels[AnnotationIgnoreChangeBySeverity]; ok {
+			changeSeverityExclusion = v
 		}
 	}
 
@@ -280,8 +266,8 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			continue
 		}
 
-		if val, ok := obj.GetAnnotations()[AnnotationExcludeConfig]; ok && val == "true" {
-			ctx.Tracef("excluding object due to annotation %s: %s/%s/%s", AnnotationExcludeConfig, obj.GetKind(), obj.GetNamespace(), obj.GetName())
+		if val, ok := obj.GetAnnotations()[AnnotationIgnoreConfig]; ok && val == "true" {
+			ctx.Tracef("excluding object due to annotation %s: %s/%s/%s", AnnotationIgnoreConfig, obj.GetKind(), obj.GetNamespace(), obj.GetName())
 			continue
 		}
 
@@ -317,19 +303,19 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 				}
 
 				if changeTypExclusion != "" {
-					if collections.MatchItems(changeTypExclusion, change.ChangeType) {
+					if collections.MatchItems(change.ChangeType, strings.Split(changeTypExclusion, ",")...) {
 						ctx.Logger.V(4).Infof("excluding event object %s/%s/%s due to change type matched in annotation %s=%s",
 							event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
-							AnnotationExcludeChangeByType, changeTypExclusion)
+							AnnotationIgnoreChangeByType, changeTypExclusion)
 						continue
 					}
 				}
 
 				if changeSeverityExclusion != "" {
-					if collections.MatchItems(changeSeverityExclusion, change.Severity) {
+					if collections.MatchItems(change.Severity, strings.Split(changeSeverityExclusion, ",")...) {
 						ctx.Logger.V(4).Infof("excluding event object %s/%s/%s due to severity matches in annotation %s=%s",
 							event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
-							AnnotationExcludeChangeBySeverity, changeSeverityExclusion)
+							AnnotationIgnoreChangeBySeverity, changeSeverityExclusion)
 						continue
 					}
 				}
@@ -351,6 +337,14 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 
 		if obj.GetLabels() != nil {
 			labels = obj.GetLabels()
+		}
+
+		if v, ok := obj.GetAnnotations()[AnnotationIgnoreChangeBySeverity]; ok {
+			labels[AnnotationIgnoreChangeBySeverity] = v
+		}
+
+		if v, ok := obj.GetAnnotations()[AnnotationIgnoreChangeByType]; ok {
+			labels[AnnotationIgnoreChangeByType] = v
 		}
 
 		if obj.GetKind() == "Node" {
