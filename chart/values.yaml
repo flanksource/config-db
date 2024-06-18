@@ -3,6 +3,7 @@
 
 global:
   imageRegistry: docker.io
+  imagePrefix: flanksource
   db:
     connectionPooler:
       enabled: false
@@ -19,7 +20,7 @@ nameOverride: ''
 disablePostgrest: false
 
 image:
-  name: flanksource/config-db
+  name: '{{.Values.global.imagePrefix}}/config-db'
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: 'latest'
