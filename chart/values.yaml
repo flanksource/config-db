@@ -2,7 +2,7 @@
 # Declare variables to be passed into your templates.
 
 global:
-  imageRegistry: docker.io/flanksource
+  imageRegistry: docker.io
   db:
     connectionPooler:
       enabled: false
@@ -19,7 +19,7 @@ nameOverride: ''
 disablePostgrest: false
 
 image:
-  name: config-db
+  name: flanksource/config-db
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: 'latest'
