@@ -2,7 +2,7 @@
 # Declare variables to be passed into your templates.
 
 global:
-  imageRegistry: public.ecr.aws/k4y9r6y5
+  imageRegistry: docker.io/flanksource
   db:
     connectionPooler:
       enabled: false
