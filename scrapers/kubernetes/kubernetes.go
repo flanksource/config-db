@@ -29,10 +29,22 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-type KubernetesScraper struct {
-}
-
 const ConfigTypePrefix = "Kubernetes::"
+
+// ReservedAnnotations
+const (
+	// AnnotationIgnoreConfig excludes the object from being scraped
+	AnnotationIgnoreConfig = "config-db.flanksource.com/ignore"
+
+	// AnnotationIgnoreChangeByType contains the list of change types to ignore
+	AnnotationIgnoreChangeByType = "config-db.flanksource.com/ignore-changes"
+
+	// AnnotationIgnoreChangeBySeverity contains the list of severity for the change types to ignore
+	AnnotationIgnoreChangeBySeverity = "config-db.flanksource.com/ignore-change-severity"
+
+	// AnnotationCustomTags contains the list of tags to add to the scraped config
+	AnnotationCustomTags = "config-db.flanksource.com/tags"
+)
 
 func getConfigTypePrefix(apiVersion string) string {
 	if strings.Contains(apiVersion, ".upbound.io") || strings.Contains(apiVersion, ".crossplane.io") {
@@ -40,6 +52,9 @@ func getConfigTypePrefix(apiVersion string) string {
 	}
 
 	return ConfigTypePrefix
+}
+
+type KubernetesScraper struct {
 }
 
 func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
@@ -119,7 +134,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 		return nil
 	}
 
-	return ExtractResults(ctx.DutyContext(), config, objects, false)
+	return ExtractResults(ctx, config, objects, false)
 }
 
 func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
@@ -144,16 +159,67 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 			return results.Errorf(err, "failed to fetch resources")
 		}
 
-		extracted := ExtractResults(ctx.DutyContext(), config, objs, true)
+		extracted := ExtractResults(ctx, config, objs, true)
 		results = append(results, extracted...)
 	}
 
 	return results
 }
 
+func formObjChangeExclusionMap(objs []*unstructured.Unstructured) (map[string]string, map[string]string) {
+	exclusionByType := make(map[string]string)
+	exclusionBySeverity := make(map[string]string)
+	for _, obj := range objs {
+		exclusionByType[string(obj.GetUID())] = obj.GetAnnotations()[AnnotationIgnoreChangeByType]
+		exclusionBySeverity[string(obj.GetUID())] = obj.GetAnnotations()[AnnotationIgnoreChangeBySeverity]
+	}
+
+	return exclusionByType, exclusionBySeverity
+}
+
+func getObjectChangeExclusionAnnotations(ctx api.ScrapeContext, id string, exclusionByType, exclusionBySeverity map[string]string) (string, string, error) {
+	var changeTypeExclusion, changeSeverityExclusion string
+	var found = true
+
+	if exclusion, ok := exclusionByType[id]; ok {
+		changeTypeExclusion = exclusion
+	} else {
+		found = false
+	}
+
+	if severityExclusion, ok := exclusionBySeverity[id]; ok {
+		changeSeverityExclusion = severityExclusion
+	} else {
+		found = false
+	}
+
+	if found && false {
+		return changeTypeExclusion, changeSeverityExclusion, nil
+	}
+
+	// The requested object was not found in the scraped objects.
+	// This happens on incremental scraper.
+	// We query the object from the db to get the annotations;
+	item, err := ctx.TempCache().Get(id)
+	if err != nil {
+		return "", "", err
+	} else if item != nil && item.Labels != nil {
+		labels := lo.FromPtr(item.Labels)
+		if v, ok := labels[AnnotationIgnoreChangeByType]; ok {
+			changeTypeExclusion = v
+		}
+
+		if v, ok := labels[AnnotationIgnoreChangeBySeverity]; ok {
+			changeSeverityExclusion = v
+		}
+	}
+
+	return changeTypeExclusion, changeSeverityExclusion, nil
+}
+
 // ExtractResults extracts scrape results from the given list of kuberenetes objects.
 //   - withCluster: if true, will create & add a scrape result for the kubernetes cluster.
-func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructured.Unstructured, withCluster bool) v1.ScrapeResults {
+func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured, withCluster bool) v1.ScrapeResults {
 	var (
 		results       v1.ScrapeResults
 		changeResults v1.ScrapeResults
@@ -185,6 +251,8 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 	resourceIDMap[""]["Cluster"][config.ClusterName] = clusterID
 	resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
 
+	objChangeExclusionByType, objChangeExclusionBySeverity := formObjChangeExclusionMap(objs)
+
 	for _, obj := range objs {
 		tags := config.Tags
 
@@ -196,6 +264,17 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 		if string(obj.GetUID()) == "" {
 			ctx.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 			continue
+		}
+
+		if val, ok := obj.GetAnnotations()[AnnotationIgnoreConfig]; ok && val == "true" {
+			ctx.Tracef("excluding object due to annotation %s: %s/%s/%s", AnnotationIgnoreConfig, obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			continue
+		}
+
+		if val, ok := obj.GetAnnotations()[AnnotationCustomTags]; ok {
+			for k, v := range collections.SelectorToMap(val) {
+				tags = append(tags, v1.Tag{Name: k, Value: v})
+			}
 		}
 
 		if obj.GetKind() == "Event" {
@@ -218,6 +297,29 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
 			if change != nil {
+				changeTypExclusion, changeSeverityExclusion, err := getObjectChangeExclusionAnnotations(ctx, string(event.InvolvedObject.UID), objChangeExclusionByType, objChangeExclusionBySeverity)
+				if err != nil {
+					return results.Errorf(err, "failed to get annotation for object from db (%s)", event.InvolvedObject.UID)
+				}
+
+				if changeTypExclusion != "" {
+					if collections.MatchItems(change.ChangeType, strings.Split(changeTypExclusion, ",")...) {
+						ctx.Logger.V(4).Infof("excluding event object %s/%s/%s due to change type matched in annotation %s=%s",
+							event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
+							AnnotationIgnoreChangeByType, changeTypExclusion)
+						continue
+					}
+				}
+
+				if changeSeverityExclusion != "" {
+					if collections.MatchItems(change.Severity, strings.Split(changeSeverityExclusion, ",")...) {
+						ctx.Logger.V(4).Infof("excluding event object %s/%s/%s due to severity matches in annotation %s=%s",
+							event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
+							AnnotationIgnoreChangeBySeverity, changeSeverityExclusion)
+						continue
+					}
+				}
+
 				changeResults = append(changeResults, v1.ScrapeResult{
 					BaseScraper: config.BaseScraper,
 					Changes:     []v1.ChangeResult{*change},
@@ -235,6 +337,14 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 
 		if obj.GetLabels() != nil {
 			labels = obj.GetLabels()
+		}
+
+		if v, ok := obj.GetAnnotations()[AnnotationIgnoreChangeBySeverity]; ok {
+			labels[AnnotationIgnoreChangeBySeverity] = v
+		}
+
+		if v, ok := obj.GetAnnotations()[AnnotationIgnoreChangeByType]; ok {
+			labels[AnnotationIgnoreChangeByType] = v
 		}
 
 		if obj.GetKind() == "Node" {
@@ -333,7 +443,7 @@ func ExtractResults(ctx context.Context, config v1.Kubernetes, objs []*unstructu
 			if selector, err := f.Eval(obj.GetLabels(), env); err != nil {
 				return results.Errorf(err, "failed to evaluate selector: %v for config relationship", f)
 			} else if selector != nil {
-				linkedConfigItemIDs, err := db.FindConfigIDsByNamespaceNameClass(ctx, selector.Namespace, selector.Name, selector.Kind)
+				linkedConfigItemIDs, err := db.FindConfigIDsByNamespaceNameClass(ctx.DutyContext(), selector.Namespace, selector.Name, selector.Kind)
 				if err != nil {
 					return results.Errorf(err, "failed to get linked config items by kubernetes selector(%v)", selector)
 				}

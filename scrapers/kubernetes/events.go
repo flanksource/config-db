@@ -8,6 +8,7 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/is-healthy/events"
 	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -64,6 +65,11 @@ func getChangeFromEvent(event v1.KubernetesEvent, severityKeywords v1.SeverityKe
 		event.InvolvedObject.UID = types.UID(path)
 	}
 
+	severity := getSeverityFromReason(event.Reason, severityKeywords.Error, severityKeywords.Warn)
+	if severity == "" {
+		severity = events.GetSeverity(event.Reason)
+	}
+
 	return &v1.ChangeResult{
 		ChangeType:       event.Reason,
 		CreatedAt:        &event.Metadata.CreationTimestamp.Time,
@@ -71,7 +77,7 @@ func getChangeFromEvent(event v1.KubernetesEvent, severityKeywords v1.SeverityKe
 		ExternalChangeID: event.GetUID(),
 		ExternalID:       string(event.InvolvedObject.UID),
 		ConfigType:       ConfigTypePrefix + event.InvolvedObject.Kind,
-		Severity:         getSeverityFromReason(event.Reason, severityKeywords.Error, severityKeywords.Warn),
+		Severity:         severity,
 		Source:           getSourceFromEvent(event),
 		Summary:          event.Message,
 	}
