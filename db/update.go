@@ -116,9 +116,10 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	} else if changeResult != nil {
 		ctx.Logger.V(3).Infof("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
 		result.Changes = []v1.ChangeResult{*changeResult}
-		if newChanges, _, err := extractChanges(ctx, &result, ci); err != nil {
+		if newChanges, _, orphanedChanges, err := extractChanges(ctx, &result, ci); err != nil {
 			return false, nil, err
 		} else {
+			ctx.JobHistory().ErrorCount += orphanedChanges
 			changes = append(changes, newChanges...)
 		}
 
@@ -208,8 +209,10 @@ func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) 
 	return false, nil
 }
 
-func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.ConfigItem) ([]*models.ConfigChange, []*models.ConfigChange, error) {
+func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.ConfigItem) ([]*models.ConfigChange, []*models.ConfigChange, int, error) {
 	var (
+		orphaned int // total changes whose corresponding config was not found
+
 		newOnes = []*models.ConfigChange{}
 		updates = []*models.ConfigChange{}
 	)
@@ -229,7 +232,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 
 		if changeResult.Action == v1.Delete {
 			if err := deleteChangeHandler(ctx, changeResult); err != nil {
-				return nil, nil, fmt.Errorf("failed to delete config from change: %w", err)
+				return nil, nil, orphaned, fmt.Errorf("failed to delete config from change: %w", err)
 			}
 		}
 
@@ -238,7 +241,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		if change.CreatedBy != nil {
 			person, err := FindPersonByEmail(ctx, ptr.ToString(change.CreatedBy))
 			if err != nil {
-				return nil, nil, fmt.Errorf("error finding person by email: %w", err)
+				return nil, nil, orphaned, fmt.Errorf("error finding person by email: %w", err)
 			} else if person != nil {
 				change.CreatedBy = ptr.String(person.ID.String())
 			} else {
@@ -251,7 +254,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			change.ConfigID = ci.ID
 		} else if !change.GetExternalID().IsEmpty() {
 			if ci, err := ctx.TempCache().FindExternalID(change.GetExternalID()); err != nil {
-				return nil, nil, fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
+				return nil, nil, orphaned, fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
 			} else if ci != "" {
 				change.ConfigID = ci
 			}
@@ -264,7 +267,8 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		if change.ConfigID == "" {
 			// Some scrapers can generate changes for config items that don't exist on our db.
 			// Example: Cloudtrail scraper reporting changes for a resource that has been excluded.
-			ctx.Logger.V(1).Infof("(type=%s source=%s) change doesn't have an associated config", change.ChangeType, change.Source)
+			orphaned++
+			ctx.Logger.V(1).Infof("(type=%s source=%s external_id=%s) change doesn't have an associated config", change.ChangeType, change.Source, change.GetExternalID())
 			continue
 		}
 
@@ -275,7 +279,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		}
 	}
 
-	return newOnes, updates, nil
+	return newOnes, updates, orphaned, nil
 }
 
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
@@ -336,10 +340,12 @@ func saveResults(ctx api.ScrapeContext, isPartialResultSet bool, results []v1.Sc
 		return fmt.Errorf("unable to get current db time: %w", err)
 	}
 
-	newConfigs, configsToUpdate, newChanges, changesToUpdate, err := extractConfigsAndChangesFromResults(ctx, startTime, isPartialResultSet, results)
+	newConfigs, configsToUpdate, newChanges, changesToUpdate, orphanedChanges, err := extractConfigsAndChangesFromResults(ctx, startTime, isPartialResultSet, results)
 	if err != nil {
 		return fmt.Errorf("failed to extract configs & changes from results: %w", err)
 	}
+	ctx.JobHistory().ErrorCount += orphanedChanges
+
 	ctx.Logger.V(2).Infof("%d new configs, %d configs to update, %d new changes & %d changes to update",
 		len(newConfigs), len(configsToUpdate), len(newChanges), len(changesToUpdate))
 
@@ -611,8 +617,10 @@ type configExternalKey struct {
 	parentType string
 }
 
-func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime time.Time, isPartialResultSet bool, results []v1.ScrapeResult) ([]*models.ConfigItem, []*updateConfigArgs, []*models.ConfigChange, []*models.ConfigChange, error) {
+func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime time.Time, isPartialResultSet bool, results []v1.ScrapeResult) ([]*models.ConfigItem, []*updateConfigArgs, []*models.ConfigChange, []*models.ConfigChange, int, error) {
 	var (
+		orphanedChanges int
+
 		newConfigs      = make([]*models.ConfigItem, 0, len(results))
 		configsToUpdate = make([]*updateConfigArgs, 0, len(results))
 
@@ -636,12 +644,12 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 			// doesn't have any id.
 			ci, err = NewConfigItemFromResult(ctx, result)
 			if err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("unable to create config item(%s): %w", result, err)
+				return nil, nil, nil, nil, 0, fmt.Errorf("unable to create config item(%s): %w", result, err)
 			}
 
 			ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
 			if len(ci.ExternalID) == 0 {
-				return nil, nil, nil, nil, fmt.Errorf("config item %s has no external id", ci)
+				return nil, nil, nil, nil, 0, fmt.Errorf("config item %s has no external id", ci)
 			}
 
 			parentExternalKey := configExternalKey{externalID: ci.ExternalID[0], parentType: lo.FromPtr(ci.Type)}
@@ -650,18 +658,18 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 			existing := &models.ConfigItem{}
 			if ci.ID != "" {
 				if existing, err = ctx.TempCache().Get(ci.ID); err != nil {
-					return nil, nil, nil, nil, fmt.Errorf("unable to lookup existing config(%s): %w", ci, err)
+					return nil, nil, nil, nil, 0, fmt.Errorf("unable to lookup existing config(%s): %w", ci, err)
 				}
 			} else {
 				if existing, err = ctx.TempCache().Find(*ci.Type, ci.ExternalID[0]); err != nil {
-					return nil, nil, nil, nil, fmt.Errorf("unable to lookup external id(%s): %w", ci, err)
+					return nil, nil, nil, nil, 0, fmt.Errorf("unable to lookup external id(%s): %w", ci, err)
 				}
 			}
 
 			allConfigs = append(allConfigs, ci)
 			if result.Config != nil {
 				if err := tree.AddVertex(ci.ID); err != nil && !errors.Is(err, graph.ErrVertexAlreadyExists) {
-					return nil, nil, nil, nil, fmt.Errorf("unable to add vertex(%s): %w", ci, err)
+					return nil, nil, nil, nil, 0, fmt.Errorf("unable to add vertex(%s): %w", ci, err)
 				}
 
 				if existing == nil || existing.ID == "" {
@@ -682,9 +690,10 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 			}
 		}
 
-		if toCreate, toUpdate, err := extractChanges(ctx, &result, ci); err != nil {
-			return nil, nil, nil, nil, err
+		if toCreate, toUpdate, orphaned, err := extractChanges(ctx, &result, ci); err != nil {
+			return nil, nil, nil, nil, 0, err
 		} else {
+			orphanedChanges += orphaned
 			newChanges = append(newChanges, toCreate...)
 			changesToUpdate = append(changesToUpdate, toUpdate...)
 		}
@@ -695,11 +704,11 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	// So, all the parent lookups will return empty result and no parent will be set.
 	// This way, we can first look for the parents within the result set.
 	if err := setConfigParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("unable to setup parents: %w", err)
+		return nil, nil, nil, nil, 0, fmt.Errorf("unable to setup parents: %w", err)
 	}
 
 	if err := setConfigPaths(ctx, tree, isPartialResultSet, allConfigs); err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("unable to set config paths: %w", err)
+		return nil, nil, nil, nil, 0, fmt.Errorf("unable to set config paths: %w", err)
 	}
 
 	// We sort the new config items such that parents are always first.
@@ -716,7 +725,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 		return 0
 	})
 
-	return newConfigs, configsToUpdate, newChanges, changesToUpdate, nil
+	return newConfigs, configsToUpdate, newChanges, changesToUpdate, orphanedChanges, nil
 }
 
 func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
