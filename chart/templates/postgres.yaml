@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: postgresql
-        image: postgres:14
+        image: {{ tpl .Values.global.imageRegistry . }}/supabase/postgres:14.1.0.89
         volumeMounts:
           - name: postgresql
             mountPath: /data

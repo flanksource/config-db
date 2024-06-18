@@ -79,17 +79,6 @@ jobs:
           dockerfile: build/Dockerfile
           tags: "latest,v${{ needs.semantic-release.outputs.release-version }}"
 
-  ecr:
-    needs: semantic-release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@eb238b55efaa70779f274895e782ed17c84f2895 # v2.6.1
-        with:
-          egress-policy: audit
-
-      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
-
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
