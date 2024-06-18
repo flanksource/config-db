@@ -19,27 +19,29 @@ func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<-
 
 	ctx.Logger.V(3).Infof("Looking up events from %v", input.StartTime)
 	CloudTrail := cloudtrail.NewFromConfig(*ctx.Session)
-	events, err := CloudTrail.LookupEvents(ctx, input)
-	if err != nil {
-		return err
-	}
 
-	for _, event := range events.Events {
-		c <- event
-	}
-
-	for events.NextToken != nil {
-		input.NextToken = events.NextToken
-		events, err = CloudTrail.LookupEvents(ctx, input)
+	var total int
+	for {
+		events, err := CloudTrail.LookupEvents(ctx, input)
 		if err != nil {
 			return err
 		}
 
+		total += len(events.Events)
+		ctx.Logger.V(3).Infof("fetched %d cloudtrail events so far", total)
+
 		for _, event := range events.Events {
 			c <- event
 		}
+
+		if events.NextToken == nil {
+			break
+		}
+
+		input.NextToken = events.NextToken
 	}
 
+	ctx.Logger.V(1).Infof("fetched %d cloudtrail events in total", total)
 	return nil
 }
 
@@ -133,8 +135,7 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 		start = lastEventTime.(time.Time)
 	}
 	err := lookupEvents(ctx, &cloudtrail.LookupEventsInput{
-		StartTime:  &start,
-		MaxResults: ptr.Int32(1000),
+		StartTime: &start,
 		LookupAttributes: []types.LookupAttribute{
 			{
 				AttributeKey:   types.LookupAttributeKeyReadOnly,
