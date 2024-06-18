@@ -110,7 +110,10 @@ var CleanupConfigItems = &job.Job{
 		breakParentRelationshipQuery := fmt.Sprintf(`
 		UPDATE config_items
 		SET parent_id = NULL
-		WHERE id IN (%s) AND parent_id IS NOT NULL AND deleted_at < NOW() - interval '1 SECONDS' * ?`,
+		WHERE
+            id NOT IN (%s) AND
+            parent_id IS NOT NULL AND
+            deleted_at < NOW() - interval '1 SECONDS' * ?`,
 			linkedConfigsQuery)
 		if tx := ctx.Context.DB().Exec(breakParentRelationshipQuery, seconds); tx.Error != nil {
 			return fmt.Errorf("failed to remove config parent relationships: %w", tx.Error)
