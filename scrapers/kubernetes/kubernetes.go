@@ -12,6 +12,7 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
@@ -285,6 +286,11 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			}
 
 			if event.InvolvedObject == nil {
+				continue
+			}
+
+			if _, err := uuid.Parse(string(event.InvolvedObject.UID)); err != nil {
+				ctx.Logger.V(3).Infof("skipping event (reason=%s, message=%s) because the involved object ID is not a valid UUID: %s", event.Reason, event.Message, event.InvolvedObject.UID)
 				continue
 			}
 
