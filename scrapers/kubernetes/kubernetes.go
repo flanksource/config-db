@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -289,16 +290,23 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 				continue
 			}
 
-			if _, err := uuid.Parse(string(event.InvolvedObject.UID)); err != nil {
-				ctx.Logger.V(3).Infof("skipping event (reason=%s, message=%s) because the involved object ID is not a valid UUID: %s", event.Reason, event.Message, event.InvolvedObject.UID)
-				continue
-			}
-
 			if config.Event.Exclusions.Filter(event) {
 				ctx.Logger.V(4).Infof("excluding event object %s/%s/%s: %s",
 					event.InvolvedObject.Namespace, event.InvolvedObject.Name,
 					event.InvolvedObject.Kind, event.Reason)
 				continue
+			}
+
+			if _, err := uuid.Parse(string(event.InvolvedObject.UID)); err != nil {
+				ids, err := db.FindConfigIDsByNamespaceNameClass(ctx.DutyContext(), event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind)
+				if err != nil {
+					return results.Errorf(err, "failed to get config IDs for object %s/%s/%s", event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind)
+				} else if len(ids) == 0 {
+					ctx.Logger.V(3).Infof("skipping event (reason=%s, message=%s) because the involved object ID is not a valid UUID: %s", event.Reason, event.Message, event.InvolvedObject.UID)
+					continue
+				}
+
+				event.InvolvedObject.UID = types.UID(ids[0].String())
 			}
 
 			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
