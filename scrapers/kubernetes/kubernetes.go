@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -25,6 +26,7 @@ import (
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/flanksource/is-healthy/pkg/lua"
 	"github.com/flanksource/ketall"
+	ketallClient "github.com/flanksource/ketall/client"
 	"github.com/flanksource/ketall/options"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -156,6 +158,9 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 
 		objs, err := ketall.KetAll(ctx, opts)
 		if err != nil {
+			if errors.Is(err, ketallClient.ErrEmpty) {
+				return results.Errorf(fmt.Errorf("no resources returned due to insufficient access"), "failed to fetch resources")
+			}
 			return results.Errorf(err, "failed to fetch resources")
 		}
 
