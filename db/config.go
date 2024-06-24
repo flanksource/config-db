@@ -62,10 +62,11 @@ func FindConfigIDsByRelationshipSelector(ctx context.Context, selector v1.Relati
 }
 
 // FindConfigIDsByNamespaceNameClass returns the uuid of config items which matches the given type, name & namespace
-func FindConfigIDsByNamespaceNameClass(ctx context.Context, namespace, name, configClass string) ([]uuid.UUID, error) {
+func FindConfigIDsByNamespaceNameClass(ctx context.Context, cluster, namespace, name, configClass string) ([]uuid.UUID, error) {
 	rs := types.ResourceSelector{
 		Name:          name,
 		Namespace:     namespace,
+		TagSelector:   fmt.Sprintf("cluster=%s", cluster),
 		FieldSelector: fmt.Sprintf("config_class=%s", configClass),
 	}
 
