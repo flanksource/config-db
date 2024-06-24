@@ -44,7 +44,7 @@ require (
 	github.com/flanksource/commons v1.22.1
 	github.com/flanksource/duty v1.0.500
 	github.com/flanksource/is-healthy v1.0.10
-	github.com/flanksource/ketall v1.1.6
+	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/go-logr/zapr v1.2.4
 	github.com/gobwas/glob v0.2.3
