@@ -298,7 +298,7 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			}
 
 			if _, err := uuid.Parse(string(event.InvolvedObject.UID)); err != nil {
-				ids, err := db.FindConfigIDsByNamespaceNameClass(ctx.DutyContext(), event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind)
+				ids, err := db.FindConfigIDsByNamespaceNameClass(ctx.DutyContext(), config.ClusterName, event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind)
 				if err != nil {
 					return results.Errorf(err, "failed to get config IDs for object %s/%s/%s", event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind)
 				} else if len(ids) == 0 {
@@ -457,7 +457,7 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			if selector, err := f.Eval(obj.GetLabels(), env); err != nil {
 				return results.Errorf(err, "failed to evaluate selector: %v for config relationship", f)
 			} else if selector != nil {
-				linkedConfigItemIDs, err := db.FindConfigIDsByNamespaceNameClass(ctx.DutyContext(), selector.Namespace, selector.Name, selector.Kind)
+				linkedConfigItemIDs, err := db.FindConfigIDsByNamespaceNameClass(ctx.DutyContext(), config.ClusterName, selector.Namespace, selector.Name, selector.Kind)
 				if err != nil {
 					return results.Errorf(err, "failed to get linked config items by kubernetes selector(%v)", selector)
 				}
