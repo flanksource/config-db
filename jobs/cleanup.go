@@ -139,8 +139,7 @@ var CleanupConfigItems = &job.Job{
 			iter++
 			tx := ctx.Context.DB().Exec(configDeleteQuery, seconds, deleteBatchSize)
 			if tx.Error != nil {
-				ctx.Errorf("failed to delete config items: %v", tx.Error)
-				continue
+				return fmt.Errorf("failed to delete config items: %w", tx.Error)
 			}
 
 			if tx.RowsAffected == 0 {
