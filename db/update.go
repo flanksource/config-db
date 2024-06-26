@@ -730,10 +730,6 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 
 func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
 	for _, ci := range allConfigs {
-		if ci.ParentID != nil {
-			continue // existing item. Parent is already set.
-		}
-
 		if len(ci.Parents) == 0 {
 			continue // these are root items.
 		}
