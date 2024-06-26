@@ -322,7 +322,7 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 				}
 
 				if changeTypExclusion != "" {
-					if collections.MatchItems(change.ChangeType, strings.Split(changeTypExclusion, ",")...) {
+					if collections.MatchItems(change.ChangeType, splitTrimmed(changeTypExclusion, ",")...) {
 						ctx.Logger.V(4).Infof("excluding event object %s/%s/%s due to change type matched in annotation %s=%s",
 							event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
 							AnnotationIgnoreChangeByType, changeTypExclusion)
@@ -331,7 +331,7 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 				}
 
 				if changeSeverityExclusion != "" {
-					if collections.MatchItems(change.Severity, strings.Split(changeSeverityExclusion, ",")...) {
+					if collections.MatchItems(change.Severity, splitTrimmed(changeSeverityExclusion, ",")...) {
 						ctx.Logger.V(4).Infof("excluding event object %s/%s/%s due to severity matches in annotation %s=%s",
 							event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
 							AnnotationIgnoreChangeBySeverity, changeSeverityExclusion)
@@ -810,4 +810,15 @@ func parseAzureURI(uri string) (string, string) {
 	}
 
 	return subscriptionID, vmScaleSetID
+}
+
+func splitTrimmed(input, cut string) []string {
+	if strings.TrimSpace(input) == "" {
+		return []string{}
+	}
+
+	splits := strings.Split(input, cut)
+	return lo.Map(splits, func(split string, _ int) string {
+		return strings.TrimSpace(split)
+	})
 }

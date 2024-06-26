@@ -2,6 +2,8 @@ package kubernetes
 
 import (
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func Test_extractAccountIDFromARN(t *testing.T) {
@@ -63,6 +65,55 @@ func Test_extractAzureSubscriptionIDFromProvider(t *testing.T) {
 
 			if scaleSetID != tt.scaleSetID {
 				t.Errorf("got = %v, want %v", scaleSetID, tt.scaleSetID)
+			}
+		})
+	}
+}
+
+func TestSplitTrimmed(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		cut      string
+		expected []string
+	}{
+		{
+			name:     "empty input",
+			input:    "",
+			cut:      ",",
+			expected: []string{},
+		},
+		{
+			name:     "single element",
+			input:    "hello",
+			cut:      ",",
+			expected: []string{"hello"},
+		},
+		{
+			name:     "multiple elements",
+			input:    "hello,world,foo",
+			cut:      ",",
+			expected: []string{"hello", "world", "foo"},
+		},
+		{
+			name:     "leading and trailing spaces",
+			input:    "  hello  ,  world  ,  foo  ",
+			cut:      ",",
+			expected: []string{"hello", "world", "foo"},
+		},
+		{
+			name:     "different delimiter",
+			input:    "hello|world|foo",
+			cut:      "|",
+			expected: []string{"hello", "world", "foo"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := splitTrimmed(test.input, test.cut)
+			if diff := cmp.Diff(result, test.expected); diff != "" {
+				t.Errorf("diff = %v", diff)
 			}
 		})
 	}
