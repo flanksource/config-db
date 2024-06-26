@@ -614,7 +614,7 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 	if obj.GetNamespace() != "" {
 		parentExternalID := resourceIDMap[""]["Namespace"][obj.GetNamespace()]
 		if parentExternalID == "" {
-			// An incremental scraper maynot have the Namespace object.
+			// An incremental scraper may not have the Namespace object.
 			// We can instead use the alias as the external id.
 			parentExternalID = getKubernetesAlias("Namespace", "", obj.GetNamespace())
 		}
@@ -644,6 +644,23 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 			}}, allParents...)
 		}
 	}
+
+	helmName := obj.GetLabels()["helm.toolkit.fluxcd.io/name"]
+	helmNamespace := obj.GetLabels()["helm.toolkit.fluxcd.io/namespace"]
+	if helmName != "" && helmNamespace != "" {
+		allParents = append([]v1.ConfigExternalKey{{
+			Type:       ConfigTypePrefix + "HelmRelease",
+			ExternalID: getKubernetesAlias("HelmRelease", helmNamespace, helmName),
+		}}, allParents...)
+	}
+
+	// TODO: No Namespace or the argo app uid
+	// if argoApp, ok := obj.GetLabels()["argocd.argoproj.io/instance"]; ok {
+	// 	allParents = append([]v1.ConfigExternalKey{{
+	// 		Type:       ConfigTypePrefix + "Application",
+	// 		ExternalID: argoApp,
+	// 	}}, allParents...)
+	// }
 
 	return allParents
 }
