@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -16,12 +15,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/smithy-go/ptr"
 	"github.com/samber/lo"
 
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
@@ -138,6 +137,42 @@ func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.S
 			},
 			Parents: []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
+	}
+}
+
+func (aws Scraper) lambdaFunctions(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	if config.Excludes("lambda") {
+		return
+	}
+
+	lambdaClient := lambda.NewFromConfig(*ctx.Session)
+	input := &lambda.ListFunctionsInput{}
+
+	for {
+		functions, err := lambdaClient.ListFunctions(ctx, input)
+		if err != nil {
+			results.Errorf(err, "Failed to list Lambda functions")
+			return
+		}
+
+		var resourceHealth health.HealthStatus // TODO: Lambda health check
+		for _, function := range functions.Functions {
+			*results = append(*results, v1.ScrapeResult{
+				Type:        v1.AWSLambdaFunction,
+				ID:          *function.FunctionName,
+				Name:        *function.FunctionName,
+				Config:      function,
+				ConfigClass: "Lamba",
+				BaseScraper: config.BaseScraper,
+				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSLambdaFunction, lo.FromPtr(function.FunctionName))},
+				Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
+			}.WithHealthStatus(resourceHealth))
+		}
+
+		if functions.NextMarker == nil {
+			break
+		}
+		input.Marker = functions.NextMarker
 	}
 }
 
@@ -1107,39 +1142,38 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	}
 }
 
-//nolint:all
-func (aws Scraper) ami(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
-	if !config.Includes("Images") {
-		return
-	}
+// func (aws Scraper) ami(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+// 	if !config.Includes("Images") {
+// 		return
+// 	}
 
-	amis, err := ctx.EC2.DescribeImages(ctx, &ec2.DescribeImagesInput{})
-	if err != nil {
-		results.Errorf(err, "failed to get amis")
-		return
-	}
+// 	amis, err := ctx.EC2.DescribeImages(ctx, &ec2.DescribeImagesInput{})
+// 	if err != nil {
+// 		results.Errorf(err, "failed to get amis")
+// 		return
+// 	}
 
-	for _, image := range amis.Images {
-		createdAt, err := time.Parse(time.RFC3339, *image.CreationDate)
-		if err != nil {
-			createdAt = time.Now()
-		}
+// 	for _, image := range amis.Images {
+// 		createdAt, err := time.Parse(time.RFC3339, *image.CreationDate)
+// 		if err != nil {
+// 			createdAt = time.Now()
+// 		}
 
-		labels := make(map[string]string)
-		labels["region"] = lo.FromPtr(ctx.Caller.Account)
-		*results = append(*results, v1.ScrapeResult{
-			Type:        v1.AWSEC2AMI,
-			CreatedAt:   &createdAt,
-			BaseScraper: config.BaseScraper,
-			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2AMI, lo.FromPtr(image.ImageId))},
-			Config:      image,
-			Labels:      labels,
-			ConfigClass: "Image",
-			Name:        ptr.ToString(image.Name),
-			ID:          *image.ImageId,
-		})
-	}
-}
+// 		labels := make(map[string]string)
+// 		labels["region"] = lo.FromPtr(ctx.Caller.Account)
+// 		*results = append(*results, v1.ScrapeResult{
+// 			Type:        v1.AWSEC2AMI,
+// 			CreatedAt:   &createdAt,
+// 			BaseScraper: config.BaseScraper,
+// 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2AMI, lo.FromPtr(image.ImageId))},
+// 			Config:      image,
+// 			Labels:      labels,
+// 			ConfigClass: "Image",
+// 			Name:        ptr.ToString(image.Name),
+// 			ID:          *image.ImageId,
+// 		})
+// 	}
+// }
 
 func (aws Scraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.AWS) > 0
@@ -1159,6 +1193,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 
 			ctx.Logger.V(1).Infof("scraping %s", awsCtx)
+			aws.lambdaFunctions(awsCtx, awsConfig, results)
 			aws.subnets(awsCtx, awsConfig, results)
 			aws.instances(awsCtx, awsConfig, results)
 			aws.vpcs(awsCtx, awsConfig, results)
@@ -1246,6 +1281,8 @@ func getConsoleLink(region, resourceType, resourceID string) *types.Property {
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/s3/buckets/%s", region, resourceID)
 	case v1.AWSEC2Subnet:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?region=%s#SubnetDetails:subnetId=%s", region, region, resourceID)
+	case v1.AWSLambdaFunction:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/lambda/home?region=%s#/functions/%s", region, region, resourceID)
 	case v1.AWSEC2Instance:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#Instances:search=%s", region, region, resourceID)
 	case v1.AWSEKSCluster:
