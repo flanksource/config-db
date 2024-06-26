@@ -48,6 +48,7 @@ const (
 	AWSEC2Instance        = "AWS::EC2::Instance"
 	AWSEKSCluster         = "AWS::EKS::Cluster"
 	AWSS3Bucket           = "AWS::S3::Bucket"
+	AWSLambdaFunction     = "AWS::Lambda::Function"
 	AWSLoadBalancer       = "AWS::ElasticLoadBalancing::LoadBalancer"
 	AWSLoadBalancerV2     = "AWS::ElasticLoadBalancingV2::LoadBalancer"
 	AWSEBSVolume          = "AWS::EBS::Volume"
