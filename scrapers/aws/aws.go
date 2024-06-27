@@ -19,6 +19,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+
+	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/samber/lo"
@@ -136,6 +139,41 @@ func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.S
 				"CreatedAt", "RepositoryArn", "RepositoryUri", "RegistryId", "RepositoryName",
 			},
 			Parents: []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
+		})
+	}
+}
+
+func (aws Scraper) sqs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	if !config.Includes("sqs") {
+		return
+	}
+
+	SQS := sqs.NewFromConfig(*ctx.Session)
+	listQueuesOutput, err := SQS.ListQueues(ctx, &sqs.ListQueuesInput{})
+	if err != nil {
+		results.Errorf(err, "failed to list SQS queues")
+		return
+	}
+
+	for _, queueURL := range listQueuesOutput.QueueUrls {
+		getQueueAttributesOutput, err := SQS.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
+			QueueUrl:       &queueURL,
+			AttributeNames: []sqsTypes.QueueAttributeName{sqsTypes.QueueAttributeNameAll},
+		})
+		if err != nil {
+			results.Errorf(err, "failed to get attributes for SQS queue: %s", queueURL)
+			continue
+		}
+
+		*results = append(*results, v1.ScrapeResult{
+			Type:        v1.AWSSQS,
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSSQS, queueURL)},
+			Config:      getQueueAttributesOutput,
+			Labels:      getQueueAttributesOutput.Attributes,
+			ConfigClass: "Queue",
+			Name:        queueURL,
+			ID:          queueURL,
 		})
 	}
 }
@@ -1194,6 +1232,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 			ctx.Logger.V(1).Infof("scraping %s", awsCtx)
 			aws.lambdaFunctions(awsCtx, awsConfig, results)
+			aws.sqs(awsCtx, awsConfig, results)
 			aws.subnets(awsCtx, awsConfig, results)
 			aws.instances(awsCtx, awsConfig, results)
 			aws.vpcs(awsCtx, awsConfig, results)
@@ -1271,6 +1310,8 @@ func getRegionFromArn(arn, resourceType string) string {
 func getConsoleLink(region, resourceType, resourceID string) *types.Property {
 	var url string
 	switch resourceType {
+	case v1.AWSSQS:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/sqs/v2/home?region=%s#/queues/%s", region, region, resourceID)
 	case "AWS::ECR::Repository":
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ecr/repositories/%s", region, resourceID)
 	case "AWS::EFS::FileSystem":

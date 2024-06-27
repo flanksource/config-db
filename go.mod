@@ -35,6 +35,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.42.0
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.27.5
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.33.1
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.6
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/support v1.14.7
