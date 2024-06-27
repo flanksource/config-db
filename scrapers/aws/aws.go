@@ -14,28 +14,27 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
+	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/samber/lo"
-
-	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
-	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/duty/types"
+	"github.com/flanksource/is-healthy/pkg/health"
+	"github.com/samber/lo"
+
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
-	"github.com/flanksource/duty/types"
-	"github.com/flanksource/is-healthy/pkg/health"
 )
 
 // Scraper ...
@@ -174,6 +173,38 @@ func (aws Scraper) sqs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			ConfigClass: "Queue",
 			Name:        queueURL,
 			ID:          queueURL,
+		})
+	}
+}
+
+func (aws Scraper) snsTopics(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	if !config.Includes("sns") {
+		return
+	}
+
+	client := sns.NewFromConfig(*ctx.Session)
+	topics, err := client.ListTopics(ctx, nil)
+	if err != nil {
+		results.Errorf(err, "failed to list SNS topics")
+		return
+	}
+
+	for _, topic := range topics.Topics {
+		topicArn := lo.FromPtr(topic.TopicArn)
+		labels := make(map[string]string)
+		labels["region"] = ctx.Session.Region
+
+		*results = append(*results, v1.ScrapeResult{
+			Type:        v1.AWSSNSTopic,
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSSNSTopic, topicArn)},
+			Config:      topic,
+			Labels:      labels,
+			ConfigClass: "Topic",
+			Name:        topicArn,
+			Aliases:     []string{topicArn},
+			ID:          topicArn,
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -1232,6 +1263,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 			ctx.Logger.V(1).Infof("scraping %s", awsCtx)
 			aws.lambdaFunctions(awsCtx, awsConfig, results)
+			aws.snsTopics(awsCtx, awsConfig, results)
 			aws.sqs(awsCtx, awsConfig, results)
 			aws.subnets(awsCtx, awsConfig, results)
 			aws.instances(awsCtx, awsConfig, results)
@@ -1312,6 +1344,8 @@ func getConsoleLink(region, resourceType, resourceID string) *types.Property {
 	switch resourceType {
 	case v1.AWSSQS:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/sqs/v2/home?region=%s#/queues/%s", region, region, resourceID)
+	case v1.AWSSNSTopic:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/sns/v3/home?region=%s#/topics/%s", region, region, resourceID)
 	case "AWS::ECR::Repository":
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ecr/repositories/%s", region, resourceID)
 	case "AWS::EFS::FileSystem":
