@@ -43,6 +43,7 @@ type CostReporting struct {
 }
 
 const (
+	AWSSNSTopic           = "AWS::SNS::Topic"
 	AWSSQS                = "AWS::SQS::Queue"
 	AWSRegion             = "AWS::Region"
 	AWSZone               = "AWS::Route53::HostedZone"
