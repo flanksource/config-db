@@ -67,6 +67,9 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 	if config.Excludes("cloudtrail") {
 		return
 	}
+
+	ctx.Logger.V(2).Infof("scraping cloudtrail")
+
 	if len(config.CloudTrail.Exclude) == 0 {
 		config.CloudTrail.Exclude = []string{"AssumeRole"}
 	}

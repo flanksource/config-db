@@ -44,9 +44,9 @@ type CostReporting struct {
 
 const (
 	AWSECSCluster         = "AWS::ECS::Cluster"
-	AWSECSService         = "AWS::EC2::Service"
-	AWSECSTask            = "AWS::ECS:Task"
-	AWSEKSFargateProfile  = "AWS::ECS::FargateProfile"
+	AWSECSService         = "AWS::ECS::Service"
+	AWSECSTaskDefinition  = "AWS::ECS::TaskDefinition"
+	AWSEKSFargateProfile  = "AWS::EKS::FargateProfile"
 	AWSElastiCacheCluster = "AWS::ElastiCache::CacheCluster"
 	AWSLambdaFunction     = "AWS::Lambda::Function"
 	AWSSNSTopic           = "AWS::SNS::Topic"
