@@ -334,6 +334,54 @@ func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 	}
 }
 
+func (aws Scraper) eksFargateProfiles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	if !config.Includes("eksfargateprofile") {
+		return
+	}
+
+	client := eks.NewFromConfig(*ctx.Session)
+	listClustersInput := &eks.ListClustersInput{}
+	listClustersOutput, err := client.ListClusters(ctx, listClustersInput)
+	if err != nil {
+		results.Errorf(err, "failed to list EKS clusters")
+		return
+	}
+
+	for _, clusterName := range listClustersOutput.Clusters {
+		listFargateProfilesInput := &eks.ListFargateProfilesInput{
+			ClusterName: &clusterName,
+		}
+		listFargateProfilesOutput, err := client.ListFargateProfiles(ctx, listFargateProfilesInput)
+		if err != nil {
+			results.Errorf(err, "failed to list Fargate profiles for cluster %s", clusterName)
+			continue
+		}
+
+		for _, profileName := range listFargateProfilesOutput.FargateProfileNames {
+			describeFargateProfileInput := &eks.DescribeFargateProfileInput{
+				ClusterName:        &clusterName,
+				FargateProfileName: &profileName,
+			}
+			describeFargateProfileOutput, err := client.DescribeFargateProfile(ctx, describeFargateProfileInput)
+			if err != nil {
+				results.Errorf(err, "failed to describe Fargate profile %s for cluster %s", profileName, clusterName)
+				continue
+			}
+
+			*results = append(*results, v1.ScrapeResult{
+				ID:          *describeFargateProfileOutput.FargateProfile.FargateProfileName,
+				Type:        v1.AWSEKSFargateProfile,
+				BaseScraper: config.BaseScraper,
+				Config:      describeFargateProfileOutput.FargateProfile,
+				ConfigClass: "FargateProfile",
+				Tags:        []v1.Tag{{Name: "cluster", Value: clusterName}},
+				Name:        *describeFargateProfileOutput.FargateProfile.FargateProfileName,
+				Parents:     []v1.ConfigExternalKey{{Type: v1.AWSEKSCluster, ExternalID: clusterName}},
+			})
+		}
+	}
+}
+
 func (aws Scraper) lambdaFunctions(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
 	if config.Excludes("lambda") {
 		return
@@ -1399,6 +1447,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			aws.routes(awsCtx, awsConfig, results)
 			aws.dhcp(awsCtx, awsConfig, results)
 			aws.eksClusters(awsCtx, awsConfig, results)
+			aws.eksFargateProfiles(awsCtx, awsConfig, results)
 			aws.ebs(awsCtx, awsConfig, results)
 			aws.efs(awsCtx, awsConfig, results)
 			aws.rds(awsCtx, awsConfig, results)
