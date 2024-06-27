@@ -250,6 +250,7 @@ func (aws Scraper) ecsClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			})
 
 			aws.ecsServices(ctx, config, client, *clusterInfo.ClusterArn, results)
+			aws.ecsTasks(ctx, config, client, *clusterInfo.ClusterArn, results)
 		}
 	}
 }
@@ -290,13 +291,12 @@ func (aws Scraper) ecsServices(ctx *AWSContext, config v1.AWS, client *ecs.Clien
 	}
 }
 
-func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, client *ecs.Client, cluster string, results *v1.ScrapeResults) {
 	if !config.Includes("ecstask") {
 		return
 	}
 
-	client := ecs.NewFromConfig(*ctx.Session)
-	input := &ecs.ListTasksInput{}
+	input := &ecs.ListTasksInput{Cluster: &cluster}
 	paginator := ecs.NewListTasksPaginator(client, input)
 
 	for paginator.HasMorePages() {
@@ -334,51 +334,41 @@ func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 	}
 }
 
-func (aws Scraper) eksFargateProfiles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
-	if !config.Includes("eksfargateprofile") {
+func (aws Scraper) eksFargateProfiles(ctx *AWSContext, config v1.AWS, client *eks.Client, clusterName string, results *v1.ScrapeResults) {
+	if !config.Includes("FargateProfile") {
 		return
 	}
 
-	client := eks.NewFromConfig(*ctx.Session)
-	listClustersInput := &eks.ListClustersInput{}
-	listClustersOutput, err := client.ListClusters(ctx, listClustersInput)
+	listFargateProfilesInput := &eks.ListFargateProfilesInput{
+		ClusterName: &clusterName,
+	}
+	listFargateProfilesOutput, err := client.ListFargateProfiles(ctx, listFargateProfilesInput)
 	if err != nil {
-		results.Errorf(err, "failed to list EKS clusters")
+		results.Errorf(err, "failed to list Fargate profiles for cluster %s", clusterName)
 		return
 	}
 
-	for _, clusterName := range listClustersOutput.Clusters {
-		listFargateProfilesInput := &eks.ListFargateProfilesInput{
-			ClusterName: &clusterName,
+	for _, profileName := range listFargateProfilesOutput.FargateProfileNames {
+		describeFargateProfileInput := &eks.DescribeFargateProfileInput{
+			ClusterName:        &clusterName,
+			FargateProfileName: &profileName,
 		}
-		listFargateProfilesOutput, err := client.ListFargateProfiles(ctx, listFargateProfilesInput)
+		describeFargateProfileOutput, err := client.DescribeFargateProfile(ctx, describeFargateProfileInput)
 		if err != nil {
-			results.Errorf(err, "failed to list Fargate profiles for cluster %s", clusterName)
+			results.Errorf(err, "failed to describe Fargate profile %s for cluster %s", profileName, clusterName)
 			continue
 		}
 
-		for _, profileName := range listFargateProfilesOutput.FargateProfileNames {
-			describeFargateProfileInput := &eks.DescribeFargateProfileInput{
-				ClusterName:        &clusterName,
-				FargateProfileName: &profileName,
-			}
-			describeFargateProfileOutput, err := client.DescribeFargateProfile(ctx, describeFargateProfileInput)
-			if err != nil {
-				results.Errorf(err, "failed to describe Fargate profile %s for cluster %s", profileName, clusterName)
-				continue
-			}
-
-			*results = append(*results, v1.ScrapeResult{
-				ID:          *describeFargateProfileOutput.FargateProfile.FargateProfileName,
-				Type:        v1.AWSEKSFargateProfile,
-				BaseScraper: config.BaseScraper,
-				Config:      describeFargateProfileOutput.FargateProfile,
-				ConfigClass: "FargateProfile",
-				Tags:        []v1.Tag{{Name: "cluster", Value: clusterName}},
-				Name:        *describeFargateProfileOutput.FargateProfile.FargateProfileName,
-				Parents:     []v1.ConfigExternalKey{{Type: v1.AWSEKSCluster, ExternalID: clusterName}},
-			})
-		}
+		*results = append(*results, v1.ScrapeResult{
+			ID:          *describeFargateProfileOutput.FargateProfile.FargateProfileName,
+			Type:        v1.AWSEKSFargateProfile,
+			BaseScraper: config.BaseScraper,
+			Config:      describeFargateProfileOutput.FargateProfile,
+			ConfigClass: "FargateProfile",
+			Tags:        []v1.Tag{{Name: "cluster", Value: clusterName}},
+			Name:        *describeFargateProfileOutput.FargateProfile.FargateProfileName,
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSEKSCluster, ExternalID: clusterName}},
+		})
 	}
 }
 
@@ -485,6 +475,8 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: *cluster.Cluster.ResourcesVpcConfig.VpcId}},
 			RelationshipResults: relationships,
 		}.WithHealthStatus(resourceHealth))
+
+		aws.eksFargateProfiles(ctx, config, EKS, clusterName, results)
 	}
 }
 
@@ -1435,9 +1427,8 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 
 			ctx.Logger.V(1).Infof("scraping %s", awsCtx)
-			aws.lambdaFunctions(awsCtx, awsConfig, results)
 			aws.ecsClusters(awsCtx, awsConfig, results)
-			aws.ecsTasks(awsCtx, awsConfig, results)
+			aws.lambdaFunctions(awsCtx, awsConfig, results)
 			aws.snsTopics(awsCtx, awsConfig, results)
 			aws.sqs(awsCtx, awsConfig, results)
 			aws.subnets(awsCtx, awsConfig, results)
@@ -1447,7 +1438,6 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			aws.routes(awsCtx, awsConfig, results)
 			aws.dhcp(awsCtx, awsConfig, results)
 			aws.eksClusters(awsCtx, awsConfig, results)
-			aws.eksFargateProfiles(awsCtx, awsConfig, results)
 			aws.ebs(awsCtx, awsConfig, results)
 			aws.efs(awsCtx, awsConfig, results)
 			aws.rds(awsCtx, awsConfig, results)
