@@ -12,6 +12,7 @@ import (
 	"github.com/dominikbraun/graph"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/logger"
+	cUtils "github.com/flanksource/commons/utils"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
@@ -569,7 +570,7 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 				continue
 			}
 			if configID == "" {
-				ctx.Logger.V(1).Infof("unable to form relationship. failed to find the parent config %s", relationship.ConfigExternalID)
+				ctx.Logger.V(2).Infof("unable to form relationship. failed to find the parent config %s for config %s", relationship.ConfigExternalID, cUtils.Coalesce(relationship.RelatedConfigID, relationship.RelatedExternalID.String()))
 				continue
 			}
 		}
@@ -584,7 +585,7 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 				continue
 			}
 			if relatedID == "" {
-				logger.V(6).Infof("related external config item(id=%s) not found.", relationship.RelatedExternalID)
+				ctx.Logger.V(2).Infof("unable to form relationship. failed to find related config %s for config %s", relationship.RelatedExternalID, configID)
 				continue
 			}
 		}

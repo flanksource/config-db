@@ -11,6 +11,8 @@ func (aws Scraper) config(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResu
 		return
 	}
 
+	ctx.Logger.V(2).Infof("scraping Config Rules")
+
 	rules, err := ctx.Config.DescribeConfigRules(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "Failed to describe config rules")
