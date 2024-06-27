@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -368,6 +369,32 @@ func (aws Scraper) eksFargateProfiles(ctx *AWSContext, config v1.AWS, client *ek
 			Tags:        []v1.Tag{{Name: "cluster", Value: clusterName}},
 			Name:        *describeFargateProfileOutput.FargateProfile.FargateProfileName,
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSEKSCluster, ExternalID: clusterName}},
+		})
+	}
+}
+
+func (aws Scraper) elastiCache(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	if config.Excludes("ElastiCache") {
+		return
+	}
+
+	svc := elasticache.NewFromConfig(*ctx.Session)
+
+	clusters, err := svc.DescribeCacheClusters(ctx, &elasticache.DescribeCacheClustersInput{})
+	if err != nil {
+		results.Errorf(err, "failed to describe ElastiCache clusters")
+		return
+	}
+
+	for _, cluster := range clusters.CacheClusters {
+		*results = append(*results, v1.ScrapeResult{
+			ID:          *cluster.CacheClusterId,
+			Type:        v1.AWSElastiCacheCluster,
+			BaseScraper: config.BaseScraper,
+			Config:      cluster,
+			ConfigClass: "Cache",
+			Name:        *cluster.CacheClusterId,
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -1428,6 +1455,8 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 			ctx.Logger.V(1).Infof("scraping %s", awsCtx)
 			aws.ecsClusters(awsCtx, awsConfig, results)
+			aws.elastiCache(awsCtx, awsConfig, results)
+			aws.lambdaFunctions(awsCtx, awsConfig, results)
 			aws.lambdaFunctions(awsCtx, awsConfig, results)
 			aws.snsTopics(awsCtx, awsConfig, results)
 			aws.sqs(awsCtx, awsConfig, results)
