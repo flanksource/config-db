@@ -43,6 +43,9 @@ type CostReporting struct {
 }
 
 const (
+	AWSECSTask            = "AWS::ECS:Task"
+	AWSECSService         = "AWS::EC2::Service"
+	AWSECSCluster         = "AWS::ECS::Cluster"
 	AWSSNSTopic           = "AWS::SNS::Topic"
 	AWSSQS                = "AWS::SQS::Queue"
 	AWSRegion             = "AWS::Region"

@@ -12,6 +12,7 @@ import (
 	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
@@ -209,6 +210,130 @@ func (aws Scraper) snsTopics(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	}
 }
 
+func (aws Scraper) ecsClusters(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	if !config.Includes("ecs") {
+		return
+	}
+
+	client := ecs.NewFromConfig(*ctx.Session)
+	clusters, err := client.ListClusters(ctx, nil)
+	if err != nil {
+		results.Errorf(err, "failed to list ECS clusters")
+		return
+	}
+
+	for _, clusterArn := range clusters.ClusterArns {
+		cluster, err := client.DescribeClusters(ctx, &ecs.DescribeClustersInput{
+			Clusters: []string{clusterArn},
+		})
+		if err != nil {
+			results.Errorf(err, "failed to describe ECS cluster")
+			continue
+		}
+
+		labels := make(map[string]string)
+		for _, tag := range cluster.Clusters[0].Tags {
+			labels[*tag.Key] = *tag.Value
+		}
+
+		for _, clusterInfo := range cluster.Clusters {
+			*results = append(*results, v1.ScrapeResult{
+				Type:        v1.AWSECSCluster,
+				Labels:      labels,
+				BaseScraper: config.BaseScraper,
+				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSECSCluster, clusterArn)},
+				Config:      clusterInfo,
+				ConfigClass: "ECSCluster",
+				Name:        *clusterInfo.ClusterName,
+				Aliases:     []string{clusterArn},
+				ID:          clusterArn,
+			})
+
+			aws.ecsServices(ctx, config, client, *clusterInfo.ClusterArn, results)
+		}
+	}
+}
+
+func (aws Scraper) ecsServices(ctx *AWSContext, config v1.AWS, client *ecs.Client, cluster string, results *v1.ScrapeResults) {
+	if !config.Includes("ecsservice") {
+		return
+	}
+
+	services, err := client.ListServices(ctx, &ecs.ListServicesInput{
+		Cluster: &cluster,
+	})
+	if err != nil {
+		results.Errorf(err, "failed to list ECS services in cluster %s", cluster)
+		return
+	}
+
+	describeServicesOutput, err := client.DescribeServices(ctx, &ecs.DescribeServicesInput{
+		Cluster:  &cluster,
+		Services: services.ServiceArns,
+	})
+	if err != nil {
+		results.Errorf(err, "failed to describe ECS services in cluster %s", cluster)
+		return
+	}
+
+	for _, service := range describeServicesOutput.Services {
+		*results = append(*results, v1.ScrapeResult{
+			Type:        v1.AWSECSService,
+			ID:          *service.ServiceArn,
+			Name:        *service.ServiceName,
+			Config:      service,
+			ConfigClass: "ECSService",
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSECSService, *service.ServiceArn)},
+			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSECSCluster, ExternalID: cluster}},
+		})
+	}
+}
+
+func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	if !config.Includes("ecstask") {
+		return
+	}
+
+	client := ecs.NewFromConfig(*ctx.Session)
+	input := &ecs.ListTasksInput{}
+	paginator := ecs.NewListTasksPaginator(client, input)
+
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			results.Errorf(err, "failed to list ECS tasks")
+			return
+		}
+
+		if len(output.TaskArns) == 0 {
+			continue
+		}
+
+		tasksOutput, err := client.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+			Tasks: output.TaskArns,
+		})
+		if err != nil {
+			results.Errorf(err, "failed to describe ECS tasks")
+			return
+		}
+
+		for _, task := range tasksOutput.Tasks {
+			result := v1.ScrapeResult{
+				Type:        v1.AWSECSTask,
+				ID:          *task.TaskArn,
+				Name:        *task.TaskDefinitionArn,
+				Config:      task,
+				ConfigClass: "ECSTask",
+				BaseScraper: config.BaseScraper,
+				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSECSTask, *task.TaskArn)},
+				Parents:     []v1.ConfigExternalKey{{Type: v1.AWSECSCluster, ExternalID: *task.ClusterArn}},
+			}
+			*results = append(*results, result)
+		}
+	}
+}
+
 func (aws Scraper) lambdaFunctions(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
 	if config.Excludes("lambda") {
 		return
@@ -220,7 +345,7 @@ func (aws Scraper) lambdaFunctions(ctx *AWSContext, config v1.AWS, results *v1.S
 	for {
 		functions, err := lambdaClient.ListFunctions(ctx, input)
 		if err != nil {
-			results.Errorf(err, "Failed to list Lambda functions")
+			results.Errorf(err, "failed to list Lambda functions")
 			return
 		}
 
@@ -1263,6 +1388,8 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 			ctx.Logger.V(1).Infof("scraping %s", awsCtx)
 			aws.lambdaFunctions(awsCtx, awsConfig, results)
+			aws.ecsClusters(awsCtx, awsConfig, results)
+			aws.ecsTasks(awsCtx, awsConfig, results)
 			aws.snsTopics(awsCtx, awsConfig, results)
 			aws.sqs(awsCtx, awsConfig, results)
 			aws.subnets(awsCtx, awsConfig, results)
@@ -1342,6 +1469,12 @@ func getRegionFromArn(arn, resourceType string) string {
 func getConsoleLink(region, resourceType, resourceID string) *types.Property {
 	var url string
 	switch resourceType {
+	case v1.AWSECSTask:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/home?region=%s#/tasks/%s", region, region, resourceID)
+	case v1.AWSECSService:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/home?region=%s#/clusters/%s", region, region, resourceID)
+	case v1.AWSECSCluster:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/tasks?region=%s", region, resourceID, region)
 	case v1.AWSSQS:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/sqs/v2/home?region=%s#/queues/%s", region, region, resourceID)
 	case v1.AWSSNSTopic:
