@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flanksource/duty"
+	"github.com/flanksource/duty/db"
 	"github.com/flanksource/duty/job"
 )
 
@@ -86,16 +86,16 @@ var CleanupConfigItems = &job.Job{
 
 		var prevCount int64
 		if err := ctx.DB().Raw("SELECT COUNT(*) FROM config_items").Scan(&prevCount).Error; err != nil {
-			return fmt.Errorf("failed to count config items: %w", duty.DBErrorDetails(err))
+			return fmt.Errorf("failed to count config items: %w", db.ErrorDetails(err))
 		}
 
 		if err := ctx.DB().Exec("SELECT delete_old_config_items(?)", days).Error; err != nil {
-			return fmt.Errorf("failed to delete config items: %w", duty.DBErrorDetails(err))
+			return fmt.Errorf("failed to delete config items: %w", db.ErrorDetails(err))
 		}
 
 		var newCount int64
 		if err := ctx.DB().Raw("SELECT COUNT(*) FROM config_items").Scan(&newCount).Error; err != nil {
-			return fmt.Errorf("failed to count config items: %w", duty.DBErrorDetails(err))
+			return fmt.Errorf("failed to count config items: %w", db.ErrorDetails(err))
 		}
 		ctx.History.SuccessCount = int(newCount - prevCount)
 		return nil
