@@ -119,7 +119,8 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 		result.Changes = []v1.ChangeResult{*changeResult}
 		if newChanges, _, orphanedChanges, err := extractChanges(ctx, &result, ci); err != nil {
 			return false, nil, err
-		} else {
+		} else if orphanedChanges > 0 {
+			logger.Warnf("orphaned changes found for existing cofig")
 			ctx.JobHistory().AddErrorf("%d changes were orphaned for config item: [%s/%s]", orphanedChanges, existing.ID, *existing.Name)
 			changes = append(changes, newChanges...)
 		}
@@ -344,8 +345,9 @@ func saveResults(ctx api.ScrapeContext, isPartialResultSet bool, results []v1.Sc
 	newConfigs, configsToUpdate, newChanges, changesToUpdate, orphanedChanges, err := extractConfigsAndChangesFromResults(ctx, startTime, isPartialResultSet, results)
 	if err != nil {
 		return fmt.Errorf("failed to extract configs & changes from results: %w", err)
+	} else if orphanedChanges > 0 {
+		ctx.JobHistory().AddErrorf("%d orphaned changed were found", orphanedChanges)
 	}
-	ctx.JobHistory().AddErrorf("%d changes were orphaned for scraper: [%s/%s]", orphanedChanges, ctx.ScrapeConfig().Namespace, ctx.ScrapeConfig().Name)
 
 	ctx.Logger.V(2).Infof("%d new configs, %d configs to update, %d new changes & %d changes to update",
 		len(newConfigs), len(configsToUpdate), len(newChanges), len(changesToUpdate))
