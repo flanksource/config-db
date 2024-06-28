@@ -46,7 +46,7 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.25.0
-	github.com/flanksource/commons v1.22.1
+	github.com/flanksource/commons v1.24.0
 	github.com/flanksource/duty v1.0.517
 	github.com/flanksource/is-healthy v1.0.10
 	github.com/flanksource/ketall v1.1.7
