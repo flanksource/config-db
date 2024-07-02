@@ -8,6 +8,7 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
 	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -180,6 +181,42 @@ func (aws Scraper) sqs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Name:        queueURL,
 			ID:          queueURL,
 		})
+	}
+}
+
+func (aws Scraper) cloudformationStacks(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	if !config.Includes("cloudformation") {
+		return
+	}
+
+	ctx.Logger.V(2).Infof("scraping CloudFormation stacks")
+
+	client := cloudformation.NewFromConfig(*ctx.Session)
+	stacks, err := client.ListStacks(ctx, &cloudformation.ListStacksInput{})
+	if err != nil {
+		results.Errorf(err, "failed to list CloudFormation stacks")
+		return
+	}
+
+	for _, stack := range stacks.StackSummaries {
+		stackName := lo.FromPtr(stack.StackName)
+
+		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeCloudformationStack, string(stack.StackStatus))
+		resourceHealth.Message = lo.FromPtr(stack.StackStatusReason)
+
+		*results = append(*results, v1.ScrapeResult{
+			Type:         v1.AWSCloudFormationStack,
+			BaseScraper:  config.BaseScraper,
+			Properties:   []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSCloudFormationStack, stackName)},
+			Config:       stack,
+			CreatedAt:    stack.CreationTime,
+			DeletedAt:    stack.DeletionTime,
+			DeleteReason: v1.DeletedReasonFromAttribute,
+			ConfigClass:  "Stack",
+			Name:         stackName,
+			ID:           stackName,
+			Parents:      []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
+		}.WithHealthStatus(resourceHealth))
 	}
 }
 
@@ -1528,6 +1565,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 
 			ctx.Logger.V(1).Infof("scraping %s", awsCtx)
+			aws.cloudformationStacks(awsCtx, awsConfig, results)
 			aws.ecsClusters(awsCtx, awsConfig, results)
 			aws.ecsTasks(awsCtx, awsConfig, results)
 			aws.elastiCache(awsCtx, awsConfig, results)
@@ -1616,6 +1654,8 @@ func getConsoleLink(region, resourceType, resourceID string) *types.Property {
 
 	var url string
 	switch resourceType {
+	case v1.AWSCloudFormationStack:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/cloudformation/home?region=%s#/stacks/stackinfo?stackId=%s", region, region, resourceID)
 	case v1.AWSEKSFargateProfile:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/home?region=%s#/clusters/%s/fargate-profiles/%s", region, region, resourceID, resourceID)
 	case v1.AWSECSTaskDefinition:
