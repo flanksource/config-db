@@ -15,7 +15,12 @@ const (
 	contextKeyScrapeStart contextKey = "scrape_start_time"
 )
 
-func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
+type ScrapeOutput struct {
+	Total   int // all configs & changes
+	Summary map[string]v1.ConfigTypeScrapeSummary
+}
+
+func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 	ctx, err := ctx.InitTempCache()
 	if err != nil {
 		return nil, err
@@ -29,7 +34,8 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 		return nil, fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig().Name, scraperErr)
 	}
 
-	if err := db.SaveResults(ctx, results); err != nil {
+	savedResult, err := db.SaveResults(ctx, results)
+	if err != nil {
 		return nil, fmt.Errorf("failed to save results: %w", err)
 	}
 
@@ -38,7 +44,11 @@ func RunScraper(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 	}
 
 	ctx.Logger.V(1).Infof("Completed scraping with %d results in %s", len(results), time.Since(ctx.Value(contextKeyScrapeStart).(time.Time)))
-	return results, nil
+
+	return &ScrapeOutput{
+		Total:   len(results),
+		Summary: savedResult,
+	}, nil
 }
 
 func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) error {

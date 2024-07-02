@@ -24,6 +24,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// func TestAWSScrape(t *testing.T) {
+// 	f, err := os.Open("aws-scrape-results.gob")
+// 	if err != nil {
+// 		t.Fatalf("failed to open aws-scrape-results.gob: %v", err)
+// 	}
+// 	defer f.Close()
+
+// 	var results []v1.ScrapeResult
+// 	gob.Register(map[string]any{})
+// 	gob.Register([]any{})
+// 	if err := gob.NewDecoder(f).Decode(&results); err != nil {
+// 		t.Fatalf("failed to encode aws-scrape-results.gob: %v", err)
+// 	}
+// }
+
 var _ = Describe("Scrapers test", Ordered, func() {
 	Describe("DB initialization", func() {
 		It("Gorm can connect", func() {
@@ -159,7 +174,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				results, err := Run(ctx)
 				Expect(err).To(BeNil())
 
-				err = db.SaveResults(ctx, results)
+				_, err = db.SaveResults(ctx, results)
 				Expect(err).To(BeNil())
 
 				if len(results) != len(expected) {
@@ -198,7 +213,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			results, err := Run(ctx)
 			Expect(err).To(BeNil())
 
-			err = db.SaveResults(ctx, results)
+			_, err = db.SaveResults(ctx, results)
 			Expect(err).To(BeNil())
 
 			configItemID, err := db.GetConfigItem(ctx, "Car", "A123")
@@ -218,7 +233,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			results, err := Run(ctx)
 			Expect(err).To(BeNil())
 
-			err = db.SaveResults(ctx, results)
+			_, err = db.SaveResults(ctx, results)
 			Expect(err).To(BeNil())
 
 			configItemID, err := db.GetConfigItem(ctx, "Car", "A123")
