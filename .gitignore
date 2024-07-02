@@ -10,3 +10,5 @@ cover.out
 ginkgo.report
 
 config.properties
+
+*.gob

@@ -137,6 +137,93 @@ func (result *AnalysisResult) Message(msg string) *AnalysisResult {
 // +kubebuilder:object:generate=false
 type AnalysisResults []AnalysisResult
 
+type ScrapeSummary map[string]ConfigTypeScrapeSummary
+
+func (t *ScrapeSummary) AddChangeSummary(configType string, cs ChangeSummary) {
+	v := (*t)[configType]
+	v.Change = &ChangeSummary{
+		Ignored:  cs.Ignored,
+		Orphaned: cs.Orphaned,
+	}
+	(*t)[configType] = v
+}
+
+func (t *ScrapeSummary) AddInserted(configType string) {
+	v := (*t)[configType]
+	v.Added++
+	(*t)[configType] = v
+}
+
+func (t *ScrapeSummary) AddUpdated(configType string) {
+	v := (*t)[configType]
+	v.Updated++
+	(*t)[configType] = v
+}
+
+func (t *ScrapeSummary) AddUnchanged(configType string) {
+	v := (*t)[configType]
+	v.Unchanged++
+	(*t)[configType] = v
+}
+
+type ChangeSummary struct {
+	Orphaned map[string]int `json:"orphaned,omitempty"`
+	Ignored  map[string]int `json:"ignored,omitempty"`
+}
+
+func (t ChangeSummary) IsEmpty() bool {
+	return len(t.Orphaned) == 0 && len(t.Ignored) == 0
+}
+
+func (t *ChangeSummary) AddOrphaned(typ string) {
+	if t.Orphaned == nil {
+		t.Orphaned = make(map[string]int)
+	}
+	t.Orphaned[typ] += 1
+}
+
+func (t *ChangeSummary) AddIgnored(typ string) {
+	if t.Ignored == nil {
+		t.Ignored = make(map[string]int)
+	}
+	t.Ignored[typ] += 1
+}
+
+func (t *ChangeSummary) Merge(b ChangeSummary) {
+	if b.Orphaned != nil {
+		if t.Orphaned == nil {
+			t.Orphaned = make(map[string]int)
+		}
+		for k, v := range b.Orphaned {
+			t.Orphaned[k] += v
+		}
+	}
+
+	if b.Ignored != nil {
+		if t.Ignored == nil {
+			t.Ignored = make(map[string]int)
+		}
+		for k, v := range b.Ignored {
+			t.Ignored[k] += v
+		}
+	}
+}
+
+type ChangeSummaryByType map[string]ChangeSummary
+
+func (t *ChangeSummaryByType) Merge(typ string, b ChangeSummary) {
+	v := (*t)[typ]
+	v.Merge(b)
+	(*t)[typ] = v
+}
+
+type ConfigTypeScrapeSummary struct {
+	Added     int            `json:"added,omitempty"`
+	Updated   int            `json:"updated,omitempty"`
+	Unchanged int            `json:"unchanged,omitempty"`
+	Change    *ChangeSummary `json:"change,omitempty"`
+}
+
 // +kubebuilder:object:generate=false
 type ScrapeResults []ScrapeResult
 

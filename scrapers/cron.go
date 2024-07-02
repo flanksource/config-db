@@ -150,12 +150,13 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 		ResourceType: job.ResourceTypeScraper,
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		Fn: func(jr job.JobRuntime) error {
-			results, err := RunScraper(sc.WithJobHistory(jr.History))
+			output, err := RunScraper(sc.WithJobHistory(jr.History))
 			if err != nil {
 				jr.History.AddError(err.Error())
 				return fmt.Errorf("error running scraper[%s]: %w", sc.ScrapeConfig().Name, err)
 			}
-			jr.History.SuccessCount = len(results)
+			jr.History.SuccessCount = output.Total
+			jr.History.AddDetails("scrape_summary", output.Summary)
 			return nil
 		},
 	}
@@ -229,8 +230,10 @@ func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kuberne
 				return err
 			}
 
-			if err := db.SavePartialResults(cc, results); err != nil {
+			if summary, err := db.SavePartialResults(cc, results); err != nil {
 				return fmt.Errorf("failed to save results: %w", err)
+			} else {
+				ctx.History.AddDetails("scrape_summary", summary)
 			}
 
 			for i := range results {
@@ -306,8 +309,10 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 				return err
 			}
 
-			if err := db.SavePartialResults(cc, results); err != nil {
+			if summary, err := db.SavePartialResults(cc, results); err != nil {
 				return fmt.Errorf("failed to save %d results: %w", len(results), err)
+			} else {
+				ctx.History.AddDetails("scrape_summary", summary)
 			}
 
 			for i := range results {

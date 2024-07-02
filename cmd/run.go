@@ -60,7 +60,8 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 	}
 	if db.ConnectionString != "" {
 		logger.Infof("Exporting %d resources to DB", len(results))
-		return db.SaveResults(ctx, results)
+		_, err := db.SaveResults(ctx, results)
+		return err
 	}
 
 	if outputDir != "" {
