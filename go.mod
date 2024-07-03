@@ -48,7 +48,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.24.0
 	github.com/flanksource/duty v1.0.526
-	github.com/flanksource/is-healthy v1.0.16
+	github.com/flanksource/is-healthy v1.0.17
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/go-logr/zapr v1.2.4
