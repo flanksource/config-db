@@ -230,6 +230,9 @@
         "id": {
           "$ref": "#/$defs/RelationshipLookup"
         },
+        "external_id": {
+          "$ref": "#/$defs/RelationshipLookup"
+        },
         "name": {
           "$ref": "#/$defs/RelationshipLookup"
         },

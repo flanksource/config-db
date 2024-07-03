@@ -416,6 +416,17 @@ spec:
                                   Alternately, a single cel-expression can be used
                                   that returns a list of relationship selector.
                                 type: string
+                              external_id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                               filter:
                                 description: |-
                                   Filter is a CEL expression that selects on what config items
@@ -821,6 +832,17 @@ spec:
                                   Alternately, a single cel-expression can be used
                                   that returns a list of relationship selector.
                                 type: string
+                              external_id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                               filter:
                                 description: |-
                                   Filter is a CEL expression that selects on what config items
@@ -1176,6 +1198,17 @@ spec:
                                   Alternately, a single cel-expression can be used
                                   that returns a list of relationship selector.
                                 type: string
+                              external_id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                               filter:
                                 description: |-
                                   Filter is a CEL expression that selects on what config items
@@ -1490,6 +1523,17 @@ spec:
                                   Alternately, a single cel-expression can be used
                                   that returns a list of relationship selector.
                                 type: string
+                              external_id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                               filter:
                                 description: |-
                                   Filter is a CEL expression that selects on what config items
@@ -1844,6 +1888,17 @@ spec:
                                   Alternately, a single cel-expression can be used
                                   that returns a list of relationship selector.
                                 type: string
+                              external_id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                               filter:
                                 description: |-
                                   Filter is a CEL expression that selects on what config items
@@ -2311,6 +2366,17 @@ spec:
                                   Alternately, a single cel-expression can be used
                                   that returns a list of relationship selector.
                                 type: string
+                              external_id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                               filter:
                                 description: |-
                                   Filter is a CEL expression that selects on what config items
@@ -2695,6 +2761,17 @@ spec:
                                   Alternately, a single cel-expression can be used
                                   that returns a list of relationship selector.
                                 type: string
+                              external_id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                               filter:
                                 description: |-
                                   Filter is a CEL expression that selects on what config items
@@ -3129,6 +3206,17 @@ spec:
                                   Alternately, a single cel-expression can be used
                                   that returns a list of relationship selector.
                                 type: string
+                              external_id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                               filter:
                                 description: |-
                                   Filter is a CEL expression that selects on what config items
@@ -3466,6 +3554,17 @@ spec:
                                   Alternately, a single cel-expression can be used
                                   that returns a list of relationship selector.
                                 type: string
+                              external_id:
+                                description: RelationshipLookup offers different ways
+                                  to specify a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
                               filter:
                                 description: |-
                                   Filter is a CEL expression that selects on what config items

@@ -150,15 +150,16 @@ func (t RelationshipLookup) IsEmpty() bool {
 
 // RelationshipSelector is the evaluated output of RelationshipSelector.
 type RelationshipSelector struct {
-	ID     string            `json:"id,omitempty"`
-	Name   string            `json:"name,omitempty"`
-	Type   string            `json:"type,omitempty"`
-	Agent  string            `json:"agent,omitempty"`
-	Labels map[string]string `json:"labels,omitempty"`
+	ID         string            `json:"id,omitempty"`
+	ExternalID string            `json:"external_id,omitempty"`
+	Name       string            `json:"name,omitempty"`
+	Type       string            `json:"type,omitempty"`
+	Agent      string            `json:"agent,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
 }
 
 func (t *RelationshipSelector) IsEmpty() bool {
-	return t.ID == "" && t.Name == "" && t.Type == "" && t.Agent == "" && len(t.Labels) == 0
+	return t.ID == "" && t.ExternalID == "" && t.Name == "" && t.Type == "" && t.Agent == "" && len(t.Labels) == 0
 }
 
 func (t *RelationshipSelector) ToResourceSelector() types.ResourceSelector {
@@ -168,19 +169,27 @@ func (t *RelationshipSelector) ToResourceSelector() types.ResourceSelector {
 	}
 	labelSelector = strings.TrimSuffix(labelSelector, ",")
 
-	return types.ResourceSelector{
+	rs := types.ResourceSelector{
 		ID:            t.ID,
 		Name:          t.Name,
-		Types:         []string{t.Type},
 		Agent:         t.Agent,
 		LabelSelector: labelSelector,
 	}
+	if t.Type != "" {
+		rs.Types = []string{t.Type}
+	}
+	if t.ExternalID != "" {
+		rs.FieldSelector = fmt.Sprintf("external_id=%s", t.ExternalID)
+	}
+
+	return rs
 }
 
 type RelationshipSelectorTemplate struct {
-	ID   RelationshipLookup `json:"id,omitempty"`
-	Name RelationshipLookup `json:"name,omitempty"`
-	Type RelationshipLookup `json:"type,omitempty"`
+	ID         RelationshipLookup `json:"id,omitempty"`
+	ExternalID RelationshipLookup `json:"external_id,omitempty"`
+	Name       RelationshipLookup `json:"name,omitempty"`
+	Type       RelationshipLookup `json:"type,omitempty"`
 	// Agent can be one of
 	//  - agent id
 	//  - agent name
@@ -190,7 +199,7 @@ type RelationshipSelectorTemplate struct {
 }
 
 func (t *RelationshipSelectorTemplate) IsEmpty() bool {
-	return t.ID.IsEmpty() && t.Name.IsEmpty() && t.Type.IsEmpty() && t.Agent.IsEmpty() && len(t.Labels) == 0
+	return t.ID.IsEmpty() && t.ExternalID.IsEmpty() && t.Name.IsEmpty() && t.Type.IsEmpty() && t.Agent.IsEmpty() && len(t.Labels) == 0
 }
 
 // Eval evaluates the template and returns a RelationshipSelector.
@@ -210,6 +219,14 @@ func (t *RelationshipSelectorTemplate) Eval(labels map[string]string, env map[st
 		if output.ID, err = t.ID.Eval(labels, env); err != nil {
 			return nil, fmt.Errorf("failed to evaluate id: %v for config relationship: %w", t.ID, err)
 		} else if output.ID == "" {
+			return nil, nil
+		}
+	}
+
+	if !t.ExternalID.IsEmpty() {
+		if output.ExternalID, err = t.ExternalID.Eval(labels, env); err != nil {
+			return nil, fmt.Errorf("failed to evaluate external id: %v for config relationship: %w", t.ExternalID, err)
+		} else if output.ExternalID == "" {
 			return nil, nil
 		}
 	}
