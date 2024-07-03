@@ -103,7 +103,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		var err error
 		ctx, _, err = applyKubeconfig(ctx, *config.Kubeconfig)
 		if err != nil {
-			return fmt.Errorf("failed to apply kube config")
+			return fmt.Errorf("failed to apply kube config: %w", err)
 		}
 	}
 
