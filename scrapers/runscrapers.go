@@ -1,9 +1,11 @@
 package scrapers
 
 import (
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/flanksource/commons/logger"
@@ -17,6 +19,11 @@ import (
 	"github.com/flanksource/duty/models"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+func init() {
+	gob.Register(map[string]any{})
+	gob.Register([]any{})
+}
 
 // RunK8ObjScraper extracts & saves the given kubernetes objects.
 func RunK8ObjScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured) ([]v1.ScrapeResult, error) {
@@ -44,6 +51,23 @@ func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events
 
 // Run ...
 func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
+	var localResultPath string
+	if base, ok := os.LookupEnv("SCRAPE_RESULT_DIR"); ok {
+		localResultPath = fmt.Sprintf("%s/%s.gob", base, ctx.ScrapeConfig().Name)
+		f, err := os.Open(localResultPath)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("failed to open local result path: %w", err)
+		} else if err == nil {
+			defer f.Close()
+
+			var results []v1.ScrapeResult
+			if err := gob.NewDecoder(f).Decode(&results); err != nil {
+				return nil, fmt.Errorf("failed to decode local result path: %w", err)
+			}
+			return results, nil
+		}
+	}
+
 	var results v1.ScrapeResults
 	for _, scraper := range All {
 		if !scraper.CanScrape(ctx.ScrapeConfig().Spec) {
@@ -66,6 +90,17 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 			}
 
 			results = append(results, scraped...)
+		}
+	}
+
+	if localResultPath != "" {
+		writeFile, err := os.Create(localResultPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create local result file: %w", err)
+		}
+		defer writeFile.Close()
+		if err := gob.NewEncoder(writeFile).Encode(results); err != nil {
+			return nil, fmt.Errorf("failed to encode local result path: %w", err)
 		}
 	}
 
