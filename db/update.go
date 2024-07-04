@@ -109,6 +109,9 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	if ci.DeletedAt != existing.DeletedAt {
 		updates["deleted_at"] = ci.DeletedAt
 		updates["delete_reason"] = ci.DeleteReason
+	} else {
+		updates["deleted_at"] = gorm.Expr("NULL")
+		updates["delete_reason"] = gorm.Expr("NULL")
 	}
 
 	changeResult, err := generateConfigChange(*ci, *existing)
