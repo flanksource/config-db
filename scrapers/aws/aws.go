@@ -215,6 +215,7 @@ func (aws Scraper) cloudformationStacks(ctx *AWSContext, config v1.AWS, results 
 			ConfigClass:  "Stack",
 			Name:         stackName,
 			ID:           stackName,
+			Aliases:      []string{lo.FromPtr(stack.StackId)},
 			Parents:      []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		}.WithHealthStatus(resourceHealth))
 	}
@@ -1608,7 +1609,23 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		aws.trustedAdvisor(awsCtx, awsConfig, results)
 		aws.s3Buckets(awsCtx, awsConfig, results)
 
-		for i := range *results {
+		for i, r := range *results {
+			if stack, ok := r.Labels["aws:cloudformation:stack-id"]; ok {
+				if len(r.Parents) != 0 {
+					// the default parent should be moved to soft relationship
+					defaultParent := r.Parents[0]
+					(*results)[i].RelationshipResults = append((*results)[i].RelationshipResults, v1.RelationshipResult{
+						ConfigExternalID:  v1.ExternalID{ConfigType: defaultParent.Type, ExternalID: []string{defaultParent.ExternalID}},
+						RelatedExternalID: v1.ExternalID{ConfigType: r.Type, ExternalID: []string{r.ID}},
+					})
+				}
+
+				(*results)[i].Parents = append([]v1.ConfigExternalKey{{
+					Type:       v1.AWSCloudFormationStack,
+					ExternalID: stack,
+				}}, (*results)[i].Parents...)
+			}
+
 			(*results)[i].Tags = append((*results)[i].Tags, v1.Tag{
 				Name:  "account",
 				Value: lo.FromPtr(awsCtx.Caller.Account),
