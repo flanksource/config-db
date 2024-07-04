@@ -62,23 +62,5 @@ func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) err
 		}
 	}
 
-	// Any config item that was previously marked as deleted should be un-deleted
-	// if the item was re-discovered in this run.
-	if val := ctx.Value(contextKeyScrapeStart); val != nil {
-		if start, ok := val.(time.Time); ok {
-			query := `UPDATE config_items
-				SET deleted_at = NULL
-				WHERE deleted_at IS NOT NULL
-					AND deleted_at != updated_at
-					AND ((NOW() - last_scraped_time) <= INTERVAL '1 SECOND' * ?)`
-			tx := ctx.DutyContext().DB().Exec(query, time.Since(start).Seconds())
-			if err := tx.Error; err != nil {
-				return fmt.Errorf("error un-deleting stale config items: %w", err)
-			}
-
-			ctx.Logger.V(3).Infof("undeleted %d stale config items", tx.RowsAffected)
-		}
-	}
-
 	return nil
 }
