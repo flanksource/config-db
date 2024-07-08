@@ -47,6 +47,7 @@ const (
 	AWSECSCluster          = "AWS::ECS::Cluster"
 	AWSECSService          = "AWS::ECS::Service"
 	AWSECSTaskDefinition   = "AWS::ECS::TaskDefinition"
+	AWSECSTask             = "AWS::ECS::Task"
 	AWSEKSFargateProfile   = "AWS::EKS::FargateProfile"
 	AWSElastiCacheCluster  = "AWS::ElastiCache::CacheCluster"
 	AWSLambdaFunction      = "AWS::Lambda::Function"
