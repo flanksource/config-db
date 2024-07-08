@@ -36,12 +36,13 @@ var ReconcileConfigs = &job.Job{
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = job.ResourceTypeUpstream
 		ctx.History.ResourceID = api.UpstreamConfig.Host
-		count, fkFailed, err := upstream.ReconcileSome(ctx.Context, api.UpstreamConfig, ReconcilePageSize, tablesToReconcile...)
-		if err != nil {
-			ctx.History.AddError(err.Error())
+		summary := upstream.ReconcileSome(ctx.Context, api.UpstreamConfig, ReconcilePageSize, tablesToReconcile...)
+		ctx.History.AddDetails("summary", summary)
+		ctx.History.SuccessCount, ctx.History.ErrorCount = summary.GetSuccessFailure()
+		if summary.Error() != nil {
+			ctx.History.AddDetails("errors", summary.Error())
 		}
-		ctx.History.ErrorCount += fkFailed
-		ctx.History.SuccessCount += count
+
 		return nil
 	},
 }
