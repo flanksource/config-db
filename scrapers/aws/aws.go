@@ -14,6 +14,7 @@ import (
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
@@ -31,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/samber/lo"
@@ -360,44 +362,61 @@ func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 	ctx.Logger.V(2).Infof("scraping ECS task definitions")
 
 	client := ecs.NewFromConfig(*ctx.Session)
-	input := &ecs.ListTaskDefinitionsInput{}
-	paginator := ecs.NewListTaskDefinitionsPaginator(client, input)
+	var tdStatus ecsTypes.TaskDefinitionStatus
+	for _, status := range tdStatus.Values() {
+		ctx.Logger.V(3).Infof("scraping %s ECS task definitions", status)
 
-	for paginator.HasMorePages() {
-		output, err := paginator.NextPage(ctx)
-		if err != nil {
-			results.Errorf(err, "failed to list ECS tasks")
-			return
+		var configStatus = models.HealthUnknown
+		switch status {
+		case ecsTypes.TaskDefinitionStatusActive:
+			configStatus = models.HealthHealthy
+		case ecsTypes.TaskDefinitionStatusInactive:
+			configStatus = models.HealthUnhealthy
 		}
 
-		if len(output.TaskDefinitionArns) == 0 {
-			return
-		}
+		input := &ecs.ListTaskDefinitionsInput{Status: status}
+		paginator := ecs.NewListTaskDefinitionsPaginator(client, input)
 
-		for _, taskDefinitionArn := range output.TaskDefinitionArns {
-			describeTaskDefinitionOutput, err := client.DescribeTaskDefinition(ctx, &ecs.DescribeTaskDefinitionInput{
-				TaskDefinition: &taskDefinitionArn,
-			})
+		for paginator.HasMorePages() {
+			output, err := paginator.NextPage(ctx)
 			if err != nil {
-				results.Errorf(err, "failed to describe ECS task definition %s", taskDefinitionArn)
-				continue
+				results.Errorf(err, "failed to list ECS tasks")
+				break
 			}
 
-			labels := make(map[string]string)
-			for _, tag := range describeTaskDefinitionOutput.Tags {
-				labels[*tag.Key] = *tag.Value
+			if len(output.TaskDefinitionArns) == 0 {
+				break
 			}
 
-			*results = append(*results, v1.ScrapeResult{
-				Type:        v1.AWSECSTaskDefinition,
-				Labels:      labels,
-				ID:          *describeTaskDefinitionOutput.TaskDefinition.TaskDefinitionArn,
-				Name:        *describeTaskDefinitionOutput.TaskDefinition.Family,
-				Config:      describeTaskDefinitionOutput.TaskDefinition,
-				ConfigClass: "ECSTaskDefinition",
-				BaseScraper: config.BaseScraper,
-				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSECSTaskDefinition, *describeTaskDefinitionOutput.TaskDefinition.Family)},
-			})
+			for _, taskDefinitionArn := range output.TaskDefinitionArns {
+				describeTaskDefinitionOutput, err := client.DescribeTaskDefinition(ctx, &ecs.DescribeTaskDefinitionInput{
+					TaskDefinition: &taskDefinitionArn,
+				})
+				if err != nil {
+					results.Errorf(err, "failed to describe ECS task definition %s", taskDefinitionArn)
+					continue
+				}
+
+				labels := make(map[string]string)
+				for _, tag := range describeTaskDefinitionOutput.Tags {
+					labels[*tag.Key] = *tag.Value
+				}
+
+				*results = append(*results, v1.ScrapeResult{
+					Type:        v1.AWSECSTaskDefinition,
+					Labels:      labels,
+					CreatedAt:   describeTaskDefinitionOutput.TaskDefinition.RegisteredAt,
+					DeletedAt:   describeTaskDefinitionOutput.TaskDefinition.DeregisteredAt,
+					ID:          *describeTaskDefinitionOutput.TaskDefinition.TaskDefinitionArn,
+					Name:        *describeTaskDefinitionOutput.TaskDefinition.Family,
+					Config:      describeTaskDefinitionOutput.TaskDefinition,
+					Health:      configStatus,
+					Status:      formatStatus(string(describeTaskDefinitionOutput.TaskDefinition.Status)),
+					ConfigClass: "ECSTaskDefinition",
+					BaseScraper: config.BaseScraper,
+					Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSECSTaskDefinition, *describeTaskDefinitionOutput.TaskDefinition.Family)},
+				})
+			}
 		}
 	}
 }
@@ -1743,4 +1762,8 @@ func getConsoleLink(region, resourceType, resourceID string) *types.Property {
 			},
 		},
 	}
+}
+
+func formatStatus(status string) string {
+	return lo.Capitalize(strings.ReplaceAll(strings.ReplaceAll(status, "-", " "), "_", " "))
 }
