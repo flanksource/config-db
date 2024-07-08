@@ -280,12 +280,12 @@ func (aws Scraper) ecsClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			continue
 		}
 
-		labels := make(map[string]string)
-		for _, tag := range cluster.Clusters[0].Tags {
-			labels[*tag.Key] = *tag.Value
-		}
-
 		for _, clusterInfo := range cluster.Clusters {
+			labels := make(map[string]string)
+			for _, tag := range clusterInfo.Tags {
+				labels[*tag.Key] = *tag.Value
+			}
+
 			*results = append(*results, v1.ScrapeResult{
 				Type:        v1.AWSECSCluster,
 				Labels:      labels,
@@ -341,6 +341,11 @@ func (aws Scraper) ecsServices(ctx *AWSContext, config v1.AWS, client *ecs.Clien
 			Relationship:      "ECSTaskDefinitionECSService",
 		})
 
+		labels := make(map[string]string)
+		for _, tag := range service.Tags {
+			labels[*tag.Key] = *tag.Value
+		}
+
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSECSService,
 			ID:                  *service.ServiceArn,
@@ -349,7 +354,10 @@ func (aws Scraper) ecsServices(ctx *AWSContext, config v1.AWS, client *ecs.Clien
 			RelationshipResults: relationships,
 			ConfigClass:         "ECSService",
 			BaseScraper:         config.BaseScraper,
-			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSECSService, *service.ServiceArn, map[string]string{"cluster": clusterName})},
+			Labels:              labels,
+			Status:              formatStatus(lo.FromPtr(service.Status)),
+			CreatedAt:           service.CreatedAt,
+			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSECSService, *service.ServiceName, map[string]string{"cluster": clusterName})},
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSECSCluster, ExternalID: cluster}},
 		})
 	}
