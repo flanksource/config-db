@@ -363,34 +363,56 @@ func (aws Scraper) ecsServices(ctx *AWSContext, config v1.AWS, client *ecs.Clien
 	}
 }
 
+func (aws Scraper) listAllECSTasks(ctx *AWSContext, client *ecs.Client, clusterArn string, results *v1.ScrapeResults) ([]string, error) {
+	var taskArns []string
+	for _, desiredStatus := range ecsTypes.DesiredStatus("").Values() {
+		ctx.Logger.V(2).Infof("scraping ECS tasks for cluster %s", clusterArn)
+
+		for {
+			tasks, err := client.ListTasks(ctx, &ecs.ListTasksInput{
+				Cluster:       &clusterArn,
+				DesiredStatus: desiredStatus,
+			})
+			if err != nil {
+				results.Errorf(err, "failed to list ECS tasks in cluster %s", clusterArn)
+				continue
+			}
+
+			taskArns = append(taskArns, tasks.TaskArns...)
+			if tasks.NextToken == nil {
+				break
+			}
+		}
+	}
+
+	return taskArns, nil
+}
+
 func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, client *ecs.Client, clusterArn, clusterName string, results *v1.ScrapeResults) {
 	if !config.Includes("ECSTask") {
 		return
 	}
 
-	var y ecsTypes.DesiredStatus
-	for _, desiredStatus := range y.Values() {
+	allTaskArns, err := aws.listAllECSTasks(ctx, client, clusterArn, results)
+	if err != nil {
+		results.Errorf(err, "failed to list ECS tasks in cluster %s", clusterArn)
+		return
+	}
+
+	for _, taskArns := range lo.Chunk(allTaskArns, 100) {
 		ctx.Logger.V(2).Infof("scraping ECS tasks for cluster %s", clusterArn)
-
-		tasks, err := client.ListTasks(ctx, &ecs.ListTasksInput{
-			Cluster:       &clusterArn,
-			DesiredStatus: desiredStatus,
-		})
-		if err != nil {
-			results.Errorf(err, "failed to list ECS tasks in cluster %s", clusterArn)
-			continue
-		}
-
-		if len(tasks.TaskArns) == 0 {
-			continue
-		}
 
 		describeTasksOutput, err := client.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 			Cluster: &clusterArn,
-			Tasks:   tasks.TaskArns,
+			Tasks:   taskArns,
 		})
 		if err != nil {
 			results.Errorf(err, "failed to describe ECS tasks in cluster %s", clusterArn)
+			continue
+		}
+
+		if len(describeTasksOutput.Failures) > 0 {
+			results.Errorf(fmt.Errorf("%v", describeTasksOutput.Failures), "failed to describe ECS tasks in cluster %s", clusterArn)
 			continue
 		}
 
