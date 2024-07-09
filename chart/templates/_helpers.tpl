@@ -36,5 +36,8 @@ Selector labels
 app.kubernetes.io/name: {{ include "config-db.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 control-plane: {{ include "config-db.name" . }}
+{{- if .Values.global.labels }}
+{{.Values.global.labels | toYaml}}
+{{- end }}
 {{- end }}
 
