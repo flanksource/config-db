@@ -516,6 +516,13 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 										if ingress, ok := ing.(map[string]any); ok {
 											if hostname, ok := ingress["hostname"].(string); ok && hostname != "" {
 												labels["hostname"] = hostname
+
+												if strings.HasSuffix(hostname, "elb.amazonaws.com") {
+													relationships = append(relationships, v1.RelationshipResult{
+														ConfigID:          string(obj.GetUID()),
+														RelatedExternalID: v1.ExternalID{ExternalID: []string{hostname}, ConfigType: v1.AWSLoadBalancer},
+													})
+												}
 											}
 
 											if ip, ok := ingress["ip"].(string); ok && ip != "" {
