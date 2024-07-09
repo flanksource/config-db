@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/mapstructure"
 	coreV1 "k8s.io/api/core/v1"
@@ -114,11 +115,11 @@ type KubernetesRelationshipSelector struct {
 
 type KubernetesRelationshipSelectorTemplate struct {
 	// Kind defines which field to use for the kind lookup
-	Kind RelationshipLookup `json:"kind" yaml:"kind"`
+	Kind duty.Lookup `json:"kind" yaml:"kind"`
 	// Name defines which field to use for the name lookup
-	Name RelationshipLookup `json:"name" yaml:"name"`
+	Name duty.Lookup `json:"name" yaml:"name"`
 	// Namespace defines which field to use for the namespace lookup
-	Namespace RelationshipLookup `json:"namespace" yaml:"namespace"`
+	Namespace duty.Lookup `json:"namespace" yaml:"namespace"`
 }
 
 func (t *KubernetesRelationshipSelectorTemplate) IsEmpty() bool {

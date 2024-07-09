@@ -8,6 +8,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
@@ -485,7 +486,7 @@ type ScrapeResult struct {
 	// RelationshipSelectors are used to form relationship of this scraped item with other items.
 	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without
 	// knowing the external ids of the item to be linked.
-	RelationshipSelectors []RelationshipSelector `json:"-"`
+	RelationshipSelectors []duty.RelationshipSelector `json:"-"`
 }
 
 func (s ScrapeResult) WithHealthStatus(hs health.HealthStatus) ScrapeResult {

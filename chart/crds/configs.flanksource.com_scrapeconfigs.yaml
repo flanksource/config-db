@@ -417,8 +417,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -433,8 +433,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -448,8 +448,19 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -459,8 +470,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -833,8 +844,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -849,8 +860,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -864,8 +875,19 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -875,8 +897,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1199,8 +1221,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1215,8 +1237,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1230,8 +1252,19 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1241,8 +1274,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1524,8 +1557,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1540,8 +1573,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1555,8 +1588,19 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1566,8 +1610,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1889,8 +1933,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1905,8 +1949,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1920,8 +1964,19 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1931,8 +1986,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2367,8 +2422,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2383,8 +2438,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2398,8 +2453,19 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2409,8 +2475,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2762,8 +2828,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2778,8 +2844,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2793,8 +2859,19 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2804,8 +2881,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3207,8 +3284,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3223,8 +3300,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3238,8 +3315,19 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3249,8 +3337,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3555,8 +3643,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3571,8 +3659,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3586,8 +3674,19 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3597,8 +3696,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
