@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -156,15 +158,15 @@ func (aws Scraper) sqs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 
 	ctx.Logger.V(2).Infof("scraping SQS queues")
 
-	SQS := sqs.NewFromConfig(*ctx.Session)
-	listQueuesOutput, err := SQS.ListQueues(ctx, &sqs.ListQueuesInput{})
+	client := sqs.NewFromConfig(*ctx.Session)
+	listQueuesOutput, err := client.ListQueues(ctx, &sqs.ListQueuesInput{})
 	if err != nil {
 		results.Errorf(err, "failed to list SQS queues")
 		return
 	}
 
 	for _, queueURL := range listQueuesOutput.QueueUrls {
-		getQueueAttributesOutput, err := SQS.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
+		getQueueAttributesOutput, err := client.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
 			QueueUrl:       &queueURL,
 			AttributeNames: []sqsTypes.QueueAttributeName{sqsTypes.QueueAttributeNameAll},
 		})
@@ -173,14 +175,22 @@ func (aws Scraper) sqs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			continue
 		}
 
+		createdTimestamp, err := strconv.ParseInt(getQueueAttributesOutput.Attributes["CreatedTimestamp"], 10, 64)
+		if err != nil {
+			results.Errorf(err, "Failed to parse creation timestamp for queue: %s", queueURL)
+			continue
+		}
+
+		queueName := queueURL[strings.LastIndex(queueURL, "/")+1:]
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSSQS,
+			CreatedAt:   lo.ToPtr(time.Unix(createdTimestamp, 0)),
 			BaseScraper: config.BaseScraper,
 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSSQS, queueURL, nil)},
-			Config:      getQueueAttributesOutput,
+			Config:      getQueueAttributesOutput.Attributes,
 			Labels:      getQueueAttributesOutput.Attributes,
 			ConfigClass: "Queue",
-			Name:        queueURL,
+			Name:        queueName,
 			ID:          queueURL,
 		})
 	}
@@ -242,14 +252,23 @@ func (aws Scraper) snsTopics(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 		labels := make(map[string]string)
 		labels["region"] = ctx.Session.Region
 
+		attributeOutput, err := client.GetTopicAttributes(ctx, &sns.GetTopicAttributesInput{
+			TopicArn: topic.TopicArn,
+		})
+		if err != nil {
+			ctx.Logger.Errorf("failed to get attributes for topic %s: %v", topicArn, err)
+			continue
+		}
+
+		topicName := topicArn[strings.LastIndex(topicArn, ":")+1:]
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSSNSTopic,
 			BaseScraper: config.BaseScraper,
 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSSNSTopic, topicArn, nil)},
-			Config:      topic,
+			Config:      attributeOutput.Attributes,
 			Labels:      labels,
 			ConfigClass: "Topic",
-			Name:        topicArn,
+			Name:        topicName,
 			Aliases:     []string{topicArn},
 			ID:          topicArn,
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
