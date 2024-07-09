@@ -366,7 +366,7 @@ func (aws Scraper) ecsServices(ctx *AWSContext, config v1.AWS, client *ecs.Clien
 func (aws Scraper) listAllECSTasks(ctx *AWSContext, client *ecs.Client, clusterArn string, results *v1.ScrapeResults) ([]string, error) {
 	var taskArns []string
 	for _, desiredStatus := range ecsTypes.DesiredStatus("").Values() {
-		ctx.Logger.V(2).Infof("scraping ECS tasks for cluster %s", clusterArn)
+		ctx.Logger.V(2).Infof("scraping %s ECS tasks for cluster %s", desiredStatus, clusterArn)
 
 		for {
 			tasks, err := client.ListTasks(ctx, &ecs.ListTasksInput{
@@ -400,7 +400,7 @@ func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, client *ecs.Client, 
 	}
 
 	for _, taskArns := range lo.Chunk(allTaskArns, 100) {
-		ctx.Logger.V(2).Infof("scraping ECS tasks for cluster %s", clusterArn)
+		ctx.Logger.V(2).Infof("describing %d ECS tasks for cluster %s", len(allTaskArns), clusterArn)
 
 		describeTasksOutput, err := client.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 			Cluster: &clusterArn,
@@ -419,15 +419,25 @@ func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, client *ecs.Client, 
 		for _, task := range describeTasksOutput.Tasks {
 			taskID := strings.Split(*task.TaskArn, "/")[len(strings.Split(*task.TaskArn, "/"))-1]
 
+			var name string
 			labels := make(map[string]string)
 			for _, tag := range task.Tags {
 				labels[*tag.Key] = *tag.Value
+
+				if *tag.Key == "Name" {
+					name = *tag.Value
+				}
+			}
+
+			if name == "" {
+				name = strings.TrimPrefix(lo.FromPtr(task.Group), "family:")
+				name = strings.TrimPrefix(name, "service:")
 			}
 
 			*results = append(*results, v1.ScrapeResult{
 				Type:        v1.AWSECSTask,
 				ID:          *task.TaskArn,
-				Name:        taskID,
+				Name:        name,
 				Config:      task,
 				Labels:      labels,
 				ConfigClass: "ECSTask",
@@ -437,8 +447,14 @@ func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, client *ecs.Client, 
 				Status:      formatStatus(*task.LastStatus),
 				BaseScraper: config.BaseScraper,
 				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSECSTask, taskID, map[string]string{"cluster": clusterName})},
+				RelationshipResults: []v1.RelationshipResult{
+					{
+						ConfigExternalID:  v1.ExternalID{ExternalID: []string{*task.TaskDefinitionArn}, ConfigType: v1.AWSECSTaskDefinition},
+						RelatedExternalID: v1.ExternalID{ExternalID: []string{*task.TaskArn}, ConfigType: v1.AWSECSTask},
+						Relationship:      "ECSTaskDefinitionECSTask",
+					},
+				},
 				Parents: []v1.ConfigExternalKey{
-					{Type: v1.AWSECSTaskDefinition, ExternalID: *task.TaskDefinitionArn},
 					{Type: v1.AWSECSCluster, ExternalID: clusterArn},
 				},
 			})
