@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/samber/lo"
 )
 
 // AWS ...
@@ -75,26 +76,36 @@ const (
 	AWSEC2DHCPOptions      = "AWS::EC2::DHCPOptions"
 )
 
+var defaultAWSExclusions = []string{"ECSTaskDefinition"}
+
 func (aws AWS) Includes(resource string) bool {
 	if len(aws.Include) == 0 {
-		return true
+		return !lo.ContainsBy(defaultAWSExclusions, func(item string) bool {
+			return strings.EqualFold(item, resource)
+		})
 	}
+
 	for _, include := range aws.Include {
 		if strings.EqualFold(include, resource) {
 			return true
 		}
 	}
+
 	return false
 }
 
 func (aws AWS) Excludes(resource string) bool {
 	if len(aws.Exclude) == 0 {
-		return false
+		return !lo.ContainsBy(defaultAWSExclusions, func(item string) bool {
+			return strings.EqualFold(item, resource)
+		})
 	}
+
 	for _, exclude := range aws.Exclude {
 		if strings.EqualFold(exclude, resource) {
 			return true
 		}
 	}
+
 	return false
 }
