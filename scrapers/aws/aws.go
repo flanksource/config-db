@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
@@ -187,7 +188,7 @@ func (aws Scraper) sqs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			CreatedAt:   lo.ToPtr(time.Unix(createdTimestamp, 0)),
 			BaseScraper: config.BaseScraper,
 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSSQS, queueURL, nil)},
-			Config:      getQueueAttributesOutput.Attributes,
+			Config:      unwrapFields(getQueueAttributesOutput.Attributes, "Policy"),
 			Labels:      getQueueAttributesOutput.Attributes,
 			ConfigClass: "Queue",
 			Name:        queueName,
@@ -265,7 +266,7 @@ func (aws Scraper) snsTopics(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			Type:        v1.AWSSNSTopic,
 			BaseScraper: config.BaseScraper,
 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSSNSTopic, topicArn, nil)},
-			Config:      attributeOutput.Attributes,
+			Config:      unwrapFields(attributeOutput.Attributes, "Policy", "EffectiveDeliveryPolicy"),
 			Labels:      labels,
 			ConfigClass: "Topic",
 			Name:        topicName,
@@ -324,7 +325,7 @@ func (aws Scraper) ecsClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 }
 
 func (aws Scraper) ecsServices(ctx *AWSContext, config v1.AWS, client *ecs.Client, cluster, clusterName string, results *v1.ScrapeResults) {
-	if !config.Includes("ecsservice") {
+	if !config.Includes("ECSService") {
 		return
 	}
 
@@ -441,10 +442,10 @@ func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, client *ecs.Client, 
 			var name string
 			labels := make(map[string]string)
 			for _, tag := range task.Tags {
-				labels[*tag.Key] = *tag.Value
-
-				if *tag.Key == "Name" {
+				if strings.ToLower(*tag.Key) == "name" {
 					name = *tag.Value
+				} else {
+					labels[*tag.Key] = *tag.Value
 				}
 			}
 
@@ -580,7 +581,7 @@ func (aws Scraper) eksFargateProfiles(ctx *AWSContext, config v1.AWS, client *ek
 }
 
 func (aws Scraper) elastiCache(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
-	if config.Excludes("ElastiCache") {
+	if !config.Includes("ElastiCache") {
 		return
 	}
 
@@ -608,7 +609,7 @@ func (aws Scraper) elastiCache(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 }
 
 func (aws Scraper) lambdaFunctions(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
-	if config.Excludes("lambda") {
+	if !config.Includes("lambda") {
 		return
 	}
 	ctx.Logger.V(2).Infof("scraping lambda functions")
@@ -1888,4 +1889,23 @@ func getConsoleLink(region, resourceType, resourceID string, opt map[string]stri
 
 func formatStatus(status string) string {
 	return lo.Capitalize(strings.ReplaceAll(strings.ReplaceAll(status, "-", " "), "_", " "))
+}
+
+// unwrapFields unwraps the given JSON encoded fields in the map.
+func unwrapFields(m map[string]string, fields ...string) map[string]any {
+	var output = make(map[string]any)
+	for k, v := range m {
+		if lo.Contains(fields, k) {
+			var unwrapped map[string]any
+			if err := json.Unmarshal([]byte(v), &unwrapped); err != nil {
+				output[k] = v
+			} else {
+				output[k] = unwrapped
+			}
+		} else {
+			output[k] = v
+		}
+	}
+
+	return output
 }
