@@ -1264,7 +1264,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Name:                *lb.LoadBalancerName,
 			Labels:              labels,
 			Tags:                tags,
-			Aliases:             []string{"AWSELB/" + arn, arn},
+			Aliases:             []string{"AWSELB/" + arn, arn, lo.FromPtr(lb.CanonicalHostedZoneName)},
 			ID:                  *lb.LoadBalancerName,
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(lb.VPCId)}},
 			RelationshipResults: relationships,
