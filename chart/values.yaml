@@ -4,6 +4,7 @@
 global:
   imageRegistry: docker.io
   imagePrefix: flanksource
+  labels: {}
   db:
     connectionPooler:
       enabled: false
