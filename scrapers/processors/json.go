@@ -13,6 +13,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
@@ -197,8 +198,8 @@ func (e Extract) String() string {
 	return s
 }
 
-func getRelationshipsFromRelationshipConfigs(input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]v1.RelationshipSelector, error) {
-	var output []v1.RelationshipSelector
+func getRelationshipsFromRelationshipConfigs(input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]duty.RelationshipSelector, error) {
+	var output []duty.RelationshipSelector
 
 	for _, rc := range relationshipConfigs {
 		if rc.Filter != "" {
@@ -214,14 +215,14 @@ func getRelationshipsFromRelationshipConfigs(input v1.ScrapeResult, relationship
 			}
 		}
 
-		var relationshipSelectors []v1.RelationshipSelector
+		var relationshipSelectors []duty.RelationshipSelector
 		if rc.Expr != "" {
 			celOutput, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: rc.Expr})
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate relationship config (expr: %s, config_id: %s): %v", rc.Expr, lo.FromPtr(input.ConfigID), err)
 			}
 
-			var output []v1.RelationshipSelector
+			var output []duty.RelationshipSelector
 			if err := json.Unmarshal([]byte(celOutput), &output); err != nil {
 				return nil, fmt.Errorf("relationship config expr (%s) did not evaulate to a list of relationship selectors: %w", rc.Expr, err)
 			}
