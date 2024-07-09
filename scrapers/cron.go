@@ -170,6 +170,10 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		return fmt.Errorf("[%s] failed to schedule %v", j.Name, err)
 	}
 
+	if sc.Properties().On("scraper.kubernetes.watch.disable") {
+		return nil
+	}
+
 	for _, config := range sc.ScrapeConfig().Spec.Kubernetes {
 		if len(config.Watch) == 0 {
 			config.Watch = v1.DefaultWatchKinds

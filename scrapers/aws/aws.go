@@ -1769,6 +1769,13 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				Value: lo.FromPtr(awsCtx.Caller.Account),
 			})
 
+			for _, t := range awsConfig.Tags {
+				(*results)[i].Tags = append((*results)[i].Tags, v1.Tag{
+					Name:  t.Name,
+					Value: t.Value,
+				})
+			}
+
 			delete((*results)[i].Labels, "name")
 			delete((*results)[i].Labels, "Name")
 		}
