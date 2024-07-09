@@ -436,14 +436,6 @@ func (aws Scraper) ecsTaskDefinitions(ctx *AWSContext, config v1.AWS, results *v
 	for _, status := range tdStatus.Values() {
 		ctx.Logger.V(3).Infof("scraping %s ECS task definitions", status)
 
-		configHealth := models.HealthUnknown
-		switch status {
-		case ecsTypes.TaskDefinitionStatusActive:
-			configHealth = models.HealthHealthy
-		case ecsTypes.TaskDefinitionStatusInactive:
-			configHealth = models.HealthUnhealthy
-		}
-
 		input := &ecs.ListTaskDefinitionsInput{Status: status}
 		paginator := ecs.NewListTaskDefinitionsPaginator(client, input)
 
@@ -480,7 +472,6 @@ func (aws Scraper) ecsTaskDefinitions(ctx *AWSContext, config v1.AWS, results *v
 					ID:          *describeTaskDefinitionOutput.TaskDefinition.TaskDefinitionArn,
 					Name:        *describeTaskDefinitionOutput.TaskDefinition.Family,
 					Config:      describeTaskDefinitionOutput.TaskDefinition,
-					Health:      configHealth,
 					Status:      formatStatus(string(describeTaskDefinitionOutput.TaskDefinition.Status)),
 					ConfigClass: "ECSTaskDefinition",
 					BaseScraper: config.BaseScraper,
