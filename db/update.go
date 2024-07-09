@@ -106,10 +106,11 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	updates := make(map[string]interface{})
 	changes := make([]*models.ConfigChange, 0)
 
-	if ci.DeletedAt != existing.DeletedAt {
+	if lo.FromPtr(ci.DeletedAt) != lo.FromPtr(existing.DeletedAt) {
 		updates["deleted_at"] = ci.DeletedAt
 		updates["delete_reason"] = ci.DeleteReason
-	} else {
+	} else if existing.DeletedAt != nil && ci.DeletedAt == nil {
+		// item was previously deleted but is now being restored
 		updates["deleted_at"] = gorm.Expr("NULL")
 		updates["delete_reason"] = gorm.Expr("NULL")
 	}
@@ -163,7 +164,9 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 		updates["path"] = ci.Path
 	}
 
-	if ci.CreatedAt != existing.CreatedAt {
+	if ci.CreatedAt.IsZero() && existing.CreatedAt.IsZero() {
+		updates["created_at"] = gorm.Expr("NOW()")
+	} else if ci.CreatedAt != existing.CreatedAt && !ci.CreatedAt.IsZero() {
 		updates["created_at"] = ci.CreatedAt
 	}
 
