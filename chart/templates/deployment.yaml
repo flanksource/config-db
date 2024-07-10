@@ -8,7 +8,9 @@ kind: Deployment
 {{- end }}
 metadata:
   name: {{ include "config-db.name" . }}
-  labels: {{- include "config-db.labels" . | nindent 4 }}
+  labels:
+    {{- include "config-db.labels" . | nindent 4 }}
+    {{- include "config-db.extraLabels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicas }}
   revisionHistoryLimit: 1
@@ -32,7 +34,9 @@ spec:
   {{- end }}
   template:
     metadata:
-      labels: {{- include "config-db.selectorLabels" . | nindent 8 }}
+      labels:
+        {{- include "config-db.selectorLabels" . | nindent 8 }}
+        {{- include "config-db.extraLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ template "config-db.serviceAccountName" . }}
       securityContext:
