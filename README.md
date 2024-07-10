@@ -44,6 +44,7 @@ See `fixtures/` for example scraping configurations.
   * [x] EC2 (including trusted advisor, compliance and patch reporting)
   * [x] VPC
   * [x] IAM
+* Azure
 * Kubernetes
   * [x] Pods
   * [x] Secrets / ConfigMaps
