@@ -227,7 +227,7 @@ func (aws Scraper) cloudformationStacks(ctx *AWSContext, config v1.AWS, results 
 			DeleteReason: v1.DeletedReasonFromAttribute,
 			ConfigClass:  "Stack",
 			Name:         stackName,
-			ID:           stackName,
+			ID:           *stack.StackId,
 			Aliases:      []string{lo.FromPtr(stack.StackId)},
 			Parents:      []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		}.WithHealthStatus(resourceHealth))
@@ -628,7 +628,7 @@ func (aws Scraper) lambdaFunctions(ctx *AWSContext, config v1.AWS, results *v1.S
 		for _, function := range functions.Functions {
 			*results = append(*results, v1.ScrapeResult{
 				Type:        v1.AWSLambdaFunction,
-				ID:          *function.FunctionName,
+				ID:          *function.FunctionArn,
 				Name:        *function.FunctionName,
 				Config:      function,
 				ConfigClass: "Lamba",
@@ -709,7 +709,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			ConfigClass:         "KubernetesCluster",
 			Name:                getName(cluster.Cluster.Tags, clusterName),
 			Aliases:             []string{*cluster.Cluster.Arn, "AmazonEKS/" + *cluster.Cluster.Arn},
-			ID:                  *cluster.Cluster.Name,
+			ID:                  *cluster.Cluster.Arn,
 			Ignore:              []string{"createdAt", "name"},
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: *cluster.Cluster.ResourcesVpcConfig.VpcId}},
 			RelationshipResults: relationships,
@@ -841,8 +841,7 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		Labels:      labels,
 		ConfigClass: "User",
 		Name:        "root",
-		Aliases:     []string{"<root account>"},
-		ID:          "root",
+		ID:          fmt.Sprintf("%s-%s", lo.FromPtr(ctx.Caller.Account), "root"),
 		Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 	})
 
@@ -895,7 +894,7 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 			Name:        *user.UserName,
 			Aliases:     []string{*user.UserId, *user.Arn},
 			Ignore:      []string{"arn", "userId", "createDate", "userName"},
-			ID:          *user.UserName, // UserId is not often referenced
+			ID:          *user.Arn, // UserId is not often referenced
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
@@ -1402,8 +1401,8 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Name:                *lb.LoadBalancerName,
 			Labels:              labels,
 			Tags:                tags,
-			Aliases:             []string{"AWSELB/" + arn, arn, lo.FromPtr(lb.CanonicalHostedZoneName)},
-			ID:                  *lb.LoadBalancerName,
+			Aliases:             []string{"AWSELB/" + arn, lo.FromPtr(lb.CanonicalHostedZoneName)},
+			ID:                  arn,
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(lb.VPCId)}},
 			RelationshipResults: relationships,
 		})
