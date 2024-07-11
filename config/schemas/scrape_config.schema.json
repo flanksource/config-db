@@ -905,13 +905,13 @@
     "KubernetesRelationshipSelectorTemplate": {
       "properties": {
         "kind": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         },
         "name": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         },
         "namespace": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         }
       },
       "additionalProperties": false,
@@ -953,6 +953,21 @@
           "type": "string"
         },
         "text": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Lookup": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
           "type": "string"
         },
         "label": {
@@ -1124,19 +1139,25 @@
     "RelationshipConfig": {
       "properties": {
         "id": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         },
         "external_id": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         },
         "name": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Lookup"
         },
         "type": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         },
         "agent": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
+        },
+        "scope": {
+          "$ref": "#/$defs/Lookup"
         },
         "labels": {
           "additionalProperties": {
@@ -1148,21 +1169,6 @@
           "type": "string"
         },
         "filter": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "RelationshipLookup": {
-      "properties": {
-        "expr": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
-        },
-        "label": {
           "type": "string"
         }
       },
