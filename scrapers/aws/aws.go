@@ -766,6 +766,10 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 
 	var uniqueAvailabilityZoneIDs = map[string]struct{}{}
 	for _, az := range azDescribeOutput.AvailabilityZones {
+		if az.OptInStatus == "opted-in" {
+			az.OptInStatus = "opt-in-required"
+		}
+
 		*results = append(*results, v1.ScrapeResult{
 			ID:          lo.FromPtr(az.ZoneName),
 			Type:        v1.AWSAvailabilityZone,
@@ -775,10 +779,15 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 			Tags:        []v1.Tag{{Name: "region", Value: lo.FromPtr(az.RegionName)}},
 			Aliases:     nil,
 			Name:        lo.FromPtr(az.ZoneName),
+			ScraperLess: true,
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSRegion, ExternalID: lo.FromPtr(az.RegionName)}},
 		})
 
 		if _, ok := uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)]; !ok {
+			if az.OptInStatus == "opted-in" {
+				az.OptInStatus = "opt-in-required"
+			}
+
 			*results = append(*results, v1.ScrapeResult{
 				ID:          lo.FromPtr(az.ZoneId),
 				Type:        v1.AWSAvailabilityZoneID,
@@ -788,6 +797,7 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 				ConfigClass: "AvailabilityZone",
 				Aliases:     nil,
 				Name:        lo.FromPtr(az.ZoneId),
+				ScraperLess: true,
 				Parents:     []v1.ConfigExternalKey{{Type: v1.AWSRegion, ExternalID: lo.FromPtr(az.RegionName)}},
 			})
 
@@ -852,19 +862,30 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 	}
 
 	for _, region := range regions.Regions {
-		if *region.OptInStatus == "not-opted-in" {
-			continue
-		}
-
-		*results = append(*results, v1.ScrapeResult{
+		result := v1.ScrapeResult{
 			Type:        v1.AWSRegion,
 			ConfigClass: "Region",
 			BaseScraper: config.BaseScraper,
-			Config:      region,
 			Name:        *region.RegionName,
-			Labels:      labels,
 			ID:          *region.RegionName,
-		})
+			ScraperLess: true,
+		}
+
+		if *region.OptInStatus != "not-opted-in" {
+			result.RelationshipResults = []v1.RelationshipResult{
+				{
+					RelatedExternalID: v1.ExternalID{ConfigType: v1.AWSAccount, ExternalID: []string{lo.FromPtr(ctx.Caller.Account)}},
+					ConfigExternalID:  v1.ExternalID{ConfigType: v1.AWSRegion, ExternalID: []string{*region.RegionName}},
+				},
+			}
+		}
+
+		if *region.OptInStatus == "opted-in" || *region.OptInStatus == "not-opted-in" {
+			region.OptInStatus = lo.ToPtr("opt-in-required")
+		}
+		result.Config = region
+
+		*results = append(*results, result)
 	}
 }
 
@@ -1747,6 +1768,12 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		aws.s3Buckets(awsCtx, awsConfig, results)
 
 		for i, r := range *results {
+			if lo.Contains([]string{v1.AWSRegion, v1.AWSAvailabilityZone, v1.AWSAvailabilityZoneID}, r.Type) {
+				// We do not need to add tags to these resources.
+				// They are global resources.
+				continue
+			}
+
 			if stack, ok := r.Labels["aws:cloudformation:stack-id"]; ok {
 				if len(r.Parents) != 0 {
 					// the default parent should be moved to soft relationship
