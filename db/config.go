@@ -143,6 +143,10 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Parents:         result.Parents,
 	}
 
+	if !result.ScraperLess {
+		ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
+	}
+
 	if parsed, err := result.Tags.AsMap(); err != nil {
 		return nil, err
 	} else {

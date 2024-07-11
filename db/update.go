@@ -665,7 +665,6 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 				return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to create config item(%s): %w", result, err)
 			}
 
-			ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
 			if len(ci.ExternalID) == 0 {
 				return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("config item %s has no external id", ci)
 			}
