@@ -3,9 +3,9 @@ module github.com/flanksource/config-db/hack/generate-schemas
 go 1.22.2
 
 require (
-	github.com/flanksource/commons v1.24.0
+	github.com/flanksource/commons v1.24.2
 	github.com/flanksource/config-db v0.0.65
-	github.com/flanksource/duty v1.0.537
+	github.com/flanksource/duty v1.0.538
 	github.com/spf13/cobra v1.7.0
 )
 
