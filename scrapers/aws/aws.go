@@ -1345,12 +1345,12 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 		for _, instance := range lb.Instances {
 			relationships = append(relationships, v1.RelationshipResult{
 				ConfigExternalID: v1.ExternalID{
-					ExternalID: []string{*lb.LoadBalancerName},
-					ConfigType: v1.AWSLoadBalancer,
-				},
-				RelatedExternalID: v1.ExternalID{
 					ExternalID: []string{*instance.InstanceId},
 					ConfigType: v1.AWSEC2Instance,
+				},
+				RelatedExternalID: v1.ExternalID{
+					ExternalID: []string{*lb.LoadBalancerName},
+					ConfigType: v1.AWSLoadBalancer,
 				},
 				Relationship: "LoadBalancerInstance",
 			})
