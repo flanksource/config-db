@@ -766,21 +766,21 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 
 	var uniqueAvailabilityZoneIDs = map[string]struct{}{}
 	for _, az := range azDescribeOutput.AvailabilityZones {
-		if az.OptInStatus == "opted-in" {
-			az.OptInStatus = "opt-in-required"
-		}
-
 		*results = append(*results, v1.ScrapeResult{
-			ID:          lo.FromPtr(az.ZoneName),
+			ID:          fmt.Sprintf("%s-%s", *ctx.Caller.Account, lo.FromPtr(az.ZoneName)),
 			Type:        v1.AWSAvailabilityZone,
 			BaseScraper: config.BaseScraper,
 			Config:      az,
 			ConfigClass: "AvailabilityZone",
 			Tags:        []v1.Tag{{Name: "region", Value: lo.FromPtr(az.RegionName)}},
-			Aliases:     nil,
+			Labels:      map[string]string{"az-id": lo.FromPtr(az.ZoneId)},
+			Aliases:     []string{lo.FromPtr(az.ZoneName)},
 			Name:        lo.FromPtr(az.ZoneName),
-			ScraperLess: true,
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSRegion, ExternalID: lo.FromPtr(az.RegionName)}},
+			RelationshipResults: []v1.RelationshipResult{{
+				ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(az.ZoneId)}, ConfigType: v1.AWSAvailabilityZoneID, ScraperID: "all"},
+				RelatedExternalID: v1.ExternalID{ExternalID: []string{lo.FromPtr(az.ZoneName)}, ConfigType: v1.AWSAvailabilityZone},
+			}},
 		})
 
 		if _, ok := uniqueAvailabilityZoneIDs[lo.FromPtr(az.ZoneId)]; !ok {
@@ -1769,7 +1769,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		aws.s3Buckets(awsCtx, awsConfig, results)
 
 		for i, r := range *results {
-			if lo.Contains([]string{v1.AWSRegion, v1.AWSAvailabilityZone, v1.AWSAvailabilityZoneID}, r.Type) {
+			if lo.Contains([]string{v1.AWSRegion, v1.AWSAvailabilityZoneID}, r.Type) {
 				// We do not need to add tags to these resources.
 				// They are global resources.
 				continue

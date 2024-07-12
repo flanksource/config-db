@@ -39,7 +39,7 @@ spec:
       # - SecurityGroup
       transform:
         relationship:
-           # EKS Cluster to Kubernetes Cluster & Kubernetes Node
+          # EKS Cluster to Kubernetes Cluster & Kubernetes Node
           - filter: config_type == 'AWS::EKS::Cluster'
             expr: |
               [
@@ -58,8 +58,7 @@ spec:
           - filter: config_type == 'AWS::AvailabilityZone'
             expr: |
               [
-                {"type": "Kubernetes::Node", "tags": {"account": labels['account'], "topology.kubernetes.io/zone": name}},
-                {"type": "AWS::AvailabilityZoneID", "name": config["ZoneId"]}
+                {"type": "Kubernetes::Node", "tags": {"account": labels['account'], "topology.kubernetes.io/zone": name}}
               ].toJSON()
           # Region to ZoneID
           - filter: config_type == 'AWS::Region'
