@@ -124,7 +124,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 			ctx.DutyContext().Logger.V(5).Infof("fetching resource namespace=%s name=%s kind=%s apiVersion=%s", resource.Namespace, resource.Name, resource.Kind, resource.APIVersion)
 			obj, err := kclient.Namespace(resource.Namespace).Get(ctx, resource.Name, metav1.GetOptions{})
 			if err != nil {
-				ctx.DutyContext().Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
+				ctx.DutyContext().Logger.Warnf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
 				continue
 			} else if obj != nil {
 				seenObjects[cacheKey] = struct{}{} // mark it as seen so we don't run ketall.KetOne again (in this run)
@@ -207,7 +207,7 @@ func getObjectChangeExclusionAnnotations(ctx api.ScrapeContext, id string, exclu
 	// The requested object was not found in the scraped objects.
 	// This happens on incremental scraper.
 	// We query the object from the db to get the annotations;
-	item, err := ctx.TempCache().Get(id)
+	item, err := ctx.TempCache().Get(ctx, id)
 	if err != nil {
 		return "", "", err
 	} else if item != nil && item.Labels != nil {
@@ -393,8 +393,10 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			if spec["nodeName"] != nil {
 				nodeName = spec["nodeName"].(string)
 				nodeID := resourceIDMap[""]["Node"][nodeName]
+				nodeExternalID := lo.CoalesceOrEmpty(nodeID, getKubernetesAlias("Node", "", nodeName))
+
 				relationships = append(relationships, v1.RelationshipResult{
-					ConfigExternalID:  v1.ExternalID{ExternalID: []string{nodeID}, ConfigType: ConfigTypePrefix + "Node"},
+					ConfigExternalID:  v1.ExternalID{ExternalID: []string{nodeExternalID}, ConfigType: ConfigTypePrefix + "Node"},
 					RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + "Pod"},
 					Relationship:      "NodePod",
 				})
