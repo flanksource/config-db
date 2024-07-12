@@ -261,7 +261,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		if change.ConfigID == "" && change.GetExternalID().IsEmpty() && ci != nil {
 			change.ConfigID = ci.ID
 		} else if !change.GetExternalID().IsEmpty() {
-			if ci, err := ctx.TempCache().FindExternalID(change.GetExternalID()); err != nil {
+			if ci, err := ctx.TempCache().FindExternalID(ctx, change.GetExternalID()); err != nil {
 				return nil, nil, changeSummary, fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
 			} else if ci != "" {
 				change.ConfigID = ci
@@ -276,7 +276,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			// Some scrapers can generate changes for config items that don't exist on our db.
 			// Example: Cloudtrail scraper reporting changes for a resource that has been excluded.
 			changeSummary.AddOrphaned(changeResult.ChangeType)
-			ctx.Logger.V(1).Infof("(type=%s source=%s external_id=%s) change doesn't have an associated config", change.ChangeType, change.Source, change.GetExternalID())
+			ctx.Logger.V(2).Infof("change doesn't have an associated config (type=%s source=%s external_id=%s)", change.ChangeType, change.Source, change.GetExternalID())
 			continue
 		}
 
@@ -292,7 +292,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
-	ciID, err := ctx.TempCache().Find(analysis.ConfigType, analysis.ExternalID)
+	ciID, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: analysis.ConfigType, ExternalID: []string{analysis.ExternalID}})
 	if err != nil {
 		return err
 	}
@@ -581,13 +581,13 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 		if relationship.ConfigID != "" {
 			configID = relationship.ConfigID
 		} else {
-			configID, err = ctx.TempCache().FindExternalID(relationship.ConfigExternalID)
+			configID, err = ctx.TempCache().FindExternalID(ctx, relationship.ConfigExternalID)
 			if err != nil {
 				logger.Errorf("error fetching config item(id=%s): %v", relationship.ConfigExternalID, err)
 				continue
 			}
 			if configID == "" {
-				ctx.Logger.V(2).Infof("unable to form relationship. failed to find the parent config %s for config %s", relationship.ConfigExternalID, cUtils.Coalesce(relationship.RelatedConfigID, relationship.RelatedExternalID.String()))
+				ctx.Logger.V(2).Infof("unable to form relationship. failed to find the parent config (%s) for config (%s)", relationship.ConfigExternalID, cUtils.Coalesce(relationship.RelatedConfigID, relationship.RelatedExternalID.String()))
 				continue
 			}
 		}
@@ -596,13 +596,13 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 		if relationship.RelatedConfigID != "" {
 			relatedID = relationship.RelatedConfigID
 		} else {
-			relatedID, err = ctx.TempCache().FindExternalID(relationship.RelatedExternalID)
+			relatedID, err = ctx.TempCache().FindExternalID(ctx, relationship.RelatedExternalID)
 			if err != nil {
 				logger.Errorf("error fetching external config item(id=%s): %v", relationship.RelatedExternalID, err)
 				continue
 			}
 			if relatedID == "" {
-				ctx.Logger.V(2).Infof("unable to form relationship. failed to find related config %s for config %s", relationship.RelatedExternalID, configID)
+				ctx.Logger.V(2).Infof("unable to form relationship. failed to find related config (%s) for config (%s)", relationship.RelatedExternalID, configID)
 				continue
 			}
 		}
@@ -675,11 +675,11 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 
 			existing := &models.ConfigItem{}
 			if ci.ID != "" {
-				if existing, err = ctx.TempCache().Get(ci.ID); err != nil {
+				if existing, err = ctx.TempCache().Get(ctx, ci.ID); err != nil {
 					return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to lookup existing config(%s): %w", ci, err)
 				}
 			} else {
-				if existing, err = ctx.TempCache().Find(*ci.Type, ci.ExternalID[0]); err != nil {
+				if existing, err = ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: *ci.Type, ExternalID: []string{ci.ExternalID[0]}}); err != nil {
 					return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to lookup external id(%s): %w", ci, err)
 				}
 			}
@@ -779,7 +779,7 @@ func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExt
 				break
 			}
 
-			if found, err := ctx.TempCache().Find(parent.Type, parent.ExternalID); err != nil {
+			if found, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: parent.Type, ExternalID: []string{parent.ExternalID}}); err != nil {
 				return err
 			} else if found != nil {
 				ci.ParentID = &found.ID
@@ -813,17 +813,19 @@ func generatePartialTree(ctx api.ScrapeContext, tree graph.Graph[string, string]
 
 	for _, c := range allConfigs {
 		if c.ParentID == nil {
-			// We aren't supposed to hit this point, except when an incremental scraper runs before a full scrape
-			//
+			// We aren't supposed to hit this point.
+			// Happens if
+			// - an incremental scraper runs before a full scrape
+			// - the full scrape didn't scrape the parent for some reason.
 			// We fail early here than failing on db insert.
-			return fmt.Errorf("a non root config found without a parent %s", c)
+			return fmt.Errorf("encountered an unexpected situation: a non-root config found without a parent (%s) (parents' external ids: %v)", c, c.Parents)
 		}
 
 		if _, found := configIDs[*c.ParentID]; found {
 			continue
 		}
 
-		parent, err := ctx.TempCache().Get(*c.ParentID)
+		parent, err := ctx.TempCache().Get(ctx, *c.ParentID)
 		if err != nil {
 			return fmt.Errorf("unable to get parent(%s): %w", c, err)
 		}

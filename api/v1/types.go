@@ -5,9 +5,6 @@ import (
 	"strings"
 
 	"github.com/flanksource/config-db/utils"
-	"github.com/lib/pq"
-
-	"gorm.io/gorm"
 )
 
 var AllScraperConfigs = map[string]any{
@@ -80,22 +77,22 @@ func (c ScraperSpec) IsDebug() bool {
 type ExternalID struct {
 	ConfigType string
 	ExternalID []string
+
+	// Scraper id of the config
+	// If left empty, the scraper id is the requester's scraper id.
+	// Use `all` to disregard scraper id.
+	ScraperID string
 }
 
 func (e ExternalID) String() string {
+	if e.ScraperID != "" {
+		return fmt.Sprintf("scraper_id=%s type=%s externalids=%s", e.ScraperID, e.ConfigType, strings.Join(e.ExternalID, ","))
+	}
 	return fmt.Sprintf("type=%s externalids=%s", e.ConfigType, strings.Join(e.ExternalID, ","))
 }
 
 func (e ExternalID) IsEmpty() bool {
 	return e.ConfigType == "" || len(e.ExternalID) == 0
-}
-
-func (e ExternalID) CacheKey() string {
-	return fmt.Sprintf("external_id:%s:%s", e.ConfigType, strings.Join(e.ExternalID, ","))
-}
-
-func (e ExternalID) WhereClause(db *gorm.DB) *gorm.DB {
-	return db.Where("lower(type) = ? AND external_id @> ?", strings.ToLower(e.ConfigType), pq.StringArray(e.ExternalID))
 }
 
 type ConfigDeleteReason string

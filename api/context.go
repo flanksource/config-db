@@ -21,9 +21,7 @@ type ScrapeContext struct {
 func NewScrapeContext(ctx dutyCtx.Context) ScrapeContext {
 	return ScrapeContext{
 		Context: ctx.WithKubernetes(KubernetesClient),
-		temp: &TempCache{
-			ctx: ctx,
-		},
+		temp:    &TempCache{},
 	}
 }
 
