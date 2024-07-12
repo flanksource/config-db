@@ -1473,6 +1473,7 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 	subnets, err := ctx.EC2.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{})
 	if err != nil {
 		results.Errorf(err, "failed to get subnets")
+		return
 	}
 
 	for _, subnet := range subnets.Subnets {
