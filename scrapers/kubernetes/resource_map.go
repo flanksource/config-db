@@ -1,22 +1,37 @@
 package kubernetes
 
-import "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import (
+	"sync"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
 
 // map<namespace><kind><name>: <id>
 type ResourceIDMap map[string]map[string]map[string]string
 
-func (t ResourceIDMap) Set(namespace, kind, name, id string) {
-	if t[namespace] == nil {
-		t[namespace] = make(map[string]map[string]string)
-	}
-	if t[namespace][kind] == nil {
-		t[namespace][kind] = make(map[string]string)
-	}
-	t[namespace][kind][name] = id
+type ResourceIDMapContainer struct {
+	mu   sync.RWMutex
+	data ResourceIDMap
 }
 
-func (t ResourceIDMap) Get(namespace, kind, name string) string {
-	if kinds, ok := t[namespace]; ok {
+func (t *ResourceIDMapContainer) Set(namespace, kind, name, id string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.data[namespace] == nil {
+		t.data[namespace] = make(map[string]map[string]string)
+	}
+	if t.data[namespace][kind] == nil {
+		t.data[namespace][kind] = make(map[string]string)
+	}
+	t.data[namespace][kind][name] = id
+}
+
+func (t *ResourceIDMapContainer) Get(namespace, kind, name string) string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if kinds, ok := t.data[namespace]; ok {
 		if names, ok := kinds[kind]; ok {
 			if id, ok := names[name]; ok {
 				return id
@@ -27,7 +42,40 @@ func (t ResourceIDMap) Get(namespace, kind, name string) string {
 	return ""
 }
 
-func getResourceIDsFromObjs(objs []*unstructured.Unstructured) ResourceIDMap {
+type PerClusterResourceIDMap struct {
+	mu   sync.Mutex
+	data map[string]ResourceIDMap
+}
+
+func (t *PerClusterResourceIDMap) Swap(clusterID string, resourceIDMap ResourceIDMap) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.data == nil {
+		t.data = make(map[string]ResourceIDMap)
+	}
+
+	t.data[clusterID] = resourceIDMap
+}
+
+func (t *PerClusterResourceIDMap) MergeAndUpdate(clusterID string, resourceIDMap ResourceIDMap) ResourceIDMap {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	cached, ok := t.data[clusterID]
+	if ok {
+		resourceIDMap = mergeResourceIDMap(resourceIDMap, cached)
+	}
+
+	if t.data == nil {
+		t.data = make(map[string]ResourceIDMap)
+	}
+
+	t.data[clusterID] = resourceIDMap
+	return resourceIDMap
+}
+
+func NewResourceIDMap(objs []*unstructured.Unstructured) *ResourceIDMapContainer {
 	resourceIDMap := make(map[string]map[string]map[string]string)
 	for _, obj := range objs {
 		if resourceIDMap[obj.GetNamespace()] == nil {
@@ -39,7 +87,10 @@ func getResourceIDsFromObjs(objs []*unstructured.Unstructured) ResourceIDMap {
 		resourceIDMap[obj.GetNamespace()][obj.GetKind()][obj.GetName()] = string(obj.GetUID())
 	}
 
-	return resourceIDMap
+	return &ResourceIDMapContainer{
+		data: resourceIDMap,
+		mu:   sync.RWMutex{},
+	}
 }
 
 func mergeResourceIDMap(latest, cached ResourceIDMap) ResourceIDMap {
