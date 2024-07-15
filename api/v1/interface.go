@@ -269,6 +269,24 @@ type RelationshipResult struct {
 	Relationship string
 }
 
+func (t RelationshipResult) WithConfig(id string, ext ExternalID) RelationshipResult {
+	if id != "" {
+		t.ConfigID = id
+	} else {
+		t.ConfigExternalID = ext
+	}
+	return t
+}
+
+func (t RelationshipResult) WithRelated(id string, ext ExternalID) RelationshipResult {
+	if id != "" {
+		t.RelatedConfigID = id
+	} else {
+		t.RelatedExternalID = ext
+	}
+	return t
+}
+
 func (r RelationshipResult) String() string {
 	s := ""
 	if r.ConfigID != "" {

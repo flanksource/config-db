@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Jeffail/gabs/v2"
@@ -34,6 +35,10 @@ import (
 )
 
 const ConfigTypePrefix = "Kubernetes::"
+
+// TODO: this lock should be per scraper(cluster)
+var allClustersResourceIDMap = map[string]ResourceIDMap{}
+var clusterResourceIDLock sync.Mutex
 
 // ReservedAnnotations
 const (
@@ -254,9 +259,15 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 	}
 
 	resourceIDMap := getResourceIDsFromObjs(objs)
-	resourceIDMap[""]["Cluster"] = make(map[string]string)
-	resourceIDMap[""]["Cluster"][config.ClusterName] = clusterID
-	resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
+	resourceIDMap.Set("", "Cluster", config.ClusterName, clusterID)
+	resourceIDMap.Set("", "Cluster", "selfRef", clusterID) // For shorthand
+
+	// For incremental scrape, we do not have all the data in the resource ID map
+	// we use it from the cached resource id map
+	clusterResourceIDLock.Lock()
+	resourceIDMap = mergeResourceIDMap(resourceIDMap, allClustersResourceIDMap[string(ctx.ScrapeConfig().GetUID())])
+	allClustersResourceIDMap[string(ctx.ScrapeConfig().GetUID())] = resourceIDMap
+	clusterResourceIDLock.Unlock()
 
 	objChangeExclusionByType, objChangeExclusionBySeverity := formObjChangeExclusionMap(objs)
 
@@ -396,10 +407,12 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 				nodeExternalID := lo.CoalesceOrEmpty(nodeID, getKubernetesAlias("Node", "", nodeName))
 
 				relationships = append(relationships, v1.RelationshipResult{
-					ConfigExternalID:  v1.ExternalID{ExternalID: []string{nodeExternalID}, ConfigType: ConfigTypePrefix + "Node"},
-					RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + "Pod"},
-					Relationship:      "NodePod",
-				})
+					RelatedConfigID: string(obj.GetUID()),
+					Relationship:    "NodePod",
+				}.WithConfig(
+					resourceIDMap.Get("", "Node", nodeName),
+					v1.ExternalID{ExternalID: []string{nodeExternalID}, ConfigType: ConfigTypePrefix + "Node"},
+				))
 			}
 
 			if obj.GetLabels()["app.kubernetes.io/name"] == "aws-node" {
@@ -437,18 +450,22 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 
 		if obj.GetNamespace() != "" {
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{fmt.Sprintf("Kubernetes/Namespace//%s", obj.GetNamespace())}, ConfigType: ConfigTypePrefix + "Namespace"},
-				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
-				Relationship:      "Namespace" + obj.GetKind(),
-			})
+				RelatedConfigID: string(obj.GetUID()),
+				Relationship:    "Namespace" + obj.GetKind(),
+			}.WithConfig(
+				resourceIDMap.Get("", "Namespace", obj.GetNamespace()),
+				v1.ExternalID{ExternalID: []string{getKubernetesAlias("Namespace", "", obj.GetNamespace())}, ConfigType: ConfigTypePrefix + "Namespace"},
+			))
 		}
 
 		for _, ownerRef := range obj.GetOwnerReferences() {
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(ownerRef.UID)}, ConfigType: getConfigTypePrefix(ownerRef.APIVersion) + ownerRef.Kind},
-				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
-				Relationship:      ownerRef.Kind + obj.GetKind(),
-			})
+				RelatedConfigID: string(obj.GetUID()),
+				Relationship:    ownerRef.Kind + obj.GetKind(),
+			}.WithConfig(
+				resourceIDMap.Get(obj.GetNamespace(), ownerRef.Kind, ownerRef.Name),
+				v1.ExternalID{ExternalID: []string{string(ownerRef.UID)}, ConfigType: getConfigTypePrefix(ownerRef.APIVersion) + ownerRef.Kind},
+			))
 		}
 
 		for _, f := range config.Relationships {
@@ -471,9 +488,12 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 
 				for _, id := range linkedConfigItemIDs {
 					rel := v1.RelationshipResult{
-						RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetKind()) + obj.GetKind()},
-						ConfigID:          id.String(),
-					}
+						ConfigID: id.String(),
+					}.WithRelated(
+						resourceIDMap.Get(obj.GetNamespace(), obj.GetKind(), obj.GetName()),
+						v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
+					)
+
 					relationships = append(relationships, rel)
 				}
 			}
@@ -718,26 +738,6 @@ func extractDeployNameFromReplicaSet(rs string) string {
 	split := strings.Split(rs, "-")
 	split = split[:len(split)-1]
 	return strings.Join(split, "-")
-}
-
-func getResourceIDsFromObjs(objs []*unstructured.Unstructured) map[string]map[string]map[string]string {
-	// {Namespace: {Kind: {Name: ID}}}
-	resourceIDMap := make(map[string]map[string]map[string]string)
-	resourceIDMap[""] = make(map[string]map[string]string)
-
-	for _, obj := range objs {
-		if collections.Contains([]string{"Namespace", "Deployment", "Node"}, obj.GetKind()) {
-			if resourceIDMap[obj.GetNamespace()] == nil {
-				resourceIDMap[obj.GetNamespace()] = make(map[string]map[string]string)
-			}
-			if resourceIDMap[obj.GetNamespace()][obj.GetKind()] == nil {
-				resourceIDMap[obj.GetNamespace()][obj.GetKind()] = make(map[string]string)
-			}
-			resourceIDMap[obj.GetNamespace()][obj.GetKind()][obj.GetName()] = string(obj.GetUID())
-		}
-	}
-
-	return resourceIDMap
 }
 
 //nolint:errcheck
