@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Jeffail/gabs/v2"
@@ -36,9 +35,7 @@ import (
 
 const ConfigTypePrefix = "Kubernetes::"
 
-// TODO: this lock should be per scraper(cluster)
-var allClustersResourceIDMap = map[string]ResourceIDMap{}
-var clusterResourceIDLock sync.Mutex
+var resourceIDMapPerCluster PerClusterResourceIDMap
 
 // ReservedAnnotations
 const (
@@ -231,7 +228,7 @@ func getObjectChangeExclusionAnnotations(ctx api.ScrapeContext, id string, exclu
 
 // ExtractResults extracts scrape results from the given list of kuberenetes objects.
 //   - withCluster: if true, will create & add a scrape result for the kubernetes cluster.
-func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured, withCluster bool) v1.ScrapeResults {
+func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured, isIncrementalScrape bool) v1.ScrapeResults {
 	var (
 		results       v1.ScrapeResults
 		changeResults v1.ScrapeResults
@@ -258,16 +255,17 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 		Tags:        v1.Tags{{Name: "cluster", Value: config.ClusterName}},
 	}
 
-	resourceIDMap := getResourceIDsFromObjs(objs)
+	resourceIDMap := NewResourceIDMap(objs)
 	resourceIDMap.Set("", "Cluster", config.ClusterName, clusterID)
 	resourceIDMap.Set("", "Cluster", "selfRef", clusterID) // For shorthand
 
-	// For incremental scrape, we do not have all the data in the resource ID map
-	// we use it from the cached resource id map
-	clusterResourceIDLock.Lock()
-	resourceIDMap = mergeResourceIDMap(resourceIDMap, allClustersResourceIDMap[string(ctx.ScrapeConfig().GetUID())])
-	allClustersResourceIDMap[string(ctx.ScrapeConfig().GetUID())] = resourceIDMap
-	clusterResourceIDLock.Unlock()
+	if isIncrementalScrape {
+		// On incremental scrape, we do not have all the data in the resource ID map.
+		// we use it from the cached resource id map.
+		resourceIDMap.data = resourceIDMapPerCluster.MergeAndUpdate(string(ctx.ScrapeConfig().GetUID()), resourceIDMap.data)
+	} else {
+		resourceIDMapPerCluster.Swap(string(ctx.ScrapeConfig().GetUID()), resourceIDMap.data)
+	}
 
 	objChangeExclusionByType, objChangeExclusionBySeverity := formObjChangeExclusionMap(objs)
 
@@ -403,7 +401,7 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			var nodeName string
 			if spec["nodeName"] != nil {
 				nodeName = spec["nodeName"].(string)
-				nodeID := resourceIDMap[""]["Node"][nodeName]
+				nodeID := resourceIDMap.Get("", "Node", nodeName)
 				nodeExternalID := lo.CoalesceOrEmpty(nodeID, getKubernetesAlias("Node", "", nodeName))
 
 				relationships = append(relationships, v1.RelationshipResult{
@@ -460,12 +458,10 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 
 		for _, ownerRef := range obj.GetOwnerReferences() {
 			relationships = append(relationships, v1.RelationshipResult{
+				ConfigID:        string(ownerRef.UID),
 				RelatedConfigID: string(obj.GetUID()),
 				Relationship:    ownerRef.Kind + obj.GetKind(),
-			}.WithConfig(
-				resourceIDMap.Get(obj.GetNamespace(), ownerRef.Kind, ownerRef.Name),
-				v1.ExternalID{ExternalID: []string{string(ownerRef.UID)}, ConfigType: getConfigTypePrefix(ownerRef.APIVersion) + ownerRef.Kind},
-			))
+			})
 		}
 
 		for _, f := range config.Relationships {
@@ -612,7 +608,7 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 	}
 
 	results = append(results, changeResults...)
-	if withCluster {
+	if isIncrementalScrape {
 		results = append([]v1.ScrapeResult{cluster}, results...)
 	}
 
@@ -633,15 +629,15 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 
 // getKubernetesParent returns a list of potential parents in order.
 // Example: For a Pod the parents would be [Replicaset, Namespace, Cluster]
-func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.KubernetesExclusionConfig, resourceIDMap map[string]map[string]map[string]string) []v1.ConfigExternalKey {
+func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.KubernetesExclusionConfig, resourceIDMap *ResourceIDMapContainer) []v1.ConfigExternalKey {
 	var allParents []v1.ConfigExternalKey
 	allParents = append(allParents, v1.ConfigExternalKey{
 		Type:       ConfigTypePrefix + "Cluster",
-		ExternalID: resourceIDMap[""]["Cluster"]["selfRef"],
+		ExternalID: resourceIDMap.Get("", "Cluster", "selfRef"),
 	})
 
 	if obj.GetNamespace() != "" {
-		parentExternalID := resourceIDMap[""]["Namespace"][obj.GetNamespace()]
+		parentExternalID := resourceIDMap.Get("", "Namespace", obj.GetNamespace())
 		if parentExternalID == "" {
 			// An incremental scraper may not have the Namespace object.
 			// We can instead use the alias as the external id.
@@ -661,7 +657,7 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 		// be its Deployment
 		if obj.GetKind() == "Pod" && lo.Contains(exclusions.Kinds, "ReplicaSet") && ref.Kind == "ReplicaSet" {
 			deployName := extractDeployNameFromReplicaSet(ref.Name)
-			parentExternalID := resourceIDMap[obj.GetNamespace()]["Deployment"][deployName]
+			parentExternalID := resourceIDMap.Get(obj.GetNamespace(), "Deployment", deployName)
 			allParents = append([]v1.ConfigExternalKey{{
 				Type:       ConfigTypePrefix + "Deployment",
 				ExternalID: parentExternalID,
