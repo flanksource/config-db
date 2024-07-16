@@ -114,7 +114,7 @@ func QueryCache(ctx context.Context, query string, args ...interface{}) (*TempCa
 		aliases: make(map[string]string),
 	}
 	items := []models.ConfigItem{}
-	if err := ctx.DB().Table("config_items").Where(query, args...).Find(&items).Error; err != nil {
+	if err := ctx.DB().Table("config_items").Where("deleted_at IS NULL").Where(query, args...).Find(&items).Error; err != nil {
 		return nil, err
 	}
 	for _, item := range items {
