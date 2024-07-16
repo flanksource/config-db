@@ -698,7 +698,7 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 	if helmName != "" && helmNamespace != "" {
 		allParents = append([]v1.ConfigExternalKey{{
 			Type:       ConfigTypePrefix + "HelmRelease",
-			ExternalID: getKubernetesAlias("HelmRelease", helmNamespace, helmName),
+			ExternalID: lo.CoalesceOrEmpty(resourceIDMap.Get(helmNamespace, "HelmRelease", helmName), getKubernetesAlias("HelmRelease", helmNamespace, helmName)),
 		}}, allParents...)
 	}
 
