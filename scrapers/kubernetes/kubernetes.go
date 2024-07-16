@@ -15,7 +15,9 @@ import (
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
+	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
@@ -391,6 +393,27 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 					}
 					if vmScaleSetID != "" {
 						labels["azure/vm-scale-set"] = vmScaleSetID
+					}
+				}
+			}
+		}
+
+		if obj.GetKind() == "Endpoints" {
+			var endpoint coreV1.Endpoints
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &endpoint); err != nil {
+				return results.Errorf(err, "failed to unmarshal endpoint (%s/%s)", obj.GetUID(), obj.GetName())
+			}
+
+			for _, subset := range endpoint.Subsets {
+				for _, address := range subset.Addresses {
+					if address.TargetRef != nil {
+						if address.TargetRef.Kind != "Service" {
+							relationships = append(relationships, v1.RelationshipResult{
+								ConfigID:          string(address.TargetRef.UID),
+								RelatedExternalID: v1.ExternalID{ExternalID: []string{getKubernetesAlias("Service", obj.GetNamespace(), obj.GetName())}, ConfigType: ConfigTypePrefix + "Service"},
+								Relationship:      fmt.Sprintf("%sService", address.TargetRef.Kind),
+							})
+						}
 					}
 				}
 			}
