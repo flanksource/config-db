@@ -409,9 +409,9 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 					if address.TargetRef != nil {
 						if address.TargetRef.Kind != "Service" {
 							relationships = append(relationships, v1.RelationshipResult{
-								ConfigID:          string(address.TargetRef.UID),
-								RelatedExternalID: v1.ExternalID{ExternalID: []string{getKubernetesAlias("Service", obj.GetNamespace(), obj.GetName())}, ConfigType: ConfigTypePrefix + "Service"},
-								Relationship:      fmt.Sprintf("%sService", address.TargetRef.Kind),
+								ConfigExternalID: v1.ExternalID{ExternalID: []string{getKubernetesAlias("Service", obj.GetNamespace(), obj.GetName())}, ConfigType: ConfigTypePrefix + "Service"},
+								RelatedConfigID:  string(address.TargetRef.UID),
+								Relationship:     fmt.Sprintf("Service%s", address.TargetRef.Kind),
 							})
 						}
 					}
