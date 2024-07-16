@@ -14,6 +14,21 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// ReservedAnnotations
+const (
+	// AnnotationIgnoreConfig excludes the object from being scraped
+	AnnotationIgnoreConfig = "config-db.flanksource.com/ignore"
+
+	// AnnotationIgnoreChangeByType contains the list of change types to ignore
+	AnnotationIgnoreChangeByType = "config-db.flanksource.com/ignore-changes"
+
+	// AnnotationIgnoreChangeBySeverity contains the list of severity for the change types to ignore
+	AnnotationIgnoreChangeBySeverity = "config-db.flanksource.com/ignore-change-severity"
+
+	// AnnotationCustomTags contains the list of tags to add to the scraped config
+	AnnotationCustomTags = "config-db.flanksource.com/tags"
+)
+
 // SeverityKeywords is used to identify the severity
 // from the Kubernetes Event reason.
 type SeverityKeywords struct {

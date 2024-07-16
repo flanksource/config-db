@@ -11,6 +11,7 @@ import (
 	"github.com/aws/smithy-go/ptr"
 	"github.com/dominikbraun/graph"
 	jsonpatch "github.com/evanphx/json-patch"
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	cUtils "github.com/flanksource/commons/utils"
 	"github.com/flanksource/config-db/api"
@@ -115,7 +116,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 		updates["delete_reason"] = gorm.Expr("NULL")
 	}
 
-	changeResult, err := generateConfigChange(*ci, *existing)
+	changeResult, err := generateConfigChange(ctx, *ci, *existing)
 	if err != nil {
 		logger.Errorf("[%s] failed to check for changes: %v", ci, err)
 	} else if changeResult != nil {
@@ -514,7 +515,14 @@ func generateDiff(newConf, prevConfig string) (string, error) {
 
 // generateConfigChange calculates the diff (git style) and patches between the
 // given 2 config items and returns a ConfigChange object if there are any changes.
-func generateConfigChange(newConf, prev models.ConfigItem) (*v1.ChangeResult, error) {
+func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem) (*v1.ChangeResult, error) {
+	if changeTypExclusion, ok := lo.FromPtr(newConf.Labels)[v1.AnnotationIgnoreChangeByType]; ok {
+		if collections.MatchItems("diff", strings.Split(changeTypExclusion, ",")...) {
+			ctx.Logger.V(4).Infof("excluding diff change for config(%s) with annotation (%s)", newConf, changeTypExclusion)
+			return nil, nil
+		}
+	}
+
 	diff, err := generateDiff(*newConf.Config, *prev.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate diff: %w", err)
