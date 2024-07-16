@@ -33,6 +33,7 @@ func (ctx ScrapeContext) withTempCache(cache *TempCache) ScrapeContext {
 	ctx.temp = cache
 	return ctx
 }
+
 func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	if ctx.ScrapeConfig().GetPersistedID() == nil {
 		cache, err := QueryCache(ctx.Context, "scraper_id IS NULL")
