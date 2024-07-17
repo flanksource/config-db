@@ -177,7 +177,6 @@ func (s ScrapeSummary) String() string {
 
 	}
 	return fmt.Sprintf("types=%d, %v", len(types), s.Totals())
-
 }
 
 func (a ConfigTypeScrapeSummary) Merge(b ConfigTypeScrapeSummary) ConfigTypeScrapeSummary {

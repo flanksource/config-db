@@ -42,6 +42,7 @@ type RetentionSpec struct {
 type ScraperSpec struct {
 	LogLevel       string           `json:"logLevel,omitempty"`
 	Schedule       string           `json:"schedule,omitempty"`
+	GCP            []GCP            `json:"gcp,omitempty" yaml:"gcp,omitempty"`
 	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
 	File           []File           `json:"file,omitempty" yaml:"file,omitempty"`
 	Kubernetes     []Kubernetes     `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
