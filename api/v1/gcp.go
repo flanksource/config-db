@@ -14,11 +14,11 @@ const (
 )
 
 type GCP struct {
-	BaseScraper
-	Project        string
-	*GCPConnection `json:",inline"`
-	Include        []string `json:"include,omitempty"`
-	Exclude        []string `json:"exclude,omitempty"`
+	BaseScraper   `json:",inline"`
+	GCPConnection `json:",inline"`
+	Project       string   `json:"project"`
+	Include       []string `json:"include,omitempty"`
+	Exclude       []string `json:"exclude,omitempty"`
 }
 
 func (gcp GCP) Includes(resource string) bool {
