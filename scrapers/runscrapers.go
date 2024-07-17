@@ -49,7 +49,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 			continue
 		}
 
-		ctx.DutyContext().Logger.V(3).Infof("Starting scraper")
+		ctx.Debugf("Starting scraper")
 		for _, result := range scraper.Scrape(ctx) {
 			scraped := processScrapeResult(ctx, result)
 
@@ -67,8 +67,6 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 			results = append(results, scraped...)
 		}
 	}
-
-	ctx.Logger.V(1).Infof("Completed scraping with %d results.", len(results))
 	return results, nil
 }
 

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
@@ -23,6 +25,16 @@ func NewScrapeContext(ctx dutyCtx.Context) ScrapeContext {
 		Context: ctx.WithKubernetes(KubernetesClient),
 		temp:    &TempCache{},
 	}
+}
+
+func (ctx ScrapeContext) PropertyOn(def bool, key string) bool {
+	paths := []string{
+		fmt.Sprintf("scraper.%s", key),
+	}
+	if ctx.scrapeConfig != nil && ctx.ScrapeConfig().GetUID() != "" {
+		paths = append([]string{fmt.Sprintf("scraper.%s.%s", ctx.ScrapeConfig().GetUID(), key)}, paths...)
+	}
+	return ctx.Properties().On(def, paths...)
 }
 
 func (ctx ScrapeContext) TempCache() *TempCache {
