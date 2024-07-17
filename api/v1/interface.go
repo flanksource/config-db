@@ -14,6 +14,7 @@ import (
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
+	"github.com/samber/lo"
 )
 
 const maxTagsCount = 5
@@ -139,6 +140,72 @@ func (result *AnalysisResult) Message(msg string) *AnalysisResult {
 type AnalysisResults []AnalysisResult
 
 type ScrapeSummary map[string]ConfigTypeScrapeSummary
+
+func (summary ScrapeSummary) HasUpdates() bool {
+	totals := summary.Totals()
+	return totals.Added > 0 || totals.Updated > 0
+
+}
+
+func (summary ConfigTypeScrapeSummary) String() string {
+	s := []string{}
+
+	if summary.Added > 0 {
+		s = append(s, fmt.Sprintf("added=%d", summary.Added))
+	}
+	if summary.Updated > 0 {
+		s = append(s, fmt.Sprintf("updated=%d", summary.Updated))
+	}
+	if summary.Unchanged > 0 {
+		s = append(s, fmt.Sprintf("unchanged=%d", summary.Unchanged))
+	}
+
+	if summary.Change != nil && len(summary.Change.Ignored) > 0 {
+		s = append(s, fmt.Sprintf("ignored=%d", lo.Sum(lo.Values(summary.Change.Ignored))))
+	}
+	if summary.Change != nil && len(summary.Change.Orphaned) > 0 {
+		s = append(s, fmt.Sprintf("orphaned=%d", lo.Sum(lo.Values(summary.Change.Orphaned))))
+	}
+
+	return strings.Join(s, ", ")
+}
+
+func (s ScrapeSummary) String() string {
+	types := lo.Keys(s)
+	if len(types) <= 3 {
+		return fmt.Sprintf("(%s) %v", types, s.Totals())
+
+	}
+	return fmt.Sprintf("types=%d, %v", len(types), s.Totals())
+
+}
+
+func (a ConfigTypeScrapeSummary) Merge(b ConfigTypeScrapeSummary) ConfigTypeScrapeSummary {
+	change := &ChangeSummary{}
+	if a.Change != nil {
+		change.Merge(*a.Change)
+	}
+	if b.Change != nil {
+		change.Merge(*b.Change)
+	}
+	return ConfigTypeScrapeSummary{
+		Added:     a.Added + b.Added,
+		Updated:   a.Updated + b.Updated,
+		Unchanged: a.Unchanged + b.Unchanged,
+		Change:    change,
+	}
+}
+
+func (summaries ScrapeSummary) Totals() ConfigTypeScrapeSummary {
+	merged := ConfigTypeScrapeSummary{
+		Change: &ChangeSummary{},
+	}
+
+	for _, s := range summaries {
+		merged = merged.Merge(s)
+	}
+	return merged
+}
 
 func (t *ScrapeSummary) AddChangeSummary(configType string, cs ChangeSummary) {
 	v := (*t)[configType]

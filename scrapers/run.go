@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/utils"
 )
 
 type contextKey string
@@ -21,6 +22,7 @@ type ScrapeOutput struct {
 }
 
 func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
+	var timer = utils.NewMemoryTimer()
 	ctx, err := ctx.InitTempCache()
 	if err != nil {
 		return nil, err
@@ -43,7 +45,7 @@ func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 		return nil, fmt.Errorf("failed to update stale config items: %w", err)
 	}
 
-	ctx.Logger.V(1).Infof("Completed scraping with %d results in %s", len(results), time.Since(ctx.Value(contextKeyScrapeStart).(time.Time)))
+	ctx.Logger.Debugf("Completed scrape with %s in %s", savedResult, timer.End())
 
 	return &ScrapeOutput{
 		Total:   len(results),

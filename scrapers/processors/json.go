@@ -262,6 +262,8 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 	var results []v1.ScrapeResult
 	var err error
 
+	logScrapes := ctx.PropertyOn(true, "log.items")
+
 	for _, input := range inputs {
 		for k, v := range input.BaseScraper.Labels {
 			if input.Labels == nil {
@@ -419,7 +421,9 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			if extracted, err := e.extractAttributes(result); err != nil {
 				return results, fmt.Errorf("failed to extract attributes: %v", err)
 			} else {
-				ctx.Logger.V(1).Infof("Scraped %s", extracted)
+				if logScrapes {
+					ctx.Logger.V(1).Infof("Scraped %s", extracted)
+				}
 				results = append(results, extracted)
 			}
 		}

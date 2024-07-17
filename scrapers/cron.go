@@ -32,6 +32,7 @@ var (
 )
 
 func SyncScrapeConfigs(sc api.ScrapeContext) {
+	DefaultSchedule = sc.Properties().String("scrapers.default.schedule", DefaultSchedule)
 	j := &job.Job{
 		Name:       "ConfigScraperSync",
 		Context:    sc.DutyContext(),
@@ -137,14 +138,14 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 }
 
 func newScraperJob(sc api.ScrapeContext) *job.Job {
-	schedule, _ := lo.Coalesce(sc.ScrapeConfig().Spec.Schedule, DefaultSchedule)
+	schedule, _ := lo.Coalesce(sc.Properties().String(fmt.Sprintf("scraper.%s.schedule", sc.ScrapeConfig().UID), ""), sc.ScrapeConfig().Spec.Schedule, DefaultSchedule)
 	return &job.Job{
 		Name:         "Scraper",
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", sc.ScrapeConfig()),
 		Schedule:     schedule,
 		Singleton:    true,
 		JobHistory:   true,
-		RunNow:       sc.Properties().On("scraper.runnow"),
+		RunNow:       sc.PropertyOn(false, "runNow"),
 		Retention:    job.RetentionBalanced,
 		ResourceID:   sc.ScrapeConfig().GetPersistedID().String(),
 		ResourceType: job.ResourceTypeScraper,
@@ -170,7 +171,7 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		return fmt.Errorf("[%s] failed to schedule %v", j.Name, err)
 	}
 
-	if sc.Properties().On("scraper.kubernetes.watch.disable") {
+	if sc.PropertyOn(false, "watch.disable") {
 		return nil
 	}
 
@@ -234,7 +235,7 @@ func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kuberne
 				return err
 			}
 
-			if summary, err := db.SavePartialResults(cc, results); err != nil {
+			if summary, err := db.SaveResults(cc, results); err != nil {
 				return fmt.Errorf("failed to save results: %w", err)
 			} else {
 				ctx.History.AddDetails("scrape_summary", summary)
@@ -313,7 +314,7 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 				return err
 			}
 
-			if summary, err := db.SavePartialResults(cc, results); err != nil {
+			if summary, err := db.SaveResults(cc, results); err != nil {
 				return fmt.Errorf("failed to save %d results: %w", len(results), err)
 			} else {
 				ctx.History.AddDetails("scrape_summary", summary)
@@ -341,7 +342,9 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 					return fmt.Errorf("failed to delete %d resources: %w", len(deletedResourcesIDs), err)
 				} else if total != len(deletedResourcesIDs) {
 					ctx.GetSpan().SetAttributes(attribute.StringSlice("deletedResourcesIDs", deletedResourcesIDs))
-					ctx.Logger.Warnf("attempted to delete %d resources but only deleted %d", len(deletedResourcesIDs), total)
+					if sc.PropertyOn(false, "log.missing") {
+						ctx.Logger.Warnf("attempted to delete %d resources but only deleted %d", len(deletedResourcesIDs), total)
+					}
 				}
 
 				ctx.History.SuccessCount += total

@@ -230,6 +230,10 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 		globalLabels = map[string]string{}
 	)
 
+	logExclusions := ctx.PropertyOn(false, "log.exclusions")
+	logSkipped := ctx.PropertyOn(false, "log.skipped")
+	logNoResourceId := ctx.PropertyOn(true, "log.noResourceId")
+
 	clusterID := "Kubernetes/Cluster/" + config.ClusterName
 	cluster := v1.ScrapeResult{
 		BaseScraper: config.BaseScraper,
@@ -260,17 +264,23 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 		tags := config.Tags
 
 		if config.Exclusions.Filter(obj.GetName(), obj.GetNamespace(), obj.GetKind(), obj.GetLabels()) {
-			ctx.Tracef("excluding object: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			if logExclusions {
+				ctx.Debugf("excluding object: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			}
 			continue
 		}
 
 		if string(obj.GetUID()) == "" {
-			ctx.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			if logNoResourceId {
+				ctx.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			}
 			continue
 		}
 
 		if val, ok := obj.GetAnnotations()[v1.AnnotationIgnoreConfig]; ok && val == "true" {
-			ctx.Tracef("excluding object due to annotation %s: %s/%s/%s", v1.AnnotationIgnoreConfig, obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			if logExclusions {
+				ctx.Tracef("excluding object due to annotation %s: %s/%s/%s", v1.AnnotationIgnoreConfig, obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			}
 			continue
 		}
 
@@ -292,9 +302,12 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			}
 
 			if config.Event.Exclusions.Filter(event) {
-				ctx.Logger.V(4).Infof("excluding event object %s/%s/%s: %s",
-					event.InvolvedObject.Namespace, event.InvolvedObject.Name,
-					event.InvolvedObject.Kind, event.Reason)
+				if logExclusions {
+					ctx.Tracef("excluding event object %s/%s/%s: %s",
+						event.InvolvedObject.Namespace, event.InvolvedObject.Name,
+						event.InvolvedObject.Kind, event.Reason)
+				}
+
 				continue
 			}
 
@@ -303,7 +316,9 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 				if err != nil {
 					return results.Errorf(err, "failed to get config IDs for object %s/%s/%s", event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind)
 				} else if len(ids) == 0 {
-					ctx.Logger.V(3).Infof("skipping event (reason=%s, message=%s) because the involved object ID is not a valid UUID: %s", event.Reason, event.Message, event.InvolvedObject.UID)
+					if logSkipped {
+						ctx.Tracef("skipping event (reason=%s, message=%s) because the involved object ID is not a valid UUID: %s", event.Reason, event.Message, event.InvolvedObject.UID)
+					}
 					continue
 				}
 
@@ -319,18 +334,22 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 
 				if changeTypExclusion != "" {
 					if collections.MatchItems(change.ChangeType, strings.Split(changeTypExclusion, ",")...) {
-						ctx.Logger.V(4).Infof("excluding event object %s/%s/%s due to change type matched in annotation %s=%s",
-							event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
-							v1.AnnotationIgnoreChangeByType, changeTypExclusion)
+						if logExclusions {
+							ctx.Tracef("excluding event object %s/%s/%s due to change type matched in annotation %s=%s",
+								event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
+								v1.AnnotationIgnoreChangeByType, changeTypExclusion)
+						}
 						continue
 					}
 				}
 
 				if changeSeverityExclusion != "" {
 					if collections.MatchItems(change.Severity, strings.Split(changeSeverityExclusion, ",")...) {
-						ctx.Logger.V(4).Infof("excluding event object %s/%s/%s due to severity matches in annotation %s=%s",
-							event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
-							v1.AnnotationIgnoreChangeBySeverity, changeSeverityExclusion)
+						if logExclusions {
+							ctx.Tracef("excluding event object %s/%s/%s due to severity matches in annotation %s=%s",
+								event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
+								v1.AnnotationIgnoreChangeBySeverity, changeSeverityExclusion)
+						}
 						continue
 					}
 				}
@@ -710,7 +729,7 @@ func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.K
 	opts.FieldSelector = config.FieldSelector
 	opts.UseCache = config.UseCache
 	opts.MaxInflight = config.MaxInflight
-	opts.Exclusions = config.Exclusions.List()
+	opts.Exclusions = append(config.Exclusions.List(), "componentstatuses")
 	opts.Since = config.Since
 	if config.Kubeconfig != nil {
 		val, err := ctx.GetEnvValueFromCache(*config.Kubeconfig, ctx.GetNamespace())
