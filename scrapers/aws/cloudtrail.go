@@ -115,8 +115,6 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 				} else if event.Username != nil {
 					change.CreatedBy = event.Username
 				}
-
-				change.Details["Event"] = *event.CloudTrailEvent
 				if resource.ResourceName != nil {
 					change.ExternalID = *resource.ResourceName
 				}
