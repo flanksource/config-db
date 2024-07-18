@@ -6,6 +6,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/gomplate/v3"
 	"gopkg.in/yaml.v3"
 )
 
@@ -30,7 +31,7 @@ func (t *changeRule) match(result *v1.ScrapeResult) (bool, error) {
 		"config":      result.ConfigMap(),
 		"config_type": result.Type,
 	}
-	return evaluateCelExpression(t.Filter, env, "config", "config_type")
+	return evaluateCelExpression(t.Filter, env)
 }
 
 func (t *changeRule) process(change *v1.ChangeResult) error {
@@ -39,7 +40,7 @@ func (t *changeRule) process(change *v1.ChangeResult) error {
 		"patch":  change.PatchesMap(),
 	}
 
-	if ok, err := evaluateCelExpression(t.Rule, env, "change", "patch"); err != nil {
+	if ok, err := evaluateCelExpression(t.Rule, env); err != nil {
 		return fmt.Errorf("failed to evaluate rule %s: %w", t.Rule, err)
 	} else if !ok {
 		return nil
@@ -54,7 +55,7 @@ func (t *changeRule) process(change *v1.ChangeResult) error {
 	}
 
 	if t.Summary != "" {
-		summary, err := evaluateGoTemplate(t.Summary, env)
+		summary, err := gomplate.RunTemplate(env, gomplate.Template{Template: t.Summary})
 		if err != nil {
 			return fmt.Errorf("failed to evaluate summary template %s: %w", t.Summary, err)
 		}
