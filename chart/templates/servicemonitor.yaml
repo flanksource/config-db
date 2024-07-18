@@ -1,11 +1,11 @@
-{{- if.Values.serviceMonitor.enabled }}
+{{- if eq "true"  (include "truthy"  ( list .Values.serviceMonitor.enabled .Values.global.serviceMonitor.enabled ))  }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: {{ include "config-db.name" . }}-monitor
   labels:
     {{- include "config-db.labels" . | nindent 4 }}
-    {{- range $k, $v := .Values.serviceMonitor.labels}}
+    {{- range $k, $v :=  (merge  .Values.serviceMonitor.labels .Values.global.serviceMonitor.labels )}}
     {{$k}}: {{$v | quote}}
     {{- end }}
 spec:

@@ -13,8 +13,8 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/* Create the name of config-db service account */}}
-{{- define "config-db.serviceAccountName" -}}
-{{ .Values.serviceAccount.name | default ( printf "%s-sa" (include "config-db.name" .)) }}
+{{- define "serviceAccountName" -}}
+{{ .Values.global.serviceAccount.name | default .Values.serviceAccount.name | default ( printf "%s-sa" (include "config-db.name" .)) }}
 {{- end -}}
 
 {{/*
@@ -73,3 +73,19 @@ control-plane: {{ include "config-db.name" . }}
         {{- divf $bytes 1024 1024 | printf "%0.0f" -}}MiB
     {{- end }}{{ end }}{{ end -}}
 {{- end -}}
+
+
+{{- define "truthy" -}}
+{{- $a := index . 0}}
+{{- $b := index . 1}}
+{{- if eq "false" ($a | toString) -}}
+false
+{{- else -}}
+{{- default $a $b -}}
+{{end}}
+
+
+
+{{- end -}}
+
+
