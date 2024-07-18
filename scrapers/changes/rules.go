@@ -14,11 +14,12 @@ import (
 var changeRulesConfig []byte
 
 type changeRule struct {
-	Action  v1.ChangeAction `json:"action"`  // map the change action to this action.
-	Filter  string          `json:"filter"`  // cel-go filter for a config item.
-	Rule    string          `json:"rule"`    // cel-go filter for a config change.
-	Type    string          `json:"type"`    // replace with this change type.
-	Summary string          `json:"summary"` // Go templatable summary to replace the existing change summary.
+	Action   v1.ChangeAction `json:"action"`   // map the change action to this action.
+	Filter   string          `json:"filter"`   // cel-go filter for a config item.
+	Rule     string          `json:"rule"`     // cel-go filter for a config change.
+	Severity string          `json:"severity"` // replace with this severity.
+	Type     string          `json:"type"`     // replace with this change type.
+	Summary  string          `json:"summary"`  // Go templatable summary to replace the existing change summary.
 }
 
 // matches the rule with a config using the filter
@@ -48,6 +49,10 @@ func (t *changeRule) process(change *v1.ChangeResult) error {
 
 	if t.Type != "" {
 		change.ChangeType = t.Type
+	}
+
+	if t.Severity != "" {
+		change.Severity = t.Severity
 	}
 
 	if t.Action != "" {
@@ -86,10 +91,11 @@ func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) {
 	allRules := Rules
 	for _, r := range rules {
 		allRules = append(allRules, changeRule{
-			Action:  r.Action,
-			Rule:    r.Filter,
-			Type:    r.Type,
-			Summary: r.Summary,
+			Action:   r.Action,
+			Rule:     r.Filter,
+			Type:     r.Type,
+			Severity: r.Severity,
+			Summary:  r.Summary,
 		})
 	}
 

@@ -330,6 +330,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -773,6 +777,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -1166,6 +1174,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -1517,6 +1529,10 @@ spec:
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
                                     type: string
                                   summary:
                                     description: Summary replaces the existing change
@@ -1914,6 +1930,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -2301,6 +2321,10 @@ spec:
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
                                     type: string
                                   summary:
                                     description: Summary replaces the existing change
@@ -2807,6 +2831,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -3228,6 +3256,10 @@ spec:
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
                                     type: string
                                   summary:
                                     description: Summary replaces the existing change
@@ -3701,6 +3733,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -4075,6 +4111,10 @@ spec:
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
                                     type: string
                                   summary:
                                     description: Summary replaces the existing change
