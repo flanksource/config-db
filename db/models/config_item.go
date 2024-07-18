@@ -43,7 +43,8 @@ type ConfigItem struct {
 	LastScrapedTime *time.Time            `gorm:"column:last_scraped_time" json:"last_scraped_time"`
 	DeleteReason    v1.ConfigDeleteReason `gorm:"column:delete_reason" json:"delete_reason"`
 
-	Parents []v1.ConfigExternalKey `gorm:"-" json:"parents,omitempty"`
+	Parents  []v1.ConfigExternalKey `gorm:"-" json:"parents,omitempty"`
+	Children []v1.ConfigExternalKey `gorm:"-" json:"children,omitempty"`
 }
 
 func (ci ConfigItem) String() string {
@@ -58,4 +59,15 @@ func (ci ConfigItem) ConfigJSONStringMap() (map[string]interface{}, error) {
 	var m map[string]interface{}
 	err := json.Unmarshal([]byte(*ci.Config), &m)
 	return m, err
+}
+
+type ConfigItems []*ConfigItem
+
+func (cis ConfigItems) GetByID(id string) *ConfigItem {
+	for _, ci := range cis {
+		if ci.ID == id {
+			return ci
+		}
+	}
+	return nil
 }

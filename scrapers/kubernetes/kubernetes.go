@@ -11,6 +11,7 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
@@ -611,6 +612,7 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 		}
 
 		parents := getKubernetesParent(obj, config.Exclusions, resourceIDMap)
+		children := getKubernetesChildren(obj)
 		results = append(results, v1.ScrapeResult{
 			BaseScraper:         config.BaseScraper,
 			Name:                obj.GetName(),
@@ -630,6 +632,7 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			Tags:                tags,
 			Aliases:             []string{getKubernetesAlias(obj.GetKind(), obj.GetNamespace(), obj.GetName())},
 			Parents:             parents,
+			Children:            children,
 			RelationshipResults: relationships,
 		})
 	}
@@ -652,6 +655,34 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 	}
 
 	return results
+}
+
+func getKubernetesChildren(obj *unstructured.Unstructured) []v1.ConfigExternalKey {
+	var allChildren []v1.ConfigExternalKey
+
+	// Argo Applications have children references
+	if strings.HasPrefix(obj.GetAPIVersion(), "argoproj.io") && obj.GetKind() == "Application" {
+		o := gabs.Wrap(obj.Object)
+
+		type argoResourceRef struct {
+			Kind      string `json:"kind"`
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		}
+		var ars []argoResourceRef
+		if err := json.Unmarshal(o.S("status", "resources").Bytes(), &ars); err != nil {
+			logger.Tracef("error marshaling status.resources for argo app[%s/%s]: %v", obj.GetNamespace(), obj.GetName(), err)
+		} else {
+			for _, resource := range ars {
+				allChildren = append([]v1.ConfigExternalKey{{
+					Type:       ConfigTypePrefix + resource.Kind,
+					ExternalID: getKubernetesAlias(resource.Kind, resource.Namespace, resource.Name),
+				}}, allChildren...)
+			}
+		}
+	}
+
+	return allChildren
 }
 
 // getKubernetesParent returns a list of potential parents in order.
@@ -705,14 +736,6 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 			ExternalID: lo.CoalesceOrEmpty(resourceIDMap.Get(helmNamespace, "HelmRelease", helmName), getKubernetesAlias("HelmRelease", helmNamespace, helmName)),
 		}}, allParents...)
 	}
-
-	// TODO: No Namespace or the argo app uid
-	// if argoApp, ok := obj.GetLabels()["argocd.argoproj.io/instance"]; ok {
-	// 	allParents = append([]v1.ConfigExternalKey{{
-	// 		Type:       ConfigTypePrefix + "Application",
-	// 		ExternalID: argoApp,
-	// 	}}, allParents...)
-	// }
 
 	return allParents
 }

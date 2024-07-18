@@ -141,6 +141,7 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Ready:           result.Ready,
 		LastScrapedTime: result.LastScrapedTime,
 		Parents:         result.Parents,
+		Children:        result.Children,
 	}
 
 	if !result.ScraperLess {
