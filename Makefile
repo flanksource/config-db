@@ -159,7 +159,7 @@ $(KUSTOMIZE): $(LOCALBIN)
 
 .PHONY: chart
 chart: helm-docs helm-schema
-	cd chart && helm-schema && helm-docs
+	cd chart && helm-schema -k additionalProperties && helm-docs
 
 .PHONY: helm-docs
 helm-docs:
