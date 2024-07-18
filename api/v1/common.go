@@ -95,6 +95,8 @@ func (s MaskList) String() string {
 type ChangeMapping struct {
 	// Filter selects what change to apply the mapping to
 	Filter string `json:"filter,omitempty"`
+	// Severity is the severity to be set on the change
+	Severity string `json:"severity,omitempty"`
 	// Type is the type to be set on the change
 	Type string `json:"type,omitempty"`
 	// Action allows performing actions on the corresponding config item
