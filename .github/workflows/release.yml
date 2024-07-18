@@ -34,10 +34,10 @@ jobs:
         with:
           node-version: "16"
       - name: Install Go
-        uses: actions/setup-go@bfdd3570ce990073878bf10f6b2d79082de49492 # v2.2.0
+        uses: buildjet/setup-go@v5
         with:
           go-version: v1.22.x
-      - uses: actions/cache@8492260343ad570701412c2f464a5877dc76bace # v2
+      - uses: buildjet/cache@v4
         with:
           path: |
             ~/go/pkg/mod
@@ -85,7 +85,7 @@ jobs:
           aws-access-key-id: ${{ secrets.ECR_AWS_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.ECR_AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-          
+
       - name: Login to Amazon ECR Public
         id: login-ecr-public
         uses: aws-actions/amazon-ecr-login@v2
@@ -99,7 +99,7 @@ jobs:
           REPOSITORY: config-db
           IMAGE_TAG: "v${{ needs.semantic-release.outputs.release-version }}"
         run: |
-          docker build -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG -f build/Dockerfile . 
+          docker build -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG -f build/Dockerfile .
           docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
 
   helm:
