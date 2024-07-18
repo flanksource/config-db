@@ -38,9 +38,23 @@ spec:
         {{- include "config-db.selectorLabels" . | nindent 8 }}
         {{- include "config-db.extraLabels" . | nindent 8 }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ template "config-db.serviceAccountName" . }}
+     {{- with .Values.podSecurityContext }}
       securityContext:
-        fsGroup: 1000
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "config-db.name" . }}
+            optional: true
+        {{- with .Values.volumes }}
+          {{- toYaml . | nindent 8 -}}
+        {{- end }}
       containers:
         - name: {{ include "config-db.name" . }}
           image: "{{ tpl .Values.global.imageRegistry . }}/{{ tpl .Values.image.name . }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -85,12 +99,23 @@ spec:
             {{- if (tpl .Values.otel.serviceName .) }}
             - --otel-service-name={{ tpl .Values.otel.serviceName . | default "config-db" }}
             {{- end }}
+            {{- range $k, $v := .Values.extraArgs}}
+            - --{{$k}}={{$v}}
+            {{- end }}
           {{- if .Values.upstream.enabled}}
           envFrom:
             - secretRef:
                 name: {{ .Values.upstream.secretKeyRef.name }}
           {{- end}}
           env:
+            - name: GOMAXPROCS
+              value: {{ coalesce .Values.env.GOMAXPROCS (include "gomaxprocs" . ) | quote }}
+            - name: GOMEMLIMIT
+              value: {{ coalesce .Values.env.GOMEMLIMIT (include "gomemlimit" . ) | quote }}
+            {{- range $k, $v := omit .Values.env "GOMAXPROCS" "GOMEMLIMIT" }}
+            - name: {{$k}}
+              value: {{$v | quote}}
+            {{- end }}
             - name: DB_URL
               {{- if eq .Values.db.external.enabled true }}
               valueFrom:
@@ -110,13 +135,35 @@ spec:
             - name: OTEL_LABELS
               value: '{{ tpl .Values.otel.labels .}}'
             {{- end}}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
+            {{- with .Values.volumeMounts }}
+              {{- toYaml . | nindent 12}}
+            {{- end }}
+            - mountPath: /app/config.properties
+              name: config
+              subPath: config.properties
             {{- if $embeddedDB}}
             - name: config-db-embedded-database
               mountPath: "/opt/database"
             {{- end }}
       {{- with .Values.extra }}
       {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
       {{- end }}

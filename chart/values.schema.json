@@ -1,0 +1,600 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "affinity": {
+      "additionalProperties": true,
+      "title": "affinity"
+    },
+    "configAnalysisRetentionDays": {
+      "default": 60,
+      "title": "configAnalysisRetentionDays",
+      "type": "integer"
+    },
+    "configChangeRetentionDays": {
+      "default": 60,
+      "title": "configChangeRetentionDays",
+      "type": "integer"
+    },
+    "db": {
+      "additionalProperties": false,
+      "properties": {
+        "embedded": {
+          "additionalProperties": false,
+          "properties": {
+            "persist": {
+              "default": true,
+              "description": "If the database is embedded, setting this to true will persist the contents of the database\nthrough a persistent volume",
+              "title": "persist",
+              "type": "boolean"
+            },
+            "storage": {
+              "default": "20Gi",
+              "title": "storage",
+              "type": "string"
+            },
+            "storageClass": {
+              "default": "",
+              "title": "storageClass",
+              "type": "string"
+            }
+          },
+          "title": "embedded",
+          "type": "object",
+          "required": [
+            "persist",
+            "storageClass",
+            "storage"
+          ]
+        },
+        "external": {
+          "additionalProperties": false,
+          "properties": {
+            "create": {
+              "default": false,
+              "description": "Setting create:true will create\n  - a postgres stateful set\n  - the secret \u0026\n  - the service to expose the postgres stateful set.\nBy default, the generated secret will use 'postgres' as the username and a randomly generated password.\nIf you need to set a custom username and password, you can populate a secret named 'postgres-connection' before install\nwith POSTGRES_USER and POSTGRES_PASSWORD\n#\nIf create:false, a preexisting secret containing the URI to an existing postgres database must be provided\nThe URI must be in the format 'postgresql://\"$user\":\"$password\"@\"$host\"/\"$database\"'",
+              "title": "create",
+              "type": "boolean"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Setting enabled to true will use an external postgres DB.\nYou can either use the embedded db or an external db.\nIf both is enabled, then embedded db will take precedence.",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "secretKeyRef": {
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "default": "DB_URL",
+                  "description": "This is the key that we look for in the secret.",
+                  "title": "key",
+                  "type": "string"
+                },
+                "name": {
+                  "default": "config-db-postgresql",
+                  "description": "The name of the secret to look for.",
+                  "title": "name",
+                  "type": "string"
+                }
+              },
+              "title": "secretKeyRef",
+              "type": "object",
+              "required": [
+                "name",
+                "key"
+              ]
+            },
+            "storage": {
+              "default": "20Gi",
+              "title": "storage",
+              "type": "string"
+            },
+            "storageClass": {
+              "default": "",
+              "title": "storageClass",
+              "type": "string"
+            }
+          },
+          "title": "external",
+          "type": "object",
+          "required": [
+            "enabled",
+            "create",
+            "secretKeyRef",
+            "storageClass",
+            "storage"
+          ]
+        },
+        "runMigrations": {
+          "default": true,
+          "title": "runMigrations",
+          "type": "boolean"
+        }
+      },
+      "title": "db",
+      "type": "object",
+      "required": [
+        "runMigrations",
+        "embedded",
+        "external"
+      ]
+    },
+    "disablePostgrest": {
+      "default": false,
+      "description": "Set to true if you want to disable the postgrest service",
+      "title": "disablePostgrest",
+      "type": "boolean"
+    },
+    "env": {
+      "additionalProperties": true,
+      "description": "environment variables to add e.g. GOMEMLIMIT",
+      "title": "env"
+    },
+    "extra": {
+      "additionalProperties": true,
+      "description": "Extra values to be applied to the pod spec",
+      "title": "extra"
+    },
+    "extraArgs": {
+      "additionalProperties": true,
+      "description": "command line arguments to config-db",
+      "title": "extraArgs"
+    },
+    "global": {
+      "additionalProperties": false,
+      "properties": {
+        "db": {
+          "additionalProperties": false,
+          "properties": {
+            "connectionPooler": {
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "default": false,
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "secretKeyRef": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "default": "DB_URL",
+                      "title": "key",
+                      "type": "string"
+                    },
+                    "name": {
+                      "default": "mission-control-connection-pooler",
+                      "title": "name",
+                      "type": "string"
+                    }
+                  },
+                  "title": "secretKeyRef",
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "key"
+                  ]
+                }
+              },
+              "title": "connectionPooler",
+              "type": "object",
+              "required": [
+                "enabled",
+                "secretKeyRef"
+              ]
+            }
+          },
+          "title": "db",
+          "type": "object",
+          "required": [
+            "connectionPooler"
+          ]
+        },
+        "imagePrefix": {
+          "default": "flanksource",
+          "title": "imagePrefix",
+          "type": "string"
+        },
+        "imageRegistry": {
+          "default": "docker.io",
+          "title": "imageRegistry",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": false,
+          "title": "labels",
+          "type": "object"
+        }
+      },
+      "description": "Default values for config-db.\nDeclare variables to be passed into your templates.\nyaml-language-server: $schema=./values.schema.json",
+      "title": "global",
+      "type": "object",
+      "required": [
+        "imageRegistry",
+        "imagePrefix",
+        "labels",
+        "db"
+      ]
+    },
+    "image": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "default": "{{.Values.global.imagePrefix}}/config-db",
+          "title": "name",
+          "type": "string"
+        },
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "title": "pullPolicy",
+          "type": "string"
+        },
+        "tag": {
+          "default": "latest",
+          "description": "Overrides the image tag whose default is the chart appVersion.",
+          "title": "tag",
+          "type": "string"
+        }
+      },
+      "title": "image",
+      "type": "object",
+      "required": [
+        "name",
+        "pullPolicy",
+        "tag"
+      ]
+    },
+    "ingress": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations": {
+          "additionalProperties": true,
+          "title": "annotations"
+        },
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "host": {
+          "default": "config-db.local",
+          "description": " kubernetes.io/ingress.class: nginx\nkubernetes.io/tls-acme: \"true\"",
+          "title": "host",
+          "type": "string"
+        },
+        "tls": {
+          "items": {},
+          "title": "tls",
+          "type": "array"
+        }
+      },
+      "title": "ingress",
+      "type": "object",
+      "required": [
+        "enabled",
+        "host",
+        "tls"
+      ]
+    },
+    "jsonLogs": {
+      "default": true,
+      "title": "jsonLogs",
+      "type": "boolean"
+    },
+    "logLevel": {
+      "default": "",
+      "title": "logLevel",
+      "enum": [
+        "",
+        "-v",
+        "-vv",
+        "-vvv",
+        "-vvvv"
+      ]
+    },
+    "nameOverride": {
+      "default": "",
+      "description": "Use this only if you want to replace the default that is .Chart.Name as the name of all the objects.",
+      "title": "nameOverride",
+      "type": "string"
+    },
+    "nodeSelector": {
+      "additionalProperties": true,
+      "title": "nodeSelector"
+    },
+    "otel": {
+      "additionalProperties": false,
+      "properties": {
+        "collector": {
+          "default": "",
+          "description": "OpenTelemetry gRPC collector endpoint in host:port format",
+          "title": "collector",
+          "type": "string"
+        },
+        "labels": {
+          "default": "",
+          "description": "labels in \"a=b,c=d\" format",
+          "title": "labels",
+          "type": "string"
+        },
+        "serviceName": {
+          "default": "config-db",
+          "title": "serviceName",
+          "type": "string"
+        }
+      },
+      "title": "otel",
+      "type": "object",
+      "required": [
+        "collector",
+        "serviceName",
+        "labels"
+      ]
+    },
+    "podSecurityContext": {
+      "additionalProperties": false,
+      "properties": {
+        "fsGroup": {
+          "default": 1000,
+          "title": "fsGroup",
+          "type": "integer"
+        }
+      },
+      "title": "podSecurityContext",
+      "required": [
+        "fsGroup"
+      ]
+    },
+    "properties": {
+      "additionalProperties": true,
+      "description": "config-db properties to override",
+      "title": "properties"
+    },
+    "replicas": {
+      "default": 1,
+      "title": "replicas",
+      "type": "integer"
+    },
+    "resources": {
+      "additionalProperties": false,
+      "properties": {
+        "limits": {
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "default": "500m",
+              "title": "cpu",
+              "type": "string"
+            },
+            "memory": {
+              "default": "4Gi",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "title": "limits",
+          "type": "object",
+          "required": [
+            "memory",
+            "cpu"
+          ]
+        },
+        "requests": {
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "default": "200m",
+              "title": "cpu",
+              "type": "string"
+            },
+            "memory": {
+              "default": "1Gi",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "title": "requests",
+          "type": "object",
+          "required": [
+            "cpu",
+            "memory"
+          ]
+        }
+      },
+      "title": "resources",
+      "type": "object",
+      "required": [
+        "requests",
+        "limits"
+      ]
+    },
+    "scrapeRuleConfigMaps": {
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "description": "a list of configmaps to load scrape rules from, the configmap should have a single entry called \"config.yaml\"",
+      "title": "scrapeRuleConfigMaps",
+      "type": "array"
+    },
+    "securityContext": {
+      "additionalProperties": true,
+      "default": "",
+      "title": "securityContext"
+    },
+    "serviceAccount": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations": {
+          "additionalProperties": true,
+          "title": "annotations"
+        },
+        "create": {
+          "default": true,
+          "title": "create",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "config-db-sa",
+          "title": "name",
+          "type": "string"
+        },
+        "rbac": {
+          "additionalProperties": false,
+          "properties": {
+            "clusterRole": {
+              "default": true,
+              "description": "Whether to create cluster-wide or namespaced roles",
+              "title": "clusterRole",
+              "type": "boolean"
+            },
+            "configmaps": {
+              "default": true,
+              "title": "configmaps",
+              "type": "boolean"
+            },
+            "exec": {
+              "default": true,
+              "description": "for kubernetesFile lookups",
+              "title": "exec",
+              "type": "boolean"
+            },
+            "readAll": {
+              "default": true,
+              "description": "for use with kubernetes resource lookups",
+              "title": "readAll",
+              "type": "boolean"
+            },
+            "secrets": {
+              "default": true,
+              "title": "secrets",
+              "type": "boolean"
+            },
+            "tokenRequest": {
+              "default": true,
+              "description": "for secret management with valueFrom",
+              "title": "tokenRequest",
+              "type": "boolean"
+            }
+          },
+          "title": "rbac",
+          "type": "object",
+          "required": [
+            "clusterRole",
+            "tokenRequest",
+            "secrets",
+            "configmaps",
+            "readAll",
+            "exec"
+          ]
+        }
+      },
+      "title": "serviceAccount",
+      "type": "object",
+      "required": [
+        "create",
+        "name",
+        "rbac"
+      ]
+    },
+    "serviceMonitor": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "labels": {
+          "additionalProperties": true,
+          "title": "labels"
+        }
+      },
+      "title": "serviceMonitor",
+      "type": "object",
+      "required": [
+        "enabled"
+      ]
+    },
+    "tolerations": {
+      "items": {},
+      "title": "tolerations",
+      "type": "array"
+    },
+    "upstream": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "pageSize": {
+          "default": 500,
+          "title": "pageSize",
+          "type": "integer"
+        },
+        "secretKeyRef": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "default": "config-db-upstream",
+              "title": "name",
+              "type": "string"
+            }
+          },
+          "title": "secretKeyRef",
+          "type": "object",
+          "required": [
+            "name"
+          ]
+        }
+      },
+      "title": "upstream",
+      "type": "object",
+      "required": [
+        "enabled",
+        "secretKeyRef",
+        "pageSize"
+      ]
+    },
+    "volumeMounts": {
+      "items": {},
+      "description": "Additional volumeMounts on the output Deployment definition.",
+      "title": "volumeMounts",
+      "type": "array"
+    },
+    "volumes": {
+      "items": {},
+      "description": "Additional volumes on the output Deployment definition.",
+      "title": "volumes",
+      "type": "array"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "global",
+    "replicas",
+    "nameOverride",
+    "disablePostgrest",
+    "image",
+    "configChangeRetentionDays",
+    "configAnalysisRetentionDays",
+    "serviceMonitor",
+    "jsonLogs",
+    "resources",
+    "scrapeRuleConfigMaps",
+    "otel",
+    "db",
+    "ingress",
+    "serviceAccount",
+    "upstream",
+    "volumes",
+    "volumeMounts",
+    "tolerations"
+  ]
+}
