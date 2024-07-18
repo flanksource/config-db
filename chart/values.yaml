@@ -2,8 +2,22 @@
 # Declare variables to be passed into your templates.
 # yaml-language-server: $schema=./values.schema.json
 global:
+  otel:
+    collector: ""
+    labels: ""
+  serviceMonitor:
+    enabled: false
+    labels: {}
+  serviceAccount:
+    annotations: {}
+    # Note unlike other globals, the global serviceAccount.name overrides the local value
+    name:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
   imageRegistry: docker.io
   imagePrefix: flanksource
+  imagePullSecrets: []
   labels: {}
   db:
     connectionPooler:
@@ -191,3 +205,5 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+imagePullSecrets: []

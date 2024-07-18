@@ -38,11 +38,11 @@ spec:
         {{- include "config-db.selectorLabels" . | nindent 8 }}
         {{- include "config-db.extraLabels" . | nindent 8 }}
     spec:
-      {{- with .Values.imagePullSecrets }}
+      {{- with (concat .Values.imagePullSecrets .Values.global.imagePullSecrets) }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ template "config-db.serviceAccountName" . }}
+      serviceAccountName: {{ template "serviceAccountName" . }}
      {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -155,15 +155,15 @@ spec:
       {{- with .Values.extra }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with  (merge .Values.nodeSelector .Values.global.nodeSelector ) }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with  (merge .Values.affinity .Values.global.affinity) }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with  (concat .Values.tolerations .Values.global.tolerations) }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

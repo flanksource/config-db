@@ -134,6 +134,10 @@
     },
     "global": {
       "properties": {
+        "affinity": {
+          "title": "affinity",
+          "type": "object"
+        },
         "db": {
           "properties": {
             "connectionPooler": {
@@ -183,6 +187,11 @@
           "title": "imagePrefix",
           "type": "string"
         },
+        "imagePullSecrets": {
+          "items": {},
+          "title": "imagePullSecrets",
+          "type": "array"
+        },
         "imageRegistry": {
           "default": "docker.io",
           "title": "imageRegistry",
@@ -191,14 +200,89 @@
         "labels": {
           "title": "labels",
           "type": "object"
+        },
+        "nodeSelector": {
+          "title": "nodeSelector",
+          "type": "object"
+        },
+        "otel": {
+          "properties": {
+            "collector": {
+              "default": "",
+              "title": "collector",
+              "type": "string"
+            },
+            "labels": {
+              "default": "",
+              "title": "labels",
+              "type": "string"
+            }
+          },
+          "title": "otel",
+          "type": "object",
+          "required": [
+            "collector",
+            "labels"
+          ]
+        },
+        "serviceAccount": {
+          "properties": {
+            "annotations": {
+              "title": "annotations",
+              "type": "object"
+            },
+            "name": {
+              "default": "",
+              "description": "Note unlike other globals, the global serviceAccount.name overrides the local value",
+              "title": "name",
+              "type": "null"
+            }
+          },
+          "title": "serviceAccount",
+          "type": "object",
+          "required": [
+            "annotations",
+            "name"
+          ]
+        },
+        "serviceMonitor": {
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "labels": {
+              "title": "labels",
+              "type": "object"
+            }
+          },
+          "title": "serviceMonitor",
+          "type": "object",
+          "required": [
+            "enabled",
+            "labels"
+          ]
+        },
+        "tolerations": {
+          "items": {},
+          "title": "tolerations",
+          "type": "array"
         }
       },
       "description": "Default values for config-db.\nDeclare variables to be passed into your templates.\nyaml-language-server: $schema=./values.schema.json",
       "title": "global",
       "type": "object",
       "required": [
+        "otel",
+        "serviceMonitor",
+        "serviceAccount",
+        "nodeSelector",
+        "tolerations",
+        "affinity",
         "imageRegistry",
         "imagePrefix",
+        "imagePullSecrets",
         "labels",
         "db"
       ]
@@ -229,6 +313,11 @@
         "pullPolicy",
         "tag"
       ]
+    },
+    "imagePullSecrets": {
+      "items": {},
+      "title": "imagePullSecrets",
+      "type": "array"
     },
     "ingress": {
       "additionalProperties": false,
@@ -475,7 +564,7 @@
     "serviceMonitor": {
       "properties": {
         "enabled": {
-          "default": true,
+          "default": false,
           "title": "enabled",
           "type": "boolean"
         },
@@ -567,6 +656,7 @@
     "volumeMounts",
     "nodeSelector",
     "tolerations",
-    "affinity"
+    "affinity",
+    "imagePullSecrets"
   ]
 }
