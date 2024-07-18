@@ -53,13 +53,12 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.24.2
 	github.com/flanksource/duty v1.0.549
-	github.com/flanksource/is-healthy v1.0.18
+	github.com/flanksource/is-healthy v1.0.19
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/go-logr/zapr v1.2.4
 	github.com/gobwas/glob v0.2.3
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
-	github.com/google/cel-go v0.20.1
 	github.com/google/gops v0.3.28
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-getter v1.7.5
@@ -136,6 +135,7 @@ require (
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
+	github.com/google/cel-go v0.20.1 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/pprof v0.0.0-20240711041743-f6c9dda6c6da // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
