@@ -749,12 +749,15 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 		}
 	}
 
-	// Calculate the parents only after we have all the config items.
+	// Calculate the parents and children only after we have all the config items.
 	// This is because, on the first run, we don't have any configs at all in the DB.
 	// So, all the parent lookups will return empty result and no parent will be set.
 	// This way, we can first look for the parents within the result set.
 	if err := setConfigParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
-		return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to setup parents: %w", err)
+		return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to set parents: %w", err)
+	}
+	if err := setConfigChildren(ctx, allConfigs); err != nil {
+		return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to set children: %w", err)
 	}
 
 	if err := setConfigPaths(ctx, allConfigs); err != nil {
@@ -813,11 +816,39 @@ func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExt
 	return nil
 }
 
+func setConfigChildren(ctx api.ScrapeContext, allConfigs models.ConfigItems) error {
+	for _, ci := range allConfigs {
+		if len(ci.Children) == 0 {
+			// No action required
+			continue
+		}
+
+		for _, child := range ci.Children {
+			if child.ExternalID == "" || child.Type == "" {
+				continue
+			}
+
+			found, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: child.Type, ExternalID: []string{child.ExternalID}})
+			if err != nil {
+				return err
+			}
+			if found == nil {
+				ctx.Logger.Tracef("child:[%s/%s] not found for config [%s]", child.Type, child.ExternalID, ci)
+				continue
+			}
+			childRef := allConfigs.GetByID(found.ID)
+			if childRef != nil {
+				childRef.ParentID = &ci.ID
+			}
+		}
+	}
+	return nil
+}
+
 func getOrFind(ctx api.ScrapeContext, parentMap map[string]string, id string) string {
 	if parent, ok := parentMap[id]; ok {
 		return parent
 	}
-
 	if parent, _ := ctx.TempCache().Get(ctx, id); parent != nil {
 		if parent.ParentID == nil {
 			return ""

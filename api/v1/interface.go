@@ -571,6 +571,9 @@ type ScrapeResult struct {
 	// List of candidate parents in order of precision.
 	Parents []ConfigExternalKey `json:"-"`
 
+	// List of candidate children in order of precision.
+	Children []ConfigExternalKey `json:"-"`
+
 	// RelationshipSelectors are used to form relationship of this scraped item with other items.
 	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without
 	// knowing the external ids of the item to be linked.
