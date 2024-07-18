@@ -235,7 +235,7 @@
               "default": "",
               "description": "Note unlike other globals, the global serviceAccount.name overrides the local value",
               "title": "name",
-              "type": "null"
+              "type": "string"
             }
           },
           "title": "serviceAccount",
