@@ -11,7 +11,7 @@ global:
   serviceAccount:
     annotations: {}
     # Note unlike other globals, the global serviceAccount.name overrides the local value
-    name:
+    name: ""
   nodeSelector: {}
   tolerations: []
   affinity: {}
