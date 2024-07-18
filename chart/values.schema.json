@@ -1,9 +1,8 @@
 {
-  "additionalProperties": false,
   "properties": {
     "affinity": {
-      "additionalProperties": true,
-      "title": "affinity"
+      "title": "affinity",
+      "type": "object"
     },
     "configAnalysisRetentionDays": {
       "default": 60,
@@ -39,7 +38,6 @@
             }
           },
           "title": "embedded",
-          "type": "object",
           "required": [
             "persist",
             "storageClass",
@@ -78,7 +76,6 @@
                 }
               },
               "title": "secretKeyRef",
-              "type": "object",
               "required": [
                 "name",
                 "key"
@@ -96,11 +93,9 @@
             }
           },
           "title": "external",
-          "type": "object",
           "required": [
             "enabled",
             "create",
-            "secretKeyRef",
             "storageClass",
             "storage"
           ]
@@ -112,11 +107,8 @@
         }
       },
       "title": "db",
-      "type": "object",
       "required": [
-        "runMigrations",
-        "embedded",
-        "external"
+        "runMigrations"
       ]
     },
     "disablePostgrest": {
@@ -126,28 +118,25 @@
       "type": "boolean"
     },
     "env": {
-      "additionalProperties": true,
       "description": "environment variables to add e.g. GOMEMLIMIT",
-      "title": "env"
+      "title": "env",
+      "type": "object"
     },
     "extra": {
-      "additionalProperties": true,
       "description": "Extra values to be applied to the pod spec",
-      "title": "extra"
+      "title": "extra",
+      "type": "object"
     },
     "extraArgs": {
-      "additionalProperties": true,
       "description": "command line arguments to config-db",
-      "title": "extraArgs"
+      "title": "extraArgs",
+      "type": "object"
     },
     "global": {
-      "additionalProperties": false,
       "properties": {
         "db": {
-          "additionalProperties": false,
           "properties": {
             "connectionPooler": {
-              "additionalProperties": false,
               "properties": {
                 "enabled": {
                   "default": false,
@@ -155,7 +144,6 @@
                   "type": "boolean"
                 },
                 "secretKeyRef": {
-                  "additionalProperties": false,
                   "properties": {
                     "key": {
                       "default": "DB_URL",
@@ -201,7 +189,6 @@
           "type": "string"
         },
         "labels": {
-          "additionalProperties": false,
           "title": "labels",
           "type": "object"
         }
@@ -217,7 +204,6 @@
       ]
     },
     "image": {
-      "additionalProperties": false,
       "properties": {
         "name": {
           "default": "{{.Values.global.imagePrefix}}/config-db",
@@ -248,8 +234,8 @@
       "additionalProperties": false,
       "properties": {
         "annotations": {
-          "additionalProperties": true,
-          "title": "annotations"
+          "title": "annotations",
+          "type": "object"
         },
         "enabled": {
           "default": false,
@@ -269,9 +255,9 @@
         }
       },
       "title": "ingress",
-      "type": "object",
       "required": [
         "enabled",
+        "annotations",
         "host",
         "tls"
       ]
@@ -284,13 +270,7 @@
     "logLevel": {
       "default": "",
       "title": "logLevel",
-      "enum": [
-        "",
-        "-v",
-        "-vv",
-        "-vvv",
-        "-vvvv"
-      ]
+      "type": "string"
     },
     "nameOverride": {
       "default": "",
@@ -299,8 +279,8 @@
       "type": "string"
     },
     "nodeSelector": {
-      "additionalProperties": true,
-      "title": "nodeSelector"
+      "title": "nodeSelector",
+      "type": "object"
     },
     "otel": {
       "additionalProperties": false,
@@ -324,7 +304,6 @@
         }
       },
       "title": "otel",
-      "type": "object",
       "required": [
         "collector",
         "serviceName",
@@ -332,7 +311,6 @@
       ]
     },
     "podSecurityContext": {
-      "additionalProperties": false,
       "properties": {
         "fsGroup": {
           "default": 1000,
@@ -346,9 +324,9 @@
       ]
     },
     "properties": {
-      "additionalProperties": true,
       "description": "config-db properties to override",
-      "title": "properties"
+      "title": "properties",
+      "type": "object"
     },
     "replicas": {
       "default": 1,
@@ -359,7 +337,6 @@
       "additionalProperties": false,
       "properties": {
         "limits": {
-          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "500m",
@@ -380,7 +357,6 @@
           ]
         },
         "requests": {
-          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "200m",
@@ -402,7 +378,6 @@
         }
       },
       "title": "resources",
-      "type": "object",
       "required": [
         "requests",
         "limits"
@@ -421,16 +396,15 @@
       "type": "array"
     },
     "securityContext": {
-      "additionalProperties": true,
-      "default": "",
-      "title": "securityContext"
+      "title": "securityContext",
+      "type": "object"
     },
     "serviceAccount": {
       "additionalProperties": false,
       "properties": {
         "annotations": {
-          "additionalProperties": true,
-          "title": "annotations"
+          "title": "annotations",
+          "type": "object"
         },
         "create": {
           "default": true,
@@ -481,7 +455,6 @@
             }
           },
           "title": "rbac",
-          "type": "object",
           "required": [
             "clusterRole",
             "tokenRequest",
@@ -493,15 +466,13 @@
         }
       },
       "title": "serviceAccount",
-      "type": "object",
       "required": [
         "create",
         "name",
-        "rbac"
+        "annotations"
       ]
     },
     "serviceMonitor": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": true,
@@ -525,7 +496,6 @@
       "type": "array"
     },
     "upstream": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
@@ -538,7 +508,6 @@
           "type": "integer"
         },
         "secretKeyRef": {
-          "additionalProperties": false,
           "properties": {
             "name": {
               "default": "config-db-upstream",
@@ -585,16 +554,19 @@
     "configChangeRetentionDays",
     "configAnalysisRetentionDays",
     "serviceMonitor",
+    "logLevel",
     "jsonLogs",
-    "resources",
+    "extraArgs",
+    "env",
+    "properties",
     "scrapeRuleConfigMaps",
-    "otel",
-    "db",
-    "ingress",
-    "serviceAccount",
     "upstream",
+    "extra",
+    "securityContext",
     "volumes",
     "volumeMounts",
-    "tolerations"
+    "nodeSelector",
+    "tolerations",
+    "affinity"
   ]
 }

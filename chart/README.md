@@ -53,7 +53,7 @@ A Helm chart for config-db
 | resources.requests.cpu | string | `"200m"` |  |
 | resources.requests.memory | string | `"1Gi"` |  |
 | scrapeRuleConfigMaps[0] | string | `"config-db-rules"` |  |
-| securityContext | string | `nil` |  |
+| securityContext | object | `{}` |  |
 | serviceAccount.annotations | object | `{}` |  |
 | serviceAccount.create | bool | `true` |  |
 | serviceAccount.name | string | `"config-db-sa"` |  |
