@@ -225,6 +225,8 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 	)
 	logUnmatched := ctx.PropertyOn(true, "log.changes.unmatched")
 
+	logExclusions := ctx.PropertyOn(false, "log.exclusions")
+
 	changes.ProcessRules(result, result.BaseScraper.Transform.Change.Mapping...)
 	for _, changeResult := range result.Changes {
 		if changeResult.Action == v1.Ignore {
@@ -236,7 +238,9 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			ctx.JobHistory().AddError(fmt.Sprintf("error running change exclusion: %v", err))
 		} else if exclude {
 			changeSummary.AddIgnored(changeResult.ChangeType)
-			ctx.Logger.V(3).Infof("excluded change: %v", changeResult)
+			if logExclusions {
+				ctx.Logger.V(3).Infof("excluded change: %v", changeResult)
+			}
 			continue
 		}
 
@@ -493,6 +497,9 @@ func normalizeJSON(jsonStr string) (string, error) {
 
 // generateDiff calculates the diff (git style) between the given 2 configs.
 func generateDiff(newConf, prevConfig string) (string, error) {
+	if newConf == prevConfig {
+		return "", nil
+	}
 	// We want a nicely indented json config with each key-vals in new line
 	// because that gives us a better diff. A one-line json string config produces diff
 	// that's not very helpful.
@@ -520,9 +527,15 @@ func generateDiff(newConf, prevConfig string) (string, error) {
 func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem) (*v1.ChangeResult, error) {
 	if changeTypExclusion, ok := lo.FromPtr(newConf.Labels)[v1.AnnotationIgnoreChangeByType]; ok {
 		if collections.MatchItems("diff", strings.Split(changeTypExclusion, ",")...) {
-			ctx.Logger.V(4).Infof("excluding diff change for config(%s) with annotation (%s)", newConf, changeTypExclusion)
+			if ctx.PropertyOn(false, "log.exclusions") {
+				ctx.Logger.V(4).Infof("excluding diff change for config(%s) with annotation (%s)", newConf, changeTypExclusion)
+			}
 			return nil, nil
 		}
+	}
+
+	if ctx.PropertyOn(false, "diff.disable") {
+		return nil, nil
 	}
 
 	diff, err := generateDiff(*newConf.Config, *prev.Config)
