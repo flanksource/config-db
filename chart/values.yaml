@@ -29,7 +29,7 @@ image:
 configChangeRetentionDays: 60
 configAnalysisRetentionDays: 60
 serviceMonitor:
-  enabled: true
+  enabled: false
   # @schema
   # additionalProperties: true
   # @schema
