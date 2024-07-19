@@ -291,6 +291,59 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "ChangeExtractionConfigSelector": {
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/ChangeExtractionVar"
+        },
+        "type": {
+          "$ref": "#/$defs/ChangeExtractionVar"
+        },
+        "tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ChangeExtractionMapping": {
+      "properties": {
+        "severity": {
+          "$ref": "#/$defs/ChangeExtractionVar"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/ChangeExtractionVar"
+        },
+        "summary": {
+          "$ref": "#/$defs/ChangeExtractionVar"
+        },
+        "type": {
+          "$ref": "#/$defs/ChangeExtractionVar"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "severity",
+        "createdAt",
+        "summary"
+      ]
+    },
+    "ChangeExtractionVar": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "ChangeMapping": {
       "properties": {
         "filter": {
@@ -1460,6 +1513,12 @@
           },
           "type": "array"
         },
+        "slack": {
+          "items": {
+            "$ref": "#/$defs/Slack"
+          },
+          "type": "array"
+        },
         "trivy": {
           "items": {
             "$ref": "#/$defs/Trivy"
@@ -1504,6 +1563,82 @@
             "type": "string"
           },
           "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Slack": {
+      "properties": {
+        "token": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "channels": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/SlackChangeExtractionRule"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "token",
+        "channels",
+        "rules"
+      ]
+    },
+    "SlackChangeAcceptanceFilter": {
+      "properties": {
+        "bot": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/SlackUserFilter"
+        },
+        "expr": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SlackChangeExtractionRule": {
+      "properties": {
+        "filter": {
+          "$ref": "#/$defs/SlackChangeAcceptanceFilter"
+        },
+        "mapping": {
+          "$ref": "#/$defs/ChangeExtractionMapping"
+        },
+        "config": {
+          "items": {
+            "$ref": "#/$defs/ChangeExtractionConfigSelector"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "filter",
+        "mapping",
+        "config"
+      ]
+    },
+    "SlackUserFilter": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

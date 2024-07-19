@@ -51,6 +51,7 @@ type ScraperSpec struct {
 	GithubActions  []GitHubActions  `json:"githubActions,omitempty" yaml:"githubActions,omitempty"`
 	Azure          []Azure          `json:"azure,omitempty" yaml:"azure,omitempty"`
 	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
+	Slack          []Slack          `json:"slack,omitempty" yaml:"slack,omitempty"`
 	Trivy          []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
 	Retention      RetentionSpec    `json:"retention,omitempty"`
 

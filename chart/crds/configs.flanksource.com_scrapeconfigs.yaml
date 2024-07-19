@@ -3471,6 +3471,170 @@ spec:
                 type: object
               schedule:
                 type: string
+              slack:
+                items:
+                  properties:
+                    channels:
+                      description: |-
+                        Process messages from these channels and discard others.
+                        If empty, all channels are matched.
+                      items:
+                        description: MatchExpression uses MatchItems
+                        type: string
+                      type: array
+                    rules:
+                      description: Rule defines the change extraction rules
+                      items:
+                        properties:
+                          config:
+                            description: Config is a list of selectors to attach the
+                              change to.
+                            items:
+                              description: |-
+                                ChangeExtractionConfigSelector is used to select a config item.
+                                At least one of the fields must be specified.
+                              properties:
+                                name:
+                                  properties:
+                                    expr:
+                                      type: string
+                                    value:
+                                      description: Value is a static value
+                                      type: string
+                                  type: object
+                                tags:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                                type:
+                                  properties:
+                                    expr:
+                                      type: string
+                                    value:
+                                      description: Value is a static value
+                                      type: string
+                                  type: object
+                              type: object
+                            minItems: 1
+                            type: array
+                          filter:
+                            description: Only those messages matching this filter
+                              will be processed.
+                            properties:
+                              bot:
+                                description: Bot name to match
+                                type: string
+                              expr:
+                                description: Filter the message based on the text
+                                type: string
+                              user:
+                                description: Slack User to match
+                                properties:
+                                  displayName:
+                                    description: MatchExpression uses MatchItems
+                                    type: string
+                                  name:
+                                    description: MatchExpression uses MatchItems
+                                    type: string
+                                type: object
+                            type: object
+                          mapping:
+                            description: Mapping defines the Change to be extracted
+                              from the message.
+                            properties:
+                              createdAt:
+                                properties:
+                                  expr:
+                                    type: string
+                                  value:
+                                    description: Value is a static value
+                                    type: string
+                                type: object
+                              severity:
+                                properties:
+                                  expr:
+                                    type: string
+                                  value:
+                                    description: Value is a static value
+                                    type: string
+                                type: object
+                              summary:
+                                properties:
+                                  expr:
+                                    type: string
+                                  value:
+                                    description: Value is a static value
+                                    type: string
+                                type: object
+                              type:
+                                properties:
+                                  expr:
+                                    type: string
+                                  value:
+                                    description: Value is a static value
+                                    type: string
+                                type: object
+                            required:
+                            - createdAt
+                            - severity
+                            - summary
+                            type: object
+                        required:
+                        - config
+                        - filter
+                        - mapping
+                        type: object
+                      type: array
+                    token:
+                      description: Slack token
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            helmRef:
+                              properties:
+                                key:
+                                  description: Key is a JSONPath expression used to
+                                    fetch the key from the merged JSON.
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            serviceAccount:
+                              description: ServiceAccount specifies the service account
+                                whose token should be fetched
+                              type: string
+                          type: object
+                      type: object
+                  required:
+                  - channels
+                  - rules
+                  - token
+                  type: object
+                type: array
               sql:
                 items:
                   properties:

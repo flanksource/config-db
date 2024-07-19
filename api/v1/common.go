@@ -12,6 +12,11 @@ import (
 	"github.com/flanksource/gomplate/v3"
 )
 
+// MatchExpression uses MatchItems
+type MatchExpression string
+
+type CelExpression string
+
 // ConfigFieldExclusion defines fields with JSONPath that needs to
 // be removed from the config.
 type ConfigFieldExclusion struct {
@@ -353,4 +358,27 @@ type Template struct {
 	GSONPath   string `yaml:"gsonPath,omitempty" json:"gsonPath,omitempty"`
 	Expression string `yaml:"expr,omitempty" json:"expr,omitempty"`
 	Javascript string `yaml:"javascript,omitempty" json:"javascript,omitempty"`
+}
+
+type ChangeExtractionMapping struct {
+	Severity  ChangeExtractionVar `yaml:"severity" json:"severity"`
+	CreatedAt ChangeExtractionVar `yaml:"createdAt" json:"createdAt"`
+	Summary   ChangeExtractionVar `yaml:"summary" json:"summary"`
+
+	Type ChangeExtractionVar `yaml:"type,omitempty" json:"type,omitempty"`
+}
+
+type ChangeExtractionVar struct {
+	Expr CelExpression `yaml:"expr,omitempty" json:"expr,omitempty"`
+
+	// Value is a static value
+	Value string `yaml:"value,omitempty" json:"value,omitempty"`
+}
+
+// ChangeExtractionConfigSelector is used to select a config item.
+// At least one of the fields must be specified.
+type ChangeExtractionConfigSelector struct {
+	Name ChangeExtractionVar `yaml:"name,omitempty" json:"name,omitempty"`
+	Type ChangeExtractionVar `yaml:"type,omitempty" json:"type,omitempty"`
+	Tags map[string]string   `yaml:"tags,omitempty" json:"tags,omitempty"`
 }
