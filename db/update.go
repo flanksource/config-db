@@ -303,10 +303,11 @@ func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	ciID, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: analysis.ConfigType, ExternalID: []string{analysis.ExternalID}})
 	if err != nil {
 		return err
-	}
+	} else if ciID == nil {
+		if ctx.PropertyOn(false, "log.missing") {
+			ctx.Debugf("unable to find config item for analysis: (source=%s, configType=%s, externalID=%s, analysis: %+v)", analysis.Source, analysis.ConfigType, analysis.ExternalID, analysis)
+		}
 
-	if ciID == nil && ctx.PropertyOn(false, "log.missing") {
-		ctx.Debugf("unable to find config item for analysis: (source=%s, configType=%s, externalID=%s, analysis: %+v)", analysis.Source, analysis.ConfigType, analysis.ExternalID, analysis)
 		return nil
 	}
 
