@@ -737,6 +737,15 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 		}}, allParents...)
 	}
 
+	kustomizeName := obj.GetLabels()["kustomize.toolkit.fluxcd.io/name"]
+	kustomizeNamespace := obj.GetLabels()["kustomize.toolkit.fluxcd.io/namespace"]
+	if kustomizeName != "" && kustomizeNamespace != "" {
+		allParents = append([]v1.ConfigExternalKey{{
+			Type:       ConfigTypePrefix + "Kustomization",
+			ExternalID: lo.CoalesceOrEmpty(resourceIDMap.Get(kustomizeNamespace, "Kustomization", kustomizeName), getKubernetesAlias("Kustomization", kustomizeNamespace, kustomizeName)),
+		}}, allParents...)
+	}
+
 	return allParents
 }
 
