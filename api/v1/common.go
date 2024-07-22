@@ -374,10 +374,13 @@ type Template struct {
 
 type ChangeExtractionMapping struct {
 	Severity  ExtractionVar `yaml:"severity,omitempty" json:"severity,omitempty"`
-	CreatedAt ExtractionVar `yaml:"createdAt,omitempty" json:"createdAt,omitempty"`
 	Summary   ExtractionVar `yaml:"summary,omitempty" json:"summary,omitempty"`
+	CreatedAt ExtractionVar `yaml:"createdAt,omitempty" json:"createdAt,omitempty"`
+	Type      ExtractionVar `yaml:"type" json:"type"`
 
-	Type ExtractionVar `yaml:"type" json:"type"`
+	// TimeFormat is the go time format for the `createdAt` field.
+	// Defaults to RFC3339.
+	TimeFormat string `yaml:"timeFormat,omitempty" json:"timeFormat,omitempty"`
 }
 
 type ExtractionVar struct {
@@ -407,11 +410,16 @@ type EnvVarResourceSelector struct {
 	Tags map[string]string `yaml:"tags,omitempty" json:"tags,omitempty"`
 }
 
+func (t EnvVarResourceSelector) Empty() bool {
+	return t.Name.Empty() && t.Type.Empty() && len(t.Tags) == 0
+}
+
 type ChangeExtractionRule struct {
-	// Regexp to capture the fields from messages.
+	// Regexp to capture the fields from the text.
+	// Captured fields are available in the templates.
 	Regexp string `yaml:"regexp,omitempty" json:"regexp,omitempty"`
 
-	// Mapping defines the Change to be extracted from the message.
+	// Mapping defines the Change to be extracted from the text.
 	Mapping ChangeExtractionMapping `yaml:"mapping" json:"mapping"`
 
 	// Config is a list of selectors to attach the change to.

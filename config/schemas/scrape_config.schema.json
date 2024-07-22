@@ -296,14 +296,17 @@
         "severity": {
           "$ref": "#/$defs/ExtractionVar"
         },
-        "createdAt": {
+        "summary": {
           "$ref": "#/$defs/ExtractionVar"
         },
-        "summary": {
+        "createdAt": {
           "$ref": "#/$defs/ExtractionVar"
         },
         "type": {
           "$ref": "#/$defs/ExtractionVar"
+        },
+        "timeFormat": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

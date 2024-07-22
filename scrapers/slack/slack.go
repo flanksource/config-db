@@ -94,7 +94,7 @@ func processRule(ctx api.ScrapeContext, config v1.Slack, rule v1.SlackChangeExtr
 			continue
 		}
 
-		extractedChanges, err := changes.MapChanges(ctx.DutyContext(), rule.ChangeExtractionRule, message.Text)
+		extractedChanges, err := changes.MapChanges(ctx, rule.ChangeExtractionRule, message.Text)
 		if err != nil {
 			results = append(results, v1.ScrapeResult{Error: err})
 			return results

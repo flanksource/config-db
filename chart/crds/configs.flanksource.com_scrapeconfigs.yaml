@@ -3631,7 +3631,7 @@ spec:
                                 description: Bot name to match
                                 type: string
                               expr:
-                                description: Filter the message based on the text
+                                description: Must match the given expression
                                 type: string
                               user:
                                 description: Slack User to match
@@ -3646,7 +3646,7 @@ spec:
                             type: object
                           mapping:
                             description: Mapping defines the Change to be extracted
-                              from the message.
+                              from the text.
                             properties:
                               createdAt:
                                 properties:
@@ -3672,6 +3672,11 @@ spec:
                                     description: Value is a static value
                                     type: string
                                 type: object
+                              timeFormat:
+                                description: |-
+                                  TimeFormat is the go time format for the `createdAt` field.
+                                  Defaults to RFC3339.
+                                type: string
                               type:
                                 properties:
                                   expr:
@@ -3684,7 +3689,9 @@ spec:
                             - type
                             type: object
                           regexp:
-                            description: Regexp to capture the fields from messages.
+                            description: |-
+                              Regexp to capture the fields from the text.
+                              Captured fields are available in the templates.
                             type: string
                         required:
                         - config
@@ -3693,7 +3700,10 @@ spec:
                       minItems: 1
                       type: array
                     since:
-                      description: Duration string
+                      description: |-
+                        Fetch the messages since this period.
+                        Specify the duration string.
+                          eg: 1h, 7d, ...
                       type: string
                     tags:
                       description: |-

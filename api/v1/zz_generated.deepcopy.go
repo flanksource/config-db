@@ -213,8 +213,8 @@ func (in *BaseScraper) DeepCopy() *BaseScraper {
 func (in *ChangeExtractionMapping) DeepCopyInto(out *ChangeExtractionMapping) {
 	*out = *in
 	out.Severity = in.Severity
-	out.CreatedAt = in.CreatedAt
 	out.Summary = in.Summary
+	out.CreatedAt = in.CreatedAt
 	out.Type = in.Type
 }
 

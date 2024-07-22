@@ -6,11 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/hash"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
+	"github.com/samber/lo"
 )
 
 var regexpCache sync.Map
@@ -29,7 +31,7 @@ func compileRegexp(r string) (*regexp.Regexp, error) {
 	return parsed, nil
 }
 
-func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) ([]v1.ChangeResult, error) {
+func MapChanges(ctx api.ScrapeContext, rule v1.ChangeExtractionRule, text string) ([]v1.ChangeResult, error) {
 	env := make(map[string]any)
 	if rule.Regexp != "" {
 		compiled, err := compileRegexp(rule.Regexp)
@@ -51,21 +53,34 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 
 	changeType, err = rule.Mapping.Type.Eval(env)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to evaluate type: %v", err)
 	}
 
 	if !rule.Mapping.Severity.Empty() {
 		severity, err = rule.Mapping.Severity.Eval(env)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to evaluate severity: %v", err)
 		}
 	}
 
 	if !rule.Mapping.Summary.Empty() {
 		summary, err = rule.Mapping.Summary.Eval(env)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to evaluate summary: %v", err)
 		}
+	}
+
+	if !rule.Mapping.CreatedAt.Empty() {
+		_createdAt, err := rule.Mapping.CreatedAt.Eval(env)
+		if err != nil {
+			return nil, fmt.Errorf("failed to evaluate summary: %v", err)
+		}
+
+		val, err := time.Parse(lo.CoalesceOrEmpty(rule.Mapping.TimeFormat, time.RFC3339), _createdAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse createdAt: %v", err)
+		}
+		changeCreatedAt = &val
 	}
 
 	var output []v1.ChangeResult
@@ -74,7 +89,7 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		if !configSelector.Name.Empty() {
 			name, err := configSelector.Name.Eval(env)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to evaluate config name: %v", err)
 			}
 			resourceSelector.Name = name
 		}
@@ -82,18 +97,24 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		if !configSelector.Type.Empty() {
 			configType, err := configSelector.Type.Eval(env)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to evaluate config type: %v", err)
 			}
 			resourceSelector.Types = []string{configType}
 		}
 
-		configIDs, err := query.FindConfigIDsByResourceSelector(ctx, resourceSelector)
+		if len(configSelector.Tags) != 0 {
+			resourceSelector.TagSelector = collections.SortedMap(configSelector.Tags)
+		}
+
+		configIDs, err := query.FindConfigIDsByResourceSelector(ctx.DutyContext(), resourceSelector)
 		if err != nil {
 			return nil, fmt.Errorf("failed to select configs: %w", err)
 		}
+		ctx.Logger.V(3).Infof("found %d configs for selector %v", len(configIDs), resourceSelector)
 
 		for _, configID := range configIDs {
 			output = append(output, v1.ChangeResult{
+				Source:           "slack",
 				CreatedAt:        changeCreatedAt,
 				Severity:         severity,
 				ChangeType:       changeType,

@@ -8,7 +8,9 @@ type Slack struct {
 	// Slack token
 	Token types.EnvVar `yaml:"token" json:"token"`
 
-	// Duration string
+	// Fetch the messages since this period.
+	// Specify the duration string.
+	//   eg: 1h, 7d, ...
 	Since string `yaml:"since,omitempty" json:"since,omitempty"`
 
 	// Process messages from these channels and discard others.
@@ -34,7 +36,7 @@ type SlackChangeAcceptanceFilter struct {
 	// Slack User to match
 	User SlackUserFilter `yaml:"user,omitempty" json:"user,omitempty"`
 
-	// Filter the message based on the text
+	// Must match the given expression
 	Expr CelExpression `yaml:"expr,omitempty" json:"expr,omitempty"`
 }
 
