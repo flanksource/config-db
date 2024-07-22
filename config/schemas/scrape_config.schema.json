@@ -291,37 +291,19 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "ChangeExtractionConfigSelector": {
-      "properties": {
-        "name": {
-          "$ref": "#/$defs/ChangeExtractionVar"
-        },
-        "type": {
-          "$ref": "#/$defs/ChangeExtractionVar"
-        },
-        "tags": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
     "ChangeExtractionMapping": {
       "properties": {
         "severity": {
-          "$ref": "#/$defs/ChangeExtractionVar"
+          "$ref": "#/$defs/ExtractionVar"
         },
         "createdAt": {
-          "$ref": "#/$defs/ChangeExtractionVar"
+          "$ref": "#/$defs/ExtractionVar"
         },
         "summary": {
-          "$ref": "#/$defs/ChangeExtractionVar"
+          "$ref": "#/$defs/ExtractionVar"
         },
         "type": {
-          "$ref": "#/$defs/ChangeExtractionVar"
+          "$ref": "#/$defs/ExtractionVar"
         }
       },
       "additionalProperties": false,
@@ -331,18 +313,6 @@
         "createdAt",
         "summary"
       ]
-    },
-    "ChangeExtractionVar": {
-      "properties": {
-        "expr": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
     },
     "ChangeMapping": {
       "properties": {
@@ -521,6 +491,24 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "EnvVarResourceSelector": {
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/ExtractionVar"
+        },
+        "type": {
+          "$ref": "#/$defs/ExtractionVar"
+        },
+        "tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "EnvVarSource": {
       "properties": {
         "serviceAccount": {
@@ -534,6 +522,18 @@
         },
         "secretKeyRef": {
           "$ref": "#/$defs/SecretKeySelector"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ExtractionVar": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -1579,6 +1579,9 @@
           },
           "type": "array"
         },
+        "regexp": {
+          "type": "string"
+        },
         "rules": {
           "items": {
             "$ref": "#/$defs/SlackChangeExtractionRule"
@@ -1619,7 +1622,7 @@
         },
         "config": {
           "items": {
-            "$ref": "#/$defs/ChangeExtractionConfigSelector"
+            "$ref": "#/$defs/EnvVarResourceSelector"
           },
           "type": "array"
         }

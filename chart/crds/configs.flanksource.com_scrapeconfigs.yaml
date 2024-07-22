@@ -3482,8 +3482,11 @@ spec:
                         description: MatchExpression uses MatchItems
                         type: string
                       type: array
+                    regexp:
+                      description: Regexp to capture the fields from messages.
+                      type: string
                     rules:
-                      description: Rule defines the change extraction rules
+                      description: Rule defines the change extraction rules.
                       items:
                         properties:
                           config:
@@ -3491,7 +3494,7 @@ spec:
                               change to.
                             items:
                               description: |-
-                                ChangeExtractionConfigSelector is used to select a config item.
+                                EnvVarResourceSelector is used to select a config item.
                                 At least one of the fields must be specified.
                               properties:
                                 name:

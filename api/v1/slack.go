@@ -10,7 +10,10 @@ type Slack struct {
 	// If empty, all channels are matched.
 	Channels []MatchExpression `yaml:"channels" json:"channels"`
 
-	// Rule defines the change extraction rules
+	// Regexp to capture the fields from messages.
+	Regexp string `yaml:"regexp,omitempty" json:"regexp,omitempty"`
+
+	// Rule defines the change extraction rules.
 	Rule []SlackChangeExtractionRule `yaml:"rules" json:"rules"`
 }
 
@@ -23,7 +26,7 @@ type SlackChangeExtractionRule struct {
 
 	// Config is a list of selectors to attach the change to.
 	// +kubebuilder:validation:MinItems=1
-	Config []ChangeExtractionConfigSelector `yaml:"config" json:"config"`
+	Config []EnvVarResourceSelector `yaml:"config" json:"config"`
 }
 
 type SlackChangeAcceptanceFilter struct {

@@ -361,24 +361,24 @@ type Template struct {
 }
 
 type ChangeExtractionMapping struct {
-	Severity  ChangeExtractionVar `yaml:"severity" json:"severity"`
-	CreatedAt ChangeExtractionVar `yaml:"createdAt" json:"createdAt"`
-	Summary   ChangeExtractionVar `yaml:"summary" json:"summary"`
+	Severity  ExtractionVar `yaml:"severity" json:"severity"`
+	CreatedAt ExtractionVar `yaml:"createdAt" json:"createdAt"`
+	Summary   ExtractionVar `yaml:"summary" json:"summary"`
 
-	Type ChangeExtractionVar `yaml:"type,omitempty" json:"type,omitempty"`
+	Type ExtractionVar `yaml:"type,omitempty" json:"type,omitempty"`
 }
 
-type ChangeExtractionVar struct {
+type ExtractionVar struct {
 	Expr CelExpression `yaml:"expr,omitempty" json:"expr,omitempty"`
 
 	// Value is a static value
 	Value string `yaml:"value,omitempty" json:"value,omitempty"`
 }
 
-// ChangeExtractionConfigSelector is used to select a config item.
+// EnvVarResourceSelector is used to select a config item.
 // At least one of the fields must be specified.
-type ChangeExtractionConfigSelector struct {
-	Name ChangeExtractionVar `yaml:"name,omitempty" json:"name,omitempty"`
-	Type ChangeExtractionVar `yaml:"type,omitempty" json:"type,omitempty"`
-	Tags map[string]string   `yaml:"tags,omitempty" json:"tags,omitempty"`
+type EnvVarResourceSelector struct {
+	Name ExtractionVar     `yaml:"name,omitempty" json:"name,omitempty"`
+	Type ExtractionVar     `yaml:"type,omitempty" json:"type,omitempty"`
+	Tags map[string]string `yaml:"tags,omitempty" json:"tags,omitempty"`
 }
