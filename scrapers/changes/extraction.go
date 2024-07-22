@@ -32,19 +32,25 @@ func compileRegexp(r string) (*regexp.Regexp, error) {
 }
 
 func MapChanges(ctx api.ScrapeContext, rule v1.ChangeExtractionRule, text string) ([]v1.ChangeResult, error) {
-	env := make(map[string]any)
+	env := map[string]any{
+		"text": text,
+	}
+
 	if rule.Regexp != "" {
 		compiled, err := compileRegexp(rule.Regexp)
 		if err != nil {
 			return nil, err
 		}
 
+		regexpEnv := map[string]string{}
 		match := compiled.FindStringSubmatch(text)
 		for i, name := range compiled.SubexpNames() {
 			if i != 0 && name != "" && len(match) >= len(compiled.SubexpNames()) {
-				env[name] = match[i]
+				regexpEnv[name] = match[i]
 			}
 		}
+
+		env["env"] = regexpEnv
 	}
 
 	var changeType, severity, summary string

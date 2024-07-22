@@ -19,12 +19,12 @@ spec:
         - regexp: name:\s*(?<name>.*?)\s+type:\s*(?<change_type>.*?)\s+is\s+.*\nseverity:\s*(?<severity>\w+)
           filter:
             bot: 'Notifier'
-            expr: text.contains('healthy') && text.contains('name') # match healthy/unhealthy
+            expr: text.contains('healthy') # match healthy/unhealthy
           config:
             - name:
-                expr: name
+                expr: env.?name.orValue('')
               type:
-                expr: change_type
+                expr: env.?change_type.orValue('')
           mapping:
             type:
               value: health
@@ -32,6 +32,6 @@ spec:
             createdAt:
               value: 13 Jul 24 15:04 MST
             severity:
-              expr: severity
+              expr: env.?severity.orValue('')
             summary:
-              expr: severity
+              expr: text.substring(25)
