@@ -1159,6 +1159,12 @@
       },
       "type": "array"
     },
+    "MatchExpressions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "ObjectMeta": {
       "properties": {
         "name": {
@@ -1570,14 +1576,62 @@
     },
     "Slack": {
       "properties": {
-        "token": {
-          "$ref": "#/$defs/EnvVar"
+        "id": {
+          "type": "string"
         },
-        "channels": {
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
           "items": {
             "type": "string"
           },
           "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "token": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "since": {
+          "type": "string"
+        },
+        "channels": {
+          "$ref": "#/$defs/MatchExpressions"
         },
         "regexp": {
           "type": "string"

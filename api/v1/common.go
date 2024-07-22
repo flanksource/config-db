@@ -6,14 +6,22 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
+	"github.com/samber/lo"
 )
 
 // MatchExpression uses MatchItems
 type MatchExpression string
+
+type MatchExpressions []MatchExpression
+
+func (t MatchExpressions) Match(item string) bool {
+	return collections.MatchItems(item, lo.Map(t, func(x MatchExpression, _ int) string { return string(x) })...)
+}
 
 type CelExpression string
 

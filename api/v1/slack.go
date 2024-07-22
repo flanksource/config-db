@@ -3,12 +3,17 @@ package v1
 import "github.com/flanksource/duty/types"
 
 type Slack struct {
+	BaseScraper `json:",inline"`
+
 	// Slack token
 	Token types.EnvVar `yaml:"token" json:"token"`
 
+	// Duration string
+	Since string `yaml:"since,omitempty" json:"since,omitempty"`
+
 	// Process messages from these channels and discard others.
 	// If empty, all channels are matched.
-	Channels []MatchExpression `yaml:"channels" json:"channels"`
+	Channels MatchExpressions `yaml:"channels" json:"channels"`
 
 	// Regexp to capture the fields from messages.
 	Regexp string `yaml:"regexp,omitempty" json:"regexp,omitempty"`
