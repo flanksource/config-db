@@ -20,14 +20,47 @@ type ResponseMetadata struct {
 	Warnings []string `json:"warnings"`
 }
 
+// BotProfile contains information about a bot
+type BotProfile struct {
+	ID     string `json:"id,omitempty"`
+	Name   string `json:"name,omitempty"`
+	TeamID string `json:"team_id,omitempty"`
+}
+
 type Message struct {
-	ClientMsgID string `json:"client_msg_id,omitempty"`
-	Type        string `json:"type,omitempty"`
-	Channel     string `json:"channel,omitempty"`
-	User        string `json:"user,omitempty"`
-	Text        string `json:"text,omitempty"`
-	Timestamp   string `json:"ts,omitempty"`
-	Team        string `json:"team,omitempty"`
+	ClientMsgID string      `json:"client_msg_id,omitempty"`
+	Type        string      `json:"type,omitempty"`
+	Channel     string      `json:"channel,omitempty"`
+	User        string      `json:"user,omitempty"`
+	Text        string      `json:"text,omitempty"`
+	Timestamp   string      `json:"ts,omitempty"`
+	Team        string      `json:"team,omitempty"`
+	BotID       string      `json:"bot_id,omitempty"`
+	ReplyTo     int         `json:"reply_to,omitempty"`
+	BotProfile  *BotProfile `json:"bot_profile,omitempty"`
+
+	// channel_name, group_name
+	Name string `json:"name,omitempty"`
+
+	UserInfo UserInfo `json:"-"`
+}
+
+func (t Message) AsMap() map[string]any {
+	m := map[string]any{
+		"channel": t.Channel,
+		"text":    t.Text,
+		"user":    t.User,
+	}
+
+	if t.UserInfo.Profile.DisplayName != "" {
+		m["display_name"] = t.UserInfo.Profile.DisplayName
+	}
+
+	if t.BotProfile != nil {
+		m["bot_name"] = t.BotProfile.Name
+	}
+
+	return m
 }
 
 // SlackResponse handles parsing out errors from the web api.
@@ -47,7 +80,8 @@ type GetConversationHistoryResponse struct {
 }
 
 type SlackAPI struct {
-	client *http.Client
+	client    *http.Client
+	usersList map[string]UserInfo
 }
 
 func NewSlackAPI(token string) *SlackAPI {
@@ -113,7 +147,7 @@ func (t *SlackAPI) ListConversations(ctx context.Context) (*ConversationList, er
 func (t *SlackAPI) getSlackConversationHistory(ctx context.Context, channel ChannelDetail, params *GetConversationHistoryParameters) (GetConversationHistoryResponse, error) {
 	var output GetConversationHistoryResponse
 
-	req := t.client.R(ctx).QueryParam("channel", channel.ID).QueryParam("inclusive", "1").QueryParam("limit", "2")
+	req := t.client.R(ctx).QueryParam("channel", channel.ID).QueryParam("inclusive", "1")
 	if params.Cursor != "" {
 		req.QueryParam("cursor", params.Cursor)
 	}
@@ -142,5 +176,55 @@ func (t *SlackAPI) getSlackConversationHistory(ctx context.Context, channel Chan
 		return output, fmt.Errorf("failed to get conversation history (channel: %s): %s", channel, output.SlackResponse.Error)
 	}
 
+	// conversation.history endpoint doesn't return the display name of the users.
+	// we replace the user id with the name here.
+	for i, message := range output.Messages {
+		if message.BotProfile == nil {
+			if info, ok := t.usersList[message.User]; ok {
+				message.UserInfo = info
+			}
+		}
+
+		output.Messages[i] = message
+	}
+
 	return output, nil
+}
+
+type UserInfo struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Profile struct {
+		DisplayName string `json:"display_name"`
+	} `json:"profile"`
+}
+
+type ListUsersResponse struct {
+	Ok      bool       `json:"ok"`
+	Error   string     `json:"error,omitempty"`
+	Members []UserInfo `json:"members,omitempty"`
+}
+
+func (t *SlackAPI) PopulateUsers(ctx context.Context) error {
+	response, err := t.client.R(ctx).Get("users.list")
+	if err != nil {
+		return err
+	}
+
+	var output ListUsersResponse
+	if err := response.Into(&output); err != nil {
+		return err
+	}
+
+	if output.Error != "" {
+		return fmt.Errorf("failed to list users: %s", output.Error)
+	}
+
+	idToNameMap := make(map[string]UserInfo, len(output.Members))
+	for _, m := range output.Members {
+		idToNameMap[m.ID] = m
+	}
+
+	t.usersList = idToNameMap
+	return nil
 }

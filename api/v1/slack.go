@@ -13,18 +13,19 @@ type Slack struct {
 
 	// Process messages from these channels and discard others.
 	// If empty, all channels are matched.
-	Channels MatchExpressions `yaml:"channels" json:"channels"`
+	Channels MatchExpressions `yaml:"channels,omitempty" json:"channels,omitempty"`
 
 	// Regexp to capture the fields from messages.
 	Regexp string `yaml:"regexp,omitempty" json:"regexp,omitempty"`
 
-	// Rule defines the change extraction rules.
-	Rule []SlackChangeExtractionRule `yaml:"rules" json:"rules"`
+	// Rules define the change extraction rules.
+	// +kubebuilder:validation:MinItems=1
+	Rules []SlackChangeExtractionRule `yaml:"rules" json:"rules"`
 }
 
 type SlackChangeExtractionRule struct {
 	// Only those messages matching this filter will be processed.
-	Filter SlackChangeAcceptanceFilter `yaml:"filter" json:"filter"`
+	Filter *SlackChangeAcceptanceFilter `yaml:"filter,omitempty" json:"filter,omitempty"`
 
 	// Mapping defines the Change to be extracted from the message.
 	Mapping ChangeExtractionMapping `yaml:"mapping" json:"mapping"`

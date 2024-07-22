@@ -17,6 +17,10 @@ import (
 // MatchExpression uses MatchItems
 type MatchExpression string
 
+func (t MatchExpression) Match(item string) bool {
+	return collections.MatchItems(item, string(t))
+}
+
 type MatchExpressions []MatchExpression
 
 func (t MatchExpressions) Match(item string) bool {
@@ -369,11 +373,11 @@ type Template struct {
 }
 
 type ChangeExtractionMapping struct {
-	Severity  ExtractionVar `yaml:"severity" json:"severity"`
-	CreatedAt ExtractionVar `yaml:"createdAt" json:"createdAt"`
-	Summary   ExtractionVar `yaml:"summary" json:"summary"`
+	Severity  ExtractionVar `yaml:"severity,omitempty" json:"severity,omitempty"`
+	CreatedAt ExtractionVar `yaml:"createdAt,omitempty" json:"createdAt,omitempty"`
+	Summary   ExtractionVar `yaml:"summary,omitempty" json:"summary,omitempty"`
 
-	Type ExtractionVar `yaml:"type,omitempty" json:"type,omitempty"`
+	Type ExtractionVar `yaml:"type" json:"type"`
 }
 
 type ExtractionVar struct {

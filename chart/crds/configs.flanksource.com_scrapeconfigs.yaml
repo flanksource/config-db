@@ -3592,7 +3592,7 @@ spec:
                       description: Regexp to capture the fields from messages.
                       type: string
                     rules:
-                      description: Rule defines the change extraction rules.
+                      description: Rules define the change extraction rules.
                       items:
                         properties:
                           config:
@@ -3684,15 +3684,13 @@ spec:
                                     type: string
                                 type: object
                             required:
-                            - createdAt
-                            - severity
-                            - summary
+                            - type
                             type: object
                         required:
                         - config
-                        - filter
                         - mapping
                         type: object
+                      minItems: 1
                       type: array
                     since:
                       description: Duration string
@@ -3970,7 +3968,6 @@ spec:
                         the type for the resource.
                       type: string
                   required:
-                  - channels
                   - rules
                   - token
                   type: object

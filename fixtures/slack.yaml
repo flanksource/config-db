@@ -1,0 +1,29 @@
+---
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: slack-flanksource
+  namespace: default
+spec:
+  schedule: '@every 5h'
+  slack:
+    - channels:
+        - 'notification-*'
+      since: 7d
+      token:
+        valueFrom:
+          secretKeyRef:
+            name: slack-mission-control-bot
+            key: token
+      rules:
+        - filter:
+            user:
+              displayName: aditya,moshe
+            bot: 'Notifier'
+            expr: text.contains('healthy') # match healthy/unhealthy
+          config:
+            - name:
+                value: test
+          mapping:
+            type:
+              value: test

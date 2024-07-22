@@ -2,11 +2,13 @@ package slack
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/flanksource/commons/duration"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/gomplate/v3"
 	"github.com/samber/lo"
 )
 
@@ -27,6 +29,10 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 
 		client := NewSlackAPI(token)
+		if err := client.PopulateUsers(ctx); err != nil {
+			results = append(results, v1.ScrapeResult{Error: err})
+			continue
+		}
 
 		channelsList, err := client.ListConversations(ctx)
 		if err != nil {
@@ -66,7 +72,27 @@ func (s Scraper) scrapeChannel(ctx api.ScrapeContext, config v1.Slack, client *S
 		return results
 	}
 
+	if len(messages) == 0 {
+		return results
+	}
+
+	for _, rule := range config.Rules {
+		results = append(results, processRule(rule, config, messages)...)
+	}
+
+	return results
+}
+
+func processRule(rule v1.SlackChangeExtractionRule, config v1.Slack, messages []Message) []v1.ScrapeResult {
+	var results v1.ScrapeResults
 	for _, message := range messages {
+		if accept, err := filterMessage(message, rule.Filter); err != nil {
+			results = append(results, v1.ScrapeResult{Error: err})
+			return results // bad filter, exit early
+		} else if !accept {
+			continue
+		}
+
 		results = append(results, v1.ScrapeResult{
 			BaseScraper: config.BaseScraper,
 			Changes: []v1.ChangeResult{
@@ -76,4 +102,62 @@ func (s Scraper) scrapeChannel(ctx api.ScrapeContext, config v1.Slack, client *S
 	}
 
 	return results
+}
+
+func filterMessage(message Message, filter *v1.SlackChangeAcceptanceFilter) (bool, error) {
+	if filter == nil {
+		return true, nil
+	}
+
+	userMatched := matchUser(filter.User, message)
+	botMatched := matchBot(filter.Bot, message)
+	if !userMatched && !botMatched {
+		// Must match one
+		return false, nil
+	}
+
+	if filter.Expr != "" {
+		output, err := gomplate.RunTemplate(message.AsMap(), gomplate.Template{Expression: string(filter.Expr)})
+		if err != nil {
+			return false, nil
+		} else if parsed, err := strconv.ParseBool(output); err != nil {
+			return false, fmt.Errorf("expected expresion to return a boolean value: %w", err)
+		} else if !parsed {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func matchUser(match v1.SlackUserFilter, message Message) bool {
+	if match.DisplayName != "" {
+		if !match.DisplayName.Match(message.UserInfo.Profile.DisplayName) {
+			return false
+		}
+	}
+
+	if match.Name != "" {
+		if !match.Name.Match(message.User) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func matchBot(match v1.MatchExpression, message Message) bool {
+	if match == "" {
+		return true
+	}
+
+	if match == "!*" && message.BotProfile != nil {
+		return false // all bot messages should be ignored by the filter
+	}
+
+	if message.BotProfile == nil {
+		return false // this isn't a message by a bot
+	}
+
+	return match.Match(message.BotProfile.Name)
 }

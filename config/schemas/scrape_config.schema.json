@@ -309,9 +309,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "severity",
-        "createdAt",
-        "summary"
+        "type"
       ]
     },
     "ChangeMapping": {
@@ -1647,7 +1645,6 @@
       "type": "object",
       "required": [
         "token",
-        "channels",
         "rules"
       ]
     },
@@ -1684,7 +1681,6 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "filter",
         "mapping",
         "config"
       ]
