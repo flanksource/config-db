@@ -8,6 +8,7 @@ import (
 	"github.com/flanksource/commons/duration"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/samber/lo"
 )
@@ -77,13 +78,13 @@ func (s Scraper) scrapeChannel(ctx api.ScrapeContext, config v1.Slack, client *S
 	}
 
 	for _, rule := range config.Rules {
-		results = append(results, processRule(rule, config, messages)...)
+		results = append(results, processRule(ctx, config, rule, messages)...)
 	}
 
 	return results
 }
 
-func processRule(rule v1.SlackChangeExtractionRule, config v1.Slack, messages []Message) []v1.ScrapeResult {
+func processRule(ctx api.ScrapeContext, config v1.Slack, rule v1.SlackChangeExtractionRule, messages []Message) []v1.ScrapeResult {
 	var results v1.ScrapeResults
 	for _, message := range messages {
 		if accept, err := filterMessage(message, rule.Filter); err != nil {
@@ -93,11 +94,15 @@ func processRule(rule v1.SlackChangeExtractionRule, config v1.Slack, messages []
 			continue
 		}
 
+		extractedChanges, err := changes.MapChanges(ctx.DutyContext(), rule.ChangeExtractionRule, message.Text)
+		if err != nil {
+			results = append(results, v1.ScrapeResult{Error: err})
+			return results
+		}
+
 		results = append(results, v1.ScrapeResult{
 			BaseScraper: config.BaseScraper,
-			Changes: []v1.ChangeResult{
-				{Source: message.Channel},
-			},
+			Changes:     extractedChanges,
 		})
 	}
 

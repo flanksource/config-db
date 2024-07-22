@@ -1631,9 +1631,6 @@
         "channels": {
           "$ref": "#/$defs/MatchExpressions"
         },
-        "regexp": {
-          "type": "string"
-        },
         "rules": {
           "items": {
             "$ref": "#/$defs/SlackChangeExtractionRule"
@@ -1665,8 +1662,8 @@
     },
     "SlackChangeExtractionRule": {
       "properties": {
-        "filter": {
-          "$ref": "#/$defs/SlackChangeAcceptanceFilter"
+        "regexp": {
+          "type": "string"
         },
         "mapping": {
           "$ref": "#/$defs/ChangeExtractionMapping"
@@ -1676,6 +1673,9 @@
             "$ref": "#/$defs/EnvVarResourceSelector"
           },
           "type": "array"
+        },
+        "filter": {
+          "$ref": "#/$defs/SlackChangeAcceptanceFilter"
         }
       },
       "additionalProperties": false,

@@ -16,14 +16,15 @@ spec:
             name: slack-mission-control-bot
             key: token
       rules:
-        - filter:
-            user:
-              displayName: aditya,moshe
+        - regexp: name:\s*(?<name>.*?)\s+type:\s*(?<type>.*?)\s+is\s+.*\nseverity:\s*(?<severity>\w+)
+          filter:
             bot: 'Notifier'
             expr: text.contains('healthy') # match healthy/unhealthy
           config:
             - name:
-                value: test
+                expr: name
+              type:
+                expr: type
           mapping:
             type:
-              value: test
+              expr: severity

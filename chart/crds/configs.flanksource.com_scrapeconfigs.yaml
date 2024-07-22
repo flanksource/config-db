@@ -3588,9 +3588,6 @@ spec:
                             type: integer
                         type: object
                       type: array
-                    regexp:
-                      description: Regexp to capture the fields from messages.
-                      type: string
                     rules:
                       description: Rules define the change extraction rules.
                       items:
@@ -3686,6 +3683,9 @@ spec:
                             required:
                             - type
                             type: object
+                          regexp:
+                            description: Regexp to capture the fields from messages.
+                            type: string
                         required:
                         - config
                         - mapping

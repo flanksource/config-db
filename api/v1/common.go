@@ -387,10 +387,34 @@ type ExtractionVar struct {
 	Value string `yaml:"value,omitempty" json:"value,omitempty"`
 }
 
+func (t ExtractionVar) Empty() bool {
+	return t.Value == "" && t.Expr == ""
+}
+
+func (t ExtractionVar) Eval(env map[string]any) (string, error) {
+	if t.Value != "" {
+		return t.Value, nil
+	}
+
+	return gomplate.RunTemplate(env, gomplate.Template{Expression: string(t.Expr)})
+}
+
 // EnvVarResourceSelector is used to select a config item.
 // At least one of the fields must be specified.
 type EnvVarResourceSelector struct {
 	Name ExtractionVar     `yaml:"name,omitempty" json:"name,omitempty"`
 	Type ExtractionVar     `yaml:"type,omitempty" json:"type,omitempty"`
 	Tags map[string]string `yaml:"tags,omitempty" json:"tags,omitempty"`
+}
+
+type ChangeExtractionRule struct {
+	// Regexp to capture the fields from messages.
+	Regexp string `yaml:"regexp,omitempty" json:"regexp,omitempty"`
+
+	// Mapping defines the Change to be extracted from the message.
+	Mapping ChangeExtractionMapping `yaml:"mapping" json:"mapping"`
+
+	// Config is a list of selectors to attach the change to.
+	// +kubebuilder:validation:MinItems=1
+	Config []EnvVarResourceSelector `yaml:"config" json:"config"`
 }
