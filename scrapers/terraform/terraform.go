@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/flanksource/commons/files"
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
@@ -106,20 +107,30 @@ func loadStateFiles(ctx api.ScrapeContext, stateSource v1.TerraformStateSource) 
 func awsProvider(externalID string, resource Resource) []v1.RelationshipResult {
 	var results []v1.RelationshipResult
 
+	arnKeys := []string{
+		"arn", "policy_arn", "function_arn", "role_arn", "kms_key_arn",
+		"bucket_arn", "topic_arn", "queue_arn", "lambda_arn", "cluster_arn",
+		"instance_arn", "execution_arn", "stream_arn",
+	}
 	for _, instance := range resource.Instances {
-		switch resource.Type {
-		case "aws_iam_role":
-			results = append(results, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ConfigType: ConfigType, ExternalID: []string{externalID}},
-				RelatedExternalID: v1.ExternalID{ConfigType: v1.AWSIAMRole, ExternalID: []string{instance.Attributes["arn"].(string)}, ScraperID: "all"},
-			})
-
-		case "aws_lambda_function":
-			results = append(results, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ConfigType: ConfigType, ExternalID: []string{externalID}},
-				RelatedExternalID: v1.ExternalID{ConfigType: v1.AWSLambdaFunction, ExternalID: []string{instance.Attributes["arn"].(string)}, ScraperID: "all"},
-			})
+		var arn string
+		for _, key := range arnKeys {
+			_arn, ok := instance.Attributes[key]
+			if ok {
+				arn = _arn.(string)
+				break
+			}
 		}
+
+		if arn == "" {
+			logger.Debugf("skipping instance as it does not have an arn: %v", instance)
+			continue
+		}
+
+		results = append(results, v1.RelationshipResult{
+			ConfigExternalID:  v1.ExternalID{ConfigType: ConfigType, ExternalID: []string{externalID}},
+			RelatedExternalID: v1.ExternalID{ConfigType: "*", ExternalID: []string{arn}, ScraperID: "all"},
+		})
 	}
 
 	return results
