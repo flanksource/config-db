@@ -3600,6 +3600,40 @@ spec:
                                 EnvVarResourceSelector is used to select a resource.
                                 At least one of the fields must be specified.
                               properties:
+                                agent:
+                                  properties:
+                                    expr:
+                                      type: string
+                                    value:
+                                      description: Value is a static value
+                                      type: string
+                                  type: object
+                                cache:
+                                  type: string
+                                fieldSelector:
+                                  properties:
+                                    expr:
+                                      type: string
+                                    value:
+                                      description: Value is a static value
+                                      type: string
+                                  type: object
+                                id:
+                                  properties:
+                                    expr:
+                                      type: string
+                                    value:
+                                      description: Value is a static value
+                                      type: string
+                                  type: object
+                                labelSelector:
+                                  properties:
+                                    expr:
+                                      type: string
+                                    value:
+                                      description: Value is a static value
+                                      type: string
+                                  type: object
                                 name:
                                   properties:
                                     expr:
@@ -3608,11 +3642,7 @@ spec:
                                       description: Value is a static value
                                       type: string
                                   type: object
-                                tags:
-                                  additionalProperties:
-                                    type: string
-                                  type: object
-                                type:
+                                namespace:
                                   properties:
                                     expr:
                                       type: string
@@ -3620,6 +3650,36 @@ spec:
                                       description: Value is a static value
                                       type: string
                                   type: object
+                                scope:
+                                  type: string
+                                statuses:
+                                  items:
+                                    properties:
+                                      expr:
+                                        type: string
+                                      value:
+                                        description: Value is a static value
+                                        type: string
+                                    type: object
+                                  type: array
+                                tagSelector:
+                                  properties:
+                                    expr:
+                                      type: string
+                                    value:
+                                      description: Value is a static value
+                                      type: string
+                                  type: object
+                                types:
+                                  items:
+                                    properties:
+                                      expr:
+                                        type: string
+                                      value:
+                                        description: Value is a static value
+                                        type: string
+                                    type: object
+                                  type: array
                               type: object
                             minItems: 1
                             type: array

@@ -24,14 +24,14 @@ var _ = Describe("Changes Extraction test", Ordered, func() {
 			rule: v1.ChangeExtractionRule{
 				Regexp: `name:\s*(?<name>.*?)\s+type:\s*(?<change_type>.*?)\s+is\s+.*\nseverity:\s*(?<severity>\w+)`,
 				Mapping: v1.ChangeExtractionMapping{
-					Type:     types.ExtractionVar{Value: "health"},
-					Summary:  types.ExtractionVar{Expr: "text.substring(0, 25)"},
-					Severity: types.ExtractionVar{Expr: "env.severity"},
+					Type:     types.ValueExpression{Value: "health"},
+					Summary:  types.ValueExpression{Expr: "text.substring(0, 25)"},
+					Severity: types.ValueExpression{Expr: "env.severity"},
 				},
 				Config: []types.EnvVarResourceSelector{
 					{
-						Type: types.ExtractionVar{Expr: "env.change_type"},
-						Name: types.ExtractionVar{Expr: "env.name"},
+						Types: []types.ValueExpression{{Expr: "env.change_type"}},
+						Name:  types.ValueExpression{Expr: "env.name"},
 					},
 				},
 			},

@@ -294,16 +294,16 @@
     "ChangeExtractionMapping": {
       "properties": {
         "severity": {
-          "$ref": "#/$defs/ExtractionVar"
+          "$ref": "#/$defs/ValueExpression"
         },
         "summary": {
-          "$ref": "#/$defs/ExtractionVar"
+          "$ref": "#/$defs/ValueExpression"
         },
         "createdAt": {
-          "$ref": "#/$defs/ExtractionVar"
+          "$ref": "#/$defs/ValueExpression"
         },
         "type": {
-          "$ref": "#/$defs/ExtractionVar"
+          "$ref": "#/$defs/ValueExpression"
         },
         "timeFormat": {
           "type": "string"
@@ -494,17 +494,44 @@
     },
     "EnvVarResourceSelector": {
       "properties": {
+        "agent": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "cache": {
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ValueExpression"
+        },
         "name": {
-          "$ref": "#/$defs/ExtractionVar"
+          "$ref": "#/$defs/ValueExpression"
         },
-        "type": {
-          "$ref": "#/$defs/ExtractionVar"
+        "namespace": {
+          "$ref": "#/$defs/ValueExpression"
         },
-        "tags": {
-          "additionalProperties": {
-            "type": "string"
+        "types": {
+          "items": {
+            "$ref": "#/$defs/ValueExpression"
           },
-          "type": "object"
+          "type": "array"
+        },
+        "statuses": {
+          "items": {
+            "$ref": "#/$defs/ValueExpression"
+          },
+          "type": "array"
+        },
+        "tagSelector": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "labelSelector": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "fieldSelector": {
+          "$ref": "#/$defs/ValueExpression"
         }
       },
       "additionalProperties": false,
@@ -523,18 +550,6 @@
         },
         "secretKeyRef": {
           "$ref": "#/$defs/SecretKeySelector"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "ExtractionVar": {
-      "properties": {
-        "expr": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -1918,6 +1933,18 @@
           "type": "string"
         },
         "deletedAge": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ValueExpression": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
           "type": "string"
         }
       },

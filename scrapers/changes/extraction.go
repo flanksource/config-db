@@ -49,6 +49,11 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		}
 
 		env["env"] = regexpEnv
+
+		if len(match) != len(compiled.SubexpNames()) {
+			// the regexp did not match all the capture groups.
+			return nil, nil
+		}
 	}
 
 	var changeType, severity, summary string
@@ -110,6 +115,10 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 				ExternalChangeID: hash.Sha256Hex(text),
 				ConfigID:         configID.String(),
 			})
+		}
+
+		if len(configIDs) > 0 {
+			break // we've found at least one config, no need to continue
 		}
 	}
 
