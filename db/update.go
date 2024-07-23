@@ -797,14 +797,18 @@ func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExt
 				externalID: parent.ExternalID,
 				parentType: parent.Type,
 			}]; found {
-				ci.ParentID = &parentID
+				if ci.ID != parentID {
+					ci.ParentID = &parentID
+				}
 				break
 			}
 
-			if found, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: parent.Type, ExternalID: []string{parent.ExternalID}}); err != nil {
+			if foundParent, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: parent.Type, ExternalID: []string{parent.ExternalID}}); err != nil {
 				return err
-			} else if found != nil {
-				ci.ParentID = &found.ID
+			} else if foundParent != nil {
+				if ci.ID != foundParent.ID {
+					ci.ParentID = &foundParent.ID
+				}
 				break
 			}
 		}
