@@ -12,12 +12,6 @@ import (
 	"github.com/flanksource/gomplate/v3"
 )
 
-type GoTemplate string
-
-func (t GoTemplate) Run(env map[string]any) (string, error) {
-	return gomplate.RunTemplate(env, gomplate.Template{Template: string(t)})
-}
-
 // ConfigFieldExclusion defines fields with JSONPath that needs to
 // be removed from the config.
 type ConfigFieldExclusion struct {

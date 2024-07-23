@@ -16,8 +16,8 @@ const ConfigType = "Terraform::StateFile"
 type Scraper struct {
 }
 
-func (t Scraper) CanScrape(configs v1.ScraperSpec) bool {
-	return len(configs.Terraform) > 0
+func (t Scraper) CanScrape(spec v1.ScraperSpec) bool {
+	return len(spec.Terraform) > 0
 }
 
 func (t Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {

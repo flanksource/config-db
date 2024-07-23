@@ -2,6 +2,7 @@ package v1
 
 import (
 	"github.com/flanksource/duty/connection"
+	"github.com/flanksource/duty/types"
 )
 
 type TerraformStateSource struct {
@@ -12,6 +13,6 @@ type TerraformStateSource struct {
 
 type Terraform struct {
 	BaseScraper `json:",inline"`
-	Name        GoTemplate           `json:"name"`
+	Name        types.GoTemplate     `json:"name"`
 	State       TerraformStateSource `json:"state"`
 }
