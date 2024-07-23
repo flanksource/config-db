@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/hash"
-	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/query"
 	"github.com/samber/lo"
 )
@@ -29,7 +29,7 @@ func compileRegexp(r string) (*regexp.Regexp, error) {
 	return parsed, nil
 }
 
-func MapChanges(ctx api.ScrapeContext, rule v1.ChangeExtractionRule, text string) ([]v1.ChangeResult, error) {
+func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) ([]v1.ChangeResult, error) {
 	env := map[string]any{
 		"text": text,
 	}
@@ -94,7 +94,7 @@ func MapChanges(ctx api.ScrapeContext, rule v1.ChangeExtractionRule, text string
 			return nil, fmt.Errorf("failed to hydrate config selector: %w", err)
 		}
 
-		configIDs, err := query.FindConfigIDsByResourceSelector(ctx.DutyContext(), *resourceSelector)
+		configIDs, err := query.FindConfigIDsByResourceSelector(ctx, *resourceSelector)
 		if err != nil {
 			return nil, fmt.Errorf("failed to select configs: %w", err)
 		}
