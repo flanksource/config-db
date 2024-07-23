@@ -356,10 +356,10 @@ type Template struct {
 }
 
 type ChangeExtractionMapping struct {
+	CreatedAt types.ValueExpression `yaml:"createdAt,omitempty" json:"createdAt,omitempty"`
 	Severity  types.ValueExpression `yaml:"severity,omitempty" json:"severity,omitempty"`
 	Summary   types.ValueExpression `yaml:"summary,omitempty" json:"summary,omitempty"`
-	CreatedAt types.ValueExpression `yaml:"createdAt,omitempty" json:"createdAt,omitempty"`
-	Type      types.ValueExpression `yaml:"type" json:"type"`
+	Type      types.ValueExpression `yaml:"type,omitempty" json:"type,omitempty"`
 
 	// TimeFormat is the go time format for the `createdAt` field.
 	// Defaults to RFC3339.

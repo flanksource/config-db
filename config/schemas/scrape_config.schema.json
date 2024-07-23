@@ -293,13 +293,13 @@
     },
     "ChangeExtractionMapping": {
       "properties": {
+        "createdAt": {
+          "$ref": "#/$defs/ValueExpression"
+        },
         "severity": {
           "$ref": "#/$defs/ValueExpression"
         },
         "summary": {
-          "$ref": "#/$defs/ValueExpression"
-        },
-        "createdAt": {
           "$ref": "#/$defs/ValueExpression"
         },
         "type": {
@@ -310,10 +310,7 @@
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "type"
-      ]
+      "type": "object"
     },
     "ChangeMapping": {
       "properties": {

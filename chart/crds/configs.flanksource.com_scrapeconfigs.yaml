@@ -3745,8 +3745,6 @@ spec:
                                     description: Value is a static value
                                     type: string
                                 type: object
-                            required:
-                            - type
                             type: object
                           regexp:
                             description: |-

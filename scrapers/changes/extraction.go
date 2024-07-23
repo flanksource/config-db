@@ -34,20 +34,19 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		"text": text,
 	}
 
+	regexpEnv := map[string]string{}
 	if rule.Regexp != "" {
 		compiled, err := compileRegexp(rule.Regexp)
 		if err != nil {
 			return nil, err
 		}
 
-		regexpEnv := map[string]string{}
 		match := compiled.FindStringSubmatch(text)
 		for i, name := range compiled.SubexpNames() {
 			if i != 0 && name != "" && len(match) >= len(compiled.SubexpNames()) {
 				regexpEnv[name] = match[i]
 			}
 		}
-
 		env["env"] = regexpEnv
 
 		if len(match) != len(compiled.SubexpNames()) {
@@ -56,13 +55,17 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		}
 	}
 
-	var changeType, severity, summary string
+	var changeType, severity, summary, changeCreatedAtRaw string
 	var changeCreatedAt *time.Time
 	var err error
 
-	changeType, err = rule.Mapping.Type.Eval(env)
-	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate type: %v", err)
+	if !rule.Mapping.Type.Empty() {
+		changeType, err = rule.Mapping.Type.Eval(env)
+		if err != nil {
+			return nil, fmt.Errorf("failed to evaluate type: %v", err)
+		}
+	} else if t, ok := regexpEnv["type"]; ok {
+		changeType = t
 	}
 
 	if !rule.Mapping.Severity.Empty() {
@@ -70,6 +73,8 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate severity: %v", err)
 		}
+	} else if s, ok := regexpEnv["severity"]; ok {
+		severity = s
 	}
 
 	if !rule.Mapping.Summary.Empty() {
@@ -77,15 +82,21 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate summary: %v", err)
 		}
+	} else if s, ok := regexpEnv["summary"]; ok {
+		summary = s
 	}
 
 	if !rule.Mapping.CreatedAt.Empty() {
-		_createdAt, err := rule.Mapping.CreatedAt.Eval(env)
+		changeCreatedAtRaw, err = rule.Mapping.CreatedAt.Eval(env)
 		if err != nil {
-			return nil, fmt.Errorf("failed to evaluate summary: %v", err)
+			return nil, fmt.Errorf("failed to evaluate createdAt: %v", err)
 		}
+	} else if s, ok := regexpEnv["created_at"]; ok {
+		changeCreatedAtRaw = s
+	}
 
-		val, err := time.Parse(lo.CoalesceOrEmpty(rule.Mapping.TimeFormat, time.RFC3339), _createdAt)
+	if changeCreatedAtRaw != "" {
+		val, err := time.Parse(lo.CoalesceOrEmpty(rule.Mapping.TimeFormat, time.RFC3339), changeCreatedAtRaw)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse createdAt: %v", err)
 		}
