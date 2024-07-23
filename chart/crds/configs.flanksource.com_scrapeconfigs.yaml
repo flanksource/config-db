@@ -5419,8 +5419,10 @@ spec:
                       type: array
                     state:
                       properties:
-                        gcp:
+                        gcs:
                           properties:
+                            bucket:
+                              type: string
                             connection:
                               description: ConnectionName of the connection. It'll
                                 be used to populate the endpoint and credentials.

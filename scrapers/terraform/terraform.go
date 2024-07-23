@@ -3,9 +3,9 @@ package terraform
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 
-	"github.com/flanksource/commons/files"
+	"github.com/flanksource/artifacts"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -81,24 +81,37 @@ type StateFile struct {
 }
 
 func loadStateFiles(ctx api.ScrapeContext, stateSource v1.TerraformStateSource) ([]StateFile, error) {
+	conn, err := stateSource.Connection(ctx.DutyContext())
+	if err != nil {
+		return nil, fmt.Errorf("error getting connection from state source: %v", err)
+	}
+
+	fs, err := artifacts.GetFSForConnection(ctx.DutyContext(), *conn)
+	if err != nil {
+		return nil, fmt.Errorf("error getting fs: %v", err)
+	}
+
+	files, err := fs.ReadDir(stateSource.Path())
+	if err != nil {
+		return nil, err
+	}
+
 	var states []StateFile
-	if stateSource.Local != "" {
-		paths, err := files.UnfoldGlobs(stateSource.Local)
+	for _, fInfo := range files {
+		reader, err := fs.Read(ctx, fInfo.FullPath())
 		if err != nil {
-			return nil, fmt.Errorf("error processing local path: %s %s", stateSource.Local, err)
+			return nil, err
 		}
 
-		for _, path := range paths {
-			content, err := os.ReadFile(path)
-			if err != nil {
-				return nil, err
-			}
-
-			states = append(states, StateFile{
-				Data: content,
-				Path: path,
-			})
+		content, err := io.ReadAll(reader)
+		if err != nil {
+			return nil, err
 		}
+
+		states = append(states, StateFile{
+			Data: content,
+			Path: fInfo.Name(),
+		})
 	}
 
 	return states, nil
@@ -129,7 +142,7 @@ func awsProvider(externalID string, resource Resource) []v1.RelationshipResult {
 
 		results = append(results, v1.RelationshipResult{
 			ConfigExternalID:  v1.ExternalID{ConfigType: ConfigType, ExternalID: []string{externalID}},
-			RelatedExternalID: v1.ExternalID{ConfigType: "*", ExternalID: []string{arn}, ScraperID: "all"},
+			RelatedExternalID: v1.ExternalID{ExternalID: []string{arn}, ScraperID: "all"},
 		})
 	}
 

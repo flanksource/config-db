@@ -713,7 +713,7 @@
         "project"
       ]
     },
-    "GCPConnection": {
+    "GCSConnection": {
       "properties": {
         "connection": {
           "type": "string"
@@ -723,6 +723,9 @@
         },
         "credentials": {
           "$ref": "#/$defs/EnvVar"
+        },
+        "bucket": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -2011,8 +2014,8 @@
         "s3": {
           "$ref": "#/$defs/S3Connection"
         },
-        "gcp": {
-          "$ref": "#/$defs/GCPConnection"
+        "gcs": {
+          "$ref": "#/$defs/GCSConnection"
         },
         "local": {
           "type": "string"

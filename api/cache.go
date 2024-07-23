@@ -47,7 +47,7 @@ func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.Confi
 
 	var result models.ConfigItem
 	query := ctx.DB().Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("external_id @> ?", pq.StringArray{externalID})
-	if lookup.ConfigType != "" && lookup.ConfigType != "*" {
+	if lookup.ConfigType != "" {
 		query = query.Where("type = ?", lookup.ConfigType)
 	}
 	if scraperID != "all" && scraperID != "" {
