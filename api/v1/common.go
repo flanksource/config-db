@@ -6,28 +6,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
-	"github.com/samber/lo"
 )
-
-// MatchExpression uses MatchItems
-type MatchExpression string
-
-func (t MatchExpression) Match(item string) bool {
-	return collections.MatchItems(item, string(t))
-}
-
-type MatchExpressions []MatchExpression
-
-func (t MatchExpressions) Match(item string) bool {
-	return collections.MatchItems(item, lo.Map(t, func(x MatchExpression, _ int) string { return string(x) })...)
-}
-
-type CelExpression string
 
 // ConfigFieldExclusion defines fields with JSONPath that needs to
 // be removed from the config.
@@ -373,45 +356,14 @@ type Template struct {
 }
 
 type ChangeExtractionMapping struct {
-	Severity  ExtractionVar `yaml:"severity,omitempty" json:"severity,omitempty"`
-	Summary   ExtractionVar `yaml:"summary,omitempty" json:"summary,omitempty"`
-	CreatedAt ExtractionVar `yaml:"createdAt,omitempty" json:"createdAt,omitempty"`
-	Type      ExtractionVar `yaml:"type" json:"type"`
+	Severity  types.ExtractionVar `yaml:"severity,omitempty" json:"severity,omitempty"`
+	Summary   types.ExtractionVar `yaml:"summary,omitempty" json:"summary,omitempty"`
+	CreatedAt types.ExtractionVar `yaml:"createdAt,omitempty" json:"createdAt,omitempty"`
+	Type      types.ExtractionVar `yaml:"type" json:"type"`
 
 	// TimeFormat is the go time format for the `createdAt` field.
 	// Defaults to RFC3339.
 	TimeFormat string `yaml:"timeFormat,omitempty" json:"timeFormat,omitempty"`
-}
-
-type ExtractionVar struct {
-	Expr CelExpression `yaml:"expr,omitempty" json:"expr,omitempty"`
-
-	// Value is a static value
-	Value string `yaml:"value,omitempty" json:"value,omitempty"`
-}
-
-func (t ExtractionVar) Empty() bool {
-	return t.Value == "" && t.Expr == ""
-}
-
-func (t ExtractionVar) Eval(env map[string]any) (string, error) {
-	if t.Value != "" {
-		return t.Value, nil
-	}
-
-	return gomplate.RunTemplate(env, gomplate.Template{Expression: string(t.Expr)})
-}
-
-// EnvVarResourceSelector is used to select a config item.
-// At least one of the fields must be specified.
-type EnvVarResourceSelector struct {
-	Name ExtractionVar     `yaml:"name,omitempty" json:"name,omitempty"`
-	Type ExtractionVar     `yaml:"type,omitempty" json:"type,omitempty"`
-	Tags map[string]string `yaml:"tags,omitempty" json:"tags,omitempty"`
-}
-
-func (t EnvVarResourceSelector) Empty() bool {
-	return t.Name.Empty() && t.Type.Empty() && len(t.Tags) == 0
 }
 
 type ChangeExtractionRule struct {
@@ -424,5 +376,5 @@ type ChangeExtractionRule struct {
 
 	// Config is a list of selectors to attach the change to.
 	// +kubebuilder:validation:MinItems=1
-	Config []EnvVarResourceSelector `yaml:"config" json:"config"`
+	Config []types.EnvVarResourceSelector `yaml:"config" json:"config"`
 }

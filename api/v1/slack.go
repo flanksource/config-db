@@ -15,7 +15,7 @@ type Slack struct {
 
 	// Process messages from these channels and discard others.
 	// If empty, all channels are matched.
-	Channels MatchExpressions `yaml:"channels,omitempty" json:"channels,omitempty"`
+	Channels types.MatchExpressions `yaml:"channels,omitempty" json:"channels,omitempty"`
 
 	// Rules define the change extraction rules.
 	// +kubebuilder:validation:MinItems=1
@@ -31,16 +31,16 @@ type SlackChangeExtractionRule struct {
 
 type SlackChangeAcceptanceFilter struct {
 	// Bot name to match
-	Bot MatchExpression `yaml:"bot,omitempty" json:"bot,omitempty"`
+	Bot types.MatchExpression `yaml:"bot,omitempty" json:"bot,omitempty"`
 
 	// Slack User to match
 	User SlackUserFilter `yaml:"user,omitempty" json:"user,omitempty"`
 
 	// Must match the given expression
-	Expr CelExpression `yaml:"expr,omitempty" json:"expr,omitempty"`
+	Expr types.CelExpression `yaml:"expr,omitempty" json:"expr,omitempty"`
 }
 
 type SlackUserFilter struct {
-	Name        MatchExpression `yaml:"name,omitempty" json:"name,omitempty"`
-	DisplayName MatchExpression `yaml:"displayName,omitempty" json:"displayName,omitempty"`
+	Name        types.MatchExpression `yaml:"name,omitempty" json:"name,omitempty"`
+	DisplayName types.MatchExpression `yaml:"displayName,omitempty" json:"displayName,omitempty"`
 }

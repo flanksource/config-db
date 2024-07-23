@@ -6,12 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/query"
-	"github.com/flanksource/duty/types"
 	"github.com/samber/lo"
 )
 
@@ -91,28 +89,12 @@ func MapChanges(ctx api.ScrapeContext, rule v1.ChangeExtractionRule, text string
 
 	var output []v1.ChangeResult
 	for _, configSelector := range rule.Config {
-		var resourceSelector types.ResourceSelector
-		if !configSelector.Name.Empty() {
-			name, err := configSelector.Name.Eval(env)
-			if err != nil {
-				return nil, fmt.Errorf("failed to evaluate config name: %v", err)
-			}
-			resourceSelector.Name = name
+		resourceSelector, err := configSelector.Hydrate(env)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hydrate config selector: %w", err)
 		}
 
-		if !configSelector.Type.Empty() {
-			configType, err := configSelector.Type.Eval(env)
-			if err != nil {
-				return nil, fmt.Errorf("failed to evaluate config type: %v", err)
-			}
-			resourceSelector.Types = []string{configType}
-		}
-
-		if len(configSelector.Tags) != 0 {
-			resourceSelector.TagSelector = collections.SortedMap(configSelector.Tags)
-		}
-
-		configIDs, err := query.FindConfigIDsByResourceSelector(ctx.DutyContext(), resourceSelector)
+		configIDs, err := query.FindConfigIDsByResourceSelector(ctx.DutyContext(), *resourceSelector)
 		if err != nil {
 			return nil, fmt.Errorf("failed to select configs: %w", err)
 		}

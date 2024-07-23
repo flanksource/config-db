@@ -9,6 +9,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/scrapers/changes"
+	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/samber/lo"
 )
@@ -151,7 +152,7 @@ func matchUser(match v1.SlackUserFilter, message Message) bool {
 	return true
 }
 
-func matchBot(match v1.MatchExpression, message Message) bool {
+func matchBot(match types.MatchExpression, message Message) bool {
 	if match == "" {
 		return true
 	}
