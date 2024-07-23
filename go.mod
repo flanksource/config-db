@@ -52,7 +52,7 @@ require (
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/commons v1.24.2
-	github.com/flanksource/duty v1.0.551
+	github.com/flanksource/duty v1.0.552
 	github.com/flanksource/is-healthy v1.0.19
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
