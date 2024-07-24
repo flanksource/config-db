@@ -755,7 +755,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	// This is because, on the first run, we don't have any configs at all in the DB.
 	// So, all the parent lookups will return empty result and no parent will be set.
 	// This way, we can first look for the parents within the result set.
-	if err := setProbableConfigParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
+	if err := setConfigProbableParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
 		return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to set parents: %w", err)
 	}
 	if err := setConfigChildren(ctx, allConfigs); err != nil {
@@ -783,12 +783,13 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	return newConfigs, configsToUpdate, newChanges, changesToUpdate, allChangeSummary, nil
 }
 
-func setProbableConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
+func setConfigProbableParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
 	for _, ci := range allConfigs {
 		if len(ci.Parents) == 0 {
 			continue // these are root items.
 		}
 
+		// Set probable parents in order of importance
 		for _, parent := range ci.Parents {
 			if parent.ExternalID == "" || parent.Type == "" {
 				continue
@@ -798,6 +799,7 @@ func setProbableConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[c
 				externalID: parent.ExternalID,
 				parentType: parent.Type,
 			}]; found {
+				// Ignore self parent reference
 				if ci.ID == parentID {
 					continue
 				}
@@ -808,16 +810,13 @@ func setProbableConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[c
 			if foundParent, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: parent.Type, ExternalID: []string{parent.ExternalID}}); err != nil {
 				return err
 			} else if foundParent != nil {
+				// Ignore self parent reference
 				if ci.ID == foundParent.ID {
 					continue
 				}
 				ci.ProbableParents = append(ci.ProbableParents, foundParent.ID)
 				continue
 			}
-		}
-
-		if ci.ParentID == nil && ctx.PropertyOn(false, "log.missing") {
-			ctx.Logger.Warnf("parent not found for config [%s]", ci)
 		}
 	}
 
@@ -866,6 +865,7 @@ func getOrFind(ctx api.ScrapeContext, parentMap map[string]string, id string) st
 	return ""
 }
 
+// getPath returns path till root, it returns false if a cylce is detected
 func getPath(ctx api.ScrapeContext, parentMap map[string]string, self string) (string, bool) {
 	var paths []string
 
@@ -886,8 +886,9 @@ func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) erro
 		return nil
 	}
 
-	// Sorting the allConfigs on the length of ProbableParents
+	// Sorting allConfigs on the length of ProbableParents
 	// is requred to correctly detect and fix cycles earlier
+	// using getPath
 	sort.Slice(allConfigs, func(i, j int) bool {
 		return len(allConfigs[i].ProbableParents) < len(allConfigs[j].ProbableParents)
 	})
@@ -902,19 +903,27 @@ func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) erro
 	for _, config := range allConfigs {
 		idx := 0
 		for {
+			// If no cylce is detected, we set path and parentID
 			path, ok := getPath(ctx, parentMap, config.ID)
 			if ok {
 				config.Path = path
+				// Empty path means root config, where parentID should be nil
 				if path != "" {
 					config.ParentID = lo.ToPtr(parentMap[config.ID])
 				}
 				break
 			}
 			idx += 1
+			// If a cycle is detected we assume the parent is bad and move to the next
+			// probable parent and redo path computation
 			if len(config.ProbableParents) > idx {
 				parentMap[config.ID] = config.ProbableParents[idx]
 			}
 		}
+		if config.ParentID == nil && ctx.PropertyOn(false, "log.missing") && len(config.ProbableParents) > 0 {
+			ctx.Logger.Warnf("parent not found for config [%s]", config)
+		}
+
 	}
 	return nil
 }
