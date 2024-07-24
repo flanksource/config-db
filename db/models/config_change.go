@@ -21,7 +21,7 @@ type ConfigChange struct {
 	Diff              *string    `gorm:"column:diff" json:"diff,omitempty"`
 	Severity          string     `gorm:"column:severity" json:"severity"`
 	Source            string     `gorm:"column:source" json:"source"`
-	Summary           string     `gorm:"column:summary;default:null" json:"summary,omitempty"`
+	Summary           string     `gorm:"column:summary" json:"summary,omitempty"`
 	Patches           string     `gorm:"column:patches;default:null" json:"patches,omitempty"`
 	Details           v1.JSON    `gorm:"column:details" json:"details,omitempty"`
 	CreatedAt         *time.Time `gorm:"column:created_at" json:"created_at"`

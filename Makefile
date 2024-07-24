@@ -43,7 +43,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 .PHONY: gen-schemas
 gen-schemas:
 	$(GENERATE_SCHEMAS)
-	
+
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
@@ -52,7 +52,16 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 resources: fmt manifests
 
 test: manifests generate fmt vet envtest ## Run tests.
+	$(MAKE) gotest
+
+.PHONY: gotest
+gotest:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+
+.PHONY: env
+env: envtest ## Run tests.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+
 
 fmt:
 	go fmt ./...
@@ -147,6 +156,23 @@ $(KUSTOMIZE): $(LOCALBIN)
 		rm -rf $(LOCALBIN)/kustomize; \
 	fi
 	test -s $(LOCALBIN)/kustomize || { curl -Ss $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
+
+.PHONY: chart
+chart: helm-docs helm-schema
+	cd chart && helm-schema -k additionalProperties && helm-docs
+
+.PHONY: helm-docs
+helm-docs:
+	test -s $(LOCALBIN)/helm-docs  || \
+	GOBIN=$(LOCALBIN) go install github.com/norwoodj/helm-docs/cmd/helm-docs@latest
+
+.PHONY: helm-schema
+helm-schema:
+	test -s $(LOCALBIN)/helm-schema  || \
+	GOBIN=$(LOCALBIN) go install github.com/dadav/helm-schema/cmd/helm-schema@latest
+
+
+
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.

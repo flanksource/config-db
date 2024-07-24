@@ -30,12 +30,6 @@ func RunNowHandler(c echo.Context) error {
 	ctx := api.DefaultContext.WithScrapeConfig(&configScraper)
 	j := newScraperJob(ctx)
 	j.Run()
-	res := v1.RunNowResponse{
-		Total:   j.LastJob.SuccessCount + j.LastJob.ErrorCount,
-		Failed:  j.LastJob.ErrorCount,
-		Success: j.LastJob.SuccessCount,
-		Errors:  j.LastJob.Errors,
-	}
 
-	return c.JSON(http.StatusOK, res)
+	return c.JSON(http.StatusOK, j.LastJob.Details)
 }

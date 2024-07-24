@@ -1,9 +1,24 @@
 # Default values for config-db.
 # Declare variables to be passed into your templates.
-
+# yaml-language-server: $schema=./values.schema.json
 global:
+  otel:
+    collector: ""
+    labels: ""
+  serviceMonitor:
+    enabled: false
+    labels: {}
+  serviceAccount:
+    annotations: {}
+    # Note unlike other globals, the global serviceAccount.name overrides the local value
+    name: ""
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
   imageRegistry: docker.io
   imagePrefix: flanksource
+  imagePullSecrets: []
+  labels: {}
   db:
     connectionPooler:
       enabled: false
@@ -14,43 +29,80 @@ global:
 replicas: 1
 
 # Use this only if you want to replace the default that is .Chart.Name as the name of all the objects.
-nameOverride: ''
+nameOverride: ""
 
 # Set to true if you want to disable the postgrest service
 disablePostgrest: false
 
 image:
-  name: '{{.Values.global.imagePrefix}}/config-db'
+  name: "{{.Values.global.imagePrefix}}/config-db"
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: 'latest'
+  tag: "latest"
 
 configChangeRetentionDays: 60
 configAnalysisRetentionDays: 60
+serviceMonitor:
+  enabled: false
+  # @schema
+  # additionalProperties: true
+  # @schema
+  labels: {}
 
-# -v, -vv, -vvv
 logLevel: ""
 jsonLogs: true
+
+# command line arguments to config-db
+extraArgs: {}
+
+# environment variables to add e.g. GOMEMLIMIT
+env: {}
+
+# config-db properties to override
+properties: {}
+
+# @schema
+# additionalProperties: false
+# @schema
+resources:
+  requests:
+    cpu: 200m
+    memory: 1Gi
+  limits:
+    memory: 4Gi
+    cpu: 500m
 
 # a list of configmaps to load scrape rules from, the configmap should have a single entry called "config.yaml"
 scrapeRuleConfigMaps:
   - config-db-rules
 
+# @schema
+# additionalProperties: false
+# @schema
 otel:
   # OpenTelemetry gRPC collector endpoint in host:port format
-  collector: ''
+  collector: ""
   serviceName: config-db
   # labels in "a=b,c=d" format
-  labels: ''
+  labels: ""
 
+# @schema
+# additionalProperties: false
+# @schema
 db:
   runMigrations: true
+  # @schema
+  # additionalProperties: false
+  # @schema
   embedded:
     # If the database is embedded, setting this to true will persist the contents of the database
     # through a persistent volume
     persist: true
-    storageClass: ''
+    storageClass: ""
     storage: 20Gi
+  # @schema
+  # additionalProperties: false
+  # @schema
   external:
     # Setting enabled to true will use an external postgres DB.
     # You can either use the embedded db or an external db.
@@ -67,14 +119,20 @@ db:
     # If create:false, a preexisting secret containing the URI to an existing postgres database must be provided
     # The URI must be in the format 'postgresql://"$user":"$password"@"$host"/"$database"'
     create: false
+    # @schema
+    # additionalProperties: false
+    # @schema
     secretKeyRef:
       # The name of the secret to look for.
       name: config-db-postgresql
       # This is the key that we look for in the secret.
       key: DB_URL
-    storageClass: ''
+    storageClass: ""
     storage: 20Gi
 
+# @schema
+# additionalProperties: false
+# @schema
 ingress:
   enabled: false
   annotations:
@@ -87,18 +145,16 @@ ingress:
   #    hosts:
   #      - chart-example.local
 
-resources:
-  requests:
-    cpu: 200m
-    memory: 1Gi
-  limits:
-    memory: 4Gi
-    cpu: 500m
-
+# @schema
+# additionalProperties: false
+# @schema
 serviceAccount:
   create: true
   name: config-db-sa
   annotations: {}
+  # @schema
+  # additionalProperties: false
+  # @schema
   rbac:
     # Whether to create cluster-wide or namespaced roles
     clusterRole: true
@@ -120,22 +176,34 @@ upstream:
     name: config-db-upstream # Must contain: AGENT_NAME, UPSTREAM_USER, UPSTREAM_PASSWORD & UPSTREAM_HOST
   pageSize: 500
 
-extra:
-  {}
-  # nodeSelector:
-  #   key: value
-  # tolerations:
-  #   - key: "key1"
-  #     operator: "Equal"
-  #     value: "value1"
-  #     effect: "NoSchedule"
-  # affinity:
-  #   nodeAffinity:
-  #       requiredDuringSchedulingIgnoredDuringExecution:
-  #         nodeSelectorTerms:
-  #         - matchExpressions:
-  #           - key: kubernetes.io/e2e-az-name
-  #             operator: In
-  #             values:
-  #             - e2e-az1
-  #             - e2e-az2
+# Extra values to be applied to the pod spec
+extra: {}
+
+# @schema
+# skipProperties: true
+# @schema
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext: {}
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+imagePullSecrets: []

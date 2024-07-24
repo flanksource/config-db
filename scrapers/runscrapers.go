@@ -15,7 +15,6 @@ import (
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/scrapers/processors"
 	"github.com/flanksource/config-db/utils"
-	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -30,7 +29,7 @@ func RunK8ObjScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstru
 	var results v1.ScrapeResults
 	res := kubernetes.ExtractResults(ctx, config, objs, false)
 	for i := range res {
-		scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, res[i])
+		scraped := processScrapeResult(ctx, res[i])
 		results = append(results, scraped...)
 	}
 
@@ -42,7 +41,7 @@ func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events
 	var results v1.ScrapeResults
 	var scraper kubernetes.KubernetesScraper
 	for _, result := range scraper.IncrementalScrape(ctx, config, events) {
-		scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, result)
+		scraped := processScrapeResult(ctx, result)
 		results = append(results, scraped...)
 	}
 
@@ -74,9 +73,9 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 			continue
 		}
 
-		ctx.DutyContext().Logger.V(3).Infof("Starting scraper")
+		ctx.Debugf("Starting scraper")
 		for _, result := range scraper.Scrape(ctx) {
-			scraped := processScrapeResult(ctx.DutyContext(), ctx.ScrapeConfig().Spec, result)
+			scraped := processScrapeResult(ctx, result)
 
 			for i := range scraped {
 				if scraped[i].Error != nil {
@@ -104,7 +103,6 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 		}
 	}
 
-	ctx.Logger.V(1).Infof("Completed scraping with %d results.", len(results))
 	return results, nil
 }
 
@@ -133,7 +131,9 @@ func summarizeChanges(changes []v1.ChangeResult) []v1.ChangeResult {
 }
 
 // processScrapeResult extracts possibly more configs from the result
-func processScrapeResult(ctx context.Context, config v1.ScraperSpec, result v1.ScrapeResult) v1.ScrapeResults {
+func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.ScrapeResults {
+	spec := ctx.ScrapeConfig().Spec
+
 	if result.AnalysisResult != nil {
 		if rule, ok := analysis.Rules[result.AnalysisResult.Analyzer]; ok {
 			result.AnalysisResult.AnalysisType = models.AnalysisType(rule.Category)
@@ -164,7 +164,7 @@ func processScrapeResult(ctx context.Context, config v1.ScraperSpec, result v1.S
 	}
 
 	// In full mode, we extract all configs and changes from the result.
-	if config.Full {
+	if spec.Full {
 		for i := range scraped {
 			extractedConfig, changeRes, err := extractConfigChangesFromConfig(scraped[i].Config)
 			if err != nil {

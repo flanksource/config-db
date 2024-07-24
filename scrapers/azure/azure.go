@@ -173,6 +173,13 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				Value: azure.subscriptionName,
 			})
 
+			for _, t := range config.Tags {
+				results[i].Tags = append(results[i].Tags, v1.Tag{
+					Name:  t.Name,
+					Value: t.Value,
+				})
+			}
+
 			// Set parents where missing
 			for j, parent := range results[i].Parents {
 				if parent.ExternalID == "" {

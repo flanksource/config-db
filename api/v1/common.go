@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
@@ -94,6 +95,8 @@ func (s MaskList) String() string {
 type ChangeMapping struct {
 	// Filter selects what change to apply the mapping to
 	Filter string `json:"filter,omitempty"`
+	// Severity is the severity to be set on the change
+	Severity string `json:"severity,omitempty"`
 	// Type is the type to be set on the change
 	Type string `json:"type,omitempty"`
 	// Action allows performing actions on the corresponding config item
@@ -116,150 +119,8 @@ func (t *TransformChange) IsEmpty() bool {
 	return len(t.Exclude) == 0 && len(t.Mapping) == 0
 }
 
-// RelationshipLookup offers different ways to specify a lookup value
-type RelationshipLookup struct {
-	Expr  string `json:"expr,omitempty"`
-	Value string `json:"value,omitempty"`
-	Label string `json:"label,omitempty"`
-}
-
-func (t *RelationshipLookup) Eval(labels map[string]string, envVar map[string]any) (string, error) {
-	if t.Value != "" {
-		return t.Value, nil
-	}
-
-	if t.Label != "" {
-		return labels[t.Label], nil
-	}
-
-	if t.Expr != "" {
-		res, err := gomplate.RunTemplate(envVar, gomplate.Template{Expression: t.Expr})
-		if err != nil {
-			return "", err
-		}
-
-		return res, nil
-	}
-
-	return "", nil
-}
-
-func (t RelationshipLookup) IsEmpty() bool {
-	return t.Value == "" && t.Label == "" && t.Expr == ""
-}
-
-// RelationshipSelector is the evaluated output of RelationshipSelector.
-type RelationshipSelector struct {
-	ID         string            `json:"id,omitempty"`
-	ExternalID string            `json:"external_id,omitempty"`
-	Name       string            `json:"name,omitempty"`
-	Type       string            `json:"type,omitempty"`
-	Agent      string            `json:"agent,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
-}
-
-func (t *RelationshipSelector) IsEmpty() bool {
-	return t.ID == "" && t.ExternalID == "" && t.Name == "" && t.Type == "" && t.Agent == "" && len(t.Labels) == 0
-}
-
-func (t *RelationshipSelector) ToResourceSelector() types.ResourceSelector {
-	var labelSelector string
-	for k, v := range t.Labels {
-		labelSelector += fmt.Sprintf("%s=%s,", k, v)
-	}
-	labelSelector = strings.TrimSuffix(labelSelector, ",")
-
-	rs := types.ResourceSelector{
-		ID:            t.ID,
-		Name:          t.Name,
-		Agent:         t.Agent,
-		LabelSelector: labelSelector,
-	}
-	if t.Type != "" {
-		rs.Types = []string{t.Type}
-	}
-	if t.ExternalID != "" {
-		rs.FieldSelector = fmt.Sprintf("external_id=%s", t.ExternalID)
-	}
-
-	return rs
-}
-
-type RelationshipSelectorTemplate struct {
-	ID         RelationshipLookup `json:"id,omitempty"`
-	ExternalID RelationshipLookup `json:"external_id,omitempty"`
-	Name       RelationshipLookup `json:"name,omitempty"`
-	Type       RelationshipLookup `json:"type,omitempty"`
-	// Agent can be one of
-	//  - agent id
-	//  - agent name
-	//  - 'self' (no agent)
-	Agent  RelationshipLookup `json:"agent,omitempty"`
-	Labels map[string]string  `json:"labels,omitempty"`
-}
-
-func (t *RelationshipSelectorTemplate) IsEmpty() bool {
-	return t.ID.IsEmpty() && t.ExternalID.IsEmpty() && t.Name.IsEmpty() && t.Type.IsEmpty() && t.Agent.IsEmpty() && len(t.Labels) == 0
-}
-
-// Eval evaluates the template and returns a RelationshipSelector.
-// If any of the filter returns an empty value, the evaluation results to a nil selector.
-// i.e. if a lookup is non-empty, it must return a non-empty value.
-func (t *RelationshipSelectorTemplate) Eval(labels map[string]string, env map[string]any) (*RelationshipSelector, error) {
-	if t.IsEmpty() {
-		return nil, nil
-	}
-
-	var err error
-	var output = RelationshipSelector{
-		Labels: t.Labels,
-	}
-
-	if !t.ID.IsEmpty() {
-		if output.ID, err = t.ID.Eval(labels, env); err != nil {
-			return nil, fmt.Errorf("failed to evaluate id: %v for config relationship: %w", t.ID, err)
-		} else if output.ID == "" {
-			return nil, nil
-		}
-	}
-
-	if !t.ExternalID.IsEmpty() {
-		if output.ExternalID, err = t.ExternalID.Eval(labels, env); err != nil {
-			return nil, fmt.Errorf("failed to evaluate external id: %v for config relationship: %w", t.ExternalID, err)
-		} else if output.ExternalID == "" {
-			return nil, nil
-		}
-	}
-
-	if !t.Name.IsEmpty() {
-		if output.Name, err = t.Name.Eval(labels, env); err != nil {
-			return nil, fmt.Errorf("failed to evaluate name: %v for config relationship: %w", t.Name, err)
-		} else if output.Name == "" {
-			return nil, nil
-		}
-	}
-
-	if !t.Type.IsEmpty() {
-		if output.Type, err = t.Type.Eval(labels, env); err != nil {
-			return nil, fmt.Errorf("failed to evaluate type: %v for config relationship: %w", t.Type, err)
-		} else if output.Type == "" {
-			return nil, nil
-		}
-	}
-
-	if !t.Agent.IsEmpty() {
-		if output.Agent, err = t.Agent.Eval(labels, env); err != nil {
-			return nil, fmt.Errorf("failed to evaluate agent_id: %v for config relationship: %w", t.Agent, err)
-		} else if output.Agent == "" {
-			return nil, nil
-		}
-	}
-
-	return &output, nil
-}
-
 type RelationshipConfig struct {
-	RelationshipSelectorTemplate `json:",inline"`
+	duty.RelationshipSelectorTemplate `json:",inline"`
 	// Alternately, a single cel-expression can be used
 	// that returns a list of relationship selector.
 	Expr string `json:"expr,omitempty"`

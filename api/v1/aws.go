@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/samber/lo"
 )
 
 // AWS ...
@@ -43,56 +44,68 @@ type CostReporting struct {
 }
 
 const (
-	AWSECSCluster         = "AWS::ECS::Cluster"
-	AWSECSService         = "AWS::ECS::Service"
-	AWSECSTaskDefinition  = "AWS::ECS::TaskDefinition"
-	AWSEKSFargateProfile  = "AWS::EKS::FargateProfile"
-	AWSElastiCacheCluster = "AWS::ElastiCache::CacheCluster"
-	AWSLambdaFunction     = "AWS::Lambda::Function"
-	AWSSNSTopic           = "AWS::SNS::Topic"
-	AWSSQS                = "AWS::SQS::Queue"
-	AWSRegion             = "AWS::Region"
-	AWSZone               = "AWS::Route53::HostedZone"
-	AWSEC2Instance        = "AWS::EC2::Instance"
-	AWSEKSCluster         = "AWS::EKS::Cluster"
-	AWSS3Bucket           = "AWS::S3::Bucket"
-	AWSLoadBalancer       = "AWS::ElasticLoadBalancing::LoadBalancer"
-	AWSLoadBalancerV2     = "AWS::ElasticLoadBalancingV2::LoadBalancer"
-	AWSEBSVolume          = "AWS::EBS::Volume"
-	AWSRDSInstance        = "AWS::RDS::DBInstance"
-	AWSEC2VPC             = "AWS::EC2::VPC"
-	AWSEC2Subnet          = "AWS::EC2::Subnet"
-	AWSAccount            = "AWS::::Account"
-	AWSAvailabilityZone   = "AWS::AvailabilityZone"
-	AWSAvailabilityZoneID = "AWS::AvailabilityZoneID"
-	AWSEC2SecurityGroup   = "AWS::EC2::SecurityGroup"
-	AWSIAMUser            = "AWS::IAM::User"
-	AWSIAMRole            = "AWS::IAM::Role"
-	AWSIAMInstanceProfile = "AWS::IAM::InstanceProfile"
-	AWSEC2AMI             = "AWS::EC2::AMI"
-	AWSEC2DHCPOptions     = "AWS::EC2::DHCPOptions"
+	AWSCloudFormationStack = "AWS::CloudFormation::Stack"
+	AWSECSCluster          = "AWS::ECS::Cluster"
+	AWSECSService          = "AWS::ECS::Service"
+	AWSECSTaskDefinition   = "AWS::ECS::TaskDefinition"
+	AWSECSTask             = "AWS::ECS::Task"
+	AWSEKSFargateProfile   = "AWS::EKS::FargateProfile"
+	AWSElastiCacheCluster  = "AWS::ElastiCache::CacheCluster"
+	AWSLambdaFunction      = "AWS::Lambda::Function"
+	AWSSNSTopic            = "AWS::SNS::Topic"
+	AWSSQS                 = "AWS::SQS::Queue"
+	AWSRegion              = "AWS::Region"
+	AWSZone                = "AWS::Route53::HostedZone"
+	AWSEC2Instance         = "AWS::EC2::Instance"
+	AWSEKSCluster          = "AWS::EKS::Cluster"
+	AWSS3Bucket            = "AWS::S3::Bucket"
+	AWSLoadBalancer        = "AWS::ElasticLoadBalancing::LoadBalancer"
+	AWSLoadBalancerV2      = "AWS::ElasticLoadBalancingV2::LoadBalancer"
+	AWSEBSVolume           = "AWS::EBS::Volume"
+	AWSRDSInstance         = "AWS::RDS::DBInstance"
+	AWSEC2VPC              = "AWS::EC2::VPC"
+	AWSEC2Subnet           = "AWS::EC2::Subnet"
+	AWSAccount             = "AWS::::Account"
+	AWSAvailabilityZone    = "AWS::AvailabilityZone"
+	AWSAvailabilityZoneID  = "AWS::AvailabilityZoneID"
+	AWSEC2SecurityGroup    = "AWS::EC2::SecurityGroup"
+	AWSIAMUser             = "AWS::IAM::User"
+	AWSIAMRole             = "AWS::IAM::Role"
+	AWSIAMInstanceProfile  = "AWS::IAM::InstanceProfile"
+	AWSEC2AMI              = "AWS::EC2::AMI"
+	AWSEC2DHCPOptions      = "AWS::EC2::DHCPOptions"
 )
+
+var defaultAWSExclusions = []string{"ECSTaskDefinition"}
 
 func (aws AWS) Includes(resource string) bool {
 	if len(aws.Include) == 0 {
-		return true
+		return !lo.ContainsBy(defaultAWSExclusions, func(item string) bool {
+			return strings.EqualFold(item, resource)
+		})
 	}
+
 	for _, include := range aws.Include {
 		if strings.EqualFold(include, resource) {
 			return true
 		}
 	}
+
 	return false
 }
 
 func (aws AWS) Excludes(resource string) bool {
 	if len(aws.Exclude) == 0 {
-		return false
+		return !lo.ContainsBy(defaultAWSExclusions, func(item string) bool {
+			return strings.EqualFold(item, resource)
+		})
 	}
+
 	for _, exclude := range aws.Exclude {
 		if strings.EqualFold(exclude, resource) {
 			return true
 		}
 	}
+
 	return false
 }

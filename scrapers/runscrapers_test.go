@@ -12,6 +12,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/duty"
 	dutymodels "github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
@@ -58,9 +59,9 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				ValueStatic: kubeConfigPath,
 			}
 			scrapeConfig.Spec.Kubernetes[0].Relationships = append(scrapeConfig.Spec.Kubernetes[0].Relationships, v1.KubernetesRelationshipSelectorTemplate{
-				Kind:      v1.RelationshipLookup{Value: "ConfigMap"},
-				Name:      v1.RelationshipLookup{Label: "flanksource/name"},
-				Namespace: v1.RelationshipLookup{Label: "flanksource/namespace"},
+				Kind:      duty.Lookup{Value: "ConfigMap"},
+				Name:      duty.Lookup{Label: "flanksource/name"},
+				Namespace: duty.Lookup{Label: "flanksource/namespace"},
 			})
 		})
 

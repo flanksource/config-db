@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/query"
@@ -53,7 +54,7 @@ func CreateConfigItem(ctx api.ScrapeContext, ci *models.ConfigItem) error {
 	return nil
 }
 
-func FindConfigIDsByRelationshipSelector(ctx context.Context, selector v1.RelationshipSelector) ([]uuid.UUID, error) {
+func FindConfigIDsByRelationshipSelector(ctx context.Context, selector duty.RelationshipSelector) ([]uuid.UUID, error) {
 	if selector.IsEmpty() {
 		return nil, nil
 	}
@@ -140,6 +141,11 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Ready:           result.Ready,
 		LastScrapedTime: result.LastScrapedTime,
 		Parents:         result.Parents,
+		Children:        result.Children,
+	}
+
+	if !result.ScraperLess {
+		ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
 	}
 
 	if parsed, err := result.Tags.AsMap(); err != nil {

@@ -296,6 +296,9 @@
         "filter": {
           "type": "string"
         },
+        "severity": {
+          "type": "string"
+        },
         "type": {
           "type": "string"
         },
@@ -562,6 +565,84 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "GCP": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "credentials": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "project": {
+          "type": "string"
+        },
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "project"
+      ]
     },
     "GitHubActions": {
       "properties": {
@@ -905,13 +986,13 @@
     "KubernetesRelationshipSelectorTemplate": {
       "properties": {
         "kind": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         },
         "name": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         },
         "namespace": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         }
       },
       "additionalProperties": false,
@@ -953,6 +1034,21 @@
           "type": "string"
         },
         "text": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Lookup": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
           "type": "string"
         },
         "label": {
@@ -1124,19 +1220,25 @@
     "RelationshipConfig": {
       "properties": {
         "id": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         },
         "external_id": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         },
         "name": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Lookup"
         },
         "type": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
         },
         "agent": {
-          "$ref": "#/$defs/RelationshipLookup"
+          "$ref": "#/$defs/Lookup"
+        },
+        "scope": {
+          "$ref": "#/$defs/Lookup"
         },
         "labels": {
           "additionalProperties": {
@@ -1148,21 +1250,6 @@
           "type": "string"
         },
         "filter": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "RelationshipLookup": {
-      "properties": {
-        "expr": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
-        },
-        "label": {
           "type": "string"
         }
       },
@@ -1318,6 +1405,12 @@
         },
         "schedule": {
           "type": "string"
+        },
+        "gcp": {
+          "items": {
+            "$ref": "#/$defs/GCP"
+          },
+          "type": "array"
         },
         "aws": {
           "items": {

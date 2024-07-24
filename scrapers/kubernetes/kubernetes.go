@@ -11,11 +11,14 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
+	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
@@ -35,20 +38,7 @@ import (
 
 const ConfigTypePrefix = "Kubernetes::"
 
-// ReservedAnnotations
-const (
-	// AnnotationIgnoreConfig excludes the object from being scraped
-	AnnotationIgnoreConfig = "config-db.flanksource.com/ignore"
-
-	// AnnotationIgnoreChangeByType contains the list of change types to ignore
-	AnnotationIgnoreChangeByType = "config-db.flanksource.com/ignore-changes"
-
-	// AnnotationIgnoreChangeBySeverity contains the list of severity for the change types to ignore
-	AnnotationIgnoreChangeBySeverity = "config-db.flanksource.com/ignore-change-severity"
-
-	// AnnotationCustomTags contains the list of tags to add to the scraped config
-	AnnotationCustomTags = "config-db.flanksource.com/tags"
-)
+var resourceIDMapPerCluster PerClusterResourceIDMap
 
 func getConfigTypePrefix(apiVersion string) string {
 	if strings.Contains(apiVersion, ".upbound.io") || strings.Contains(apiVersion, ".crossplane.io") {
@@ -124,7 +114,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, con
 			ctx.DutyContext().Logger.V(5).Infof("fetching resource namespace=%s name=%s kind=%s apiVersion=%s", resource.Namespace, resource.Name, resource.Kind, resource.APIVersion)
 			obj, err := kclient.Namespace(resource.Namespace).Get(ctx, resource.Name, metav1.GetOptions{})
 			if err != nil {
-				ctx.DutyContext().Errorf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
+				ctx.DutyContext().Logger.Warnf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
 				continue
 			} else if obj != nil {
 				seenObjects[cacheKey] = struct{}{} // mark it as seen so we don't run ketall.KetOne again (in this run)
@@ -177,8 +167,8 @@ func formObjChangeExclusionMap(objs []*unstructured.Unstructured) (map[string]st
 	exclusionByType := make(map[string]string)
 	exclusionBySeverity := make(map[string]string)
 	for _, obj := range objs {
-		exclusionByType[string(obj.GetUID())] = obj.GetAnnotations()[AnnotationIgnoreChangeByType]
-		exclusionBySeverity[string(obj.GetUID())] = obj.GetAnnotations()[AnnotationIgnoreChangeBySeverity]
+		exclusionByType[string(obj.GetUID())] = obj.GetAnnotations()[v1.AnnotationIgnoreChangeByType]
+		exclusionBySeverity[string(obj.GetUID())] = obj.GetAnnotations()[v1.AnnotationIgnoreChangeBySeverity]
 	}
 
 	return exclusionByType, exclusionBySeverity
@@ -207,16 +197,16 @@ func getObjectChangeExclusionAnnotations(ctx api.ScrapeContext, id string, exclu
 	// The requested object was not found in the scraped objects.
 	// This happens on incremental scraper.
 	// We query the object from the db to get the annotations;
-	item, err := ctx.TempCache().Get(id)
+	item, err := ctx.TempCache().Get(ctx, id)
 	if err != nil {
 		return "", "", err
 	} else if item != nil && item.Labels != nil {
 		labels := lo.FromPtr(item.Labels)
-		if v, ok := labels[AnnotationIgnoreChangeByType]; ok {
+		if v, ok := labels[v1.AnnotationIgnoreChangeByType]; ok {
 			changeTypeExclusion = v
 		}
 
-		if v, ok := labels[AnnotationIgnoreChangeBySeverity]; ok {
+		if v, ok := labels[v1.AnnotationIgnoreChangeBySeverity]; ok {
 			changeSeverityExclusion = v
 		}
 	}
@@ -226,7 +216,7 @@ func getObjectChangeExclusionAnnotations(ctx api.ScrapeContext, id string, exclu
 
 // ExtractResults extracts scrape results from the given list of kuberenetes objects.
 //   - withCluster: if true, will create & add a scrape result for the kubernetes cluster.
-func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured, withCluster bool) v1.ScrapeResults {
+func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured, isIncrementalScrape bool) v1.ScrapeResults {
 	var (
 		results       v1.ScrapeResults
 		changeResults v1.ScrapeResults
@@ -241,6 +231,10 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 		globalLabels = map[string]string{}
 	)
 
+	logExclusions := ctx.PropertyOn(false, "log.exclusions")
+	logSkipped := ctx.PropertyOn(false, "log.skipped")
+	logNoResourceId := ctx.PropertyOn(true, "log.noResourceId")
+
 	clusterID := "Kubernetes/Cluster/" + config.ClusterName
 	cluster := v1.ScrapeResult{
 		BaseScraper: config.BaseScraper,
@@ -253,10 +247,17 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 		Tags:        v1.Tags{{Name: "cluster", Value: config.ClusterName}},
 	}
 
-	resourceIDMap := getResourceIDsFromObjs(objs)
-	resourceIDMap[""]["Cluster"] = make(map[string]string)
-	resourceIDMap[""]["Cluster"][config.ClusterName] = clusterID
-	resourceIDMap[""]["Cluster"]["selfRef"] = clusterID // For shorthand
+	resourceIDMap := NewResourceIDMap(objs)
+	resourceIDMap.Set("", "Cluster", config.ClusterName, clusterID)
+	resourceIDMap.Set("", "Cluster", "selfRef", clusterID) // For shorthand
+
+	if isIncrementalScrape {
+		// On incremental scrape, we do not have all the data in the resource ID map.
+		// we use it from the cached resource id map.
+		resourceIDMap.data = resourceIDMapPerCluster.MergeAndUpdate(string(ctx.ScrapeConfig().GetUID()), resourceIDMap.data)
+	} else {
+		resourceIDMapPerCluster.Swap(string(ctx.ScrapeConfig().GetUID()), resourceIDMap.data)
+	}
 
 	objChangeExclusionByType, objChangeExclusionBySeverity := formObjChangeExclusionMap(objs)
 
@@ -264,21 +265,27 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 		tags := config.Tags
 
 		if config.Exclusions.Filter(obj.GetName(), obj.GetNamespace(), obj.GetKind(), obj.GetLabels()) {
-			ctx.Tracef("excluding object: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			if logExclusions {
+				ctx.Debugf("excluding object: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			}
 			continue
 		}
 
 		if string(obj.GetUID()) == "" {
-			ctx.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			if logNoResourceId {
+				ctx.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			}
 			continue
 		}
 
-		if val, ok := obj.GetAnnotations()[AnnotationIgnoreConfig]; ok && val == "true" {
-			ctx.Tracef("excluding object due to annotation %s: %s/%s/%s", AnnotationIgnoreConfig, obj.GetKind(), obj.GetNamespace(), obj.GetName())
+		if val, ok := obj.GetAnnotations()[v1.AnnotationIgnoreConfig]; ok && val == "true" {
+			if logExclusions {
+				ctx.Tracef("excluding object due to annotation %s: %s/%s/%s", v1.AnnotationIgnoreConfig, obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			}
 			continue
 		}
 
-		if val, ok := obj.GetAnnotations()[AnnotationCustomTags]; ok {
+		if val, ok := obj.GetAnnotations()[v1.AnnotationCustomTags]; ok {
 			for k, v := range collections.SelectorToMap(val) {
 				tags = append(tags, v1.Tag{Name: k, Value: v})
 			}
@@ -296,9 +303,12 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			}
 
 			if config.Event.Exclusions.Filter(event) {
-				ctx.Logger.V(4).Infof("excluding event object %s/%s/%s: %s",
-					event.InvolvedObject.Namespace, event.InvolvedObject.Name,
-					event.InvolvedObject.Kind, event.Reason)
+				if logExclusions {
+					ctx.Tracef("excluding event object %s/%s/%s: %s",
+						event.InvolvedObject.Namespace, event.InvolvedObject.Name,
+						event.InvolvedObject.Kind, event.Reason)
+				}
+
 				continue
 			}
 
@@ -307,7 +317,9 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 				if err != nil {
 					return results.Errorf(err, "failed to get config IDs for object %s/%s/%s", event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind)
 				} else if len(ids) == 0 {
-					ctx.Logger.V(3).Infof("skipping event (reason=%s, message=%s) because the involved object ID is not a valid UUID: %s", event.Reason, event.Message, event.InvolvedObject.UID)
+					if logSkipped {
+						ctx.Tracef("skipping event (reason=%s, message=%s) because the involved object ID is not a valid UUID: %s", event.Reason, event.Message, event.InvolvedObject.UID)
+					}
 					continue
 				}
 
@@ -323,18 +335,22 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 
 				if changeTypExclusion != "" {
 					if collections.MatchItems(change.ChangeType, strings.Split(changeTypExclusion, ",")...) {
-						ctx.Logger.V(4).Infof("excluding event object %s/%s/%s due to change type matched in annotation %s=%s",
-							event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
-							AnnotationIgnoreChangeByType, changeTypExclusion)
+						if logExclusions {
+							ctx.Tracef("excluding event object %s/%s/%s due to change type matched in annotation %s=%s",
+								event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
+								v1.AnnotationIgnoreChangeByType, changeTypExclusion)
+						}
 						continue
 					}
 				}
 
 				if changeSeverityExclusion != "" {
 					if collections.MatchItems(change.Severity, strings.Split(changeSeverityExclusion, ",")...) {
-						ctx.Logger.V(4).Infof("excluding event object %s/%s/%s due to severity matches in annotation %s=%s",
-							event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
-							AnnotationIgnoreChangeBySeverity, changeSeverityExclusion)
+						if logExclusions {
+							ctx.Tracef("excluding event object %s/%s/%s due to severity matches in annotation %s=%s",
+								event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
+								v1.AnnotationIgnoreChangeBySeverity, changeSeverityExclusion)
+						}
 						continue
 					}
 				}
@@ -358,12 +374,12 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			labels = obj.GetLabels()
 		}
 
-		if v, ok := obj.GetAnnotations()[AnnotationIgnoreChangeBySeverity]; ok {
-			labels[AnnotationIgnoreChangeBySeverity] = v
+		if v, ok := obj.GetAnnotations()[v1.AnnotationIgnoreChangeBySeverity]; ok {
+			labels[v1.AnnotationIgnoreChangeBySeverity] = v
 		}
 
-		if v, ok := obj.GetAnnotations()[AnnotationIgnoreChangeByType]; ok {
-			labels[AnnotationIgnoreChangeByType] = v
+		if v, ok := obj.GetAnnotations()[v1.AnnotationIgnoreChangeByType]; ok {
+			labels[v1.AnnotationIgnoreChangeByType] = v
 		}
 
 		if obj.GetKind() == "Node" {
@@ -387,17 +403,42 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			}
 		}
 
+		if obj.GetKind() == "Endpoints" {
+			var endpoint coreV1.Endpoints
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &endpoint); err != nil {
+				return results.Errorf(err, "failed to unmarshal endpoint (%s/%s)", obj.GetUID(), obj.GetName())
+			}
+
+			for _, subset := range endpoint.Subsets {
+				for _, address := range subset.Addresses {
+					if address.TargetRef != nil {
+						if address.TargetRef.Kind != "Service" {
+							relationships = append(relationships, v1.RelationshipResult{
+								ConfigExternalID: v1.ExternalID{ExternalID: []string{getKubernetesAlias("Service", obj.GetNamespace(), obj.GetName())}, ConfigType: ConfigTypePrefix + "Service"},
+								RelatedConfigID:  string(address.TargetRef.UID),
+								Relationship:     fmt.Sprintf("Service%s", address.TargetRef.Kind),
+							})
+						}
+					}
+				}
+			}
+		}
+
 		if obj.GetKind() == "Pod" {
 			spec := obj.Object["spec"].(map[string]interface{})
 			var nodeName string
 			if spec["nodeName"] != nil {
 				nodeName = spec["nodeName"].(string)
-				nodeID := resourceIDMap[""]["Node"][nodeName]
+				nodeID := resourceIDMap.Get("", "Node", nodeName)
+				nodeExternalID := lo.CoalesceOrEmpty(nodeID, getKubernetesAlias("Node", "", nodeName))
+
 				relationships = append(relationships, v1.RelationshipResult{
-					ConfigExternalID:  v1.ExternalID{ExternalID: []string{nodeID}, ConfigType: ConfigTypePrefix + "Node"},
-					RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: ConfigTypePrefix + "Pod"},
-					Relationship:      "NodePod",
-				})
+					RelatedConfigID: string(obj.GetUID()),
+					Relationship:    "NodePod",
+				}.WithConfig(
+					resourceIDMap.Get("", "Node", nodeName),
+					v1.ExternalID{ExternalID: []string{nodeExternalID}, ConfigType: ConfigTypePrefix + "Node"},
+				))
 			}
 
 			if obj.GetLabels()["app.kubernetes.io/name"] == "aws-node" {
@@ -435,17 +476,19 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 
 		if obj.GetNamespace() != "" {
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{fmt.Sprintf("Kubernetes/Namespace//%s", obj.GetNamespace())}, ConfigType: ConfigTypePrefix + "Namespace"},
-				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
-				Relationship:      "Namespace" + obj.GetKind(),
-			})
+				RelatedConfigID: string(obj.GetUID()),
+				Relationship:    "Namespace" + obj.GetKind(),
+			}.WithConfig(
+				resourceIDMap.Get("", "Namespace", obj.GetNamespace()),
+				v1.ExternalID{ExternalID: []string{getKubernetesAlias("Namespace", "", obj.GetNamespace())}, ConfigType: ConfigTypePrefix + "Namespace"},
+			))
 		}
 
 		for _, ownerRef := range obj.GetOwnerReferences() {
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{string(ownerRef.UID)}, ConfigType: getConfigTypePrefix(ownerRef.APIVersion) + ownerRef.Kind},
-				RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
-				Relationship:      ownerRef.Kind + obj.GetKind(),
+				ConfigID:        string(ownerRef.UID),
+				RelatedConfigID: string(obj.GetUID()),
+				Relationship:    ownerRef.Kind + obj.GetKind(),
 			})
 		}
 
@@ -469,9 +512,12 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 
 				for _, id := range linkedConfigItemIDs {
 					rel := v1.RelationshipResult{
-						RelatedExternalID: v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetKind()) + obj.GetKind()},
-						ConfigID:          id.String(),
-					}
+						ConfigID: id.String(),
+					}.WithRelated(
+						resourceIDMap.Get(obj.GetNamespace(), obj.GetKind(), obj.GetName()),
+						v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
+					)
+
 					relationships = append(relationships, rel)
 				}
 			}
@@ -516,6 +562,13 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 										if ingress, ok := ing.(map[string]any); ok {
 											if hostname, ok := ingress["hostname"].(string); ok && hostname != "" {
 												labels["hostname"] = hostname
+
+												if strings.HasSuffix(hostname, "elb.amazonaws.com") {
+													relationships = append(relationships, v1.RelationshipResult{
+														ConfigID:          string(obj.GetUID()),
+														RelatedExternalID: v1.ExternalID{ExternalID: []string{hostname}, ConfigType: v1.AWSLoadBalancer},
+													})
+												}
 											}
 
 											if ip, ok := ingress["ip"].(string); ok && ip != "" {
@@ -559,6 +612,7 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 		}
 
 		parents := getKubernetesParent(obj, config.Exclusions, resourceIDMap)
+		children := getKubernetesChildren(obj)
 		results = append(results, v1.ScrapeResult{
 			BaseScraper:         config.BaseScraper,
 			Name:                obj.GetName(),
@@ -578,12 +632,13 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			Tags:                tags,
 			Aliases:             []string{getKubernetesAlias(obj.GetKind(), obj.GetNamespace(), obj.GetName())},
 			Parents:             parents,
+			Children:            children,
 			RelationshipResults: relationships,
 		})
 	}
 
 	results = append(results, changeResults...)
-	if withCluster {
+	if isIncrementalScrape {
 		results = append([]v1.ScrapeResult{cluster}, results...)
 	}
 
@@ -602,17 +657,45 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 	return results
 }
 
+func getKubernetesChildren(obj *unstructured.Unstructured) []v1.ConfigExternalKey {
+	var allChildren []v1.ConfigExternalKey
+
+	// Argo Applications have children references
+	if strings.HasPrefix(obj.GetAPIVersion(), "argoproj.io") && obj.GetKind() == "Application" {
+		o := gabs.Wrap(obj.Object)
+
+		type argoResourceRef struct {
+			Kind      string `json:"kind"`
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		}
+		var ars []argoResourceRef
+		if err := json.Unmarshal(o.S("status", "resources").Bytes(), &ars); err != nil {
+			logger.Tracef("error marshaling status.resources for argo app[%s/%s]: %v", obj.GetNamespace(), obj.GetName(), err)
+		} else {
+			for _, resource := range ars {
+				allChildren = append([]v1.ConfigExternalKey{{
+					Type:       ConfigTypePrefix + resource.Kind,
+					ExternalID: getKubernetesAlias(resource.Kind, resource.Namespace, resource.Name),
+				}}, allChildren...)
+			}
+		}
+	}
+
+	return allChildren
+}
+
 // getKubernetesParent returns a list of potential parents in order.
 // Example: For a Pod the parents would be [Replicaset, Namespace, Cluster]
-func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.KubernetesExclusionConfig, resourceIDMap map[string]map[string]map[string]string) []v1.ConfigExternalKey {
+func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.KubernetesExclusionConfig, resourceIDMap *ResourceIDMapContainer) []v1.ConfigExternalKey {
 	var allParents []v1.ConfigExternalKey
 	allParents = append(allParents, v1.ConfigExternalKey{
 		Type:       ConfigTypePrefix + "Cluster",
-		ExternalID: resourceIDMap[""]["Cluster"]["selfRef"],
+		ExternalID: resourceIDMap.Get("", "Cluster", "selfRef"),
 	})
 
 	if obj.GetNamespace() != "" {
-		parentExternalID := resourceIDMap[""]["Namespace"][obj.GetNamespace()]
+		parentExternalID := resourceIDMap.Get("", "Namespace", obj.GetNamespace())
 		if parentExternalID == "" {
 			// An incremental scraper may not have the Namespace object.
 			// We can instead use the alias as the external id.
@@ -632,7 +715,7 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 		// be its Deployment
 		if obj.GetKind() == "Pod" && lo.Contains(exclusions.Kinds, "ReplicaSet") && ref.Kind == "ReplicaSet" {
 			deployName := extractDeployNameFromReplicaSet(ref.Name)
-			parentExternalID := resourceIDMap[obj.GetNamespace()]["Deployment"][deployName]
+			parentExternalID := resourceIDMap.Get(obj.GetNamespace(), "Deployment", deployName)
 			allParents = append([]v1.ConfigExternalKey{{
 				Type:       ConfigTypePrefix + "Deployment",
 				ExternalID: parentExternalID,
@@ -650,17 +733,18 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 	if helmName != "" && helmNamespace != "" {
 		allParents = append([]v1.ConfigExternalKey{{
 			Type:       ConfigTypePrefix + "HelmRelease",
-			ExternalID: getKubernetesAlias("HelmRelease", helmNamespace, helmName),
+			ExternalID: lo.CoalesceOrEmpty(resourceIDMap.Get(helmNamespace, "HelmRelease", helmName), getKubernetesAlias("HelmRelease", helmNamespace, helmName)),
 		}}, allParents...)
 	}
 
-	// TODO: No Namespace or the argo app uid
-	// if argoApp, ok := obj.GetLabels()["argocd.argoproj.io/instance"]; ok {
-	// 	allParents = append([]v1.ConfigExternalKey{{
-	// 		Type:       ConfigTypePrefix + "Application",
-	// 		ExternalID: argoApp,
-	// 	}}, allParents...)
-	// }
+	kustomizeName := obj.GetLabels()["kustomize.toolkit.fluxcd.io/name"]
+	kustomizeNamespace := obj.GetLabels()["kustomize.toolkit.fluxcd.io/namespace"]
+	if kustomizeName != "" && kustomizeNamespace != "" {
+		allParents = append([]v1.ConfigExternalKey{{
+			Type:       ConfigTypePrefix + "Kustomization",
+			ExternalID: lo.CoalesceOrEmpty(resourceIDMap.Get(kustomizeNamespace, "Kustomization", kustomizeName), getKubernetesAlias("Kustomization", kustomizeNamespace, kustomizeName)),
+		}}, allParents...)
+	}
 
 	return allParents
 }
@@ -677,7 +761,7 @@ func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.K
 	opts.FieldSelector = config.FieldSelector
 	opts.UseCache = config.UseCache
 	opts.MaxInflight = config.MaxInflight
-	opts.Exclusions = config.Exclusions.List()
+	opts.Exclusions = append(config.Exclusions.List(), "componentstatuses")
 	opts.Since = config.Since
 	if config.Kubeconfig != nil {
 		val, err := ctx.GetEnvValueFromCache(*config.Kubeconfig, ctx.GetNamespace())
@@ -709,26 +793,6 @@ func extractDeployNameFromReplicaSet(rs string) string {
 	split := strings.Split(rs, "-")
 	split = split[:len(split)-1]
 	return strings.Join(split, "-")
-}
-
-func getResourceIDsFromObjs(objs []*unstructured.Unstructured) map[string]map[string]map[string]string {
-	// {Namespace: {Kind: {Name: ID}}}
-	resourceIDMap := make(map[string]map[string]map[string]string)
-	resourceIDMap[""] = make(map[string]map[string]string)
-
-	for _, obj := range objs {
-		if collections.Contains([]string{"Namespace", "Deployment", "Node"}, obj.GetKind()) {
-			if resourceIDMap[obj.GetNamespace()] == nil {
-				resourceIDMap[obj.GetNamespace()] = make(map[string]map[string]string)
-			}
-			if resourceIDMap[obj.GetNamespace()][obj.GetKind()] == nil {
-				resourceIDMap[obj.GetNamespace()][obj.GetKind()] = make(map[string]string)
-			}
-			resourceIDMap[obj.GetNamespace()][obj.GetKind()][obj.GetName()] = string(obj.GetUID())
-		}
-	}
-
-	return resourceIDMap
 }
 
 //nolint:errcheck

@@ -4,8 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"net"
+	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
 	"slices"
+	"time"
+
+	"net/http/pprof"
 
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
@@ -92,21 +100,50 @@ func serve(ctx context.Context, configFiles []string) {
 	go startScraperCron(configFiles)
 
 	go jobs.ScheduleJobs(api.DefaultContext.DutyContext())
+	AddShutdownHook(jobs.Stop)
 
-	go func() {
-		if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil {
+	// Add pprof routes with localhost restriction
+	pprofGroup := e.Group("/debug/pprof")
+	pprofGroup.Use(restrictToLocalhost)
+	pprofGroup.GET("/*", echo.WrapHandler(http.HandlerFunc(pprof.Index)))
+	pprofGroup.GET("/cmdline*", echo.WrapHandler(http.HandlerFunc(pprof.Cmdline)))
+	pprofGroup.GET("/profile*", echo.WrapHandler(http.HandlerFunc(pprof.Profile)))
+	pprofGroup.GET("/symbol*", echo.WrapHandler(http.HandlerFunc(pprof.Symbol)))
+	pprofGroup.GET("/trace*", echo.WrapHandler(http.HandlerFunc(pprof.Trace)))
+
+	e.GET("/properties", func(c echo.Context) error {
+		props := api.DefaultContext.Properties().SupportedProperties()
+		return c.JSON(200, props)
+	})
+
+	AddShutdownHook(func() {
+		if err := db.StopEmbeddedPGServer(); err != nil {
+			logger.Errorf("failed to stop server: %v", err)
+		}
+	})
+
+	AddShutdownHook(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		defer cancel()
+
+		if err := e.Shutdown(ctx); err != nil {
 			e.Logger.Fatal(err)
 		}
+	})
+
+	go func() {
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, os.Interrupt)
+		<-quit
+		logger.Infof("Caught Ctrl+C")
+		// call shutdown hooks explicitly, post-run cleanup hooks will be a no-op
+		Shutdown()
 	}()
 
-	<-ctx.Done()
-	if err := db.StopEmbeddedPGServer(); err != nil {
-		logger.Errorf("failed to stop server: %v", err)
+	if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil && err != http.ErrServerClosed {
+		e.Logger.Fatal(err)
 	}
 
-	if err := e.Shutdown(ctx); err != nil {
-		logger.Errorf("failed to shutdown echo HTTP server: %v", err)
-	}
 }
 
 func startScraperCron(configFiles []string) {
@@ -152,4 +189,20 @@ func init() {
 func telemetryURLSkipper(c echo.Context) bool {
 	pathsToSkip := []string{"/live", "/ready", "/metrics"}
 	return slices.Contains(pathsToSkip, c.Path())
+}
+
+// restrictToLocalhost is a middleware that restricts access to localhost
+func restrictToLocalhost(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		remoteIP := net.ParseIP(c.RealIP())
+		if remoteIP == nil {
+			return echo.NewHTTPError(http.StatusForbidden, "Invalid IP address")
+		}
+
+		if !remoteIP.IsLoopback() {
+			return echo.NewHTTPError(http.StatusForbidden, "Access restricted to localhost")
+		}
+
+		return next(c)
+	}
 }

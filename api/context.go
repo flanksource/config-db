@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
@@ -21,10 +23,18 @@ type ScrapeContext struct {
 func NewScrapeContext(ctx dutyCtx.Context) ScrapeContext {
 	return ScrapeContext{
 		Context: ctx.WithKubernetes(KubernetesClient),
-		temp: &TempCache{
-			ctx: ctx,
-		},
+		temp:    &TempCache{},
 	}
+}
+
+func (ctx ScrapeContext) PropertyOn(def bool, key string) bool {
+	paths := []string{
+		fmt.Sprintf("scraper.%s", key),
+	}
+	if ctx.scrapeConfig != nil && ctx.ScrapeConfig().GetUID() != "" {
+		paths = append([]string{fmt.Sprintf("scraper.%s.%s", ctx.ScrapeConfig().GetUID(), key)}, paths...)
+	}
+	return ctx.Properties().On(def, paths...)
 }
 
 func (ctx ScrapeContext) TempCache() *TempCache {
@@ -35,6 +45,7 @@ func (ctx ScrapeContext) withTempCache(cache *TempCache) ScrapeContext {
 	ctx.temp = cache
 	return ctx
 }
+
 func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	if ctx.ScrapeConfig().GetPersistedID() == nil {
 		cache, err := QueryCache(ctx.Context, "scraper_id IS NULL")

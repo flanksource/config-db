@@ -6,6 +6,7 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/gomplate/v3"
 	"gopkg.in/yaml.v3"
 )
 
@@ -13,11 +14,12 @@ import (
 var changeRulesConfig []byte
 
 type changeRule struct {
-	Action  v1.ChangeAction `json:"action"`  // map the change action to this action.
-	Filter  string          `json:"filter"`  // cel-go filter for a config item.
-	Rule    string          `json:"rule"`    // cel-go filter for a config change.
-	Type    string          `json:"type"`    // replace with this change type.
-	Summary string          `json:"summary"` // Go templatable summary to replace the existing change summary.
+	Action   v1.ChangeAction `json:"action"`   // map the change action to this action.
+	Filter   string          `json:"filter"`   // cel-go filter for a config item.
+	Rule     string          `json:"rule"`     // cel-go filter for a config change.
+	Severity string          `json:"severity"` // replace with this severity.
+	Type     string          `json:"type"`     // replace with this change type.
+	Summary  string          `json:"summary"`  // Go templatable summary to replace the existing change summary.
 }
 
 // matches the rule with a config using the filter
@@ -30,7 +32,7 @@ func (t *changeRule) match(result *v1.ScrapeResult) (bool, error) {
 		"config":      result.ConfigMap(),
 		"config_type": result.Type,
 	}
-	return evaluateCelExpression(t.Filter, env, "config", "config_type")
+	return evaluateCelExpression(t.Filter, env)
 }
 
 func (t *changeRule) process(change *v1.ChangeResult) error {
@@ -39,7 +41,7 @@ func (t *changeRule) process(change *v1.ChangeResult) error {
 		"patch":  change.PatchesMap(),
 	}
 
-	if ok, err := evaluateCelExpression(t.Rule, env, "change", "patch"); err != nil {
+	if ok, err := evaluateCelExpression(t.Rule, env); err != nil {
 		return fmt.Errorf("failed to evaluate rule %s: %w", t.Rule, err)
 	} else if !ok {
 		return nil
@@ -49,12 +51,16 @@ func (t *changeRule) process(change *v1.ChangeResult) error {
 		change.ChangeType = t.Type
 	}
 
+	if t.Severity != "" {
+		change.Severity = t.Severity
+	}
+
 	if t.Action != "" {
 		change.Action = t.Action
 	}
 
 	if t.Summary != "" {
-		summary, err := evaluateGoTemplate(t.Summary, env)
+		summary, err := gomplate.RunTemplate(env, gomplate.Template{Template: t.Summary})
 		if err != nil {
 			return fmt.Errorf("failed to evaluate summary template %s: %w", t.Summary, err)
 		}
@@ -85,10 +91,11 @@ func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) {
 	allRules := Rules
 	for _, r := range rules {
 		allRules = append(allRules, changeRule{
-			Action:  r.Action,
-			Rule:    r.Filter,
-			Type:    r.Type,
-			Summary: r.Summary,
+			Action:   r.Action,
+			Rule:     r.Filter,
+			Type:     r.Type,
+			Severity: r.Severity,
+			Summary:  r.Summary,
 		})
 	}
 

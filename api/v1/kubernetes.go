@@ -6,11 +6,27 @@ import (
 	"strings"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/mapstructure"
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
+
+// ReservedAnnotations
+const (
+	// AnnotationIgnoreConfig excludes the object from being scraped
+	AnnotationIgnoreConfig = "config-db.flanksource.com/ignore"
+
+	// AnnotationIgnoreChangeByType contains the list of change types to ignore
+	AnnotationIgnoreChangeByType = "config-db.flanksource.com/ignore-changes"
+
+	// AnnotationIgnoreChangeBySeverity contains the list of severity for the change types to ignore
+	AnnotationIgnoreChangeBySeverity = "config-db.flanksource.com/ignore-change-severity"
+
+	// AnnotationCustomTags contains the list of tags to add to the scraped config
+	AnnotationCustomTags = "config-db.flanksource.com/tags"
 )
 
 // SeverityKeywords is used to identify the severity
@@ -114,11 +130,11 @@ type KubernetesRelationshipSelector struct {
 
 type KubernetesRelationshipSelectorTemplate struct {
 	// Kind defines which field to use for the kind lookup
-	Kind RelationshipLookup `json:"kind" yaml:"kind"`
+	Kind duty.Lookup `json:"kind" yaml:"kind"`
 	// Name defines which field to use for the name lookup
-	Name RelationshipLookup `json:"name" yaml:"name"`
+	Name duty.Lookup `json:"name" yaml:"name"`
 	// Namespace defines which field to use for the namespace lookup
-	Namespace RelationshipLookup `json:"namespace" yaml:"namespace"`
+	Namespace duty.Lookup `json:"namespace" yaml:"namespace"`
 }
 
 func (t *KubernetesRelationshipSelectorTemplate) IsEmpty() bool {

@@ -8,11 +8,13 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
+	"github.com/samber/lo"
 )
 
 const maxTagsCount = 5
@@ -138,6 +140,71 @@ func (result *AnalysisResult) Message(msg string) *AnalysisResult {
 type AnalysisResults []AnalysisResult
 
 type ScrapeSummary map[string]ConfigTypeScrapeSummary
+
+func (summary ScrapeSummary) HasUpdates() bool {
+	totals := summary.Totals()
+	return totals.Added > 0 || totals.Updated > 0
+
+}
+
+func (summary ConfigTypeScrapeSummary) String() string {
+	s := []string{}
+
+	if summary.Added > 0 {
+		s = append(s, fmt.Sprintf("added=%d", summary.Added))
+	}
+	if summary.Updated > 0 {
+		s = append(s, fmt.Sprintf("updated=%d", summary.Updated))
+	}
+	if summary.Unchanged > 0 {
+		s = append(s, fmt.Sprintf("unchanged=%d", summary.Unchanged))
+	}
+
+	if summary.Change != nil && len(summary.Change.Ignored) > 0 {
+		s = append(s, fmt.Sprintf("ignored=%d", lo.Sum(lo.Values(summary.Change.Ignored))))
+	}
+	if summary.Change != nil && len(summary.Change.Orphaned) > 0 {
+		s = append(s, fmt.Sprintf("orphaned=%d", lo.Sum(lo.Values(summary.Change.Orphaned))))
+	}
+
+	return strings.Join(s, ", ")
+}
+
+func (s ScrapeSummary) String() string {
+	types := lo.Keys(s)
+	if len(types) <= 3 {
+		return fmt.Sprintf("(%s) %v", types, s.Totals())
+
+	}
+	return fmt.Sprintf("types=%d, %v", len(types), s.Totals())
+}
+
+func (a ConfigTypeScrapeSummary) Merge(b ConfigTypeScrapeSummary) ConfigTypeScrapeSummary {
+	change := &ChangeSummary{}
+	if a.Change != nil {
+		change.Merge(*a.Change)
+	}
+	if b.Change != nil {
+		change.Merge(*b.Change)
+	}
+	return ConfigTypeScrapeSummary{
+		Added:     a.Added + b.Added,
+		Updated:   a.Updated + b.Updated,
+		Unchanged: a.Unchanged + b.Unchanged,
+		Change:    change,
+	}
+}
+
+func (summaries ScrapeSummary) Totals() ConfigTypeScrapeSummary {
+	merged := ConfigTypeScrapeSummary{
+		Change: &ChangeSummary{},
+	}
+
+	for _, s := range summaries {
+		merged = merged.Merge(s)
+	}
+	return merged
+}
 
 func (t *ScrapeSummary) AddChangeSummary(configType string, cs ChangeSummary) {
 	v := (*t)[configType]
@@ -266,6 +333,24 @@ type RelationshipResult struct {
 	RelatedConfigID string
 
 	Relationship string
+}
+
+func (t RelationshipResult) WithConfig(id string, ext ExternalID) RelationshipResult {
+	if id != "" {
+		t.ConfigID = id
+	} else {
+		t.ConfigExternalID = ext
+	}
+	return t
+}
+
+func (t RelationshipResult) WithRelated(id string, ext ExternalID) RelationshipResult {
+	if id != "" {
+		t.RelatedConfigID = id
+	} else {
+		t.RelatedExternalID = ext
+	}
+	return t
 }
 
 func (r RelationshipResult) String() string {
@@ -479,13 +564,20 @@ type ScrapeResult struct {
 	Properties          types.Properties    `json:"properties,omitempty"`
 	LastScrapedTime     *time.Time          `json:"last_scraped_time"`
 
+	// ScraperLess when true indicates that this config item
+	// do not belong to any scraper. Example: AWS region & availability zone.
+	ScraperLess bool `json:"scraper_less,omitempty"`
+
 	// List of candidate parents in order of precision.
 	Parents []ConfigExternalKey `json:"-"`
+
+	// List of candidate children in order of precision.
+	Children []ConfigExternalKey `json:"-"`
 
 	// RelationshipSelectors are used to form relationship of this scraped item with other items.
 	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without
 	// knowing the external ids of the item to be linked.
-	RelationshipSelectors []RelationshipSelector `json:"-"`
+	RelationshipSelectors []duty.RelationshipSelector `json:"-"`
 }
 
 func (s ScrapeResult) WithHealthStatus(hs health.HealthStatus) ScrapeResult {

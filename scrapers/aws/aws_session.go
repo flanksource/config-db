@@ -32,6 +32,7 @@ func NewSession(ctx api.ScrapeContext, conn v1.AWSConnection, region string) (*a
 // EndpointResolver ...
 type EndpointResolver struct {
 	Endpoint string
+	Region   string
 }
 
 // ResolveEndpoint ...
@@ -40,6 +41,7 @@ func (e EndpointResolver) ResolveEndpoint(service, region string, options ...int
 		URL:               e.Endpoint,
 		HostnameImmutable: true,
 		Source:            aws.EndpointSourceCustom,
+		SigningRegion:     e.Region,
 	}, nil
 }
 
@@ -82,7 +84,7 @@ func loadConfig(ctx api.ScrapeContext, conn v1.AWSConnection, region string) (*a
 	}
 
 	if conn.Endpoint != "" {
-		options = append(options, config.WithEndpointResolverWithOptions(EndpointResolver{Endpoint: conn.Endpoint}))
+		options = append(options, config.WithEndpointResolverWithOptions(EndpointResolver{Endpoint: conn.Endpoint, Region: region}))
 	}
 
 	if !conn.AccessKey.IsEmpty() {

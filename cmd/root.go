@@ -5,7 +5,11 @@ import (
 	"os"
 	"strconv"
 
+	nethttp "net/http"
+
 	"github.com/flanksource/commons/http"
+
+	_ "net/http/pprof" // required by serve
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
@@ -16,10 +20,20 @@ import (
 	"github.com/flanksource/config-db/telemetry"
 	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/duty"
+	"github.com/google/gops/agent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/klog/v2"
 )
+
+func init() {
+	// disables default handlers registered by importing net/http/pprof.
+	nethttp.DefaultServeMux = nethttp.NewServeMux()
+
+	if err := agent.Listen(agent.Options{}); err != nil {
+		logger.Errorf(err.Error())
+	}
+}
 
 var dev bool
 var httpPort, metricsPort, devGuiPort int

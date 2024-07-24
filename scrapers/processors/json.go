@@ -11,9 +11,10 @@ import (
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
-	"github.com/flanksource/duty/context"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/magiconair/properties"
@@ -197,8 +198,8 @@ func (e Extract) String() string {
 	return s
 }
 
-func getRelationshipsFromRelationshipConfigs(input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]v1.RelationshipSelector, error) {
-	var output []v1.RelationshipSelector
+func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]duty.RelationshipSelector, error) {
+	var output []duty.RelationshipSelector
 
 	for _, rc := range relationshipConfigs {
 		if rc.Filter != "" {
@@ -214,22 +215,39 @@ func getRelationshipsFromRelationshipConfigs(input v1.ScrapeResult, relationship
 			}
 		}
 
-		var relationshipSelectors []v1.RelationshipSelector
+		var relationshipSelectors []duty.RelationshipSelector
 		if rc.Expr != "" {
 			celOutput, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: rc.Expr})
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate relationship config (expr: %s, config_id: %s): %v", rc.Expr, lo.FromPtr(input.ConfigID), err)
 			}
 
-			var output []v1.RelationshipSelector
+			var output []duty.RelationshipSelector
 			if err := json.Unmarshal([]byte(celOutput), &output); err != nil {
 				return nil, fmt.Errorf("relationship config expr (%s) did not evaulate to a list of relationship selectors: %w", rc.Expr, err)
 			}
+
+			for i := range output {
+				switch output[i].Scope {
+				case "":
+					output[i].Scope = string(ctx.ScrapeConfig().GetUID())
+				case "all":
+					output[i].Scope = ""
+				}
+			}
+
 			relationshipSelectors = append(relationshipSelectors, output...)
 		} else {
 			if compiled, err := rc.RelationshipSelectorTemplate.Eval(input.Labels, input.AsMap()); err != nil {
 				return nil, fmt.Errorf("relationship selector is invalid: %w", err)
 			} else if compiled != nil {
+				switch compiled.Scope {
+				case "":
+					compiled.Scope = string(ctx.ScrapeConfig().GetUID())
+				case "all":
+					compiled.Scope = ""
+				}
+
 				relationshipSelectors = append(relationshipSelectors, *compiled)
 			}
 		}
@@ -240,9 +258,11 @@ func getRelationshipsFromRelationshipConfigs(input v1.ScrapeResult, relationship
 	return output, nil
 }
 
-func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
+func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 	var results []v1.ScrapeResult
 	var err error
+
+	logScrapes := ctx.PropertyOn(true, "log.items")
 
 	for _, input := range inputs {
 		for k, v := range input.BaseScraper.Labels {
@@ -270,7 +290,7 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 		}
 
 		// Form new relationships based on the transform configs
-		if newRelationships, err := getRelationshipsFromRelationshipConfigs(input, e.Transform.Relationship); err != nil {
+		if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, input, e.Transform.Relationship); err != nil {
 			return results, fmt.Errorf("failed to get relationships from relationship configs: %w", err)
 		} else if len(newRelationships) > 0 {
 			input.RelationshipSelectors = append(input.RelationshipSelectors, newRelationships...)
@@ -401,7 +421,9 @@ func (e Extract) Extract(ctx context.Context, inputs ...v1.ScrapeResult) ([]v1.S
 			if extracted, err := e.extractAttributes(result); err != nil {
 				return results, fmt.Errorf("failed to extract attributes: %v", err)
 			} else {
-				ctx.Logger.V(1).Infof("Scraped %s", extracted)
+				if logScrapes {
+					ctx.Logger.V(1).Infof("Scraped %s", extracted)
+				}
 				results = append(results, extracted)
 			}
 		}

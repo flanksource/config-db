@@ -330,6 +330,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -417,8 +421,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -433,8 +437,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -448,8 +452,35 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                description: |-
+                                  Scope is the id of the parent of the resource to select.
+                                  Example: For config items, the scope is the scraper id
+                                  - for checks, it's canaries and
+                                  - for components, it's topology.
+                                  If left empty, the scope is the requester's scope.
+                                  Use `all` to disregard scope.
                                 properties:
                                   expr:
                                     type: string
@@ -459,8 +490,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -746,6 +777,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -833,8 +868,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -849,8 +884,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -864,8 +899,35 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                description: |-
+                                  Scope is the id of the parent of the resource to select.
+                                  Example: For config items, the scope is the scraper id
+                                  - for checks, it's canaries and
+                                  - for components, it's topology.
+                                  If left empty, the scope is the requester's scope.
+                                  Use `all` to disregard scope.
                                 properties:
                                   expr:
                                     type: string
@@ -875,8 +937,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1112,6 +1174,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -1199,8 +1265,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1215,8 +1281,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1230,8 +1296,35 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                description: |-
+                                  Scope is the id of the parent of the resource to select.
+                                  Example: For config items, the scope is the scraper id
+                                  - for checks, it's canaries and
+                                  - for components, it's topology.
+                                  If left empty, the scope is the requester's scope.
+                                  Use `all` to disregard scope.
                                 properties:
                                   expr:
                                     type: string
@@ -1241,8 +1334,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1437,6 +1530,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -1524,8 +1621,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1540,8 +1637,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1555,8 +1652,35 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                description: |-
+                                  Scope is the id of the parent of the resource to select.
+                                  Example: For config items, the scope is the scraper id
+                                  - for checks, it's canaries and
+                                  - for components, it's topology.
+                                  If left empty, the scope is the requester's scope.
+                                  Use `all` to disregard scope.
                                 properties:
                                   expr:
                                     type: string
@@ -1566,8 +1690,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1591,6 +1715,402 @@ spec:
                 description: Full flag when set will try to extract out changes from
                   the scraped config.
                 type: boolean
+              gcp:
+                items:
+                  properties:
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
+                    createFields:
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
+                      items:
+                        type: string
+                      type: array
+                    credentials:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            helmRef:
+                              properties:
+                                key:
+                                  description: Key is a JSONPath expression used to
+                                    fetch the key from the merged JSON.
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            serviceAccount:
+                              description: ServiceAccount specifies the service account
+                                whose token should be fetched
+                              type: string
+                          type: object
+                      type: object
+                    deleteFields:
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
+                      items:
+                        type: string
+                      type: array
+                    endpoint:
+                      type: string
+                    exclude:
+                      items:
+                        type: string
+                      type: array
+                    format:
+                      description: Format of config item, defaults to JSON, available
+                        options are JSON, properties
+                      type: string
+                    id:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    include:
+                      items:
+                        type: string
+                      type: array
+                    items:
+                      description: |-
+                        A JSONPath expression to use to extract individual items from the resource,
+                        items are extracted first and then the ID,Name,Type and transformations are applied for each item.
+                      type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels allow you to set custom labels on the scraped
+                        config items.
+                      type: object
+                    name:
+                      description: A static value or JSONPath expression to use as
+                        the ID for the resource.
+                      type: string
+                    project:
+                      type: string
+                    properties:
+                      description: |-
+                        Properties are custom templatable properties for the scraped config items
+                        grouped by the config type.
+                      items:
+                        properties:
+                          color:
+                            type: string
+                          filter:
+                            type: string
+                          headline:
+                            type: boolean
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          lastTransition:
+                            type: string
+                          links:
+                            items:
+                              properties:
+                                icon:
+                                  type: string
+                                label:
+                                  type: string
+                                text:
+                                  type: string
+                                tooltip:
+                                  type: string
+                                type:
+                                  description: e.g. documentation, support, playbook
+                                  type: string
+                                url:
+                                  type: string
+                              type: object
+                            type: array
+                          max:
+                            format: int64
+                            type: integer
+                          min:
+                            format: int64
+                            type: integer
+                          name:
+                            type: string
+                          order:
+                            type: integer
+                          status:
+                            type: string
+                          text:
+                            description: Either text or value is required, but not
+                              both.
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            type: string
+                          unit:
+                            description: e.g. milliseconds, bytes, millicores, epoch
+                              etc.
+                            type: string
+                          value:
+                            format: int64
+                            type: integer
+                        type: object
+                      type: array
+                    tags:
+                      description: |-
+                        Tags for each config item.
+                        Max allowed: 5
+                      items:
+                        properties:
+                          jsonpath:
+                            type: string
+                          label:
+                            type: string
+                          name:
+                            type: string
+                          value:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
+                    timestampFormat:
+                      description: |-
+                        TimestampFormat is a Go time format string used to
+                        parse timestamps in createFields and DeletedFields.
+                        If not specified, the default is RFC3339.
+                      type: string
+                    transform:
+                      properties:
+                        changes:
+                          properties:
+                            exclude:
+                              description: Exclude is a list of CEL expressions that
+                                excludes a given change
+                              items:
+                                type: string
+                              type: array
+                            mapping:
+                              description: Mapping is a list of CEL expressions that
+                                maps a change to the specified type
+                              items:
+                                properties:
+                                  action:
+                                    description: "Action allows performing actions
+                                      on the corresponding config item\nbased on this
+                                      change. Example: You can map EC2 instance's
+                                      \"TerminateInstances\"\nchange event to delete
+                                      the corresponding EC2 instance config.\n\tAllowed
+                                      actions: \"delete\", \"ignore\""
+                                    type: string
+                                  filter:
+                                    description: Filter selects what change to apply
+                                      the mapping to
+                                    type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
+                                  summary:
+                                    description: Summary replaces the existing change
+                                      summary.
+                                    type: string
+                                  type:
+                                    description: Type is the type to be set on the
+                                      change
+                                    type: string
+                                type: object
+                              type: array
+                          type: object
+                        exclude:
+                          description: |-
+                            Fields to remove from the config, useful for removing sensitive data and fields
+                            that change often without a material impact i.e. Last Scraped Time
+                          items:
+                            description: |-
+                              ConfigFieldExclusion defines fields with JSONPath that needs to
+                              be removed from the config.
+                            properties:
+                              jsonpath:
+                                type: string
+                              types:
+                                description: |-
+                                  Optionally specify the config types
+                                  from which the JSONPath fields need to be removed.
+                                  If left empty, all config types are considered.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - jsonpath
+                            type: object
+                          type: array
+                        expr:
+                          type: string
+                        gotemplate:
+                          type: string
+                        javascript:
+                          type: string
+                        jsonpath:
+                          type: string
+                        mask:
+                          description: |-
+                            Masks consist of configurations to replace sensitive fields
+                            with hash functions or static string.
+                          items:
+                            properties:
+                              jsonpath:
+                                description: JSONPath specifies what field in the
+                                  config needs to be masked
+                                type: string
+                              selector:
+                                description: Selector is a CEL expression that selects
+                                  on what config items to apply the mask.
+                                type: string
+                              value:
+                                description: Value can be a hash function name or
+                                  just a string
+                                type: string
+                            type: object
+                          type: array
+                        relationship:
+                          description: Relationship allows you to form relationships
+                            between config items using selectors.
+                          items:
+                            properties:
+                              agent:
+                                description: |-
+                                  Agent can be one of
+                                   - agent id
+                                   - agent name
+                                   - 'self' (no agent)
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              expr:
+                                description: |-
+                                  Alternately, a single cel-expression can be used
+                                  that returns a list of relationship selector.
+                                type: string
+                              external_id:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              filter:
+                                description: |-
+                                  Filter is a CEL expression that selects on what config items
+                                  the relationship needs to be applied
+                                type: string
+                              id:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                description: |-
+                                  Scope is the id of the parent of the resource to select.
+                                  Example: For config items, the scope is the scraper id
+                                  - for checks, it's canaries and
+                                  - for components, it's topology.
+                                  If left empty, the scope is the requester's scope.
+                                  Use `all` to disregard scope.
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                            type: object
+                          type: array
+                      type: object
+                    type:
+                      description: A static value or JSONPath expression to use as
+                        the type for the resource.
+                      type: string
+                  required:
+                  - project
+                  type: object
+                type: array
               githubActions:
                 items:
                   properties:
@@ -1802,6 +2322,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -1889,8 +2413,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1905,8 +2429,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -1920,8 +2444,35 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                description: |-
+                                  Scope is the id of the parent of the resource to select.
+                                  Example: For config items, the scope is the scraper id
+                                  - for checks, it's canaries and
+                                  - for components, it's topology.
+                                  If left empty, the scope is the requester's scope.
+                                  Use `all` to disregard scope.
                                 properties:
                                   expr:
                                     type: string
@@ -1931,8 +2482,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2280,6 +2831,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -2367,8 +2922,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2383,8 +2938,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2398,8 +2953,35 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                description: |-
+                                  Scope is the id of the parent of the resource to select.
+                                  Example: For config items, the scope is the scraper id
+                                  - for checks, it's canaries and
+                                  - for components, it's topology.
+                                  If left empty, the scope is the requester's scope.
+                                  Use `all` to disregard scope.
                                 properties:
                                   expr:
                                     type: string
@@ -2409,8 +2991,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2675,6 +3257,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -2762,8 +3348,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2778,8 +3364,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -2793,8 +3379,35 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                description: |-
+                                  Scope is the id of the parent of the resource to select.
+                                  Example: For config items, the scope is the scraper id
+                                  - for checks, it's canaries and
+                                  - for components, it's topology.
+                                  If left empty, the scope is the requester's scope.
+                                  Use `all` to disregard scope.
                                 properties:
                                   expr:
                                     type: string
@@ -2804,8 +3417,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3120,6 +3733,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -3207,8 +3824,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3223,8 +3840,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3238,8 +3855,35 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                description: |-
+                                  Scope is the id of the parent of the resource to select.
+                                  Example: For config items, the scope is the scraper id
+                                  - for checks, it's canaries and
+                                  - for components, it's topology.
+                                  If left empty, the scope is the requester's scope.
+                                  Use `all` to disregard scope.
                                 properties:
                                   expr:
                                     type: string
@@ -3249,8 +3893,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3468,6 +4112,10 @@ spec:
                                     description: Filter selects what change to apply
                                       the mapping to
                                     type: string
+                                  severity:
+                                    description: Severity is the severity to be set
+                                      on the change
+                                    type: string
                                   summary:
                                     description: Summary replaces the existing change
                                       summary.
@@ -3555,8 +4203,8 @@ spec:
                                   that returns a list of relationship selector.
                                 type: string
                               external_id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3571,8 +4219,8 @@ spec:
                                   the relationship needs to be applied
                                 type: string
                               id:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
@@ -3586,8 +4234,35 @@ spec:
                                   type: string
                                 type: object
                               name:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                description: Lookup offers different ways to specify
+                                  a lookup value
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                description: |-
+                                  Scope is the id of the parent of the resource to select.
+                                  Example: For config items, the scope is the scraper id
+                                  - for checks, it's canaries and
+                                  - for components, it's topology.
+                                  If left empty, the scope is the requester's scope.
+                                  Use `all` to disregard scope.
                                 properties:
                                   expr:
                                     type: string
@@ -3597,8 +4272,8 @@ spec:
                                     type: string
                                 type: object
                               type:
-                                description: RelationshipLookup offers different ways
-                                  to specify a lookup value
+                                description: Lookup offers different ways to specify
+                                  a lookup value
                                 properties:
                                   expr:
                                     type: string
