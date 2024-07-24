@@ -3,6 +3,7 @@ package slack
 import (
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/flanksource/commons/duration"
@@ -13,6 +14,8 @@ import (
 	"github.com/flanksource/gomplate/v3"
 	"github.com/samber/lo"
 )
+
+var lastScrapeTime = sync.Map{}
 
 type Scraper struct{}
 
@@ -65,7 +68,14 @@ func (s Scraper) scrapeChannel(ctx api.ScrapeContext, config v1.Slack, client *S
 			return results
 		}
 
-		opt.Oldest = time.Now().Add(-time.Duration(parsed)).Unix()
+		opt.Oldest = strconv.FormatInt(time.Now().Add(-time.Duration(parsed)).Unix(), 10)
+	}
+
+	lastMessagekey := fmt.Sprintf("%s:%s", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()), channel.ID)
+	if last, ok := lastScrapeTime.Load(lastMessagekey); ok {
+		if last.(string) > opt.Oldest {
+			opt.Oldest = last.(string)
+		}
 	}
 
 	messages, err := client.ConversationHistory(ctx, channel, opt)
@@ -82,6 +92,7 @@ func (s Scraper) scrapeChannel(ctx api.ScrapeContext, config v1.Slack, client *S
 		results = append(results, processRule(ctx, config, rule, messages)...)
 	}
 
+	lastScrapeTime.Store(lastMessagekey, messages[0].Timestamp)
 	return results
 }
 

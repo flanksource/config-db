@@ -3,14 +3,13 @@ package slack
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/flanksource/commons/http"
 )
 
 type GetConversationHistoryParameters struct {
 	Cursor string
-	Oldest int64
+	Oldest string
 }
 
 // ResponseMetadata holds pagination metadata
@@ -147,12 +146,12 @@ func (t *SlackAPI) ListConversations(ctx context.Context) (*ConversationList, er
 func (t *SlackAPI) getSlackConversationHistory(ctx context.Context, channel ChannelDetail, params *GetConversationHistoryParameters) (GetConversationHistoryResponse, error) {
 	var output GetConversationHistoryResponse
 
-	req := t.client.R(ctx).QueryParam("channel", channel.ID).QueryParam("inclusive", "1")
+	req := t.client.R(ctx).QueryParam("channel", channel.ID)
 	if params.Cursor != "" {
 		req.QueryParam("cursor", params.Cursor)
 	}
-	if params.Oldest != 0 {
-		req.QueryParam("oldest", strconv.FormatInt(params.Oldest, 10))
+	if params.Oldest != "" {
+		req.QueryParam("oldest", params.Oldest)
 	}
 	response, err := req.Post("conversations.history", nil)
 	if err != nil {
