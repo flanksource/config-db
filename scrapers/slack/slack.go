@@ -45,7 +45,7 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 
-		matchingChannels := lo.Filter(channelsList.Channels, func(channel ChannelDetail, _ int) bool {
+		matchingChannels := lo.Filter(channelsList, func(channel ChannelDetail, _ int) bool {
 			return config.Channels.Match(channel.Name)
 		})
 

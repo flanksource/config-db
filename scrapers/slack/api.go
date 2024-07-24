@@ -120,27 +120,43 @@ func (t ChannelDetail) String() string {
 }
 
 type ConversationList struct {
-	Ok       bool   `json:"ok"`
-	Error    string `json:"error"`
-	Channels []ChannelDetail
+	Ok               bool             `json:"ok"`
+	Error            string           `json:"error,omitempty"`
+	Channels         []ChannelDetail  `json:"channels"`
+	ResponseMetadata ResponseMetadata `json:"response_metadata"`
 }
 
-func (t *SlackAPI) ListConversations(ctx context.Context) (*ConversationList, error) {
-	response, err := t.client.R(ctx).QueryParam("types", "public_channel,private_channel").Post("conversations.list", nil)
-	if err != nil {
-		return nil, err
+func (t *SlackAPI) ListConversations(ctx context.Context) ([]ChannelDetail, error) {
+	var cursor string
+	var result []ChannelDetail
+	for {
+		response, err := t.client.R(ctx).
+			QueryParam("types", "public_channel,private_channel,mpim,im").
+			QueryParam("limit", "1000").
+			QueryParam("cursor", cursor).
+			Post("conversations.list", nil)
+		if err != nil {
+			return nil, err
+		}
+
+		var output ConversationList
+		if err := response.Into(&output); err != nil {
+			return nil, err
+		}
+
+		if !output.Ok {
+			return nil, fmt.Errorf("failed to list conversations: %s", output.Error)
+		}
+
+		result = append(result, output.Channels...)
+
+		if output.ResponseMetadata.Cursor == "" {
+			break
+		}
+		cursor = output.ResponseMetadata.Cursor
 	}
 
-	var output ConversationList
-	if err := response.Into(&output); err != nil {
-		return nil, err
-	}
-
-	if !output.Ok {
-		return nil, fmt.Errorf("failed to list conversations: %s", output.Error)
-	}
-
-	return &output, nil
+	return result, nil
 }
 
 func (t *SlackAPI) getSlackConversationHistory(ctx context.Context, channel ChannelDetail, params *GetConversationHistoryParameters) (GetConversationHistoryResponse, error) {
