@@ -43,8 +43,9 @@ type ConfigItem struct {
 	LastScrapedTime *time.Time            `gorm:"column:last_scraped_time" json:"last_scraped_time"`
 	DeleteReason    v1.ConfigDeleteReason `gorm:"column:delete_reason" json:"delete_reason"`
 
-	Parents  []v1.ConfigExternalKey `gorm:"-" json:"parents,omitempty"`
-	Children []v1.ConfigExternalKey `gorm:"-" json:"children,omitempty"`
+	Parents         []v1.ConfigExternalKey `gorm:"-" json:"parents,omitempty"`
+	Children        []v1.ConfigExternalKey `gorm:"-" json:"children,omitempty"`
+	ProbableParents []string               `gorm:"-" json:"-"`
 }
 
 func (ci ConfigItem) String() string {
