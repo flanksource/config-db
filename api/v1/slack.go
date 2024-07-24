@@ -9,6 +9,8 @@ type Slack struct {
 	Token types.EnvVar `yaml:"token" json:"token"`
 
 	// Fetch the messages since this period.
+	// Default: 7d
+	//
 	// Specify the duration string.
 	//   eg: 1h, 7d, ...
 	Since string `yaml:"since,omitempty" json:"since,omitempty"`

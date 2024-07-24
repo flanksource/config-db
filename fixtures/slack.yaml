@@ -16,7 +16,7 @@ spec:
   slack:
     - channels:
         - 'notification-*'
-      since: 7d
+      since: 14d
       token:
         valueFrom:
           secretKeyRef:

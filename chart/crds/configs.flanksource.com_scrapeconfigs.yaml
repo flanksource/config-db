@@ -3760,6 +3760,9 @@ spec:
                     since:
                       description: |-
                         Fetch the messages since this period.
+                        Default: 7d
+
+
                         Specify the duration string.
                           eg: 1h, 7d, ...
                       type: string
