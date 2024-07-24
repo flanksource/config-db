@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -754,7 +755,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	// This is because, on the first run, we don't have any configs at all in the DB.
 	// So, all the parent lookups will return empty result and no parent will be set.
 	// This way, we can first look for the parents within the result set.
-	if err := setConfigParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
+	if err := setProbableConfigParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
 		return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to set parents: %w", err)
 	}
 	if err := setConfigChildren(ctx, allConfigs); err != nil {
@@ -782,7 +783,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	return newConfigs, configsToUpdate, newChanges, changesToUpdate, allChangeSummary, nil
 }
 
-func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
+func setProbableConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
 	for _, ci := range allConfigs {
 		if len(ci.Parents) == 0 {
 			continue // these are root items.
@@ -797,19 +798,21 @@ func setConfigParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExt
 				externalID: parent.ExternalID,
 				parentType: parent.Type,
 			}]; found {
-				if ci.ID != parentID {
-					ci.ParentID = &parentID
+				if ci.ID == parentID {
+					continue
 				}
-				break
+				ci.ProbableParents = append(ci.ProbableParents, parentID)
+				continue
 			}
 
 			if foundParent, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: parent.Type, ExternalID: []string{parent.ExternalID}}); err != nil {
 				return err
 			} else if foundParent != nil {
-				if ci.ID != foundParent.ID {
-					ci.ParentID = &foundParent.ID
+				if ci.ID == foundParent.ID {
+					continue
 				}
-				break
+				ci.ProbableParents = append(ci.ProbableParents, foundParent.ID)
+				continue
 			}
 		}
 
@@ -863,13 +866,17 @@ func getOrFind(ctx api.ScrapeContext, parentMap map[string]string, id string) st
 	return ""
 }
 
-func getPath(ctx api.ScrapeContext, parentMap map[string]string, self string) string {
-	paths := []string{self}
+func getPath(ctx api.ScrapeContext, parentMap map[string]string, self string) (string, bool) {
+	var paths []string
 
 	for parent := getOrFind(ctx, parentMap, self); parent != ""; parent = getOrFind(ctx, parentMap, parent) {
+		if slices.Contains(paths, parent) {
+			return "", false
+		}
 		paths = append([]string{parent}, paths...)
 	}
-	return strings.Join(paths, ".")
+
+	return strings.Join(paths, "."), true
 }
 
 func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) error {
@@ -879,16 +886,35 @@ func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) erro
 		return nil
 	}
 
-	var parentMap = make(map[string]string)
+	// Sorting the allConfigs on the length of ProbableParents
+	// is requred to correctly detect and fix cycles earlier
+	sort.Slice(allConfigs, func(i, j int) bool {
+		return len(allConfigs[i].ProbableParents) < len(allConfigs[j].ProbableParents)
+	})
 
+	var parentMap = make(map[string]string)
 	for _, config := range allConfigs {
-		if config.ParentID != nil {
-			parentMap[config.ID] = *config.ParentID
+		if len(config.ProbableParents) > 0 {
+			parentMap[config.ID] = config.ProbableParents[0]
 		}
 	}
 
 	for _, config := range allConfigs {
-		config.Path = getPath(ctx, parentMap, config.ID)
+		idx := 0
+		for {
+			path, ok := getPath(ctx, parentMap, config.ID)
+			if ok {
+				config.Path = path
+				if path != "" {
+					config.ParentID = lo.ToPtr(parentMap[config.ID])
+				}
+				break
+			}
+			idx += 1
+			if len(config.ProbableParents) > idx {
+				parentMap[config.ID] = config.ProbableParents[idx]
+			}
+		}
 	}
 	return nil
 }
