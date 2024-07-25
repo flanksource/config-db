@@ -361,6 +361,10 @@ type ChangeExtractionMapping struct {
 	Summary   types.ValueExpression `yaml:"summary,omitempty" json:"summary,omitempty"`
 	Type      types.ValueExpression `yaml:"type,omitempty" json:"type,omitempty"`
 
+	// Details of the change in json format.
+	// Defaults to the text.
+	Details types.ValueExpression `yaml:"details,omitempty" json:"details,omitempty"`
+
 	// TimeFormat is the go time format for the `createdAt` field.
 	// Defaults to RFC3339.
 	TimeFormat string `yaml:"timeFormat,omitempty" json:"timeFormat,omitempty"`
@@ -372,7 +376,7 @@ type ChangeExtractionRule struct {
 	Regexp string `yaml:"regexp,omitempty" json:"regexp,omitempty"`
 
 	// Mapping defines the Change to be extracted from the text.
-	Mapping ChangeExtractionMapping `yaml:"mapping" json:"mapping"`
+	Mapping *ChangeExtractionMapping `yaml:"mapping,omitempty" json:"mapping,omitempty"`
 
 	// Config is a list of selectors to attach the change to.
 	// +kubebuilder:validation:MinItems=1

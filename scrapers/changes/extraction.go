@@ -1,6 +1,7 @@
 package changes
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sync"
@@ -56,10 +57,11 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 	}
 
 	var changeType, severity, summary, changeCreatedAtRaw string
+	var changeDetails map[string]any
 	var changeCreatedAt *time.Time
 	var err error
 
-	if !rule.Mapping.Type.Empty() {
+	if rule.Mapping != nil && !rule.Mapping.Type.Empty() {
 		changeType, err = rule.Mapping.Type.Eval(env)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate type: %v", err)
@@ -68,7 +70,7 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		changeType = t
 	}
 
-	if !rule.Mapping.Severity.Empty() {
+	if rule.Mapping != nil && !rule.Mapping.Severity.Empty() {
 		severity, err = rule.Mapping.Severity.Eval(env)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate severity: %v", err)
@@ -77,7 +79,7 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		severity = s
 	}
 
-	if !rule.Mapping.Summary.Empty() {
+	if rule.Mapping != nil && !rule.Mapping.Summary.Empty() {
 		summary, err = rule.Mapping.Summary.Eval(env)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate summary: %v", err)
@@ -86,7 +88,7 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		summary = s
 	}
 
-	if !rule.Mapping.CreatedAt.Empty() {
+	if rule.Mapping != nil && !rule.Mapping.CreatedAt.Empty() {
 		changeCreatedAtRaw, err = rule.Mapping.CreatedAt.Eval(env)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate createdAt: %v", err)
@@ -95,7 +97,27 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 		changeCreatedAtRaw = s
 	}
 
-	if changeCreatedAtRaw != "" {
+	if rule.Mapping != nil && !rule.Mapping.Details.Empty() {
+		d, err := rule.Mapping.Details.Eval(env)
+		if err != nil {
+			return nil, fmt.Errorf("failed to evaluate details: %v", err)
+		}
+
+		var jsonData map[string]any
+		if err := json.Unmarshal([]byte(d), &jsonData); err == nil {
+			changeDetails = jsonData
+		} else {
+			changeDetails = map[string]any{
+				"text": d,
+			}
+		}
+	} else {
+		changeDetails = map[string]any{
+			"text": text,
+		}
+	}
+
+	if rule.Mapping != nil && changeCreatedAtRaw != "" {
 		val, err := time.Parse(lo.CoalesceOrEmpty(rule.Mapping.TimeFormat, time.RFC3339), changeCreatedAtRaw)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse createdAt: %v", err)
@@ -120,6 +142,7 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 			output = append(output, v1.ChangeResult{
 				Source:           "slack",
 				CreatedAt:        changeCreatedAt,
+				Details:          changeDetails,
 				Severity:         severity,
 				ChangeType:       changeType,
 				Summary:          summary,

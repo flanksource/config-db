@@ -3716,6 +3716,17 @@ spec:
                                     description: Value is a static value
                                     type: string
                                 type: object
+                              details:
+                                description: |-
+                                  Details of the change.
+                                  Defaults to the slack message.
+                                properties:
+                                  expr:
+                                    type: string
+                                  value:
+                                    description: Value is a static value
+                                    type: string
+                                type: object
                               severity:
                                 properties:
                                   expr:
@@ -3753,7 +3764,6 @@ spec:
                             type: string
                         required:
                         - config
-                        - mapping
                         type: object
                       minItems: 1
                       type: array

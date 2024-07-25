@@ -305,6 +305,9 @@
         "type": {
           "$ref": "#/$defs/ValueExpression"
         },
+        "details": {
+          "$ref": "#/$defs/ValueExpression"
+        },
         "timeFormat": {
           "type": "string"
         }
@@ -1696,7 +1699,6 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "mapping",
         "config"
       ]
     },
