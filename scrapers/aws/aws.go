@@ -185,6 +185,7 @@ func (aws Scraper) sqs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 		queueName := queueURL[strings.LastIndex(queueURL, "/")+1:]
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSSQS,
+			Aliases:     []string{getQueueAttributesOutput.Attributes["QueueArn"]},
 			CreatedAt:   lo.ToPtr(time.Unix(createdTimestamp, 0)),
 			BaseScraper: config.BaseScraper,
 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSSQS, queueURL, nil)},
