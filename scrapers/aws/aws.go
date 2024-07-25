@@ -1309,7 +1309,7 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			Name:        *bucket.Name,
 			Labels:      labels,
 			Ignore:      []string{"name", "creationDate"},
-			Aliases:     []string{"AmazonS3/" + *bucket.Name},
+			Aliases:     []string{"AmazonS3/" + *bucket.Name, fmt.Sprintf("arn:aws:s3:::%s", *bucket.Name)},
 			ID:          *bucket.Name,
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSS3Bucket, lo.FromPtr(bucket.Name), nil)},
