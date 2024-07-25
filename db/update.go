@@ -901,8 +901,7 @@ func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) erro
 	}
 
 	for _, config := range allConfigs {
-		idx := 0
-		for {
+		for i := 1; i < len(config.ProbableParents); i++ {
 			// If no cylce is detected, we set path and parentID
 			path, ok := getPath(ctx, parentMap, config.ID)
 			if ok {
@@ -913,17 +912,14 @@ func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) erro
 				}
 				break
 			}
-			idx += 1
 			// If a cycle is detected we assume the parent is bad and move to the next
 			// probable parent and redo path computation
-			if len(config.ProbableParents) > idx {
-				parentMap[config.ID] = config.ProbableParents[idx]
-			}
+			parentMap[config.ID] = config.ProbableParents[i]
 		}
+
 		if config.ParentID == nil && ctx.PropertyOn(false, "log.missing") && len(config.ProbableParents) > 0 {
 			ctx.Logger.Warnf("parent not found for config [%s]", config)
 		}
-
 	}
 	return nil
 }
