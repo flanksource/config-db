@@ -36,6 +36,8 @@ type EndpointResolver struct {
 }
 
 // ResolveEndpoint ...
+// nolint:staticcheck
+// FIXME: deprecated global endpoint resolver
 func (e EndpointResolver) ResolveEndpoint(service, region string, options ...interface{}) (aws.Endpoint, error) {
 	return aws.Endpoint{
 		URL:               e.Endpoint,
@@ -84,6 +86,8 @@ func loadConfig(ctx api.ScrapeContext, conn v1.AWSConnection, region string) (*a
 	}
 
 	if conn.Endpoint != "" {
+		// nolint:staticcheck
+		// FIXME: deprecated global endpoint resolver
 		options = append(options, config.WithEndpointResolverWithOptions(EndpointResolver{Endpoint: conn.Endpoint, Region: region}))
 	}
 
