@@ -89,6 +89,8 @@ type ChangeResult struct {
 	Details          map[string]interface{} `json:"details"`
 	Diff             *string                `json:"diff,omitempty"`
 
+	ConfigID string `json:"configID,omitempty"`
+
 	// UpdateExisting indicates whether to update an existing change
 	UpdateExisting bool `json:"update_existing"`
 }

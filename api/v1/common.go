@@ -354,3 +354,31 @@ type Template struct {
 	Expression string `yaml:"expr,omitempty" json:"expr,omitempty"`
 	Javascript string `yaml:"javascript,omitempty" json:"javascript,omitempty"`
 }
+
+type ChangeExtractionMapping struct {
+	CreatedAt types.ValueExpression `yaml:"createdAt,omitempty" json:"createdAt,omitempty"`
+	Severity  types.ValueExpression `yaml:"severity,omitempty" json:"severity,omitempty"`
+	Summary   types.ValueExpression `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Type      types.ValueExpression `yaml:"type,omitempty" json:"type,omitempty"`
+
+	// Details of the change in json format.
+	// Defaults to the text.
+	Details types.ValueExpression `yaml:"details,omitempty" json:"details,omitempty"`
+
+	// TimeFormat is the go time format for the `createdAt` field.
+	// Defaults to RFC3339.
+	TimeFormat string `yaml:"timeFormat,omitempty" json:"timeFormat,omitempty"`
+}
+
+type ChangeExtractionRule struct {
+	// Regexp to capture the fields from the text.
+	// Captured fields are available in the templates.
+	Regexp string `yaml:"regexp,omitempty" json:"regexp,omitempty"`
+
+	// Mapping defines the Change to be extracted from the text.
+	Mapping *ChangeExtractionMapping `yaml:"mapping,omitempty" json:"mapping,omitempty"`
+
+	// Config is a list of selectors to attach the change to.
+	// +kubebuilder:validation:MinItems=1
+	Config []types.EnvVarResourceSelector `yaml:"config" json:"config"`
+}

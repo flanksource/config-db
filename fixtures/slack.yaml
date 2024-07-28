@@ -1,0 +1,34 @@
+---
+# The following regexp captures
+# name: <name> | config_type: <config_type> | severity: <severity> | summary: <summary> | type: <type>
+# An example slack message that would match the regexp is:
+# name: terraform.tfstate | config_type: Terraform::StateFile | severity: high | summary: ishealthy | type: health_update
+#
+# NOTE: Even though the mapping is left empty, the `severity`, `type` & `summary` for the change
+# are defaulted from the captured groups in the regexp.
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: slack-flanksource
+  namespace: default
+spec:
+  schedule: '@every 1m'
+  slack:
+    - channels:
+        - 'notification-*'
+      since: 14d
+      token:
+        valueFrom:
+          secretKeyRef:
+            name: slack-mission-control-bot
+            key: token
+      rules:
+        - regexp: name:\s*(?P<name>[\w\s.-]+?)\s*\|\s*config_type:\s*(?P<config_type>[\w:]+)\s*\|\s*severity:\s*(?P<severity>\w+)\s*\|\s*summary:\s*(?P<summary>[\w\s]+?)\s*\|\s*type:\s*(?P<type>[\w_]+)
+          filter:
+            bot: 'Notifier'
+          config:
+            - name:
+                expr: env.name
+              types:
+                - expr: env.config_type
+          mapping: {}

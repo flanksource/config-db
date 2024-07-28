@@ -291,6 +291,30 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "ChangeExtractionMapping": {
+      "properties": {
+        "createdAt": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "severity": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "summary": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "type": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "details": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "timeFormat": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "ChangeMapping": {
       "properties": {
         "filter": {
@@ -463,6 +487,51 @@
         },
         "valueFrom": {
           "$ref": "#/$defs/EnvVarSource"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVarResourceSelector": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "cache": {
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "name": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "namespace": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "types": {
+          "items": {
+            "$ref": "#/$defs/ValueExpression"
+          },
+          "type": "array"
+        },
+        "statuses": {
+          "items": {
+            "$ref": "#/$defs/ValueExpression"
+          },
+          "type": "array"
+        },
+        "tagSelector": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "labelSelector": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "fieldSelector": {
+          "$ref": "#/$defs/ValueExpression"
         }
       },
       "additionalProperties": false,
@@ -1106,6 +1175,12 @@
       },
       "type": "array"
     },
+    "MatchExpressions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "ObjectMeta": {
       "properties": {
         "name": {
@@ -1460,6 +1535,12 @@
           },
           "type": "array"
         },
+        "slack": {
+          "items": {
+            "$ref": "#/$defs/Slack"
+          },
+          "type": "array"
+        },
         "trivy": {
           "items": {
             "$ref": "#/$defs/Trivy"
@@ -1504,6 +1585,130 @@
             "type": "string"
           },
           "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Slack": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "format": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "token": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "since": {
+          "type": "string"
+        },
+        "channels": {
+          "$ref": "#/$defs/MatchExpressions"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/SlackChangeExtractionRule"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "token",
+        "rules"
+      ]
+    },
+    "SlackChangeAcceptanceFilter": {
+      "properties": {
+        "bot": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/SlackUserFilter"
+        },
+        "expr": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SlackChangeExtractionRule": {
+      "properties": {
+        "regexp": {
+          "type": "string"
+        },
+        "mapping": {
+          "$ref": "#/$defs/ChangeExtractionMapping"
+        },
+        "config": {
+          "items": {
+            "$ref": "#/$defs/EnvVarResourceSelector"
+          },
+          "type": "array"
+        },
+        "filter": {
+          "$ref": "#/$defs/SlackChangeAcceptanceFilter"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "config"
+      ]
+    },
+    "SlackUserFilter": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -1727,6 +1932,18 @@
           "type": "string"
         },
         "deletedAge": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ValueExpression": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
           "type": "string"
         }
       },
