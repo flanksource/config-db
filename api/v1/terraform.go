@@ -27,7 +27,7 @@ func (t *TerraformStateSource) Path() string {
 
 	if t.GCS != nil {
 		// TODO:
-		// return t.GCS.ObjectPath
+		return ""
 	}
 
 	return ""
