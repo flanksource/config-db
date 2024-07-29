@@ -69,7 +69,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		if err != nil {
 			return fmt.Errorf("failed to apply custom kube config(%s): %w", config.Kubeconfig, err)
 		}
-		kubeconfig, err = ctx.GetEnvValueFromCache(*config.Kubeconfig, ctx.GetNamespace())
+		kubeconfig, err = ctx.GetEnvValueFromCache(*config.Kubeconfig, ctx.Namespace())
 		if err != nil {
 			return fmt.Errorf("failed to get kubeconfig from env: %w", err)
 		}
@@ -137,7 +137,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 }
 
 func applyKubeconfig(ctx api.ScrapeContext, kubeConfig types.EnvVar) (api.ScrapeContext, *rest.Config, error) {
-	val, err := ctx.GetEnvValueFromCache(kubeConfig, ctx.GetNamespace())
+	val, err := ctx.GetEnvValueFromCache(kubeConfig, ctx.Namespace())
 	if err != nil {
 		return ctx, nil, fmt.Errorf("failed to get kubeconfig from env: %w", err)
 	}
