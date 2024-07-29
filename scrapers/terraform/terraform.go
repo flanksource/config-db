@@ -11,7 +11,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
-const ConfigType = "Terraform::StateFile"
+const ConfigType = "Terraform::Module"
 
 type Scraper struct {
 }
