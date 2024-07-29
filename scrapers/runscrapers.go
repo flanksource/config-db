@@ -52,6 +52,7 @@ func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events
 func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 	var localResultPath string
 	if base, ok := os.LookupEnv("SCRAPE_RESULT_DIR"); ok {
+                 logger.Errorf("Returning existing scrape results from: $SCRAPE_RESULT_DIR")
 		localResultPath = fmt.Sprintf("%s/%s.gob", base, ctx.ScrapeConfig().Name)
 		f, err := os.Open(localResultPath)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
