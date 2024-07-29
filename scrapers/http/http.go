@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/flanksource/commons/http"
-	"github.com/flanksource/commons/http/middlewares"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/samber/lo"
 )
@@ -39,36 +38,9 @@ func scrape(ctx api.ScrapeContext, spec v1.HTTP) (*v1.ScrapeResult, error) {
 		return nil, fmt.Errorf("failed to populate connection: %w", err)
 	}
 
-	client := http.NewClient()
-	if !conn.Authentication.IsEmpty() {
-		client = client.Auth(conn.Authentication.Username.ValueStatic, conn.Authentication.Password.ValueStatic)
-	}
-
-	if !conn.Bearer.IsEmpty() {
-		client = client.Header("Authorization", fmt.Sprintf("Bearer %s", conn.Bearer.ValueStatic))
-	}
-
-	if !conn.OAuth.IsEmpty() {
-		client = client.OAuth(middlewares.OauthConfig{
-			ClientID:     conn.OAuth.ClientID.ValueStatic,
-			ClientSecret: conn.OAuth.ClientSecret.ValueStatic,
-			TokenURL:     conn.OAuth.TokenURL,
-			Scopes:       conn.OAuth.Scopes,
-			Params:       conn.OAuth.Params,
-		})
-	}
-
-	if !conn.TLS.IsEmpty() {
-		client, err = client.TLSConfig(http.TLSConfig{
-			InsecureSkipVerify: conn.TLS.InsecureSkipVerify,
-			HandshakeTimeout:   conn.TLS.HandshakeTimeout,
-			CA:                 conn.TLS.CA.ValueStatic,
-			Cert:               conn.TLS.Cert.ValueStatic,
-			Key:                conn.TLS.Key.ValueStatic,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply TLS config: %w", err)
-		}
+	client, err := connection.CreateHTTPClient(ctx, *conn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http client: %w", err)
 	}
 
 	for key, val := range spec.Headers {
