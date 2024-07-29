@@ -1,0 +1,12 @@
+---
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: terraform
+  namespace: default
+spec:
+  schedule: '@every 5m'
+  terraform:
+    - name: '{{ filepath.Base .path}}'
+      state:
+        local: /home/flanksource/**/*.tfstate
