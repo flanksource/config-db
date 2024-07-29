@@ -3,6 +3,7 @@ package scrapers
 import (
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/scrapers/azure"
+	"github.com/flanksource/config-db/scrapers/http"
 	"github.com/flanksource/config-db/scrapers/slack"
 	"github.com/flanksource/config-db/scrapers/trivy"
 	"github.com/flanksource/duty/types"
@@ -29,6 +30,7 @@ var All = []api.Scraper{
 	slack.Scraper{},
 	sql.SqlScraper{},
 	trivy.Scanner{},
+	http.Scraper{},
 }
 
 func GetAuthValues(ctx api.ScrapeContext, auth *v1.Authentication) (*v1.Authentication, error) {

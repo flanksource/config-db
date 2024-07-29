@@ -55,6 +55,8 @@ type ScraperSpec struct {
 	Trivy          []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
 	Retention      RetentionSpec    `json:"retention,omitempty"`
 
+	HTTP []HTTP `json:"http,omitempty"`
+
 	// Full flag when set will try to extract out changes from the scraped config.
 	Full bool `json:"full,omitempty"`
 }
