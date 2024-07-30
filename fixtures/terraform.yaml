@@ -1,0 +1,14 @@
+---
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: terraform
+spec:
+  schedule: '@every 5m'
+  terraform:
+    - name: '{{ filepath.Base .path}}'
+      state:
+        s3:
+          bucket: terraform
+          connection: connection://aws
+          objectPath: 'states/**/*.tfstate'
