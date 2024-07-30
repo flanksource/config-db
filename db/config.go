@@ -12,6 +12,7 @@ import (
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/context"
+	dutydb "github.com/flanksource/duty/db"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
@@ -33,7 +34,7 @@ func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.Config
 		return nil, nil
 	}
 	if tx.Error != nil {
-		return nil, tx.Error
+		return nil, dutydb.ErrorDetails(tx.Error)
 	}
 
 	return &ci, nil
@@ -43,13 +44,13 @@ func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.Config
 func GetConfigItemFromID(ctx api.ScrapeContext, id string) (*models.ConfigItem, error) {
 	var ci models.ConfigItem
 	err := ctx.DB().Limit(1).Omit("config").Find(&ci, "id = ?", id).Error
-	return &ci, err
+	return &ci, dutydb.ErrorDetails(err)
 }
 
 // CreateConfigItem inserts a new config item row in the db
 func CreateConfigItem(ctx api.ScrapeContext, ci *models.ConfigItem) error {
 	if err := ctx.DB().Clauses(clause.OnConflict{UpdateAll: true}).Create(ci).Error; err != nil {
-		return err
+		return dutydb.ErrorDetails(err)
 	}
 	return nil
 }
@@ -201,10 +202,10 @@ func GetJSON(ci models.ConfigItem) []byte {
 }
 
 func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.ConfigRelationship) error {
-	return ctx.DB().Clauses(clause.OnConflict{
+	return dutydb.ErrorDetails(ctx.DB().Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "relation"}},
 		DoNothing: true,
-	}).CreateInBatches(relationships, 200).Error
+	}).CreateInBatches(relationships, 200).Error)
 }
 
 // FindConfigChangesByItemID returns all the changes of the given config item
@@ -212,7 +213,7 @@ func FindConfigChangesByItemID(ctx api.ScrapeContext, configItemID string) ([]du
 	var ci []dutyModels.ConfigChange
 	tx := ctx.DB().Where("config_id = ?", configItemID).Find(&ci)
 	if tx.Error != nil {
-		return nil, tx.Error
+		return nil, dutydb.ErrorDetails(tx.Error)
 	}
 
 	return ci, nil
