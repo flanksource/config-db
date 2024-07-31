@@ -54,7 +54,7 @@ require (
 	github.com/flanksource/artifacts v1.0.8
 	github.com/flanksource/commons v1.24.2
 	github.com/flanksource/duty v1.0.555
-	github.com/flanksource/is-healthy v1.0.20
+	github.com/flanksource/is-healthy v1.0.21
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/go-logr/zapr v1.2.4
