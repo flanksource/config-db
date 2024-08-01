@@ -303,9 +303,6 @@
         "class": {
           "type": "string"
         },
-        "transform": {
-          "$ref": "#/$defs/Transform"
-        },
         "format": {
           "type": "string"
         },
@@ -323,6 +320,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
         },
         "labels": {
           "$ref": "#/$defs/JSONStringMap"
