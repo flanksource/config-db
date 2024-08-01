@@ -158,8 +158,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
@@ -648,8 +647,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
@@ -998,8 +996,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
@@ -1403,8 +1400,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
@@ -1805,8 +1801,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
@@ -2152,8 +2147,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
@@ -2685,8 +2679,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     method:
                       type: string
@@ -3464,8 +3457,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     maxInflight:
                       format: int64
@@ -3837,6 +3829,8 @@ spec:
                         - kind
                         type: object
                       type: array
+                  required:
+                  - clusterName
                   type: object
                 type: array
               kubernetesFile:
@@ -3932,8 +3926,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
@@ -4327,8 +4320,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
@@ -5001,8 +4993,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
@@ -5345,8 +5336,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
@@ -5927,8 +5917,7 @@ spec:
                     labels:
                       additionalProperties:
                         type: string
-                      description: Labels allow you to set custom labels on the scraped
-                        config items.
+                      description: Labels for each config item.
                       type: object
                     licenseFull:
                       type: boolean

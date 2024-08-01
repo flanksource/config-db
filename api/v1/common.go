@@ -174,20 +174,23 @@ type ConfigProperties struct {
 	Filter string `json:"filter,omitempty"`
 }
 
-type BaseScraper struct {
+type CustomScraperBase struct {
 	// A static value or JSONPath expression to use as the ID for the resource.
 	ID string `json:"id,omitempty"`
+
 	// A static value or JSONPath expression to use as the ID for the resource.
 	Name string `json:"name,omitempty"`
+
 	// A JSONPath expression to use to extract individual items from the resource,
 	// items are extracted first and then the ID,Name,Type and transformations are applied for each item.
 	Items string `json:"items,omitempty"`
+
 	// A static value or JSONPath expression to use as the type for the resource.
 	Type string `json:"type,omitempty"`
+
 	// A static value or JSONPath expression to use as the class for the resource.
 	Class string `json:"class,omitempty"`
 
-	Transform Transform `json:"transform,omitempty"`
 	// Format of config item, defaults to JSON, available options are JSON, properties
 	Format string `json:"format,omitempty"`
 
@@ -203,8 +206,14 @@ type BaseScraper struct {
 	// DeleteFields is a JSONPath expression used to identify the deleted time of the config.
 	// If multiple fields are specified, the first non-empty value will be used.
 	DeleteFields []string `json:"deleteFields,omitempty"`
+}
 
-	// Labels allow you to set custom labels on the scraped config items.
+type BaseScraper struct {
+	CustomScraperBase `yaml:",inline" json:",inline"`
+
+	Transform Transform `json:"transform,omitempty"`
+
+	// Labels for each config item.
 	Labels JSONStringMap `json:"labels,omitempty"`
 
 	// Tags for each config item.

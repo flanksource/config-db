@@ -197,7 +197,7 @@ type KubernetesResourceToWatch struct {
 
 type Kubernetes struct {
 	BaseScraper     `json:",inline"`
-	ClusterName     string        `json:"clusterName,omitempty"`
+	ClusterName     string        `json:"clusterName"`
 	Namespace       string        `json:"namespace,omitempty"`
 	UseCache        bool          `json:"useCache,omitempty"`
 	AllowIncomplete bool          `json:"allowIncomplete,omitempty"`
