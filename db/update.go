@@ -605,7 +605,16 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 
 		var configID string
 		if relationship.ConfigID != "" {
-			configID = relationship.ConfigID
+			configItem, err := ctx.TempCache().Get(ctx, relationship.ConfigID)
+			if err != nil {
+				ctx.Errorf("error fetching external config item(id=%s): %v", relationship.ConfigID, err)
+				continue
+			}
+			if configItem == nil {
+				ctx.Logger.Tracef("config item: %s not found in db for relation", relationship.RelatedConfigID)
+				continue
+			}
+			configID = configItem.ID
 		} else {
 			configID, err = ctx.TempCache().FindExternalID(ctx, relationship.ConfigExternalID)
 			if err != nil {
@@ -620,7 +629,16 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 
 		var relatedID string
 		if relationship.RelatedConfigID != "" {
-			relatedID = relationship.RelatedConfigID
+			relatedCI, err := ctx.TempCache().Get(ctx, relationship.RelatedConfigID)
+			if err != nil {
+				ctx.Errorf("error fetching related config item(id=%s): %v", relationship.RelatedConfigID, err)
+				continue
+			}
+			if relatedCI == nil {
+				ctx.Logger.Tracef("related config item: %s not found in db for relation", relationship.RelatedConfigID)
+				continue
+			}
+			relatedID = relatedCI.ID
 		} else {
 			relatedID, err = ctx.TempCache().FindExternalID(ctx, relationship.RelatedExternalID)
 			if err != nil {
