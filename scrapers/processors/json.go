@@ -303,40 +303,6 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			input.Labels = collections.MergeMap(input.Labels, tags)
 		}
 
-		for i, configProperty := range input.BaseScraper.Properties {
-			if configProperty.Filter != "" {
-				if response, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: configProperty.Filter}); err != nil {
-					input.Errorf("failed to parse filter: %v", err)
-					continue
-				} else if boolVal, err := strconv.ParseBool(response); err != nil {
-					input.Errorf("expected a boolean but property filter returned (%s)", response)
-					continue
-				} else if !boolVal {
-					continue
-				}
-			}
-
-			// clone the links so as to not mutate the original Links template
-			configProperty.Links = make([]types.Link, len(input.BaseScraper.Properties[i].Links))
-			copy(configProperty.Links, input.BaseScraper.Properties[i].Links)
-
-			templater := gomplate.StructTemplater{
-				Values:         input.AsMap(),
-				ValueFunctions: true,
-				DelimSets: []gomplate.Delims{
-					{Left: "{{", Right: "}}"},
-					{Left: "$(", Right: ")"},
-				},
-			}
-
-			if err := templater.Walk(configProperty); err != nil {
-				input.Errorf("failed to template scraper properties: %v", err)
-				continue
-			}
-
-			input.Properties = append(input.Properties, &configProperty.Property)
-		}
-
 		if input.Format == "properties" {
 			props, err := properties.LoadString(input.Config.(string))
 			if err != nil {
@@ -425,6 +391,40 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		}
 
 		for _, result := range ongoingInput {
+			for i, configProperty := range result.BaseScraper.Properties {
+				if configProperty.Filter != "" {
+					if response, err := gomplate.RunTemplate(result.AsMap(), gomplate.Template{Expression: configProperty.Filter}); err != nil {
+						result.Errorf("failed to parse filter: %v", err)
+						continue
+					} else if boolVal, err := strconv.ParseBool(response); err != nil {
+						result.Errorf("expected a boolean but property filter returned (%s)", response)
+						continue
+					} else if !boolVal {
+						continue
+					}
+				}
+
+				// clone the links so as to not mutate the original Links template
+				configProperty.Links = make([]types.Link, len(result.BaseScraper.Properties[i].Links))
+				copy(configProperty.Links, result.BaseScraper.Properties[i].Links)
+
+				templater := gomplate.StructTemplater{
+					Values:         result.AsMap(),
+					ValueFunctions: true,
+					DelimSets: []gomplate.Delims{
+						{Left: "{{", Right: "}}"},
+						{Left: "$(", Right: ")"},
+					},
+				}
+
+				if err := templater.Walk(&configProperty); err != nil {
+					result.Errorf("failed to template scraper properties: %v", err)
+					continue
+				}
+
+				result.Properties = append(result.Properties, &configProperty.Property)
+			}
+
 			// Form new relationships based on the transform configs
 			if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, result, e.Transform.Relationship); err != nil {
 				return results, fmt.Errorf("failed to get relationships from relationship configs: %w", err)

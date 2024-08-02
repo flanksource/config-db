@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/gomplate/v3"
 )
 
@@ -18,7 +19,7 @@ func RunScript(result v1.ScrapeResult, script v1.Script) ([]v1.ScrapeResult, err
 		return nil, err
 	}
 
-	configs, err := unmarshalConfigsFromString(out)
+	configs, err := unmarshalConfigsFromString(out, result)
 	if err != nil {
 		return nil, err
 	}
@@ -26,18 +27,20 @@ func RunScript(result v1.ScrapeResult, script v1.Script) ([]v1.ScrapeResult, err
 	return configs, nil
 }
 
-func unmarshalConfigsFromString(s string) ([]v1.ScrapeResult, error) {
+func unmarshalConfigsFromString(s string, parent v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 	var configs []v1.ScrapeResult
-
 	var results = []map[string]interface{}{}
-
 	if err := json.Unmarshal([]byte(s), &results); err != nil {
 		return nil, err
 	}
+
 	for _, result := range results {
 		configs = append(configs, v1.ScrapeResult{
-			Config: result,
+			Health:      models.HealthUnknown,
+			BaseScraper: parent.BaseScraper.WithoutTransform(),
+			Config:      result,
 		})
 	}
+
 	return configs, nil
 }

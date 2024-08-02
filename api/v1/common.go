@@ -228,6 +228,11 @@ type BaseScraper struct {
 	Properties []ConfigProperties `json:"properties,omitempty" template:"true"`
 }
 
+func (base BaseScraper) WithoutTransform() BaseScraper {
+	base.Transform = Transform{}
+	return base
+}
+
 func (base BaseScraper) String() string {
 	s := fmt.Sprintf("id=%s name=%s type=%s", base.ID, base.Name, base.Type)
 
