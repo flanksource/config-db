@@ -59,6 +59,7 @@ type ConfigFieldExclusion struct {
 
 type Extract struct {
 	ID, Type, Class, Name jp.Expr
+	Status                jp.Expr
 	CreatedAt, DeletedAt  []jp.Expr
 	Items                 *jp.Expr
 	Config                v1.BaseScraper
@@ -71,6 +72,7 @@ func (e Extract) WithoutItems() Extract {
 		ID:        e.ID,
 		Type:      e.Type,
 		Name:      e.Name,
+		Status:    e.Status,
 		Config:    e.Config,
 		Excludes:  e.Excludes,
 		Transform: e.Transform,
@@ -82,6 +84,7 @@ func (e Extract) WithouTransform() Extract {
 		ID:       e.ID,
 		Type:     e.Type,
 		Name:     e.Name,
+		Status:   e.Status,
 		Config:   e.Config,
 		Excludes: e.Excludes,
 	}
@@ -144,6 +147,14 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 		}
 	}
 
+	if utils.IsJSONPath(config.Status) {
+		if x, err := jp.ParseString(config.Status); err != nil {
+			return extract, fmt.Errorf("failed to parse status: %s: %v", config.Status, err)
+		} else {
+			extract.Status = x
+		}
+	}
+
 	for _, exclude := range config.Transform.Exclude {
 		if expr, err := jp.ParseString(exclude.JSONPath); err != nil {
 			return extract, fmt.Errorf("failed to parse exclude: %s: %v", exclude.JSONPath, err)
@@ -185,6 +196,9 @@ func (e Extract) String() string {
 	}
 	if e.Class != nil {
 		s += fmt.Sprintf(" Class: %s", e.Class)
+	}
+	if e.Status != nil {
+		s += fmt.Sprintf(" Status: %s", e.Status)
 	}
 	if e.Name != nil {
 		s += fmt.Sprintf(" Name: %s", e.Name)
@@ -287,13 +301,6 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			return nil, fmt.Errorf("error converting tags to json string map: %w", err)
 		} else {
 			input.Labels = collections.MergeMap(input.Labels, tags)
-		}
-
-		// Form new relationships based on the transform configs
-		if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, input, e.Transform.Relationship); err != nil {
-			return results, fmt.Errorf("failed to get relationships from relationship configs: %w", err)
-		} else if len(newRelationships) > 0 {
-			input.RelationshipSelectors = append(input.RelationshipSelectors, newRelationships...)
 		}
 
 		for i, configProperty := range input.BaseScraper.Properties {
@@ -418,6 +425,13 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		}
 
 		for _, result := range ongoingInput {
+			// Form new relationships based on the transform configs
+			if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, result, e.Transform.Relationship); err != nil {
+				return results, fmt.Errorf("failed to get relationships from relationship configs: %w", err)
+			} else if len(newRelationships) > 0 {
+				result.RelationshipSelectors = append(result.RelationshipSelectors, newRelationships...)
+			}
+
 			if extracted, err := e.extractAttributes(result); err != nil {
 				return results, fmt.Errorf("failed to extract attributes: %v", err)
 			} else {
@@ -455,6 +469,13 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 
 	if input.Name == "" {
 		input.Name, err = getString(e.Name, input.Config, input.Name)
+		if err != nil {
+			return input, err
+		}
+	}
+
+	if input.Status == "" {
+		input.Status, err = getString(e.Status, input.Config, input.Status)
 		if err != nil {
 			return input, err
 		}

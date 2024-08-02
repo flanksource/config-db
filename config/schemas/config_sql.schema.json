@@ -306,6 +306,9 @@
         "format": {
           "type": "string"
         },
+        "status": {
+          "type": "string"
+        },
         "timestampFormat": {
           "type": "string"
         },

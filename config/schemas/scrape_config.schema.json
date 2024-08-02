@@ -23,6 +23,9 @@
         "format": {
           "type": "string"
         },
+        "status": {
+          "type": "string"
+        },
         "timestampFormat": {
           "type": "string"
         },
@@ -141,6 +144,9 @@
         "format": {
           "type": "string"
         },
+        "status": {
+          "type": "string"
+        },
         "timestampFormat": {
           "type": "string"
         },
@@ -218,6 +224,9 @@
           "type": "string"
         },
         "format": {
+          "type": "string"
+        },
+        "status": {
           "type": "string"
         },
         "timestampFormat": {
@@ -580,6 +589,9 @@
         "format": {
           "type": "string"
         },
+        "status": {
+          "type": "string"
+        },
         "timestampFormat": {
           "type": "string"
         },
@@ -653,6 +665,9 @@
           "type": "string"
         },
         "format": {
+          "type": "string"
+        },
+        "status": {
           "type": "string"
         },
         "timestampFormat": {
@@ -751,6 +766,9 @@
         "format": {
           "type": "string"
         },
+        "status": {
+          "type": "string"
+        },
         "timestampFormat": {
           "type": "string"
         },
@@ -829,6 +847,9 @@
         "format": {
           "type": "string"
         },
+        "status": {
+          "type": "string"
+        },
         "timestampFormat": {
           "type": "string"
         },
@@ -867,6 +888,15 @@
         },
         "password": {
           "$ref": "#/$defs/EnvVar"
+        },
+        "ntlm": {
+          "type": "boolean"
+        },
+        "ntlmv2": {
+          "type": "boolean"
+        },
+        "digest": {
+          "type": "boolean"
         },
         "url": {
           "type": "string"
@@ -941,6 +971,9 @@
           "type": "string"
         },
         "format": {
+          "type": "string"
+        },
+        "status": {
           "type": "string"
         },
         "timestampFormat": {
@@ -1112,6 +1145,9 @@
           "type": "string"
         },
         "format": {
+          "type": "string"
+        },
+        "status": {
           "type": "string"
         },
         "timestampFormat": {
@@ -1570,6 +1606,9 @@
         "format": {
           "type": "string"
         },
+        "status": {
+          "type": "string"
+        },
         "timestampFormat": {
           "type": "string"
         },
@@ -1799,6 +1838,9 @@
         "format": {
           "type": "string"
         },
+        "status": {
+          "type": "string"
+        },
         "timestampFormat": {
           "type": "string"
         },
@@ -1971,6 +2013,9 @@
         "format": {
           "type": "string"
         },
+        "status": {
+          "type": "string"
+        },
         "timestampFormat": {
           "type": "string"
         },
@@ -2104,6 +2149,9 @@
           "type": "string"
         },
         "format": {
+          "type": "string"
+        },
+        "status": {
           "type": "string"
         },
         "timestampFormat": {
