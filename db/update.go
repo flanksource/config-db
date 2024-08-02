@@ -610,7 +610,7 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 				ctx.Errorf("error fetching external config item(id=%s): %v", relationship.ConfigID, err)
 				continue
 			}
-			if configItem == nil {
+			if configItem == nil && logMissing {
 				ctx.Logger.Tracef("config item: %s not found in db for relation", relationship.RelatedConfigID)
 				continue
 			}
@@ -634,7 +634,7 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 				ctx.Errorf("error fetching related config item(id=%s): %v", relationship.RelatedConfigID, err)
 				continue
 			}
-			if relatedCI == nil {
+			if relatedCI == nil && logMissing {
 				ctx.Logger.Tracef("related config item: %s not found in db for relation", relationship.RelatedConfigID)
 				continue
 			}
