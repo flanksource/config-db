@@ -194,6 +194,9 @@ type CustomScraperBase struct {
 	// Format of config item, defaults to JSON, available options are JSON, properties
 	Format string `json:"format,omitempty"`
 
+	// Status of the config item
+	Status string `json:"status,omitempty"`
+
 	// TimestampFormat is a Go time format string used to
 	// parse timestamps in createFields and DeletedFields.
 	// If not specified, the default is RFC3339.

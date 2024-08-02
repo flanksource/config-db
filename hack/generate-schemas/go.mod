@@ -220,3 +220,5 @@ replace github.com/flanksource/config-db => ../../
 replace go.opentelemetry.io/otel/trace => go.opentelemetry.io/otel/trace v1.24.0
 
 // replace github.com/flanksource/duty => ../../../duty
+
+// replace github.com/flanksource/commons => ../../../commons

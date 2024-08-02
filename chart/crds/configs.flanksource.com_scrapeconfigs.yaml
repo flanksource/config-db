@@ -278,6 +278,9 @@ spec:
                       type: object
                     skipTLSVerify:
                       type: boolean
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
@@ -720,6 +723,9 @@ spec:
                             type: integer
                         type: object
                       type: array
+                    status:
+                      description: Status of the config item
+                      type: string
                     subscriptionID:
                       type: string
                     tags:
@@ -1120,6 +1126,9 @@ spec:
                             type: integer
                         type: object
                       type: array
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
@@ -1475,6 +1484,9 @@ spec:
                             type: integer
                         type: object
                       type: array
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
@@ -1874,6 +1886,9 @@ spec:
                             type: integer
                         type: object
                       type: array
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
@@ -2265,6 +2280,9 @@ spec:
                       type: array
                     repository:
                       type: string
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
@@ -2572,6 +2590,8 @@ spec:
                       items:
                         type: string
                       type: array
+                    digest:
+                      type: boolean
                     env:
                       description: Environment variables to be used in the templating.
                       items:
@@ -2687,6 +2707,10 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
+                    ntlm:
+                      type: boolean
+                    ntlmv2:
+                      type: boolean
                     oauth:
                       properties:
                         clientID:
@@ -2894,6 +2918,9 @@ spec:
                             type: integer
                         type: object
                       type: array
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
@@ -3583,6 +3610,9 @@ spec:
                       type: string
                     since:
                       type: string
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
@@ -4010,6 +4040,9 @@ spec:
                         namespace:
                           type: string
                       type: object
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
@@ -4579,6 +4612,9 @@ spec:
                         Specify the duration string.
                           eg: 1h, 7d, ...
                       type: string
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
@@ -5065,6 +5101,9 @@ spec:
                         type: object
                       type: array
                     query:
+                      type: string
+                    status:
+                      description: Status of the config item
                       type: string
                     tags:
                       description: |-
@@ -5622,6 +5661,9 @@ spec:
                               type: boolean
                           type: object
                       type: object
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
@@ -5998,6 +6040,9 @@ spec:
                       items:
                         type: string
                       type: array
+                    status:
+                      description: Status of the config item
+                      type: string
                     tags:
                       description: |-
                         Tags for each config item.
