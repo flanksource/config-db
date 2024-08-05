@@ -54,7 +54,7 @@ require (
 	github.com/flanksource/artifacts v1.0.8
 	github.com/flanksource/commons v1.25.0
 	github.com/flanksource/duty v1.0.559
-	github.com/flanksource/is-healthy v1.0.23
+	github.com/flanksource/is-healthy v1.0.24
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/go-logr/zapr v1.2.4
@@ -226,7 +226,7 @@ require (
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.1 // indirect
-	github.com/flanksource/gomplate/v3 v3.24.17
+	github.com/flanksource/gomplate/v3 v3.24.20
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-logr/logr v1.4.1
 	github.com/go-openapi/jsonpointer v0.20.2 // indirect
