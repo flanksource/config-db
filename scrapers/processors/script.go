@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/duty/models"
 	"github.com/flanksource/gomplate/v3"
 )
 
@@ -36,7 +35,6 @@ func unmarshalConfigsFromString(s string, parent v1.ScrapeResult) ([]v1.ScrapeRe
 
 	for _, result := range results {
 		configs = append(configs, v1.ScrapeResult{
-			Health:      models.HealthUnknown,
 			BaseScraper: parent.BaseScraper.WithoutTransform(),
 			Config:      result,
 		})

@@ -438,12 +438,13 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 				if logScrapes {
 					ctx.Logger.V(1).Infof("Scraped %s", extracted)
 				}
+
+				extracted = extracted.SetHealthIfEmpty()
 				results = append(results, extracted)
 			}
 		}
 
 		if !input.BaseScraper.Transform.Masks.IsEmpty() {
-
 			results, err = e.applyMask(results)
 			if err != nil {
 				return results, fmt.Errorf("e.applyMask(); %w", err)

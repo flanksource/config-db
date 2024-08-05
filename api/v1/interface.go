@@ -582,6 +582,24 @@ type ScrapeResult struct {
 	RelationshipSelectors []duty.RelationshipSelector `json:"-"`
 }
 
+// SetHealthIfEmpty sets the health, status & readiness of the scrape result
+// based on the config type.
+func (s ScrapeResult) SetHealthIfEmpty() ScrapeResult {
+	if s.Status == "" && s.Health == "" {
+		if strings.HasPrefix(s.Type, "Mongo::") {
+			s = s.WithHealthStatus(health.GetMongoHealth(s.ConfigMap()))
+		}
+
+		return s
+	}
+
+	if s.Health == "" {
+		s.Health = models.HealthUnknown
+	}
+
+	return s
+}
+
 func (s ScrapeResult) WithHealthStatus(hs health.HealthStatus) ScrapeResult {
 	s.Ready = hs.Ready
 
