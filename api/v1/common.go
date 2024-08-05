@@ -178,8 +178,11 @@ type CustomScraperBase struct {
 	// A static value or JSONPath expression to use as the ID for the resource.
 	ID string `json:"id,omitempty"`
 
-	// A static value or JSONPath expression to use as the ID for the resource.
+	// A static value or JSONPath expression to use as the Name for the resource.
 	Name string `json:"name,omitempty"`
+
+	// A static value or JSONPath expression to use as the description for the resource.
+	Description string `json:"description,omitempty"`
 
 	// A JSONPath expression to use to extract individual items from the resource,
 	// items are extracted first and then the ID,Name,Type and transformations are applied for each item.
@@ -194,8 +197,11 @@ type CustomScraperBase struct {
 	// Format of config item, defaults to JSON, available options are JSON, properties
 	Format string `json:"format,omitempty"`
 
-	// Status of the config item
+	// A static value or JSONPath expression to use as the status of the config item
 	Status string `json:"status,omitempty"`
+
+	// A static value or JSONPath expression to use as the health of the config item
+	Health string `json:"health,omitempty"`
 
 	// TimestampFormat is a Go time format string used to
 	// parse timestamps in createFields and DeletedFields.
@@ -235,6 +241,18 @@ func (base BaseScraper) WithoutTransform() BaseScraper {
 
 func (base BaseScraper) String() string {
 	s := fmt.Sprintf("id=%s name=%s type=%s", base.ID, base.Name, base.Type)
+
+	if base.Description != "" {
+		s += fmt.Sprintf(" description=%s", base.Description)
+	}
+
+	if base.Status != "" {
+		s += fmt.Sprintf(" status=%s", base.Status)
+	}
+
+	if base.Health != "" {
+		s += fmt.Sprintf(" health=%s", base.Health)
+	}
 
 	if base.Format != "" {
 		s += fmt.Sprintf(" format=%s", base.Format)

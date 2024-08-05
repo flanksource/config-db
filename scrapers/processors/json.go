@@ -15,6 +15,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/magiconair/properties"
@@ -58,35 +59,39 @@ type ConfigFieldExclusion struct {
 }
 
 type Extract struct {
-	ID, Type, Class, Name jp.Expr
-	Status                jp.Expr
-	CreatedAt, DeletedAt  []jp.Expr
-	Items                 *jp.Expr
-	Config                v1.BaseScraper
-	Excludes              []ConfigFieldExclusion
-	Transform             Transform
+	ID, Type, Class, Name, Description jp.Expr
+	Status, Health                     jp.Expr
+	CreatedAt, DeletedAt               []jp.Expr
+	Items                              *jp.Expr
+	Config                             v1.BaseScraper
+	Excludes                           []ConfigFieldExclusion
+	Transform                          Transform
 }
 
 func (e Extract) WithoutItems() Extract {
 	return Extract{
-		ID:        e.ID,
-		Type:      e.Type,
-		Name:      e.Name,
-		Status:    e.Status,
-		Config:    e.Config,
-		Excludes:  e.Excludes,
-		Transform: e.Transform,
+		ID:          e.ID,
+		Type:        e.Type,
+		Name:        e.Name,
+		Description: e.Description,
+		Status:      e.Status,
+		Health:      e.Health,
+		Config:      e.Config,
+		Excludes:    e.Excludes,
+		Transform:   e.Transform,
 	}
 }
 
 func (e Extract) WithouTransform() Extract {
 	return Extract{
-		ID:       e.ID,
-		Type:     e.Type,
-		Name:     e.Name,
-		Status:   e.Status,
-		Config:   e.Config,
-		Excludes: e.Excludes,
+		ID:          e.ID,
+		Type:        e.Type,
+		Name:        e.Name,
+		Description: e.Description,
+		Status:      e.Status,
+		Health:      e.Health,
+		Config:      e.Config,
+		Excludes:    e.Excludes,
 	}
 }
 
@@ -147,11 +152,27 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 		}
 	}
 
+	if utils.IsJSONPath(config.Description) {
+		if x, err := jp.ParseString(config.Description); err != nil {
+			return extract, fmt.Errorf("failed to parse description: %s: %v", config.Description, err)
+		} else {
+			extract.Description = x
+		}
+	}
+
 	if utils.IsJSONPath(config.Status) {
 		if x, err := jp.ParseString(config.Status); err != nil {
 			return extract, fmt.Errorf("failed to parse status: %s: %v", config.Status, err)
 		} else {
 			extract.Status = x
+		}
+	}
+
+	if utils.IsJSONPath(config.Health) {
+		if x, err := jp.ParseString(config.Health); err != nil {
+			return extract, fmt.Errorf("failed to parse health: %s: %v", config.Health, err)
+		} else {
+			extract.Health = x
 		}
 	}
 
@@ -197,12 +218,19 @@ func (e Extract) String() string {
 	if e.Class != nil {
 		s += fmt.Sprintf(" Class: %s", e.Class)
 	}
-	if e.Status != nil {
-		s += fmt.Sprintf(" Status: %s", e.Status)
-	}
 	if e.Name != nil {
 		s += fmt.Sprintf(" Name: %s", e.Name)
 	}
+	if e.Description != nil {
+		s += fmt.Sprintf(" Description: %s", e.Description)
+	}
+	if e.Status != nil {
+		s += fmt.Sprintf(" Status: %s", e.Status)
+	}
+	if e.Health != nil {
+		s += fmt.Sprintf(" Health: %s", e.Health)
+	}
+
 	if e.Items != nil {
 		s += fmt.Sprintf(" Items: %s", e.Items)
 	}
@@ -475,11 +503,26 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 		}
 	}
 
+	if input.Description == "" {
+		input.Description, err = getString(e.Description, input.Config, input.Description)
+		if err != nil {
+			return input, err
+		}
+	}
+
 	if input.Status == "" {
 		input.Status, err = getString(e.Status, input.Config, input.Status)
 		if err != nil {
 			return input, err
 		}
+	}
+
+	if input.Health == "" {
+		h, err := getString(e.Health, input.Config, string(input.Health))
+		if err != nil {
+			return input, err
+		}
+		input.Health = models.Health(h)
 	}
 
 	if input.BaseScraper.TimestampFormat == "" {
