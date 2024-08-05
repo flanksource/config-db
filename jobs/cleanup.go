@@ -81,15 +81,18 @@ var CleanupConfigItems = &job.Job{
 	Retention:  job.RetentionBalanced,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
-		retention := ctx.Properties().Duration("config.retention.period", (time.Hour * 24 * time.Duration(ConfigItemRetentionDays)))
-		days := int64(retention.Hours() / 24)
+		localRetention := ctx.Properties().Duration("config.retention.period", (time.Hour * 24 * time.Duration(ConfigItemRetentionDays)))
+		days := int64(localRetention.Hours() / 24)
+
+		agentRetention := ctx.Properties().Duration("config.agent_retention.period", localRetention)
+		agentRetentionDays := int64(agentRetention.Hours() / 24)
 
 		var prevCount int64
 		if err := ctx.DB().Raw("SELECT COUNT(*) FROM config_items").Scan(&prevCount).Error; err != nil {
 			return fmt.Errorf("failed to count config items: %w", db.ErrorDetails(err))
 		}
 
-		if err := ctx.DB().Exec("SELECT delete_old_config_items(?)", days).Error; err != nil {
+		if err := ctx.DB().Exec("SELECT delete_old_config_items(?, ?)", days, agentRetentionDays).Error; err != nil {
 			return fmt.Errorf("failed to delete config items: %w", db.ErrorDetails(err))
 		}
 
