@@ -586,10 +586,7 @@ type ScrapeResult struct {
 // based on the config type.
 func (s ScrapeResult) SetHealthIfEmpty() ScrapeResult {
 	if s.Status == "" && s.Health == "" {
-		if strings.HasPrefix(s.Type, "Mongo::") {
-			s = s.WithHealthStatus(health.GetMongoHealth(s.ConfigMap()))
-		}
-
+		s = s.WithHealthStatus(health.GetHealthByConfigType(s.Type, s.ConfigMap()))
 		return s
 	}
 
