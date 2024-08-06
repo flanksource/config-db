@@ -20,7 +20,8 @@ import (
 // RunK8ObjScraper extracts & saves the given kubernetes objects.
 func RunK8ObjScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured) ([]v1.ScrapeResult, error) {
 	var results v1.ScrapeResults
-	res := kubernetes.ExtractResults(ctx, config, objs, false)
+	var scraper kubernetes.KubernetesScraper
+	res := scraper.IncrementalScrape(ctx, config, objs)
 	for i := range res {
 		scraped := processScrapeResult(ctx, res[i])
 		results = append(results, scraped...)
@@ -33,7 +34,7 @@ func RunK8ObjScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstru
 func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) ([]v1.ScrapeResult, error) {
 	var results v1.ScrapeResults
 	var scraper kubernetes.KubernetesScraper
-	for _, result := range scraper.IncrementalScrape(ctx, config, events) {
+	for _, result := range scraper.IncrementalEventScrape(ctx, config, events) {
 		scraped := processScrapeResult(ctx, result)
 		results = append(results, scraped...)
 	}

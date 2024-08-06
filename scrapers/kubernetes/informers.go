@@ -50,6 +50,8 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, kubeconfig strin
 		return nil
 	}
 
+	ctx.Context = ctx.WithName(fmt.Sprintf("Watch[%s]", watchResource.Kind))
+
 	ctx.Logger.V(1).Infof("registering shared informer for: %v", watchResource)
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
