@@ -425,52 +425,19 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 		}
 
 		if obj.GetKind() == "Pod" {
-			spec := obj.Object["spec"].(map[string]interface{})
-			var nodeName string
-			if spec["nodeName"] != nil {
-				nodeName = spec["nodeName"].(string)
-				nodeID := resourceIDMap.Get("", "Node", nodeName)
-				nodeExternalID := lo.CoalesceOrEmpty(nodeID, getKubernetesAlias("Node", "", nodeName))
+			nodeName := getString(obj, "spec.nodeName")
+
+			if nodeName != "" {
+				nodeID := ctx.GetID("", "Node", nodeName)
+				nodeExternalID := lo.CoalesceOrEmpty(nodeID, alias("Node", "", nodeName))
 
 				relationships = append(relationships, v1.RelationshipResult{
 					RelatedConfigID: string(obj.GetUID()),
 					Relationship:    "NodePod",
 				}.WithConfig(
-					resourceIDMap.Get("", "Node", nodeName),
+					ctx.GetID("", "Node", nodeName),
 					v1.ExternalID{ExternalID: []string{nodeExternalID}, ConfigType: ConfigTypePrefix + "Node"},
 				))
-			}
-
-			if obj.GetLabels()["app.kubernetes.io/name"] == "aws-node" {
-				for _, ownerRef := range obj.GetOwnerReferences() {
-					if ownerRef.Kind == "DaemonSet" && ownerRef.Name == "aws-node" {
-						var (
-							awsRoleARN     = getContainerEnv(spec, "AWS_ROLE_ARN")
-							vpcID          = getContainerEnv(spec, "VPC_ID")
-							awsClusterName = getContainerEnv(spec, "CLUSTER_NAME")
-						)
-
-						labelsPerNode[nodeName] = make(map[string]string)
-
-						if awsRoleARN != "" {
-							labelsPerNode[nodeName]["aws/iam-role"] = awsRoleARN
-						}
-
-						if vpcID != "" {
-							labelsForAllNode["aws/vpc-id"] = vpcID
-
-							if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
-								clusterScrapeResult["vpc-id"] = vpcID
-							}
-						}
-
-						if awsClusterName != "" {
-							if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
-								clusterScrapeResult["cluster-name"] = awsClusterName
-							}
-						}
-					}
-				}
 			}
 		}
 
@@ -523,25 +490,8 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			}
 		}
 
-		if obj.GetKind() == "ConfigMap" && obj.GetName() == "aws-auth" {
-			cm, ok := obj.Object["data"].(map[string]any)
-			if ok {
-				var accountID string
-				if mapRolesYAML, ok := cm["mapRoles"].(string); ok {
-					accountID = extractAccountIDFromARN(mapRolesYAML)
-				}
-
-				tags.Append("account", accountID)
-
-				if clusterScrapeResult, ok := cluster.Config.(map[string]any); ok {
-					clusterScrapeResult["aws-auth"] = cm
-					clusterScrapeResult["account-id"] = accountID
-				}
-			}
-		}
-
-		if cluster.Name != "" {
-			tags.Append("cluster", cluster.Name)
+		if ctx.cluster.Name != "" {
+			tags.Append("cluster", ctx.cluster.Name)
 		}
 		if obj.GetNamespace() != "" {
 			tags.Append("namespace", obj.GetNamespace())
@@ -611,8 +561,8 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 			return results.Errorf(err, "failed to clean kubernetes object")
 		}
 
-		parents := getKubernetesParent(obj, config.Exclusions, resourceIDMap)
-		children := getKubernetesChildren(obj)
+		parents := getKubernetesParent(ctx, obj)
+		children := ChildLookupHooks(ctx, obj)
 		results = append(results, v1.ScrapeResult{
 			BaseScraper:         config.BaseScraper,
 			Name:                obj.GetName(),
@@ -657,49 +607,21 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 	return results
 }
 
-func getKubernetesChildren(obj *unstructured.Unstructured) []v1.ConfigExternalKey {
-	var allChildren []v1.ConfigExternalKey
-
-	// Argo Applications have children references
-	if strings.HasPrefix(obj.GetAPIVersion(), "argoproj.io") && obj.GetKind() == "Application" {
-		o := gabs.Wrap(obj.Object)
-
-		type argoResourceRef struct {
-			Kind      string `json:"kind"`
-			Name      string `json:"name"`
-			Namespace string `json:"namespace"`
-		}
-		var ars []argoResourceRef
-		if err := json.Unmarshal(o.S("status", "resources").Bytes(), &ars); err != nil {
-			logger.Tracef("error marshaling status.resources for argo app[%s/%s]: %v", obj.GetNamespace(), obj.GetName(), err)
-		} else {
-			for _, resource := range ars {
-				allChildren = append([]v1.ConfigExternalKey{{
-					Type:       ConfigTypePrefix + resource.Kind,
-					ExternalID: getKubernetesAlias(resource.Kind, resource.Namespace, resource.Name),
-				}}, allChildren...)
-			}
-		}
-	}
-
-	return allChildren
-}
-
 // getKubernetesParent returns a list of potential parents in order.
 // Example: For a Pod the parents would be [Replicaset, Namespace, Cluster]
-func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.KubernetesExclusionConfig, resourceIDMap *ResourceIDMapContainer) []v1.ConfigExternalKey {
+func getKubernetesParent(ctx *KubernetesContext, obj *unstructured.Unstructured) []v1.ConfigExternalKey {
 	var allParents []v1.ConfigExternalKey
 	allParents = append(allParents, v1.ConfigExternalKey{
 		Type:       ConfigTypePrefix + "Cluster",
-		ExternalID: resourceIDMap.Get("", "Cluster", "selfRef"),
+		ExternalID: ctx.GetID("", "Cluster", "selfRef"),
 	})
 
 	if obj.GetNamespace() != "" {
-		parentExternalID := resourceIDMap.Get("", "Namespace", obj.GetNamespace())
+		parentExternalID := ctx.GetID("", "Namespace", obj.GetNamespace())
 		if parentExternalID == "" {
 			// An incremental scraper may not have the Namespace object.
 			// We can instead use the alias as the external id.
-			parentExternalID = getKubernetesAlias("Namespace", "", obj.GetNamespace())
+			parentExternalID = alias("Namespace", "", obj.GetNamespace())
 		}
 
 		allParents = append([]v1.ConfigExternalKey{{
@@ -713,9 +635,9 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 
 		// If ReplicaSet is excluded then we want the pod's direct parent to
 		// be its Deployment
-		if obj.GetKind() == "Pod" && lo.Contains(exclusions.Kinds, "ReplicaSet") && ref.Kind == "ReplicaSet" {
+		if obj.GetKind() == "Pod" && lo.Contains(ctx.config.Exclusions.Kinds, "ReplicaSet") && ref.Kind == "ReplicaSet" {
 			deployName := extractDeployNameFromReplicaSet(ref.Name)
-			parentExternalID := resourceIDMap.Get(obj.GetNamespace(), "Deployment", deployName)
+			parentExternalID := ctx.GetID(obj.GetNamespace(), "Deployment", deployName)
 			allParents = append([]v1.ConfigExternalKey{{
 				Type:       ConfigTypePrefix + "Deployment",
 				ExternalID: parentExternalID,
@@ -728,23 +650,7 @@ func getKubernetesParent(obj *unstructured.Unstructured, exclusions v1.Kubernete
 		}
 	}
 
-	helmName := obj.GetLabels()["helm.toolkit.fluxcd.io/name"]
-	helmNamespace := obj.GetLabels()["helm.toolkit.fluxcd.io/namespace"]
-	if helmName != "" && helmNamespace != "" {
-		allParents = append([]v1.ConfigExternalKey{{
-			Type:       ConfigTypePrefix + "HelmRelease",
-			ExternalID: lo.CoalesceOrEmpty(resourceIDMap.Get(helmNamespace, "HelmRelease", helmName), getKubernetesAlias("HelmRelease", helmNamespace, helmName)),
-		}}, allParents...)
-	}
-
-	kustomizeName := obj.GetLabels()["kustomize.toolkit.fluxcd.io/name"]
-	kustomizeNamespace := obj.GetLabels()["kustomize.toolkit.fluxcd.io/namespace"]
-	if kustomizeName != "" && kustomizeNamespace != "" {
-		allParents = append([]v1.ConfigExternalKey{{
-			Type:       ConfigTypePrefix + "Kustomization",
-			ExternalID: lo.CoalesceOrEmpty(resourceIDMap.Get(kustomizeNamespace, "Kustomization", kustomizeName), getKubernetesAlias("Kustomization", kustomizeNamespace, kustomizeName)),
-		}}, allParents...)
-	}
+	allParents = append(ParentLookupHooks(ctx, obj), allParents...)
 
 	return allParents
 }
