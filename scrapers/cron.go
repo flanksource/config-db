@@ -230,6 +230,7 @@ func ConsumeKubernetesWatchEventsJobFunc(sc api.ScrapeContext, config v1.Kuberne
 			events, _, _, _ := lo.Buffer(ch, len(ch))
 
 			cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History)
+			cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("%s/%s", ctx.GetNamespace(), ctx.GetName()))
 			results, err := RunK8IncrementalScraper(cc, config, events)
 			if err != nil {
 				return err
@@ -309,6 +310,7 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 			objs = dedup(objs)
 
 			cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History)
+			cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
 			results, err := RunK8ObjScraper(cc, config, objs)
 			if err != nil {
 				return err

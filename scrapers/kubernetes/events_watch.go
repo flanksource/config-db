@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/types"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -118,7 +117,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	for watchEvent := range watcher.ResultChan() {
 		var event v1.KubernetesEvent
 		if err := event.FromObj(watchEvent.Object); err != nil {
-			logger.Errorf("failed to unmarshal event (id=%s): %v", event.GetUID(), err)
+			ctx.Errorf("failed to unmarshal event (id=%s): %v", event.GetUID(), err)
 			continue
 		}
 
