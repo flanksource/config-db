@@ -27,6 +27,7 @@ import (
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
 	"github.com/lib/pq"
+	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -234,6 +235,15 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			changeSummary.AddIgnored(changeResult.ChangeType)
 			continue
 		}
+		if _, ok := orphanCache.Get(changeResult.ConfigID); ok {
+			changeSummary.AddOrphaned(changeResult.ChangeType)
+			continue
+		}
+
+		if _, ok := orphanCache.Get(changeResult.ExternalID); ok {
+			changeSummary.AddOrphaned(changeResult.ChangeType)
+			continue
+		}
 
 		if exclude, err := shouldExcludeChange(result, changeResult); err != nil {
 			ctx.JobHistory().AddError(fmt.Sprintf("error running change exclusion: %v", err))
@@ -283,6 +293,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			// Some scrapers can generate changes for config items that don't exist on our db.
 			// Example: Cloudtrail scraper reporting changes for a resource that has been excluded.
 			changeSummary.AddOrphaned(changeResult.ChangeType)
+			orphanCache.Set(change.ExternalID, true, 0)
 			if logUnmatched {
 				ctx.Logger.V(2).Infof("change doesn't have an associated config (type=%s source=%s external_id=%s)", change.ChangeType, change.Source, change.GetExternalID())
 			}
@@ -298,6 +309,8 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 
 	return newOnes, updates, changeSummary, nil
 }
+
+var orphanCache = cache.New(60*time.Minute, 10*time.Minute)
 
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
@@ -448,13 +461,10 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
-	ctx.Logger.V(3).Infof("%d new configs, %d configs to update, %d new changes & %d changes to update",
-		len(newConfigs), len(configsToUpdate), len(newChanges), len(changesToUpdate))
-
 	if summary.HasUpdates() {
 		ctx.Logger.Debugf("Updates %s", summary)
 	} else {
-		ctx.Logger.V(3).Infof("No Update: %s", summary)
+		ctx.Logger.V(4).Infof("No Update: %s", summary)
 	}
 	return summary, nil
 }

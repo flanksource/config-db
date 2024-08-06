@@ -302,8 +302,8 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 				continue
 			}
 
-			if config.Event.Exclusions.Filter(event) {
-				if logExclusions {
+			if ctx.config.Event.Exclusions.Filter(event) {
+				if ctx.logExclusions {
 					ctx.Tracef("excluding event object %s/%s/%s: %s",
 						event.InvolvedObject.Namespace, event.InvolvedObject.Name,
 						event.InvolvedObject.Kind, event.Reason)
@@ -312,51 +312,26 @@ func ExtractResults(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 				continue
 			}
 
-			if _, err := uuid.Parse(string(event.InvolvedObject.UID)); err != nil {
-				ids, err := db.FindConfigIDsByNamespaceNameClass(ctx.DutyContext(), config.ClusterName, event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind)
-				if err != nil {
-					return results.Errorf(err, "failed to get config IDs for object %s/%s/%s", event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind)
-				} else if len(ids) == 0 {
-					if logSkipped {
-						ctx.Tracef("skipping event (reason=%s, message=%s) because the involved object ID is not a valid UUID: %s", event.Reason, event.Message, event.InvolvedObject.UID)
-					}
+			if uid, err := ctx.FindInvolvedConfigID(event); err != nil {
+				results.Errorf(err, "")
+				continue
+			} else if uid == uuid.Nil {
 					continue
-				}
-
-				event.InvolvedObject.UID = types.UID(ids[0].String())
+			} else {
+				event.InvolvedObject.UID = types.UID(uid.String())
 			}
 
-			change := getChangeFromEvent(event, config.Event.SeverityKeywords)
+			change := getChangeFromEvent(event, ctx.config.Event.SeverityKeywords)
 			if change != nil {
-				changeTypExclusion, changeSeverityExclusion, err := getObjectChangeExclusionAnnotations(ctx, string(event.InvolvedObject.UID), objChangeExclusionByType, objChangeExclusionBySeverity)
-				if err != nil {
-					return results.Errorf(err, "failed to get annotation for object from db (%s)", event.InvolvedObject.UID)
-				}
-
-				if changeTypExclusion != "" {
-					if collections.MatchItems(change.ChangeType, strings.Split(changeTypExclusion, ",")...) {
-						if logExclusions {
-							ctx.Tracef("excluding event object %s/%s/%s due to change type matched in annotation %s=%s",
-								event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
-								v1.AnnotationIgnoreChangeByType, changeTypExclusion)
-						}
+				if ignore, err := ctx.IgnoreChange(*change, event); err != nil {
+					results.Errorf(err, "Failed to determine if change should be ignored: %v", err)
 						continue
-					}
-				}
-
-				if changeSeverityExclusion != "" {
-					if collections.MatchItems(change.Severity, strings.Split(changeSeverityExclusion, ",")...) {
-						if logExclusions {
-							ctx.Tracef("excluding event object %s/%s/%s due to severity matches in annotation %s=%s",
-								event.InvolvedObject.Namespace, event.InvolvedObject.Name, event.InvolvedObject.Kind,
-								v1.AnnotationIgnoreChangeBySeverity, changeSeverityExclusion)
-						}
+				} else if ignore {
 						continue
-					}
 				}
 
 				changeResults = append(changeResults, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
+					BaseScraper: ctx.config.BaseScraper,
 					Changes:     []v1.ChangeResult{*change},
 				})
 			}
