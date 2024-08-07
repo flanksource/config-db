@@ -10,7 +10,6 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/db/models"
 	"github.com/samber/lo"
 )
 
@@ -43,17 +42,19 @@ func NewReplacements(pairs ...string) Replacements {
 	return r
 }
 
-func Fingerprint(change *models.ConfigChange) string {
-
-	container, err := gabs.ParseJSON([]byte(change.Patches))
-	if err != nil {
-		logger.Errorf(err.Error())
-		return ""
+func Fingerprint(patch string) (string, error) {
+	if patch == "" {
+		return "", nil
 	}
+
+	container, err := gabs.ParseJSON([]byte(patch))
+	if err != nil {
+		return "", err
+	}
+
 	flat, err := container.Flatten()
 	if err != nil {
-		logger.Errorf(err.Error())
-		return ""
+		return "", err
 	}
 
 	var out = make(map[string]interface{})
@@ -64,7 +65,7 @@ func Fingerprint(change *models.ConfigChange) string {
 	hash := Hash(out)
 	logger.Infof("\n%s\n--->\n%s\n===>  %s", print(flat), print(out), hash)
 
-	return hash
+	return hash, nil
 }
 
 func print(data map[string]interface{}) string {

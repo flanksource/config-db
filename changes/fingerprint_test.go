@@ -1,10 +1,11 @@
-package changes
+package changes_test
 
 import (
 	"encoding/json"
 	"os"
 	"testing"
 
+	"github.com/flanksource/config-db/changes"
 	"github.com/flanksource/config-db/db/models"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -23,15 +24,28 @@ func readChange(name string) *models.ConfigChange {
 }
 
 var _ = Describe("Change Fingerprints", func() {
-
 	It("Should calculate the same fingerprints for pod stop", func() {
-		Expect(Fingerprint(readChange("change_1.json"))).To(Equal(Fingerprint(readChange("change_3.json"))))
+		fp1, err1 := changes.Fingerprint(readChange("change_1.json").Patches)
+		fp3, err3 := changes.Fingerprint(readChange("change_3.json").Patches)
+		Expect(err1).ToNot(HaveOccurred())
+		Expect(err3).ToNot(HaveOccurred())
+		Expect(fp1).To(Equal(fp3))
 	})
+
 	It("Should calculate the same fingerprints for pod start", func() {
-		Expect(Fingerprint(readChange("change_2.json"))).To(Equal(Fingerprint(readChange("change_4.json"))))
+		fp2, err2 := changes.Fingerprint(readChange("change_2.json").Patches)
+		fp4, err4 := changes.Fingerprint(readChange("change_4.json").Patches)
+		Expect(err2).ToNot(HaveOccurred())
+		Expect(err4).ToNot(HaveOccurred())
+		Expect(fp2).To(Equal(fp4))
 	})
+
 	It("Should calculate the diff fingerprints for pod start", func() {
-		Expect(Fingerprint(readChange("change_1.json"))).ToNot(Equal(Fingerprint(readChange("change_2.json"))))
+		fp1, err1 := changes.Fingerprint(readChange("change_1.json").Patches)
+		fp2, err2 := changes.Fingerprint(readChange("change_2.json").Patches)
+		Expect(err1).ToNot(HaveOccurred())
+		Expect(err2).ToNot(HaveOccurred())
+		Expect(fp1).ToNot(Equal(fp2))
 	})
 })
 

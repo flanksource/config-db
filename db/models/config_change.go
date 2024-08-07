@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/changes"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -14,6 +16,7 @@ import (
 type ConfigChange struct {
 	ExternalID        string     `gorm:"-"`
 	ConfigType        string     `gorm:"-"`
+	Fingerprint       *string    `gorm:"column:fingerprint" json:"fingerprint"`
 	ExternalChangeId  string     `gorm:"column:external_change_id" json:"external_change_id"`
 	ID                string     `gorm:"primaryKey;unique_index;not null;column:id" json:"id"`
 	ConfigID          string     `gorm:"column:config_id;default:''" json:"config_id"`
@@ -57,6 +60,12 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 	}
 	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {
 		_change.CreatedAt = change.CreatedAt
+	}
+
+	if fingerprint, err := changes.Fingerprint(change.Patches); err != nil {
+		logger.Errorf("failed to fingerprint change: %v", err)
+	} else if fingerprint != "" {
+		_change.Fingerprint = &fingerprint
 	}
 
 	return &_change
