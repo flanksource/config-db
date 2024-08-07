@@ -12,9 +12,11 @@ import (
 	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/logger"
 	cUtils "github.com/flanksource/commons/utils"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	pkgChanges "github.com/flanksource/config-db/changes"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/db/ulid"
 	"github.com/flanksource/config-db/scrapers/changes"
@@ -267,6 +269,11 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		}
 
 		change := models.NewConfigChangeFromV1(*result, changeResult)
+		if fingerprint, err := pkgChanges.Fingerprint(change.Patches); err != nil {
+			logger.Errorf("failed to fingerprint change: %v", err)
+		} else if fingerprint != "" {
+			change.Fingerprint = &fingerprint
+		}
 
 		if change.CreatedBy != nil {
 			person, err := FindPersonByEmail(ctx, ptr.ToString(change.CreatedBy))
@@ -366,6 +373,40 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	return saveResults(ctx, results)
 }
 
+func dedupChanges(ctx api.ScrapeContext, window time.Duration, changes []*models.ConfigChange) ([]*models.ConfigChange, []string, error) {
+	if len(changes) == 0 {
+		return nil, nil, nil
+	}
+
+	var fingerprints []string
+	for _, c := range changes {
+		if c.Fingerprint == nil {
+			continue
+		}
+
+		fingerprints = append(fingerprints, *c.Fingerprint)
+	}
+
+	existingChanges, err := GetChangesWithFingerprints(ctx, fingerprints, window)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var dedupedChanges []*models.ConfigChange
+	var changesToDelete []string
+
+	fingerprintLess, dedupGroups := pkgChanges.GroupChanges(append(existingChanges, changes...))
+	for _, dg := range dedupGroups {
+		newChange, toDelete := dg.Dedup()
+		dedupedChanges = append(dedupedChanges, newChange)
+		changesToDelete = append(changesToDelete, toDelete...)
+	}
+
+	dedupedChanges = append(dedupedChanges, fingerprintLess...)
+
+	return dedupedChanges, changesToDelete, nil
+}
+
 func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSummary, error) {
 	var summary = make(v1.ScrapeSummary)
 
@@ -420,6 +461,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		return summary, fmt.Errorf("failed to update last scraped time: %w", err)
 	}
 
+	// Dedup changes here
+	newChanges, changesToDelete, err := dedupChanges(ctx, time.Hour*24*365, newChanges)
+	if err != nil {
+		return summary, fmt.Errorf("failed to dedup changes: %w", err)
+	}
+
 	if err := ctx.DB().CreateInBatches(newChanges, configItemsBulkInsertSize).Error; err != nil {
 		return summary, fmt.Errorf("failed to create config changes: %w", err)
 	}
@@ -427,6 +474,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	if len(changesToUpdate) != 0 {
 		if err := ctx.DB().Save(changesToUpdate).Error; err != nil {
 			return summary, fmt.Errorf("failed to update config changes: %w", err)
+		}
+	}
+
+	if len(changesToDelete) != 0 {
+		if err := ctx.DB().Delete(models.ConfigChange{}, "id IN ?", changesToDelete).Error; err != nil {
+			return summary, fmt.Errorf("failed to delete deduped config changes: %w", err)
 		}
 	}
 
