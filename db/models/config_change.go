@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/changes"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -27,7 +26,9 @@ type ConfigChange struct {
 	Summary           string     `gorm:"column:summary" json:"summary,omitempty"`
 	Patches           string     `gorm:"column:patches;default:null" json:"patches,omitempty"`
 	Details           v1.JSON    `gorm:"column:details" json:"details,omitempty"`
-	CreatedAt         *time.Time `gorm:"column:created_at" json:"created_at"`
+	Count             int        `gorm:"column:count" json:"count"`
+	FirstObserved     *time.Time `gorm:"column:first_observed" json:"first_observed"`
+	CreatedAt         time.Time  `gorm:"column:created_at" json:"created_at"`
 	CreatedBy         *string    `json:"created_by"`
 	ExternalCreatedBy *string    `json:"external_created_by"`
 }
@@ -59,13 +60,7 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 		ConfigID:         change.ConfigID,
 	}
 	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {
-		_change.CreatedAt = change.CreatedAt
-	}
-
-	if fingerprint, err := changes.Fingerprint(change.Patches); err != nil {
-		logger.Errorf("failed to fingerprint change: %v", err)
-	} else if fingerprint != "" {
-		_change.Fingerprint = &fingerprint
+		_change.CreatedAt = lo.FromPtr(change.CreatedAt)
 	}
 
 	return &_change
