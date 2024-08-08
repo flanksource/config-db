@@ -57,6 +57,7 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 		Summary:          change.Summary,
 		Patches:          change.Patches,
 		CreatedBy:        change.CreatedBy,
+		Count:            1,
 		ConfigID:         change.ConfigID,
 	}
 	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {

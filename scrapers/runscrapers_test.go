@@ -40,6 +40,74 @@ import (
 // 	}
 // }
 
+var _ = Describe("Dedup test", Ordered, func() {
+	testConfig := apiv1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "change-dedup-test",
+			Namespace: "default",
+		},
+		Data: map[string]string{
+			"key": uuid.NewString(),
+		},
+	}
+
+	var cm models.ConfigItem
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("kubernetes")
+		scrapeConfig.Spec.Kubernetes[0].Kubeconfig = &types.EnvVar{
+			ValueStatic: kubeConfigPath,
+		}
+
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+	})
+
+	AfterAll(func() {
+		err := k8sClient.Delete(DefaultContext, &testConfig)
+		Expect(err).NotTo(HaveOccurred(), "failed to delete ConfigMap")
+	})
+
+	var _ = Context("Populate configmap changes", func() {
+		for i := 0; i < 11; i++ {
+			if i == 0 {
+				It("should have created the config map", func() {
+					err := k8sClient.Create(DefaultContext, &testConfig)
+					Expect(err).NotTo(HaveOccurred(), "failed to create ConfigMap")
+				})
+			} else {
+				It(fmt.Sprintf("[%d] should update the config map", i), func() {
+					testConfig.Data["key"] = uuid.NewString()
+					err := k8sClient.Update(DefaultContext, &testConfig)
+					Expect(err).NotTo(HaveOccurred(), "failed to update ConfigMap")
+				})
+			}
+
+			It(fmt.Sprintf("[%d] should scrape the configmap", i), func() {
+				output, err := RunScraper(scraperCtx)
+				Expect(err).To(BeNil())
+
+				Expect(output.Total).To(BeNumerically(">", 0))
+			})
+
+			It(fmt.Sprintf("[%d] should have the updated the db", i), func() {
+				err := DefaultContext.DB().Where("name = ?", "change-dedup-test").First(&cm).Error
+				Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+			})
+		}
+	})
+
+	It("should have populated 1 change with 10 counts", func() {
+		var changes []models.ConfigChange
+		err := DefaultContext.DB().Where("config_id = ?", cm.ID).Find(&changes).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+
+		Expect(len(changes)).To(Equal(1))
+		Expect(changes[0].Count).To(Equal(10))
+	})
+})
+
 var _ = Describe("Scrapers test", Ordered, func() {
 	Describe("DB initialization", func() {
 		It("Gorm can connect", func() {
