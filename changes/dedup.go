@@ -1,6 +1,8 @@
 package changes
 
 import (
+	"fmt"
+
 	"github.com/flanksource/config-db/db/models"
 	"github.com/samber/lo"
 )
@@ -56,7 +58,8 @@ func GroupChanges(changes []*models.ConfigChange) ([]*models.ConfigChange, []Ded
 			continue
 		}
 
-		groups[*c.Fingerprint] = append(groups[*c.Fingerprint], c)
+		key := fmt.Sprintf("%s-%s", c.ConfigID, *c.Fingerprint)
+		groups[key] = append(groups[key], c)
 	}
 
 	var dedupGroups []DedupGroup

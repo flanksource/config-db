@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
+	k8sTypes "k8s.io/apimachinery/pkg/types"
 
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,7 +42,7 @@ import (
 // }
 
 var _ = Describe("Dedup test", Ordered, func() {
-	testConfig := apiv1.ConfigMap{
+	configA := apiv1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "change-dedup-test",
 			Namespace: "default",
@@ -51,7 +52,17 @@ var _ = Describe("Dedup test", Ordered, func() {
 		},
 	}
 
-	var cm models.ConfigItem
+	configB := apiv1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "change-dedup-test-2",
+			Namespace: "default",
+		},
+		Data: map[string]string{
+			"key": uuid.NewString(),
+		},
+	}
+
+	var cmA, cmB models.ConfigItem
 	var scrapeConfig v1.ScrapeConfig
 	var scraperCtx api.ScrapeContext
 
@@ -61,11 +72,20 @@ var _ = Describe("Dedup test", Ordered, func() {
 			ValueStatic: kubeConfigPath,
 		}
 
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
+		scModel.Source = dutymodels.SourceCRD
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+
 		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
 	})
 
 	AfterAll(func() {
-		err := k8sClient.Delete(DefaultContext, &testConfig)
+		err := k8sClient.Delete(DefaultContext, &configA)
 		Expect(err).NotTo(HaveOccurred(), "failed to delete ConfigMap")
 	})
 
@@ -73,13 +93,20 @@ var _ = Describe("Dedup test", Ordered, func() {
 		for i := 0; i < 11; i++ {
 			if i == 0 {
 				It("should have created the config map", func() {
-					err := k8sClient.Create(DefaultContext, &testConfig)
-					Expect(err).NotTo(HaveOccurred(), "failed to create ConfigMap")
+					err := k8sClient.Create(DefaultContext, &configA)
+					Expect(err).NotTo(HaveOccurred(), "failed to create first ConfigMap")
+
+					err = k8sClient.Create(DefaultContext, &configB)
+					Expect(err).NotTo(HaveOccurred(), "failed to create second ConfigMap")
 				})
 			} else {
 				It(fmt.Sprintf("[%d] should update the config map", i), func() {
-					testConfig.Data["key"] = uuid.NewString()
-					err := k8sClient.Update(DefaultContext, &testConfig)
+					configA.Data["key"] = uuid.NewString()
+					err := k8sClient.Update(DefaultContext, &configA)
+					Expect(err).NotTo(HaveOccurred(), "failed to update ConfigMap")
+
+					configB.Data["key"] = uuid.NewString()
+					err = k8sClient.Update(DefaultContext, &configB)
 					Expect(err).NotTo(HaveOccurred(), "failed to update ConfigMap")
 				})
 			}
@@ -92,15 +119,27 @@ var _ = Describe("Dedup test", Ordered, func() {
 			})
 
 			It(fmt.Sprintf("[%d] should have the updated the db", i), func() {
-				err := DefaultContext.DB().Where("name = ?", "change-dedup-test").First(&cm).Error
+				err := DefaultContext.DB().Where("name = ?", "change-dedup-test").First(&cmA).Error
+				Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+
+				err = DefaultContext.DB().Where("name = ?", "change-dedup-test").First(&cmB).Error
 				Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
 			})
 		}
 	})
 
-	It("should have populated 1 change with 10 counts", func() {
+	It("should have populated 1 change with 10 counts  for config A", func() {
 		var changes []models.ConfigChange
-		err := DefaultContext.DB().Where("config_id = ?", cm.ID).Find(&changes).Error
+		err := DefaultContext.DB().Where("config_id = ?", cmA.ID).Find(&changes).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+
+		Expect(len(changes)).To(Equal(1))
+		Expect(changes[0].Count).To(Equal(10))
+	})
+
+	It("should have populated 1 change with 10 counts for config B", func() {
+		var changes []models.ConfigChange
+		err := DefaultContext.DB().Where("config_id = ?", cmB.ID).Find(&changes).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
 
 		Expect(len(changes)).To(Equal(1))
