@@ -3,6 +3,7 @@ package changes
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/db/models"
 	"github.com/samber/lo"
 )
 
@@ -42,12 +44,25 @@ func NewReplacements(pairs ...string) Replacements {
 	return r
 }
 
-func Fingerprint(patch string) (string, error) {
-	if patch == "" {
+func Fingerprint(change *models.ConfigChange) (string, error) {
+	if change == nil {
 		return "", nil
 	}
 
-	container, err := gabs.ParseJSON([]byte(patch))
+	if change.Patches == "" && change.Details == nil {
+		return "", nil
+	}
+
+	input := []byte(change.Patches)
+	if len(input) == 0 {
+		detailsJSON, err := json.Marshal(change.Details)
+		if err != nil {
+			return "", err
+		}
+		input = detailsJSON
+	}
+
+	container, err := gabs.ParseJSON(input)
 	if err != nil {
 		return "", err
 	}

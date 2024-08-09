@@ -25,24 +25,24 @@ func readChange(name string) *models.ConfigChange {
 
 var _ = Describe("Change Fingerprints", func() {
 	It("Should calculate the same fingerprints for pod stop", func() {
-		fp1, err1 := changes.Fingerprint(readChange("change_1.json").Patches)
-		fp3, err3 := changes.Fingerprint(readChange("change_3.json").Patches)
+		fp1, err1 := changes.Fingerprint(readChange("change_1.json"))
+		fp3, err3 := changes.Fingerprint(readChange("change_3.json"))
 		Expect(err1).ToNot(HaveOccurred())
 		Expect(err3).ToNot(HaveOccurred())
 		Expect(fp1).To(Equal(fp3))
 	})
 
 	It("Should calculate the same fingerprints for pod start", func() {
-		fp2, err2 := changes.Fingerprint(readChange("change_2.json").Patches)
-		fp4, err4 := changes.Fingerprint(readChange("change_4.json").Patches)
+		fp2, err2 := changes.Fingerprint(readChange("change_2.json"))
+		fp4, err4 := changes.Fingerprint(readChange("change_4.json"))
 		Expect(err2).ToNot(HaveOccurred())
 		Expect(err4).ToNot(HaveOccurred())
 		Expect(fp2).To(Equal(fp4))
 	})
 
 	It("Should calculate the diff fingerprints for pod start", func() {
-		fp1, err1 := changes.Fingerprint(readChange("change_1.json").Patches)
-		fp2, err2 := changes.Fingerprint(readChange("change_2.json").Patches)
+		fp1, err1 := changes.Fingerprint(readChange("change_1.json"))
+		fp2, err2 := changes.Fingerprint(readChange("change_2.json"))
 		Expect(err1).ToNot(HaveOccurred())
 		Expect(err2).ToNot(HaveOccurred())
 		Expect(fp1).ToNot(Equal(fp2))
