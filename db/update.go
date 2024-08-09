@@ -269,7 +269,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		}
 
 		change := models.NewConfigChangeFromV1(*result, changeResult)
-		if fingerprint, err := pkgChanges.Fingerprint(change.Patches); err != nil {
+		if fingerprint, err := pkgChanges.Fingerprint(change); err != nil {
 			logger.Errorf("failed to fingerprint change: %v", err)
 		} else if fingerprint != "" {
 			change.Fingerprint = &fingerprint
@@ -467,19 +467,20 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		return summary, fmt.Errorf("failed to dedup changes: %w", err)
 	}
 
-	if err := ctx.DB().CreateInBatches(newChanges, configItemsBulkInsertSize).Error; err != nil {
+	if len(changesToDelete) != 0 {
+		ctx.Logger.Infof("Deleting changes %v", changesToDelete)
+		if err := ctx.DB().Delete(models.ConfigChange{}, "id IN ?", changesToDelete).Error; err != nil {
+			return summary, fmt.Errorf("failed to delete deduped config changes: %w", err)
+		}
+	}
+
+	if err := ctx.DB().CreateInBatches(&newChanges, configItemsBulkInsertSize).Error; err != nil {
 		return summary, fmt.Errorf("failed to create config changes: %w", err)
 	}
 
 	if len(changesToUpdate) != 0 {
 		if err := ctx.DB().Save(changesToUpdate).Error; err != nil {
 			return summary, fmt.Errorf("failed to update config changes: %w", err)
-		}
-	}
-
-	if len(changesToDelete) != 0 {
-		if err := ctx.DB().Delete(models.ConfigChange{}, "id IN ?", changesToDelete).Error; err != nil {
-			return summary, fmt.Errorf("failed to delete deduped config changes: %w", err)
 		}
 	}
 
