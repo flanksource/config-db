@@ -453,23 +453,25 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 				result.Properties = append(result.Properties, &configProperty.Property)
 			}
 
+			extracted, err := e.extractAttributes(result)
+			if err != nil {
+				return results, fmt.Errorf("failed to extract attributes: %v", err)
+			}
+
+			if logScrapes {
+				ctx.Logger.V(1).Infof("Scraped %s", extracted)
+			}
+
+			extracted = extracted.SetHealthIfEmpty()
+
 			// Form new relationships based on the transform configs
-			if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, result, e.Transform.Relationship); err != nil {
+			if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, extracted, e.Transform.Relationship); err != nil {
 				return results, fmt.Errorf("failed to get relationships from relationship configs: %w", err)
 			} else if len(newRelationships) > 0 {
-				result.RelationshipSelectors = append(result.RelationshipSelectors, newRelationships...)
+				extracted.RelationshipSelectors = append(extracted.RelationshipSelectors, newRelationships...)
 			}
 
-			if extracted, err := e.extractAttributes(result); err != nil {
-				return results, fmt.Errorf("failed to extract attributes: %v", err)
-			} else {
-				if logScrapes {
-					ctx.Logger.V(1).Infof("Scraped %s", extracted)
-				}
-
-				extracted = extracted.SetHealthIfEmpty()
-				results = append(results, extracted)
-			}
+			results = append(results, extracted)
 		}
 
 		if !input.BaseScraper.Transform.Masks.IsEmpty() {
