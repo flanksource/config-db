@@ -482,7 +482,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			}
 
 			if logScrapes {
-				ctx.Logger.V(1).Infof("Scraped %s", extracted)
+				ctx.Logger.V(2).Infof("Scraped %s", extracted)
 			}
 
 			extracted = extracted.SetHealthIfEmpty()
