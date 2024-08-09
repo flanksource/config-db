@@ -132,6 +132,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     endpoint:
                       type: string
                     exclude:
@@ -141,6 +145,10 @@ spec:
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     id:
                       description: A static value or JSONPath expression to use as
@@ -162,7 +170,7 @@ spec:
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     properties:
                       description: |-
@@ -279,7 +287,8 @@ spec:
                     skipTLSVerify:
                       type: boolean
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -622,6 +631,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     exclusions:
                       properties:
                         activityLogs:
@@ -637,6 +650,10 @@ spec:
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     id:
                       description: A static value or JSONPath expression to use as
@@ -654,7 +671,7 @@ spec:
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     organisation:
                       type: string
@@ -724,7 +741,8 @@ spec:
                         type: object
                       type: array
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     subscriptionID:
                       type: string
@@ -986,9 +1004,17 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     id:
                       description: A static value or JSONPath expression to use as
@@ -1006,7 +1032,7 @@ spec:
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     organization:
                       type: string
@@ -1127,7 +1153,8 @@ spec:
                         type: object
                       type: array
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -1387,9 +1414,17 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     icon:
                       type: string
@@ -1413,7 +1448,7 @@ spec:
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     paths:
                       items:
@@ -1485,7 +1520,8 @@ spec:
                         type: object
                       type: array
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -1787,6 +1823,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     endpoint:
                       type: string
                     exclude:
@@ -1796,6 +1836,10 @@ spec:
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     id:
                       description: A static value or JSONPath expression to use as
@@ -1817,7 +1861,7 @@ spec:
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     project:
                       type: string
@@ -1887,7 +1931,8 @@ spec:
                         type: object
                       type: array
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -2146,9 +2191,17 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     id:
                       description: A static value or JSONPath expression to use as
@@ -2166,7 +2219,7 @@ spec:
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     owner:
                       type: string
@@ -2281,7 +2334,8 @@ spec:
                     repository:
                       type: string
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -2590,6 +2644,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     digest:
                       type: boolean
                     env:
@@ -2687,6 +2745,10 @@ spec:
                             type: object
                         type: object
                       type: object
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
+                      type: string
                     id:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
@@ -2705,7 +2767,7 @@ spec:
                       type: string
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     ntlm:
                       type: boolean
@@ -2919,7 +2981,8 @@ spec:
                         type: object
                       type: array
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -3366,6 +3429,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     event:
                       description: Event specifies how the Kubernetes event should
                         be handled.
@@ -3429,6 +3496,10 @@ spec:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
                       type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
+                      type: string
                     id:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
@@ -3491,7 +3562,7 @@ spec:
                       type: integer
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     namespace:
                       type: string
@@ -3611,7 +3682,8 @@ spec:
                     since:
                       type: string
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -3886,6 +3958,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     files:
                       items:
                         properties:
@@ -3900,6 +3976,10 @@ spec:
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     id:
                       description: A static value or JSONPath expression to use as
@@ -3960,7 +4040,7 @@ spec:
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     properties:
                       description: |-
@@ -4041,7 +4121,8 @@ spec:
                           type: string
                       type: object
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -4337,9 +4418,17 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     id:
                       description: A static value or JSONPath expression to use as
@@ -4357,7 +4446,7 @@ spec:
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     properties:
                       description: |-
@@ -4613,7 +4702,8 @@ spec:
                           eg: 1h, 7d, ...
                       type: string
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -5011,11 +5101,19 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     driver:
                       type: string
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     id:
                       description: A static value or JSONPath expression to use as
@@ -5033,7 +5131,7 @@ spec:
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     properties:
                       description: |-
@@ -5103,7 +5201,8 @@ spec:
                     query:
                       type: string
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -5359,9 +5458,17 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     id:
                       description: A static value or JSONPath expression to use as
@@ -5379,7 +5486,7 @@ spec:
                       type: object
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     properties:
                       description: |-
@@ -5662,7 +5769,8 @@ spec:
                           type: object
                       type: object
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-
@@ -5922,9 +6030,17 @@ spec:
                       items:
                         type: string
                       type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
+                      type: string
+                    health:
+                      description: A static value or JSONPath expression to use as
+                        the health of the config item
                       type: string
                     id:
                       description: A static value or JSONPath expression to use as
@@ -5965,7 +6081,7 @@ spec:
                       type: boolean
                     name:
                       description: A static value or JSONPath expression to use as
-                        the ID for the resource.
+                        the Name for the resource.
                       type: string
                     properties:
                       description: |-
@@ -6041,7 +6157,8 @@ spec:
                         type: string
                       type: array
                     status:
-                      description: Status of the config item
+                      description: A static value or JSONPath expression to use as
+                        the status of the config item
                       type: string
                     tags:
                       description: |-

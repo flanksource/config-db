@@ -179,6 +179,9 @@
         "name": {
           "type": "string"
         },
+        "description": {
+          "type": "string"
+        },
         "items": {
           "type": "string"
         },
@@ -192,6 +195,9 @@
           "type": "string"
         },
         "status": {
+          "type": "string"
+        },
+        "health": {
           "type": "string"
         },
         "timestampFormat": {
