@@ -3,6 +3,7 @@ package changes
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -43,17 +44,32 @@ func NewReplacements(pairs ...string) Replacements {
 	return r
 }
 
-func Fingerprint(change *models.ConfigChange) string {
-
-	container, err := gabs.ParseJSON([]byte(change.Patches))
-	if err != nil {
-		logger.Errorf(err.Error())
-		return ""
+func Fingerprint(change *models.ConfigChange) (string, error) {
+	if change == nil {
+		return "", nil
 	}
+
+	if change.Patches == "" && change.Details == nil {
+		return "", nil
+	}
+
+	input := []byte(change.Patches)
+	if len(input) == 0 {
+		detailsJSON, err := json.Marshal(change.Details)
+		if err != nil {
+			return "", err
+		}
+		input = detailsJSON
+	}
+
+	container, err := gabs.ParseJSON(input)
+	if err != nil {
+		return "", err
+	}
+
 	flat, err := container.Flatten()
 	if err != nil {
-		logger.Errorf(err.Error())
-		return ""
+		return "", err
 	}
 
 	var out = make(map[string]interface{})
@@ -64,7 +80,7 @@ func Fingerprint(change *models.ConfigChange) string {
 	hash := Hash(out)
 	logger.Infof("\n%s\n--->\n%s\n===>  %s", print(flat), print(out), hash)
 
-	return hash
+	return hash, nil
 }
 
 func print(data map[string]interface{}) string {
