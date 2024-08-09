@@ -92,6 +92,12 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 				continue
 			}
 
+			// If there's no resource, we add an empty resource as
+			// we still want to have a change representing it.
+			if len(event.Resources) == 0 {
+				event.Resources = []types.Resource{{}}
+			}
+
 			for _, resource := range event.Resources {
 				change := v1.ChangeResult{
 					CreatedAt:        event.EventTime,
