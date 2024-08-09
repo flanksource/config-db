@@ -584,8 +584,8 @@ func relationshipSelectorToResults(ctx dutyContext.Context, inputs []v1.ScrapeRe
 	var relationships []v1.RelationshipResult
 
 	for _, input := range inputs {
-		for _, selector := range input.RelationshipSelectors {
-			linkedConfigIDs, err := FindConfigIDsByRelationshipSelector(ctx, selector)
+		for _, directedRelationship := range input.RelationshipSelectors {
+			linkedConfigIDs, err := FindConfigIDsByRelationshipSelector(ctx, directedRelationship.Selector)
 			if err != nil {
 				return nil, fmt.Errorf("failed to find config items by relationship selector: %w", err)
 			}
@@ -594,6 +594,10 @@ func relationshipSelectorToResults(ctx dutyContext.Context, inputs []v1.ScrapeRe
 				rel := v1.RelationshipResult{
 					ConfigExternalID: v1.ExternalID{ExternalID: []string{input.ID}, ConfigType: input.Type},
 					RelatedConfigID:  id.String(),
+				}
+
+				if directedRelationship.Parent {
+					rel.Swap()
 				}
 
 				relationships = append(relationships, rel)

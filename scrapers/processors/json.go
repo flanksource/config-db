@@ -52,6 +52,21 @@ type Transform struct {
 	Relationship []v1.RelationshipConfig
 }
 
+func (t *Transform) String() string {
+	s := ""
+	if !t.Script.IsEmpty() {
+		s += fmt.Sprintf("script=%s", t.Script)
+	}
+
+	for _, m := range t.Masks {
+		s += fmt.Sprintf("mask=%s", m)
+	}
+
+	s += fmt.Sprintf("relationship=%d", len(t.Relationship))
+
+	return s
+}
+
 // ConfigFieldExclusion instructs what fields from the given config types should be removed.
 type ConfigFieldExclusion struct {
 	jp          jp.Expr
@@ -235,13 +250,13 @@ func (e Extract) String() string {
 		s += fmt.Sprintf(" Items: %s", e.Items)
 	}
 
-	s += fmt.Sprintf(" Transform: %s", e.Transform)
+	s += fmt.Sprintf(" Transform: %s", e.Transform.String())
 
 	return s
 }
 
-func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]duty.RelationshipSelector, error) {
-	var output []duty.RelationshipSelector
+func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]v1.DirectedRelationship, error) {
+	var output []v1.DirectedRelationship
 
 	for _, rc := range relationshipConfigs {
 		if rc.Filter != "" {
@@ -257,7 +272,7 @@ func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.Scr
 			}
 		}
 
-		var relationshipSelectors []duty.RelationshipSelector
+		var relationshipSelectors []v1.DirectedRelationship
 		if rc.Expr != "" {
 			celOutput, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: rc.Expr})
 			if err != nil {
@@ -278,7 +293,12 @@ func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.Scr
 				}
 			}
 
-			relationshipSelectors = append(relationshipSelectors, output...)
+			for _, o := range output {
+				relationshipSelectors = append(relationshipSelectors, v1.DirectedRelationship{
+					Selector: o,
+					Parent:   rc.Parent,
+				})
+			}
 		} else {
 			if compiled, err := rc.RelationshipSelectorTemplate.Eval(input.Labels, input.AsMap()); err != nil {
 				return nil, fmt.Errorf("relationship selector is invalid: %w", err)
@@ -290,7 +310,10 @@ func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.Scr
 					compiled.Scope = ""
 				}
 
-				relationshipSelectors = append(relationshipSelectors, *compiled)
+				relationshipSelectors = append(relationshipSelectors, v1.DirectedRelationship{
+					Selector: *compiled,
+					Parent:   rc.Parent,
+				})
 			}
 		}
 
@@ -453,23 +476,25 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 				result.Properties = append(result.Properties, &configProperty.Property)
 			}
 
+			extracted, err := e.extractAttributes(result)
+			if err != nil {
+				return results, fmt.Errorf("failed to extract attributes: %v", err)
+			}
+
+			if logScrapes {
+				ctx.Logger.V(2).Infof("Scraped %s", extracted)
+			}
+
+			extracted = extracted.SetHealthIfEmpty()
+
 			// Form new relationships based on the transform configs
-			if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, result, e.Transform.Relationship); err != nil {
+			if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, extracted, e.Transform.Relationship); err != nil {
 				return results, fmt.Errorf("failed to get relationships from relationship configs: %w", err)
 			} else if len(newRelationships) > 0 {
-				result.RelationshipSelectors = append(result.RelationshipSelectors, newRelationships...)
+				extracted.RelationshipSelectors = append(extracted.RelationshipSelectors, newRelationships...)
 			}
 
-			if extracted, err := e.extractAttributes(result); err != nil {
-				return results, fmt.Errorf("failed to extract attributes: %v", err)
-			} else {
-				if logScrapes {
-					ctx.Logger.V(1).Infof("Scraped %s", extracted)
-				}
-
-				extracted = extracted.SetHealthIfEmpty()
-				results = append(results, extracted)
-			}
+			results = append(results, extracted)
 		}
 
 		if !input.BaseScraper.Transform.Masks.IsEmpty() {

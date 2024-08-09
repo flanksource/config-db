@@ -352,6 +352,9 @@
         },
         "filter": {
           "type": "string"
+        },
+        "parent": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
