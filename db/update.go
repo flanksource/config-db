@@ -235,14 +235,19 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			changeSummary.AddIgnored(changeResult.ChangeType)
 			continue
 		}
-		if _, ok := orphanCache.Get(changeResult.ConfigID); ok {
-			changeSummary.AddOrphaned(changeResult.ChangeType)
-			continue
+
+		if changeResult.ConfigID != "" {
+			if _, ok := orphanCache.Get(changeResult.ConfigID); ok {
+				changeSummary.AddOrphaned(changeResult.ChangeType)
+				continue
+			}
 		}
 
-		if _, ok := orphanCache.Get(changeResult.ExternalID); ok {
-			changeSummary.AddOrphaned(changeResult.ChangeType)
-			continue
+		if changeResult.ExternalID != "" {
+			if _, ok := orphanCache.Get(changeResult.ExternalID); ok {
+				changeSummary.AddOrphaned(changeResult.ChangeType)
+				continue
+			}
 		}
 
 		if exclude, err := shouldExcludeChange(result, changeResult); err != nil {
@@ -293,10 +298,15 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			// Some scrapers can generate changes for config items that don't exist on our db.
 			// Example: Cloudtrail scraper reporting changes for a resource that has been excluded.
 			changeSummary.AddOrphaned(changeResult.ChangeType)
-			orphanCache.Set(change.ExternalID, true, 0)
+
+			if change.ExternalID != "" {
+				orphanCache.Set(change.ExternalID, true, 0)
+			}
+
 			if logUnmatched {
 				ctx.Logger.V(2).Infof("change doesn't have an associated config (type=%s source=%s external_id=%s)", change.ChangeType, change.Source, change.GetExternalID())
 			}
+
 			continue
 		}
 
