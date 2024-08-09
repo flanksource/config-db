@@ -127,6 +127,9 @@ type RelationshipConfig struct {
 	// Filter is a CEL expression that selects on what config items
 	// the relationship needs to be applied
 	Filter string `json:"filter,omitempty"`
+	// Parent sets all the configs found by the selector
+	// as the parent of the configs passed by the filter
+	Parent bool `json:"parent,omitempty"`
 }
 
 type Transform struct {

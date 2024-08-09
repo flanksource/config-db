@@ -484,6 +484,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -942,6 +947,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -1350,6 +1360,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -1717,6 +1732,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -2128,6 +2148,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -2531,6 +2556,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -3323,6 +3353,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -3879,6 +3914,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -4318,6 +4358,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -4943,6 +4988,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -5398,6 +5448,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -5966,6 +6021,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.
@@ -6356,6 +6416,11 @@ spec:
                                   value:
                                     type: string
                                 type: object
+                              parent:
+                                description: |-
+                                  Parent sets all the configs found by the selector
+                                  as the parent of the configs passed by the filter
+                                type: boolean
                               scope:
                                 description: |-
                                   Scope is the id of the parent of the resource to select.

@@ -337,6 +337,12 @@ type RelationshipResult struct {
 	Relationship string
 }
 
+// Swap swaps the parent and child
+func (t *RelationshipResult) Swap() {
+	t.ConfigID, t.RelatedConfigID = t.RelatedConfigID, t.ConfigID
+	t.ConfigExternalID, t.RelatedExternalID = t.RelatedExternalID, t.ConfigExternalID
+}
+
 func (t RelationshipResult) WithConfig(id string, ext ExternalID) RelationshipResult {
 	if id != "" {
 		t.ConfigID = id
@@ -526,6 +532,11 @@ type ConfigExternalKey struct {
 	Type       string
 }
 
+type DirectedRelationship struct {
+	Selector duty.RelationshipSelector
+	Parent   bool
+}
+
 // ScrapeResult ...
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
@@ -579,7 +590,7 @@ type ScrapeResult struct {
 	// RelationshipSelectors are used to form relationship of this scraped item with other items.
 	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without
 	// knowing the external ids of the item to be linked.
-	RelationshipSelectors []duty.RelationshipSelector `json:"-"`
+	RelationshipSelectors []DirectedRelationship `json:"-"`
 }
 
 // SetHealthIfEmpty sets the health, status & readiness of the scrape result
