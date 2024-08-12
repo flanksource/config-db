@@ -12,13 +12,24 @@ import (
 
 var changeCacheByFingerprint = cache.New(time.Hour, time.Hour)
 
-func GetWorkflowRunCount(ctx api.ScrapeContext, workflowID string) (int64, error) {
-	var count int64
-	err := ctx.DB().Table("config_changes").
-		Where("config_id = (?)", ctx.DB().Table("config_items").Select("id").Where("? = ANY(external_id)", workflowID)).
-		Count(&count).
-		Error
-	return count, err
+func changeFingeprintCacheKey(configID, fingerprint string) string {
+	return fmt.Sprintf("%s:%s", configID, fingerprint)
+}
+
+func InitChangeFingerprintCache(ctx api.ScrapeContext, window time.Duration) error {
+	var changes []*models.ConfigChange
+	if err := ctx.DB().Where("fingerprint IS NOT NULL").Where("NOW() - created_at <= ?", window).Find(&changes).Error; err != nil {
+		return err
+	}
+
+	ctx.Logger.Debugf("initializing changes cache with %d changes", len(changes))
+
+	for _, c := range changes {
+		key := changeFingeprintCacheKey(c.ConfigID, *c.Fingerprint)
+		changeCacheByFingerprint.Set(key, c, time.Until(c.CreatedAt.Add(window)))
+	}
+
+	return nil
 }
 
 func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*models.ConfigChange, []*models.ConfigChange) {
@@ -34,7 +45,7 @@ func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*mode
 			continue
 		}
 
-		key := fmt.Sprintf("%s:%s", change.ConfigID, *change.Fingerprint)
+		key := changeFingeprintCacheKey(change.ConfigID, *change.Fingerprint)
 		if v, ok := changeCacheByFingerprint.Get(key); !ok {
 			changeCacheByFingerprint.Set(key, change, window)
 			fingerprinted[change.ID] = change
@@ -60,4 +71,13 @@ func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*mode
 	}
 
 	return nonDuped, deduped
+}
+
+func GetWorkflowRunCount(ctx api.ScrapeContext, workflowID string) (int64, error) {
+	var count int64
+	err := ctx.DB().Table("config_changes").
+		Where("config_id = (?)", ctx.DB().Table("config_items").Select("id").Where("? = ANY(external_id)", workflowID)).
+		Count(&count).
+		Error
+	return count, err
 }

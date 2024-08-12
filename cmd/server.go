@@ -52,6 +52,11 @@ var Serve = &cobra.Command{
 			return fmt.Errorf("failed to load properties: %v", err)
 		}
 
+		dedupWindow := api.DefaultContext.Properties().Duration("changes.dedup.window", time.Hour)
+		if err := db.InitChangeFingerprintCache(api.DefaultContext, dedupWindow); err != nil {
+			return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
+		}
+
 		serve(context.Background(), args)
 		return nil
 	},
