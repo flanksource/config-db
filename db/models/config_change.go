@@ -6,6 +6,7 @@ import (
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -14,6 +15,7 @@ import (
 type ConfigChange struct {
 	ExternalID        string     `gorm:"-"`
 	ConfigType        string     `gorm:"-"`
+	Fingerprint       *string    `gorm:"column:fingerprint" json:"fingerprint"`
 	ExternalChangeId  string     `gorm:"column:external_change_id" json:"external_change_id"`
 	ID                string     `gorm:"primaryKey;unique_index;not null;column:id" json:"id"`
 	ConfigID          string     `gorm:"column:config_id;default:''" json:"config_id"`
@@ -24,7 +26,9 @@ type ConfigChange struct {
 	Summary           string     `gorm:"column:summary" json:"summary,omitempty"`
 	Patches           string     `gorm:"column:patches;default:null" json:"patches,omitempty"`
 	Details           v1.JSON    `gorm:"column:details" json:"details,omitempty"`
-	CreatedAt         *time.Time `gorm:"column:created_at" json:"created_at"`
+	Count             int        `gorm:"column:count" json:"count"`
+	FirstObserved     *time.Time `gorm:"column:first_observed" json:"first_observed"`
+	CreatedAt         time.Time  `gorm:"column:created_at" json:"created_at"`
 	CreatedBy         *string    `json:"created_by"`
 	ExternalCreatedBy *string    `json:"external_created_by"`
 }
@@ -42,6 +46,7 @@ func (c ConfigChange) String() string {
 
 func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *ConfigChange {
 	_change := ConfigChange{
+		ID:               uuid.NewString(),
 		ExternalID:       change.ExternalID,
 		ConfigType:       change.ConfigType,
 		ExternalChangeId: change.ExternalChangeID,
@@ -53,10 +58,11 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 		Summary:          change.Summary,
 		Patches:          change.Patches,
 		CreatedBy:        change.CreatedBy,
+		Count:            1,
 		ConfigID:         change.ConfigID,
 	}
 	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {
-		_change.CreatedAt = change.CreatedAt
+		_change.CreatedAt = lo.FromPtr(change.CreatedAt)
 	}
 
 	return &_change
@@ -67,6 +73,6 @@ func (c *ConfigChange) BeforeCreate(tx *gorm.DB) (err error) {
 		c.ID = uuid.New().String()
 	}
 
-	tx.Statement.AddClause(clause.OnConflict{DoNothing: true})
+	tx.Statement.AddClause(clause.OnConflict{UpdateAll: true})
 	return
 }

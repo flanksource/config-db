@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
+	k8sTypes "k8s.io/apimachinery/pkg/types"
 
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,6 +40,112 @@ import (
 // 		t.Fatalf("failed to encode aws-scrape-results.gob: %v", err)
 // 	}
 // }
+
+var _ = Describe("Dedup test", Ordered, func() {
+	configA := apiv1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "change-dedup-test",
+			Namespace: "default",
+		},
+		Data: map[string]string{
+			"key": uuid.NewString(),
+		},
+	}
+
+	configB := apiv1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "change-dedup-test-2",
+			Namespace: "default",
+		},
+		Data: map[string]string{
+			"key": uuid.NewString(),
+		},
+	}
+
+	var cmA, cmB models.ConfigItem
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("kubernetes")
+		scrapeConfig.Spec.Kubernetes[0].Kubeconfig = &types.EnvVar{
+			ValueStatic: kubeConfigPath,
+		}
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
+		scModel.Source = dutymodels.SourceCRD
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+	})
+
+	AfterAll(func() {
+		err := k8sClient.Delete(DefaultContext, &configA)
+		Expect(err).NotTo(HaveOccurred(), "failed to delete ConfigMap")
+	})
+
+	var _ = Context("Populate configmap changes", func() {
+		for i := 0; i < 11; i++ {
+			if i == 0 {
+				It("should have created the config map", func() {
+					err := k8sClient.Create(DefaultContext, &configA)
+					Expect(err).NotTo(HaveOccurred(), "failed to create first ConfigMap")
+
+					err = k8sClient.Create(DefaultContext, &configB)
+					Expect(err).NotTo(HaveOccurred(), "failed to create second ConfigMap")
+				})
+			} else {
+				It(fmt.Sprintf("[%d] should update the config map", i), func() {
+					configA.Data["key"] = uuid.NewString()
+					err := k8sClient.Update(DefaultContext, &configA)
+					Expect(err).NotTo(HaveOccurred(), "failed to update ConfigMap")
+
+					configB.Data["key"] = uuid.NewString()
+					err = k8sClient.Update(DefaultContext, &configB)
+					Expect(err).NotTo(HaveOccurred(), "failed to update ConfigMap")
+				})
+			}
+
+			It(fmt.Sprintf("[%d] should scrape the configmap", i), func() {
+				output, err := RunScraper(scraperCtx)
+				Expect(err).To(BeNil())
+
+				Expect(output.Total).To(BeNumerically(">", 0))
+			})
+
+			It(fmt.Sprintf("[%d] should have the updated the db", i), func() {
+				err := DefaultContext.DB().Where("name = ?", "change-dedup-test").First(&cmA).Error
+				Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+
+				err = DefaultContext.DB().Where("name = ?", "change-dedup-test").First(&cmB).Error
+				Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+			})
+		}
+	})
+
+	It("should have populated 1 change with 10 counts  for config A", func() {
+		var changes []models.ConfigChange
+		err := DefaultContext.DB().Where("config_id = ?", cmA.ID).Find(&changes).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+
+		Expect(len(changes)).To(Equal(1))
+		Expect(changes[0].Count).To(Equal(10))
+	})
+
+	It("should have populated 1 change with 10 counts for config B", func() {
+		var changes []models.ConfigChange
+		err := DefaultContext.DB().Where("config_id = ?", cmB.ID).Find(&changes).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+
+		Expect(len(changes)).To(Equal(1))
+		Expect(changes[0].Count).To(Equal(10))
+	})
+})
 
 var _ = Describe("Scrapers test", Ordered, func() {
 	Describe("DB initialization", func() {
@@ -297,18 +404,18 @@ var _ = Describe("Scrapers test", Ordered, func() {
 				{ConfigID: configItemID, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
 				{ConfigID: configItemID, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
 				{ConfigID: configItemID, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &twoDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &fiveDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &tenDaysAgo, ExternalChangeId: uuid.New().String()},
-				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: &tenDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: twoDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: twoDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: twoDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: twoDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: fiveDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: tenDaysAgo, ExternalChangeId: uuid.New().String()},
+				{ConfigID: configItemID, ChangeType: "TestDiff", CreatedAt: tenDaysAgo, ExternalChangeId: uuid.New().String()},
 				{ConfigID: configItemID2, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
 				{ConfigID: configItemID2, ChangeType: "TestDiff", ExternalChangeId: uuid.New().String()},
 			}

@@ -12,9 +12,11 @@ import (
 	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/logger"
 	cUtils "github.com/flanksource/commons/utils"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	pkgChanges "github.com/flanksource/config-db/changes"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/db/ulid"
 	"github.com/flanksource/config-db/scrapers/changes"
@@ -267,6 +269,11 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		}
 
 		change := models.NewConfigChangeFromV1(*result, changeResult)
+		if fingerprint, err := pkgChanges.Fingerprint(change); err != nil {
+			logger.Errorf("failed to fingerprint change: %v", err)
+		} else if fingerprint != "" {
+			change.Fingerprint = &fingerprint
+		}
 
 		if change.CreatedBy != nil {
 			person, err := FindPersonByEmail(ctx, ptr.ToString(change.CreatedBy))
@@ -420,7 +427,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		return summary, fmt.Errorf("failed to update last scraped time: %w", err)
 	}
 
-	if err := ctx.DB().CreateInBatches(newChanges, configItemsBulkInsertSize).Error; err != nil {
+	dedupWindow := ctx.Properties().Duration("changes.dedup.window", time.Hour)
+	newChanges, deduped := dedupChanges(dedupWindow, newChanges)
+	changesToUpdate = append(changesToUpdate, deduped...)
+
+	if err := ctx.DB().CreateInBatches(&newChanges, configItemsBulkInsertSize).Error; err != nil {
 		return summary, fmt.Errorf("failed to create config changes: %w", err)
 	}
 
