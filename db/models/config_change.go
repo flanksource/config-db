@@ -46,6 +46,7 @@ func (c ConfigChange) String() string {
 
 func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *ConfigChange {
 	_change := ConfigChange{
+		ID:               uuid.NewString(),
 		ExternalID:       change.ExternalID,
 		ConfigType:       change.ConfigType,
 		ExternalChangeId: change.ExternalChangeID,
@@ -72,6 +73,6 @@ func (c *ConfigChange) BeforeCreate(tx *gorm.DB) (err error) {
 		c.ID = uuid.New().String()
 	}
 
-	tx.Statement.AddClause(clause.OnConflict{DoNothing: true})
+	tx.Statement.AddClause(clause.OnConflict{UpdateAll: true})
 	return
 }

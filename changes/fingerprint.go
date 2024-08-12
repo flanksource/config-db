@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Jeffail/gabs/v2"
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/samber/lo"
 )
@@ -78,19 +77,7 @@ func Fingerprint(change *models.ConfigChange) (string, error) {
 	}
 
 	hash := Hash(out)
-	logger.Infof("\n%s\n--->\n%s\n===>  %s", print(flat), print(out), hash)
-
 	return hash, nil
-}
-
-func print(data map[string]interface{}) string {
-	keys := lo.Keys(data)
-	sort.Strings(keys)
-	s := ""
-	for _, k := range keys {
-		s += fmt.Sprintf("%s=%v\n", k, data[k])
-	}
-	return s
 }
 
 func Hash(data map[string]interface{}) string {

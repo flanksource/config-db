@@ -1,12 +1,16 @@
 package db
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db/models"
+	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 )
+
+var changeCacheByFingerprint = cache.New(time.Hour, time.Hour)
 
 func GetWorkflowRunCount(ctx api.ScrapeContext, workflowID string) (int64, error) {
 	var count int64
@@ -17,15 +21,43 @@ func GetWorkflowRunCount(ctx api.ScrapeContext, workflowID string) (int64, error
 	return count, err
 }
 
-func GetChangesWithFingerprints(ctx api.ScrapeContext, fingerprints []string, window time.Duration) ([]*models.ConfigChange, error) {
-	var output []*models.ConfigChange
-	err := ctx.DB().Debug().Model(&models.ConfigChange{}).
-		Where("fingerprint in (?)", fingerprints).
-		Joins("LEFT JOIN config_items ON config_changes.config_id = config_items.id").
-		Where("config_items.scraper_id = ?", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID())).
-		Where("NOW() - config_changes.created_at <= ?", window).
-		Order("config_changes.created_at").
-		Find(&output).
-		Error
-	return output, err
+func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*models.ConfigChange, []*models.ConfigChange) {
+	if len(changes) == 0 {
+		return nil, nil
+	}
+
+	var nonDuped []*models.ConfigChange
+	var fingerprinted = map[string]*models.ConfigChange{}
+	for _, change := range changes {
+		if change.Fingerprint == nil {
+			nonDuped = append(nonDuped, change)
+			continue
+		}
+
+		key := fmt.Sprintf("%s:%s", change.ConfigID, *change.Fingerprint)
+		if v, ok := changeCacheByFingerprint.Get(key); !ok {
+			changeCacheByFingerprint.Set(key, change, window)
+			fingerprinted[change.ID] = change
+		} else {
+			existingChange := v.(*models.ConfigChange)
+
+			change.ID = existingChange.ID
+			change.Count += existingChange.Count
+			change.FirstObserved = lo.CoalesceOrEmpty(existingChange.FirstObserved, &existingChange.CreatedAt)
+			changeCacheByFingerprint.Set(key, change, window)
+
+			fingerprinted[change.ID] = change
+		}
+	}
+
+	var deduped = nonDuped
+	for _, v := range fingerprinted {
+		if v.Count == 1 {
+			nonDuped = append(nonDuped, v)
+		} else {
+			deduped = append(deduped, v)
+		}
+	}
+
+	return nonDuped, deduped
 }

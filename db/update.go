@@ -373,40 +373,6 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	return saveResults(ctx, results)
 }
 
-func dedupChanges(ctx api.ScrapeContext, window time.Duration, changes []*models.ConfigChange) ([]*models.ConfigChange, []string, error) {
-	if len(changes) == 0 {
-		return nil, nil, nil
-	}
-
-	var fingerprints []string
-	for _, c := range changes {
-		if c.Fingerprint == nil {
-			continue
-		}
-
-		fingerprints = append(fingerprints, *c.Fingerprint)
-	}
-
-	existingChanges, err := GetChangesWithFingerprints(ctx, fingerprints, window)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var dedupedChanges []*models.ConfigChange
-	var changesToDelete []string
-
-	fingerprintLess, dedupGroups := pkgChanges.GroupChanges(append(existingChanges, changes...))
-	for _, dg := range dedupGroups {
-		newChange, toDelete := dg.Dedup()
-		dedupedChanges = append(dedupedChanges, newChange)
-		changesToDelete = append(changesToDelete, toDelete...)
-	}
-
-	dedupedChanges = append(dedupedChanges, fingerprintLess...)
-
-	return dedupedChanges, changesToDelete, nil
-}
-
 func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSummary, error) {
 	var summary = make(v1.ScrapeSummary)
 
@@ -461,18 +427,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		return summary, fmt.Errorf("failed to update last scraped time: %w", err)
 	}
 
-	// Dedup changes here
-	newChanges, changesToDelete, err := dedupChanges(ctx, time.Hour*24*365, newChanges)
-	if err != nil {
-		return summary, fmt.Errorf("failed to dedup changes: %w", err)
-	}
-
-	if len(changesToDelete) != 0 {
-		ctx.Logger.Infof("Deleting changes %v", changesToDelete)
-		if err := ctx.DB().Delete(models.ConfigChange{}, "id IN ?", changesToDelete).Error; err != nil {
-			return summary, fmt.Errorf("failed to delete deduped config changes: %w", err)
-		}
-	}
+	dedupWindow := ctx.Properties().Duration("changes.dedup.window", time.Hour)
+	newChanges, deduped := dedupChanges(dedupWindow, newChanges)
+	changesToUpdate = append(changesToUpdate, deduped...)
 
 	if err := ctx.DB().CreateInBatches(&newChanges, configItemsBulkInsertSize).Error; err != nil {
 		return summary, fmt.Errorf("failed to create config changes: %w", err)
