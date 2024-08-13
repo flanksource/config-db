@@ -39,7 +39,7 @@ func (t *TerraformStateSource) Connection(ctx context.Context) (*models.Connecti
 	}
 
 	if t.S3 != nil {
-		if err := t.S3.AWSConnection.Populate(ctx); err != nil {
+		if err := t.S3.Populate(ctx); err != nil {
 			return nil, fmt.Errorf("failed to populate S3 connection: %v", err)
 		}
 
