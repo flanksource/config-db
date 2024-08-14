@@ -176,7 +176,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		tags := ctx.config.Tags
 
 		if ignore, err := ctx.IsIgnored(obj); err != nil {
-			ctx.Warnf(err.Error())
+			ctx.Warnf("failed to ignore obj[%s]: %v", obj.GetName(), err)
 			continue
 		} else if ignore {
 			continue

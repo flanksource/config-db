@@ -15,9 +15,9 @@ type Name struct {
 
 func (n Name) String() string {
 	if n.Namespace == "" {
-		return fmt.Sprintf("%s/%s/%s", console.Bluef(n.Kind), console.Grayf("*"), console.LightWhitef(n.Name))
+		n.Namespace = "*"
 	}
-	return fmt.Sprintf("%s/%s/%s", console.Bluef(n.Kind), console.Grayf(n.Namespace), console.LightWhitef(n.Name))
+	return fmt.Sprintf("%s/%s/%s", console.Bluef(n.Kind), console.Grayf(n.Namespace), console.LightWhitef(n.Name)) //nolint:all
 }
 
 func (n Name) GetName() string {
