@@ -1180,6 +1180,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			*results = append(*results, v1.ScrapeResult{
 				Type:                v1.AWSEC2Instance,
 				Labels:              labels,
+				Tags:                tags,
 				BaseScraper:         config.BaseScraper,
 				Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2Instance, instance.InstanceID, nil)},
 				Config:              instance,
