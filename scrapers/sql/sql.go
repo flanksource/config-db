@@ -34,7 +34,11 @@ func (s SqlScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		if strings.HasPrefix(config.Connection.Connection, "connection://") {
 			connection, err = ctx.DutyContext().HydrateConnectionByURL(config.Connection.Connection)
 			if err != nil {
-				results.Errorf(err, "failed to find connection name %s", config.Connection.Connection)
+				results.Errorf(err, "failed to hydrate connection name %s", config.Connection.Connection)
+				continue
+			}
+			if connection == nil {
+				results.Errorf(fmt.Errorf("connection not found"), "failed to find connection name %s", config.Connection.Connection)
 				continue
 			}
 		} else {
