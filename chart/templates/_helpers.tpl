@@ -69,7 +69,7 @@ control-plane: {{ include "config-db.name" . }}
 
 {{- define "gomemlimit" -}}
     {{- with .Values.resources }}{{ with .limits }}{{ with .memory -}}
-        {{- $bytes :=  include "resource-quantity" . | float64 | mulf 0.95 | ceil | int -}}
+        {{- $bytes :=  include "resource-quantity" . | float64 | mulf 0.80 | ceil | int -}}
         {{- divf $bytes 1024 1024 | printf "%0.0f" -}}MiB
     {{- end }}{{ end }}{{ end -}}
 {{- end -}}
