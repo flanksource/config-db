@@ -22,7 +22,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/utils"
 	dutyContext "github.com/flanksource/duty/context"
-	"github.com/flanksource/duty/db"
+	dutydb "github.com/flanksource/duty/db"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/flanksource/is-healthy/events"
@@ -196,7 +196,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 
 	updates["last_scraped_time"] = gorm.Expr("NOW()")
 	if err := ctx.DutyContext().DB().Model(ci).Updates(updates).Error; err != nil {
-		return false, nil, errors.Wrapf(err, "unable to update config item: %s", ci)
+		return false, nil, errors.Wrapf(dutydb.ErrorDetails(err), "unable to update config item: %s", ci)
 	}
 
 	return true, changes, nil
@@ -395,7 +395,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	if err := ctx.DB().CreateInBatches(newConfigs, configItemsBulkInsertSize).Error; err != nil {
-		return summary, fmt.Errorf("failed to create config items: %w", err)
+		return summary, fmt.Errorf("failed to create config items: %w", dutydb.ErrorDetails(err))
 	}
 	for _, config := range newConfigs {
 		summary.AddInserted(*config.Type)
@@ -433,7 +433,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	changesToUpdate = append(changesToUpdate, deduped...)
 
 	if err := ctx.DB().CreateInBatches(&newChanges, configItemsBulkInsertSize).Error; err != nil {
-		return summary, fmt.Errorf("failed to create config changes: %w", db.ErrorDetails(err))
+		return summary, fmt.Errorf("failed to create config changes: %w", dutydb.ErrorDetails(err))
 	}
 
 	// TODO: Find a way to bulk insert these changes.
