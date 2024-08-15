@@ -76,6 +76,13 @@ func (c *ConfigChange) BeforeCreate(tx *gorm.DB) (err error) {
 		c.ID = uuid.New().String()
 	}
 
-	tx.Statement.AddClause(clause.OnConflict{UpdateAll: true})
+	tx.Statement.AddClause(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "config_id"},
+			{Name: "external_change_id"},
+		},
+		DoNothing: true,
+	})
+
 	return
 }
