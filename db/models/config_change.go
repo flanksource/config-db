@@ -84,10 +84,5 @@ func (c *ConfigChange) BeforeCreate(tx *gorm.DB) (err error) {
 		UpdateAll: true,
 	})
 
-	tx.Statement.AddClause(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "id"}},
-		UpdateAll: true,
-	})
-
 	return
 }
