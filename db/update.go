@@ -436,8 +436,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		return summary, fmt.Errorf("failed to create config changes: %w", db.ErrorDetails(err))
 	}
 
-	if len(changesToUpdate) != 0 {
-		if err := ctx.DB().Save(changesToUpdate).Error; err != nil {
+	// TODO: Find a way to bulk insert these changes.
+	// Couldn't find a way to do it with gorm.
+	// Cannot use .Save() because it will try to insert first and then update.
+	// That'll trigger the .BeforeCreate() hook which doesn't have a ON Conflict clause on the primary key.
+	for _, changeToUpdate := range changesToUpdate {
+		if err := ctx.DB().Updates(&changeToUpdate).Error; err != nil {
 			return summary, fmt.Errorf("failed to update config changes: %w", err)
 		}
 	}
