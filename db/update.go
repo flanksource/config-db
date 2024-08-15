@@ -22,6 +22,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/utils"
 	dutyContext "github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/db"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/flanksource/is-healthy/events"
@@ -432,7 +433,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	changesToUpdate = append(changesToUpdate, deduped...)
 
 	if err := ctx.DB().CreateInBatches(&newChanges, configItemsBulkInsertSize).Error; err != nil {
-		return summary, fmt.Errorf("failed to create config changes: %w", err)
+		return summary, fmt.Errorf("failed to create config changes: %w", db.ErrorDetails(err))
 	}
 
 	if len(changesToUpdate) != 0 {
@@ -591,13 +592,12 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 	}
 
 	return &v1.ChangeResult{
-		ConfigType:       lo.FromPtr(newConf.Type),
-		ChangeType:       "diff",
-		ExternalChangeID: utils.Sha256Hex(string(patch)),
-		ExternalID:       newConf.ExternalID[0],
-		Diff:             &diff,
-		Patches:          string(patch),
-		Summary:          strings.Join(utils.ExtractLeafNodesAndCommonParents(patchJSON), ", "),
+		ConfigType: lo.FromPtr(newConf.Type),
+		ChangeType: "diff",
+		ExternalID: newConf.ExternalID[0],
+		Diff:       &diff,
+		Patches:    string(patch),
+		Summary:    strings.Join(utils.ExtractLeafNodesAndCommonParents(patchJSON), ", "),
 	}, nil
 }
 
