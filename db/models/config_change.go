@@ -16,7 +16,7 @@ type ConfigChange struct {
 	ExternalID        string     `gorm:"-"`
 	ConfigType        string     `gorm:"-"`
 	Fingerprint       *string    `gorm:"column:fingerprint" json:"fingerprint"`
-	ExternalChangeId  string     `gorm:"column:external_change_id" json:"external_change_id"`
+	ExternalChangeID  *string    `gorm:"column:external_change_id;default:null" json:"external_change_id"`
 	ID                string     `gorm:"primaryKey;unique_index;not null;column:id" json:"id"`
 	ConfigID          string     `gorm:"column:config_id;default:''" json:"config_id"`
 	ChangeType        string     `gorm:"column:change_type" json:"change_type"`
@@ -46,23 +46,26 @@ func (c ConfigChange) String() string {
 
 func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *ConfigChange {
 	_change := ConfigChange{
-		ID:               uuid.NewString(),
-		ExternalID:       change.ExternalID,
-		ConfigType:       change.ConfigType,
-		ExternalChangeId: change.ExternalChangeID,
-		ChangeType:       change.ChangeType,
-		Source:           change.Source,
-		Diff:             change.Diff,
-		Severity:         change.Severity,
-		Details:          v1.JSON(change.Details),
-		Summary:          change.Summary,
-		Patches:          change.Patches,
-		CreatedBy:        change.CreatedBy,
-		Count:            1,
-		ConfigID:         change.ConfigID,
+		ID:         uuid.NewString(),
+		ExternalID: change.ExternalID,
+		ConfigType: change.ConfigType,
+		ChangeType: change.ChangeType,
+		Source:     change.Source,
+		Diff:       change.Diff,
+		Severity:   change.Severity,
+		Details:    v1.JSON(change.Details),
+		Summary:    change.Summary,
+		Patches:    change.Patches,
+		CreatedBy:  change.CreatedBy,
+		Count:      1,
+		ConfigID:   change.ConfigID,
 	}
 	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {
 		_change.CreatedAt = lo.FromPtr(change.CreatedAt)
+	}
+
+	if change.ExternalChangeID != "" {
+		_change.ExternalChangeID = &change.ExternalChangeID
 	}
 
 	return &_change
