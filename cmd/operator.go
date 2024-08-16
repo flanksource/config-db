@@ -45,9 +45,13 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	ctx := cmd.Context()
+	ctx, closer, err := duty.Start("config-db")
+	if err != nil {
+		logger.Fatalf("Failed to initialize db: %v", err.Error())
+	}
+	AddShutdownHook(closer)
 
-	dutyCtx := dutyContext.NewContext(db.MustInit(), commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
+	dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
 	api.DefaultContext = api.NewScrapeContext(dutyCtx.WithKubernetes(api.KubernetesClient))
 
 	logger := logger.GetLogger("operator")
@@ -72,7 +76,7 @@ func run(cmd *cobra.Command, args []string) error {
 	utilruntime.Must(configsv1.AddToScheme(scheme))
 
 	// Start the server
-	go serve(ctx, args)
+	go serve(args)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,

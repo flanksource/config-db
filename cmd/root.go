@@ -14,7 +14,6 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
-	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
@@ -37,10 +36,8 @@ func init() {
 
 var dev bool
 var httpPort, metricsPort, devGuiPort int
-var disableKubernetes bool
 var publicEndpoint = "http://localhost:8080"
-var propertiesFile = "config.properties"
-var disablePostgrest bool
+var propertiesFile = "config-db.properties"
 var (
 	version = "dev"
 	commit  = "none"
@@ -53,31 +50,18 @@ var (
 	otelServiceName  string
 )
 
-func readFromEnv(v string) string {
-	val := os.Getenv(v)
-	if val != "" {
-		return val
-	}
-	return v
-}
-
 // Root ...
 var Root = &cobra.Command{
 	Use: "config-db",
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := properties.LoadFile(propertiesFile); err != nil {
+			return fmt.Errorf("failed to load properties: %v", err)
+		}
 
-		properties.LoadFile("config-db.properties")
 		var err error
 		if api.KubernetesClient, api.KubernetesRestConfig, err = kube.NewK8sClient(); err != nil {
 			logger.Errorf("failed to get kubernetes client: %v", err)
 		}
-
-		db.ConnectionString = readFromEnv(db.ConnectionString)
-		if db.ConnectionString == "DB_URL" {
-			db.ConnectionString = ""
-		}
-		db.Schema = readFromEnv(db.Schema)
-		db.PGRSTLogLevel = readFromEnv(db.PGRSTLogLevel)
 
 		if api.UpstreamConfig.Valid() {
 			api.UpstreamConfig.Options = append(api.UpstreamConfig.Options, func(c *http.Client) {
@@ -92,11 +76,15 @@ var Root = &cobra.Command{
 			logger.Infof("Sending traces to %s", otelcollectorURL)
 			_ = telemetry.InitTracer(otelServiceName, otelcollectorURL, true) // TODO: Setup runner
 		}
+
+		return nil
 	},
 }
 
 // ServerFlags ...
 func ServerFlags(flags *pflag.FlagSet) {
+	duty.BindPFlags(flags, duty.SkipMigrationByDefaultMode)
+
 	flags.IntVar(&httpPort, "httpPort", 8080, "Port to expose a health dashboard ")
 	flags.StringVar(&api.Namespace, "namespace", os.Getenv("NAMESPACE"), "Namespace to watch for config-db resources")
 	flags.IntVar(&devGuiPort, "devGuiPort", 3004, "Port used by a local npm server in development mode")
@@ -104,7 +92,6 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.IntVar(&jobs.ConfigAnalysisRetentionDays, "analysis-retention-days", jobs.DefaultConfigAnalysisRetentionDays, "Days to retain config analysis for")
 	flags.IntVar(&jobs.ConfigChangeRetentionDays, "change-retention-days", jobs.DefaultConfigChangeRetentionDays, "Days to retain config changes for")
 	flags.IntVar(&jobs.ConfigItemRetentionDays, "config-retention-days", jobs.DefaultConfigItemRetentionDays, "Days to retain deleted config items for")
-	flags.BoolVar(&disableKubernetes, "disable-kubernetes", false, "Disable all functionality that requires a kubernetes connection")
 	flags.BoolVar(&dev, "dev", false, "Run in development mode")
 	flags.StringVar(&scrapers.DefaultSchedule, "default-schedule", "@every 60m", "Default schedule for configs that don't specfiy one")
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
@@ -132,7 +119,6 @@ func ServerFlags(flags *pflag.FlagSet) {
 
 func init() {
 	logger.BindFlags(Root.PersistentFlags())
-	duty.BindPFlags(Root.PersistentFlags())
 
 	if len(commit) > 8 {
 		version = fmt.Sprintf("%v, commit %v, built at %v", version, commit[0:8], date)
@@ -145,8 +131,6 @@ func init() {
 			fmt.Println(version)
 		},
 	})
-
-	db.Flags(Root.PersistentFlags())
 
 	Root.AddCommand(Run, Analyze, Serve, GoOffline, Operator)
 }
