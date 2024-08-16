@@ -48,6 +48,8 @@ var Serve = &cobra.Command{
 			return errors.New("migrations not run, waiting for mission-control pod to start")
 		}
 
+		// properties.LoadFile(prop)
+
 		if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
 			return fmt.Errorf("failed to load properties: %v", err)
 		}

@@ -8,6 +8,7 @@ import (
 	nethttp "net/http"
 
 	"github.com/flanksource/commons/http"
+	"github.com/flanksource/commons/properties"
 
 	_ "net/http/pprof" // required by serve
 
@@ -23,7 +24,6 @@ import (
 	"github.com/google/gops/agent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"k8s.io/klog/v2"
 )
 
 func init() {
@@ -65,12 +65,8 @@ func readFromEnv(v string) string {
 var Root = &cobra.Command{
 	Use: "config-db",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		logger.UseZap()
 
-		// sync the log level for klogs (used by ketall)
-		var l klog.Level
-		_ = l.Set(fmt.Sprintf("%d", logger.StandardLogger().GetLevel()))
-
+		properties.LoadFile("config-db.properties")
 		var err error
 		if api.KubernetesClient, api.KubernetesRestConfig, err = kube.NewK8sClient(); err != nil {
 			logger.Errorf("failed to get kubernetes client: %v", err)
@@ -110,7 +106,6 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.IntVar(&jobs.ConfigItemRetentionDays, "config-retention-days", jobs.DefaultConfigItemRetentionDays, "Days to retain deleted config items for")
 	flags.BoolVar(&disableKubernetes, "disable-kubernetes", false, "Disable all functionality that requires a kubernetes connection")
 	flags.BoolVar(&dev, "dev", false, "Run in development mode")
-	flags.BoolVar(&disablePostgrest, "disable-postgrest", false, "Disable the postgrest server")
 	flags.StringVar(&scrapers.DefaultSchedule, "default-schedule", "@every 60m", "Default schedule for configs that don't specfiy one")
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
 	flags.IntVar(&kubernetes.BufferSize, "watch-event-buffer", kubernetes.BufferSize, "Buffer size for kubernetes events")
@@ -137,7 +132,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 
 func init() {
 	logger.BindFlags(Root.PersistentFlags())
-	duty.BindFlags(Root.PersistentFlags())
+	duty.BindPFlags(Root.PersistentFlags())
 
 	if len(commit) > 8 {
 		version = fmt.Sprintf("%v, commit %v, built at %v", version, commit[0:8], date)

@@ -63,9 +63,7 @@ func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 
 func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 	return ScrapeContext{
-		Context: dutyCtx.Context{
-			Context: ctx.Context.WithValue(key, val),
-		},
+		Context:      ctx.Context.WithValue(key, val),
 		temp:         ctx.temp,
 		namespace:    ctx.namespace,
 		jobHistory:   ctx.jobHistory,
@@ -92,7 +90,7 @@ func (ctx ScrapeContext) JobHistory() *models.JobHistory {
 	h := ctx.jobHistory
 	if h == nil {
 		// Return dummy job history if unset
-		return models.NewJobHistory(logger.GetZapLogger().Named("dummy_logger"), "dummy", "dummy", "dummy")
+		return models.NewJobHistory(logger.GetLogger("dummy_logger"), "dummy", "dummy", "dummy")
 	}
 	return h
 }
