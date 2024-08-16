@@ -52,8 +52,8 @@ require (
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/fergusstrange/embedded-postgres v1.25.0
 	github.com/flanksource/artifacts v1.0.8
-	github.com/flanksource/commons v1.25.0
-	github.com/flanksource/duty v1.0.563
+	github.com/flanksource/commons v1.26.1
+	github.com/flanksource/duty v1.0.575
 	github.com/flanksource/is-healthy v1.0.26
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
@@ -128,7 +128,6 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/flanksource/kommons v0.31.4 // indirect
 	github.com/flanksource/kubectl-neat v1.0.4 // indirect
-	github.com/flanksource/postq v0.1.5 // indirect
 	github.com/flanksource/s3fs/v2 v2.0.0-20240725044221-83a6635a9212 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
@@ -157,6 +156,8 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/liamylian/jsontime/v2 v2.0.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
+	github.com/lmittmann/tint v1.0.5 // indirect
+	github.com/lrita/cmap v0.0.0-20231108122212-cb084a67f554 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -169,6 +170,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/robertkrimen/otto v0.3.0 // indirect
 	github.com/rodaine/table v1.1.0 // indirect
+	github.com/samber/oops v1.12.1 // indirect
 	github.com/sergi/go-diff v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
@@ -226,7 +228,7 @@ require (
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.1 // indirect
-	github.com/flanksource/gomplate/v3 v3.24.20
+	github.com/flanksource/gomplate/v3 v3.24.22
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-logr/logr v1.4.1
 	github.com/go-openapi/jsonpointer v0.20.2 // indirect
@@ -287,7 +289,7 @@ require (
 	github.com/twmb/murmur3 v1.1.6 // indirect
 	github.com/uber-go/tally v3.5.3+incompatible // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	github.com/ulikunitz/xz v0.5.11 // indirect
+	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
