@@ -62,7 +62,6 @@ func maskSensitiveAttributes(state State, data []byte) (map[string]any, error) {
 							strToHash = v.GoString()
 						}
 
-						// Calculate SHA256 hash
 						hash := sha256.Sum256([]byte(strToHash))
 						hashString := hex.EncodeToString(hash[:])
 						return cty.StringVal(fmt.Sprintf("sha256(%s)", hashString)), nil
@@ -74,7 +73,6 @@ func maskSensitiveAttributes(state State, data []byte) (map[string]any, error) {
 				return nil, fmt.Errorf("error masking values: %w", err)
 			}
 
-			// Convert the masked value back to JSON
 			maskedJSON, err := ctyjson.Marshal(maskedValue, maskedValue.Type())
 			if err != nil {
 				return nil, fmt.Errorf("error marshaling masked value to JSON: %w", err)
