@@ -7,14 +7,12 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
-	"go.uber.org/zap/zapcore"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
@@ -24,7 +22,7 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
-	"github.com/go-logr/zapr"
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 )
 
@@ -47,14 +45,17 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	ctx := cmd.Context()
+	ctx, closer, err := duty.Start("config-db")
+	if err != nil {
+		logger.Fatalf("Failed to initialize db: %v", err.Error())
+	}
+	AddShutdownHook(closer)
 
-	dutyCtx := dutyContext.NewContext(db.MustInit(), commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
+	dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
 	api.DefaultContext = api.NewScrapeContext(dutyCtx.WithKubernetes(api.KubernetesClient))
 
-	if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
-		return fmt.Errorf("failed to load properties: %v", err)
-	}
+	logger := logger.GetLogger("operator")
+	logger.SetLogLevel(k8sLogLevel)
 
 	if ok, err := duty.HasMigrationsRun(ctx, api.DefaultContext.Pool()); err != nil {
 		return fmt.Errorf("failed to check if migrations have run: %w", err)
@@ -67,17 +68,7 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 	}
 
-	zapLogger := logger.GetZapLogger()
-	if zapLogger == nil {
-		return fmt.Errorf("failed to get zap logger")
-	}
-
-	loggr := ctrlzap.NewRaw(
-		ctrlzap.Encoder(logger.NewZapEncoder()),
-		ctrlzap.Level(zapcore.Level(k8sLogLevel*-1)),
-	).Named("operator")
-
-	ctrl.SetLogger(zapr.NewLogger(loggr))
+	ctrl.SetLogger(logr.FromSlogHandler(logger.Handler()))
 	setupLog := ctrl.Log.WithName("setup")
 
 	scheme := runtime.NewScheme()
@@ -85,7 +76,7 @@ func run(cmd *cobra.Command, args []string) error {
 	utilruntime.Must(configsv1.AddToScheme(scheme))
 
 	// Start the server
-	go serve(ctx, args)
+	go serve(args)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,

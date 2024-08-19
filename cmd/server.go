@@ -17,12 +17,15 @@ import (
 
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/duty"
+	dutyAPI "github.com/flanksource/duty/api"
 	dutyContext "github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/postgrest"
 
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
@@ -39,7 +42,13 @@ import (
 var Serve = &cobra.Command{
 	Use: "serve",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		dutyCtx := dutyContext.NewContext(db.MustInit(), commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
+		ctx, closer, err := duty.Start("config-db")
+		if err != nil {
+			logger.Fatalf("Failed to initialize db: %v", err.Error())
+		}
+		AddShutdownHook(closer)
+
+		dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
 		api.DefaultContext = api.NewScrapeContext(dutyCtx)
 
 		if ok, err := duty.HasMigrationsRun(cmd.Context(), api.DefaultContext.Pool()); err != nil {
@@ -48,7 +57,7 @@ var Serve = &cobra.Command{
 			return errors.New("migrations not run, waiting for mission-control pod to start")
 		}
 
-		if err := dutyContext.LoadPropertiesFromFile(api.DefaultContext.DutyContext(), propertiesFile); err != nil {
+		if err := properties.LoadFile(propertiesFile); err != nil {
 			return fmt.Errorf("failed to load properties: %v", err)
 		}
 
@@ -57,17 +66,14 @@ var Serve = &cobra.Command{
 			return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 		}
 
-		serve(context.Background(), args)
+		serve(args)
 		return nil
 	},
 }
 
-func serve(ctx context.Context, configFiles []string) {
+func serve(configFiles []string) {
 	e := echo.New()
 	e.Use(otelecho.Middleware("config-db", otelecho.WithSkipper(telemetryURLSkipper)))
-
-	// PostgREST needs to know how it is exposed to create the correct links
-	db.HTTPEndpoint = publicEndpoint + "/db"
 
 	if logger.IsTraceEnabled() {
 		echoLogConfig := middleware.DefaultLoggerConfig
@@ -75,11 +81,10 @@ func serve(ctx context.Context, configFiles []string) {
 		e.Use(middleware.LoggerWithConfig(echoLogConfig))
 	}
 
-	if !disablePostgrest {
-		go db.StartPostgrest()
-		forward(e, "/db", db.PostgRESTEndpoint())
-		forward(e, "/live", db.PostgRESTAdminEndpoint())
-		forward(e, "/ready", db.PostgRESTAdminEndpoint())
+	if !dutyAPI.DefaultConfig.Postgrest.Disable {
+		forward(e, "/db", postgrest.PostgRESTEndpoint(dutyAPI.DefaultConfig))
+		forward(e, "/live", postgrest.PostgRESTAdminEndpoint(dutyAPI.DefaultConfig))
+		forward(e, "/ready", postgrest.PostgRESTAdminEndpoint(dutyAPI.DefaultConfig))
 	} else {
 		e.GET("/live", func(c echo.Context) error {
 			return c.String(200, "OK")
@@ -119,12 +124,6 @@ func serve(ctx context.Context, configFiles []string) {
 	e.GET("/properties", func(c echo.Context) error {
 		props := api.DefaultContext.Properties().SupportedProperties()
 		return c.JSON(200, props)
-	})
-
-	AddShutdownHook(func() {
-		if err := db.StopEmbeddedPGServer(); err != nil {
-			logger.Errorf("failed to stop server: %v", err)
-		}
 	})
 
 	AddShutdownHook(func() {

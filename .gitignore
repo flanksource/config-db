@@ -9,6 +9,6 @@ scraped/
 cover.out
 ginkgo.report
 
-config.properties
+config-db.properties
 
 *.gob

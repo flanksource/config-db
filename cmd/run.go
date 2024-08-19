@@ -11,6 +11,8 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
+	"github.com/flanksource/duty"
+	dutyapi "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
 	"github.com/spf13/cobra"
 )
@@ -30,12 +32,19 @@ var Run = &cobra.Command{
 		}
 
 		dutyCtx := context.New()
-		if db.ConnectionString != "" {
-			dutyCtx = db.MustInit()
+		if dutyapi.DefaultConfig.ConnectionString != "" {
+			c, closer, err := duty.Start("config-db")
+			if err != nil {
+				logger.Fatalf("Failed to initialize db: %v", err.Error())
+			}
+			AddShutdownHook(closer)
+
+			dutyCtx = c
 		}
+
 		api.DefaultContext = api.NewScrapeContext(dutyCtx)
 
-		if db.ConnectionString == "" && outputDir == "" {
+		if dutyapi.DefaultConfig.ConnectionString == "" && outputDir == "" {
 			logger.Fatalf("skipping export: neither --output-dir nor --db is specified")
 		}
 
@@ -58,7 +67,7 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 	if err != nil {
 		return err
 	}
-	if db.ConnectionString != "" {
+	if dutyapi.DefaultConfig.ConnectionString != "" {
 		logger.Infof("Exporting %d resources to DB", len(results))
 		_, err := db.SaveResults(ctx, results)
 		return err
