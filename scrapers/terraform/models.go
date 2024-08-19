@@ -1,10 +1,12 @@
 package terraform
 
+import "encoding/json"
+
 type ResourceInstance struct {
-	SchemaVersion       int            `json:"schema_version"`
-	Attributes          map[string]any `json:"attributes"`
-	SensitiveAttributes []any          `json:"sensitive_attributes"`
-	Private             string         `json:"private"`
+	SchemaVersion       int             `json:"schema_version"`
+	Attributes          map[string]any  `json:"attributes"`
+	SensitiveAttributes json.RawMessage `json:"sensitive_attributes"`
+	Private             string          `json:"private"`
 }
 
 type Resource struct {
