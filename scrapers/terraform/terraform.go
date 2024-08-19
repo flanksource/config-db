@@ -58,7 +58,12 @@ func getConfigFromState(config v1.Terraform, name string, _state StateFile) v1.S
 		Type:        ConfigType,
 		ConfigClass: ConfigType,
 		Aliases:     []string{state.Lineage},
-		Config:      _state.Data,
+	}
+
+	if masked, err := maskSensitiveAttributes(state, _state.Data); err != nil {
+		return v1.ScrapeResult{Error: err}
+	} else {
+		newConfig.Config = masked
 	}
 
 	for _, resource := range state.Resources {
