@@ -1,6 +1,8 @@
 package terraform
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -48,7 +50,22 @@ func maskSensitiveAttributes(state State, data []byte) (map[string]any, error) {
 			maskedValue, err := cty.Transform(ctyValue, func(path cty.Path, v cty.Value) (cty.Value, error) {
 				for _, sensitivePath := range sensitivePaths {
 					if path.Equals(sensitivePath) {
-						return cty.StringVal("***"), nil
+						var strToHash string
+						switch v.Type() {
+						case cty.Number:
+							bf := v.AsBigFloat()
+							strToHash = bf.Text('f', -1)
+						case cty.String:
+							strToHash = v.AsString()
+						default:
+							// For complex types or unsupported types, use cty's string representation
+							strToHash = v.GoString()
+						}
+
+						// Calculate SHA256 hash
+						hash := sha256.Sum256([]byte(strToHash))
+						hashString := hex.EncodeToString(hash[:])
+						return cty.StringVal(fmt.Sprintf("sha256(%s)", hashString)), nil
 					}
 				}
 				return v, nil
