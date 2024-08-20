@@ -430,10 +430,33 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	dedupWindow := ctx.Properties().Duration("changes.dedup.window", time.Hour)
 	newChanges, deduped := dedupChanges(dedupWindow, newChanges)
-	changesToUpdate = append(changesToUpdate, deduped...)
 
 	if err := ctx.DB().CreateInBatches(&newChanges, configItemsBulkInsertSize).Error; err != nil {
 		return summary, fmt.Errorf("failed to create config changes: %w", dutydb.ErrorDetails(err))
+	}
+
+	for _, dedup := range deduped {
+		update := map[string]any{
+			"change_type":         dedup.Change.ChangeType,
+			"count":               gorm.Expr("count + ?", dedup.CountIncrement),
+			"created_at":          gorm.Expr("NOW()"),
+			"created_by":          dedup.Change.CreatedBy,
+			"details":             dedup.Change.Details,
+			"diff":                dedup.Change.Diff,
+			"external_change_id":  dedup.Change.ExternalChangeID,
+			"external_created_by": dedup.Change.ExternalCreatedBy,
+			"severity":            dedup.Change.Severity,
+			"source":              dedup.Change.Source,
+			"summary":             dedup.Change.Summary,
+		}
+
+		if dedup.Change.Patches != "" {
+			update["patches"] = dedup.Change.Patches
+		}
+
+		if err := ctx.DB().Model(&models.ConfigChange{}).Where("id = ?", dedup.Change.ID).UpdateColumns(update).Error; err != nil {
+			return summary, fmt.Errorf("failed to create deduped config changes: %w", dutydb.ErrorDetails(err))
+		}
 	}
 
 	// TODO: Find a way to bulk insert these changes.

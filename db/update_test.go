@@ -74,7 +74,7 @@ func Test_dedupChanges(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     args
-		deduped  []*models.ConfigChange
+		deduped  []models.ConfigChangeUpdate
 		nonDuped []*models.ConfigChange
 	}{
 		{
@@ -89,15 +89,17 @@ func Test_dedupChanges(t *testing.T) {
 					{ID: "01eda583-3f5e-4c44-851f-93ac73272b92", CreatedAt: time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("xyz"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "different", Count: 1},
 				},
 			},
-			deduped: []*models.ConfigChange{
+			deduped: []models.ConfigChangeUpdate{
 				{
-					ID:            "8b9d2659-7a11-46ff-bdff-1c4e8964c437",
-					CreatedAt:     time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC),
-					FirstObserved: lo.ToPtr(time.Date(2024, 01, 02, 0, 0, 0, 0, time.UTC)),
-					Fingerprint:   lo.ToPtr("abc"),
-					ConfigID:      "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d",
-					Summary:       "fourth",
-					Count:         4,
+					Change: &models.ConfigChange{
+						ID:          "8b9d2659-7a11-46ff-bdff-1c4e8964c437",
+						CreatedAt:   time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC),
+						Fingerprint: lo.ToPtr("abc"),
+						ConfigID:    "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d",
+						Summary:     "fourth",
+						Count:       1,
+					},
+					CountIncrement: 3,
 				},
 			},
 			nonDuped: []*models.ConfigChange{
@@ -115,8 +117,8 @@ func Test_dedupChanges(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			nonDuped, deduped := dedupChanges(tt.args.window, tt.args.changes)
-			if !reflect.DeepEqual(deduped, tt.deduped) {
-				t.Errorf("dedupChanges() = %v, deduped %v", deduped, tt.deduped)
+			if diff := cmp.Diff(deduped, tt.deduped); diff != "" {
+				t.Errorf("%v", diff)
 			}
 			if !reflect.DeepEqual(nonDuped, tt.nonDuped) {
 				t.Errorf("dedupChanges() = %v, nonDuped %v", nonDuped, tt.nonDuped)

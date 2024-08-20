@@ -11,6 +11,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+type ConfigChangeUpdate struct {
+	Change         *ConfigChange
+	CountIncrement int
+}
+
 // ConfigChange represents the config change database table
 type ConfigChange struct {
 	ExternalID        string     `gorm:"-"`
@@ -26,8 +31,8 @@ type ConfigChange struct {
 	Summary           string     `gorm:"column:summary" json:"summary,omitempty"`
 	Patches           string     `gorm:"column:patches;default:null" json:"patches,omitempty"`
 	Details           v1.JSON    `gorm:"column:details" json:"details,omitempty"`
-	Count             int        `gorm:"column:count" json:"count"`
-	FirstObserved     *time.Time `gorm:"column:first_observed" json:"first_observed"`
+	Count             int        `gorm:"column:count;<-" json:"count"`
+	FirstObserved     *time.Time `gorm:"column:first_observed;default:NOW()" json:"first_observed"`
 	CreatedAt         time.Time  `gorm:"column:created_at" json:"created_at"`
 	CreatedBy         *string    `json:"created_by"`
 	ExternalCreatedBy *string    `json:"external_created_by"`
