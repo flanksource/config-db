@@ -96,6 +96,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&scrapers.DefaultSchedule, "default-schedule", "@every 60m", "Default schedule for configs that don't specfiy one")
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
 	flags.IntVar(&kubernetes.BufferSize, "watch-event-buffer", kubernetes.BufferSize, "Buffer size for kubernetes events")
+	flags.IntVar(&scrapers.ScraperConcurrency, "scraper-concurrency", scrapers.ScraperConcurrency, "Max number of concurrent scrapers")
 
 	flags.StringVar(&otelcollectorURL, "otel-collector-url", "", "OpenTelemetry gRPC Collector URL in host:port format")
 	flags.StringVar(&otelServiceName, "otel-service-name", "config-db", "OpenTelemetry service name for the resource")
