@@ -52,7 +52,7 @@ require (
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/flanksource/artifacts v1.0.8
 	github.com/flanksource/commons v1.27.0
-	github.com/flanksource/duty v1.0.582
+	github.com/flanksource/duty v1.0.584
 	github.com/flanksource/is-healthy v1.0.26
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
@@ -303,7 +303,7 @@ require (
 	golang.org/x/crypto v0.25.0 // indirect
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/sync v0.7.0
 	golang.org/x/sys v0.22.0 // indirect
 	golang.org/x/term v0.22.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
@@ -332,7 +332,7 @@ replace go.opentelemetry.io/otel/trace => go.opentelemetry.io/otel/trace v1.22.0
 
 // replace github.com/flanksource/commons => ../commons
 
-replace github.com/flanksource/duty => ../duty
+// replace github.com/flanksource/duty => ../duty
 
 // replace github.com/flanksource/ketall => ../ketall
 
