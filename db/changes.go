@@ -7,7 +7,6 @@ import (
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/patrickmn/go-cache"
-	"github.com/samber/lo"
 )
 
 var changeCacheByFingerprint = cache.New(time.Hour, time.Hour)
@@ -26,19 +25,20 @@ func InitChangeFingerprintCache(ctx api.ScrapeContext, window time.Duration) err
 
 	for _, c := range changes {
 		key := changeFingeprintCacheKey(c.ConfigID, *c.Fingerprint)
-		changeCacheByFingerprint.Set(key, c, time.Until(c.CreatedAt.Add(window)))
+		changeCacheByFingerprint.Set(key, c.ID, time.Until(c.CreatedAt.Add(window)))
 	}
 
 	return nil
 }
 
-func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*models.ConfigChange, []*models.ConfigChange) {
+func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*models.ConfigChange, []models.ConfigChangeUpdate) {
 	if len(changes) == 0 {
 		return nil, nil
 	}
 
 	var nonDuped []*models.ConfigChange
-	var fingerprinted = map[string]*models.ConfigChange{}
+	var fingerprinted = map[string]models.ConfigChangeUpdate{}
+
 	for _, change := range changes {
 		if change.Fingerprint == nil {
 			nonDuped = append(nonDuped, change)
@@ -46,25 +46,25 @@ func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*mode
 		}
 
 		key := changeFingeprintCacheKey(change.ConfigID, *change.Fingerprint)
-		if v, ok := changeCacheByFingerprint.Get(key); !ok {
-			changeCacheByFingerprint.Set(key, change, window)
-			fingerprinted[change.ID] = change
+		if existingChangeID, ok := changeCacheByFingerprint.Get(key); !ok {
+			changeCacheByFingerprint.Set(key, change.ID, window)
+			fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: 0}
 		} else {
-			existingChange := v.(*models.ConfigChange)
+			change.ID = existingChangeID.(string)
+			changeCacheByFingerprint.Set(key, change.ID, window) // Refresh the cache expiry
 
-			change.ID = existingChange.ID
-			change.Count += existingChange.Count
-			change.FirstObserved = lo.CoalesceOrEmpty(existingChange.FirstObserved, &existingChange.CreatedAt)
-			changeCacheByFingerprint.Set(key, change, window)
-
-			fingerprinted[change.ID] = change
+			if existing, ok := fingerprinted[change.ID]; ok {
+				fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: existing.CountIncrement + 1}
+			} else {
+				fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: 1}
+			}
 		}
 	}
 
-	var deduped = nonDuped
+	var deduped []models.ConfigChangeUpdate
 	for _, v := range fingerprinted {
-		if v.Count == 1 {
-			nonDuped = append(nonDuped, v)
+		if v.CountIncrement == 0 {
+			nonDuped = append(nonDuped, v.Change)
 		} else {
 			deduped = append(deduped, v)
 		}
