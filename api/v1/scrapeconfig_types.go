@@ -43,6 +43,46 @@ type ScrapeConfig struct {
 	Status ScrapeConfigStatus `json:"status,omitempty"`
 }
 
+func (t *ScrapeConfig) Type() string {
+	if len(t.Spec.GCP) != 0 {
+		return "gcp"
+	}
+	if len(t.Spec.AWS) != 0 {
+		return "aws"
+	}
+	if len(t.Spec.File) != 0 {
+		return "file"
+	}
+	if len(t.Spec.Kubernetes) != 0 {
+		return "kubernetes"
+	}
+	if len(t.Spec.KubernetesFile) != 0 {
+		return "kubernetesfile"
+	}
+	if len(t.Spec.AzureDevops) != 0 {
+		return "azuredevops"
+	}
+	if len(t.Spec.GithubActions) != 0 {
+		return "githubactions"
+	}
+	if len(t.Spec.Azure) != 0 {
+		return "azure"
+	}
+	if len(t.Spec.SQL) != 0 {
+		return "sql"
+	}
+	if len(t.Spec.Slack) != 0 {
+		return "slack"
+	}
+	if len(t.Spec.Trivy) != 0 {
+		return "trivy"
+	}
+	if len(t.Spec.Terraform) != 0 {
+		return "terraform"
+	}
+	return ""
+}
+
 // IsCustom returns true if the scraper is custom
 //
 // Custom scrapers are user crafted scrapers

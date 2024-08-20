@@ -15,6 +15,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/sethvargo/go-retry"
 	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/sync/semaphore"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -25,13 +26,43 @@ import (
 )
 
 var (
-	DefaultSchedule string
+	DefaultSchedule    string
+	MinScraperSchedule = time.Second * 29 // 29 to account for any ms errors
 
 	scrapeJobScheduler = cron.New()
 	scrapeJobs         sync.Map
 )
 
+var (
+	globalScraperSempahore *semaphore.Weighted
+	scraperTypeSemaphores  map[string]*semaphore.Weighted
+
+	// Total number of scraper jobs allowed to run concurrently
+	ScraperConcurrency = 12
+)
+
 func SyncScrapeConfigs(sc api.ScrapeContext) {
+	if globalScraperSempahore == nil {
+		globalScraperSempahore = semaphore.NewWeighted(int64(sc.Properties().Int("scraper.concurrency", ScraperConcurrency)))
+	}
+
+	if scraperTypeSemaphores == nil {
+		scraperTypeSemaphores = map[string]*semaphore.Weighted{
+			"aws":            semaphore.NewWeighted(int64(sc.Properties().Int("scraper.aws.concurrency", 2))),
+			"azure":          semaphore.NewWeighted(int64(sc.Properties().Int("scraper.azure.concurrency", 2))),
+			"azuredevops":    semaphore.NewWeighted(int64(sc.Properties().Int("scraper.azuredevops.concurrency", 5))),
+			"file":           semaphore.NewWeighted(int64(sc.Properties().Int("scraper.file.concurrency", 10))),
+			"gcp":            semaphore.NewWeighted(int64(sc.Properties().Int("scraper.gcp.concurrency", 2))),
+			"githubactions":  semaphore.NewWeighted(int64(sc.Properties().Int("scraper.githubactions.concurrency", 5))),
+			"kubernetes":     semaphore.NewWeighted(int64(sc.Properties().Int("scraper.kubernetes.concurrency", 3))),
+			"kubernetesfile": semaphore.NewWeighted(int64(sc.Properties().Int("scraper.kubernetesfile.concurrency", 3))),
+			"slack":          semaphore.NewWeighted(int64(sc.Properties().Int("scraper.slack.concurrency", 5))),
+			"sql":            semaphore.NewWeighted(int64(sc.Properties().Int("scraper.sql.concurrency", 10))),
+			"terraform":      semaphore.NewWeighted(int64(sc.Properties().Int("scraper.terraform.concurrency", 10))),
+			"trivy":          semaphore.NewWeighted(int64(sc.Properties().Int("scraper.trivy.concurrency", 1))),
+		}
+	}
+
 	DefaultSchedule = sc.Properties().String("scrapers.default.schedule", DefaultSchedule)
 	j := &job.Job{
 		Name:       "ConfigScraperSync",
@@ -138,13 +169,29 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 }
 
 func newScraperJob(sc api.ScrapeContext) *job.Job {
-	schedule, _ := lo.Coalesce(sc.Properties().String(fmt.Sprintf("scraper.%s.schedule", sc.ScrapeConfig().UID), ""), sc.ScrapeConfig().Spec.Schedule, DefaultSchedule)
+	schedule, _ := lo.Coalesce(sc.Properties().String(fmt.Sprintf("scraper.%s.schedule", sc.ScrapeConfig().UID), sc.ScrapeConfig().Spec.Schedule), DefaultSchedule)
+	minScheduleAllowed := sc.Properties().Duration(fmt.Sprintf("scraper.%s.schedule.min", sc.ScrapeConfig().Type()), MinScraperSchedule)
+
+	// Attempt to get a fixed interval from the schedule.
+	// NOTE: Only works for fixed interval schedules.
+	parsedSchedule, err := cron.ParseStandard(schedule)
+	if err == nil {
+		interval := time.Until(parsedSchedule.Next(time.Now()))
+		if interval < minScheduleAllowed {
+			newSchedule := fmt.Sprintf("@every %ds", int(minScheduleAllowed.Seconds()))
+			sc.Logger.Infof("[%s] scraper schedule %s too short, using minimum allowed %q", sc.ScrapeConfig().Name, schedule, newSchedule)
+
+			schedule = newSchedule
+		}
+	}
+
 	return &job.Job{
 		Name:         "Scraper",
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", sc.ScrapeConfig()),
 		Schedule:     schedule,
 		Singleton:    true,
 		JobHistory:   true,
+		Semaphores:   []*semaphore.Weighted{scraperTypeSemaphores[sc.ScrapeConfig().Type()], globalScraperSempahore},
 		RunNow:       sc.PropertyOn(false, "runNow"),
 		Retention:    job.RetentionBalanced,
 		ResourceID:   sc.ScrapeConfig().GetPersistedID().String(),
