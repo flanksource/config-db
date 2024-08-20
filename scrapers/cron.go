@@ -50,10 +50,10 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 		scraperTypeSemaphores = map[string]*semaphore.Weighted{
 			"aws":            semaphore.NewWeighted(int64(sc.Properties().Int("scraper.aws.concurrency", 2))),
 			"azure":          semaphore.NewWeighted(int64(sc.Properties().Int("scraper.azure.concurrency", 2))),
-			"azuredevops":    semaphore.NewWeighted(int64(sc.Properties().Int("scraper.azuredevops.concurrency", 2))),
+			"azuredevops":    semaphore.NewWeighted(int64(sc.Properties().Int("scraper.azuredevops.concurrency", 5))),
 			"file":           semaphore.NewWeighted(int64(sc.Properties().Int("scraper.file.concurrency", 10))),
 			"gcp":            semaphore.NewWeighted(int64(sc.Properties().Int("scraper.gcp.concurrency", 2))),
-			"githubactions":  semaphore.NewWeighted(int64(sc.Properties().Int("scraper.githubactions.concurrency", 2))),
+			"githubactions":  semaphore.NewWeighted(int64(sc.Properties().Int("scraper.githubactions.concurrency", 5))),
 			"kubernetes":     semaphore.NewWeighted(int64(sc.Properties().Int("scraper.kubernetes.concurrency", 3))),
 			"kubernetesfile": semaphore.NewWeighted(int64(sc.Properties().Int("scraper.kubernetesfile.concurrency", 3))),
 			"slack":          semaphore.NewWeighted(int64(sc.Properties().Int("scraper.slack.concurrency", 5))),
