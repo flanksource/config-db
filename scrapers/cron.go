@@ -26,7 +26,8 @@ import (
 )
 
 var (
-	DefaultSchedule string
+	DefaultSchedule    string
+	MinScraperSchedule = time.Second * 29 // 29 to account for any ms errors
 
 	scrapeJobScheduler = cron.New()
 	scrapeJobs         sync.Map
@@ -168,7 +169,21 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 }
 
 func newScraperJob(sc api.ScrapeContext) *job.Job {
-	schedule, _ := lo.Coalesce(sc.Properties().String(fmt.Sprintf("scraper.%s.schedule", sc.ScrapeConfig().UID), ""), sc.ScrapeConfig().Spec.Schedule, DefaultSchedule)
+	schedule, _ := lo.Coalesce(sc.Properties().String(fmt.Sprintf("scraper.%s.schedule", sc.ScrapeConfig().UID), sc.ScrapeConfig().Spec.Schedule), DefaultSchedule)
+	minScheduleAllowed := sc.Properties().Duration(fmt.Sprintf("scraper.%s.schedule.min", sc.ScrapeConfig().Type()), MinScraperSchedule)
+
+	// Attempt to get a fixed interval from the schedule.
+	// NOTE: Only works for fixed interval schedules.
+	parsedSchedule, err := cron.ParseStandard(schedule)
+	if err == nil {
+		interval := time.Until(parsedSchedule.Next(time.Now()))
+		if interval < minScheduleAllowed {
+			newSchedule := fmt.Sprintf("@every %ds", int(minScheduleAllowed.Seconds()))
+			sc.Logger.Infof("[%s] scraper schedule %s too short, using minimum allowed %q", sc.ScrapeConfig().Name, schedule, newSchedule)
+
+			schedule = newSchedule
+		}
+	}
 
 	return &job.Job{
 		Name:         "Scraper",
