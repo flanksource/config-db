@@ -554,7 +554,7 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 		}
 	}
 
-	diff, err := generateDiff(ctx.Context, *newConf.Config, *prev.Config)
+	diff, err := GenerateDiff(ctx.Context, *newConf.Config, *prev.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate diff: %w", err)
 	}
