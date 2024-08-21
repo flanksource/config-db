@@ -23,7 +23,18 @@ endif
 tidy:
 	go mod tidy
 	git add go.mod go.sum
-	cd hack/generate-schemas && go mod tidy && 	git add go.mod go.sum
+
+# Generate OpenAPI schema
+.PHONY: gen-schemas
+gen-schemas:
+	cp go.mod hack/generate-schemas && \
+	cd hack/generate-schemas && \
+	go mod edit -module=github.com/flanksource/config-db/hack/generate-schemas && \
+	go mod edit -require=github.com/flanksource/config-db@v1.0.0 && \
+ 	go mod edit -replace=github.com/flanksource/config-db=../../ && \
+	go mod tidy && \
+	go run ./main.go
+
 
 docker:
 	docker build . -f build/Dockerfile -t ${IMG}
@@ -40,9 +51,6 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=chart/crds
 	$(GENERATE_SCHEMAS)
 
-.PHONY: gen-schemas
-gen-schemas:
-	$(GENERATE_SCHEMAS)
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
