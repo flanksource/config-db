@@ -56,7 +56,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 
 			for i := range scraped {
 				if scraped[i].Error != nil {
-					logger.Errorf("Error scraping %s: %v", scraped[i].ID, scraped[i].Error)
+					ctx.Errorf("Error scraping %s: %v", scraped[i].ID, scraped[i].Error)
 					ctx.JobHistory().AddError(scraped[i].Error.Error())
 				}
 			}

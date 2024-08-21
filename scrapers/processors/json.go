@@ -396,7 +396,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		}
 
 		if input.Config == nil {
-			logger.Errorf("nothing extracted %s: %v", input, input.Error)
+			ctx.Errorf("nothing extracted %s: %v", input, input.Error)
 			continue
 		}
 
