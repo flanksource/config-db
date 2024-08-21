@@ -1,10 +1,13 @@
 package api
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	dbModel "github.com/flanksource/config-db/db/models"
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 )
@@ -23,7 +26,10 @@ type ScrapeContext struct {
 func NewScrapeContext(ctx dutyCtx.Context) ScrapeContext {
 	return ScrapeContext{
 		Context: ctx.WithKubernetes(KubernetesClient),
-		temp:    &TempCache{},
+		temp: &TempCache{
+			items:    make(map[string]dbModel.ConfigItem),
+			notFound: make(map[string]bool),
+		},
 	}
 }
 
@@ -74,7 +80,17 @@ func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 
 func (ctx ScrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContext {
 	ctx.scrapeConfig = scraper
+
+	ctx.Context = ctx.Context.WithObject(*scraper)
 	return ctx
+}
+
+func (ctx ScrapeContext) WithTimeout(timeout time.Duration) (c ScrapeContext, cancel context.CancelFunc, cancelTimeout context.CancelFunc) {
+
+	ctx.Context, cancelTimeout = ctx.Context.WithTimeout(ctx.Properties().Duration("scraper.timeout", 4*time.Hour))
+	c2, cancel := context.WithCancel(ctx.Context)
+	ctx.Context = ctx.Context.Wrap(c2)
+	return ctx, cancel, cancelTimeout
 }
 
 func (ctx ScrapeContext) WithJobHistory(jobHistory *models.JobHistory) ScrapeContext {
