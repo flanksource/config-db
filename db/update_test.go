@@ -1,8 +1,11 @@
 package db
 
 import (
+	"fmt"
 	"os"
 	"reflect"
+	"runtime"
+	"runtime/debug"
 	"testing"
 	"time"
 
@@ -10,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 func Test_generateDiff(t *testing.T) {
@@ -42,7 +46,7 @@ func Test_generateDiff(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := generateDiff(readFile(t, tt.args.newConf), readFile(t, tt.args.prev))
+			got, err := generateDiff("go", readFile(t, tt.args.newConf), readFile(t, tt.args.prev))
 			if err != nil {
 				t.Errorf("generateDiff() error = %v", err)
 				return
@@ -124,5 +128,67 @@ func Test_dedupChanges(t *testing.T) {
 				t.Errorf("dedupChanges() = %v, nonDuped %v", nonDuped, tt.nonDuped)
 			}
 		})
+	}
+}
+
+// go test -benchmem -run=^$ -bench ^BenchmarkDiffGenerator$ github.com/flanksource/config-db/db -count=5 -benchtime=10s -v -memprofile memprofile.out -cpuprofile profile.out
+func BenchmarkDiffGenerator(b *testing.B) {
+	for _, c := range []struct {
+		gogc       int
+		memlimit   int64
+		normalizer string
+	}{
+		// {100, 1024 * 1024 * 1024, "go"},
+		// {50, 1024 * 1024 * 1024, "go"},
+		// {200, 1024 * 1024 * 1024, "go"},
+
+		{100, 1024 * 1024 * 1024, "oj"},
+		{50, 1024 * 1024 * 1024, "oj"},
+		{200, 1024 * 1024 * 1024, "oj"},
+
+		{100, 1024 * 1024 * 1024, "jq"},
+		{50, 1024 * 1024 * 1024, "jq"},
+		{200, 1024 * 1024 * 1024, "jq"},
+	} {
+
+		p, _ := process.NewProcess(int32(os.Getpid()))
+
+		_ = b.Run(fmt.Sprintf("GOMEMLIMIT=%dmb GOGC=%d, NORMALIZER=%s", c.memlimit/1024/1024, c.gogc, c.normalizer), func(b *testing.B) {
+
+			before, err := os.ReadFile("testdata/6mb.json")
+			if err != nil {
+				b.Fatalf("failed to open file echo-server.json: %v", err)
+			}
+
+			after, err := os.ReadFile("testdata/6mb-new.json")
+			if err != nil {
+				b.Fatalf("failed to open file echo-server.json: %v", err)
+			}
+
+			debug.SetGCPercent(c.gogc)
+			debug.SetMemoryLimit(c.memlimit)
+			debug.FreeOSMemory()
+
+			var start, end runtime.MemStats
+			runtime.ReadMemStats(&start)
+
+			b.ResetTimer()
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				_, _ = generateDiff(c.normalizer, string(before), string(after))
+			}
+
+			runtime.ReadMemStats(&end)
+
+			mem, _ := p.MemoryInfo()
+			load, _ := p.CPUPercent()
+
+			b.ReportMetric(float64(mem.RSS/1024/1024), "rssMB")
+			b.ReportMetric(load, "cpu%")
+			b.ReportMetric(float64(len(before)/1024), "jsonKB")
+			b.ReportMetric(float64(end.NumGC-start.NumGC)/float64(b.N), "gc/op")
+		})
+
 	}
 }
