@@ -54,6 +54,7 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 			"file":           semaphore.NewWeighted(int64(sc.Properties().Int("scraper.file.concurrency", 10))),
 			"gcp":            semaphore.NewWeighted(int64(sc.Properties().Int("scraper.gcp.concurrency", 2))),
 			"githubactions":  semaphore.NewWeighted(int64(sc.Properties().Int("scraper.githubactions.concurrency", 5))),
+			"http":           semaphore.NewWeighted(int64(sc.Properties().Int("scraper.http.concurrency", 10))),
 			"kubernetes":     semaphore.NewWeighted(int64(sc.Properties().Int("scraper.kubernetes.concurrency", 3))),
 			"kubernetesfile": semaphore.NewWeighted(int64(sc.Properties().Int("scraper.kubernetesfile.concurrency", 3))),
 			"slack":          semaphore.NewWeighted(int64(sc.Properties().Int("scraper.slack.concurrency", 5))),
@@ -185,13 +186,19 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 		}
 	}
 
+	semaphores := []*semaphore.Weighted{globalScraperSempahore}
+	if s, ok := scraperTypeSemaphores[sc.ScrapeConfig().Type()]; ok {
+		// Only when the scraper type is known we add the per type semaphore
+		semaphores = append([]*semaphore.Weighted{s}, semaphores...)
+	}
+
 	return &job.Job{
 		Name:         "Scraper",
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", sc.ScrapeConfig()),
 		Schedule:     schedule,
 		Singleton:    true,
 		JobHistory:   true,
-		Semaphores:   []*semaphore.Weighted{scraperTypeSemaphores[sc.ScrapeConfig().Type()], globalScraperSempahore},
+		Semaphores:   semaphores,
 		RunNow:       sc.PropertyOn(false, "runNow"),
 		Retention:    job.RetentionBalanced,
 		ResourceID:   sc.ScrapeConfig().GetPersistedID().String(),
