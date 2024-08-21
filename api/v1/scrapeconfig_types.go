@@ -80,6 +80,9 @@ func (t *ScrapeConfig) Type() string {
 	if len(t.Spec.Terraform) != 0 {
 		return "terraform"
 	}
+	if len(t.Spec.HTTP) != 0 {
+		return "http"
+	}
 	return ""
 }
 
