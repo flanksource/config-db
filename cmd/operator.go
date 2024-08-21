@@ -45,7 +45,7 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	ctx, closer, err := duty.Start("config-db")
+	ctx, closer, err := duty.Start("config-db", duty.SkipMigrationByDefaultMode)
 	if err != nil {
 		logger.Fatalf("Failed to initialize db: %v", err.Error())
 	}
