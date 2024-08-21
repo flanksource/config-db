@@ -18,6 +18,7 @@ package v1
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/flanksource/duty/models"
@@ -41,6 +42,18 @@ type ScrapeConfig struct {
 
 	Spec   ScraperSpec        `json:"spec,omitempty"`
 	Status ScrapeConfigStatus `json:"status,omitempty"`
+}
+
+func (t ScrapeConfig) LoggerName() string {
+	return fmt.Sprintf("kubernetes.%s.%s", t.Namespace, t.Name)
+}
+
+func (t ScrapeConfig) GetContext() map[string]any {
+	return map[string]any{
+		"namespace":  t.Namespace,
+		"name":       t.Name,
+		"scraper_id": t.GetPersistedID(),
+	}
 }
 
 func (t *ScrapeConfig) Type() string {

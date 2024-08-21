@@ -107,7 +107,6 @@ func (e ExternalID) GetKubernetesUID() string {
 	}
 
 	return ""
-
 }
 
 func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
