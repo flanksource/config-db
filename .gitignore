@@ -6,9 +6,10 @@ config-db
 scraped/
 
 .config-db
-cover.out
 ginkgo.report
 
 config-db.properties
 
 *.gob
+*.out
+*.test

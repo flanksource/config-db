@@ -3,10 +3,12 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
@@ -556,11 +558,19 @@ func normalizeJSON(jsonStr string) (string, error) {
 	return string(jsonStrIndented), nil
 }
 
+var diffCounter atomic.Uint64
+
 // generateDiff calculates the diff (git style) between the given 2 configs.
 func generateDiff(newConf, prevConfig string) (string, error) {
+	count := diffCounter.Add(1)
+	if count%500 == 0 {
+		debug.FreeOSMemory()
+	}
+
 	if newConf == prevConfig {
 		return "", nil
 	}
+
 	// We want a nicely indented json config with each key-vals in new line
 	// because that gives us a better diff. A one-line json string config produces diff
 	// that's not very helpful.
@@ -572,6 +582,11 @@ func generateDiff(newConf, prevConfig string) (string, error) {
 	after, err := normalizeJSON(newConf)
 	if err != nil {
 		return "", fmt.Errorf("failed to normalize json for new config: %w", err)
+	}
+
+	// Compare again. They might be equal after normalization.
+	if newConf == prevConfig {
+		return "", nil
 	}
 
 	edits := myers.ComputeEdits("", before, after)
