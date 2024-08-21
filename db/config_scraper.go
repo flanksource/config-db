@@ -84,7 +84,7 @@ func PersistScrapeConfigFromCRD(ctx context.Context, scrapeConfig *v1.ScrapeConf
 	if existing.ID == uuid.Nil {
 		changed = true
 	} else {
-		change, err := generateDiff(existing.Spec, spec)
+		change, err := generateDiff(ctx, existing.Spec, spec)
 		if err != nil {
 			return changed, err
 		}

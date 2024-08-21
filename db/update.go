@@ -27,8 +27,6 @@ import (
 	"github.com/flanksource/gomplate/v3"
 	"github.com/flanksource/is-healthy/events"
 	"github.com/google/uuid"
-	"github.com/hexops/gotextdiff"
-	"github.com/hexops/gotextdiff/myers"
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -125,7 +123,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	if err != nil {
 		ctx.Errorf("[%s] failed to check for changes: %v", ci, err)
 	} else if changeResult != nil {
-		ctx.Logger.V(3).Infof("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
+		ctx.Logger.V(3).Infof("[%s/%s] detected changes %v", *ci.Type, ci.ExternalID[0], lo.FromPtr(changeResult.Diff))
 		result.Changes = []v1.ChangeResult{*changeResult}
 		if newChanges, _, _, err := extractChanges(ctx, &result, ci); err != nil {
 			return false, nil, err
@@ -133,6 +131,10 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 			changes = append(changes, newChanges...)
 		}
 
+		if lo.IsEmpty(ci.Config) || lo.FromPtr(ci.Config) == "null" {
+			ctx.Warnf("config is empty, skipping update: %s", *ci)
+			return false, nil, nil
+		}
 		updates["config"] = *ci.Config
 		updates["updated_at"] = gorm.Expr("NOW()")
 	}
@@ -540,49 +542,6 @@ func updateLastScrapedTime(ctx api.ScrapeContext, ids []string) error {
 	return nil
 }
 
-// normalizeJSON returns an indented json string.
-// The keys are sorted lexicographically.
-func normalizeJSON(jsonStr string) (string, error) {
-	var jsonStrMap map[string]any
-	if err := json.Unmarshal([]byte(jsonStr), &jsonStrMap); err != nil {
-		return "", err
-	}
-
-	jsonStrIndented, err := json.MarshalIndent(jsonStrMap, "", "\t")
-	if err != nil {
-		return "", err
-	}
-
-	return string(jsonStrIndented), nil
-}
-
-// generateDiff calculates the diff (git style) between the given 2 configs.
-func generateDiff(newConf, prevConfig string) (string, error) {
-	if newConf == prevConfig {
-		return "", nil
-	}
-	// We want a nicely indented json config with each key-vals in new line
-	// because that gives us a better diff. A one-line json string config produces diff
-	// that's not very helpful.
-	before, err := normalizeJSON(prevConfig)
-	if err != nil {
-		return "", fmt.Errorf("failed to normalize json for previous config: %w", err)
-	}
-
-	after, err := normalizeJSON(newConf)
-	if err != nil {
-		return "", fmt.Errorf("failed to normalize json for new config: %w", err)
-	}
-
-	edits := myers.ComputeEdits("", before, after)
-	if len(edits) == 0 {
-		return "", nil
-	}
-
-	diff := fmt.Sprint(gotextdiff.ToUnified("before", "after", before, edits))
-	return diff, nil
-}
-
 // generateConfigChange calculates the diff (git style) and patches between the
 // given 2 config items and returns a ConfigChange object if there are any changes.
 func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem) (*v1.ChangeResult, error) {
@@ -595,11 +554,7 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 		}
 	}
 
-	if ctx.PropertyOn(false, "diff.disable") {
-		return nil, nil
-	}
-
-	diff, err := generateDiff(*newConf.Config, *prev.Config)
+	diff, err := generateDiff(ctx.Context, *newConf.Config, *prev.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate diff: %w", err)
 	}
