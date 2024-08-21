@@ -5,6 +5,11 @@ import (
 	"strings"
 
 	"github.com/flanksource/config-db/utils"
+
+	"github.com/google/uuid"
+	"github.com/lib/pq"
+
+	"gorm.io/gorm"
 )
 
 var AllScraperConfigs = map[string]any{
@@ -87,6 +92,37 @@ type ExternalID struct {
 	// If left empty, the scraper id is the requester's scraper id.
 	// Use `all` to disregard scraper id.
 	ScraperID string
+}
+
+func (e ExternalID) GetKubernetesUID() string {
+	configType := strings.ToLower(e.ConfigType)
+	if strings.HasPrefix(configType, "kubernetes::") ||
+		strings.HasPrefix(configType, "crossplane::") ||
+		strings.HasPrefix(configType, "argo::") ||
+		strings.HasPrefix(configType, "flux::") {
+
+		if uuid.Validate(e.ExternalID[0]) == nil {
+			return e.ExternalID[0]
+		}
+	}
+
+	return ""
+
+}
+
+func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
+	query := db.Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("external_id @> ?", pq.StringArray(e.ExternalID))
+	if e.ConfigType != "" {
+		query = query.Where("type = ?", e.ConfigType)
+	}
+	if e.ScraperID != "all" && e.ScraperID != "" {
+		query = query.Where("scraper_id = ?", e.ScraperID)
+	}
+	return query
+}
+
+func (e ExternalID) Key() string {
+	return fmt.Sprintf("%s%s%s", strings.ToLower(e.ConfigType), strings.ToLower(strings.Join(e.ExternalID, ",")), e.ScraperID)
 }
 
 func (e ExternalID) String() string {
