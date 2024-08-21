@@ -4,18 +4,22 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty/context"
-	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/samber/lo"
 )
 
+func init() {
+	logger.SkipFrameSuffixes = append(logger.SkipFrameSuffixes, "api/cache.go")
+}
+
 // TempCache is a temporary cache of config items that is used to speed up config item lookups during scrape, when all config items for a scraper are looked up any way
 type TempCache struct {
-	items   map[string]models.ConfigItem
-	aliases map[string]string
+	items    map[string]models.ConfigItem
+	aliases  map[string]string
+	notFound map[string]bool
 }
 
 func (t *TempCache) FindExternalID(ctx ScrapeContext, ext v1.ExternalID) (string, error) {
@@ -28,38 +32,42 @@ func (t *TempCache) FindExternalID(ctx ScrapeContext, ext v1.ExternalID) (string
 }
 
 func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.ConfigItem, error) {
-	configType := strings.ToLower(lookup.ConfigType)
-	externalID := lookup.ExternalID[0]
-	scraperID := lo.CoalesceOrEmpty(lookup.ScraperID, string(ctx.ScrapeConfig().GetUID()))
 
-	if strings.HasPrefix(configType, "kubernetes::") && uuid.Validate(externalID) == nil {
+	if lookup.ScraperID == "" {
+		lookup.ScraperID = string(ctx.ScrapeConfig().GetUID())
+	}
+
+	if notFound, ok := t.notFound[lookup.Key()]; ok && notFound {
+		return nil, nil
+	}
+
+	if uid := lookup.GetKubernetesUID(); uid != "" {
 		// kubernetes external ids are stored are the same as the config ids
-		return t.Get(ctx, externalID)
+		return t.Get(ctx, uid)
 	}
 
 	if t.aliases == nil {
 		t.aliases = make(map[string]string)
 	}
 
-	if alias, ok := t.aliases[scraperID+configType+externalID]; ok {
+	if alias, ok := t.aliases[lookup.Key()]; ok {
 		return t.Get(ctx, alias)
 	}
 
 	var result models.ConfigItem
-	query := ctx.DB().Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("external_id @> ?", pq.StringArray{externalID})
-	if lookup.ConfigType != "" {
-		query = query.Where("type = ?", lookup.ConfigType)
-	}
-	if scraperID != "all" && scraperID != "" {
-		query = query.Where("scraper_id = ?", scraperID)
-	}
-	if err := query.Find(&result).Error; err != nil {
+	if err := lookup.Find(ctx.DB()).Find(&result).Error; err != nil {
 		return nil, err
 	}
 
 	if result.ID != "" {
 		t.Insert(result)
 		return &result, nil
+	} else {
+
+		if t.notFound == nil {
+			t.notFound = make(map[string]bool)
+		}
+		t.notFound[lookup.Key()] = true
 	}
 
 	return nil, nil
@@ -82,6 +90,12 @@ func (t *TempCache) Insert(item models.ConfigItem) {
 	}
 
 	t.items[strings.ToLower(item.ID)] = item
+	delete(t.notFound, strings.ToLower(item.ID))
+	delete(t.notFound, v1.ExternalID{
+		ConfigType: lo.FromPtr(item.Type),
+		ExternalID: []string(item.ExternalID),
+		ScraperID:  lo.FromPtr(item.ScraperID).String(),
+	}.Key())
 }
 
 func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error) {
@@ -89,9 +103,15 @@ func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error
 	if id == "" {
 		return nil, nil
 	}
+
+	if notFound := t.notFound[id]; notFound {
+		return nil, nil
+	}
+
 	if t.items == nil {
 		t.items = make(map[string]models.ConfigItem)
 	}
+
 	if item, ok := t.items[id]; ok {
 		return &item, nil
 	}
@@ -100,9 +120,15 @@ func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error
 	if err := ctx.DB().Limit(1).Find(&result, "id = ? ", id).Error; err != nil {
 		return nil, err
 	}
+
 	if result.ID != "" {
 		t.Insert(result)
 		return &result, nil
+	} else {
+		if t.notFound == nil {
+			t.notFound = make(map[string]bool)
+		}
+		t.notFound[id] = true
 	}
 
 	return nil, nil
