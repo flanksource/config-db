@@ -16,7 +16,6 @@ import (
 // NormalizeJSON returns an indented json string.
 // The keys are sorted lexicographically.
 func NormalizeJSONOj(object any) (string, error) {
-
 	data := object
 	switch v := object.(type) {
 	case string:
@@ -34,7 +33,6 @@ func NormalizeJSONOj(object any) (string, error) {
 }
 
 func NormalizeJSONJQ(object any) (string, error) {
-
 	data := object
 	switch v := object.(type) {
 	case string:
@@ -74,19 +72,24 @@ func NormalizeJSON(object any) (string, error) {
 }
 
 // generateDiff calculates the diff (git style) between the given 2 configs.
-func generateDiff(ctx dutyContext.Context, newConf, prevConfig string) (string, error) {
+func GenerateDiff(ctx dutyContext.Context, newConf, prevConfig string) (string, error) {
 	if ctx.Properties().On(false, "scraper.diff.disable") {
 		return "", nil
 	}
+
+	return generateDiff(ctx.Properties().String("scraper.diff.normalizer", "go"), newConf, prevConfig)
+}
+
+func generateDiff(normalizerName, newConf, prevConfig string) (string, error) {
 
 	if newConf == prevConfig {
 		return "", nil
 	}
 
 	normalizer := NormalizeJSON
-	if name := ctx.Properties().String("scraper.diff.normalizer", "go"); name == "oj" {
+	if normalizerName == "oj" {
 		normalizer = NormalizeJSONOj
-	} else if name == "jq" {
+	} else if normalizerName == "jq" {
 		normalizer = NormalizeJSONJQ
 	}
 
