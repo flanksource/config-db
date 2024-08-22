@@ -58,6 +58,7 @@ var Root = &cobra.Command{
 			return fmt.Errorf("failed to load properties: %v", err)
 		}
 
+		properties.LoadFile("config-db.properties")
 		var err error
 		if api.KubernetesClient, api.KubernetesRestConfig, err = kube.NewK8sClient(); err != nil {
 			logger.Errorf("failed to get kubernetes client: %v", err)

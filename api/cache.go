@@ -19,7 +19,7 @@ func init() {
 type TempCache struct {
 	items    map[string]models.ConfigItem
 	aliases  map[string]string
-	notFound map[string]bool
+	notFound map[string]struct{}
 }
 
 func (t *TempCache) FindExternalID(ctx ScrapeContext, ext v1.ExternalID) (string, error) {
@@ -37,7 +37,7 @@ func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.Confi
 		lookup.ScraperID = string(ctx.ScrapeConfig().GetUID())
 	}
 
-	if notFound, ok := t.notFound[lookup.Key()]; ok && notFound {
+	if _, ok := t.notFound[lookup.Key()]; ok {
 		return nil, nil
 	}
 
@@ -65,9 +65,9 @@ func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.Confi
 	} else {
 
 		if t.notFound == nil {
-			t.notFound = make(map[string]bool)
+			t.notFound = make(map[string]struct{})
 		}
-		t.notFound[lookup.Key()] = true
+		t.notFound[lookup.Key()] = struct{}{}
 	}
 
 	return nil, nil
@@ -104,7 +104,7 @@ func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error
 		return nil, nil
 	}
 
-	if notFound := t.notFound[id]; notFound {
+	if _, notFound := t.notFound[id]; notFound {
 		return nil, nil
 	}
 
@@ -126,9 +126,9 @@ func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error
 		return &result, nil
 	} else {
 		if t.notFound == nil {
-			t.notFound = make(map[string]bool)
+			t.notFound = make(map[string]struct{})
 		}
-		t.notFound[id] = true
+		t.notFound[id] = struct{}{}
 	}
 
 	return nil, nil
