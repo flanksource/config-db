@@ -3,19 +3,14 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 
-	"github.com/flanksource/duty/types"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/utils/kube"
 )
 
 var (
@@ -61,21 +56,18 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	deleteBuffer := make(chan string, WatchResourceBufferSize)
 	DeleteResourceBuffer.Store(config.Hash(), deleteBuffer)
 
-	var err error
 	var kubeconfig string
 	if config.Kubeconfig != nil {
-		ctx, _, err = applyKubeconfig(ctx, *config.Kubeconfig)
+		var err error
+		c, err := ctx.WithKubeconfig(*config.Kubeconfig)
 		if err != nil {
-			return fmt.Errorf("failed to apply custom kube config(%s): %w", config.Kubeconfig, err)
+			return fmt.Errorf("failed to apply kube config: %w", err)
 		}
-		kubeconfig, err = ctx.GetEnvValueFromCache(*config.Kubeconfig, ctx.Namespace())
-		if err != nil {
-			return fmt.Errorf("failed to get kubeconfig from env: %w", err)
-		}
+		ctx.Context = *c
 	}
 
 	for _, watchResource := range lo.Uniq(config.Watch) {
-		if err := globalSharedInformerManager.Register(ctx, kubeconfig, watchResource, buffer, deleteBuffer); err != nil {
+		if err := globalSharedInformerManager.Register(ctx, watchResource, buffer, deleteBuffer); err != nil {
 			return fmt.Errorf("failed to register informer: %w", err)
 		}
 	}
@@ -100,10 +92,11 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 
 	if config.Kubeconfig != nil {
 		var err error
-		ctx, _, err = applyKubeconfig(ctx, *config.Kubeconfig)
+		c, err := ctx.WithKubeconfig(*config.Kubeconfig)
 		if err != nil {
 			return fmt.Errorf("failed to apply kube config: %w", err)
 		}
+		ctx.Context = *c
 	}
 
 	listOpt := metav1.ListOptions{}
@@ -133,29 +126,4 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	}
 
 	return nil
-}
-
-func applyKubeconfig(ctx api.ScrapeContext, kubeConfig types.EnvVar) (api.ScrapeContext, *rest.Config, error) {
-	val, err := ctx.GetEnvValueFromCache(kubeConfig, ctx.Namespace())
-	if err != nil {
-		return ctx, nil, fmt.Errorf("failed to get kubeconfig from env: %w", err)
-	}
-
-	var client kubernetes.Interface
-	var restConfig *rest.Config
-	if strings.HasPrefix(val, "/") {
-		client, restConfig, err = kube.NewKubeClientWithConfigPath(val)
-		if err != nil {
-			return ctx, nil, fmt.Errorf("failed to initialize kubernetes client from the provided kubeconfig: %w", err)
-		}
-	} else {
-		client, restConfig, err = kube.NewKubeClientWithConfig(val)
-		if err != nil {
-			return ctx, nil, fmt.Errorf("failed to initialize kubernetes client from the provided kubeconfig: %w", err)
-		}
-	}
-
-	ctx.Context = ctx.WithKubernetes(client)
-
-	return ctx, restConfig, nil
 }

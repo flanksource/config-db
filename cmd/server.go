@@ -5,19 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"os/signal"
 	"slices"
 	"time"
 
-	"net/http/pprof"
-
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -25,7 +19,9 @@ import (
 	"github.com/flanksource/duty"
 	dutyAPI "github.com/flanksource/duty/api"
 	dutyContext "github.com/flanksource/duty/context"
+	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/postgrest"
+	"github.com/flanksource/duty/shutdown"
 
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
@@ -57,10 +53,6 @@ var Serve = &cobra.Command{
 			return errors.New("migrations not run, waiting for mission-control pod to start")
 		}
 
-		if err := properties.LoadFile(propertiesFile); err != nil {
-			return fmt.Errorf("failed to load properties: %v", err)
-		}
-
 		dedupWindow := api.DefaultContext.Properties().Duration("changes.dedup.window", time.Hour)
 		if err := db.InitChangeFingerprintCache(api.DefaultContext, dedupWindow); err != nil {
 			return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
@@ -73,6 +65,8 @@ var Serve = &cobra.Command{
 
 func serve(configFiles []string) {
 	e := echo.New()
+
+	dutyEcho.AddDebugHandlers(e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
 	e.Use(otelecho.Middleware("config-db", otelecho.WithSkipper(telemetryURLSkipper)))
 
 	if logger.IsTraceEnabled() {
@@ -110,23 +104,9 @@ func serve(configFiles []string) {
 	go startScraperCron(configFiles)
 
 	go jobs.ScheduleJobs(api.DefaultContext.DutyContext())
-	AddShutdownHook(jobs.Stop)
+	shutdown.AddHook(jobs.Stop)
 
-	// Add pprof routes with localhost restriction
-	pprofGroup := e.Group("/debug/pprof")
-	pprofGroup.Use(restrictToLocalhost)
-	pprofGroup.GET("/*", echo.WrapHandler(http.HandlerFunc(pprof.Index)))
-	pprofGroup.GET("/cmdline*", echo.WrapHandler(http.HandlerFunc(pprof.Cmdline)))
-	pprofGroup.GET("/profile*", echo.WrapHandler(http.HandlerFunc(pprof.Profile)))
-	pprofGroup.GET("/symbol*", echo.WrapHandler(http.HandlerFunc(pprof.Symbol)))
-	pprofGroup.GET("/trace*", echo.WrapHandler(http.HandlerFunc(pprof.Trace)))
-
-	e.GET("/properties", func(c echo.Context) error {
-		props := api.DefaultContext.Properties().SupportedProperties()
-		return c.JSON(200, props)
-	})
-
-	AddShutdownHook(func() {
+	shutdown.AddHook(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 		defer cancel()
 
@@ -135,14 +115,7 @@ func serve(configFiles []string) {
 		}
 	})
 
-	go func() {
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, os.Interrupt)
-		<-quit
-		logger.Infof("Caught Ctrl+C")
-		// call shutdown hooks explicitly, post-run cleanup hooks will be a no-op
-		Shutdown()
-	}()
+	shutdown.WaitForSignal()
 
 	if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil && err != http.ErrServerClosed {
 		e.Logger.Fatal(err)
@@ -193,20 +166,4 @@ func init() {
 func telemetryURLSkipper(c echo.Context) bool {
 	pathsToSkip := []string{"/live", "/ready", "/metrics"}
 	return slices.Contains(pathsToSkip, c.Path())
-}
-
-// restrictToLocalhost is a middleware that restricts access to localhost
-func restrictToLocalhost(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		remoteIP := net.ParseIP(c.RealIP())
-		if remoteIP == nil {
-			return echo.NewHTTPError(http.StatusForbidden, "Invalid IP address")
-		}
-
-		if !remoteIP.IsLoopback() {
-			return echo.NewHTTPError(http.StatusForbidden, "Access restricted to localhost")
-		}
-
-		return next(c)
-	}
 }

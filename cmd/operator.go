@@ -52,7 +52,7 @@ func run(cmd *cobra.Command, args []string) error {
 	AddShutdownHook(closer)
 
 	dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
-	api.DefaultContext = api.NewScrapeContext(dutyCtx.WithKubernetes(api.KubernetesClient))
+	api.DefaultContext = api.NewScrapeContext(dutyCtx)
 
 	logger := logger.GetLogger("operator")
 	logger.SetLogLevel(k8sLogLevel)

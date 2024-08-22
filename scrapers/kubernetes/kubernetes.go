@@ -17,12 +17,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/flanksource/is-healthy/pkg/lua"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -64,17 +62,12 @@ func (kubernetes KubernetesScraper) IncrementalEventScrape(ctx api.ScrapeContext
 
 	var r v1.ScrapeResults
 	var err error
-	var restConfig *rest.Config
 	if config.Kubeconfig != nil {
-		ctx, restConfig, err = applyKubeconfig(ctx, *config.Kubeconfig)
+		c, err := ctx.WithKubeconfig(*config.Kubeconfig)
 		if err != nil {
 			return r.Errorf(err, "failed to apply custom kube config")
 		}
-	} else {
-		restConfig, err = kube.DefaultRestConfig()
-		if err != nil {
-			return r.Errorf(err, "failed to get default rest config")
-		}
+		ctx.Context = *c
 	}
 
 	var (
@@ -105,7 +98,7 @@ func (kubernetes KubernetesScraper) IncrementalEventScrape(ctx api.ScrapeContext
 		if _, ok := seenObjects[cacheKey]; !ok {
 			kclient, ok := kindClientCache[resource.APIVersion+resource.Kind]
 			if !ok {
-				kclient, err = kube.GetClientByGroupVersionKind(restConfig, resource.APIVersion, resource.Kind)
+				kclient, err = ctx.KubernetesDynamicClient().GetClientByKind(resource.Kind)
 				if err != nil {
 					continue
 				}
