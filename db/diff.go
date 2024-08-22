@@ -3,8 +3,6 @@ package db
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
-	"strings"
 
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/hexops/gotextdiff"
@@ -29,25 +27,17 @@ func NormalizeJSONOj(object any) (string, error) {
 		data = jsonStrMap
 	}
 
-	return oj.JSON(data, ojg.GoOptions), nil
-}
-
-func NormalizeJSONJQ(object any) (string, error) {
-	data := object
-	switch v := object.(type) {
-	case string:
-		cmd := exec.Command("jq", "--sort-keys", ".")
-		cmd.Stdin = strings.NewReader(v)
-		out, err := cmd.Output()
-		return string(out), err
+	out, err := oj.Marshal(data, &ojg.Options{
+		Indent:      2,
+		Sort:        true,
+		OmitNil:     true,
+		UseTags:     true,
+		FloatFormat: "%0.0f",
+	})
+	if err != nil {
+		return "", err
 	}
-
-	phase1, _ := json.Marshal(data)
-
-	cmd := exec.Command("jq", "--sort-keys", ".")
-	cmd.Stdin = strings.NewReader(string(phase1))
-	out, err := cmd.Output()
-	return string(out), err
+	return string(out), nil
 }
 
 // normalizeJSON returns an indented json string.
@@ -77,21 +67,15 @@ func GenerateDiff(ctx dutyContext.Context, newConf, prevConfig string) (string, 
 		return "", nil
 	}
 
-	return generateDiff(ctx.Properties().String("scraper.diff.normalizer", "go"), newConf, prevConfig)
+	return generateDiff(newConf, prevConfig)
 }
 
-func generateDiff(normalizerName, newConf, prevConfig string) (string, error) {
-
+func generateDiff(newConf, prevConfig string) (string, error) {
 	if newConf == prevConfig {
 		return "", nil
 	}
 
-	normalizer := NormalizeJSON
-	if normalizerName == "oj" {
-		normalizer = NormalizeJSONOj
-	} else if normalizerName == "jq" {
-		normalizer = NormalizeJSONJQ
-	}
+	normalizer := NormalizeJSONOj
 
 	// We want a nicely indented json config with each key-vals in new line
 	// because that gives us a better diff. A one-line json string config produces diff

@@ -1,9 +1,16 @@
 --- before
 +++ after
-@@ -1,4 +1,4 @@
+@@ -1,9 +1,9 @@
  {
--	"name": "Incident Commander",
-+	"name": "Mission Control",
- 	"stack": "Go"
+-  "bigint": 32493293274,
++  "bigint": 32493274893274,
+   "bool": true,
+   "date": "20223-01-01",
+   "float": 1,
+   "name": "Mission Control",
+-  "number": 2,
+-  "stack": "Golang"
++  "number": 1,
++  "stack": "Go"
  }
 \ No newline at end of file
