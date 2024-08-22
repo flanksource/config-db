@@ -59,7 +59,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fergusstrange/embedded-postgres v1.25.0 // indirect
 	github.com/flanksource/gomplate/v3 v3.24.22 // indirect
-	github.com/flanksource/is-healthy v1.0.26 // indirect
+	github.com/flanksource/is-healthy v1.0.28 // indirect
 	github.com/flanksource/kommons v0.31.4 // indirect
 	github.com/flanksource/kubectl-neat v1.0.4 // indirect
 	github.com/flanksource/mapstructure v1.6.0 // indirect
