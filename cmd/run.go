@@ -108,7 +108,7 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 
 func exportResource(resource v1.ScrapeResult, filename, outputDir string) error {
 	if resource.Config == nil && resource.AnalysisResult != nil {
-		logger.Debugf("%s/%s => %s", resource.Type, resource.ID, *resource.AnalysisResult)
+		// logger.Debugf("%s/%s => %s", resource.Type, resource.ID, *resource.AnalysisResult)
 		return nil
 	}
 
@@ -120,7 +120,7 @@ func exportResource(resource v1.ScrapeResult, filename, outputDir string) error 
 		if err != nil {
 			return err
 		}
-		logger.Debugf("Exporting %s (%dkb)", outputPath, len(data))
+		// logger.Debugf("Exporting %s (%dkb)", outputPath, len(data))
 		if err := os.WriteFile(outputPath, []byte(data), 0644); err != nil {
 			return err
 		}
@@ -130,14 +130,14 @@ func exportResource(resource v1.ScrapeResult, filename, outputDir string) error 
 		return nil
 	}
 
-	outputPath := path.Join(outputDir, resource.Type, resource.Name+".json")
+	outputPath := path.Join(outputDir, resource.Type, resource.Name+"-"+resource.ID[0:5]+".json")
 	_ = os.MkdirAll(path.Dir(outputPath), 0755)
-	data, err := db.NormalizeJSONOj(resource)
+	data, err := db.NormalizeJSON(resource)
 	if err != nil {
 		return err
 	}
 
-	logger.Debugf("Exporting %s (%dkb)", outputPath, len(data)/1024)
+	// logger.Debugf("Exporting %s (%dkb)", outputPath, len(data)/1024)
 	return os.WriteFile(outputPath, []byte(data), 0644)
 }
 
