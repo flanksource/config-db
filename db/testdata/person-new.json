@@ -1,8 +1,8 @@
 {
   "address": {
     "city": "Kathmandu",
-    "state": "Bagmati",
     "street": "Baneshwor",
+    "state": "Bagmati",
     "zip": "44600"
   },
   "age": 31,

@@ -2,18 +2,18 @@
 +++ after
 @@ -1,11 +1,11 @@
  {
- 	"address": {
--		"city": "Anytown",
--		"state": "CA",
--		"street": "123 Main St",
--		"zip": "12345"
-+		"city": "Kathmandu",
-+		"state": "Bagmati",
-+		"street": "Baneshwor",
-+		"zip": "44600"
- 	},
--	"age": 30,
-+	"age": 31,
- 	"email": "john.smith@example.com",
- 	"isVerified": true,
- 	"name": "John Smith"
+   "address": {
+-    "city": "Anytown",
+-    "state": "CA",
+-    "street": "123 Main St",
+-    "zip": "12345"
++    "city": "Kathmandu",
++    "state": "Bagmati",
++    "street": "Baneshwor",
++    "zip": "44600"
+   },
+-  "age": 30,
++  "age": 31,
+   "email": "john.smith@example.com",
+   "isVerified": true,
+   "name": "John Smith"
