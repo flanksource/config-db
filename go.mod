@@ -52,7 +52,7 @@ require (
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/flanksource/artifacts v1.0.8
 	github.com/flanksource/commons v1.28.0
-	github.com/flanksource/duty v1.0.597
+	github.com/flanksource/duty v1.0.598
 	github.com/flanksource/is-healthy v1.0.28
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
@@ -86,7 +86,6 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.22.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.22.0
 	go.opentelemetry.io/otel/sdk v1.24.0
-	gopkg.in/flanksource/yaml.v3 v3.2.3
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.25.11
 	k8s.io/apimachinery v0.28.2
@@ -213,6 +212,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20240617180043-68d350f18fd4 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240624140628-dc46fd24d27d // indirect
 	gopkg.in/evanphx/json-patch.v5 v5.7.0 // indirect
+	gopkg.in/flanksource/yaml.v3 v3.2.3 // indirect
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 	gorm.io/driver/postgres v1.5.9 // indirect
 	gorm.io/plugin/prometheus v0.1.0 // indirect
