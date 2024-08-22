@@ -25,10 +25,10 @@ type ScrapeContext struct {
 
 func NewScrapeContext(ctx dutyCtx.Context) ScrapeContext {
 	return ScrapeContext{
-		Context: ctx.WithKubernetes(KubernetesClient),
+		Context: ctx,
 		temp: &TempCache{
 			items:    make(map[string]dbModel.ConfigItem),
-			notFound: make(map[string]bool),
+			notFound: make(map[string]struct{}),
 		},
 	}
 }

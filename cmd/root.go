@@ -5,8 +5,6 @@ import (
 	"os"
 	"strconv"
 
-	nethttp "net/http"
-
 	"github.com/flanksource/commons/http"
 	"github.com/flanksource/commons/properties"
 
@@ -18,21 +16,10 @@ import (
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/telemetry"
-	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/duty"
-	"github.com/google/gops/agent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
-
-func init() {
-	// disables default handlers registered by importing net/http/pprof.
-	nethttp.DefaultServeMux = nethttp.NewServeMux()
-
-	if err := agent.Listen(agent.Options{}); err != nil {
-		logger.Errorf(err.Error())
-	}
-}
 
 var dev bool
 var httpPort, metricsPort, devGuiPort int
@@ -54,16 +41,6 @@ var (
 var Root = &cobra.Command{
 	Use: "config-db",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if err := properties.LoadFile(propertiesFile); err != nil {
-			return fmt.Errorf("failed to load properties: %v", err)
-		}
-
-		properties.LoadFile("config-db.properties")
-		var err error
-		if api.KubernetesClient, api.KubernetesRestConfig, err = kube.NewK8sClient(); err != nil {
-			logger.Errorf("failed to get kubernetes client: %v", err)
-		}
-
 		if api.UpstreamConfig.Valid() {
 			api.UpstreamConfig.Options = append(api.UpstreamConfig.Options, func(c *http.Client) {
 				c.UserAgent(fmt.Sprintf("config-db %s", version))
@@ -118,6 +95,9 @@ func ServerFlags(flags *pflag.FlagSet) {
 }
 
 func init() {
+	if err := properties.LoadFile(propertiesFile); err != nil {
+		logger.Warnf("Failed to load properties file %v", err)
+	}
 	logger.BindFlags(Root.PersistentFlags())
 
 	if len(commit) > 8 {

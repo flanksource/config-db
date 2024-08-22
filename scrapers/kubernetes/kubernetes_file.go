@@ -10,7 +10,6 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils/kube"
-	"k8s.io/client-go/rest"
 
 	appsv1 "k8s.io/api/apps/v1"
 	k8sv1 "k8s.io/api/core/v1"
@@ -124,21 +123,16 @@ func (kubernetes KubernetesFileScraper) CanScrape(configs v1.ScraperSpec) bool {
 
 // Scrape ...
 func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
-	var err error
 	results := v1.ScrapeResults{}
 
 	for _, config := range ctx.ScrapeConfig().Spec.KubernetesFile {
-		var restConfig *rest.Config
+
 		if config.Kubeconfig != nil {
-			ctx, restConfig, err = applyKubeconfig(ctx, *config.Kubeconfig)
+			c, err := ctx.WithKubeconfig(*config.Kubeconfig)
 			if err != nil {
 				return results.Errorf(err, "failed to apply custom kube config")
 			}
-		} else {
-			restConfig, err = kube.DefaultRestConfig()
-			if err != nil {
-				return results.Errorf(err, "failed to get default rest config")
-			}
+			ctx.Context = *c
 		}
 
 		if config.Selector.Kind == "" {
@@ -213,7 +207,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 		for _, pod := range pods {
 			for _, file := range pod.Config.Files {
 				for _, p := range file.Path {
-					stdout, _, err := kube.ExecutePodf(ctx, ctx.Kubernetes(), restConfig, pod.Namespace, pod.Name, pod.Container, "cat", p)
+					stdout, _, err := ctx.KubernetesDynamicClient().ExecutePodf(ctx, pod.Namespace, pod.Name, pod.Container, "cat", p)
 					if err != nil {
 						results.Errorf(err, "Failed to fetch %s/%s/%s: %v", pod.Namespace, pod.Name, pod.Container, p)
 						continue

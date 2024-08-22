@@ -36,10 +36,10 @@ type SharedInformerManager struct {
 
 type DeleteObjHandler func(ctx context.Context, id string) error
 
-func (t *SharedInformerManager) Register(ctx api.ScrapeContext, kubeconfig string, watchResource v1.KubernetesResourceToWatch, buffer chan<- *unstructured.Unstructured, deleteBuffer chan<- string) error {
+func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, buffer chan<- *unstructured.Unstructured, deleteBuffer chan<- string) error {
 	apiVersion, kind := watchResource.ApiVersion, watchResource.Kind
 
-	informer, stopper, isNew := t.getOrCreate(ctx, kubeconfig, apiVersion, kind)
+	informer, stopper, isNew := t.getOrCreate(ctx, apiVersion, kind)
 	if informer == nil {
 		return fmt.Errorf("could not find informer for: apiVersion=%v kind=%v", apiVersion, kind)
 	}
@@ -97,11 +97,12 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, kubeconfig strin
 }
 
 // getOrCreate returns an existing shared informer instance or creates & returns a new one.
-func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, kubeconfig, apiVersion, kind string) (cache.SharedInformer, chan struct{}, bool) {
+func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, kind string) (cache.SharedInformer, chan struct{}, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	cacheKey := apiVersion + kind
+	kubeconfig := ctx.KubernetesRestConfig().Host
 
 	if val, ok := t.cache[kubeconfig]; ok {
 		if data, ok := val[cacheKey]; ok {
