@@ -1,4 +1,9 @@
 {
-  "name": "Incident Commander",
-  "stack": "Go"
+  "name": "Mission Control",
+  "stack": "Golang",
+  "number": 2,
+  "date": "20223-01-01",
+  "bool": true,
+  "float": 1.1,
+  "bigint": 32493293274
 }

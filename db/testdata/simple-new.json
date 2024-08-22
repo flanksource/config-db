@@ -1,4 +1,10 @@
 {
   "name": "Mission Control",
-  "stack": "Go"
+  "stack": "Go",
+  "number": 1,
+  "date": "20223-01-01",
+  "bool": true,
+  "float": 1.1,
+  "bigint": 32493274893274
+
 }

@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"runtime/debug"
@@ -54,6 +55,7 @@ func Test_generateDiff(t *testing.T) {
 
 			wan := readFile(t, tt.want)
 			if diff := cmp.Diff(wan, got); diff != "" {
+				_ = os.WriteFile(tt.want+".actual", []byte(got), 0644)
 				t.Errorf("generateDiff() mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -138,32 +140,15 @@ func BenchmarkDiffGenerator(b *testing.B) {
 		memlimit   int64
 		normalizer string
 	}{
-		// {100, 1024 * 1024 * 1024, "go"},
-		// {50, 1024 * 1024 * 1024, "go"},
-		// {200, 1024 * 1024 * 1024, "go"},
 
-		{100, 1024 * 1024 * 1024, "oj"},
-		{50, 1024 * 1024 * 1024, "oj"},
-		{200, 1024 * 1024 * 1024, "oj"},
-
-		{100, 1024 * 1024 * 1024, "jq"},
-		{50, 1024 * 1024 * 1024, "jq"},
-		{200, 1024 * 1024 * 1024, "jq"},
+		{100, 1024 * 1024 * 1024, os.Getenv("NORMALIZER")},
+		// {50, 1024 * 1024 * 1024, os.Getenv("NORMALIZER")},
+		// {200, 1024 * 1024 * 1024, os.Getenv("NORMALIZER")},
 	} {
 
 		p, _ := process.NewProcess(int32(os.Getpid()))
 
 		_ = b.Run(fmt.Sprintf("GOMEMLIMIT=%dmb GOGC=%d, NORMALIZER=%s", c.memlimit/1024/1024, c.gogc, c.normalizer), func(b *testing.B) {
-
-			before, err := os.ReadFile("testdata/6mb.json")
-			if err != nil {
-				b.Fatalf("failed to open file echo-server.json: %v", err)
-			}
-
-			after, err := os.ReadFile("testdata/6mb-new.json")
-			if err != nil {
-				b.Fatalf("failed to open file echo-server.json: %v", err)
-			}
 
 			debug.SetGCPercent(c.gogc)
 			debug.SetMemoryLimit(c.memlimit)
@@ -174,19 +159,55 @@ func BenchmarkDiffGenerator(b *testing.B) {
 
 			b.ResetTimer()
 			b.ReportAllocs()
-
+			compared := 0
+			var totalSize int64
+			var root = "../testdata"
 			for i := 0; i < b.N; i++ {
-				_, _ = generateDiff(c.normalizer, string(before), string(after))
+				dirs, err := os.ReadDir(root)
+				if err != nil {
+					b.Fatal(err)
+				}
+				for _, dir := range dirs {
+					b.Log(dir.Name())
+					files, err := os.ReadDir(filepath.Join(root, dir.Name()))
+					if err != nil {
+						b.Fatal(err)
+					}
+
+					if len(files) < 2 {
+						continue
+					}
+
+					for i := 1; i < len(files); i++ {
+						f1 := files[i-1]
+						f2 := files[i]
+
+						b1, err := os.ReadFile(filepath.Join(root, dir.Name(), f1.Name()))
+						if err != nil {
+							b.Fatal(err)
+						}
+
+						b2, err := os.ReadFile(filepath.Join(root, dir.Name(), f2.Name()))
+						if err != nil {
+							b.Fatal(err)
+						}
+						compared++
+						info, _ := f1.Info()
+						totalSize += info.Size()
+
+						_, _ = generateDiff(c.normalizer, string(b1), string(b2))
+					}
+				}
 			}
 
 			runtime.ReadMemStats(&end)
 
 			mem, _ := p.MemoryInfo()
 			load, _ := p.CPUPercent()
-
+			b.ReportMetric(float64(compared), "files")
 			b.ReportMetric(float64(mem.RSS/1024/1024), "rssMB")
 			b.ReportMetric(load, "cpu%")
-			b.ReportMetric(float64(len(before)/1024), "jsonKB")
+			b.ReportMetric(float64(totalSize/int64(compared)/1024), "jsonAvgKB")
 			b.ReportMetric(float64(end.NumGC-start.NumGC)/float64(b.N), "gc/op")
 		})
 
