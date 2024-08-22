@@ -52,7 +52,7 @@ require (
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/flanksource/artifacts v1.0.8
 	github.com/flanksource/commons v1.28.0
-	github.com/flanksource/duty v1.0.596
+	github.com/flanksource/duty v1.0.597
 	github.com/flanksource/is-healthy v1.0.28
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
@@ -347,7 +347,7 @@ replace go.opentelemetry.io/otel/trace => go.opentelemetry.io/otel/trace v1.22.0
 
 // replace github.com/flanksource/commons => ../commons
 
-replace github.com/flanksource/duty => ../duty
+// replace github.com/flanksource/duty => ../duty
 
 // replace github.com/flanksource/ketall => ../ketall
 
