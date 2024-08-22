@@ -47,7 +47,7 @@ func Test_generateDiff(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := generateDiff("go", readFile(t, tt.args.newConf), readFile(t, tt.args.prev))
+			got, err := generateDiff(readFile(t, tt.args.newConf), readFile(t, tt.args.prev))
 			if err != nil {
 				t.Errorf("generateDiff() error = %v", err)
 				return
@@ -195,7 +195,7 @@ func BenchmarkDiffGenerator(b *testing.B) {
 						info, _ := f1.Info()
 						totalSize += info.Size()
 
-						_, _ = generateDiff(c.normalizer, string(b1), string(b2))
+						_, _ = generateDiff(string(b1), string(b2))
 					}
 				}
 			}
