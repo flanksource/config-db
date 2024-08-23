@@ -16,6 +16,8 @@ var (
 	UpstreamConfig upstream.UpstreamConfig
 )
 
+const MissionControlConfigTypePrefix = "MissionControl::"
+
 type Scraper interface {
 	Scrape(ctx ScrapeContext) v1.ScrapeResults
 	CanScrape(config v1.ScraperSpec) bool

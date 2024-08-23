@@ -1621,6 +1621,9 @@
         "sessionToken": {
           "$ref": "#/$defs/EnvVar"
         },
+        "assumeRole": {
+          "type": "string"
+        },
         "region": {
           "type": "string"
         },
@@ -1832,14 +1835,17 @@
           },
           "type": "array"
         },
-        "retention": {
-          "$ref": "#/$defs/RetentionSpec"
-        },
         "http": {
           "items": {
             "$ref": "#/$defs/HTTP"
           },
           "type": "array"
+        },
+        "crdSync": {
+          "type": "boolean"
+        },
+        "retention": {
+          "$ref": "#/$defs/RetentionSpec"
         },
         "full": {
           "type": "boolean"

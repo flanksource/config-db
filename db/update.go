@@ -33,6 +33,7 @@ import (
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const configItemsBulkInsertSize = 200
@@ -376,6 +377,143 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	return saveResults(ctx, results)
 }
 
+func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
+	for _, config := range configs {
+		if !strings.HasPrefix(*config.Type, api.MissionControlConfigTypePrefix) {
+			continue
+		}
+
+		if config.Name == nil || *config.Name == "" || config.Config == nil {
+			continue
+		}
+
+		ctx.Logger.V(3).Infof("syncing mission control crd: %s", config)
+
+		namespace := ctx.ScrapeConfig().Namespace
+		if ns := config.Tags["namespace"]; ns != "" {
+			namespace = ns
+		}
+
+		var obj unstructured.Unstructured
+		if err := obj.UnmarshalJSON([]byte(*config.Config)); err != nil {
+			return fmt.Errorf("config (%s) is not a kubernetes resource: %w", *config.Name, err)
+		}
+
+		spec, err := json.Marshal(obj.Object["spec"])
+		if err != nil {
+			return err
+		}
+
+		switch strings.TrimPrefix(*config.Type, api.MissionControlConfigTypePrefix) {
+		case "ScrapeConfig":
+			scrapeConfig := dutyModels.ConfigScraper{
+				Name:   fmt.Sprintf("%s/%s", namespace, *config.Name),
+				Spec:   string(spec),
+				Source: dutyModels.SourceUI,
+			}
+
+			if parsed, err := uuid.Parse(config.ID); err != nil {
+				scrapeConfig.ID = parsed
+			}
+
+			if description, _, err := unstructured.NestedString(obj.Object, "spec", "description"); err != nil {
+				return err
+			} else if description != "" {
+				scrapeConfig.Description = description
+			}
+
+			if err := ctx.DB().Save(&scrapeConfig).Error; err != nil {
+				return err
+			}
+
+		case "Playbook":
+			playbook := dutyModels.Playbook{
+				Namespace: namespace,
+				Name:      *config.Name,
+				Spec:      spec,
+				Source:    dutyModels.SourceUI,
+			}
+
+			if title, _, err := unstructured.NestedString(obj.Object, "spec", "title"); err != nil {
+				return err
+			} else if title != "" {
+				playbook.Title = title
+			}
+
+			if category, _, err := unstructured.NestedString(obj.Object, "spec", "category"); err != nil {
+				return err
+			} else if category != "" {
+				playbook.Category = category
+			}
+
+			if description, _, err := unstructured.NestedString(obj.Object, "spec", "description"); err != nil {
+				return err
+			} else if description != "" {
+				playbook.Description = description
+			}
+
+			if parsed, err := uuid.Parse(config.ID); err == nil {
+				playbook.ID = parsed
+			}
+
+			if err := ctx.DB().Save(&playbook).Error; err != nil {
+				return err
+			}
+
+		case "Notification":
+			// notification := dutyModels.Notification{
+			// 	Name:   *config.Name,
+			// 	Spec:   spec,
+			// 	Source: dutyModels.SourceUI,
+			// }
+
+			// if parsed, err := uuid.Parse(config.ID); err != nil {
+			// 	notification.ID = parsed
+			// }
+
+			// if err := ctx.DB().Save(&notification).Error; err != nil {
+			// 	return err
+			// }
+
+		case "Connection":
+			// connection := dutyModels.Connection{
+			// 	Name:      *config.Name,
+			// 	Namespace: namespace,
+			// 	Source:    dutyModels.SourceUI,
+			// }
+
+			// // TODO:
+
+			// if parsed, err := uuid.Parse(config.ID); err != nil {
+			// 	connection.ID = parsed
+			// }
+
+			// if err := ctx.DB().Save(&connection).Error; err != nil {
+			// 	return err
+			// }
+
+		case "Canary":
+			// canary := dutyModels.Canary{
+			// 	Name:      *config.Name,
+			// 	Namespace: namespace,
+			// 	Spec:      spec,
+			// 	Source:    dutyModels.SourceUI,
+			// }
+
+			// if parsed, err := uuid.Parse(config.ID); err != nil {
+			// 	canary.ID = parsed
+			// }
+
+			// if err := ctx.DB().Save(&canary).Error; err != nil {
+			// 	return err
+			// }
+
+		}
+	}
+
+	return nil
+}
+
 func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSummary, error) {
 	var summary = make(v1.ScrapeSummary)
 
@@ -428,6 +566,13 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	if err := updateLastScrapedTime(ctx, nonUpdatedConfigs); err != nil {
 		return summary, fmt.Errorf("failed to update last scraped time: %w", err)
+	}
+
+	if ctx.ScrapeConfig().Spec.CRDSync {
+		allScrapedConfigs := append(newConfigs, lo.Map(configsToUpdate, func(item *updateConfigArgs, _ int) *models.ConfigItem { return item.New })...)
+		if err := syncCRDChanges(ctx, allScrapedConfigs); err != nil {
+			return summary, fmt.Errorf("failed to sync CRD changes: %w", err)
+		}
 	}
 
 	dedupWindow := ctx.Properties().Duration("changes.dedup.window", time.Hour)

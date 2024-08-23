@@ -59,9 +59,14 @@ type ScraperSpec struct {
 	Slack          []Slack          `json:"slack,omitempty" yaml:"slack,omitempty"`
 	Trivy          []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
 	Terraform      []Terraform      `json:"terraform,omitempty" yaml:"trivy,omitempty"`
-	Retention      RetentionSpec    `json:"retention,omitempty"`
+	HTTP           []HTTP           `json:"http,omitempty"`
 
-	HTTP []HTTP `json:"http,omitempty"`
+	// CRDSync when set to true, will create (or update) the corresponding database records for all mission-control resources
+	// i.e. configs with type having prefix Flanksource::
+	// eg: MissionControl::Playbook, MissionControl::Connection, MissionControl::Notification
+	CRDSync bool `json:"crdSync,omitempty"`
+
+	Retention RetentionSpec `json:"retention,omitempty"`
 
 	// Full flag when set will try to extract out changes from the scraped config.
 	Full bool `json:"full,omitempty"`

@@ -1,0 +1,16 @@
+---
+apiVersion: mission-control.flanksource.com/v1
+kind: Playbook
+metadata:
+  name: echo-input-name
+  namespace: mc
+spec:
+  category: Echoer
+  description: Echos the input
+  parameters:
+    - name: name
+      label: Name
+  actions:
+    - name: Echo
+      exec:
+        script: echo "{{.params.name}}"

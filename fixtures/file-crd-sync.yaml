@@ -1,0 +1,12 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: playbook-syncer
+spec:
+  crdSync: true
+  file:
+    - type: MissionControl::Playbook
+      id: $.metadata.name
+      name: $.metadata.name
+      paths:
+        - fixtures/data/echo-playbook.yaml
