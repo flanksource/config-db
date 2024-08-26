@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"net/http"
@@ -46,12 +45,6 @@ var Serve = &cobra.Command{
 
 		dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
 		api.DefaultContext = api.NewScrapeContext(dutyCtx)
-
-		if ok, err := duty.HasMigrationsRun(cmd.Context(), api.DefaultContext.Pool()); err != nil {
-			return fmt.Errorf("failed to check if migrations have run: %w", err)
-		} else if !ok {
-			return errors.New("migrations not run, waiting for mission-control pod to start")
-		}
 
 		dedupWindow := api.DefaultContext.Properties().Duration("changes.dedup.window", time.Hour)
 		if err := db.InitChangeFingerprintCache(api.DefaultContext, dedupWindow); err != nil {

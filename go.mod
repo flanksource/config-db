@@ -25,8 +25,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager v1.0.0
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/aws/aws-sdk-go-v2 v1.30.4
-	github.com/aws/aws-sdk-go-v2/config v1.27.28
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.28
+	github.com/aws/aws-sdk-go-v2/config v1.27.29
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.29
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.53.3
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.42.3
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.48.3
@@ -46,13 +46,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sns v1.31.3
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.3
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.52.3
-	github.com/aws/aws-sdk-go-v2/service/sts v1.30.4
+	github.com/aws/aws-sdk-go-v2/service/sts v1.30.5
 	github.com/aws/aws-sdk-go-v2/service/support v1.24.3
 	github.com/aws/smithy-go v1.20.4
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/flanksource/artifacts v1.0.8
 	github.com/flanksource/commons v1.28.0
-	github.com/flanksource/duty v1.0.598
+	github.com/flanksource/duty v1.0.604
 	github.com/flanksource/is-healthy v1.0.28
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
@@ -72,15 +72,15 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.1
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/samber/lo v1.46.0
-	github.com/sethvargo/go-retry v0.2.4
+	github.com/samber/lo v1.47.0
+	github.com/sethvargo/go-retry v0.3.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.9.0
 	github.com/uber/athenadriver v1.1.14
 	github.com/xo/dburl v0.13.1
-	github.com/zclconf/go-cty v1.14.1
+	github.com/zclconf/go-cty v1.15.0
 	go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.51.0
 	go.opentelemetry.io/otel v1.26.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.22.0
@@ -123,7 +123,7 @@ require (
 	github.com/eko/gocache/lib/v4 v4.1.6 // indirect
 	github.com/eko/gocache/store/go_cache/v4 v4.2.2 // indirect
 	github.com/evanphx/json-patch/v5 v5.7.0 // indirect
-	github.com/exaring/otelpgx v0.5.2 // indirect
+	github.com/exaring/otelpgx v0.6.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fergusstrange/embedded-postgres v1.25.0 // indirect
 	github.com/flanksource/kommons v0.31.4 // indirect
@@ -142,7 +142,7 @@ require (
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
-	github.com/google/cel-go v0.20.1 // indirect
+	github.com/google/cel-go v0.21.0 // indirect
 	github.com/google/gnostic-models v0.6.9-0.20230804172637-c7be7c783f49 // indirect
 	github.com/google/gops v0.3.28 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
@@ -153,7 +153,7 @@ require (
 	github.com/invopop/jsonschema v0.12.0 // indirect
 	github.com/itchyny/gojq v0.12.16 // indirect
 	github.com/itchyny/timefmt-go v0.1.6 // indirect
-	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa // indirect
+	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438 // indirect
 	github.com/jackc/pgx/v5 v5.6.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/jeremywohl/flatten v0.0.0-20180923035001-588fe0d4c603 // indirect
@@ -176,8 +176,8 @@ require (
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/robertkrimen/otto v0.3.0 // indirect
-	github.com/rodaine/table v1.1.0 // indirect
-	github.com/samber/oops v1.12.1 // indirect
+	github.com/rodaine/table v1.3.0 // indirect
+	github.com/samber/oops v1.13.1 // indirect
 	github.com/sergi/go-diff v1.3.1 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
@@ -288,7 +288,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.15 // indirect
+	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/microsoft/go-mssqldb v1.6.0
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
@@ -325,7 +325,7 @@ require (
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/api v0.187.0
 	google.golang.org/genproto v0.0.0-20240624140628-dc46fd24d27d // indirect
-	google.golang.org/grpc v1.64.0
+	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
