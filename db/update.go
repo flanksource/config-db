@@ -409,7 +409,7 @@ func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 			scrapeConfig := dutyModels.ConfigScraper{
 				Name:   fmt.Sprintf("%s/%s", namespace, *config.Name),
 				Spec:   string(spec),
-				Source: dutyModels.SourceUI,
+				Source: dutyModels.SourceCRDSync,
 			}
 
 			if parsed, err := uuid.Parse(config.ID); err != nil {
@@ -431,7 +431,7 @@ func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 				Namespace: namespace,
 				Name:      *config.Name,
 				Spec:      spec,
-				Source:    dutyModels.SourceUI,
+				Source:    dutyModels.SourceCRDSync,
 			}
 
 			if title, _, err := unstructured.NestedString(obj.Object, "spec", "title"); err != nil {
@@ -460,11 +460,27 @@ func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 				return err
 			}
 
+		case "Canary":
+			canary := dutyModels.Canary{
+				Name:      *config.Name,
+				Namespace: namespace,
+				Spec:      spec,
+				Source:    dutyModels.SourceCRDSync,
+			}
+
+			if parsed, err := uuid.Parse(config.ID); err != nil {
+				canary.ID = parsed
+			}
+
+			if err := ctx.DB().Save(&canary).Error; err != nil {
+				return err
+			}
+
 		case "Notification":
 			// notification := dutyModels.Notification{
 			// 	Name:   *config.Name,
 			// 	Spec:   spec,
-			// 	Source: dutyModels.SourceUI,
+			// 	Source: dutyModels.SourceCRDSync,
 			// }
 
 			// if parsed, err := uuid.Parse(config.ID); err != nil {
@@ -479,10 +495,8 @@ func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 			// connection := dutyModels.Connection{
 			// 	Name:      *config.Name,
 			// 	Namespace: namespace,
-			// 	Source:    dutyModels.SourceUI,
+			// 	Source:    dutyModels.SourceCRDSync,
 			// }
-
-			// // TODO:
 
 			// if parsed, err := uuid.Parse(config.ID); err != nil {
 			// 	connection.ID = parsed
@@ -491,23 +505,6 @@ func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 			// if err := ctx.DB().Save(&connection).Error; err != nil {
 			// 	return err
 			// }
-
-		case "Canary":
-			// canary := dutyModels.Canary{
-			// 	Name:      *config.Name,
-			// 	Namespace: namespace,
-			// 	Spec:      spec,
-			// 	Source:    dutyModels.SourceUI,
-			// }
-
-			// if parsed, err := uuid.Parse(config.ID); err != nil {
-			// 	canary.ID = parsed
-			// }
-
-			// if err := ctx.DB().Save(&canary).Error; err != nil {
-			// 	return err
-			// }
-
 		}
 	}
 
