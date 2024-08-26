@@ -1404,6 +1404,12 @@ spec:
                   - projects
                   type: object
                 type: array
+              crdSync:
+                description: |-
+                  CRDSync when set to true, will create (or update) the corresponding database records for all mission-control resources
+                  i.e. configs with type having prefix Flanksource::
+                  eg: MissionControl::Playbook, MissionControl::Connection, MissionControl::Notification
+                type: boolean
               file:
                 items:
                   description: File ...
@@ -5713,6 +5719,8 @@ spec:
                                       type: string
                                   type: object
                               type: object
+                            assumeRole:
+                              type: string
                             bucket:
                               type: string
                             connection:

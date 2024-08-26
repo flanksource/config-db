@@ -35,6 +35,10 @@ func getConfigTypePrefix(apiVersion string) string {
 		return "Crossplane::"
 	}
 
+	if strings.HasSuffix(apiVersion, ".flanksource.com/v1") {
+		return api.MissionControlConfigTypePrefix
+	}
+
 	return ConfigTypePrefix
 }
 

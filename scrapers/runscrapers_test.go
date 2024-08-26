@@ -26,20 +26,55 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// func TestAWSScrape(t *testing.T) {
-// 	f, err := os.Open("aws-scrape-results.gob")
-// 	if err != nil {
-// 		t.Fatalf("failed to open aws-scrape-results.gob: %v", err)
-// 	}
-// 	defer f.Close()
+var _ = Describe("CRD Sync test", Ordered, func() {
+	var configItem dutymodels.ConfigItem
+	var playbook dutymodels.Playbook
+	var scrapeConfigModel dutymodels.ConfigScraper
+	var scraperCtx api.ScrapeContext
 
-// 	var results []v1.ScrapeResult
-// 	gob.Register(map[string]any{})
-// 	gob.Register([]any{})
-// 	if err := gob.NewDecoder(f).Decode(&results); err != nil {
-// 		t.Fatalf("failed to encode aws-scrape-results.gob: %v", err)
-// 	}
-// }
+	BeforeAll(func() {
+		scrapeConfig := getConfigSpec("file-crd-sync")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
+		scModel.Source = dutymodels.SourceUI
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+
+		scrapeConfigModel = scModel
+	})
+
+	AfterAll(func() {
+		err := DefaultContext.DB().Delete(configItem).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete config item")
+
+		err = DefaultContext.DB().Delete(playbook).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete playbook")
+
+		err = DefaultContext.DB().Delete(scrapeConfigModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
+	})
+
+	It("should scrape", func() {
+		output, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		Expect(output.Total).To(Equal(1))
+	})
+
+	It("should have the updated the db", func() {
+		err := DefaultContext.DB().Where("name = ?", "echo-input-name").First(&configItem).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+
+		err = DefaultContext.DB().Where("name = ?", "echo-input-name").First(&playbook).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to find playbook")
+		Expect(playbook.Source).To(Equal(dutymodels.SourceCRDSync))
+	})
+})
 
 var _ = Describe("Dedup test", Ordered, func() {
 	configA := apiv1.ConfigMap{
