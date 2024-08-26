@@ -61,9 +61,9 @@ type ScraperSpec struct {
 	Terraform      []Terraform      `json:"terraform,omitempty" yaml:"trivy,omitempty"`
 	HTTP           []HTTP           `json:"http,omitempty"`
 
-	// CRDSync when set to true, will create (or update) the corresponding database records for all mission-control resources
-	// i.e. configs with type having prefix Flanksource::
-	// eg: MissionControl::Playbook, MissionControl::Connection, MissionControl::Notification
+	// CRDSync when set to true, will create (or update) the corresponding database record
+	// for a config item of the following types
+	// - MissionControl::Playbook, MissionControl::ScrapeConfig, MissionControl::Canary
 	CRDSync bool `json:"crdSync,omitempty"`
 
 	Retention RetentionSpec `json:"retention,omitempty"`

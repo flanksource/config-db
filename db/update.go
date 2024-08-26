@@ -476,35 +476,8 @@ func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 				return err
 			}
 
-		case "Notification":
-			// notification := dutyModels.Notification{
-			// 	Name:   *config.Name,
-			// 	Spec:   spec,
-			// 	Source: dutyModels.SourceCRDSync,
-			// }
-
-			// if parsed, err := uuid.Parse(config.ID); err != nil {
-			// 	notification.ID = parsed
-			// }
-
-			// if err := ctx.DB().Save(&notification).Error; err != nil {
-			// 	return err
-			// }
-
-		case "Connection":
-			// connection := dutyModels.Connection{
-			// 	Name:      *config.Name,
-			// 	Namespace: namespace,
-			// 	Source:    dutyModels.SourceCRDSync,
-			// }
-
-			// if parsed, err := uuid.Parse(config.ID); err != nil {
-			// 	connection.ID = parsed
-			// }
-
-			// if err := ctx.DB().Save(&connection).Error; err != nil {
-			// 	return err
-			// }
+		case "Notification", "Connection":
+			ctx.Logger.Warnf("CRDSync doesn't support notifications and connections")
 		}
 	}
 
