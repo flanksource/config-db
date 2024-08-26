@@ -56,6 +56,10 @@ func (t ScrapeConfig) GetContext() map[string]any {
 	}
 }
 
+func (t ScrapeConfig) NamespaceScope() string {
+	return t.Namespace
+}
+
 func (t *ScrapeConfig) Type() string {
 	if len(t.Spec.GCP) != 0 {
 		return "gcp"
