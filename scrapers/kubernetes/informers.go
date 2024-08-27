@@ -50,7 +50,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 		return nil
 	}
 
-	ctx.Context = ctx.WithName(fmt.Sprintf("Watch[%s]", watchResource.Kind))
+	ctx.Context = ctx.WithName("watch." + ctx.ScrapeConfig().Name)
 
 	ctx.Logger.V(1).Infof("registering shared informer for: %v", watchResource)
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{

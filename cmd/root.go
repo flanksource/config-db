@@ -95,6 +95,8 @@ func ServerFlags(flags *pflag.FlagSet) {
 }
 
 func init() {
+	properties.BindFlags(Root.PersistentFlags())
+
 	if err := properties.LoadFile(propertiesFile); err != nil {
 		logger.Warnf("Failed to load properties file %v", err)
 	}

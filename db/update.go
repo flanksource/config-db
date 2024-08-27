@@ -124,7 +124,12 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	if err != nil {
 		ctx.Errorf("[%s] failed to check for changes: %v", ci, err)
 	} else if changeResult != nil {
-		ctx.Logger.V(3).Infof("[%s/%s] detected changes %v", *ci.Type, ci.ExternalID[0], lo.FromPtr(changeResult.Diff))
+		if ctx.Logger.V(5).Enabled() {
+			ctx.Logger.V(5).Infof("[%s/%s] detected changes %v", *ci.Type, ci.ExternalID[0], lo.FromPtr(changeResult.Diff))
+		} else {
+			ctx.Logger.V(3).Infof("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
+
+		}
 		result.Changes = []v1.ChangeResult{*changeResult}
 		if newChanges, _, _, err := extractChanges(ctx, &result, ci); err != nil {
 			return false, nil, err

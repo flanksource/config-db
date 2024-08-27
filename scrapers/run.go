@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/utils"
 )
 
 type contextKey string
@@ -22,7 +22,7 @@ type ScrapeOutput struct {
 }
 
 func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
-	var timer = utils.NewMemoryTimer()
+	var timer = timer.NewMemoryTimer()
 	ctx, err := ctx.InitTempCache()
 	if err != nil {
 		return nil, err

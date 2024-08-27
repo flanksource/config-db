@@ -59,7 +59,15 @@ var Serve = &cobra.Command{
 func serve(configFiles []string) {
 	e := echo.New()
 
-	dutyEcho.AddDebugHandlers(e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			ctx := api.DefaultContext.Wrap(c.Request().Context())
+			c.SetRequest(c.Request().WithContext(ctx))
+			return next(c)
+		}
+	})
+
+	dutyEcho.AddDebugHandlers(api.DefaultContext.DutyContext(), e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
 	e.Use(otelecho.Middleware("config-db", otelecho.WithSkipper(telemetryURLSkipper)))
 
 	if logger.IsTraceEnabled() {

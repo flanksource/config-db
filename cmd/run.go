@@ -1,21 +1,25 @@
 package cmd
 
 import (
+	gocontext "context"
 	"fmt"
+	"net/http"
 	"os"
-	"os/signal"
 	"path"
 	"time"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
-	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty"
 	dutyapi "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
+	dutyEcho "github.com/flanksource/duty/echo"
+	"github.com/flanksource/duty/shutdown"
+	"github.com/labstack/echo/v4"
 	"github.com/spf13/cobra"
 )
 
@@ -45,24 +49,43 @@ var Run = &cobra.Command{
 
 		api.DefaultContext = api.NewScrapeContext(dutyCtx)
 
+		e := echo.New()
+
+		e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				c.SetRequest(c.Request().WithContext(api.DefaultContext.Wrap(c.Request().Context())))
+				return next(c)
+			}
+		})
+
+		dutyEcho.AddDebugHandlers(dutyCtx, e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
+
+		shutdown.AddHook(func() {
+			ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 1*time.Minute)
+			defer cancel()
+
+			if err := e.Shutdown(ctx); err != nil {
+				e.Logger.Fatal(err)
+			}
+		})
+
+		shutdown.WaitForSignal()
+
+		go func() {
+			if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil && err != http.ErrServerClosed {
+				e.Logger.Fatal(err)
+			}
+		}()
+
 		if dutyapi.DefaultConfig.ConnectionString == "" && outputDir == "" {
 			logger.Fatalf("skipping export: neither --output-dir nor --db is specified")
 		}
-
-		go func() {
-			quit := make(chan os.Signal, 1)
-			signal.Notify(quit, os.Interrupt)
-			<-quit
-			logger.Infof("Caught Ctrl+C")
-			// call shutdown hooks explicitly, post-run cleanup hooks will be a no-op
-			Shutdown()
-		}()
 
 		for i := range scraperConfigs {
 			ctx, cancel, cancelTimeout := api.DefaultContext.WithScrapeConfig(&scraperConfigs[i]).
 				WithTimeout(api.DefaultContext.Properties().Duration("scraper.timeout", 4*time.Hour))
 			defer cancelTimeout()
-			shutdownHooks = append(shutdownHooks, cancel)
+			shutdown.AddHook(cancel)
 			if err := scrapeAndStore(ctx); err != nil {
 				logger.Errorf("error scraping config: (name=%s) %v", scraperConfigs[i].Name, err)
 			}
@@ -76,7 +99,7 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 		return err
 	}
 
-	timer := utils.NewMemoryTimer()
+	timer := timer.NewMemoryTimer()
 	results, err := scrapers.Run(ctx)
 	if err != nil {
 		return err
