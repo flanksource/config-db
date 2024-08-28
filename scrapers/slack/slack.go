@@ -73,7 +73,7 @@ func (s Scraper) scrapeChannel(ctx api.ScrapeContext, config v1.Slack, client *S
 		opt.Oldest = strconv.FormatInt(time.Now().Add(-time.Hour*24*7).Unix(), 10)
 	}
 
-	lastMessagekey := fmt.Sprintf("%s:%s", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()), channel.ID)
+	lastMessagekey := fmt.Sprintf("%s:%s", ctx.ScraperID(), channel.ID)
 	if last, ok := lastScrapeTime.Load(lastMessagekey); ok {
 		if last.(string) > opt.Oldest {
 			opt.Oldest = last.(string)
