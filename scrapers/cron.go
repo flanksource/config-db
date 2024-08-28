@@ -143,7 +143,7 @@ func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes)
 }
 
 func SyncScrapeJob(sc api.ScrapeContext) error {
-	id := sc.ScrapeConfig().GetPersistedID().String()
+	id := sc.ScraperID()
 
 	var existingJob *job.Job
 	if j, ok := scrapeJobs.Load(id); ok {
@@ -201,7 +201,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 		Semaphores:   semaphores,
 		RunNow:       sc.PropertyOn(false, "runNow"),
 		Retention:    job.RetentionBalanced,
-		ResourceID:   sc.ScrapeConfig().GetPersistedID().String(),
+		ResourceID:   sc.ScraperID(),
 		ResourceType: job.ResourceTypeScraper,
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		Fn: func(jr job.JobRuntime) error {
@@ -220,7 +220,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 func scheduleScraperJob(sc api.ScrapeContext) error {
 	j := newScraperJob(sc)
 
-	scrapeJobs.Store(sc.ScrapeConfig().GetPersistedID().String(), j)
+	scrapeJobs.Store(sc.ScraperID(), j)
 	if err := j.AddToScheduler(scrapeJobScheduler); err != nil {
 		return fmt.Errorf("[%s] failed to schedule %v", j.Name, err)
 	}
@@ -244,13 +244,13 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		if err := eventsWatchJob.AddToScheduler(scrapeJobScheduler); err != nil {
 			return fmt.Errorf("failed to schedule kubernetes watch event consumer job: %v", err)
 		}
-		scrapeJobs.Store(consumeKubernetesWatchEventsJobKey(sc.ScrapeConfig().GetPersistedID().String()), eventsWatchJob)
+		scrapeJobs.Store(consumeKubernetesWatchEventsJobKey(sc.ScraperID()), eventsWatchJob)
 
 		resourcesWatchJob := ConsumeKubernetesWatchResourcesJobFunc(sc, config)
 		if err := resourcesWatchJob.AddToScheduler(scrapeJobScheduler); err != nil {
 			return fmt.Errorf("failed to schedule kubernetes watch resources consumer job: %v", err)
 		}
-		scrapeJobs.Store(consumeKubernetesWatchResourcesJobKey(sc.ScrapeConfig().GetPersistedID().String()), resourcesWatchJob)
+		scrapeJobs.Store(consumeKubernetesWatchResourcesJobKey(sc.ScraperID()), resourcesWatchJob)
 	}
 
 	return nil

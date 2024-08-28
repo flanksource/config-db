@@ -115,6 +115,13 @@ func (ctx ScrapeContext) ScrapeConfig() *v1.ScrapeConfig {
 	return ctx.scrapeConfig
 }
 
+func (ctx ScrapeContext) ScraperID() string {
+	if ctx.scrapeConfig == nil || ctx.scrapeConfig.GetPersistedID() == nil {
+		return ""
+	}
+	return ctx.scrapeConfig.GetPersistedID().String()
+}
+
 func (ctx ScrapeContext) Namespace() string {
 	if ctx.namespace != "" {
 		return ctx.namespace

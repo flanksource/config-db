@@ -80,7 +80,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	}
 	globalSharedInformerManager.stop(ctx, kubeconfig, existingWatches...)
 
-	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()).String()).Add(1)
+	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", ctx.ScraperID()).Add(1)
 	return nil
 }
 
@@ -106,7 +106,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	}
 	defer watcher.Stop()
 
-	ctx.Counter("kubernetes_scraper_event_watcher", "scraper_id", lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()).String()).Add(1)
+	ctx.Counter("kubernetes_scraper_event_watcher", "scraper_id", ctx.ScraperID()).Add(1)
 	for watchEvent := range watcher.ResultChan() {
 		var event v1.KubernetesEvent
 		if err := event.FromObj(watchEvent.Object); err != nil {

@@ -693,11 +693,9 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 
 	duration := time.Since(start)
 
-	if ctx.ScrapeConfig() != nil {
-		ctx.Histogram("scraper_diff_duration",
-			[]float64{1, 10, 100, 1000, 10000}, "scraper", ctx.ScrapeConfig().GetPersistedID().String()).
-			Record(time.Duration(duration.Milliseconds()))
-	}
+	ctx.Histogram("scraper_diff_duration",
+		[]float64{1, 10, 100, 1000, 10000}, "scraper", ctx.ScraperID()).
+		Record(time.Duration(duration.Milliseconds()))
 
 	msg := fmt.Sprintf("generated in %dms for %s size=%s diff=%s",
 		duration.Milliseconds(),
