@@ -48,6 +48,17 @@ type ConfigItem struct {
 	ProbableParents []string               `gorm:"-" json:"-"`
 }
 
+func (ci ConfigItem) Label() string {
+	if len(ci.ExternalID) == 0 {
+		return fmt.Sprintf("%s/%s id=%s ", lo.FromPtr(ci.Type), lo.FromPtr(ci.Name), ci.ID)
+	}
+	if ci.ID == ci.ExternalID[0] {
+		return fmt.Sprintf("%s/%s id=%s", lo.FromPtr(ci.Type), lo.FromPtr(ci.Name), ci.ID)
+	}
+
+	return fmt.Sprintf("%s/%s id=%s external=%s", lo.FromPtr(ci.Type), lo.FromPtr(ci.Name), ci.ID, ci.ExternalID[0])
+}
+
 func (ci ConfigItem) String() string {
 	if len(ci.ExternalID) == 0 {
 		return fmt.Sprintf("id=%s type=%s name=%s ", ci.ID, lo.FromPtr(ci.Type), lo.FromPtr(ci.Name))

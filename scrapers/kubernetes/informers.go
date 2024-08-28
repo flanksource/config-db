@@ -61,7 +61,9 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				return
 			}
 
-			ctx.Logger.V(3).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
+			if ctx.Properties().On(false, "scraper.log.items") {
+				ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
+			}
 			buffer <- u
 		},
 		UpdateFunc: func(oldObj any, newObj any) {
@@ -71,7 +73,9 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				return
 			}
 
-			ctx.Logger.V(3).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
+			if ctx.Properties().On(false, "scraper.log.items") {
+				ctx.Logger.V(3).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
+			}
 			buffer <- u
 		},
 		DeleteFunc: func(obj any) {
@@ -81,7 +85,9 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				return
 			}
 
-			ctx.Logger.V(3).Infof("deleted: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
+			if ctx.Properties().On(false, "scraper.log.items") {
+				ctx.Logger.V(3).Infof("deleted: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
+			}
 			deleteBuffer <- string(u.GetUID())
 		},
 	})

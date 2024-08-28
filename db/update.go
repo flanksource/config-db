@@ -13,6 +13,8 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/commons/text"
+	"github.com/flanksource/commons/timer"
 	cUtils "github.com/flanksource/commons/utils"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -674,9 +676,42 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 		}
 	}
 
+	var _timer *timer.MemoryTimer
+	if ctx.Properties().On(false, "scraper.log.items") {
+		ctx.Logger.V(5).Infof("generating diff for %s", newConf.Label())
+	}
+	if ctx.Logger.IsLevelEnabled(4) && len(*newConf.Config) > ctx.Properties().Int("scraper.diff.timer.minSize", 1024*20) {
+		_timer = lo.ToPtr(timer.NewMemoryTimer())
+	}
+
+	start := time.Now()
+
 	diff, err := GenerateDiff(ctx.Context, *newConf.Config, *prev.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate diff: %w", err)
+	}
+
+	duration := time.Since(start)
+
+	ctx.Histogram("scraper_diff_duration",
+		[]float64{1, 10, 100, 1000, 10000}, "scraper", ctx.ScrapeConfig().GetPersistedID().String()).
+		Record(time.Duration(duration.Milliseconds()))
+
+	msg := fmt.Sprintf("generated in %dms for %s size=%s diff=%s",
+		duration.Milliseconds(),
+		newConf.Label(),
+		text.HumanizeBytes(len(*newConf.Config)),
+		text.HumanizeBytes(len(diff)),
+	)
+	if _timer != nil {
+		msg += " " + _timer.End()
+	}
+	if duration > 500*time.Millisecond {
+		ctx.Logger.Warnf("SLOW DIFF >= %s", msg)
+	} else if duration > 50*time.Millisecond {
+		ctx.Logger.Infof("SLOW DIFF >= %s", msg)
+	} else if ctx.Properties().On(false, "scraper.log.items") {
+		ctx.Logger.V(4).Infof(msg)
 	}
 
 	if diff == "" {
