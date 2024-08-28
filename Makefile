@@ -177,9 +177,6 @@ helm-schema:
 	test -s $(LOCALBIN)/helm-schema  || \
 	GOBIN=$(LOCALBIN) go install github.com/dadav/helm-schema/cmd/helm-schema@latest
 
-
-
-
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.
 $(CONTROLLER_GEN): $(LOCALBIN)
@@ -192,3 +189,14 @@ CONTROLLER_RUNTIME_VERSION = v0.0.0-20240320141353-395cfc7486e6
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(CONTROLLER_RUNTIME_VERSION)
+
+.PHONY: rust-diffgen
+rust-diffgen:
+	cd external/diffgen || true # In docker build we do not have to cd
+	cargo build --release
+
+.PHONY: rust-generate-header
+rust-generate-header:
+	cargo install cbindgen
+	cd external/diffgen
+	cbindgen . -o libdiffgen.h --lang c

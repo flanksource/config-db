@@ -1,8 +1,17 @@
 package db
 
+/*
+#cgo LDFLAGS: ${SRCDIR}/../external/diffgen/target/release/libdiffgen.a -ldl
+#include "../external/diffgen/libdiffgen.h"
+#include <stdlib.h>
+*/
+import "C"
+
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"unsafe"
 
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/hexops/gotextdiff"
@@ -90,16 +99,32 @@ func generateDiff(newConf, prevConfig string) (string, error) {
 		return "", fmt.Errorf("failed to normalize json for new config: %w", err)
 	}
 
-	// Compare again. They might be equal after normalization.
-	if newConf == prevConfig {
+	if before == after {
 		return "", nil
 	}
 
-	edits := myers.ComputeEdits("", before, after)
-	if len(edits) == 0 {
+	if isSet := os.Getenv("DISABLE_RUST_DIFFGEN"); isSet != "" {
+		edits := myers.ComputeEdits("", before, after)
+		if len(edits) == 0 {
+			return "", nil
+		}
+		return fmt.Sprint(gotextdiff.ToUnified("before", "after", before, edits)), nil
+	}
+
+	beforeCString := C.CString(before)
+	defer C.free(unsafe.Pointer(beforeCString))
+
+	afterCString := C.CString(after)
+	defer C.free(unsafe.Pointer(afterCString))
+
+	diffChar := C.diff(beforeCString, afterCString)
+	defer C.free(unsafe.Pointer(diffChar))
+	if diffChar == nil {
 		return "", nil
 	}
 
-	diff := fmt.Sprint(gotextdiff.ToUnified("before", "after", before, edits))
-	return diff, nil
+	// prefix is required for UI
+	prefix := "--- before\n+++ after\n"
+	diff := C.GoString(diffChar)
+	return prefix + diff, nil
 }

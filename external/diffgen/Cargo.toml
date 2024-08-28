@@ -1,0 +1,12 @@
+[package]
+name = "diffgen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+libc = "0.2.158"
+similar = { git = "https://github.com/mitsuhiko/similar", version = "2.6.0" }
+
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
