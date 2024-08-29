@@ -61,7 +61,7 @@ test: manifests generate fmt vet envtest  ## Run tests.
 	$(MAKE) gotest
 
 .PHONY: gotest
-gotest:
+gotest:  rust-diffgen
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
 .PHONY: env
@@ -192,8 +192,7 @@ $(ENVTEST): $(LOCALBIN)
 
 .PHONY: rust-diffgen
 rust-diffgen:
-	cd external/diffgen || true # In docker build we do not have to cd
-	cargo build --release
+	cd external/diffgen && cargo build --release
 
 .PHONY: rust-generate-header
 rust-generate-header:

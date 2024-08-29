@@ -2,7 +2,7 @@ FROM rust:bookworm@sha256:29fe4376919e25b7587a1063d7b521d9db735fc137d3cf30ae41eb
 
 WORKDIR /app
 COPY Makefile /app
-COPY external/diffgen /app
+COPY external/diffgen /app/external/diffgen
 RUN make rust-diffgen
 
 FROM golang:1.22.5@sha256:86a3c48a61915a8c62c0e1d7594730399caa3feb73655dfe96c7bc17710e96cf AS builder
@@ -16,7 +16,7 @@ RUN go mod download
 
 COPY ./ ./
 
-COPY --from=rust-builder /app/target ./external/diffgen/target
+COPY --from=rust-builder /app/external/diffgen/target ./external/diffgen/target
 
 RUN make build
 
