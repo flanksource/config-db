@@ -122,12 +122,6 @@ build:
 build-prod:
 	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" -tags rustdiffgen .
 
-
-.PHONY: build_no_rust
-build_no_rust:
-	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" .
-
-
 .PHONY: install
 install:
 	cp ./.bin/$(NAME) /usr/local/bin/

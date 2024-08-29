@@ -3,7 +3,9 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
+	"github.com/flanksource/commons/properties"
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
@@ -97,6 +99,15 @@ func generateDiff(newConf, prevConfig string) (string, error) {
 	if before == after {
 		return "", nil
 	}
+
+	// If we compile the code with rustdiffgen tag, we still might
+	// want to disable rust invokation
+	var once sync.Once
+	once.Do(func() {
+		if properties.On(false, "diff.rust-gen") {
+			DiffFunc = TextDiff
+		}
+	})
 
 	return DiffFunc(before, after), nil
 }
