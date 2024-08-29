@@ -10,9 +10,9 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"unsafe"
 
+	"github.com/flanksource/commons/properties"
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
@@ -103,7 +103,7 @@ func generateDiff(newConf, prevConfig string) (string, error) {
 		return "", nil
 	}
 
-	if isSet := os.Getenv("DISABLE_RUST_DIFFGEN"); isSet != "" {
+	if properties.On(false, "diff.rust-gen") {
 		edits := myers.ComputeEdits("", before, after)
 		if len(edits) == 0 {
 			return "", nil
