@@ -1,24 +1,19 @@
 package db
 
-/*
-#cgo LDFLAGS: ${SRCDIR}/../external/diffgen/target/release/libdiffgen.a -ldl
-#include "../external/diffgen/libdiffgen.h"
-#include <stdlib.h>
-*/
-import "C"
-
 import (
 	"encoding/json"
 	"fmt"
-	"unsafe"
 
-	"github.com/flanksource/commons/properties"
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
 	"github.com/ohler55/ojg"
 	"github.com/ohler55/ojg/oj"
 )
+
+// We expose this function to replace it with a rust function called via FFI
+// when the build tag rustdiffgen is provided
+var DiffFunc func(string, string) string = TextDiff
 
 // NormalizeJSON returns an indented json string.
 // The keys are sorted lexicographically.
@@ -103,28 +98,13 @@ func generateDiff(newConf, prevConfig string) (string, error) {
 		return "", nil
 	}
 
-	if properties.On(false, "diff.rust-gen") {
-		edits := myers.ComputeEdits("", before, after)
-		if len(edits) == 0 {
-			return "", nil
-		}
-		return fmt.Sprint(gotextdiff.ToUnified("before", "after", before, edits)), nil
+	return DiffFunc(before, after), nil
+}
+
+func TextDiff(before, after string) string {
+	edits := myers.ComputeEdits("", before, after)
+	if len(edits) == 0 {
+		return ""
 	}
-
-	beforeCString := C.CString(before)
-	defer C.free(unsafe.Pointer(beforeCString))
-
-	afterCString := C.CString(after)
-	defer C.free(unsafe.Pointer(afterCString))
-
-	diffChar := C.diff(beforeCString, afterCString)
-	defer C.free(unsafe.Pointer(diffChar))
-	if diffChar == nil {
-		return "", nil
-	}
-
-	// prefix is required for UI
-	prefix := "--- before\n+++ after\n"
-	diff := C.GoString(diffChar)
-	return prefix + diff, nil
+	return fmt.Sprint(gotextdiff.ToUnified("before", "after", before, edits))
 }
