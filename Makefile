@@ -60,13 +60,21 @@ resources: fmt manifests
 test: manifests generate fmt vet envtest  ## Run tests.
 	$(MAKE) gotest
 
+test-prod: manifests generate fmt vet envtest  ## Run tests.
+	$(MAKE) gotest-prod
+
 .PHONY: gotest
-gotest:  rust-diffgen
+gotest:
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+
+.PHONY: gotest-prod
+gotest-prod:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -tags rustdiffgen ./... -coverprofile cover.out
+
 
 .PHONY: env
 env: envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -tags rustdiffgen ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
 
 fmt:
@@ -108,7 +116,12 @@ lint:
 
 .PHONY: build
 build:
+	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" .
+
+.PHONY: build-prod
+build-prod:
 	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" -tags rustdiffgen .
+
 
 .PHONY: build_no_rust
 build_no_rust:

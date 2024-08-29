@@ -18,7 +18,7 @@ COPY ./ ./
 
 COPY --from=rust-builder /app/external/diffgen/target ./external/diffgen/target
 
-RUN make build
+RUN make build-prod
 
 FROM flanksource/base-image:v0.0.7@sha256:c3cda640ca7033a89e52c7f27776edfc95f825ece4b49de3b9c5af981d34a44e
 WORKDIR /app

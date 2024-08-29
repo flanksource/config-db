@@ -14,6 +14,28 @@ jobs:
         uses: buildjet/setup-go@v5
         with:
           go-version: 1.22.x
+      - name: Checkout code
+        uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
+      - uses: buildjet/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            .bin
+          key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
+          restore-keys: |
+            cache-
+      - name: Test
+        run: make test
+
+  test-prod:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install Go
+        uses: buildjet/setup-go@v5
+        with:
+          go-version: 1.22.x
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Checkout code
@@ -28,4 +50,4 @@ jobs:
           restore-keys: |
             cache-
       - name: Test
-        run: make test
+        run: make test-prod
