@@ -3,13 +3,19 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
+	"github.com/flanksource/commons/properties"
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
 	"github.com/ohler55/ojg"
 	"github.com/ohler55/ojg/oj"
 )
+
+// We expose this function to replace it with a rust function called via FFI
+// when the build tag rustdiffgen is provided
+var DiffFunc func(string, string) string = TextDiff
 
 // NormalizeJSON returns an indented json string.
 // The keys are sorted lexicographically.
@@ -90,16 +96,26 @@ func generateDiff(newConf, prevConfig string) (string, error) {
 		return "", fmt.Errorf("failed to normalize json for new config: %w", err)
 	}
 
-	// Compare again. They might be equal after normalization.
-	if newConf == prevConfig {
+	if before == after {
 		return "", nil
 	}
 
+	// If we compile the code with rustdiffgen tag, we still might
+	// want to disable rust invokation
+	var once sync.Once
+	once.Do(func() {
+		if properties.On(false, "diff.rust-gen") {
+			DiffFunc = TextDiff
+		}
+	})
+
+	return DiffFunc(before, after), nil
+}
+
+func TextDiff(before, after string) string {
 	edits := myers.ComputeEdits("", before, after)
 	if len(edits) == 0 {
-		return "", nil
+		return ""
 	}
-
-	diff := fmt.Sprint(gotextdiff.ToUnified("before", "after", before, edits))
-	return diff, nil
+	return fmt.Sprint(gotextdiff.ToUnified("before", "after", before, edits))
 }

@@ -17,3 +17,7 @@ config-db.properties
 output-*/
 configs/
 *.pprof
+
+
+# Rust
+external/diffgen/target

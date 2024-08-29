@@ -60,9 +60,17 @@ resources: fmt manifests
 test: manifests generate fmt vet envtest  ## Run tests.
 	$(MAKE) gotest
 
+test-prod: manifests generate fmt vet envtest  ## Run tests.
+	$(MAKE) gotest-prod
+
 .PHONY: gotest
 gotest:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+
+.PHONY: gotest-prod
+gotest-prod:
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -tags rustdiffgen ./... -coverprofile cover.out
+
 
 .PHONY: env
 env: envtest ## Run tests.
@@ -108,7 +116,11 @@ lint:
 
 .PHONY: build
 build:
-	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\""  main.go
+	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" .
+
+.PHONY: build-prod
+build-prod:
+	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" -tags rustdiffgen .
 
 .PHONY: install
 install:
@@ -177,9 +189,6 @@ helm-schema:
 	test -s $(LOCALBIN)/helm-schema  || \
 	GOBIN=$(LOCALBIN) go install github.com/dadav/helm-schema/cmd/helm-schema@latest
 
-
-
-
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.
 $(CONTROLLER_GEN): $(LOCALBIN)
@@ -192,3 +201,13 @@ CONTROLLER_RUNTIME_VERSION = v0.0.0-20240320141353-395cfc7486e6
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(CONTROLLER_RUNTIME_VERSION)
+
+.PHONY: rust-diffgen
+rust-diffgen:
+	cd external/diffgen && cargo build --release
+
+.PHONY: rust-generate-header
+rust-generate-header:
+	cargo install cbindgen
+	cd external/diffgen
+	cbindgen . -o libdiffgen.h --lang c
