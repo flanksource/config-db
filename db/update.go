@@ -877,6 +877,10 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 		var ci *models.ConfigItem
 		var err error
 
+		if result.Name == "" {
+			result.Name = lo.CoalesceOrEmpty(lo.FirstOrEmpty(result.Aliases), result.ID)
+		}
+
 		if result.ID != "" {
 			// A result that only contains changes (example a result created by Cloudtrail scraper)
 			// doesn't have any id.
