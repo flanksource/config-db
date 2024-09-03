@@ -147,6 +147,46 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 		updates["updated_at"] = gorm.Expr("NOW()")
 	}
 
+	if lo.FromPtr(existing.Health) != lo.FromPtr(ci.Health) {
+		// For every health change, we add a config change.
+		healthChange := &models.ConfigChange{
+			ConfigID:   ci.ID,
+			ChangeType: lo.PascalCase(string(lo.FromPtr(ci.Health))),
+			Source:     "config-db",
+			Summary:    fmt.Sprintf("Health changed from %s to %s", lo.FromPtr(existing.Health), lo.FromPtr(ci.Health)),
+			Count:      1,
+			Details: map[string]any{
+				"previous": map[string]any{
+					"status":      existing.Status,
+					"ready":       existing.Ready,
+					"description": existing.Description,
+				},
+				"current": map[string]any{
+					"status":      ci.Status,
+					"ready":       ci.Ready,
+					"description": ci.Description,
+				},
+			},
+		}
+
+		if lo.FromPtr(ci.Health) == dutyModels.HealthUnknown {
+			healthChange.ChangeType = "HealthUnknown"
+		}
+
+		switch lo.FromPtr(ci.Health) {
+		case dutyModels.HealthHealthy:
+			healthChange.Severity = string(dutyModels.SeverityInfo)
+		case dutyModels.HealthUnhealthy:
+			healthChange.Severity = string(dutyModels.SeverityMedium)
+		case dutyModels.HealthWarning:
+			healthChange.Severity = string(dutyModels.SeverityLow)
+		case dutyModels.HealthUnknown:
+			healthChange.Severity = string(dutyModels.SeverityInfo)
+		}
+
+		changes = append(changes, healthChange)
+	}
+
 	if ci.ConfigClass != existing.ConfigClass {
 		updates["config_class"] = ci.ConfigClass
 	}
