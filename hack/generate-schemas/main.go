@@ -17,8 +17,11 @@ var schemas = map[string]any{
 
 var generateSchema = &cobra.Command{
 	Use: "generate-schema",
-	Run: func(cmd *cobra.Command, args []string) {
-		os.Mkdir(schemaPath, 0755)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := os.Mkdir(schemaPath, 0755); err != nil {
+			logger.Warnf(err.Error())
+		}
+
 		for file, obj := range schemas {
 			p := path.Join(schemaPath, file+".schema.json")
 			if err := openapi.WriteSchemaToFile(p, obj); err != nil {
@@ -34,6 +37,8 @@ var generateSchema = &cobra.Command{
 			}
 			logger.Infof("Saved OpenAPI schema to %s", p)
 		}
+
+		return nil
 	},
 }
 
