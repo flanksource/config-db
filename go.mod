@@ -239,7 +239,7 @@ require (
 	cloud.google.com/go v0.115.0 // indirect
 	cloud.google.com/go/compute v1.27.0
 	cloud.google.com/go/iam v1.1.10
-	cloud.google.com/go/storage v1.41.0
+	cloud.google.com/go/storage v1.43.0
 	github.com/DATA-DOG/go-sqlmock v1.5.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/aws/aws-sdk-go v1.55.1 // indirect
