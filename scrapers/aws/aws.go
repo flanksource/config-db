@@ -1242,6 +1242,12 @@ func (aws Scraper) routes(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResu
 	for _, r := range describeOutput.RouteTables {
 		labels := getLabels(r.Tags)
 		labels["network"] = *r.VpcId
+
+		// Sort associations for a cleaner diff since AWS returns same object in
+		// different sort order every time
+		slices.SortFunc(r.Associations, func(a, b ec2Types.RouteTableAssociation) int {
+			return strings.Compare(lo.FromPtr(a.SubnetId), lo.FromPtr(b.SubnetId))
+		})
 		*results = append(*results, v1.ScrapeResult{
 			Type:        "AWS::EC2::RouteTable",
 			Labels:      labels,
@@ -1578,12 +1584,23 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 	for _, role := range roles.Roles {
 		labels := make(map[string]string)
 
+		roleMap, err := utils.ToJSONMap(role)
+		if err != nil {
+			results.Errorf(err, "failed to convert role into json")
+			return
+		}
+		policy, err := parseAssumeRolePolicyDoc(ctx, lo.FromPtr(role.AssumeRolePolicyDocument))
+		if err != nil {
+			ctx.Errorf("error parsing policy doc[%s]: %v", lo.FromPtr(role.AssumeRolePolicyDocument), err)
+		}
+		roleMap["AssumeRolePolicyDocument"] = policy
+
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSIAMRole,
 			CreatedAt:   role.CreateDate,
 			BaseScraper: config.BaseScraper,
 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMRole, lo.FromPtr(role.RoleName), nil)},
-			Config:      role,
+			Config:      roleMap,
 			ConfigClass: "Role",
 			Labels:      labels,
 			Name:        *role.RoleName,
@@ -1629,32 +1646,16 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 		for _, role := range profileObj.S("Roles").Children() {
 			policyDocEncoded, ok := role.S("AssumeRolePolicyDocument").Data().(string)
 			if !ok {
-				logger.Errorf("AssumeRolePolicyDocument key not found for role: %s", role.String())
+				ctx.Errorf("AssumeRolePolicyDocument key not found for role: %s", role.String())
 				continue
 			}
-			doc, err := url.QueryUnescape(policyDocEncoded)
+			policy, err := parseAssumeRolePolicyDoc(ctx, policyDocEncoded)
 			if err != nil {
-				logger.Errorf("error escaping policy doc[%s]: %v", policyDocEncoded, err)
-				continue
+				ctx.Errorf("error parsing policy doc[%s]: %v", policyDocEncoded, err)
 			}
-			policyDocObj, err := gabs.ParseJSON([]byte(doc))
-			if err != nil {
-				logger.Errorf("error escaping policy doc[%s]: %v", policyDocEncoded, err)
+			if _, err := role.Set(policy, "AssumeRolePolicyDocument"); err != nil {
+				ctx.Errorf("error setting policy object[%s] in AssumeRolePolicyDocument: %v", policy, err)
 				continue
-			}
-			if _, err := role.Set(policyDocObj, "AssumeRolePolicyDocument"); err != nil {
-				logger.Errorf("error setting policy object[%s] in AssumeRolePolicyDocument: %v", policyDocObj.String(), err)
-				continue
-			}
-			for _, stmt := range policyDocObj.S("Statement").Children() {
-				// If Principal.Service is a list, sort that for cleaner change diff
-				if svcs, ok := stmt.Search("Principal", "Service").Data().([]string); ok {
-					slices.Sort(svcs)
-					if _, err := stmt.Set(svcs, "Principal", "Service"); err != nil {
-						logger.Errorf("error setting services object[%v] in Principal.Services: %v", svcs, err)
-						continue
-					}
-				}
 			}
 		}
 
@@ -1944,4 +1945,31 @@ func unwrapFields(m map[string]string, fields ...string) map[string]any {
 	}
 
 	return output
+}
+
+func parseAssumeRolePolicyDoc(ctx *AWSContext, encodedDoc string) (map[string]any, error) {
+	doc, err := url.QueryUnescape(encodedDoc)
+	if err != nil {
+		return nil, fmt.Errorf("error escaping policy doc[%s]: %v", encodedDoc, err)
+	}
+
+	var policyDocObj map[string]any
+	if err := json.Unmarshal([]byte(doc), &policyDocObj); err != nil {
+		return nil, fmt.Errorf("error escaping policy doc[%s]: %v", doc, err)
+	}
+
+	c := gabs.Wrap(policyDocObj)
+	for _, stmt := range c.S("Statement").Children() {
+		// If Principal.Service is a list, sort that for cleaner change diff
+		if svcs, ok := lo.FromAnySlice[string](stmt.Search("Principal", "Service").Data().([]any)); ok {
+			slices.Sort(svcs)
+			if _, err := stmt.Set(svcs, "Principal", "Service"); err != nil {
+				ctx.Errorf("error setting services object[%v] in Principal.Services: %v", svcs, err)
+				continue
+			}
+		}
+	}
+	var policyDoc map[string]any
+	err = json.Unmarshal(c.Bytes(), &policyDoc)
+	return policyDoc, err
 }
