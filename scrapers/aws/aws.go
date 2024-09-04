@@ -75,12 +75,17 @@ func (ctx AWSContext) String() string {
 }
 
 func (aws Scraper) getContext(ctx api.ScrapeContext, awsConfig v1.AWS, region string) (*AWSContext, error) {
-	session, err := NewSession(ctx, awsConfig.AWSConnection, region)
+	awsConn := awsConfig.AWSConnection.ToDutyAWSConnection(region)
+	if err := awsConn.Populate(ctx); err != nil {
+		return nil, err
+	}
+
+	session, err := awsConn.Client(ctx.Context)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AWS session for region=%q: %w", region, err)
 	}
 
-	STS := sts.NewFromConfig(*session)
+	STS := sts.NewFromConfig(session)
 	caller, err := STS.GetCallerIdentity(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity for region=%q: %w", region, err)
@@ -91,15 +96,15 @@ func (aws Scraper) getContext(ctx api.ScrapeContext, awsConfig v1.AWS, region st
 
 	return &AWSContext{
 		ScrapeContext: ctx,
-		Session:       session,
+		Session:       &session,
 		Caller:        caller,
 		STS:           STS,
 		Support:       support.NewFromConfig(usEast1),
-		EC2:           ec2.NewFromConfig(*session),
-		SSM:           ssm.NewFromConfig(*session),
-		IAM:           iam.NewFromConfig(*session),
+		EC2:           ec2.NewFromConfig(session),
+		SSM:           ssm.NewFromConfig(session),
+		IAM:           iam.NewFromConfig(session),
 		Subnets:       make(map[string]Zone),
-		Config:        configservice.NewFromConfig(*session),
+		Config:        configservice.NewFromConfig(session),
 	}, nil
 }
 
@@ -1719,7 +1724,13 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	for _, awsConfig := range ctx.ScrapeConfig().Spec.AWS {
 		results := &v1.ScrapeResults{}
 		var totalResults int
-		for _, region := range awsConfig.Region {
+
+		if len(awsConfig.Regions) == 0 {
+			// Use an empty region and the sdk picks the default region
+			awsConfig.Regions = []string{""}
+		}
+
+		for _, region := range awsConfig.Regions {
 			awsCtx, err := aws.getContext(ctx, awsConfig, region)
 			if err != nil {
 				results.Errorf(err, "failed to create AWS context")

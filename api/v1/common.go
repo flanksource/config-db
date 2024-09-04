@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/flanksource/duty"
+	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
@@ -302,28 +303,30 @@ func (auth Authentication) GetDomain() string {
 	return ""
 }
 
-// AWSConnection ...
+// AWSConnection is a mirror or duty's AWSConnection.
+// It has a slice of []region instead of duty's single Region field.
 type AWSConnection struct {
 	// ConnectionName of the connection. It'll be used to populate the endpoint, accessKey and secretKey.
 	ConnectionName string       `yaml:"connection,omitempty" json:"connection,omitempty"`
 	AccessKey      types.EnvVar `yaml:"accessKey,omitempty" json:"accessKey,omitempty"`
 	SecretKey      types.EnvVar `yaml:"secretKey,omitempty" json:"secretKey,omitempty"`
-	Region         []string     `yaml:"region,omitempty" json:"region"`
-	Endpoint       string       `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
-	SkipTLSVerify  bool         `yaml:"skipTLSVerify,omitempty" json:"skipTLSVerify,omitempty"`
 	AssumeRole     string       `yaml:"assumeRole,omitempty" json:"assumeRole,omitempty"`
+	Endpoint       string       `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	// Skip TLS verify when connecting to aws
+	SkipTLSVerify bool `yaml:"skipTLSVerify,omitempty" json:"skipTLSVerify,omitempty"`
+
+	Regions []string `yaml:"region,omitempty" json:"region,omitempty"`
 }
 
-func (aws AWSConnection) GetModel() *models.Connection {
-	return &models.Connection{
-		URL:      aws.Endpoint,
-		Username: aws.AccessKey.String(),
-		Password: aws.SecretKey.String(),
-		Properties: types.JSONStringMap{
-			"region":     strings.Join(aws.Region, ","),
-			"assumeRole": aws.AssumeRole,
-		},
-		InsecureTLS: aws.SkipTLSVerify,
+func (aws AWSConnection) ToDutyAWSConnection(region string) *connection.AWSConnection {
+	return &connection.AWSConnection{
+		ConnectionName: aws.ConnectionName,
+		AccessKey:      aws.AccessKey,
+		SecretKey:      aws.SecretKey,
+		AssumeRole:     aws.AssumeRole,
+		Endpoint:       aws.Endpoint,
+		SkipTLSVerify:  aws.SkipTLSVerify,
+		Region:         region,
 	}
 }
 

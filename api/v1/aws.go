@@ -10,8 +10,9 @@ import (
 
 // AWS ...
 type AWS struct {
-	BaseScraper   `json:",inline"`
-	AWSConnection `json:",inline"`
+	BaseScraper   `yaml:",inline" json:",inline"`
+	AWSConnection `yaml:",inline" json:",inline"`
+
 	Compliance    bool          `json:"compliance,omitempty"`
 	CloudTrail    CloudTrail    `json:"cloudtrail,omitempty"`
 	Include       []string      `json:"include,omitempty"`

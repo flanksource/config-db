@@ -61,8 +61,8 @@ func (in *AWSConnection) DeepCopyInto(out *AWSConnection) {
 	*out = *in
 	in.AccessKey.DeepCopyInto(&out.AccessKey)
 	in.SecretKey.DeepCopyInto(&out.SecretKey)
-	if in.Region != nil {
-		in, out := &in.Region, &out.Region
+	if in.Regions != nil {
+		in, out := &in.Regions, &out.Regions
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}

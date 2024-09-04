@@ -25,8 +25,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager v1.0.0
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/aws/aws-sdk-go-v2 v1.30.4
-	github.com/aws/aws-sdk-go-v2/config v1.27.29
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.29
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.53.3
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.42.3
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.48.3
@@ -60,7 +58,6 @@ require (
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-getter v1.7.5
-	github.com/henvic/httpretty v0.1.3
 	github.com/hexops/gotextdiff v1.0.3
 	github.com/labstack/echo-contrib v0.17.1
 	github.com/labstack/echo/v4 v4.12.0
@@ -116,6 +113,8 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/asecurityteam/rolling v2.0.4+incompatible // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.27.29 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.29 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
@@ -157,6 +156,7 @@ require (
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.21.0 // indirect
+	github.com/henvic/httpretty v0.1.3 // indirect
 	github.com/hirochachacha/go-smb2 v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.12.0 // indirect
 	github.com/itchyny/gojq v0.12.16 // indirect

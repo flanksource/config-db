@@ -47,26 +47,23 @@ const costQueryTemplate = `
     ON cost_30d.line_item_product_code = items.line_item_product_code AND items.line_item_resource_id = cost_30d.line_item_resource_id
 `
 
-func getAWSAthenaConfig(ctx api.ScrapeContext, awsConfig v1.AWS) (*athena.Config, error) {
+func getAWSAthenaConfig(awsConfig v1.AWS) (*athena.Config, error) {
 	conf := athena.NewNoOpsConfig()
 
 	if err := conf.SetRegion(awsConfig.CostReporting.Region); err != nil {
 		return nil, err
 	}
+
 	if err := conf.SetOutputBucket(awsConfig.CostReporting.S3BucketPath); err != nil {
 		return nil, err
 	}
 
-	accessKey, secretKey, err := getAccessAndSecretKey(ctx, awsConfig.AWSConnection)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(accessKey) > 0 && len(secretKey) > 0 {
-		if err = conf.SetAccessID(accessKey); err != nil {
+	if len(awsConfig.AWSConnection.AccessKey.ValueStatic) > 0 && len(awsConfig.AWSConnection.SecretKey.ValueStatic) > 0 {
+		if err := conf.SetAccessID(awsConfig.AWSConnection.AccessKey.ValueStatic); err != nil {
 			return nil, err
 		}
-		if err = conf.SetSecretAccessKey(secretKey); err != nil {
+
+		if err := conf.SetSecretAccessKey(awsConfig.AWSConnection.SecretKey.ValueStatic); err != nil {
 			return nil, err
 		}
 	}
@@ -83,10 +80,10 @@ type LineItemRow struct {
 	Cost30d     float64
 }
 
-func fetchCosts(ctx api.ScrapeContext, config v1.AWS) ([]LineItemRow, error) {
+func fetchCosts(config v1.AWS) ([]LineItemRow, error) {
 	var lineItemRows []LineItemRow
 
-	athenaConf, err := getAWSAthenaConfig(ctx, config)
+	athenaConf, err := getAWSAthenaConfig(config)
 	if err != nil {
 		return lineItemRows, err
 	}
@@ -144,19 +141,24 @@ func (awsCost CostScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
 	for _, awsConfig := range ctx.ScrapeConfig().Spec.AWS {
-		session, err := NewSession(ctx, awsConfig.AWSConnection, awsConfig.Region[0])
+		awsConn := awsConfig.AWSConnection.ToDutyAWSConnection(awsConfig.Regions[0])
+		if err := awsConn.Populate(ctx); err != nil {
+			return results.Errorf(err, "failed to populate AWS connection")
+		}
+
+		session, err := awsConn.Client(ctx.Context)
 		if err != nil {
 			return results.Errorf(err, "failed to create AWS session")
 		}
 
-		stsClient := sts.NewFromConfig(*session)
+		stsClient := sts.NewFromConfig(session)
 		caller, err := stsClient.GetCallerIdentity(ctx, nil)
 		if err != nil {
 			return results.Errorf(err, "failed to get identity")
 		}
 		accountID := *caller.Account
 
-		rows, err := fetchCosts(ctx, awsConfig)
+		rows, err := fetchCosts(awsConfig)
 		if err != nil {
 			return results.Errorf(err, "failed to fetch costs")
 		}
