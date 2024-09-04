@@ -285,6 +285,7 @@ spec:
                           type: object
                       type: object
                     skipTLSVerify:
+                      description: Skip TLS verify when connecting to aws
                       type: boolean
                     status:
                       description: A static value or JSONPath expression to use as
@@ -523,8 +524,6 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the type for the resource.
                       type: string
-                  required:
-                  - region
                   type: object
                 type: array
               azure:

@@ -71,11 +71,8 @@
         "secretKey": {
           "$ref": "#/$defs/EnvVar"
         },
-        "region": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+        "assumeRole": {
+          "type": "string"
         },
         "endpoint": {
           "type": "string"
@@ -83,8 +80,11 @@
         "skipTLSVerify": {
           "type": "boolean"
         },
-        "assumeRole": {
-          "type": "string"
+        "region": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "compliance": {
           "type": "boolean"
@@ -109,10 +109,7 @@
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "region"
-      ]
+      "type": "object"
     },
     "Authentication": {
       "properties": {

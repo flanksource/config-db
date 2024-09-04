@@ -29,7 +29,9 @@ func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 	}
 
 	ctx = ctx.WithValue(contextKeyScrapeStart, time.Now())
-	ctx.Context = ctx.WithName(fmt.Sprintf("%s/%s", ctx.ScrapeConfig().Namespace, ctx.ScrapeConfig().Name))
+	ctx.Context = ctx.
+		WithName(fmt.Sprintf("%s/%s", ctx.ScrapeConfig().Namespace, ctx.ScrapeConfig().Name)).
+		WithNamespace(ctx.ScrapeConfig().Namespace)
 
 	results, scraperErr := Run(ctx)
 	if scraperErr != nil {

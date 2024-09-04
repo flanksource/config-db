@@ -1,15 +1,9 @@
 version: 2
-groups:
-  dependabot:
-    patterns:
-      - "*"
-    exclude-patterns:
-      - "flanksource/*"
 updates:
-  - package-ecosystem: "gomod"
-    directory: "/"
+  - package-ecosystem: 'gomod'
+    directory: '/'
     schedule:
-      interval: "daily"
+      interval: 'daily'
 
   - package-ecosystem: github-actions
     directory: /
