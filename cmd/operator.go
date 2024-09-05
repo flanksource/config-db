@@ -17,6 +17,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	configsv1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/changes"
 	"github.com/flanksource/config-db/controllers"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty"
@@ -59,6 +60,10 @@ func run(cmd *cobra.Command, args []string) error {
 	dedupWindow := api.DefaultContext.Properties().Duration("changes.dedup.window", time.Hour)
 	if err := db.InitChangeFingerprintCache(api.DefaultContext, dedupWindow); err != nil {
 		return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
+	}
+
+	if err := changes.InitExternalChangeIDCache(api.DefaultContext); err != nil {
+		return fmt.Errorf("failed to initialize external change ID cache: %w", err)
 	}
 
 	ctrl.SetLogger(logr.FromSlogHandler(logger.Handler()))

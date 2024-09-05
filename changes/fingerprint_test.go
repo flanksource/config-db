@@ -50,7 +50,45 @@ var _ = Describe("Change Fingerprints", func() {
 })
 
 func TestChangeFingerprints(t *testing.T) {
-
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Change Fingerprints Suite")
+}
+
+func TestFingerptingPlayground(t *testing.T) {
+	val := `{
+    "reason": "GitOperationFailed",
+    "source": {
+        "component": "source-controller"
+    },
+    "message": "failed to checkout and determine revision: unable to list remote for 'ssh://git@github.com/flanksource/aws-sandbox.git': ssh: handshake failed: knownhosts: key mismatch",
+    "metadata": {
+        "uid": "37c57cb4-8148-41bb-ae94-42c104b46e38",
+        "name": "aws-sandbox.17e5b206b0f6d6f1",
+        "namespace": "flux-system",
+        "resourceVersion": "300464456",
+        "creationTimestamp": "2024-08-15T09:44:51Z"
+    },
+    "involvedObject": {
+        "uid": "962f999c-a9bd-40a4-80bf-47c84b1ad750",
+        "kind": "GitRepository",
+        "name": "aws-sandbox",
+        "namespace": "flux-system",
+        "apiVersion": "source.toolkit.fluxcd.io/v1",
+        "resourceVersion": "300420822"
+    }
+}`
+
+	ch := models.ConfigChange{}
+	err := json.Unmarshal([]byte(val), &ch.Details)
+	if err != nil {
+		t.Fatal()
+	}
+	fp, err := changes.Fingerprint(&ch)
+	if err != nil {
+		t.Fail()
+	}
+
+	if fp != "fe3308b7187b2370ad8e16bd8cd5bad9" {
+		t.Fail()
+	}
 }
