@@ -58,11 +58,11 @@ func run(cmd *cobra.Command, args []string) error {
 	logger.SetLogLevel(k8sLogLevel)
 
 	dedupWindow := api.DefaultContext.Properties().Duration("changes.dedup.window", time.Hour)
-	if err := db.InitChangeFingerprintCache(api.DefaultContext, dedupWindow); err != nil {
+	if err := db.InitChangeFingerprintCache(api.DefaultContext.Context, dedupWindow); err != nil {
 		return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 	}
 
-	if err := changes.InitExternalChangeIDCache(api.DefaultContext); err != nil {
+	if err := changes.InitExternalChangeIDCache(api.DefaultContext.Context); err != nil {
 		return fmt.Errorf("failed to initialize external change ID cache: %w", err)
 	}
 

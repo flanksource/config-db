@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/flanksource/duty/context"
+	"github.com/patrickmn/go-cache"
+
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db/models"
-	"github.com/patrickmn/go-cache"
 )
 
 var changeCacheByFingerprint = cache.New(time.Hour, time.Hour)
@@ -15,7 +17,7 @@ func changeFingeprintCacheKey(configID, fingerprint string) string {
 	return fmt.Sprintf("%s:%s", configID, fingerprint)
 }
 
-func InitChangeFingerprintCache(ctx api.ScrapeContext, window time.Duration) error {
+func InitChangeFingerprintCache(ctx context.Context, window time.Duration) error {
 	var changes []*models.ConfigChange
 	if err := ctx.DB().Where("fingerprint IS NOT NULL").Where("NOW() - created_at <= ?", window).Find(&changes).Error; err != nil {
 		return err

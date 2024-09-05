@@ -3,7 +3,8 @@ package changes
 import (
 	"sync"
 
-	"github.com/flanksource/config-db/api"
+	"github.com/flanksource/duty/context"
+
 	"github.com/flanksource/config-db/db/models"
 )
 
@@ -17,7 +18,7 @@ func AddToExteranlChangeIDCache(changes []*models.ConfigChange) {
 	}
 }
 
-func InitExternalChangeIDCache(ctx api.ScrapeContext) error {
+func InitExternalChangeIDCache(ctx context.Context) error {
 	var externalIDs []string
 	if err := ctx.DB().Select("external_change_id").Model(&models.ConfigChange{}).Where("external_change_id IS NOT NULL").Find(&externalIDs).Error; err != nil {
 		return err
