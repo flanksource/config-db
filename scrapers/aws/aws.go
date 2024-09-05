@@ -1190,7 +1190,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2Instance, instance.InstanceID, nil)},
 				Config:              instance,
 				ConfigClass:         "VirtualMachine",
-				Name:                instance.GetHostname(),
+				Name:                lo.CoalesceOrEmpty(instance.GetHostname(), instance.InstanceID),
 				Aliases:             []string{"AmazonEC2/" + instance.InstanceID},
 				ID:                  instance.InstanceID,
 				Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: instance.VpcID}},
