@@ -272,8 +272,13 @@ func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) 
 }
 
 type ExtractedChanges struct {
-	New      []*models.ConfigChange
+	// Changes never seen before
+	New []*models.ConfigChange
+
+	// Changes that exist in the db (based on external change id)
 	Existing []*models.ConfigChange
+
+	// Changes that already exist in the db and should be updated
 	ToUpdate []*models.ConfigChange
 }
 
@@ -643,6 +648,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	for _, changeToUpdate := range extractedChanges.ToUpdate {
 		if err := ctx.DB().Updates(&changeToUpdate).Error; err != nil {
 			return summary, fmt.Errorf("failed to update config changes: %w", err)
+		}
+	}
+
+	// If existing changes (external change id is db), and there's a difference
+	// in the change details, we should update the change details in the db and increase the count.
+	for _, existingChange := range extractedChanges.Existing {
+		if err := UpdateChangeByExternalID(ctx, existingChange); err != nil {
+			return summary, fmt.Errorf("failed to update existing config change by external ID: %w", err)
 		}
 	}
 

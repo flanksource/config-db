@@ -99,6 +99,7 @@ var _ = Describe("prevent config change external_change_id collision on dedup", 
 			CreatedAt:        time.Now().Add(-time.Minute * 5),
 			ExternalChangeID: lo.ToPtr("first"),
 			Details:          v1.JSON{"id": 1},
+			Count:            1,
 			Fingerprint:      lo.ToPtr("642d77b89087c2c1b898880f2ab8321f"),
 		}
 		err := DefaultContext.DB().Create(&firstChange).Error
@@ -113,6 +114,7 @@ var _ = Describe("prevent config change external_change_id collision on dedup", 
 			CreatedAt:        time.Now().Add(-time.Minute),
 			ExternalChangeID: lo.ToPtr("second"),
 			Details:          v1.JSON{"id": 100},
+			Count:            1,
 			Fingerprint:      lo.ToPtr("642d77b89087c2c1b898880f2ab8321f"),
 		}
 		err := DefaultContext.DB().Create(&secondChange).Error
@@ -121,7 +123,7 @@ var _ = Describe("prevent config change external_change_id collision on dedup", 
 		createdChanges = append(createdChanges, &secondChange)
 	})
 
-	It("should save without deduping", func() {
+	It("should save without deduping & increment the count", func() {
 		err := changes.InitExternalChangeIDCache(DefaultContext)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -133,11 +135,40 @@ var _ = Describe("prevent config change external_change_id collision on dedup", 
 				{
 					ConfigID:         dummy.EKSCluster.ID.String(),
 					ExternalChangeID: "first",
-					Details:          v1.JSON{"id": 1},
+					Details:          v1.JSON{"id": 2},
 				},
 			}},
 		})
 		Expect(err).NotTo(HaveOccurred())
+
+		var change models.ConfigChange
+		err = DefaultContext.DB().Where("external_change_id = ?", "first").First(&change).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(change.Count).To(Equal(2))
+	})
+
+	It("should save without deduping & NOT increment the count", func() {
+		err := changes.InitExternalChangeIDCache(DefaultContext)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = db.InitChangeFingerprintCache(DefaultContext, time.Minute*2)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = db.SaveResults(scraperCtx, []v1.ScrapeResult{
+			{Changes: []v1.ChangeResult{
+				{
+					ConfigID:         dummy.EKSCluster.ID.String(),
+					ExternalChangeID: "first",
+					Details:          v1.JSON{"id": 2},
+				},
+			}},
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		var change models.ConfigChange
+		err = DefaultContext.DB().Where("external_change_id = ?", "first").First(&change).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(change.Count).To(Equal(2))
 	})
 })
 

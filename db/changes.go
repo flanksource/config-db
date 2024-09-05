@@ -75,6 +75,19 @@ func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*mode
 	return nonDuped, deduped
 }
 
+func UpdateChangeByExternalID(ctx api.ScrapeContext, change *models.ConfigChange) error {
+	query := `
+	UPDATE config_changes
+	SET 
+		count = CASE 
+			WHEN details = ? THEN count
+			ELSE count + 1
+		END,
+		details = ?
+	WHERE external_change_id = ?`
+	return ctx.DB().Exec(query, change.Details, change.Details, change.ExternalChangeID).Error
+}
+
 func GetWorkflowRunCount(ctx api.ScrapeContext, workflowID string) (int64, error) {
 	var count int64
 	err := ctx.DB().Table("config_changes").
