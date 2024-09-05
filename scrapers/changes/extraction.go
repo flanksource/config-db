@@ -132,7 +132,7 @@ func MapChanges(ctx context.Context, rule v1.ChangeExtractionRule, text string) 
 			return nil, fmt.Errorf("failed to hydrate config selector: %w", err)
 		}
 
-		configIDs, err := query.FindConfigIDsByResourceSelector(ctx, *resourceSelector)
+		configIDs, err := query.FindConfigIDsByResourceSelector(ctx, 0, *resourceSelector)
 		if err != nil {
 			return nil, fmt.Errorf("failed to select configs: %w", err)
 		}

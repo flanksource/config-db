@@ -60,7 +60,7 @@ func FindConfigIDsByRelationshipSelector(ctx context.Context, selector duty.Rela
 		return nil, nil
 	}
 
-	return query.FindConfigIDsByResourceSelector(ctx, selector.ToResourceSelector())
+	return query.FindConfigIDsByResourceSelector(ctx, 0, selector.ToResourceSelector())
 }
 
 // FindConfigIDsByNamespaceNameClass returns the uuid of config items which matches the given type, name & namespace
@@ -72,7 +72,7 @@ func FindConfigIDsByNamespaceNameClass(ctx context.Context, cluster, namespace, 
 		FieldSelector: fmt.Sprintf("config_class=%s", configClass),
 	}
 
-	return query.FindConfigIDsByResourceSelector(ctx, rs)
+	return query.FindConfigIDsByResourceSelector(ctx, 0, rs)
 }
 
 // QueryConfigItems ...
