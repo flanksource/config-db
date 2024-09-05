@@ -553,7 +553,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	// NOTE: On duplicate primary key do nothing
 	// because an incremental scraper might have already inserted the config item.
-	if err := ctx.DB().Debug().
+	if err := ctx.DB().
 		Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
 		CreateInBatches(newConfigs, configItemsBulkInsertSize).Error; err != nil {
 		return summary, fmt.Errorf("failed to create config items: %w", dutydb.ErrorDetails(err))
