@@ -51,7 +51,7 @@ require (
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.29.4
 	github.com/flanksource/duty v1.0.618
-	github.com/flanksource/is-healthy v1.0.29
+	github.com/flanksource/is-healthy v1.0.30
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/mapstructure v1.6.0
 	github.com/gobwas/glob v0.2.3
