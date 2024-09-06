@@ -1972,7 +1972,11 @@ func parseAssumeRolePolicyDoc(ctx *AWSContext, encodedDoc string) (map[string]an
 	c := gabs.Wrap(policyDocObj)
 	for _, stmt := range c.S("Statement").Children() {
 		// If Principal.Service is a list, sort that for cleaner change diff
-		if svcs, ok := lo.FromAnySlice[string](stmt.Search("Principal", "Service").Data().([]any)); ok {
+		svcsObj := stmt.Search("Principal", "Service").Data()
+		if svcsObj == nil {
+			continue
+		}
+		if svcs, ok := lo.FromAnySlice[string](svcsObj.([]any)); ok {
 			slices.Sort(svcs)
 			if _, err := stmt.Set(svcs, "Principal", "Service"); err != nil {
 				ctx.Errorf("error setting services object[%v] in Principal.Services: %v", svcs, err)
