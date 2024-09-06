@@ -15,6 +15,7 @@ import (
 	"github.com/flanksource/duty"
 	dutymodels "github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/query"
+	"github.com/flanksource/duty/tests/fixtures/dummy"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -73,6 +74,94 @@ var _ = Describe("CRD Sync test", Ordered, func() {
 		err = DefaultContext.DB().Where("name = ?", "echo-input-name").First(&playbook).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to find playbook")
 		Expect(playbook.Source).To(Equal(dutymodels.SourceCRDSync))
+	})
+})
+
+var _ = Describe("prevent config change external_change_id collision on dedup", Ordered, func() {
+	var createdChanges []*models.ConfigChange
+	var scraperCtx api.ScrapeContext
+
+	BeforeAll(func() {
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&v1.ScrapeConfig{})
+	})
+
+	AfterAll(func() {
+		for _, change := range createdChanges {
+			err := DefaultContext.DB().Delete(change).Error
+			Expect(err).NotTo(HaveOccurred(), "failed to delete config change")
+		}
+	})
+
+	It("should create a new change", func() {
+		firstChange := models.ConfigChange{
+			ConfigID:         dummy.EKSCluster.ID.String(),
+			CreatedAt:        time.Now().Add(-time.Minute * 5),
+			ExternalChangeID: lo.ToPtr("first"),
+			Details:          v1.JSON{"id": 1},
+			Count:            1,
+			Fingerprint:      lo.ToPtr("642d77b89087c2c1b898880f2ab8321f"),
+		}
+		err := DefaultContext.DB().Create(&firstChange).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		createdChanges = append(createdChanges, &firstChange)
+	})
+
+	It("should create a second change", func() {
+		secondChange := models.ConfigChange{
+			ConfigID:         dummy.EKSCluster.ID.String(),
+			CreatedAt:        time.Now().Add(-time.Minute),
+			ExternalChangeID: lo.ToPtr("second"),
+			Details:          v1.JSON{"id": 100},
+			Count:            1,
+			Fingerprint:      lo.ToPtr("642d77b89087c2c1b898880f2ab8321f"),
+		}
+		err := DefaultContext.DB().Create(&secondChange).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		createdChanges = append(createdChanges, &secondChange)
+	})
+
+	It("should save without deduping & increment the count", func() {
+		err := db.InitChangeFingerprintCache(scraperCtx, time.Minute*2)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = db.SaveResults(scraperCtx, []v1.ScrapeResult{
+			{Changes: []v1.ChangeResult{
+				{
+					ConfigID:         dummy.EKSCluster.ID.String(),
+					ExternalChangeID: "first",
+					Details:          v1.JSON{"id": 2},
+				},
+			}},
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		var change models.ConfigChange
+		err = DefaultContext.DB().Where("external_change_id = ?", "first").First(&change).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(change.Count).To(Equal(2))
+	})
+
+	It("should save without deduping & NOT increment the count", func() {
+		err := db.InitChangeFingerprintCache(scraperCtx, time.Minute*2)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = db.SaveResults(scraperCtx, []v1.ScrapeResult{
+			{Changes: []v1.ChangeResult{
+				{
+					ConfigID:         dummy.EKSCluster.ID.String(),
+					ExternalChangeID: "first",
+					Details:          v1.JSON{"id": 2},
+				},
+			}},
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		var change models.ConfigChange
+		err = DefaultContext.DB().Where("external_change_id = ?", "first").First(&change).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(change.Count).To(Equal(2))
 	})
 })
 

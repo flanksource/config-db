@@ -48,11 +48,11 @@ func Fingerprint(change *models.ConfigChange) (string, error) {
 		return "", nil
 	}
 
-	if change.Patches == "" && change.Details == nil {
+	if change.Patches == nil && change.Details == nil {
 		return "", nil
 	}
 
-	input := []byte(change.Patches)
+	input := []byte(lo.FromPtr(change.Patches))
 	if len(input) == 0 {
 		detailsJSON, err := json.Marshal(change.Details)
 		if err != nil {

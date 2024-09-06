@@ -29,7 +29,7 @@ type ConfigChange struct {
 	Severity          string     `gorm:"column:severity" json:"severity"`
 	Source            string     `gorm:"column:source" json:"source"`
 	Summary           string     `gorm:"column:summary" json:"summary,omitempty"`
-	Patches           string     `gorm:"column:patches;default:null" json:"patches,omitempty"`
+	Patches           *string    `gorm:"column:patches;default:null" json:"patches,omitempty"`
 	Details           v1.JSON    `gorm:"column:details" json:"details,omitempty"`
 	Count             int        `gorm:"column:count;<-" json:"count"`
 	FirstObserved     *time.Time `gorm:"column:first_observed;default:NOW()" json:"first_observed"`
@@ -60,13 +60,16 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 		Severity:   change.Severity,
 		Details:    v1.JSON(change.Details),
 		Summary:    change.Summary,
-		Patches:    change.Patches,
 		CreatedBy:  change.CreatedBy,
 		Count:      1,
 		ConfigID:   change.ConfigID,
 	}
 	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {
 		_change.CreatedAt = lo.FromPtr(change.CreatedAt)
+	}
+
+	if change.Patches != "" {
+		_change.Patches = &change.Patches
 	}
 
 	if change.ExternalChangeID != "" {

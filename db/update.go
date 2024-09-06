@@ -604,25 +604,21 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	for _, dedup := range deduped {
-		update := map[string]any{
-			"change_type":         dedup.Change.ChangeType,
-			"count":               gorm.Expr("count + ?", dedup.CountIncrement),
-			"created_at":          gorm.Expr("NOW()"),
-			"created_by":          dedup.Change.CreatedBy,
-			"details":             dedup.Change.Details,
-			"diff":                dedup.Change.Diff,
-			"external_change_id":  dedup.Change.ExternalChangeID,
-			"external_created_by": dedup.Change.ExternalCreatedBy,
-			"severity":            dedup.Change.Severity,
-			"source":              dedup.Change.Source,
-			"summary":             dedup.Change.Summary,
-		}
-
-		if dedup.Change.Patches != "" {
-			update["patches"] = dedup.Change.Patches
-		}
-
-		if err := ctx.DB().Model(&models.ConfigChange{}).Where("id = ?", dedup.Change.ID).UpdateColumns(update).Error; err != nil {
+		if err := ctx.DB().Exec(`SELECT update_config_change(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			dedup.CountIncrement,
+			dedup.Change.ID,
+			dedup.Change.ChangeType,
+			dedup.Change.Count,
+			dedup.Change.CreatedBy,
+			dedup.Change.Details,
+			dedup.Change.Diff,
+			dedup.Change.ExternalChangeID,
+			dedup.Change.ExternalCreatedBy,
+			dedup.Change.Patches,
+			dedup.Change.Severity,
+			dedup.Change.Source,
+			dedup.Change.Summary,
+		).Error; err != nil {
 			return summary, fmt.Errorf("failed to create deduped config changes: %w", dutydb.ErrorDetails(err))
 		}
 	}
