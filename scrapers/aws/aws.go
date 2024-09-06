@@ -1976,11 +1976,13 @@ func parseAssumeRolePolicyDoc(ctx *AWSContext, encodedDoc string) (map[string]an
 		if svcsObj == nil {
 			continue
 		}
-		if svcs, ok := lo.FromAnySlice[string](svcsObj.([]any)); ok {
-			slices.Sort(svcs)
-			if _, err := stmt.Set(svcs, "Principal", "Service"); err != nil {
-				ctx.Errorf("error setting services object[%v] in Principal.Services: %v", svcs, err)
-				continue
+		if svcAnySlice, ok := svcsObj.([]any); ok {
+			if svcs, ok := lo.FromAnySlice[string](svcAnySlice); ok {
+				slices.Sort(svcs)
+				if _, err := stmt.Set(svcs, "Principal", "Service"); err != nil {
+					ctx.Errorf("error setting services object[%v] in Principal.Services: %v", svcs, err)
+					continue
+				}
 			}
 		}
 	}
