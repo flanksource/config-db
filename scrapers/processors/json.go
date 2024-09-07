@@ -340,7 +340,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		}
 
 		if parsed, err := input.Tags.Eval(input.Labels, input.ConfigString()); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to evaluate tags for result[%s]: %w", input.String(), err)
 		} else {
 			input.Tags = parsed
 		}

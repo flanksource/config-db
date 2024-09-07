@@ -8,6 +8,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty/context"
+	dutydb "github.com/flanksource/duty/db"
 	"github.com/samber/lo"
 )
 
@@ -118,7 +119,7 @@ func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error
 
 	result := models.ConfigItem{}
 	if err := ctx.DB().Limit(1).Find(&result, "id = ? ", id).Error; err != nil {
-		return nil, err
+		return nil, dutydb.ErrorDetails(err)
 	}
 
 	if result.ID != "" {
