@@ -86,7 +86,7 @@ func (ctx *KubernetesContext) IgnoreChange(change v1.ChangeResult, event v1.Kube
 	}
 	changeTypeExclusion, changeSeverityExclusion, err := ctx.getObjectChangeExclusionAnnotations(string(event.InvolvedObject.UID))
 	if err != nil {
-		return false, fmt.Errorf("failed to get annotation for object from db (%s)", event.InvolvedObject.UID)
+		return false, fmt.Errorf("failed to get annotation for object from db (%s): %w", event.InvolvedObject.UID, err)
 	}
 
 	if changeTypeExclusion != "" {
