@@ -49,7 +49,7 @@ require (
 	github.com/aws/smithy-go v1.20.4
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/flanksource/artifacts v1.0.14
-	github.com/flanksource/commons v1.29.4
+	github.com/flanksource/commons v1.29.10
 	github.com/flanksource/duty v1.0.628
 	github.com/flanksource/is-healthy v1.0.31
 	github.com/flanksource/ketall v1.1.7
@@ -258,7 +258,7 @@ require (
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.1 // indirect
-	github.com/flanksource/gomplate/v3 v3.24.29
+	github.com/flanksource/gomplate/v3 v3.24.30
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-logr/logr v1.4.2
 	github.com/go-openapi/jsonpointer v0.20.2 // indirect
