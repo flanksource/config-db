@@ -421,6 +421,10 @@ func (t *Tags) Append(name, value string) {
 		return
 	}
 
+	if value == "" {
+		return
+	}
+
 	if *t == nil {
 		*t = make(Tags, 0, 1)
 	}
