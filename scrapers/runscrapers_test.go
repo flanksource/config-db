@@ -154,11 +154,25 @@ var _ = Describe("Dedup test", Ordered, func() {
 			})
 
 			It(fmt.Sprintf("[%d] should have the updated the db", i), func() {
-				err := DefaultContext.DB().Where("name = ?", "change-dedup-test").First(&cmA).Error
-				Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+				{
+					err := DefaultContext.DB().Where("name = ?", configA.Name).First(&cmA).Error
+					Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
 
-				err = DefaultContext.DB().Where("name = ?", "change-dedup-test").First(&cmB).Error
-				Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+					var configMap apiv1.ConfigMap
+					err = json.Unmarshal([]byte(*cmA.Config), &configMap)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(configMap.Data["key"]).To(Equal(configA.Data["key"]))
+				}
+
+				{
+					err := DefaultContext.DB().Where("name = ?", configB.Name).First(&cmB).Error
+					Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
+
+					var configMap apiv1.ConfigMap
+					err = json.Unmarshal([]byte(*cmB.Config), &configMap)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(configMap.Data["key"]).To(Equal(configB.Data["key"]))
+				}
 			})
 		}
 	})
