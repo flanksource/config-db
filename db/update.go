@@ -147,13 +147,15 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 		updates["updated_at"] = gorm.Expr("NOW()")
 	}
 
-	if lo.FromPtr(existing.Health) != lo.FromPtr(ci.Health) {
+	previousHealth := lo.CoalesceOrEmpty(lo.FromPtr(existing.Health), dutyModels.HealthUnknown)
+	newHealth := lo.CoalesceOrEmpty(lo.FromPtr(ci.Health), dutyModels.HealthUnknown)
+	if previousHealth != newHealth {
 		// For every health change, we add a config change.
 		healthChange := &models.ConfigChange{
 			ConfigID:   ci.ID,
-			ChangeType: lo.PascalCase(string(lo.FromPtr(ci.Health))),
+			ChangeType: lo.PascalCase(string(newHealth)),
 			Source:     "config-db",
-			Summary:    fmt.Sprintf("Health changed from %s to %s", lo.FromPtr(existing.Health), lo.FromPtr(ci.Health)),
+			Summary:    fmt.Sprintf("Health changed from %s to %s", previousHealth, newHealth),
 			Count:      1,
 			Details: map[string]any{
 				"previous": map[string]any{
@@ -169,11 +171,11 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 			},
 		}
 
-		if lo.FromPtr(ci.Health) == dutyModels.HealthUnknown {
+		if newHealth == dutyModels.HealthUnknown {
 			healthChange.ChangeType = "HealthUnknown"
 		}
 
-		switch lo.FromPtr(ci.Health) {
+		switch newHealth {
 		case dutyModels.HealthHealthy:
 			healthChange.Severity = string(dutyModels.SeverityInfo)
 		case dutyModels.HealthUnhealthy:
@@ -206,7 +208,11 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 		updates["ready"] = ci.Ready
 	}
 	if lo.FromPtr(ci.Health) != lo.FromPtr(existing.Health) {
-		updates["health"] = ci.Health
+		if lo.FromPtr(ci.Health) == "" {
+			updates["health"] = dutyModels.HealthUnknown
+		} else {
+			updates["health"] = ci.Health
+		}
 	}
 	if !stringEqual(ci.Name, existing.Name) {
 		updates["name"] = ci.Name

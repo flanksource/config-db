@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
+	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -142,6 +143,7 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Ready:           result.Ready,
 		LastScrapedTime: result.LastScrapedTime,
 		Parents:         result.Parents,
+		Health:          lo.ToPtr(dutyModels.HealthUnknown),
 		Children:        result.Children,
 	}
 
