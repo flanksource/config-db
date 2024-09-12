@@ -1114,7 +1114,7 @@ func getPath(ctx api.ScrapeContext, parentMap map[string]string, self string) (s
 
 	for parent := getOrFind(ctx, parentMap, self); parent != ""; parent = getOrFind(ctx, parentMap, parent) {
 		if slices.Contains(paths, parent) {
-			return "", false
+			return strings.Join(paths, "."), true
 		}
 		paths = append([]string{parent}, paths...)
 	}
@@ -1144,7 +1144,7 @@ func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) erro
 	}
 
 	for _, config := range allConfigs {
-		for i := 1; i < len(config.ProbableParents); i++ {
+		for i := 0; i < len(config.ProbableParents); i++ {
 			// If no cylce is detected, we set path and parentID
 			path, ok := getPath(ctx, parentMap, config.ID)
 			if ok {
