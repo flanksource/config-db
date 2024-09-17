@@ -33,9 +33,8 @@ func (t *TempCache) FindExternalID(ctx ScrapeContext, ext v1.ExternalID) (string
 }
 
 func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.ConfigItem, error) {
-
 	if lookup.ScraperID == "" {
-		lookup.ScraperID = string(ctx.ScrapeConfig().GetUID())
+		lookup.ScraperID = ctx.ScraperID()
 	}
 
 	if _, ok := t.notFound[lookup.Key()]; ok {
@@ -117,8 +116,12 @@ func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error
 		return &item, nil
 	}
 
+	q := ctx.DB().Limit(1).Where("id = ?", id)
+	if scraperID := ctx.ScraperID(); scraperID != "" {
+		q = q.Where("scraper_id = ?", scraperID)
+	}
 	result := models.ConfigItem{}
-	if err := ctx.DB().Limit(1).Find(&result, "id = ? ", id).Error; err != nil {
+	if err := q.Find(&result).Error; err != nil {
 		return nil, dutydb.ErrorDetails(err)
 	}
 

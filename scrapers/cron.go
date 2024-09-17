@@ -74,7 +74,7 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 		Retention:  job.RetentionFew,
 		RunNow:     true,
 		Fn: func(jr job.JobRuntime) error {
-			scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(sc, uuid.Nil)
+			scraperConfigsDB, err := db.GetScrapeConfigsOfAgent(jr.Context, uuid.Nil)
 			if err != nil {
 				return fmt.Errorf("error getting configs from database: %v", err)
 			}
