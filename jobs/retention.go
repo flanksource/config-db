@@ -12,12 +12,12 @@ import (
 
 func ProcessChangeRetentionRules(ctx job.JobRuntime) error {
 	ctx.History.ResourceType = JobResourceType
-	var activeScrapers []models.ConfigScraper
-	if err := ctx.DB().Where("deleted_at IS NULL").Find(&activeScrapers).Error; err != nil {
+	var allScrapers []models.ConfigScraper
+	if err := ctx.DB().Find(&allScrapers).Error; err != nil {
 		return err
 	}
 
-	for _, s := range activeScrapers {
+	for _, s := range allScrapers {
 		var spec v1.ScraperSpec
 		if err := json.Unmarshal([]byte(s.Spec), &spec); err != nil {
 			ctx.History.AddErrorf("failed to unmarshal scraper spec (%s): %v", s.ID, err)

@@ -33,9 +33,8 @@ func (t *TempCache) FindExternalID(ctx ScrapeContext, ext v1.ExternalID) (string
 }
 
 func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.ConfigItem, error) {
-
 	if lookup.ScraperID == "" {
-		lookup.ScraperID = string(ctx.ScrapeConfig().GetUID())
+		lookup.ScraperID = ctx.ScraperID()
 	}
 
 	if _, ok := t.notFound[lookup.Key()]; ok {

@@ -161,6 +161,9 @@ func (summary ConfigTypeScrapeSummary) String() string {
 	if summary.Unchanged > 0 {
 		s = append(s, fmt.Sprintf("unchanged=%d", summary.Unchanged))
 	}
+	for _, w := range summary.Warnings {
+		s = append(s, "warning=%s", w)
+	}
 
 	if summary.Change != nil && len(summary.Change.Ignored) > 0 {
 		s = append(s, fmt.Sprintf("ignored=%d", lo.Sum(lo.Values(summary.Change.Ignored))))
@@ -235,6 +238,12 @@ func (t *ScrapeSummary) AddUnchanged(configType string) {
 	(*t)[configType] = v
 }
 
+func (t *ScrapeSummary) AddWarning(configType, warning string) {
+	v := (*t)[configType]
+	v.Warnings = append(v.Warnings, warning)
+	(*t)[configType] = v
+}
+
 type ChangeSummary struct {
 	Orphaned map[string]int `json:"orphaned,omitempty"`
 	Ignored  map[string]int `json:"ignored,omitempty"`
@@ -291,6 +300,7 @@ type ConfigTypeScrapeSummary struct {
 	Updated   int            `json:"updated,omitempty"`
 	Unchanged int            `json:"unchanged,omitempty"`
 	Change    *ChangeSummary `json:"change,omitempty"`
+	Warnings  []string       `json:"warnings,omitempty"`
 }
 
 // +kubebuilder:object:generate=false

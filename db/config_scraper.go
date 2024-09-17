@@ -102,7 +102,7 @@ func PersistScrapeConfigFromCRD(ctx context.Context, scrapeConfig *v1.ScrapeConf
 	return changed, tx.Error
 }
 
-func GetScrapeConfigsOfAgent(ctx api.ScrapeContext, agentID uuid.UUID) ([]models.ConfigScraper, error) {
+func GetScrapeConfigsOfAgent(ctx context.Context, agentID uuid.UUID) ([]models.ConfigScraper, error) {
 	var configScrapers []models.ConfigScraper
 	err := ctx.DB().Where("deleted_at IS NULL").Find(&configScrapers, "agent_id = ?", agentID).Error
 	return configScrapers, err
