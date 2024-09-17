@@ -1,0 +1,18 @@
+{
+  "id": "abf65d53-d011-429d-b659-ea20991acd42",
+  "config_id": "3397183d-cb66-40bd-9257-3e2a86550b2b",
+  "change_type": "HealthCheckPassed",
+  "created_at": "2024-09-17T10:05:03.925589+00:00",
+  "external_created_by": null,
+  "source": "",
+  "diff": "--- before\n+++ after\n@@ -74,7 +74,7 @@\n         \"type\": \"Ready\"\n       },\n       {\n-        \"message\": \"Health check passed in 50.309434ms\",\n+        \"message\": \"Health check passed in 83.594302ms\",\n         \"reason\": \"Succeeded\",\n         \"status\": \"True\",\n         \"type\": \"Healthy\"\n",
+  "details": null,
+  "patches":     "{\"status\":{\"conditions\":[{\"type\":\"Ready\",\"reason\":\"ReconciliationSucceeded\",\"status\":\"True\",\"message\":\"Applied revision: v1.53.1@sha1:8b257f050d3748497382e41bc22f95c9022e6f0d\"},{\"type\":\"Healthy\",\"reason\":\"Succeeded\",\"status\":\"True\",\"message\":\"Health check passed in 52.309434ms\"}]}}",
+  "created_by": null,
+  "config": {
+      "id": "3397183d-cb66-40bd-9257-3e2a86550b2b",
+      "name": "mission-control-agent",
+      "type": "Kubernetes::Kustomization",
+      "config_class": "Kustomization"
+  }
+}

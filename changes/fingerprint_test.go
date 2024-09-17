@@ -47,6 +47,14 @@ var _ = Describe("Change Fingerprints", func() {
 		Expect(err2).ToNot(HaveOccurred())
 		Expect(fp1).ToNot(Equal(fp2))
 	})
+
+	It("durations should be ignored", func() {
+		fp1, err1 := changes.Fingerprint(readChange("health_passed_1.json"))
+		fp2, err2 := changes.Fingerprint(readChange("health_passed_2.json"))
+		Expect(err1).ToNot(HaveOccurred())
+		Expect(err2).ToNot(HaveOccurred())
+		Expect(fp1).To(Equal(fp2))
+	})
 })
 
 func TestChangeFingerprints(t *testing.T) {

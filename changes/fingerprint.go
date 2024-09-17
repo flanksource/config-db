@@ -27,6 +27,7 @@ func init() {
 	tokenizer = NewReplacements(
 		"UUID", `\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b`,
 		"TIMESTAMP", `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})`,
+		"DURATION", `\s+\d+(.\d+){0,1}(ms|s|h|d|m)`,
 		"SHA256", `[a-z0-9]{64}`,
 		"NUMBER", `^\d+$`,
 	)
@@ -76,6 +77,8 @@ func Fingerprint(change *models.ConfigChange) (string, error) {
 		out[k] = tokenizer.Tokenize(v)
 	}
 
+	// logger.GetLogger("fingerprint").Infof("in-->\n%s\nout-->\n%s\n", logger.Pretty(flat), logger.Pretty(out))
+
 	hash := Hash(out)
 	return hash, nil
 }
@@ -97,7 +100,8 @@ func (replacements Replacements) Tokenize(data interface{}) string {
 
 	case int, int8, int16, int32, int64, float32, float64, uint, uint8, uint16, uint32, uint64:
 		return "0"
-
+	case time.Duration:
+		return "DURATION"
 	case time.Time:
 		return "TIMESTAMP"
 	case string:
@@ -109,7 +113,6 @@ func (replacements Replacements) Tokenize(data interface{}) string {
 			}
 		}
 		return out
-
 	}
 
 	return fmt.Sprintf("%v", data)
