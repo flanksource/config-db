@@ -116,12 +116,8 @@ func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error
 		return &item, nil
 	}
 
-	q := ctx.DB().Limit(1).Where("id = ?", id)
-	if scraperID := ctx.ScraperID(); scraperID != "" {
-		q = q.Where("scraper_id = ?", scraperID)
-	}
 	result := models.ConfigItem{}
-	if err := q.Find(&result).Error; err != nil {
+	if err := ctx.DB().Limit(1).Find(&result, "id = ? ", id).Error; err != nil {
 		return nil, dutydb.ErrorDetails(err)
 	}
 

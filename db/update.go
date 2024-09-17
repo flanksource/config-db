@@ -108,7 +108,7 @@ func mapEqual(a, b map[string]any) bool {
 	return true
 }
 
-func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *models.ConfigItem) (bool, []*models.ConfigChange, error) {
+func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.ScrapeResult, ci, existing *models.ConfigItem) (bool, []*models.ConfigChange, error) {
 	ci.ID = existing.ID
 	updates := make(map[string]interface{})
 	changes := make([]*models.ConfigChange, 0)
@@ -247,7 +247,7 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	// same config items
 	if lo.FromPtr(existing.ScraperID) != lo.FromPtr(ci.ScraperID) {
 		updates["scraper_id"] = ci.ScraperID
-		ctx.Warnf("updated scraper_id of config[%s] from %s to %s", ci, existing.ScraperID, ci.ScraperID)
+		summary.AddWarning(*ci.Type, fmt.Sprintf("updated scraper_id of config[%s] from %s to %s", ci, existing.ScraperID, ci.ScraperID))
 	}
 
 	if ci.Properties != nil && len(*ci.Properties) > 0 && (existing.Properties == nil || !mapEqual(ci.Properties.AsMap(), existing.Properties.AsMap())) {
@@ -582,7 +582,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	// TODO: Try this in batches as well
 	for _, updateArg := range configsToUpdate {
-		updated, diffChanges, err := updateCI(ctx, updateArg.Result, updateArg.New, updateArg.Existing)
+		updated, diffChanges, err := updateCI(ctx, &summary, updateArg.Result, updateArg.New, updateArg.Existing)
 		if err != nil {
 			return summary, fmt.Errorf("failed to update config item (%s): %w", updateArg.Existing, err)
 		}
