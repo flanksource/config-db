@@ -242,6 +242,14 @@ func updateCI(ctx api.ScrapeContext, result v1.ScrapeResult, ci, existing *model
 	if !mapStringEqual(existing.Tags, ci.Tags) {
 		updates["tags"] = ci.Tags
 	}
+
+	// This could happen when kubernetes scrapers are replaced and scrape
+	// same config items
+	if lo.FromPtr(existing.ScraperID) != lo.FromPtr(ci.ScraperID) {
+		updates["scraper_id"] = ci.ScraperID
+		ctx.Warnf("updated scraper_id of config[%s] from %s to %s", ci, existing.ScraperID, ci.ScraperID)
+	}
+
 	if ci.Properties != nil && len(*ci.Properties) > 0 && (existing.Properties == nil || !mapEqual(ci.Properties.AsMap(), existing.Properties.AsMap())) {
 		updates["properties"] = *ci.Properties
 	}
