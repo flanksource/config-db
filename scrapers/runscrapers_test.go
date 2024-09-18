@@ -360,7 +360,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 
 		It("should create a new config item", func() {
 			config := getConfigSpec("file-car")
-			_, err := db.PersistScrapeConfigFromFile(ctx, config)
+			_, err := db.PersistScrapeConfigFromFile(ctx.DutyContext(), config)
 			Expect(err).To(BeNil())
 
 			ctx := api.NewScrapeContext(DefaultContext).WithScrapeConfig(&config)

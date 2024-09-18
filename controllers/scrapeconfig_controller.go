@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	dutyContext "github.com/flanksource/duty/context"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -68,7 +69,7 @@ func (r *ScrapeConfigReconciler) Reconcile(c context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	ctx := api.DefaultContext.WithScrapeConfig(scrapeConfig)
+	ctx := api.NewScrapeContext(dutyContext.NewContext(c)).WithScrapeConfig(scrapeConfig)
 
 	// Check if it is deleted, remove scrape config
 	if !scrapeConfig.DeletionTimestamp.IsZero() {
@@ -100,7 +101,7 @@ func (r *ScrapeConfigReconciler) Reconcile(c context.Context, req ctrl.Request) 
 
 	// Sync jobs if new scrape config is created
 	if changed {
-		ctx := api.DefaultContext.WithScrapeConfig(scrapeConfig)
+		ctx := ctx.WithScrapeConfig(scrapeConfig)
 		if err := scrapers.SyncScrapeJob(ctx); err != nil {
 			logger.Error(err, "failed to sync scrape job")
 		}

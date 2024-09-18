@@ -9,6 +9,7 @@ import (
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/job"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
@@ -41,7 +42,7 @@ var (
 	ScraperConcurrency = 12
 )
 
-func SyncScrapeConfigs(sc api.ScrapeContext) {
+func SyncScrapeConfigs(sc context.Context) {
 	if globalScraperSempahore == nil {
 		globalScraperSempahore = semaphore.NewWeighted(int64(sc.Properties().Int("scraper.concurrency", ScraperConcurrency)))
 	}
@@ -67,7 +68,7 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 	DefaultSchedule = sc.Properties().String("scrapers.default.schedule", DefaultSchedule)
 	j := &job.Job{
 		Name:       "ConfigScraperSync",
-		Context:    sc.DutyContext(),
+		Context:    sc,
 		Schedule:   "@every 10m",
 		Singleton:  true,
 		JobHistory: true,
@@ -86,7 +87,8 @@ func SyncScrapeConfigs(sc api.ScrapeContext) {
 					continue
 				}
 
-				if err := SyncScrapeJob(sc.WithScrapeConfig(&_scraper)); err != nil {
+				srapeCtx := api.NewScrapeContext(sc).WithScrapeConfig(&_scraper)
+				if err := SyncScrapeJob(srapeCtx); err != nil {
 					jr.History.AddErrorf("Error syncing scrape job[%s]: %v", scraper.ID, err)
 					continue
 				}

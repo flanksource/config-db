@@ -11,7 +11,6 @@ import (
 
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
@@ -44,10 +43,9 @@ var Serve = &cobra.Command{
 		AddShutdownHook(closer)
 
 		dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
-		api.DefaultContext = api.NewScrapeContext(dutyCtx)
 
-		dedupWindow := api.DefaultContext.Properties().Duration("changes.dedup.window", time.Hour)
-		if err := db.InitChangeFingerprintCache(api.DefaultContext, dedupWindow); err != nil {
+		dedupWindow := ctx.Properties().Duration("changes.dedup.window", time.Hour)
+		if err := db.InitChangeFingerprintCache(ctx, dedupWindow); err != nil {
 			return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 		}
 
@@ -101,7 +99,7 @@ func serve(ctx dutyContext.Context, configFiles []string) {
 		Gatherer: prom.DefaultGatherer,
 	}))
 
-	go startScraperCron(configFiles)
+	go startScraperCron(ctx, configFiles)
 
 	go jobs.ScheduleJobs(ctx)
 	shutdown.AddHook(jobs.Stop)
@@ -122,7 +120,7 @@ func serve(ctx dutyContext.Context, configFiles []string) {
 	}
 }
 
-func startScraperCron(configFiles []string) {
+func startScraperCron(ctx dutyContext.Context, configFiles []string) {
 	scraperConfigsFiles, err := v1.ParseConfigs(configFiles...)
 	if err != nil {
 		logger.Fatalf("error parsing config files: %v", err)
@@ -130,13 +128,13 @@ func startScraperCron(configFiles []string) {
 
 	logger.Infof("Persisting %d config files", len(scraperConfigsFiles))
 	for _, scrapeConfig := range scraperConfigsFiles {
-		_, err := db.PersistScrapeConfigFromFile(api.DefaultContext, scrapeConfig)
+		_, err := db.PersistScrapeConfigFromFile(ctx, scrapeConfig)
 		if err != nil {
 			logger.Fatalf("Error persisting scrape config to db: %v", err)
 		}
 	}
 
-	scrapers.SyncScrapeConfigs(api.DefaultContext)
+	scrapers.SyncScrapeConfigs(ctx)
 
 }
 

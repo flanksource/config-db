@@ -11,7 +11,6 @@ var (
 	KubernetesClient     kubernetes.Interface
 	KubernetesRestConfig *rest.Config
 	Namespace            string
-	DefaultContext       ScrapeContext
 
 	UpstreamConfig upstream.UpstreamConfig
 )
