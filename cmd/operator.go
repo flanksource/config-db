@@ -15,7 +15,6 @@ import (
 
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
 	configsv1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/controllers"
 	"github.com/flanksource/config-db/db"
@@ -51,13 +50,12 @@ func run(cmd *cobra.Command, args []string) error {
 	AddShutdownHook(closer)
 
 	dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
-	api.DefaultContext = api.NewScrapeContext(dutyCtx)
 
 	logger := logger.GetLogger("operator")
 	logger.SetLogLevel(k8sLogLevel)
 
-	dedupWindow := api.DefaultContext.Properties().Duration("changes.dedup.window", time.Hour)
-	if err := db.InitChangeFingerprintCache(api.DefaultContext, dedupWindow); err != nil {
+	dedupWindow := ctx.Properties().Duration("changes.dedup.window", time.Hour)
+	if err := db.InitChangeFingerprintCache(ctx, dedupWindow); err != nil {
 		return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 	}
 

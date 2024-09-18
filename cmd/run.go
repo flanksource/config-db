@@ -47,13 +47,11 @@ var Run = &cobra.Command{
 			dutyCtx = c
 		}
 
-		api.DefaultContext = api.NewScrapeContext(dutyCtx)
-
 		e := echo.New()
 
 		e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 			return func(c echo.Context) error {
-				c.SetRequest(c.Request().WithContext(api.DefaultContext.Wrap(c.Request().Context())))
+				c.SetRequest(c.Request().WithContext(dutyCtx.Wrap(c.Request().Context())))
 				return next(c)
 			}
 		})
@@ -82,8 +80,8 @@ var Run = &cobra.Command{
 		}
 
 		for i := range scraperConfigs {
-			ctx, cancel, cancelTimeout := api.DefaultContext.WithScrapeConfig(&scraperConfigs[i]).
-				WithTimeout(api.DefaultContext.Properties().Duration("scraper.timeout", 4*time.Hour))
+			ctx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
+				WithTimeout(dutyCtx.Properties().Duration("scraper.timeout", 4*time.Hour))
 			defer cancelTimeout()
 			shutdown.AddHook(cancel)
 			if err := scrapeAndStore(ctx); err != nil {

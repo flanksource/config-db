@@ -108,7 +108,7 @@ func GetScrapeConfigsOfAgent(ctx context.Context, agentID uuid.UUID) ([]models.C
 	return configScrapers, err
 }
 
-func PersistScrapeConfigFromFile(ctx api.ScrapeContext, scrapeConfig v1.ScrapeConfig) (models.ConfigScraper, error) {
+func PersistScrapeConfigFromFile(ctx context.Context, scrapeConfig v1.ScrapeConfig) (models.ConfigScraper, error) {
 	configScraper, err := scrapeConfig.ToModel()
 	if err != nil {
 		return configScraper, err
