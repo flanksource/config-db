@@ -71,7 +71,8 @@ func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) err
 
 		// If error in any of the scrape results, don't delete old items
 		if len(results) > 0 && !v1.ScrapeResults(results).HasErr() {
-			if err := DeleteStaleConfigItems(ctx, *persistedID); err != nil {
+			staleTimeout := ctx.ScrapeConfig().Spec.Retention.StaleItemAge
+			if _, err := DeleteStaleConfigItems(ctx.DutyContext(), staleTimeout, *persistedID); err != nil {
 				return fmt.Errorf("error deleting stale config items: %w", err)
 			}
 		}
