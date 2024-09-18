@@ -83,6 +83,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	if err = (&controllers.ScrapeConfigReconciler{
 		Client: mgr.GetClient(),
+		DB:     dutyCtx.DB(),
 		Scheme: mgr.GetScheme(),
 		Log:    ctrl.Log.WithName("controllers").WithName("scrape_config"),
 	}).SetupWithManager(mgr); err != nil {

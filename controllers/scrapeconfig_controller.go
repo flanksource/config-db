@@ -22,6 +22,7 @@ import (
 
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/go-logr/logr"
+	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -39,6 +40,7 @@ const ScrapeConfigFinalizerName = "scrapeConfig.config.flanksource.com"
 // ScrapeConfigReconciler reconciles a ScrapeConfig object
 type ScrapeConfigReconciler struct {
 	client.Client
+	DB     *gorm.DB
 	Scheme *runtime.Scheme
 	Log    logr.Logger
 }
@@ -69,7 +71,7 @@ func (r *ScrapeConfigReconciler) Reconcile(c context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	ctx := api.NewScrapeContext(dutyContext.NewContext(c)).WithScrapeConfig(scrapeConfig)
+	ctx := api.NewScrapeContext(dutyContext.NewContext(c).WithDB(r.DB, nil)).WithScrapeConfig(scrapeConfig)
 
 	// Check if it is deleted, remove scrape config
 	if !scrapeConfig.DeletionTimestamp.IsZero() {
