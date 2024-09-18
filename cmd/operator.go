@@ -69,7 +69,7 @@ func run(cmd *cobra.Command, args []string) error {
 	utilruntime.Must(configsv1.AddToScheme(scheme))
 
 	// Start the server
-	go serve(args)
+	go serve(dutyCtx, args)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,

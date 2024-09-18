@@ -8,6 +8,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type contextKey string
@@ -56,8 +57,18 @@ func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 }
 
 func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) error {
+	basectx, span := ctx.StartSpan("UpdateStaleConfigItems")
+	defer span.End()
+
+	ctx.Context = basectx
+
 	persistedID := ctx.ScrapeConfig().GetPersistedID()
 	if persistedID != nil {
+		ctx.GetSpan().SetAttributes(
+			attribute.Int("scrape.results", len(results)),
+			attribute.Bool("scrape.hasError", v1.ScrapeResults(results).HasErr()),
+		)
+
 		// If error in any of the scrape results, don't delete old items
 		if len(results) > 0 && !v1.ScrapeResults(results).HasErr() {
 			if err := DeleteStaleConfigItems(ctx, *persistedID); err != nil {
