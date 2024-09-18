@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/duration"
-	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/context"
 	"github.com/google/uuid"
 )
 
@@ -14,7 +14,7 @@ var (
 	DefaultStaleTimeout = "24h"
 )
 
-func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
+func DeleteStaleConfigItems(ctx context.Context, staleTimeout string, scraperID uuid.UUID) (int64, error) {
 	var staleDuration time.Duration
 	if val := ctx.Value(contextKeyScrapeStart); val != nil {
 		if start, ok := val.(time.Time); ok {
@@ -22,11 +22,10 @@ func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
 		}
 	}
 
-	staleTimeout := ctx.ScrapeConfig().Spec.Retention.StaleItemAge
 	if staleTimeout == "keep" {
-		return nil
+		return 0, nil
 	} else if staleTimeout == "" {
-		if defaultVal, exists := ctx.DutyContext().Properties()["config.retention.stale_item_age"]; exists {
+		if defaultVal, exists := ctx.Properties()["config.retention.stale_item_age"]; exists {
 			staleTimeout = defaultVal
 		} else {
 			staleTimeout = DefaultStaleTimeout
@@ -34,7 +33,7 @@ func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
 	}
 
 	if parsed, err := duration.ParseDuration(staleTimeout); err != nil {
-		return fmt.Errorf("failed to parse stale timeout %s: %w", staleTimeout, err)
+		return 0, fmt.Errorf("failed to parse stale timeout %s: %w", staleTimeout, err)
 	} else if time.Duration(parsed) > staleDuration {
 		// Use which ever is greater
 		staleDuration = time.Duration(parsed)
@@ -50,14 +49,14 @@ func DeleteStaleConfigItems(ctx api.ScrapeContext, scraperID uuid.UUID) error {
             deleted_at IS NULL AND
             scraper_id = ?`
 
-	result := ctx.DutyContext().DB().Exec(deleteQuery, v1.DeletedReasonStale, staleDuration.Seconds(), scraperID)
+	result := ctx.DB().Exec(deleteQuery, v1.DeletedReasonStale, staleDuration.Seconds(), scraperID)
 	if err := result.Error; err != nil {
-		return fmt.Errorf("failed to delete stale config items: %w", err)
+		return 0, fmt.Errorf("failed to delete stale config items: %w", err)
 	}
 
 	if result.RowsAffected > 0 {
 		ctx.Logger.V(3).Infof("Deleted %d stale config items", result.RowsAffected)
 	}
 
-	return nil
+	return result.RowsAffected, nil
 }

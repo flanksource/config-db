@@ -1,11 +1,17 @@
 package jobs
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty/db"
 	"github.com/flanksource/duty/job"
+	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
+	"github.com/samber/lo"
 )
 
 const (
@@ -24,6 +30,7 @@ var cleanupJobs = []*job.Job{
 	CleanupConfigAnalysis,
 	CleanupConfigChanges,
 	CleanupConfigItems,
+	SoftDeleteAgentStaleItems,
 }
 
 var CleanupConfigAnalysis = &job.Job{
@@ -98,6 +105,47 @@ var CleanupConfigItems = &job.Job{
 			return fmt.Errorf("failed to count config items: %w", db.ErrorDetails(err))
 		}
 		ctx.History.SuccessCount = int(newCount - prevCount)
+		return nil
+	},
+}
+
+var SoftDeleteAgentStaleItems = &job.Job{
+	Name:       "SoftDeleteAgentStaleItems",
+	Schedule:   "0 3 * * *", // Everynight at 3 AM
+	Singleton:  true,
+	JobHistory: true,
+	RunNow:     true,
+	Retention:  job.RetentionBalanced,
+	Fn: func(ctx job.JobRuntime) error {
+		ctx.History.ResourceType = JobResourceType
+
+		var scrapersFromAgents []models.ConfigScraper
+		if err := ctx.DB().Where("agent_id != ?", uuid.Nil).Find(&scrapersFromAgents).Error; err != nil {
+			return fmt.Errorf("failed to find scrapers from agents: %w", db.ErrorDetails(err))
+		}
+		ctx.Logger.V(3).Infof("soft deleting stale config items for %d scrapers from agents", len(scrapersFromAgents))
+
+		staleItemAge := scrapers.DefaultStaleTimeout
+		if p, exists := ctx.Properties()["config.retention.agent.stale_item_age"]; exists {
+			staleItemAge = p
+		}
+
+		for _, scraper := range scrapersFromAgents {
+			var scraperV1 v1.ScrapeConfig
+			if err := json.Unmarshal([]byte(scraper.Spec), &scraperV1); err != nil {
+				ctx.History.AddErrorf("failed to unmarshal scraper spec (scraper_id=%s): %v", scraper.ID, err)
+				continue
+			}
+
+			scraperStaleItemAge := lo.CoalesceOrEmpty(scraperV1.Spec.Retention.StaleItemAge, staleItemAge)
+			if deleted, err := scrapers.DeleteStaleConfigItems(ctx.Context, scraperStaleItemAge, scraper.ID); err != nil {
+				ctx.History.AddErrorf("failed to delete stale config items of agent (scraper_id=%s): %v", scraper.ID, err)
+				continue
+			} else {
+				ctx.History.SuccessCount += int(deleted)
+			}
+		}
+
 		return nil
 	},
 }
