@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func FindScraper(ctx api.ScrapeContext, id string) (*models.ConfigScraper, error) {
+func FindScraper(ctx context.Context, id string) (*models.ConfigScraper, error) {
 	var configScraper models.ConfigScraper
 	if err := ctx.DB().Where("id = ?", id).First(&configScraper).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

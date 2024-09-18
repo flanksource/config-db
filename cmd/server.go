@@ -51,24 +51,23 @@ var Serve = &cobra.Command{
 			return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 		}
 
-		serve(args)
+		serve(dutyCtx, args)
 		return nil
 	},
 }
 
-func serve(configFiles []string) {
+func serve(ctx dutyContext.Context, configFiles []string) {
 	e := echo.New()
+
+	dutyEcho.AddDebugHandlers(ctx, e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
+	e.Use(otelecho.Middleware("config-db", otelecho.WithSkipper(telemetryURLSkipper)))
 
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			ctx := api.DefaultContext.Wrap(c.Request().Context())
-			c.SetRequest(c.Request().WithContext(ctx))
+			c.SetRequest(c.Request().WithContext(ctx.Wrap(c.Request().Context())))
 			return next(c)
 		}
 	})
-
-	dutyEcho.AddDebugHandlers(api.DefaultContext.DutyContext(), e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
-	e.Use(otelecho.Middleware("config-db", otelecho.WithSkipper(telemetryURLSkipper)))
 
 	if logger.IsTraceEnabled() {
 		echoLogConfig := middleware.DefaultLoggerConfig
@@ -104,7 +103,7 @@ func serve(configFiles []string) {
 
 	go startScraperCron(configFiles)
 
-	go jobs.ScheduleJobs(api.DefaultContext.DutyContext())
+	go jobs.ScheduleJobs(ctx)
 	shutdown.AddHook(jobs.Stop)
 
 	shutdown.AddHook(func() {
@@ -121,7 +120,6 @@ func serve(configFiles []string) {
 	if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil && err != http.ErrServerClosed {
 		e.Logger.Fatal(err)
 	}
-
 }
 
 func startScraperCron(configFiles []string) {
