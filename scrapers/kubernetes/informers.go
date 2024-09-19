@@ -108,7 +108,7 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 	defer t.mu.Unlock()
 
 	cacheKey := apiVersion + kind
-	kubeconfig := ctx.KubernetesRestConfig().Host
+	kubeconfig := lo.FromPtr(ctx.KubernetesRestConfig()).Host
 
 	if val, ok := t.cache[kubeconfig]; ok {
 		if data, ok := val[cacheKey]; ok {
