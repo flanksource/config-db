@@ -97,7 +97,7 @@ func (aws AWS) Includes(resource string) bool {
 
 func (aws AWS) Excludes(resource string) bool {
 	if len(aws.Exclude) == 0 {
-		return !lo.ContainsBy(defaultAWSExclusions, func(item string) bool {
+		return lo.ContainsBy(defaultAWSExclusions, func(item string) bool {
 			return strings.EqualFold(item, resource)
 		})
 	}
