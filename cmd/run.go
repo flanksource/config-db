@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	gocontext "context"
 	"fmt"
-	"net/http"
 	"os"
 	"path"
 	"time"
@@ -17,9 +15,7 @@ import (
 	"github.com/flanksource/duty"
 	dutyapi "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
-	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/shutdown"
-	"github.com/labstack/echo/v4"
 	"github.com/spf13/cobra"
 )
 
@@ -46,34 +42,6 @@ var Run = &cobra.Command{
 
 			dutyCtx = c
 		}
-
-		e := echo.New()
-
-		e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
-				c.SetRequest(c.Request().WithContext(dutyCtx.Wrap(c.Request().Context())))
-				return next(c)
-			}
-		})
-
-		dutyEcho.AddDebugHandlers(dutyCtx, e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
-
-		shutdown.AddHook(func() {
-			ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 1*time.Minute)
-			defer cancel()
-
-			if err := e.Shutdown(ctx); err != nil {
-				e.Logger.Fatal(err)
-			}
-		})
-
-		shutdown.WaitForSignal()
-
-		go func() {
-			if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil && err != http.ErrServerClosed {
-				e.Logger.Fatal(err)
-			}
-		}()
 
 		if dutyapi.DefaultConfig.ConnectionString == "" && outputDir == "" {
 			logger.Fatalf("skipping export: neither --output-dir nor --db is specified")
