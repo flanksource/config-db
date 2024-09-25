@@ -12,7 +12,19 @@ func TestProcessRules(t *testing.T) {
 		name   string
 		input  v1.ScrapeResult
 		expect []v1.ChangeResult
+		rules  []v1.ChangeMapping
+		err    bool
 	}{
+		{
+			name: "Should error out on bad filter",
+			input: v1.ScrapeResult{
+				Changes: []v1.ChangeResult{
+					{ChangeType: "AddTags"},
+				},
+			},
+			rules: []v1.ChangeMapping{{Filter: "bad filter"}},
+			err:   true,
+		},
 		{
 			name: "Test Action: empty ScrapeResult",
 			input: v1.ScrapeResult{
@@ -126,7 +138,14 @@ func TestProcessRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ProcessRules(&tt.input)
+			if err := ProcessRules(&tt.input, tt.rules...); err != nil {
+				if !tt.err {
+					t.Errorf("unexpected Error: %v", err)
+				}
+
+				return
+			}
+
 			if !reflect.DeepEqual(tt.input.Changes, tt.expect) {
 				t.Errorf("ProcessRules() = %v, want %v", tt.input.Changes, tt.expect)
 			}

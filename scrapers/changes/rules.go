@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/gomplate/v3"
+	"github.com/samber/oops"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,7 +43,7 @@ func (t *changeRule) process(change *v1.ChangeResult) error {
 	}
 
 	if ok, err := evaluateCelExpression(t.Rule, env); err != nil {
-		return fmt.Errorf("failed to evaluate rule %s: %w", t.Rule, err)
+		return fmt.Errorf("failed to evaluate rule: %w", err)
 	} else if !ok {
 		return nil
 	}
@@ -83,9 +84,9 @@ func init() {
 
 // ProcessRules modifies the scraped changes in-place
 // using the change rules.
-func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) {
+func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) error {
 	if len(result.Changes) == 0 {
-		return
+		return nil
 	}
 
 	allRules := Rules
@@ -99,9 +100,10 @@ func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) {
 		})
 	}
 
+	var errors []error
 	for _, rule := range allRules {
 		if match, err := rule.match(result); err != nil {
-			logger.Errorf("Failed to match filter %s: %s", rule.Filter, err)
+			errors = append(errors, oops.Wrapf(err, "failed to match filter"))
 			continue
 		} else if !match {
 			continue
@@ -109,8 +111,10 @@ func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) {
 
 		for i := range result.Changes {
 			if err := rule.process(&result.Changes[i]); err != nil {
-				logger.Errorf("Failed to process rule %s: %v", rule.Rule, err)
+				errors = append(errors, err)
 			}
 		}
 	}
+
+	return oops.Join(errors...)
 }
