@@ -8,7 +8,6 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/types"
-	"github.com/flanksource/mapstructure"
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -312,20 +311,6 @@ func (t *KubernetesEvent) AsMap() (map[string]any, error) {
 	}
 
 	return result, nil
-}
-
-func (t *KubernetesEvent) FromObj(obj any) error {
-	conf := mapstructure.DecoderConfig{
-		TagName: "json", // Need to set this to json because when `obj` is v1.Event there's no mapstructure struct tag.
-		Result:  t,
-	}
-
-	decoder, err := mapstructure.NewDecoder(&conf)
-	if err != nil {
-		return err
-	}
-
-	return decoder.Decode(obj)
 }
 
 func (t *KubernetesEvent) FromObjMap(obj any) error {

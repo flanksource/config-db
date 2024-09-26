@@ -109,7 +109,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	ctx.Counter("kubernetes_scraper_event_watcher", "scraper_id", ctx.ScraperID()).Add(1)
 	for watchEvent := range watcher.ResultChan() {
 		var event v1.KubernetesEvent
-		if err := event.FromObj(watchEvent.Object); err != nil {
+		if err := event.FromObjMap(watchEvent.Object); err != nil {
 			ctx.Errorf("failed to unmarshal event (id=%s): %v", event.GetUID(), err)
 			continue
 		}

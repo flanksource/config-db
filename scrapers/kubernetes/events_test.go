@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"testing"
+	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -47,7 +48,7 @@ func TestEvent_FromObjMap(t *testing.T) {
 			},
 		}
 		var eventFromV1 v1.KubernetesEvent
-		if err := eventFromV1.FromObj(eventV1); err != nil {
+		if err := eventFromV1.FromObjMap(eventV1); err != nil {
 			t.Fatalf("error was not expected %v", err)
 		}
 
@@ -72,6 +73,25 @@ func TestEvent_FromObjMap(t *testing.T) {
 
 		if eventFromMap.Metadata == nil {
 			t.Fail()
+		}
+	})
+
+	t.Run("from map II", func(t *testing.T) {
+		eventMap := corev1.Event{
+			ObjectMeta: metav1.ObjectMeta{
+				CreationTimestamp: metav1.Time{
+					Time: time.Date(1995, 8, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		}
+
+		var expected v1.KubernetesEvent
+		if err := expected.FromObjMap(eventMap); err != nil {
+			t.Fatalf("error was not expected %v", err)
+		}
+
+		if !expected.Metadata.CreationTimestamp.Time.Equal(eventMap.ObjectMeta.CreationTimestamp.Time) {
+			t.Fatalf("creation timestamps do not match, expected %v, got %v", eventMap.ObjectMeta.CreationTimestamp.Time, expected.Metadata.CreationTimestamp.Time)
 		}
 	})
 }
