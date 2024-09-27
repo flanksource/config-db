@@ -314,10 +314,27 @@ func (t *KubernetesEvent) AsMap() (map[string]any, error) {
 }
 
 func (t *KubernetesEvent) FromObjMap(obj any) error {
+	if v, ok := obj.(coreV1.Event); ok {
+		// Don't go through marshalling/unmarshalling.
+		// Map manually.
+
+		t.InvolvedObject = (*InvolvedObject)(&v.InvolvedObject)
+		t.Metadata = &v.ObjectMeta
+		t.Reason = v.Reason
+		t.Message = v.Message
+		t.Source = map[string]string{
+			"component": v.Source.Component,
+			"host":      v.Source.Host,
+		}
+
+		return nil
+	}
+
 	b, err := json.Marshal(obj)
 	if err != nil {
 		return err
 	}
 
 	return json.Unmarshal(b, t)
+
 }
