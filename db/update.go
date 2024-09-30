@@ -1130,7 +1130,8 @@ func getPath(ctx api.ScrapeContext, parentMap map[string]string, self string) (s
 	var paths []string
 
 	for parent := getOrFind(ctx, parentMap, self); parent != ""; parent = getOrFind(ctx, parentMap, parent) {
-		if slices.Contains(paths, parent) {
+		// parent == self can happen in recursive hierarchy (eg. flux kustomize refers to the namespace it is created in)
+		if slices.Contains(paths, parent) || parent == self {
 			return strings.Join(paths, "."), true
 		}
 		paths = append([]string{parent}, paths...)
