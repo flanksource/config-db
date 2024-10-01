@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/gomplate/v3"
+	"github.com/samber/lo"
 	"github.com/samber/oops"
 	"gopkg.in/yaml.v3"
 )
@@ -43,7 +44,7 @@ func (t *changeRule) process(change *v1.ChangeResult) error {
 	}
 
 	if ok, err := evaluateCelExpression(t.Rule, env); err != nil {
-		return fmt.Errorf("failed to evaluate rule: %w", err)
+		return fmt.Errorf("failed to evaluate rule (%s): %w", lo.Elipse(t.Rule, 30), err)
 	} else if !ok {
 		return nil
 	}
