@@ -16,6 +16,39 @@ func TestProcessRules(t *testing.T) {
 		err    bool
 	}{
 		{
+			name: "health mapping - fail",
+			input: v1.ScrapeResult{
+				Changes: []v1.ChangeResult{{ChangeType: "diff", Patches: ""}},
+			},
+			expect: []v1.ChangeResult{{ChangeType: "diff", Patches: ""}},
+			rules: []v1.ChangeMapping{{
+				Type:   "HealthCheckPassed",
+				Filter: `change.change_type == 'diff' && jq('try .status.conditions[] | select(.type == "Healthy").message', patch).contains('Health check passed')`,
+			}},
+		},
+		{
+			name: "health mapping - fail II",
+			input: v1.ScrapeResult{
+				Changes: []v1.ChangeResult{{ChangeType: "diff", Patches: `{"status": {}}`}},
+			},
+			expect: []v1.ChangeResult{{ChangeType: "diff", Patches: `{"status": {}}`}},
+			rules: []v1.ChangeMapping{{
+				Type:   "HealthCheckPassed",
+				Filter: `change.change_type == 'diff' && jq('try .status.conditions[] | select(.type == "Healthy").message', patch).contains('Health check passed')`,
+			}},
+		},
+		{
+			name: "health mapping - pass",
+			input: v1.ScrapeResult{
+				Changes: []v1.ChangeResult{{ChangeType: "diff", Patches: `{"status": {"conditions": [{"type": "Healthy", "message": "Health check passed"}]}}`}},
+			},
+			expect: []v1.ChangeResult{{ChangeType: "HealthCheckPassed", Patches: `{"status": {"conditions": [{"type": "Healthy", "message": "Health check passed"}]}}`}},
+			rules: []v1.ChangeMapping{{
+				Type:   "HealthCheckPassed",
+				Filter: `change.change_type == 'diff' && jq('try .status.conditions[] | select(.type == "Healthy").message', patch).contains('Health check passed')`,
+			}},
+		},
+		{
 			name: "Should error out on bad filter",
 			input: v1.ScrapeResult{
 				Changes: []v1.ChangeResult{
