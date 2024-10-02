@@ -2,23 +2,23 @@
   {
     "last_modified": "0001-01-01T00:00:00Z",
     "source": "github.com/flanksource/canary-checker/fixtures/minimal/http_pass_single.yaml",
-    "id": "http-pass-single",
+    "id": "http-pass",
     "config_type": "Canary",
     "config_class": "Canary",
     "config": {
       "apiVersion": "canaries.flanksource.com/v1",
       "kind": "Canary",
       "metadata": {
+        "name": "http-pass",
         "labels": {
           "canary": "http"
-        },
-        "name": "http-pass-single"
+        }
       },
       "spec": {
         "schedule": "@every 5m",
         "http": [
           {
-            "endpoint": "https://httpbin.demo.aws.flanksource.com/status/200",
+            "url": "https://httpbin.demo.aws.flanksource.com/status/200",
             "name": "http-deprecated-endpoint"
           },
           {
@@ -65,10 +65,10 @@
           },
           {
             "name": "http-headers",
+            "url": "https://httpbin.demo.aws.flanksource.com/headers",
             "test": {
               "expr": "json.headers[\"User-Agent\"].startsWith(\"canary-checker/\")"
-            },
-            "url": "https://httpbin.demo.aws.flanksource.com/headers"
+            }
           }
         ]
       }
