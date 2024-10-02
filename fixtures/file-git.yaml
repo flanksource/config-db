@@ -6,6 +6,6 @@ spec:
   file:
     - type: $.kind
       id: $.metadata.name
-      url: github.com/flanksource/canary-checker
+      url: github.com/flanksource/canary-checker?ref=076cf8b888f2dbaca26a7cc98a4153c154220a22
       paths:
-        - fixtures/minimal/http_pass_single.yaml
+        - fixtures/minimal/http_pass.yaml
