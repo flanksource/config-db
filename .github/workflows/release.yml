@@ -65,7 +65,7 @@ jobs:
       - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
 
       - name: Publish to DockerHub Registry
-        uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b # v5
+        uses: elgohr/Publish-Docker-Github-Action@ec61b713af46c32efaa27ac2626c2acb82ce6435 # v5
         with:
           name: flanksource/config-db
           username: ${{ secrets.DOCKER_USERNAME }}
