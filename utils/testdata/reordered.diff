@@ -1,0 +1,16 @@
+--- before
++++ after
+@@ -145,11 +145,11 @@
+     "conditions": [
+       {
+         "status": "True",
+-        "type": "Initialized"
++        "type": "Ready"
+       },
+       {
+         "status": "True",
+-        "type": "Ready"
++        "type": "Initialized"
+       },
+       {
+         "status": "True",
