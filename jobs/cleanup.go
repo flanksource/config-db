@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/flanksource/commons/properties"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty/db"
@@ -43,6 +44,14 @@ var CleanupConfigAnalysis = &job.Job{
 		ctx.History.ResourceType = JobResourceType
 		if ConfigAnalysisRetentionDays <= 0 {
 			ConfigAnalysisRetentionDays = DefaultConfigAnalysisRetentionDays
+		}
+
+		if err := ctx.DB().Exec(`
+            UPDATE config_analysis
+            SET status = 'closed'
+            WHERE (NOW() - last_observed) > INTERVAL '1 day' * ?
+        `, properties.Int(7, "config_analysis.set_status_closed_days")).Error; err != nil {
+			return err
 		}
 
 		tx := ctx.DB().Exec(`
