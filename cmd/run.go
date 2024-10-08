@@ -25,6 +25,7 @@ import (
 
 var outputDir string
 var filename string
+var debugPort int
 
 // Run ...
 var Run = &cobra.Command{
@@ -47,36 +48,35 @@ var Run = &cobra.Command{
 			dutyCtx = c
 		}
 
-		e := echo.New()
-
-		e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
-				c.SetRequest(c.Request().WithContext(dutyCtx.Wrap(c.Request().Context())))
-				return next(c)
-			}
-		})
-
-		dutyEcho.AddDebugHandlers(dutyCtx, e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
-
-		shutdown.AddHook(func() {
-			ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 1*time.Minute)
-			defer cancel()
-
-			if err := e.Shutdown(ctx); err != nil {
-				e.Logger.Fatal(err)
-			}
-		})
-
-		shutdown.WaitForSignal()
-
-		go func() {
-			if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil && err != http.ErrServerClosed {
-				e.Logger.Fatal(err)
-			}
-		}()
-
 		if dutyapi.DefaultConfig.ConnectionString == "" && outputDir == "" {
 			logger.Fatalf("skipping export: neither --output-dir nor --db is specified")
+		}
+
+		if debugPort >= 0 {
+			e := echo.New()
+			e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+				return func(c echo.Context) error {
+					c.SetRequest(c.Request().WithContext(dutyCtx.Wrap(c.Request().Context())))
+					return next(c)
+				}
+			})
+			dutyEcho.AddDebugHandlers(dutyCtx, e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
+
+			shutdown.AddHook(func() {
+				ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 1*time.Minute)
+				defer cancel()
+
+				if err := e.Shutdown(ctx); err != nil {
+					e.Logger.Fatal(err)
+				}
+			})
+			shutdown.WaitForSignal()
+
+			go func() {
+				if err := e.Start(fmt.Sprintf(":%d", debugPort)); err != nil && err != http.ErrServerClosed {
+					e.Logger.Fatal(err)
+				}
+			}()
 		}
 
 		for i := range scraperConfigs {
@@ -165,4 +165,5 @@ func exportResource(resource v1.ScrapeResult, filename, outputDir string) error 
 func init() {
 	Run.Flags().StringVarP(&outputDir, "output-dir", "o", "", "The output folder for configurations")
 	Run.Flags().StringVarP(&filename, "filename", "f", ".id", "The filename to save seach resource under")
+	Run.Flags().IntVar(&debugPort, "debug-port", -1, "Start an HTTP server to use the /debug routes, Use -1 to disable and 0 to pick a free port")
 }
