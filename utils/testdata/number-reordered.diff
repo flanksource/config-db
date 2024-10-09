@@ -1,0 +1,9 @@
+--- before
++++ after
+@@ -1,5 +1,5 @@
++Third line
+ First line
+ Second line
+-Third line
+ Fourth line
+ Fifth line

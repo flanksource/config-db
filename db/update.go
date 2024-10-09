@@ -779,6 +779,10 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 		return nil, nil
 	}
 
+	if utils.IsReorderingDiff(diff) {
+		return nil, nil
+	}
+
 	patch, err := jsonpatch.CreateMergePatch([]byte(*newConf.Config), []byte(*prev.Config))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create merge patch: %w", err)
