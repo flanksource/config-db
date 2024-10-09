@@ -123,7 +123,11 @@ func (r ChangeResult) PatchesMap() map[string]any {
 }
 
 func (c ChangeResult) String() string {
-	return fmt.Sprintf("%s/%s: %s", c.ConfigType, c.ExternalID, c.ChangeType)
+	if c.ConfigID == "" {
+		return fmt.Sprintf("{%s/%s}, {%s/%s}", c.ConfigType, c.ExternalID, c.ChangeType, c.ExternalChangeID)
+	}
+
+	return fmt.Sprintf("{%s}, {%s/%s}", c.ConfigID, c.ChangeType, c.ExternalChangeID)
 }
 
 func (result AnalysisResult) String() string {
