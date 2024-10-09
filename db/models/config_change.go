@@ -40,7 +40,7 @@ type ConfigChange struct {
 
 func (c ConfigChange) GetExternalID() v1.ExternalID {
 	return v1.ExternalID{
-		ExternalID: []string{c.ExternalID},
+		ExternalID: c.ExternalID,
 		ConfigType: c.ConfigType,
 	}
 }

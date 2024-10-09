@@ -82,21 +82,16 @@ func (t *TempCache) Insert(item models.ConfigItem) {
 	}
 
 	scraperID := lo.FromPtr(item.ScraperID).String()
-	for _, id := range item.ExternalID {
-		if item.Type != nil {
-			t.aliases[strings.ToLower(*item.Type)+strings.ToLower(id)+scraperID] = item.ID
-		} else {
-			t.aliases[strings.ToLower(id)+scraperID] = item.ID
-		}
+	for _, extID := range item.ExternalID {
+		key := v1.ExternalID{ConfigType: item.Type, ExternalID: extID, ScraperID: scraperID}.Key()
+		t.aliases[key] = item.ID
+
+		// Remove from nonFound cache
+		delete(t.notFound, key)
 	}
 
 	t.items[strings.ToLower(item.ID)] = item
 	delete(t.notFound, strings.ToLower(item.ID))
-	delete(t.notFound, v1.ExternalID{
-		ConfigType: lo.FromPtr(item.Type),
-		ExternalID: []string(item.ExternalID),
-		ScraperID:  lo.FromPtr(item.ScraperID).String(),
-	}.Key())
 }
 
 func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error) {

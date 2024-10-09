@@ -362,8 +362,8 @@ func (aws Scraper) ecsServices(ctx *AWSContext, config v1.AWS, client *ecs.Clien
 		var relationships []v1.RelationshipResult
 		// ECS Task Definition to ECS Service relationship
 		relationships = append(relationships, v1.RelationshipResult{
-			RelatedExternalID: v1.ExternalID{ExternalID: []string{*service.ServiceArn}, ConfigType: v1.AWSECSService},
-			ConfigExternalID:  v1.ExternalID{ExternalID: []string{*service.TaskDefinition}, ConfigType: v1.AWSECSTaskDefinition},
+			RelatedExternalID: v1.ExternalID{ExternalID: *service.ServiceArn, ConfigType: v1.AWSECSService},
+			ConfigExternalID:  v1.ExternalID{ExternalID: *service.TaskDefinition, ConfigType: v1.AWSECSTaskDefinition},
 			Relationship:      "ECSTaskDefinitionECSService",
 		})
 
@@ -475,8 +475,8 @@ func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, client *ecs.Client, 
 				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSECSTask, taskID, map[string]string{"cluster": clusterName})},
 				RelationshipResults: []v1.RelationshipResult{
 					{
-						ConfigExternalID:  v1.ExternalID{ExternalID: []string{*task.TaskDefinitionArn}, ConfigType: v1.AWSECSTaskDefinition},
-						RelatedExternalID: v1.ExternalID{ExternalID: []string{*task.TaskArn}, ConfigType: v1.AWSECSTask},
+						ConfigExternalID:  v1.ExternalID{ExternalID: *task.TaskDefinitionArn, ConfigType: v1.AWSECSTaskDefinition},
+						RelatedExternalID: v1.ExternalID{ExternalID: *task.TaskArn, ConfigType: v1.AWSECSTask},
 						Relationship:      "ECSTaskDefinitionECSTask",
 					},
 				},
@@ -675,12 +675,12 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 		}
 
 		var relationships []v1.RelationshipResult
-		selfExternalID := v1.ExternalID{ExternalID: []string{lo.FromPtr(cluster.Cluster.Name)}, ConfigType: v1.AWSEKSCluster}
+		selfExternalID := v1.ExternalID{ExternalID: lo.FromPtr(cluster.Cluster.Name), ConfigType: v1.AWSEKSCluster}
 
 		// EKS to instance roles relationship
 		relationships = append(relationships, v1.RelationshipResult{
 			RelatedExternalID: selfExternalID,
-			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(cluster.Cluster.Arn)}, ConfigType: v1.AWSIAMRole},
+			ConfigExternalID:  v1.ExternalID{ExternalID: lo.FromPtr(cluster.Cluster.Arn), ConfigType: v1.AWSIAMRole},
 			Relationship:      "EKSIAMRole",
 		})
 
@@ -688,7 +688,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 		for _, subnetID := range cluster.Cluster.ResourcesVpcConfig.SubnetIds {
 			relationships = append(relationships, v1.RelationshipResult{
 				RelatedExternalID: selfExternalID,
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{subnetID}, ConfigType: v1.AWSEC2Subnet},
+				ConfigExternalID:  v1.ExternalID{ExternalID: subnetID, ConfigType: v1.AWSEC2Subnet},
 				Relationship:      "SubnetEKS",
 			})
 		}
@@ -696,7 +696,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 		// EKS to security groups relationship
 		relationships = append(relationships, v1.RelationshipResult{
 			RelatedExternalID: selfExternalID,
-			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(cluster.Cluster.ResourcesVpcConfig.ClusterSecurityGroupId)}, ConfigType: v1.AWSEC2SecurityGroup},
+			ConfigExternalID:  v1.ExternalID{ExternalID: lo.FromPtr(cluster.Cluster.ResourcesVpcConfig.ClusterSecurityGroupId), ConfigType: v1.AWSEC2SecurityGroup},
 			Relationship:      "EKSSecuritygroups",
 		})
 
@@ -784,8 +784,8 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 			Name:        lo.FromPtr(az.ZoneName),
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSRegion, ExternalID: lo.FromPtr(az.RegionName)}},
 			RelationshipResults: []v1.RelationshipResult{{
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(az.ZoneId)}, ConfigType: v1.AWSAvailabilityZoneID, ScraperID: "all"},
-				RelatedExternalID: v1.ExternalID{ExternalID: []string{lo.FromPtr(az.ZoneName)}, ConfigType: v1.AWSAvailabilityZone},
+				ConfigExternalID:  v1.ExternalID{ExternalID: lo.FromPtr(az.ZoneId), ConfigType: v1.AWSAvailabilityZoneID, ScraperID: "all"},
+				RelatedExternalID: v1.ExternalID{ExternalID: lo.FromPtr(az.ZoneName), ConfigType: v1.AWSAvailabilityZone},
 			}},
 		})
 
@@ -880,8 +880,8 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		if *region.OptInStatus != "not-opted-in" {
 			result.RelationshipResults = []v1.RelationshipResult{
 				{
-					RelatedExternalID: v1.ExternalID{ConfigType: v1.AWSAccount, ExternalID: []string{lo.FromPtr(ctx.Caller.Account)}},
-					ConfigExternalID:  v1.ExternalID{ConfigType: v1.AWSRegion, ExternalID: []string{*region.RegionName}},
+					RelatedExternalID: v1.ExternalID{ConfigType: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)},
+					ConfigExternalID:  v1.ExternalID{ConfigType: v1.AWSRegion, ExternalID: *region.RegionName},
 				},
 			}
 		}
@@ -992,11 +992,11 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 		for _, sg := range instance.VpcSecurityGroups {
 			relationships = append(relationships, v1.RelationshipResult{
 				ConfigExternalID: v1.ExternalID{
-					ExternalID: []string{*instance.DBInstanceIdentifier},
+					ExternalID: *instance.DBInstanceIdentifier,
 					ConfigType: v1.AWSRDSInstance,
 				},
 				RelatedExternalID: v1.ExternalID{
-					ExternalID: []string{*sg.VpcSecurityGroupId},
+					ExternalID: *sg.VpcSecurityGroupId,
 					ConfigType: v1.AWSEC2SecurityGroup,
 				},
 				Relationship: "RDSSecurityGroup",
@@ -1041,11 +1041,11 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 		// DHCPOptions relationship
 		relationships = append(relationships, v1.RelationshipResult{
 			ConfigExternalID: v1.ExternalID{
-				ExternalID: []string{*vpc.VpcId},
+				ExternalID: *vpc.VpcId,
 				ConfigType: v1.AWSEC2VPC,
 			},
 			RelatedExternalID: v1.ExternalID{
-				ExternalID: []string{*vpc.DhcpOptionsId},
+				ExternalID: *vpc.DhcpOptionsId,
 				ConfigType: v1.AWSEC2DHCPOptions,
 			},
 			Relationship: "VPCDHCPOptions",
@@ -1053,8 +1053,8 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 
 		// VPC to region relationship
 		relationships = append(relationships, v1.RelationshipResult{
-			RelatedExternalID: v1.ExternalID{ExternalID: []string{string(*vpc.VpcId)}, ConfigType: v1.AWSEC2VPC},
-			ConfigExternalID:  v1.ExternalID{ExternalID: []string{ctx.Session.Region}, ConfigType: v1.AWSRegion},
+			RelatedExternalID: v1.ExternalID{ExternalID: string(*vpc.VpcId), ConfigType: v1.AWSEC2VPC},
+			ConfigExternalID:  v1.ExternalID{ExternalID: ctx.Session.Region, ConfigType: v1.AWSRegion},
 			Relationship:      "RegionVPC",
 		})
 
@@ -1096,14 +1096,14 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	for _, r := range describeOutput.Reservations {
 		for _, i := range r.Instances {
 			selfExternalID := v1.ExternalID{
-				ExternalID: []string{*i.InstanceId},
+				ExternalID: *i.InstanceId,
 				ConfigType: v1.AWSEC2Instance,
 			}
 
 			// SecurityGroup relationships
 			for _, sg := range i.SecurityGroups {
 				relationships = append(relationships, v1.RelationshipResult{
-					ConfigExternalID:  v1.ExternalID{ExternalID: []string{*sg.GroupId}, ConfigType: v1.AWSEC2SecurityGroup},
+					ConfigExternalID:  v1.ExternalID{ExternalID: *sg.GroupId, ConfigType: v1.AWSEC2SecurityGroup},
 					RelatedExternalID: selfExternalID,
 					Relationship:      "SecurityGroupInstance",
 				})
@@ -1113,7 +1113,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			for _, tag := range i.Tags {
 				if *tag.Key == "aws:eks:cluster-name" {
 					relationships = append(relationships, v1.RelationshipResult{
-						ConfigExternalID:  v1.ExternalID{ExternalID: []string{*tag.Value}, ConfigType: v1.AWSEKSCluster},
+						ConfigExternalID:  v1.ExternalID{ExternalID: *tag.Value, ConfigType: v1.AWSEKSCluster},
 						RelatedExternalID: selfExternalID,
 						Relationship:      "ClusterInstance",
 					})
@@ -1124,14 +1124,14 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			for _, vol := range i.BlockDeviceMappings {
 				relationships = append(relationships, v1.RelationshipResult{
 					ConfigExternalID:  selfExternalID,
-					RelatedExternalID: v1.ExternalID{ExternalID: []string{*vol.Ebs.VolumeId}, ConfigType: v1.AWSEBSVolume},
+					RelatedExternalID: v1.ExternalID{ExternalID: *vol.Ebs.VolumeId, ConfigType: v1.AWSEBSVolume},
 					Relationship:      "EC2InstanceVolume",
 				})
 			}
 
 			if i.IamInstanceProfile != nil {
 				relationships = append(relationships, v1.RelationshipResult{
-					ConfigExternalID:  v1.ExternalID{ExternalID: []string{*i.IamInstanceProfile.Id}, ConfigType: v1.AWSIAMInstanceProfile},
+					ConfigExternalID:  v1.ExternalID{ExternalID: *i.IamInstanceProfile.Id, ConfigType: v1.AWSIAMInstanceProfile},
 					RelatedExternalID: selfExternalID,
 					Relationship:      "IAMInstanceProfileEC2Instance",
 				})
@@ -1146,24 +1146,24 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 
 			relationships = append(relationships, v1.RelationshipResult{
 				ConfigExternalID:  selfExternalID,
-				RelatedExternalID: v1.ExternalID{ExternalID: []string{"Kubernetes/Node//" + *i.PrivateDnsName}, ConfigType: "Kubernetes::Node"},
+				RelatedExternalID: v1.ExternalID{ExternalID: "Kubernetes/Node//" + *i.PrivateDnsName, ConfigType: "Kubernetes::Node"},
 				Relationship:      "InstanceKuberenetesNode",
 			})
 
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(i.SubnetId)}, ConfigType: v1.AWSEC2Subnet},
+				ConfigExternalID:  v1.ExternalID{ExternalID: lo.FromPtr(i.SubnetId), ConfigType: v1.AWSEC2Subnet},
 				RelatedExternalID: selfExternalID,
 				Relationship:      "SubnetInstance",
 			})
 
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{ctx.Session.Region}, ConfigType: v1.AWSRegion},
+				ConfigExternalID:  v1.ExternalID{ExternalID: ctx.Session.Region, ConfigType: v1.AWSRegion},
 				RelatedExternalID: selfExternalID,
 				Relationship:      "RegionInstance",
 			})
 
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{ctx.Subnets[lo.FromPtr(i.SubnetId)].Zone}, ConfigType: v1.AWSAvailabilityZone},
+				ConfigExternalID:  v1.ExternalID{ExternalID: ctx.Subnets[lo.FromPtr(i.SubnetId)].Zone, ConfigType: v1.AWSAvailabilityZone},
 				RelatedExternalID: selfExternalID,
 				Relationship:      "ZoneInstance",
 			})
@@ -1379,11 +1379,11 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 		for _, instance := range lb.Instances {
 			relationships = append(relationships, v1.RelationshipResult{
 				ConfigExternalID: v1.ExternalID{
-					ExternalID: []string{*instance.InstanceId},
+					ExternalID: *instance.InstanceId,
 					ConfigType: v1.AWSEC2Instance,
 				},
 				RelatedExternalID: v1.ExternalID{
-					ExternalID: []string{*lb.LoadBalancerName},
+					ExternalID: *lb.LoadBalancerName,
 					ConfigType: v1.AWSLoadBalancer,
 				},
 				Relationship: "LoadBalancerInstance",
@@ -1403,11 +1403,11 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 						clusterName := strings.ReplaceAll(*tag.Key, clusterPrefix, "")
 						relationships = append(relationships, v1.RelationshipResult{
 							ConfigExternalID: v1.ExternalID{
-								ExternalID: []string{*lb.LoadBalancerName},
+								ExternalID: *lb.LoadBalancerName,
 								ConfigType: v1.AWSLoadBalancer,
 							},
 							RelatedExternalID: v1.ExternalID{
-								ExternalID: []string{clusterName},
+								ExternalID: clusterName,
 								ConfigType: v1.AWSEKSCluster,
 							},
 							Relationship: "EKSLoadBalancer",
@@ -1465,11 +1465,11 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 						clusterName := strings.ReplaceAll(*tag.Key, clusterPrefix, "")
 						relationships = append(relationships, v1.RelationshipResult{
 							ConfigExternalID: v1.ExternalID{
-								ExternalID: []string{*lb.LoadBalancerArn},
+								ExternalID: *lb.LoadBalancerArn,
 								ConfigType: v1.AWSLoadBalancerV2,
 							},
 							RelatedExternalID: v1.ExternalID{
-								ExternalID: []string{clusterName},
+								ExternalID: clusterName,
 								ConfigType: v1.AWSEKSCluster,
 							},
 							Relationship: "EKSLoadBalancer",
@@ -1533,26 +1533,26 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		}
 
 		var relationships []v1.RelationshipResult
-		selfExternalID := v1.ExternalID{ExternalID: []string{lo.FromPtr(subnet.SubnetId)}, ConfigType: v1.AWSEC2Subnet}
+		selfExternalID := v1.ExternalID{ExternalID: lo.FromPtr(subnet.SubnetId), ConfigType: v1.AWSEC2Subnet}
 
 		// Subnet to Region relationship
 		relationships = append(relationships, v1.RelationshipResult{
 			RelatedExternalID: selfExternalID,
-			ConfigExternalID:  v1.ExternalID{ExternalID: []string{ctx.Session.Region}, ConfigType: v1.AWSRegion},
+			ConfigExternalID:  v1.ExternalID{ExternalID: ctx.Session.Region, ConfigType: v1.AWSRegion},
 			Relationship:      "RegionSubnet",
 		})
 
 		// Subnet to availability zone relationship
 		relationships = append(relationships, v1.RelationshipResult{
 			RelatedExternalID: selfExternalID,
-			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(subnet.AvailabilityZone)}, ConfigType: v1.AWSAvailabilityZone},
+			ConfigExternalID:  v1.ExternalID{ExternalID: lo.FromPtr(subnet.AvailabilityZone), ConfigType: v1.AWSAvailabilityZone},
 			Relationship:      "AvailabilityZoneSubnet",
 		})
 
 		// Subnet to availability zone relationship
 		relationships = append(relationships, v1.RelationshipResult{
 			RelatedExternalID: selfExternalID,
-			ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(subnet.AvailabilityZoneId)}, ConfigType: v1.AWSAvailabilityZoneID},
+			ConfigExternalID:  v1.ExternalID{ExternalID: lo.FromPtr(subnet.AvailabilityZoneId), ConfigType: v1.AWSAvailabilityZoneID},
 			Relationship:      "AvailabilityZoneIDSubnet",
 		})
 
@@ -1635,8 +1635,8 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 		var relationships []v1.RelationshipResult
 		for _, role := range profile.Roles {
 			relationships = append(relationships, v1.RelationshipResult{
-				RelatedExternalID: v1.ExternalID{ExternalID: []string{lo.FromPtr(profile.InstanceProfileId)}, ConfigType: v1.AWSIAMInstanceProfile},
-				ConfigExternalID:  v1.ExternalID{ExternalID: []string{lo.FromPtr(role.Arn)}, ConfigType: v1.AWSIAMRole},
+				RelatedExternalID: v1.ExternalID{ExternalID: lo.FromPtr(profile.InstanceProfileId), ConfigType: v1.AWSIAMInstanceProfile},
+				ConfigExternalID:  v1.ExternalID{ExternalID: lo.FromPtr(role.Arn), ConfigType: v1.AWSIAMRole},
 				Relationship:      "IAMRoleInstanceProfile",
 			})
 		}
@@ -1794,8 +1794,8 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					// the default parent should be moved to soft relationship
 					defaultParent := r.Parents[0]
 					(*results)[i].RelationshipResults = append((*results)[i].RelationshipResults, v1.RelationshipResult{
-						ConfigExternalID:  v1.ExternalID{ConfigType: defaultParent.Type, ExternalID: []string{defaultParent.ExternalID}},
-						RelatedExternalID: v1.ExternalID{ConfigType: r.Type, ExternalID: []string{r.ID}},
+						ConfigExternalID:  v1.ExternalID{ConfigType: defaultParent.Type, ExternalID: defaultParent.ExternalID},
+						RelatedExternalID: v1.ExternalID{ConfigType: r.Type, ExternalID: r.ID},
 					})
 				}
 

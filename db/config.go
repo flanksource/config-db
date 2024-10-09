@@ -134,7 +134,7 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		ExternalID:      append([]string{result.ID}, result.Aliases...),
 		ID:              utils.Deref(result.ConfigID),
 		ConfigClass:     result.ConfigClass,
-		Type:            &result.Type,
+		Type:            result.Type,
 		Name:            &result.Name,
 		Source:          &result.Source,
 		Labels:          &result.Labels,

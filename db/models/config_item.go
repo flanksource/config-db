@@ -20,7 +20,7 @@ type ConfigItem struct {
 	ScraperID       *uuid.UUID            `gorm:"column:scraper_id;default:null" json:"scraper_id,omitempty"`
 	ConfigClass     string                `gorm:"column:config_class;default:''" json:"config_class"  `
 	ExternalID      pq.StringArray        `gorm:"column:external_id;type:[]text" json:"external_id,omitempty"  `
-	Type            *string               `gorm:"column:type;default:null" json:"type,omitempty"  `
+	Type            string                `gorm:"column:type" json:"type,omitempty"  `
 	Status          *string               `gorm:"column:status;default:null" json:"status,omitempty"  `
 	Ready           bool                  `json:"ready,omitempty"  `
 	Health          *models.Health        `json:"health,omitempty"`
@@ -50,21 +50,21 @@ type ConfigItem struct {
 
 func (ci ConfigItem) Label() string {
 	if len(ci.ExternalID) == 0 {
-		return fmt.Sprintf("%s/%s id=%s ", lo.FromPtr(ci.Type), lo.FromPtr(ci.Name), ci.ID)
+		return fmt.Sprintf("%s/%s id=%s ", ci.Type, lo.FromPtr(ci.Name), ci.ID)
 	}
 	if ci.ID == ci.ExternalID[0] {
-		return fmt.Sprintf("%s/%s id=%s", lo.FromPtr(ci.Type), lo.FromPtr(ci.Name), ci.ID)
+		return fmt.Sprintf("%s/%s id=%s", ci.Type, lo.FromPtr(ci.Name), ci.ID)
 	}
 
-	return fmt.Sprintf("%s/%s id=%s external=%s", lo.FromPtr(ci.Type), lo.FromPtr(ci.Name), ci.ID, ci.ExternalID[0])
+	return fmt.Sprintf("%s/%s id=%s external=%s", ci.Type, lo.FromPtr(ci.Name), ci.ID, ci.ExternalID[0])
 }
 
 func (ci ConfigItem) String() string {
 	if len(ci.ExternalID) == 0 {
-		return fmt.Sprintf("id=%s type=%s name=%s ", ci.ID, lo.FromPtr(ci.Type), lo.FromPtr(ci.Name))
+		return fmt.Sprintf("id=%s type=%s name=%s ", ci.ID, ci.Type, lo.FromPtr(ci.Name))
 	}
 
-	return fmt.Sprintf("id=%s type=%s name=%s external_id=%s", ci.ID, lo.FromPtr(ci.Type), lo.FromPtr(ci.Name), ci.ExternalID[0])
+	return fmt.Sprintf("id=%s type=%s name=%s external_id=%s", ci.ID, ci.Type, lo.FromPtr(ci.Name), ci.ExternalID[0])
 }
 
 func (ci ConfigItem) ConfigJSONStringMap() (map[string]interface{}, error) {
