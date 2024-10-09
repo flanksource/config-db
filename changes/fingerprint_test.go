@@ -55,10 +55,17 @@ var _ = Describe("Change Fingerprints", func() {
 		Expect(err2).ToNot(HaveOccurred())
 		Expect(fp1).To(Equal(fp2))
 	})
+
+	It("16 character long hex should be ignored", func() {
+		fp1, err1 := changes.Fingerprint(readChange("helm_upgrade_failed.json"))
+		fp2, err2 := changes.Fingerprint(readChange("helm_upgrade_failed_2.json"))
+		Expect(err1).ToNot(HaveOccurred())
+		Expect(err2).ToNot(HaveOccurred())
+		Expect(fp1).To(Equal(fp2))
+	})
 })
 
 func TestChangeFingerprints(t *testing.T) {
-
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Change Fingerprints Suite")
 }
