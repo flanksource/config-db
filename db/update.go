@@ -274,7 +274,7 @@ func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) 
 
 	for _, expr := range exclusions {
 		if res, err := gomplate.RunTemplate(env, gomplate.Template{Expression: expr}); err != nil {
-			return false, fmt.Errorf("failed to evaluate change exclusion expression(%s): %w", expr, err)
+			return false, fmt.Errorf("[%s] change exclusion expression failed (%s): %w", changeResult, expr, err)
 		} else if skipChange, err := strconv.ParseBool(res); err != nil {
 			return false, fmt.Errorf("change exclusion expression(%s) didn't evaluate to a boolean: %w", expr, err)
 		} else if skipChange {
