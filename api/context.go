@@ -7,7 +7,6 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
-	dbModel "github.com/flanksource/config-db/db/models"
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 )
@@ -26,10 +25,7 @@ type ScrapeContext struct {
 func NewScrapeContext(ctx dutyCtx.Context) ScrapeContext {
 	return ScrapeContext{
 		Context: ctx,
-		temp: &TempCache{
-			items:    make(map[string]dbModel.ConfigItem),
-			notFound: make(map[string]struct{}),
-		},
+		temp:    NewTempCache(),
 	}
 }
 

@@ -160,6 +160,20 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		changeResults v1.ScrapeResults
 	)
 
+	clusterName := ctx.config.ClusterName
+	cluster := v1.ScrapeResult{
+		BaseScraper: ctx.config.BaseScraper,
+		Name:        clusterName,
+		ConfigClass: "Cluster",
+		Type:        ConfigTypePrefix + "Cluster",
+		Config:      make(map[string]any),
+		Labels:      make(v1.JSONStringMap),
+		ID:          "Kubernetes/Cluster/" + clusterName,
+		Tags:        v1.Tags{{Name: "cluster", Value: clusterName}},
+	}
+
+	results = append(results, cluster)
+
 	ctx.Load(objs)
 	if ctx.isIncremental {
 		// On incremental scrape, we do not have all the data in the resource ID map.

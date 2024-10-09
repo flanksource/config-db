@@ -23,6 +23,14 @@ type TempCache struct {
 	notFound map[string]struct{}
 }
 
+func NewTempCache() *TempCache {
+	return &TempCache{
+		items:    make(map[string]models.ConfigItem),
+		aliases:  make(map[string]string),
+		notFound: make(map[string]struct{}),
+	}
+}
+
 func (t *TempCache) FindExternalID(ctx ScrapeContext, ext v1.ExternalID) (string, error) {
 	if item, err := t.Find(ctx, ext); err != nil {
 		return "", err
@@ -46,10 +54,6 @@ func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.Confi
 		return t.Get(ctx, uid)
 	}
 
-	if t.aliases == nil {
-		t.aliases = make(map[string]string)
-	}
-
 	if alias, ok := t.aliases[lookup.Key()]; ok {
 		return t.Get(ctx, alias)
 	}
@@ -59,28 +63,16 @@ func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.Confi
 		return nil, err
 	}
 
-	if result.ID != "" {
-		t.Insert(result)
-		return &result, nil
-	} else {
-
-		if t.notFound == nil {
-			t.notFound = make(map[string]struct{})
-		}
+	if result.ID == "" {
 		t.notFound[lookup.Key()] = struct{}{}
+		return nil, nil
 	}
 
-	return nil, nil
+	t.Insert(result)
+	return &result, nil
 }
 
 func (t *TempCache) Insert(item models.ConfigItem) {
-	if t.aliases == nil {
-		t.aliases = make(map[string]string)
-	}
-	if t.items == nil {
-		t.items = make(map[string]models.ConfigItem)
-	}
-
 	scraperID := lo.FromPtr(item.ScraperID).String()
 	for _, extID := range item.ExternalID {
 		key := v1.ExternalID{ConfigType: item.Type, ExternalID: extID, ScraperID: scraperID}.Key()
@@ -104,10 +96,6 @@ func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error
 		return nil, nil
 	}
 
-	if t.items == nil {
-		t.items = make(map[string]models.ConfigItem)
-	}
-
 	if item, ok := t.items[id]; ok {
 		return &item, nil
 	}
@@ -121,9 +109,6 @@ func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error
 		t.Insert(result)
 		return &result, nil
 	} else {
-		if t.notFound == nil {
-			t.notFound = make(map[string]struct{})
-		}
 		t.notFound[id] = struct{}{}
 	}
 
@@ -134,10 +119,7 @@ func QueryCache(ctx context.Context, query string, args ...interface{}) (*TempCa
 	if ctx.DB() == nil {
 		return nil, fmt.Errorf("no db configured")
 	}
-	t := TempCache{
-		items:   make(map[string]models.ConfigItem),
-		aliases: make(map[string]string),
-	}
+	t := NewTempCache()
 	items := []models.ConfigItem{}
 	if err := ctx.DB().Table("config_items").Where("deleted_at IS NULL").Where(query, args...).Find(&items).Error; err != nil {
 		return nil, err
@@ -145,5 +127,5 @@ func QueryCache(ctx context.Context, query string, args ...interface{}) (*TempCa
 	for _, item := range items {
 		t.Insert(item)
 	}
-	return &t, nil
+	return t, nil
 }
