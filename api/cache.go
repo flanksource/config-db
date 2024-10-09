@@ -81,11 +81,12 @@ func (t *TempCache) Insert(item models.ConfigItem) {
 		t.items = make(map[string]models.ConfigItem)
 	}
 
+	scraperID := lo.FromPtr(item.ScraperID).String()
 	for _, id := range item.ExternalID {
 		if item.Type != nil {
-			t.aliases[lo.FromPtr(item.ScraperID).String()+strings.ToLower(*item.Type)+id] = item.ID
+			t.aliases[strings.ToLower(*item.Type)+strings.ToLower(id)+scraperID] = item.ID
 		} else {
-			t.aliases[lo.FromPtr(item.ScraperID).String()+strings.ToLower(id)] = item.ID
+			t.aliases[strings.ToLower(id)+scraperID] = item.ID
 		}
 	}
 
