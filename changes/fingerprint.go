@@ -30,6 +30,7 @@ func init() {
 		"DURATION", `\s+\d+(.\d+){0,1}(ms|s|h|d|m)`,
 		"SHA256", `[a-z0-9]{64}`,
 		"NUMBER", `^\d+$`,
+		"HEX16", `[0-9a-f]{16}`, // matches a 16 character long hex string
 	)
 }
 

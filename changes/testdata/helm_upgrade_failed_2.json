@@ -1,0 +1,29 @@
+{
+  "details": {
+    "reason": "UpgradeFailed",
+    "source": {
+      "component": "helm-controller"
+    },
+    "message": "Helm upgrade failed for release mission-control-agent/mission-control-kubernetes-bundle with chart mission-control-kubernetes@0.1.69: values don't meet the specifications of the schema(s) in the following chart(s):\nmission-control-kubernetes:\n- (root): Additional property interval is not allowed\n\nLast Helm logs:\n\n2024-10-09T03:31:10.99090145Z: preparing upgrade for mission-control-kubernetes-bundle\n2024-10-09T03:31:11.022444234Z: resetting values to the chart's original version",
+    "metadata": {
+      "uid": "552e28a9-54a4-4ba7-8dc2-a68924cbba60",
+      "name": "mission-control-kubernetes-bundle.17fcab45546704af",
+      "namespace": "mission-control-agent",
+      "annotations": {
+        "helm.toolkit.fluxcd.io/token": "sha256:eb7505628756567105a575c2dcaf473756212793a2b43537b976db9e18c7b233",
+        "helm.toolkit.fluxcd.io/revision": "0.1.69",
+        "helm.toolkit.fluxcd.io/app-version": "1.0.0"
+      },
+      "resourceVersion": "43130433",
+      "creationTimestamp": "2024-10-09T03:31:11Z"
+    },
+    "involvedObject": {
+      "uid": "e280b462-01b2-41a4-a53a-50541240a3e2",
+      "kind": "HelmRelease",
+      "name": "mission-control-kubernetes-bundle",
+      "namespace": "mission-control-agent",
+      "apiVersion": "helm.toolkit.fluxcd.io/v2",
+      "resourceVersion": "43098665"
+    }
+  }
+}
