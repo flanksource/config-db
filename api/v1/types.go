@@ -7,7 +7,6 @@ import (
 	"github.com/flanksource/config-db/utils"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 
 	"gorm.io/gorm"
 )
@@ -115,7 +114,7 @@ func (e ExternalID) GetKubernetesUID() string {
 }
 
 func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
-	query := db.Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("external_id @> ?", pq.StringArray([]string{e.ExternalID}))
+	query := db.Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("? = ANY(external_id)", e.ExternalID)
 	if e.ConfigType != "" {
 		query = query.Where("type = ?", e.ConfigType)
 	}
