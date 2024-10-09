@@ -127,9 +127,9 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 		ctx.Errorf("[%s] failed to check for changes: %v", ci, err)
 	} else if changeResult != nil {
 		if ctx.Logger.V(5).Enabled() {
-			ctx.Logger.V(5).Infof("[%s/%s] detected changes %v", *ci.Type, ci.ExternalID[0], lo.FromPtr(changeResult.Diff))
+			ctx.Logger.V(5).Infof("[%s/%s] detected changes %v", ci.Type, ci.ExternalID[0], lo.FromPtr(changeResult.Diff))
 		} else {
-			ctx.Logger.V(3).Infof("[%s/%s] detected changes", *ci.Type, ci.ExternalID[0])
+			ctx.Logger.V(3).Infof("[%s/%s] detected changes", ci.Type, ci.ExternalID[0])
 
 		}
 		result.Changes = []v1.ChangeResult{*changeResult}
@@ -195,7 +195,7 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 	if !stringEqual(ci.Source, existing.Source) {
 		updates["source"] = ci.Source
 	}
-	if !stringEqual(ci.Type, existing.Type) {
+	if ci.Type != existing.Type {
 		updates["type"] = ci.Type
 	}
 	if !stringEqual(ci.Status, existing.Status) {
@@ -247,7 +247,7 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 	// same config items
 	if lo.FromPtr(existing.ScraperID) != lo.FromPtr(ci.ScraperID) {
 		updates["scraper_id"] = ci.ScraperID
-		summary.AddWarning(*ci.Type, fmt.Sprintf("updated scraper_id of config[%s] from %s to %s", ci, existing.ScraperID, ci.ScraperID))
+		summary.AddWarning(ci.Type, fmt.Sprintf("updated scraper_id of config[%s] from %s to %s", ci, existing.ScraperID, ci.ScraperID))
 	}
 
 	if ci.Properties != nil && len(*ci.Properties) > 0 && (existing.Properties == nil || !mapEqual(ci.Properties.AsMap(), existing.Properties.AsMap())) {
@@ -399,7 +399,7 @@ var orphanCache = cache.New(60*time.Minute, 10*time.Minute)
 
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
-	ciID, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: analysis.ConfigType, ExternalID: []string{analysis.ExternalID}})
+	ciID, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: analysis.ConfigType, ExternalID: analysis.ExternalID})
 	if err != nil {
 		return err
 	} else if ciID == nil {
@@ -443,7 +443,7 @@ func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 	for _, config := range configs {
-		if !strings.HasPrefix(*config.Type, api.MissionControlConfigTypePrefix) {
+		if !strings.HasPrefix(config.Type, api.MissionControlConfigTypePrefix) {
 			continue
 		}
 
@@ -468,7 +468,7 @@ func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 			return err
 		}
 
-		switch strings.TrimPrefix(*config.Type, api.MissionControlConfigTypePrefix) {
+		switch strings.TrimPrefix(config.Type, api.MissionControlConfigTypePrefix) {
 		case "ScrapeConfig":
 			scrapeConfig := dutyModels.ConfigScraper{
 				Name:   fmt.Sprintf("%s/%s", namespace, *config.Name),
@@ -576,7 +576,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		return summary, fmt.Errorf("failed to create config items: %w", dutydb.ErrorDetails(err))
 	}
 	for _, config := range newConfigs {
-		summary.AddInserted(*config.Type)
+		summary.AddInserted(config.Type)
 	}
 
 	// nonUpdatedConfigs are existing configs that were not updated in this scrape.
@@ -591,9 +591,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		if updated {
-			summary.AddUpdated(*updateArg.Existing.Type)
+			summary.AddUpdated(updateArg.Existing.Type)
 		} else {
-			summary.AddUnchanged(*updateArg.Existing.Type)
+			summary.AddUnchanged(updateArg.Existing.Type)
 			nonUpdatedConfigs = append(nonUpdatedConfigs, updateArg.Existing.ID)
 		}
 
@@ -790,7 +790,7 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 	}
 
 	return &v1.ChangeResult{
-		ConfigType: lo.FromPtr(newConf.Type),
+		ConfigType: newConf.Type,
 		ChangeType: "diff",
 		ExternalID: newConf.ExternalID[0],
 		Diff:       &diff,
@@ -811,7 +811,7 @@ func relationshipSelectorToResults(ctx dutyContext.Context, inputs []v1.ScrapeRe
 
 			for _, id := range linkedConfigIDs {
 				rel := v1.RelationshipResult{
-					ConfigExternalID: v1.ExternalID{ExternalID: []string{input.ID}, ConfigType: input.Type},
+					ConfigExternalID: v1.ExternalID{ExternalID: input.ID, ConfigType: input.Type},
 					RelatedConfigID:  id.String(),
 				}
 
@@ -954,7 +954,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 				return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("config item %s has no external id", ci)
 			}
 
-			parentExternalKey := configExternalKey{externalID: ci.ExternalID[0], parentType: lo.FromPtr(ci.Type)}
+			parentExternalKey := configExternalKey{externalID: ci.ExternalID[0], parentType: ci.Type}
 			parentTypeToConfigMap[parentExternalKey] = ci.ID
 
 			existing := &models.ConfigItem{}
@@ -963,7 +963,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 					return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to lookup existing config(%s): %w", ci, err)
 				}
 			} else {
-				if existing, err = ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: *ci.Type, ExternalID: []string{ci.ExternalID[0]}}); err != nil {
+				if existing, err = ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: ci.Type, ExternalID: ci.ExternalID[0]}); err != nil {
 					return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to lookup external id(%s): %w", ci, err)
 				}
 			}
@@ -993,8 +993,8 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 		} else {
 			if !changeSummary.IsEmpty() {
 				var configType string
-				if ci != nil && ci.Type != nil {
-					configType = lo.FromPtr(ci.Type)
+				if ci != nil {
+					configType = ci.Type
 				} else if len(result.Changes) > 0 {
 					configType = result.Changes[0].ConfigType
 				}
@@ -1067,7 +1067,7 @@ func setConfigProbableParents(ctx api.ScrapeContext, parentTypeToConfigMap map[c
 				continue
 			}
 
-			if foundParent, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: parent.Type, ExternalID: []string{parent.ExternalID}}); err != nil {
+			if foundParent, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: parent.Type, ExternalID: parent.ExternalID}); err != nil {
 				return err
 			} else if foundParent != nil {
 				// Ignore self parent reference
@@ -1095,7 +1095,7 @@ func setConfigChildren(ctx api.ScrapeContext, allConfigs models.ConfigItems) err
 				continue
 			}
 
-			found, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: child.Type, ExternalID: []string{child.ExternalID}})
+			found, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: child.Type, ExternalID: child.ExternalID})
 			if err != nil {
 				return err
 			}

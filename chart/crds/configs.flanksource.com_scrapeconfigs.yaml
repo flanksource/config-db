@@ -5669,6 +5669,9 @@ spec:
                               type: object
                             endpoint:
                               type: string
+                            skipTLSVerify:
+                              description: Skip TLS verify
+                              type: boolean
                           type: object
                         local:
                           type: string

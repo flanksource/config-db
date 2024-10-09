@@ -273,7 +273,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 					if address.TargetRef != nil {
 						if address.TargetRef.Kind != "Service" {
 							relationships = append(relationships, v1.RelationshipResult{
-								ConfigExternalID: v1.ExternalID{ExternalID: []string{alias("Service", obj.GetNamespace(), obj.GetName())}, ConfigType: ConfigTypePrefix + "Service"},
+								ConfigExternalID: v1.ExternalID{ExternalID: alias("Service", obj.GetNamespace(), obj.GetName()), ConfigType: ConfigTypePrefix + "Service"},
 								RelatedConfigID:  string(address.TargetRef.UID),
 								Relationship:     fmt.Sprintf("Service%s", address.TargetRef.Kind),
 							})
@@ -295,7 +295,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 					Relationship:    "NodePod",
 				}.WithConfig(
 					ctx.GetID("", "Node", nodeName),
-					v1.ExternalID{ExternalID: []string{nodeExternalID}, ConfigType: ConfigTypePrefix + "Node"},
+					v1.ExternalID{ExternalID: nodeExternalID, ConfigType: ConfigTypePrefix + "Node"},
 				))
 			}
 		}
@@ -306,7 +306,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 				Relationship:    "Namespace" + obj.GetKind(),
 			}.WithConfig(
 				ctx.GetID("", "Namespace", obj.GetNamespace()),
-				v1.ExternalID{ExternalID: []string{alias("Namespace", "", obj.GetNamespace())}, ConfigType: ConfigTypePrefix + "Namespace"},
+				v1.ExternalID{ExternalID: alias("Namespace", "", obj.GetNamespace()), ConfigType: ConfigTypePrefix + "Namespace"},
 			))
 		}
 
@@ -341,7 +341,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 						ConfigID: id.String(),
 					}.WithRelated(
 						ctx.GetID(obj.GetNamespace(), obj.GetKind(), obj.GetName()),
-						v1.ExternalID{ExternalID: []string{string(obj.GetUID())}, ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
+						v1.ExternalID{ExternalID: string(obj.GetUID()), ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
 					)
 
 					relationships = append(relationships, rel)
@@ -375,7 +375,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 												if strings.HasSuffix(hostname, "elb.amazonaws.com") {
 													relationships = append(relationships, v1.RelationshipResult{
 														ConfigID:          string(obj.GetUID()),
-														RelatedExternalID: v1.ExternalID{ExternalID: []string{hostname}, ConfigType: v1.AWSLoadBalancer},
+														RelatedExternalID: v1.ExternalID{ExternalID: hostname, ConfigType: v1.AWSLoadBalancer},
 													})
 												}
 											}

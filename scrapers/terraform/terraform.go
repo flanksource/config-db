@@ -146,8 +146,8 @@ func awsProvider(externalID string, resource Resource) []v1.RelationshipResult {
 		}
 
 		results = append(results, v1.RelationshipResult{
-			ConfigExternalID:  v1.ExternalID{ConfigType: ConfigType, ExternalID: []string{externalID}},
-			RelatedExternalID: v1.ExternalID{ExternalID: []string{arn}, ScraperID: "all"},
+			ConfigExternalID:  v1.ExternalID{ConfigType: ConfigType, ExternalID: externalID},
+			RelatedExternalID: v1.ExternalID{ExternalID: arn, ScraperID: "all"},
 		})
 	}
 

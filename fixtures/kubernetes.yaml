@@ -44,6 +44,9 @@ spec:
           - selector: 'config_type == "Kubernetes::Certificate"'
             jsonpath: .spec.commonName
             value: md5sum
+          - selector: config_class == 'Connection'
+            jsonpath: "$..['password','bearer','clientSecret','personalAccessToken','certificate','secretKey','token'].value"
+            value: '******'
         exclude:
           - types:
               - Kubernetes::*
@@ -59,6 +62,10 @@ spec:
                 patch.status.containerStatuses.size() > 0 &&
                 has(patch.status.containerStatuses[0].restartCount)
               type: PodCrashLooping
+            - filter: >
+                change.change_type == 'diff' &&
+                jq('.status.conditions[] | select(.type == "Healthy").message', patch).contains('Health check passed')
+              type: HealthCheckPassed
           exclude:
             - 'config_type == "Kubernetes::Endpoints" && details.message == "metadata.annotations.endpoints.kubernetes.io/last-change-trigger-time"'
             - 'config_type == "Kubernetes::Node" && has(details.message) && details.message == "status.images"'

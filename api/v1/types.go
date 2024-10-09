@@ -91,7 +91,7 @@ func (c ScraperSpec) IsDebug() bool {
 
 type ExternalID struct {
 	ConfigType string
-	ExternalID []string
+	ExternalID string
 
 	// Scraper id of the config
 	// If left empty, the scraper id is the requester's scraper id.
@@ -106,8 +106,8 @@ func (e ExternalID) GetKubernetesUID() string {
 		strings.HasPrefix(configType, "argo::") ||
 		strings.HasPrefix(configType, "flux::") {
 
-		if uuid.Validate(e.ExternalID[0]) == nil {
-			return e.ExternalID[0]
+		if uuid.Validate(e.ExternalID) == nil {
+			return e.ExternalID
 		}
 	}
 
@@ -115,7 +115,7 @@ func (e ExternalID) GetKubernetesUID() string {
 }
 
 func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
-	query := db.Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("external_id @> ?", pq.StringArray(e.ExternalID))
+	query := db.Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("external_id @> ?", pq.StringArray([]string{e.ExternalID}))
 	if e.ConfigType != "" {
 		query = query.Where("type = ?", e.ConfigType)
 	}
@@ -126,14 +126,14 @@ func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
 }
 
 func (e ExternalID) Key() string {
-	return fmt.Sprintf("%s%s%s", strings.ToLower(e.ConfigType), strings.ToLower(strings.Join(e.ExternalID, ",")), e.ScraperID)
+	return strings.ToLower(fmt.Sprintf("%s%s%s", e.ConfigType, e.ExternalID, e.ScraperID))
 }
 
 func (e ExternalID) String() string {
 	if e.ScraperID != "" {
-		return fmt.Sprintf("scraper_id=%s type=%s externalids=%s", e.ScraperID, e.ConfigType, strings.Join(e.ExternalID, ","))
+		return fmt.Sprintf("scraper_id=%s type=%s externalids=%s", e.ScraperID, e.ConfigType, e.ExternalID)
 	}
-	return fmt.Sprintf("type=%s externalids=%s", e.ConfigType, strings.Join(e.ExternalID, ","))
+	return fmt.Sprintf("type=%s externalids=%s", e.ConfigType, e.ExternalID)
 }
 
 func (e ExternalID) IsEmpty() bool {
