@@ -1,12 +1,16 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
 
 	"go.opentelemetry.io/otel"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -15,6 +19,7 @@ import (
 
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	configsv1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/controllers"
 	"github.com/flanksource/config-db/db"
@@ -31,7 +36,7 @@ var k8sLogLevel int
 var Operator = &cobra.Command{
 	Use:   "operator",
 	Short: "Start the kubernetes operator",
-	RunE:  run,
+	Run:   start,
 }
 
 func init() {
@@ -42,13 +47,65 @@ func init() {
 	Operator.Flags().BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enabling this will ensure there is only one active controller manager")
 }
 
-func run(cmd *cobra.Command, args []string) error {
+func start(cmd *cobra.Command, args []string) {
 	ctx, closer, err := duty.Start("config-db", duty.SkipMigrationByDefaultMode)
 	if err != nil {
-		logger.Fatalf("Failed to initialize db: %v", err.Error())
+		logger.Fatalf("failed to initialize db: %v", err.Error())
 	}
 	AddShutdownHook(closer)
 
+	leaseName := ctx.Properties().String("leader.lease.name", "config-db-operator")
+	leaseNamespace := ctx.Properties().String("leader.lease.namespace", api.Namespace)
+	leaseIdentity := ctx.Properties().String("leader.lease.identity", "")
+	if leaseIdentity == "" {
+		if hostname, err := os.Hostname(); err != nil {
+			ShutdownAndExit(1, fmt.Sprintf("failed to determine hostname: %v", err))
+		} else {
+			leaseIdentity = hostname
+		}
+	}
+
+	lock := &resourcelock.LeaseLock{
+		LeaseMeta: metav1.ObjectMeta{
+			Name:      leaseName,
+			Namespace: leaseNamespace,
+		},
+		Client: ctx.Kubernetes().CoordinationV1(),
+		LockConfig: resourcelock.ResourceLockConfig{
+			Identity: leaseIdentity,
+		},
+	}
+
+	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
+		Lock:            lock,
+		ReleaseOnCancel: true,
+		LeaseDuration:   ctx.Properties().Duration("leader.lease.duration", 30*time.Second),
+		RenewDeadline:   15 * time.Second,
+		RetryPeriod:     5 * time.Second,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(leadContext context.Context) {
+				ctx.Infof("claimed election leadership")
+				if err := run(dutyContext.NewContext(leadContext), args); err != nil {
+					ShutdownAndExit(1, err.Error())
+				}
+
+				ShutdownAndExit(0, "program ran to completion")
+			},
+			OnStoppedLeading: func() {
+				ShutdownAndExit(0, "exiting. lost election leadership.")
+			},
+			OnNewLeader: func(identity string) {
+				if identity == leaseIdentity {
+					return
+				}
+
+				ctx.Infof("another instance (%s) has become the leader", identity)
+			},
+		},
+	})
+}
+
+func run(ctx dutyContext.Context, args []string) error {
 	dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
 
 	logger := logger.GetLogger("operator")
@@ -78,7 +135,7 @@ func run(cmd *cobra.Command, args []string) error {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
+		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
 	if err = (&controllers.ScrapeConfigReconciler{
@@ -88,13 +145,13 @@ func run(cmd *cobra.Command, args []string) error {
 		Log:    ctrl.Log.WithName("controllers").WithName("scrape_config"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Scraper")
-		os.Exit(1)
+		return fmt.Errorf("unable to create controller: %w", err)
 	}
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+		return fmt.Errorf("problem running manager: %w", err)
 	}
 
 	return nil
