@@ -18,7 +18,7 @@ func changeFingeprintCacheKey(configID, fingerprint string) string {
 
 func InitChangeFingerprintCache(ctx context.Context, window time.Duration) error {
 	var changes []*models.ConfigChange
-	if err := ctx.DB().Where("fingerprint IS NOT NULL").Where("created_at >= NOW() - ?", window).Find(&changes).Error; err != nil {
+	if err := ctx.DB().Where("fingerprint IS NOT NULL").Where(fmt.Sprintf("created_at >= NOW() - INTERVAL '%d SECOND'", int(window.Seconds()))).Find(&changes).Error; err != nil {
 		return err
 	}
 
