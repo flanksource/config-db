@@ -33,7 +33,7 @@ var (
 	Operator             = &cobra.Command{
 		Use:   "operator",
 		Short: "Start the kubernetes operator",
-		Run:   start,
+		Run:   startOperator,
 	}
 )
 
@@ -42,32 +42,32 @@ func init() {
 	Operator.Flags().BoolVar(&operatorExecutor, "executor", true, "If false, only serve the UI and sync the configs")
 	Operator.Flags().IntVar(&webhookPort, "webhookPort", 8082, "Port for webhooks ")
 	Operator.Flags().IntVar(&k8sLogLevel, "k8s-log-level", -1, "Kubernetes controller log level")
-	Operator.Flags().
-		BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enabling this will ensure there is only one active controller manager")
+	Operator.Flags().BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enabling this will ensure there is only one active controller manager")
 }
 
-func start(cmd *cobra.Command, args []string) {
+func startOperator(cmd *cobra.Command, args []string) {
 	ctx, closer, err := duty.Start(app, duty.SkipMigrationByDefaultMode)
 	if err != nil {
 		logger.Fatalf("failed to initialize db: %v", err.Error())
 	}
 	shutdown.AddHook(closer)
 
-	if !enableLeaderElection {
-		if err := run(ctx, args); err != nil {
-			shutdown.ShutdownAndExit(1, err.Error())
-		}
-		return
+	if enableLeaderElection {
+		go func() {
+			leader.Register(ctx, app, api.Namespace, func(leadContext context.Context) {
+				startjobs(dutyContext.NewContext(leadContext), args)
+			}, nil, nil)
+		}()
+	} else {
+		startjobs(ctx, args)
 	}
 
-	leader.Register(ctx, app, api.Namespace, func(leadContext context.Context) {
-		if err := run(dutyContext.NewContext(leadContext), args); err != nil {
-			shutdown.ShutdownAndExit(1, err.Error())
-		}
-	}, nil, nil)
+	if err := run(ctx); err != nil {
+		shutdown.ShutdownAndExit(1, err.Error())
+	}
 }
 
-func run(ctx dutyContext.Context, args []string) error {
+func run(ctx dutyContext.Context) error {
 	dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
 
 	logger := logger.GetLogger("operator")
@@ -86,7 +86,7 @@ func run(ctx dutyContext.Context, args []string) error {
 	utilruntime.Must(configsv1.AddToScheme(scheme))
 
 	// Start the server
-	go serve(dutyCtx, args)
+	go serve(dutyCtx)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,

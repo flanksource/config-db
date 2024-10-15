@@ -48,12 +48,21 @@ var Serve = &cobra.Command{
 			return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 		}
 
-		serve(dutyCtx, args)
+		startjobs(dutyCtx, args)
+		serve(dutyCtx)
 		return nil
 	},
 }
 
-func serve(ctx dutyContext.Context, configFiles []string) {
+func startjobs(ctx dutyContext.Context, configFiles []string) {
+	go startScraperCron(ctx, configFiles)
+	shutdown.AddHook(scrapers.Stop)
+
+	go jobs.ScheduleJobs(ctx)
+	shutdown.AddHook(jobs.Stop)
+}
+
+func serve(ctx dutyContext.Context) {
 	e := echo.New()
 
 	dutyEcho.AddDebugHandlers(ctx, e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
@@ -97,11 +106,6 @@ func serve(ctx dutyContext.Context, configFiles []string) {
 	e.GET("/metrics", echoprometheus.NewHandlerWithConfig(echoprometheus.HandlerConfig{
 		Gatherer: prom.DefaultGatherer,
 	}))
-
-	go startScraperCron(ctx, configFiles)
-
-	go jobs.ScheduleJobs(ctx)
-	shutdown.AddHook(jobs.Stop)
 
 	shutdown.AddHook(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
