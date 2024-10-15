@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-
 	"net/http"
 	"net/url"
 	"slices"
@@ -40,7 +39,7 @@ var Serve = &cobra.Command{
 		if err != nil {
 			logger.Fatalf("Failed to initialize db: %v", err.Error())
 		}
-		AddShutdownHook(closer)
+		shutdown.AddHook(closer)
 
 		dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
 
@@ -135,7 +134,6 @@ func startScraperCron(ctx dutyContext.Context, configFiles []string) {
 	}
 
 	scrapers.SyncScrapeConfigs(ctx)
-
 }
 
 func forward(e *echo.Echo, prefix string, target string) {

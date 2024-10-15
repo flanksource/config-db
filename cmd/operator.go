@@ -20,19 +20,22 @@ import (
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/shutdown"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 )
 
-var webhookPort int
-var enableLeaderElection bool
-var operatorExecutor bool
-var k8sLogLevel int
-var Operator = &cobra.Command{
-	Use:   "operator",
-	Short: "Start the kubernetes operator",
-	RunE:  run,
-}
+var (
+	webhookPort          int
+	enableLeaderElection bool
+	operatorExecutor     bool
+	k8sLogLevel          int
+	Operator             = &cobra.Command{
+		Use:   "operator",
+		Short: "Start the kubernetes operator",
+		RunE:  run,
+	}
+)
 
 func init() {
 	ServerFlags(Operator.Flags())
@@ -47,7 +50,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		logger.Fatalf("Failed to initialize db: %v", err.Error())
 	}
-	AddShutdownHook(closer)
+	shutdown.AddHook(closer)
 
 	dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
 
