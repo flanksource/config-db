@@ -21,6 +21,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const app = "config-db"
+
 var dev bool
 var httpPort, metricsPort, devGuiPort int
 var publicEndpoint = "http://localhost:8080"

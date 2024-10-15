@@ -42,6 +42,10 @@ var (
 	ScraperConcurrency = 12
 )
 
+func Stop() {
+	scrapeJobScheduler.Stop()
+}
+
 func SyncScrapeConfigs(sc context.Context) {
 	if globalScraperSempahore == nil {
 		globalScraperSempahore = semaphore.NewWeighted(int64(sc.Properties().Int("scraper.concurrency", ScraperConcurrency)))

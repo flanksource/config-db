@@ -3,19 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
-
-	"go.opentelemetry.io/otel"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-	"k8s.io/client-go/tools/leaderelection"
-	"k8s.io/client-go/tools/leaderelection/resourcelock"
-
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
@@ -23,11 +11,20 @@ import (
 	configsv1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/controllers"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/jobs"
+	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/leader"
 	"github.com/flanksource/duty/shutdown"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 var (
@@ -47,64 +44,34 @@ func init() {
 	Operator.Flags().BoolVar(&operatorExecutor, "executor", true, "If false, only serve the UI and sync the configs")
 	Operator.Flags().IntVar(&webhookPort, "webhookPort", 8082, "Port for webhooks ")
 	Operator.Flags().IntVar(&k8sLogLevel, "k8s-log-level", -1, "Kubernetes controller log level")
-	Operator.Flags().BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enabling this will ensure there is only one active controller manager")
+	Operator.Flags().
+		BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enabling this will ensure there is only one active controller manager")
 }
 
 func start(cmd *cobra.Command, args []string) {
-	ctx, closer, err := duty.Start("config-db", duty.SkipMigrationByDefaultMode)
+	ctx, closer, err := duty.Start(app, duty.SkipMigrationByDefaultMode)
 	if err != nil {
 		logger.Fatalf("failed to initialize db: %v", err.Error())
 	}
 	shutdown.AddHook(closer)
 
-	leaseName := ctx.Properties().String("leader.lease.name", "config-db-operator")
-	leaseNamespace := ctx.Properties().String("leader.lease.namespace", api.Namespace)
-	leaseIdentity := ctx.Properties().String("leader.lease.identity", "")
-	if leaseIdentity == "" {
-		if hostname, err := os.Hostname(); err != nil {
-			ShutdownAndExit(1, fmt.Sprintf("failed to determine hostname: %v", err))
-		} else {
-			leaseIdentity = hostname
+	if !enableLeaderElection {
+		if err := run(ctx, args); err != nil {
+			shutdown.ShutdownAndExit(1, err.Error())
 		}
+		return
 	}
 
-	lock := &resourcelock.LeaseLock{
-		LeaseMeta: metav1.ObjectMeta{
-			Name:      leaseName,
-			Namespace: leaseNamespace,
-		},
-		Client: ctx.Kubernetes().CoordinationV1(),
-		LockConfig: resourcelock.ResourceLockConfig{
-			Identity: leaseIdentity,
-		},
-	}
-
-	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
-		Lock:            lock,
-		ReleaseOnCancel: true,
-		LeaseDuration:   ctx.Properties().Duration("leader.lease.duration", 30*time.Second),
-		RenewDeadline:   15 * time.Second,
-		RetryPeriod:     5 * time.Second,
-		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: func(leadContext context.Context) {
-				ctx.Infof("claimed election leadership")
-				if err := run(dutyContext.NewContext(leadContext), args); err != nil {
-					ShutdownAndExit(1, err.Error())
-				}
-
-				ShutdownAndExit(0, "program ran to completion")
-			},
-			OnStoppedLeading: func() {
-				ShutdownAndExit(0, "exiting. lost election leadership.")
-			},
-			OnNewLeader: func(identity string) {
-				if identity == leaseIdentity {
-					return
-				}
-
-				ctx.Infof("another instance (%s) has become the leader", identity)
-			},
-		},
+	service := app // TODO: get the service name
+	leader.Register(ctx, app, api.Namespace, service, func(leadContext context.Context) {
+		if err := run(dutyContext.NewContext(leadContext), args); err != nil {
+			shutdown.ShutdownAndExit(1, err.Error())
+		}
+	}, func() {
+		jobs.Stop()
+		scrapers.Stop()
+	}, func(identity string) {
+		// Do nothing
 	})
 }
 
@@ -130,11 +97,12 @@ func run(ctx dutyContext.Context, args []string) error {
 	go serve(dutyCtx, args)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: fmt.Sprintf("0.0.0.0:%d", metricsPort),
-		Port:               9443,
-		LeaderElection:     enableLeaderElection,
-		LeaderElectionID:   "ca62cd4d.flanksource.com",
+		Scheme:                  scheme,
+		MetricsBindAddress:      fmt.Sprintf("0.0.0.0:%d", metricsPort),
+		Port:                    9443,
+		LeaderElection:          enableLeaderElection,
+		LeaderElectionNamespace: api.Namespace,
+		LeaderElectionID:        "ca62cd4d.flanksource.com",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
