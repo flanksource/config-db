@@ -596,7 +596,7 @@ type ScrapeResult struct {
 	LastScrapedTime     *time.Time          `json:"last_scraped_time"`
 
 	// ScraperLess when true indicates that this config item
-	// do not belong to any scraper. Example: AWS region & availability zone.
+	// does not belong to any scraper. Example: AWS region & availability zone.
 	ScraperLess bool `json:"scraper_less,omitempty"`
 
 	// List of candidate parents in order of precision.

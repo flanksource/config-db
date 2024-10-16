@@ -3,6 +3,7 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
@@ -145,10 +146,11 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Parents:         result.Parents,
 		Health:          lo.ToPtr(dutyModels.HealthUnknown),
 		Children:        result.Children,
+		ScraperID:       ctx.ScrapeConfig().GetPersistedID(),
 	}
 
-	if !result.ScraperLess {
-		ci.ScraperID = ctx.ScrapeConfig().GetPersistedID()
+	if result.ScraperLess || slices.Contains(v1.ScraperLessTypes, ci.Type) {
+		ci.ScraperID = nil
 	}
 
 	if parsed, err := result.Tags.AsMap(); err != nil {

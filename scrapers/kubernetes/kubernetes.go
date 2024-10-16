@@ -389,7 +389,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 												if strings.HasSuffix(hostname, "elb.amazonaws.com") {
 													relationships = append(relationships, v1.RelationshipResult{
 														ConfigID:          string(obj.GetUID()),
-														RelatedExternalID: v1.ExternalID{ExternalID: hostname, ConfigType: v1.AWSLoadBalancer},
+														RelatedExternalID: v1.ExternalID{ExternalID: hostname, ConfigType: v1.AWSLoadBalancer, ScraperID: "all"},
 													})
 												}
 											}
