@@ -11,8 +11,6 @@ import (
 	configsv1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/controllers"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/jobs"
-	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/leader"
@@ -62,17 +60,11 @@ func start(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	service := app // TODO: get the service name
-	leader.Register(ctx, app, api.Namespace, service, func(leadContext context.Context) {
+	leader.Register(ctx, app, api.Namespace, func(leadContext context.Context) {
 		if err := run(dutyContext.NewContext(leadContext), args); err != nil {
 			shutdown.ShutdownAndExit(1, err.Error())
 		}
-	}, func() {
-		jobs.Stop()
-		scrapers.Stop()
-	}, func(identity string) {
-		// Do nothing
-	})
+	}, nil, nil)
 }
 
 func run(ctx dutyContext.Context, args []string) error {
@@ -97,12 +89,12 @@ func run(ctx dutyContext.Context, args []string) error {
 	go serve(dutyCtx, args)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                  scheme,
-		MetricsBindAddress:      fmt.Sprintf("0.0.0.0:%d", metricsPort),
-		Port:                    9443,
-		LeaderElection:          enableLeaderElection,
-		LeaderElectionNamespace: api.Namespace,
-		LeaderElectionID:        "ca62cd4d.flanksource.com",
+		Scheme:             scheme,
+		MetricsBindAddress: fmt.Sprintf("0.0.0.0:%d", metricsPort),
+		Port:               9443,
+		// LeaderElection:          enableLeaderElection,
+		// LeaderElectionNamespace: api.Namespace,
+		LeaderElectionID: "ca62cd4d.flanksource.com",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

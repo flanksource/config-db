@@ -2,6 +2,7 @@ package scrapers
 
 import (
 	gocontext "context"
+	"errors"
 	"fmt"
 	"reflect"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/context"
+	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/job"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
@@ -34,6 +36,10 @@ var (
 	scrapeJobs         sync.Map
 )
 
+func init() {
+	dutyEcho.RegisterCron(scrapeJobScheduler)
+}
+
 var (
 	globalScraperSempahore *semaphore.Weighted
 	scraperTypeSemaphores  map[string]*semaphore.Weighted
@@ -41,10 +47,6 @@ var (
 	// Total number of scraper jobs allowed to run concurrently
 	ScraperConcurrency = 12
 )
-
-func Stop() {
-	scrapeJobScheduler.Stop()
-}
 
 func SyncScrapeConfigs(sc context.Context) {
 	if globalScraperSempahore == nil {
@@ -145,6 +147,11 @@ func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes)
 		})
 
 		logger.Errorf("failed to watch kubernetes events. cluster=%s: %v", config.ClusterName, err)
+		if err != nil {
+			if errors.Is(err, gocontext.DeadlineExceeded) || errors.Is(err, gocontext.Canceled) {
+				return
+			}
+		}
 	}
 }
 
@@ -321,7 +328,7 @@ func consumeKubernetesWatchResourcesJobKey(id string) string {
 
 func dedup(objs []*unstructured.Unstructured) []*unstructured.Unstructured {
 	var output []*unstructured.Unstructured
-	var seen = make(map[types.UID]struct{})
+	seen := make(map[types.UID]struct{})
 
 	// Iterate in reverse, cuz we want the latest
 	for i := len(objs) - 1; i >= 0; i-- {

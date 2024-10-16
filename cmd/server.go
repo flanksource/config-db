@@ -57,7 +57,7 @@ func serve(ctx dutyContext.Context, configFiles []string) {
 	e := echo.New()
 
 	dutyEcho.AddDebugHandlers(ctx, e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
-	e.Use(otelecho.Middleware("config-db", otelecho.WithSkipper(telemetryURLSkipper)))
+	e.Use(otelecho.Middleware(app, otelecho.WithSkipper(telemetryURLSkipper)))
 
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
