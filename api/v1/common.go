@@ -13,6 +13,9 @@ import (
 	"github.com/flanksource/gomplate/v3"
 )
 
+// List of types which should not have scraper_id
+var ScraperLessTypes = []string{AWSRegion, AWSAvailabilityZone}
+
 // ConfigFieldExclusion defines fields with JSONPath that needs to
 // be removed from the config.
 type ConfigFieldExclusion struct {

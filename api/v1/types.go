@@ -2,6 +2,7 @@ package v1
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/flanksource/config-db/utils"
@@ -118,7 +119,7 @@ func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
 	if e.ConfigType != "" {
 		query = query.Where("type = ?", e.ConfigType)
 	}
-	if e.ScraperID != "all" && e.ScraperID != "" {
+	if e.ScraperID != "all" && e.ScraperID != "" && !slices.Contains(ScraperLessTypes, e.ConfigType) {
 		query = query.Where("scraper_id = ?", e.ScraperID)
 	}
 	return query
