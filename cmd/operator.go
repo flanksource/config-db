@@ -52,7 +52,12 @@ func startOperator(cmd *cobra.Command, args []string) error {
 	shutdown.AddHook(closer)
 
 	if enableLeaderElection {
-		go leader.Register(ctx, app, api.Namespace, nil, nil, nil)
+		go func() {
+			err := leader.Register(ctx, app, api.Namespace, nil, nil, nil)
+			if err != nil {
+				shutdown.ShutdownAndExit(1, fmt.Sprintf("leader election failed: %v", err))
+			}
+		}()
 	}
 
 	return run(ctx, args)
@@ -79,15 +84,13 @@ func run(ctx dutyContext.Context, args []string) error {
 	registerJobs(ctx, args)
 	go serve(dutyCtx)
 
-	// FIXME: Disable leader election for now.
-	// If it loses the election it os.Exits
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: fmt.Sprintf("0.0.0.0:%d", metricsPort),
-		Port:               9443,
-		// LeaderElection:          enableLeaderElection,
-		// LeaderElectionNamespace: api.Namespace,
-		LeaderElectionID: "ca62cd4d.flanksource.com",
+	mgr, err := ctrl.NewManager(ctx.KubernetesRestConfig(), ctrl.Options{
+		Scheme:                  scheme,
+		MetricsBindAddress:      fmt.Sprintf("0.0.0.0:%d", metricsPort),
+		Port:                    9443,
+		LeaderElection:          enableLeaderElection,
+		LeaderElectionNamespace: api.Namespace,
+		LeaderElectionID:        "ca62cd4d.flanksource.com",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
