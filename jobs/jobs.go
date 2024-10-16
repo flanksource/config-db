@@ -4,6 +4,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/context"
+	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/job"
 	"github.com/robfig/cron/v3"
 )
@@ -11,6 +12,10 @@ import (
 const JobResourceType = "configs"
 
 var FuncScheduler = cron.New()
+
+func init() {
+	dutyEcho.RegisterCron(FuncScheduler)
+}
 
 // ScheduleJobs schedules the given job
 func ScheduleJob(ctx context.Context, j *job.Job) error {
@@ -20,7 +25,7 @@ func ScheduleJob(ctx context.Context, j *job.Job) error {
 
 func ScheduleJobs(ctx context.Context) {
 	for _, j := range cleanupJobs {
-		var job = j
+		job := j
 		job.Context = ctx
 		if err := job.AddToScheduler(FuncScheduler); err != nil {
 			logger.Fatalf(err.Error())
@@ -34,15 +39,13 @@ func ScheduleJobs(ctx context.Context) {
 
 	if api.UpstreamConfig.Valid() {
 		for _, j := range UpstreamJobs {
-			var job = j
+			job := j
 			job.Context = ctx
 			if err := job.AddToScheduler(FuncScheduler); err != nil {
 				logger.Fatalf(err.Error())
 			}
 		}
 	}
-
-	FuncScheduler.Start()
 }
 
 func Stop() {

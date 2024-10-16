@@ -35,9 +35,9 @@ import (
 var Serve = &cobra.Command{
 	Use: "serve",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx, closer, err := duty.Start("config-db", duty.SkipMigrationByDefaultMode)
+		ctx, closer, err := duty.Start(app, duty.SkipMigrationByDefaultMode)
 		if err != nil {
-			logger.Fatalf("Failed to initialize db: %v", err.Error())
+			return fmt.Errorf("failed to initialize db: %w", err)
 		}
 		shutdown.AddHook(closer)
 
@@ -48,16 +48,26 @@ var Serve = &cobra.Command{
 			return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 		}
 
-		serve(dutyCtx, args)
+		registerJobs(dutyCtx, args)
+		serve(dutyCtx)
 		return nil
 	},
 }
 
-func serve(ctx dutyContext.Context, configFiles []string) {
+func registerJobs(ctx dutyContext.Context, configFiles []string) {
+	go startScraperCron(ctx, configFiles)
+	shutdown.AddHook(scrapers.Stop)
+
+	go jobs.ScheduleJobs(ctx)
+	shutdown.AddHook(jobs.Stop)
+}
+
+// serve runs an echo http server
+func serve(ctx dutyContext.Context) {
 	e := echo.New()
 
 	dutyEcho.AddDebugHandlers(ctx, e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
-	e.Use(otelecho.Middleware("config-db", otelecho.WithSkipper(telemetryURLSkipper)))
+	e.Use(otelecho.Middleware(app, otelecho.WithSkipper(telemetryURLSkipper)))
 
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -98,11 +108,6 @@ func serve(ctx dutyContext.Context, configFiles []string) {
 		Gatherer: prom.DefaultGatherer,
 	}))
 
-	go startScraperCron(ctx, configFiles)
-
-	go jobs.ScheduleJobs(ctx)
-	shutdown.AddHook(jobs.Stop)
-
 	shutdown.AddHook(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 		defer cancel()
@@ -111,8 +116,6 @@ func serve(ctx dutyContext.Context, configFiles []string) {
 			e.Logger.Fatal(err)
 		}
 	})
-
-	shutdown.WaitForSignal()
 
 	if err := e.Start(fmt.Sprintf(":%d", httpPort)); err != nil && err != http.ErrServerClosed {
 		e.Logger.Fatal(err)
