@@ -32,7 +32,7 @@ var (
 	Operator             = &cobra.Command{
 		Use:   "operator",
 		Short: "Start the kubernetes operator",
-		Run:   startOperator,
+		RunE:  startOperator,
 	}
 )
 
@@ -44,10 +44,10 @@ func init() {
 	Operator.Flags().BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enabling this will ensure there is only one active controller manager")
 }
 
-func startOperator(cmd *cobra.Command, args []string) {
+func startOperator(cmd *cobra.Command, args []string) error {
 	ctx, closer, err := duty.Start(app, duty.SkipMigrationByDefaultMode)
 	if err != nil {
-		logger.Fatalf("failed to initialize db: %v", err.Error())
+		return fmt.Errorf("failed to initialize db: %w", err)
 	}
 	shutdown.AddHook(closer)
 
@@ -55,9 +55,7 @@ func startOperator(cmd *cobra.Command, args []string) {
 		go leader.Register(ctx, app, api.Namespace, nil, nil, nil)
 	}
 
-	if err := run(ctx, args); err != nil {
-		shutdown.ShutdownAndExit(1, err.Error())
-	}
+	return run(ctx, args)
 }
 
 func run(ctx dutyContext.Context, args []string) error {
@@ -78,10 +76,11 @@ func run(ctx dutyContext.Context, args []string) error {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(configsv1.AddToScheme(scheme))
 
-	// Start the server
-	go serve(dutyCtx)
 	registerJobs(ctx, args)
+	go serve(dutyCtx)
 
+	// FIXME: Disable leader election for now.
+	// If it loses the election it os.Exits
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: fmt.Sprintf("0.0.0.0:%d", metricsPort),

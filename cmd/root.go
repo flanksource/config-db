@@ -7,6 +7,7 @@ import (
 
 	"github.com/flanksource/commons/http"
 	"github.com/flanksource/commons/properties"
+	"github.com/flanksource/duty/shutdown"
 
 	_ "net/http/pprof" // required by serve
 
@@ -41,11 +42,11 @@ var (
 
 // Root ...
 var Root = &cobra.Command{
-	Use: "config-db",
+	Use: app,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if api.UpstreamConfig.Valid() {
 			api.UpstreamConfig.Options = append(api.UpstreamConfig.Options, func(c *http.Client) {
-				c.UserAgent(fmt.Sprintf("config-db %s", version))
+				c.UserAgent(fmt.Sprintf("%s %s", app, version))
 			})
 			logger.Infof("pushing configs to %s", api.UpstreamConfig)
 		} else if partial, err := api.UpstreamConfig.IsPartiallyFilled(); partial && err != nil {
@@ -56,6 +57,8 @@ var Root = &cobra.Command{
 			logger.Infof("Sending traces to %s", otelcollectorURL)
 			_ = telemetry.InitTracer(otelServiceName, otelcollectorURL, true) // TODO: Setup runner
 		}
+
+		shutdown.WaitForSignal()
 
 		return nil
 	},
@@ -77,7 +80,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&publicEndpoint, "public-endpoint", "http://localhost:8080", "Public endpoint that this instance is exposed under")
 	flags.IntVar(&kubernetes.BufferSize, "watch-event-buffer", kubernetes.BufferSize, "Buffer size for kubernetes events")
 	flags.StringVar(&otelcollectorURL, "otel-collector-url", "", "OpenTelemetry gRPC Collector URL in host:port format")
-	flags.StringVar(&otelServiceName, "otel-service-name", "config-db", "OpenTelemetry service name for the resource")
+	flags.StringVar(&otelServiceName, "otel-service-name", app, "OpenTelemetry service name for the resource")
 
 	// Flags for push/pull
 	var upstreamPageSizeDefault = 500

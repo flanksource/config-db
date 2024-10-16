@@ -40,7 +40,7 @@ var Run = &cobra.Command{
 
 		dutyCtx := context.New()
 		if dutyapi.DefaultConfig.ConnectionString != "" {
-			c, _, err := duty.Start("config-db", duty.ClientOnly)
+			c, _, err := duty.Start(app, duty.ClientOnly)
 			if err != nil {
 				logger.Fatalf("Failed to initialize db: %v", err.Error())
 			}
