@@ -803,7 +803,6 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 				ConfigClass: "AvailabilityZone",
 				Aliases:     nil,
 				Name:        lo.FromPtr(az.ZoneId),
-				ScraperLess: true,
 				Parents:     []v1.ConfigExternalKey{{Type: v1.AWSRegion, ExternalID: lo.FromPtr(az.RegionName)}},
 			})
 
@@ -874,7 +873,6 @@ func (aws Scraper) account(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			BaseScraper: config.BaseScraper,
 			Name:        *region.RegionName,
 			ID:          *region.RegionName,
-			ScraperLess: true,
 		}
 
 		if *region.OptInStatus != "not-opted-in" {
@@ -919,7 +917,7 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 			ConfigClass: "User",
 			Labels:      labels,
 			Name:        *user.UserName,
-			Aliases:     []string{*user.UserId, *user.Arn},
+			Aliases:     []string{*user.UserId, *user.UserName},
 			Ignore:      []string{"arn", "userId", "createDate", "userName"},
 			ID:          *user.Arn, // UserId is not often referenced
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
@@ -1435,7 +1433,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Name:                *lb.LoadBalancerName,
 			Labels:              labels,
 			Tags:                tags,
-			Aliases:             []string{"AWSELB/" + arn, lo.FromPtr(lb.CanonicalHostedZoneName)},
+			Aliases:             []string{"AWSELB/" + arn, lo.FromPtr(lb.CanonicalHostedZoneName), *lb.LoadBalancerName},
 			ID:                  arn,
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(lb.VPCId)}},
 			RelationshipResults: relationships,
