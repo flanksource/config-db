@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -53,21 +52,15 @@ func startOperator(cmd *cobra.Command, args []string) {
 	shutdown.AddHook(closer)
 
 	if enableLeaderElection {
-		go func() {
-			leader.Register(ctx, app, api.Namespace, func(leadContext context.Context) {
-				startjobs(dutyContext.NewContext(leadContext), args)
-			}, nil, nil)
-		}()
-	} else {
-		startjobs(ctx, args)
+		go leader.Register(ctx, app, api.Namespace, nil, nil, nil)
 	}
 
-	if err := run(ctx); err != nil {
+	if err := run(ctx, args); err != nil {
 		shutdown.ShutdownAndExit(1, err.Error())
 	}
 }
 
-func run(ctx dutyContext.Context) error {
+func run(ctx dutyContext.Context, args []string) error {
 	dutyCtx := dutyContext.NewContext(ctx, commonsCtx.WithTracer(otel.GetTracerProvider().Tracer(otelServiceName)))
 
 	logger := logger.GetLogger("operator")
@@ -87,6 +80,7 @@ func run(ctx dutyContext.Context) error {
 
 	// Start the server
 	go serve(dutyCtx)
+	registerJobs(ctx, args)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,

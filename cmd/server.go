@@ -48,13 +48,13 @@ var Serve = &cobra.Command{
 			return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 		}
 
-		startjobs(dutyCtx, args)
+		registerJobs(dutyCtx, args)
 		serve(dutyCtx)
 		return nil
 	},
 }
 
-func startjobs(ctx dutyContext.Context, configFiles []string) {
+func registerJobs(ctx dutyContext.Context, configFiles []string) {
 	go startScraperCron(ctx, configFiles)
 	shutdown.AddHook(scrapers.Stop)
 

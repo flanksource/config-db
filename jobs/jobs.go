@@ -46,8 +46,6 @@ func ScheduleJobs(ctx context.Context) {
 			}
 		}
 	}
-
-	FuncScheduler.Start()
 }
 
 func Stop() {
