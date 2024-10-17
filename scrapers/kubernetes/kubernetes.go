@@ -15,6 +15,7 @@ import (
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 
@@ -53,11 +54,19 @@ func getString(obj *unstructured.Unstructured, path ...string) string {
 	return s
 }
 
-func (kubernetes KubernetesScraper) IncrementalScrape(ctx api.ScrapeContext, config v1.Kubernetes, objects []*unstructured.Unstructured) v1.ScrapeResults {
+func (kubernetes KubernetesScraper) IncrementalScrape(
+	ctx api.ScrapeContext,
+	config v1.Kubernetes,
+	objects []*unstructured.Unstructured,
+) v1.ScrapeResults {
 	return ExtractResults(newKubernetesContext(ctx, config), objects)
 }
 
-func (kubernetes KubernetesScraper) IncrementalEventScrape(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) v1.ScrapeResults {
+func (kubernetes KubernetesScraper) IncrementalEventScrape(
+	ctx api.ScrapeContext,
+	config v1.Kubernetes,
+	events []v1.KubernetesEvent,
+) v1.ScrapeResults {
 	if len(events) == 0 {
 		return nil
 	}
@@ -101,17 +110,29 @@ func (kubernetes KubernetesScraper) IncrementalEventScrape(ctx api.ScrapeContext
 		if _, ok := seenObjects[cacheKey]; !ok {
 			kclient, ok := kindClientCache[resource.APIVersion+resource.Kind]
 			if !ok {
-				kclient, err = ctx.KubernetesDynamicClient().GetClientByKind(resource.Kind)
+				gv, _ := schema.ParseGroupVersion(resource.APIVersion)
+				kclient, err = ctx.KubernetesDynamicClient().GetClientByGroupVersionKind(gv.Group, gv.Version, resource.Kind)
 				if err != nil {
+					ctx.Errorf("failed to get dynamic client for (%s/%s)", gv, resource.Kind)
 					continue
 				}
+
 				kindClientCache[resource.APIVersion+resource.Kind] = kclient
 			}
 
-			ctx.DutyContext().Logger.V(5).Infof("fetching resource namespace=%s name=%s kind=%s apiVersion=%s", resource.Namespace, resource.Name, resource.Kind, resource.APIVersion)
+			ctx.DutyContext().
+				Logger.V(5).
+				Infof("fetching resource namespace=%s name=%s kind=%s apiVersion=%s", resource.Namespace, resource.Name, resource.Kind, resource.APIVersion)
+
 			obj, err := kclient.Namespace(resource.Namespace).Get(ctx, resource.Name, metav1.GetOptions{})
 			if err != nil {
-				ctx.DutyContext().Logger.Warnf("failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v", resource.Kind, resource.Name, resource.Namespace, err)
+				ctx.DutyContext().Logger.Warnf(
+					"failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v",
+					resource.Kind,
+					resource.Name,
+					resource.Namespace,
+					err,
+				)
 				continue
 			} else if obj != nil {
 				seenObjects[cacheKey] = struct{}{} // mark it as seen so we don't run ketall.KetOne again (in this run)
@@ -177,7 +198,10 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	if ctx.isIncremental {
 		// On incremental scrape, we do not have all the data in the resource ID map.
 		// we use it from the cached resource id map.
-		ctx.resourceIDMap.data = resourceIDMapPerCluster.MergeAndUpdate(string(ctx.ScrapeConfig().GetUID()), ctx.resourceIDMap.data)
+		ctx.resourceIDMap.data = resourceIDMapPerCluster.MergeAndUpdate(
+			string(ctx.ScrapeConfig().GetUID()),
+			ctx.resourceIDMap.data,
+		)
 	} else {
 		resourceIDMapPerCluster.Swap(string(ctx.ScrapeConfig().GetUID()), ctx.resourceIDMap.data)
 	}
@@ -286,9 +310,12 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 					if address.TargetRef != nil {
 						if address.TargetRef.Kind != "Service" {
 							relationships = append(relationships, v1.RelationshipResult{
-								ConfigExternalID: v1.ExternalID{ExternalID: alias("Service", obj.GetNamespace(), obj.GetName()), ConfigType: ConfigTypePrefix + "Service"},
-								RelatedConfigID:  string(address.TargetRef.UID),
-								Relationship:     fmt.Sprintf("Service%s", address.TargetRef.Kind),
+								ConfigExternalID: v1.ExternalID{
+									ExternalID: alias("Service", obj.GetNamespace(), obj.GetName()),
+									ConfigType: ConfigTypePrefix + "Service",
+								},
+								RelatedConfigID: string(address.TargetRef.UID),
+								Relationship:    fmt.Sprintf("Service%s", address.TargetRef.Kind),
 							})
 						}
 					}
@@ -319,7 +346,10 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 				Relationship:    "Namespace" + obj.GetKind(),
 			}.WithConfig(
 				ctx.GetID("", "Namespace", obj.GetNamespace()),
-				v1.ExternalID{ExternalID: alias("Namespace", "", obj.GetNamespace()), ConfigType: ConfigTypePrefix + "Namespace"},
+				v1.ExternalID{
+					ExternalID: alias("Namespace", "", obj.GetNamespace()),
+					ConfigType: ConfigTypePrefix + "Namespace",
+				},
 			))
 		}
 
