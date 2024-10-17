@@ -56,7 +56,6 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	deleteBuffer := make(chan string, WatchResourceBufferSize)
 	DeleteResourceBuffer.Store(config.Hash(), deleteBuffer)
 
-	var kubeconfig string
 	if config.Kubeconfig != nil {
 		var err error
 		c, err := ctx.WithKubeconfig(*config.Kubeconfig)
@@ -78,7 +77,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	for _, w := range config.Watch {
 		existingWatches = append(existingWatches, w.ApiVersion+w.Kind)
 	}
-	globalSharedInformerManager.stop(ctx, kubeconfig, existingWatches...)
+	globalSharedInformerManager.stop(ctx, kubeConfigIdentifier(ctx), existingWatches...)
 
 	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", ctx.ScraperID()).Add(1)
 	return nil
@@ -126,4 +125,14 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	}
 
 	return nil
+}
+
+// kubeConfigIdentifier returns a unique identifier for a kubernetes config of a scraper.
+func kubeConfigIdentifier(ctx api.ScrapeContext) string {
+	rs := ctx.KubernetesRestConfig()
+	if rs == nil {
+		return ctx.ScrapeConfig().Name
+	}
+
+	return rs.Host
 }
