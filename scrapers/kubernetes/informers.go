@@ -109,9 +109,9 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 	defer t.mu.Unlock()
 
 	cacheKey := apiVersion + kind
-	kubeconfig := lo.FromPtr(ctx.KubernetesRestConfig()).Host
+	clusterID := kubeConfigIdentifier(ctx)
 
-	if val, ok := t.cache[kubeconfig]; ok {
+	if val, ok := t.cache[clusterID]; ok {
 		if data, ok := val[cacheKey]; ok {
 			return data.informer, data.stopper, false
 		}
@@ -130,10 +130,10 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 		stopper:  stopper,
 		informer: informer,
 	}
-	if _, ok := t.cache[kubeconfig]; ok {
-		t.cache[kubeconfig][cacheKey] = cacheValue
+	if _, ok := t.cache[clusterID]; ok {
+		t.cache[clusterID][cacheKey] = cacheValue
 	} else {
-		t.cache[kubeconfig] = map[string]*informerCacheData{
+		t.cache[clusterID] = map[string]*informerCacheData{
 			cacheKey: cacheValue,
 		}
 	}
@@ -143,12 +143,12 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 
 // stop stops all shared informers for the given kubeconfig
 // apart from the ones provided.
-func (t *SharedInformerManager) stop(ctx api.ScrapeContext, kubeconfig string, exception ...string) {
+func (t *SharedInformerManager) stop(ctx api.ScrapeContext, clusterID string, exception ...string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	var toDelete []string
-	if informers, ok := t.cache[kubeconfig]; ok {
+	if informers, ok := t.cache[clusterID]; ok {
 		for key, cached := range informers {
 			if !lo.Contains(exception, key) {
 				ctx.Logger.V(1).Infof("stopping informer for %s", key)
@@ -163,7 +163,7 @@ func (t *SharedInformerManager) stop(ctx api.ScrapeContext, kubeconfig string, e
 	}
 
 	for _, key := range toDelete {
-		delete(t.cache[kubeconfig], key)
+		delete(t.cache[clusterID], key)
 	}
 }
 
