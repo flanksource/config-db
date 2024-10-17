@@ -42,8 +42,7 @@ func getConfigTypePrefix(apiVersion string) string {
 	return ConfigTypePrefix
 }
 
-type KubernetesScraper struct {
-}
+type KubernetesScraper struct{}
 
 func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
@@ -298,7 +297,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		}
 
 		if obj.GetKind() == "Pod" {
-			nodeName := getString(obj, "spec.nodeName")
+			nodeName := getString(obj, "spec", "nodeName")
 
 			if nodeName != "" {
 				nodeID := ctx.GetID("", "Node", nodeName)

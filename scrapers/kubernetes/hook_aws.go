@@ -41,7 +41,7 @@ func (aws AWS) OnObject(ctx *KubernetesContext, obj *unstructured.Unstructured) 
 		}
 	}
 	if obj.GetKind() == "Pod" && obj.GetLabels()["app.kubernetes.io/name"] == "aws-node" {
-		nodeName := getString(obj, "spec.nodeName")
+		nodeName := getString(obj, "spec", "nodeName")
 		spec := obj.Object["spec"].(map[string]interface{})
 		for _, ownerRef := range obj.GetOwnerReferences() {
 			if ownerRef.Kind == "DaemonSet" && ownerRef.Name == "aws-node" {
