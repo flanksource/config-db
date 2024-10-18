@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
@@ -37,7 +38,12 @@ type SharedInformerManager struct {
 
 type DeleteObjHandler func(ctx context.Context, id string) error
 
-func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, buffer chan<- *unstructured.Unstructured, deleteBuffer chan<- string) error {
+func (t *SharedInformerManager) Register(
+	ctx api.ScrapeContext,
+	watchResource v1.KubernetesResourceToWatch,
+	buffer chan<- *unstructured.Unstructured,
+	deleteBuffer chan<- string,
+) error {
 	apiVersion, kind := watchResource.ApiVersion, watchResource.Kind
 
 	informer, stopper, isNew := t.getOrCreate(ctx, apiVersion, kind)
@@ -82,7 +88,13 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 		DeleteFunc: func(obj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, obj)
 			if err != nil {
-				logToJobHistory(ctx.DutyContext(), "DeleteK8sWatchResource", ctx.ScrapeConfig().GetPersistedID(), "failed to get unstructured %v", err)
+				logToJobHistory(
+					ctx.DutyContext(),
+					"DeleteK8sWatchResource",
+					ctx.ScrapeConfig().GetPersistedID(),
+					"failed to get unstructured %v",
+					err,
+				)
 				return
 			}
 
@@ -104,7 +116,10 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 }
 
 // getOrCreate returns an existing shared informer instance or creates & returns a new one.
-func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, kind string) (informers.GenericInformer, chan struct{}, bool) {
+func (t *SharedInformerManager) getOrCreate(
+	ctx api.ScrapeContext,
+	apiVersion, kind string,
+) (informers.GenericInformer, chan struct{}, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -117,7 +132,13 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 		}
 	}
 
-	factory := informers.NewSharedInformerFactory(ctx.Kubernetes(), 0)
+	// The resync period is chosen based off of the sample controller in here
+	// https://github.com/kubernetes/sample-controller/blob/d90ced32cf661b9821ecb20b08502ad62377a035/main.go#L63
+	//
+	// The sample uses 30s as the resync period, however we're using 5m in here to reduce the load on the API server.
+	resyncPeriod := time.Minute * 5
+
+	factory := informers.NewSharedInformerFactory(ctx.Kubernetes(), resyncPeriod)
 	stopper := make(chan struct{})
 
 	informer, err := getInformer(factory, apiVersion, kind)
