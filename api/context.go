@@ -3,13 +3,13 @@ package api
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
-	"github.com/google/uuid"
 	"github.com/samber/lo"
 )
 
@@ -50,7 +50,7 @@ func (ctx ScrapeContext) withTempCache(cache *TempCache) ScrapeContext {
 	return ctx
 }
 
-var scraperTempCache = make(map[uuid.UUID]TempCache)
+var scraperTempCache = sync.Map{}
 
 func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	if ctx.ScrapeConfig().GetPersistedID() == nil {
@@ -71,7 +71,7 @@ func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	// For kubernetes consumer jobs, this cache can be reused
 	// and is reset on every InitTempCache() call which happens
 	// in RunScraper()
-	scraperTempCache[*scraperID] = *cache
+	scraperTempCache.Store(*scraperID, cache)
 	return ctx.withTempCache(cache), nil
 }
 
@@ -92,8 +92,8 @@ func (ctx ScrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContex
 	ctx.Context = ctx.Context.WithObject(*scraper)
 
 	// Try to use the temp cache if it exits
-	if c, exists := scraperTempCache[lo.FromPtr(scraper.GetPersistedID())]; exists {
-		ctx.temp = &c
+	if c, exists := scraperTempCache.Load(lo.FromPtr(scraper.GetPersistedID())); exists {
+		ctx.temp = c.(*TempCache)
 	}
 	return ctx
 }
