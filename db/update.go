@@ -917,7 +917,11 @@ type configExternalKey struct {
 	parentType string
 }
 
-func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime time.Time, results []v1.ScrapeResult) ([]*models.ConfigItem, []*updateConfigArgs, []*models.ConfigChange, []*models.ConfigChange, map[string]v1.ChangeSummary, error) {
+func extractConfigsAndChangesFromResults(
+	ctx api.ScrapeContext,
+	scrapeStartTime time.Time,
+	results []v1.ScrapeResult,
+) ([]*models.ConfigItem, []*updateConfigArgs, []*models.ConfigChange, []*models.ConfigChange, map[string]v1.ChangeSummary, error) {
 	var (
 		allChangeSummary = make(v1.ChangeSummaryByType)
 
@@ -1018,12 +1022,14 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	if err := setConfigProbableParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
 		return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to set parents: %w", err)
 	}
-	if err := setConfigChildren(ctx, allConfigs); err != nil {
-		return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to set children: %w", err)
-	}
 
 	if err := setConfigPaths(ctx, allConfigs); err != nil {
 		return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to set config paths: %w", err)
+	}
+
+	// run this after setting the config path. else whatever the parent is set here will be overwritten by it.
+	if err := setParentForChildren(ctx, allConfigs); err != nil {
+		return nil, nil, nil, nil, allChangeSummary, fmt.Errorf("unable to set children: %w", err)
 	}
 
 	// We sort the new config items such that parents are always first.
@@ -1083,7 +1089,7 @@ func setConfigProbableParents(ctx api.ScrapeContext, parentTypeToConfigMap map[c
 	return nil
 }
 
-func setConfigChildren(ctx api.ScrapeContext, allConfigs models.ConfigItems) error {
+func setParentForChildren(ctx api.ScrapeContext, allConfigs models.ConfigItems) error {
 	for _, ci := range allConfigs {
 		if len(ci.Children) == 0 {
 			// No action required
@@ -1098,17 +1104,18 @@ func setConfigChildren(ctx api.ScrapeContext, allConfigs models.ConfigItems) err
 			found, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: child.Type, ExternalID: child.ExternalID})
 			if err != nil {
 				return err
-			}
-			if found == nil {
+			} else if found == nil {
 				ctx.Logger.Tracef("child:[%s/%s] not found for config [%s]", child.Type, child.ExternalID, ci)
 				continue
 			}
+
 			childRef := allConfigs.GetByID(found.ID)
 			if childRef != nil {
 				childRef.ParentID = &ci.ID
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -1163,7 +1170,7 @@ func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) erro
 
 	for _, config := range allConfigs {
 		for i := 0; i < len(config.ProbableParents); i++ {
-			// If no cylce is detected, we set path and parentID
+			// If no cycle is detected, we set path and parentID
 			path, ok := getPath(ctx, parentMap, config.ID)
 			if ok {
 				config.Path = path
@@ -1171,8 +1178,10 @@ func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) erro
 				if path != "" {
 					config.ParentID = lo.ToPtr(parentMap[config.ID])
 				}
+
 				break
 			}
+
 			// If a cycle is detected we assume the parent is bad and move to the next
 			// probable parent and redo path computation
 			parentMap[config.ID] = config.ProbableParents[i]
