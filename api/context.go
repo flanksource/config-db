@@ -3,12 +3,14 @@ package api
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
+	"github.com/samber/lo"
 )
 
 type ScrapeContext struct {
@@ -48,6 +50,8 @@ func (ctx ScrapeContext) withTempCache(cache *TempCache) ScrapeContext {
 	return ctx
 }
 
+var scraperTempCache = sync.Map{}
+
 func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	if ctx.ScrapeConfig().GetPersistedID() == nil {
 		cache, err := QueryCache(ctx.Context, "scraper_id IS NULL")
@@ -56,10 +60,18 @@ func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 		}
 		return ctx.withTempCache(cache), nil
 	}
-	cache, err := QueryCache(ctx.Context, "scraper_id = ?", ctx.ScrapeConfig().GetPersistedID())
+
+	scraperID := ctx.ScrapeConfig().GetPersistedID()
+
+	cache, err := QueryCache(ctx.Context, "scraper_id = ?", scraperID)
 	if err != nil {
 		return ctx, err
 	}
+	// We reset the scraper temp cache
+	// For kubernetes consumer jobs, this cache can be reused
+	// and is reset on every InitTempCache() call which happens
+	// in RunScraper()
+	scraperTempCache.Store(*scraperID, cache)
 	return ctx.withTempCache(cache), nil
 }
 
@@ -78,6 +90,11 @@ func (ctx ScrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContex
 	ctx.scrapeConfig = scraper
 
 	ctx.Context = ctx.Context.WithObject(*scraper)
+
+	// Try to use the temp cache if it exits
+	if c, exists := scraperTempCache.Load(lo.FromPtr(scraper.GetPersistedID())); exists {
+		ctx.temp = c.(*TempCache)
+	}
 	return ctx
 }
 
