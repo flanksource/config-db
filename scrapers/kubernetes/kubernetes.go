@@ -9,6 +9,7 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -220,6 +221,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 				continue
 			}
 
+			var configData map[string]any
 			if uid, err := ctx.FindInvolvedConfigID(event); err != nil {
 				results.Errorf(err, "")
 				continue
@@ -227,6 +229,15 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 				continue
 			} else {
 				event.InvolvedObject.UID = types.UID(uid.String())
+				confObj, err := ctx.TempCache().Get(ctx.ScrapeContext, uid.String())
+				if err != nil {
+					// TODO: Should this gointo results.Errorf
+					logger.Warnf("unable to find config[%s] related to event: %v", uid, err)
+				}
+				if confObj != nil && confObj.Config != nil {
+					// Also, this won't work for resources we ignore
+					configData, _ = confObj.ConfigJSONStringMap()
+				}
 			}
 
 			change := getChangeFromEvent(event, ctx.config.Event.SeverityKeywords)
@@ -241,6 +252,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 				changeResults = append(changeResults, v1.ScrapeResult{
 					BaseScraper: ctx.config.BaseScraper,
 					Changes:     []v1.ChangeResult{*change},
+					Config:      configData,
 				})
 			}
 
