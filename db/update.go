@@ -32,6 +32,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
+	"github.com/robfig/cron/v3"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -39,6 +40,15 @@ import (
 )
 
 const configItemsBulkInsertSize = 200
+
+// parentCache stores child -> parent relationship
+// derived from children lookup hooks.
+//
+// This is to cater to cases where only the parent has the knowledge of its direct child.
+// During incremental scrape, the child can look into this cache to find its parent
+// (that would have been set in a full scape).
+
+var parentCache = cache.New(time.Hour*24, time.Hour*24)
 
 func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	var deletedAt interface{}
@@ -1035,6 +1045,16 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 		return nil, fmt.Errorf("unable to set children: %w", err)
 	}
 
+	if ctx.IsIncrementalScrape() {
+		// This is to preserve the child-parent hard relationship
+		// when the child doesn't know about its parent.
+		for _, c := range allConfigs {
+			if parentID, ok := parentCache.Get(c.ID); ok {
+				c.ParentID = lo.ToPtr(parentID.(string))
+			}
+		}
+	}
+
 	// We sort the new config items such that parents are always first.
 	// This avoids foreign key constraint errors.
 	slices.SortFunc(extractResult.newConfigs, func(a, b *models.ConfigItem) int {
@@ -1093,6 +1113,16 @@ func setConfigProbableParents(ctx api.ScrapeContext, parentTypeToConfigMap map[c
 }
 
 func setParentForChildren(ctx api.ScrapeContext, allConfigs models.ConfigItems) error {
+	var cacheExpiry time.Duration
+
+	// Attempt to get a fixed interval from the schedule so we can set the appropriate cache expiry.
+	if parsedSchedule, err := cron.ParseStandard(ctx.ScrapeConfig().Spec.Schedule); err == nil {
+		next := parsedSchedule.Next(time.Now())
+		cacheExpiry = time.Until(next) * 2
+	} else {
+		cacheExpiry = 2 * time.Hour
+	}
+
 	for _, ci := range allConfigs {
 		if len(ci.Children) == 0 {
 			// No action required
@@ -1114,6 +1144,7 @@ func setParentForChildren(ctx api.ScrapeContext, allConfigs models.ConfigItems) 
 
 			childRef := allConfigs.GetByID(found.ID)
 			if childRef != nil {
+				parentCache.Set(childRef.ID, ci.ID, cacheExpiry)
 				childRef.ParentID = &ci.ID
 			}
 		}

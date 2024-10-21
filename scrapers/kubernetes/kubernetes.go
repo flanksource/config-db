@@ -60,7 +60,7 @@ func (kubernetes KubernetesScraper) IncrementalScrape(
 	config v1.Kubernetes,
 	objects []*unstructured.Unstructured,
 ) v1.ScrapeResults {
-	return ExtractResults(newKubernetesContext(ctx, config), objects)
+	return ExtractResults(newKubernetesContext(ctx, true, config), objects)
 }
 
 func (kubernetes KubernetesScraper) IncrementalEventScrape(
@@ -147,7 +147,7 @@ func (kubernetes KubernetesScraper) IncrementalEventScrape(
 		return nil
 	}
 
-	return ExtractResults(newKubernetesContext(ctx, config), objects)
+	return ExtractResults(newKubernetesContext(ctx, true, config), objects)
 }
 
 func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
@@ -166,7 +166,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 			return results.Errorf(err, "error running ketall")
 		}
 
-		extracted := ExtractResults(newKubernetesContext(ctx, config), objs)
+		extracted := ExtractResults(newKubernetesContext(ctx, false, config), objs)
 		results = append(results, extracted...)
 	}
 
@@ -196,7 +196,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	results = append(results, cluster)
 
 	ctx.Load(objs)
-	if ctx.isIncremental {
+	if ctx.IsIncrementalScrape() {
 		// On incremental scrape, we do not have all the data in the resource ID map.
 		// we use it from the cached resource id map.
 		ctx.resourceIDMap.data = resourceIDMapPerCluster.MergeAndUpdate(
@@ -502,7 +502,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	}
 
 	results = append(results, changeResults...)
-	if ctx.isIncremental {
+	if ctx.IsIncrementalScrape() {
 		results = append([]v1.ScrapeResult{ctx.cluster}, results...)
 	}
 

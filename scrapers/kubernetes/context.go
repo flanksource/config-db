@@ -22,14 +22,17 @@ type KubernetesContext struct {
 	// globalLabels are common labels for any kubernetes resource
 	globalLabels                               map[string]string
 	logSkipped, logExclusions, logNoResourceId bool
-	isIncremental                              bool
 	cluster                                    v1.ScrapeResult
 	resourceIDMap                              *ResourceIDMapContainer
 	exclusionByType                            map[string]string
 	exclusionBySeverity                        map[string]string
 }
 
-func newKubernetesContext(ctx api.ScrapeContext, config v1.Kubernetes) *KubernetesContext {
+func newKubernetesContext(ctx api.ScrapeContext, isIncremental bool, config v1.Kubernetes) *KubernetesContext {
+	if isIncremental {
+		ctx = ctx.AsIncrementalScrape()
+	}
+
 	return &KubernetesContext{
 		ScrapeContext: ctx,
 		config:        config,

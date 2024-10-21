@@ -18,6 +18,8 @@ type ScrapeContext struct {
 
 	temp *TempCache
 
+	isIncremental bool
+
 	namespace string
 
 	jobHistory   *models.JobHistory
@@ -122,6 +124,15 @@ func (ctx ScrapeContext) JobHistory() *models.JobHistory {
 		return models.NewJobHistory(logger.GetLogger("dummy_logger"), "dummy", "dummy", "dummy")
 	}
 	return h
+}
+
+func (ctx ScrapeContext) AsIncrementalScrape() ScrapeContext {
+	ctx.isIncremental = true
+	return ctx
+}
+
+func (ctx ScrapeContext) IsIncrementalScrape() bool {
+	return ctx.isIncremental
 }
 
 func (ctx ScrapeContext) ScrapeConfig() *v1.ScrapeConfig {
