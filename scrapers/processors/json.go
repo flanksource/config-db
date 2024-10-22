@@ -330,6 +330,11 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 	logScrapes := ctx.PropertyOn(true, "log.items")
 
 	for _, input := range inputs {
+		// Do not extract anything from change results
+		if len(input.Changes) > 0 {
+			continue
+		}
+
 		for k, v := range input.BaseScraper.Labels {
 			if input.Labels == nil {
 				input.Labels = map[string]string{}
