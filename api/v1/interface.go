@@ -602,7 +602,7 @@ type ScrapeResult struct {
 	// List of candidate parents in order of precision.
 	Parents []ConfigExternalKey `json:"-"`
 
-	// List of candidate children in order of precision.
+	// List of children whose hard parent should be set to this config item.
 	Children []ConfigExternalKey `json:"-"`
 
 	// RelationshipSelectors are used to form relationship of this scraped item with other items.
