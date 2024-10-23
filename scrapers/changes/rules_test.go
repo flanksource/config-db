@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
@@ -171,7 +172,7 @@ func TestProcessRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := ProcessRules(&tt.input, tt.rules...); err != nil {
+			if err := ProcessRules(api.NewScrapeContext(DefaultContext), &tt.input, tt.rules...); err != nil {
 				if !tt.err {
 					t.Errorf("unexpected Error: %v", err)
 				}
