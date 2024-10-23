@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/commons/properties"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/samber/lo"
@@ -43,10 +44,16 @@ func (t *changeRule) process(change *v1.ChangeResult) error {
 		"patch":  change.PatchesMap(),
 	}
 
-	if ok, err := evaluateCelExpression(t.Rule, env); err != nil {
+	ok, err := evaluateCelExpression(t.Rule, env)
+	if err != nil {
 		return fmt.Errorf("failed to evaluate rule (%s): %w", lo.Elipse(t.Rule, 30), err)
-	} else if !ok {
+	}
+	if !ok {
 		return nil
+	}
+
+	if properties.String("", "log.config_change_mapping_cel_env") != "" {
+		logger.Infof("result for expr=%s with env=%v is %v", t.Rule, env, ok)
 	}
 
 	if t.Type != "" {
