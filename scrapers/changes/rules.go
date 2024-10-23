@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/samber/lo"
@@ -37,16 +38,22 @@ func (t *changeRule) match(result *v1.ScrapeResult) (bool, error) {
 	return evaluateCelExpression(t.Filter, env)
 }
 
-func (t *changeRule) process(change *v1.ChangeResult) error {
+func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) error {
 	env := map[string]any{
 		"change": change.AsMap(),
 		"patch":  change.PatchesMap(),
 	}
 
-	if ok, err := evaluateCelExpression(t.Rule, env); err != nil {
+	ok, err := evaluateCelExpression(t.Rule, env)
+	if err != nil {
 		return fmt.Errorf("failed to evaluate rule (%s): %w", lo.Elipse(t.Rule, 30), err)
-	} else if !ok {
+	}
+	if !ok {
 		return nil
+	}
+
+	if ctx.PropertyOn(false, "log.rule.expr") {
+		logger.Infof("result for expr=%s with env=%v is %v", t.Rule, env, ok)
 	}
 
 	if t.Type != "" {
@@ -85,7 +92,7 @@ func init() {
 
 // ProcessRules modifies the scraped changes in-place
 // using the change rules.
-func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) error {
+func ProcessRules(ctx api.ScrapeContext, result *v1.ScrapeResult, rules ...v1.ChangeMapping) error {
 	if len(result.Changes) == 0 {
 		return nil
 	}
@@ -111,7 +118,7 @@ func ProcessRules(result *v1.ScrapeResult, rules ...v1.ChangeMapping) error {
 		}
 
 		for i := range result.Changes {
-			if err := rule.process(&result.Changes[i]); err != nil {
+			if err := rule.process(ctx, &result.Changes[i]); err != nil {
 				errors = append(errors, err)
 			}
 		}
