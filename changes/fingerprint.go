@@ -73,7 +73,7 @@ func Fingerprint(change *models.ConfigChange) (string, error) {
 		return "", err
 	}
 
-	var out = make(map[string]interface{})
+	out := map[string]any{"__change_type": change.ChangeType}
 	for k, v := range flat {
 		out[k] = tokenizer.Tokenize(v)
 	}
