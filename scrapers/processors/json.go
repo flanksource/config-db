@@ -414,7 +414,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			}
 		default:
 			opts := oj.Options{OmitNil: true, Sort: true, UseTags: true, FloatFormat: "%g"}
-			parsedConfig, err = oj.ParseString(oj.JSON(v, &opts))
+			err = json.Unmarshal([]byte(oj.JSON(v, &opts)), &parsedConfig)
 			if err != nil {
 				return results, fmt.Errorf("failed to parse json format=%s,%s): %v", input.Format, input.Source, err)
 			}
@@ -433,6 +433,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			}
 		}
 
+		input.Config = parsedConfig
 		var ongoingInput v1.ScrapeResults = []v1.ScrapeResult{input}
 		if !input.BaseScraper.Transform.Script.IsEmpty() {
 			ctx.Logger.V(3).Infof("Applying script transformation")
