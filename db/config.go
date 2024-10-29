@@ -123,11 +123,12 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		dataStr = string(data)
 	default:
 		dataStr = oj.JSON(data, &oj.Options{
-			Sort:       true,
-			OmitNil:    true,
-			Indent:     2,
-			TimeFormat: "2006-01-02T15:04:05Z07:00",
-			UseTags:    true,
+			Sort:        true,
+			OmitNil:     true,
+			Indent:      2,
+			TimeFormat:  "2006-01-02T15:04:05Z07:00",
+			UseTags:     true,
+			FloatFormat: "%g",
 		})
 	}
 
