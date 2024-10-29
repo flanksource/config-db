@@ -433,8 +433,6 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			}
 		}
 
-		input.Config = parsedConfig
-
 		var ongoingInput v1.ScrapeResults = []v1.ScrapeResult{input}
 		if !input.BaseScraper.Transform.Script.IsEmpty() {
 			ctx.Logger.V(3).Infof("Applying script transformation")
