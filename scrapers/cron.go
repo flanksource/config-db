@@ -150,11 +150,12 @@ func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes)
 			return nil
 		})
 
-		logger.Errorf("failed to watch kubernetes events. cluster=%s: %v", config.ClusterName, err)
 		if err != nil {
 			if errors.Is(err, gocontext.DeadlineExceeded) || errors.Is(err, gocontext.Canceled) {
 				return
 			}
+
+			logger.Errorf("failed to watch kubernetes events. cluster=%s: %v", config.ClusterName, err)
 		}
 	}
 }

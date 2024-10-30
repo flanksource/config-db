@@ -8,6 +8,7 @@ import (
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -107,6 +108,15 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 
 	ctx.Counter("kubernetes_scraper_event_watcher", "scraper_id", ctx.ScraperID()).Add(1)
 	for watchEvent := range watcher.ResultChan() {
+		if watchEvent.Type == watch.Error {
+			status, ok := watchEvent.Object.(*metav1.Status)
+			if ok {
+				return fmt.Errorf("watch error: (status=%s, reason=%s, message=%s)", status.Status, status.Reason, status.Message)
+			}
+
+			return fmt.Errorf("watch error: unknown error object %T", watchEvent.Object)
+		}
+
 		var event v1.KubernetesEvent
 		if err := event.FromObjMap(watchEvent.Object); err != nil {
 			ctx.Errorf("failed to unmarshal event (id=%s): %v", event.GetUID(), err)
