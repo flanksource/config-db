@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/context"
@@ -28,7 +27,7 @@ func FindScraper(ctx context.Context, id string) (*models.ConfigScraper, error) 
 	return &configScraper, nil
 }
 
-func DeleteScrapeConfig(ctx api.ScrapeContext, id string) error {
+func DeleteScrapeConfig(ctx context.Context, id string) error {
 	if err := ctx.DB().Table("config_scrapers").
 		Where("id = ?", id).
 		Update("deleted_at", time.Now()).

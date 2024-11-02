@@ -7,6 +7,7 @@ import (
 
 	"github.com/flanksource/commons/properties"
 	v1 "github.com/flanksource/config-db/api/v1"
+	cdb "github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty/db"
 	"github.com/flanksource/duty/job"
@@ -32,6 +33,7 @@ var cleanupJobs = []*job.Job{
 	CleanupConfigChanges,
 	CleanupConfigItems,
 	SoftDeleteAgentStaleItems,
+	CleanupConfigScrapers,
 }
 
 var CleanupConfigAnalysis = &job.Job{
@@ -152,6 +154,32 @@ var SoftDeleteAgentStaleItems = &job.Job{
 				continue
 			} else {
 				ctx.History.SuccessCount += int(deleted)
+			}
+		}
+
+		return nil
+	},
+}
+
+var CleanupConfigScrapers = &job.Job{
+	Name:       "CleanupConfigScrapers",
+	Schedule:   "15 2 * * *", // Everynight at 2:15 AM
+	Singleton:  true,
+	JobHistory: true,
+	Retention:  job.RetentionFew,
+	Fn: func(ctx job.JobRuntime) error {
+		ctx.History.ResourceType = JobResourceType
+
+		var deletedIDs []string
+		if err := ctx.DB().Model(&models.ConfigScraper{}).Select("id").Where("deleted_at IS NOT NULL").Find(&deletedIDs).Error; err != nil {
+			return fmt.Errorf("error fetching deleted config_scraper ids: %w", db.ErrorDetails(err))
+		}
+
+		for _, id := range deletedIDs {
+			if err := cdb.DeleteScrapeConfig(ctx.Context, id); err != nil {
+				ctx.History.AddErrorf("error deleting scrape config[%s]: %v", id, err)
+			} else {
+				ctx.History.SuccessCount += 1
 			}
 		}
 
