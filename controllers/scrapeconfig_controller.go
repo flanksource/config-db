@@ -76,7 +76,7 @@ func (r *ScrapeConfigReconciler) Reconcile(c context.Context, req ctrl.Request) 
 	// Check if it is deleted, remove scrape config
 	if !scrapeConfig.DeletionTimestamp.IsZero() {
 		logger.Info("Deleting scrape config", "id", scrapeConfig.GetUID())
-		if err := db.DeleteScrapeConfig(ctx, string(scrapeConfig.GetUID())); err != nil {
+		if err := db.DeleteScrapeConfig(ctx.Context, string(scrapeConfig.GetUID())); err != nil {
 			logger.Error(err, "failed to delete scrape config")
 			return ctrl.Result{Requeue: true, RequeueAfter: 2 * time.Minute}, err
 		}
