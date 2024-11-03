@@ -83,7 +83,7 @@ var Run = &cobra.Command{
 			ctx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
 				WithTimeout(dutyCtx.Properties().Duration("scraper.timeout", 4*time.Hour))
 			defer cancelTimeout()
-			shutdown.AddHook(cancel)
+			shutdown.AddHook(func() { defer cancel() })
 			if err := scrapeAndStore(ctx); err != nil {
 				logger.Errorf("error scraping config: (name=%s) %v", scraperConfigs[i].Name, err)
 			}
