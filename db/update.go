@@ -276,11 +276,22 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 	return true, changes, nil
 }
 
-func shouldExcludeChange(result *v1.ScrapeResult, changeResult v1.ChangeResult) (bool, error) {
+func shouldExcludeChange(ctx api.ScrapeContext, result *v1.ScrapeResult, changeResult v1.ChangeResult) (bool, error) {
 	exclusions := result.BaseScraper.Transform.Change.Exclude
 
 	env := changeResult.AsMap()
 	env["config"] = result.Config
+	// In some cases, we might just get the change result but not the config
+	// so we fetch config here
+	if env["config"] == nil {
+		ciID := lo.CoalesceOrEmpty(lo.FromPtr(result.ConfigID), changeResult.ConfigID, changeResult.ExternalID)
+		confObj, err := ctx.TempCache().Get(ctx, ciID)
+		if err != nil && ctx.PropertyOn(true, "log.changes.unmatched") {
+			ctx.Errorf("error finding config object with id[%s] for change exclusion: %v", ciID, err)
+		} else if confObj != nil && confObj.Config != nil {
+			env["config"] = lo.FromPtr(confObj.Config)
+		}
+	}
 
 	for _, expr := range exclusions {
 		if res, err := gomplate.RunTemplate(env, gomplate.Template{Expression: expr}); err != nil {
@@ -330,7 +341,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			}
 		}
 
-		if exclude, err := shouldExcludeChange(result, changeResult); err != nil {
+		if exclude, err := shouldExcludeChange(ctx, result, changeResult); err != nil {
 			ctx.JobHistory().AddError(fmt.Sprintf("error running change exclusion: %v", err))
 		} else if exclude {
 			changeSummary.AddIgnored(changeResult.ChangeType)

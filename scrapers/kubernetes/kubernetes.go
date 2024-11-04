@@ -9,7 +9,6 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -244,7 +243,6 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 				continue
 			}
 
-			var configData map[string]any
 			uid, err := ctx.FindInvolvedConfigID(event)
 			if err != nil {
 				results.Errorf(err, "")
@@ -262,35 +260,20 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			event.InvolvedObject.UID = types.UID(uid.String())
 
 			change := getChangeFromEvent(event, ctx.config.Event.SeverityKeywords)
-			if change != nil {
-				if ignore, err := ctx.IgnoreChange(*change, event); err != nil {
-					results.Errorf(err, "Failed to determine if change should be ignored: %v", err)
-					continue
-				} else if ignore {
-					continue
-				}
-
-				res := v1.ScrapeResult{
-					BaseScraper: ctx.config.BaseScraper,
-					Changes:     []v1.ChangeResult{*change},
-				}
-
-				confObj, err := ctx.TempCache().Get(ctx.ScrapeContext, uid.String())
-				if err != nil {
-					// TODO: Should this gointo results.Errorf
-					logger.Warnf("unable to find config[%s] related to event: %v", uid, err)
-				}
-				if confObj != nil && confObj.Config != nil {
-					// Also, this won't work for resources we ignore
-					configData, _ = confObj.ConfigJSONStringMap()
-					res.ID = uid.String()
-					res.Config = configData
-					res.Type = confObj.Type
-					res.Name = lo.FromPtr(confObj.Name)
-				}
-
-				changeResults = append(changeResults, res)
+			if change == nil {
+				continue
 			}
+			if ignore, err := ctx.IgnoreChange(*change, event); err != nil {
+				results.Errorf(err, "Failed to determine if change should be ignored: %v", err)
+				continue
+			} else if ignore {
+				continue
+			}
+
+			changeResults = append(changeResults, v1.ScrapeResult{
+				BaseScraper: ctx.config.BaseScraper,
+				Changes:     []v1.ChangeResult{*change},
+			})
 
 			// this is all we need from an event object
 			continue
