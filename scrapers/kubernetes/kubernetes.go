@@ -245,23 +245,21 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			}
 
 			var configData map[string]any
-			if uid, err := ctx.FindInvolvedConfigID(event); err != nil {
+			uid, err := ctx.FindInvolvedConfigID(event)
+			if err != nil {
 				results.Errorf(err, "")
 				continue
-			} else if uid == uuid.Nil {
-				continue
-			} else {
-				event.InvolvedObject.UID = types.UID(uid.String())
-				confObj, err := ctx.TempCache().Get(ctx.ScrapeContext, uid.String())
-				if err != nil {
-					// TODO: Should this gointo results.Errorf
-					logger.Warnf("unable to find config[%s] related to event: %v", uid, err)
-				}
-				if confObj != nil && confObj.Config != nil {
-					// Also, this won't work for resources we ignore
-					configData, _ = confObj.ConfigJSONStringMap()
-				}
 			}
+			if uid == uuid.Nil {
+				if ctx.logExclusions {
+					ctx.Tracef("excluding event object %s/%s/%s: involved config[%s] not found",
+						event.InvolvedObject.Namespace, event.InvolvedObject.Name,
+						event.InvolvedObject.Kind, event.InvolvedObject.UID)
+				}
+				continue
+			}
+
+			event.InvolvedObject.UID = types.UID(uid.String())
 
 			change := getChangeFromEvent(event, ctx.config.Event.SeverityKeywords)
 			if change != nil {
@@ -272,11 +270,26 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 					continue
 				}
 
-				changeResults = append(changeResults, v1.ScrapeResult{
+				res := v1.ScrapeResult{
 					BaseScraper: ctx.config.BaseScraper,
 					Changes:     []v1.ChangeResult{*change},
-					Config:      configData,
-				})
+				}
+
+				confObj, err := ctx.TempCache().Get(ctx.ScrapeContext, uid.String())
+				if err != nil {
+					// TODO: Should this gointo results.Errorf
+					logger.Warnf("unable to find config[%s] related to event: %v", uid, err)
+				}
+				if confObj != nil && confObj.Config != nil {
+					// Also, this won't work for resources we ignore
+					configData, _ = confObj.ConfigJSONStringMap()
+					res.ID = uid.String()
+					res.Config = configData
+					res.Type = confObj.Type
+					res.Name = lo.FromPtr(confObj.Name)
+				}
+
+				changeResults = append(changeResults, res)
 			}
 
 			// this is all we need from an event object
