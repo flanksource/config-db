@@ -375,7 +375,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			}
 		}
 
-		if change.Severity == "" && change.ChangeType != "diff" {
+		if change.Severity == "" && change.ChangeType != v1.ChangeTypeDiff {
 			change.Severity = events.GetSeverity(change.ChangeType)
 		}
 
@@ -739,7 +739,7 @@ func updateLastScrapedTime(ctx api.ScrapeContext, ids []string) error {
 // given 2 config items and returns a ConfigChange object if there are any changes.
 func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem) (*v1.ChangeResult, error) {
 	if changeTypExclusion, ok := lo.FromPtr(newConf.Labels)[v1.AnnotationIgnoreChangeByType]; ok {
-		if collections.MatchItems("diff", strings.Split(changeTypExclusion, ",")...) {
+		if collections.MatchItems(v1.ChangeTypeDiff, strings.Split(changeTypExclusion, ",")...) {
 			if ctx.PropertyOn(false, "log.exclusions") {
 				ctx.Logger.V(4).Infof("excluding diff change for config(%s) with annotation (%s)", newConf, changeTypExclusion)
 			}
@@ -801,7 +801,7 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 
 	return &v1.ChangeResult{
 		ConfigType: newConf.Type,
-		ChangeType: "diff",
+		ChangeType: v1.ChangeTypeDiff,
 		ExternalID: newConf.ExternalID[0],
 		Diff:       &diff,
 		Patches:    string(patch),
