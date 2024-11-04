@@ -476,6 +476,9 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			}
 
 			extracted, err := e.extractAttributes(result)
+			if extracted.ID == "" {
+				continue
+			}
 			if err != nil {
 				return results, fmt.Errorf("failed to extract attributes: %v", err)
 			}
@@ -517,6 +520,10 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 	}
 
 	if input.ID == "" {
+		// Ignore kubernetes diffs
+		if len(input.Changes) == 1 && (input.Changes[0].ChangeType == v1.ChangeTypeDiff) {
+			return input, nil
+		}
 		return input, fmt.Errorf("no id defined for: %s: %v", input, e.Config)
 	}
 
