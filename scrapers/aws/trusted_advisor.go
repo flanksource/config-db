@@ -49,8 +49,8 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 		results.Errorf(err, "Failed to describe trusted advisor checks")
 		return
 	}
-	for _, check := range trustAdvidorChecksDescribeOutput.Checks {
 
+	for _, check := range trustAdvidorChecksDescribeOutput.Checks {
 		if config.Excludes(*check.Name) {
 			logger.Tracef("Skipping check %s", *check.Name)
 			continue
@@ -111,8 +111,6 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 			if _analysis, err := utils.ToJSONMap(metadata); err != nil {
 				analysis.Analysis = _analysis
 			}
-
-			logger.Infof("%s %s %s %v", *check.Name, configType, id, metadata)
 		}
 	}
 }
