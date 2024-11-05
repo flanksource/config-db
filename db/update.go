@@ -806,7 +806,8 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 	if _timer != nil {
 		msg += " " + _timer.End()
 	}
-	if duration > 500*time.Millisecond {
+
+	if duration > ctx.Properties().Duration("scraper.log.slow_diff_threshold", time.Second) {
 		ctx.Logger.Warnf("SLOW DIFF >= %s", msg)
 	} else if duration > 50*time.Millisecond {
 		ctx.Logger.Infof("SLOW DIFF >= %s", msg)
