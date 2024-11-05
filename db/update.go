@@ -165,7 +165,6 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 			ConfigID:   ci.ID,
 			ChangeType: lo.PascalCase(string(newHealth)),
 			Source:     "config-db",
-			Summary:    fmt.Sprintf("Health changed from %s to %s", previousHealth, newHealth),
 			Count:      1,
 			Details: map[string]any{
 				"previous": map[string]any{
@@ -179,6 +178,14 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 					"description": ci.Description,
 				},
 			},
+		}
+
+		if lo.FromPtr(ci.Status) != "" {
+			healthChange.Summary = *ci.Status
+		}
+
+		if lo.FromPtr(ci.Description) != "" {
+			healthChange.Summary += fmt.Sprintf(": %s", *ci.Description)
 		}
 
 		if newHealth == dutyModels.HealthUnknown {
