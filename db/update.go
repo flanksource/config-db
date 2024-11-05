@@ -627,7 +627,18 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	newChanges, deduped := dedupChanges(dedupWindow, extractResult.newChanges)
 
 	if err := ctx.DB().CreateInBatches(&newChanges, configItemsBulkInsertSize).Error; err != nil {
-		return summary, fmt.Errorf("failed to create config changes: %w", dutydb.ErrorDetails(err))
+		if !dutydb.IsForeignKeyError(err) {
+			return summary, fmt.Errorf("failed to create config changes: %w", dutydb.ErrorDetails(err))
+		}
+
+		for _, c := range newChanges {
+			if err := ctx.DB().Create(&c).Error; err != nil {
+				if !dutydb.IsForeignKeyError(err) {
+					return summary, fmt.Errorf("failed to create config changes: %w", dutydb.ErrorDetails(err))
+				}
+				summary.AddChangeSummary(c.ConfigType, v1.ChangeSummary{ForeginKeyErrors: 1})
+			}
+		}
 	}
 
 	for _, dedup := range deduped {
