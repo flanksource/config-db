@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -594,6 +595,19 @@ func cleanKubernetesObject(obj map[string]any) (map[string]any, error) {
 	o.Delete("status", "artifact", "lastUpdateTime")
 	o.Delete("status", "observedGeneration")
 	o.Delete("status", "lastTransitionTime")
+
+	if cData := o.S("status", "conditions").Data(); cData != nil {
+		if conditions, ok := cData.([]any); ok {
+			// sort conditions to prevent unnecessary diffs
+			sort.Slice(conditions, func(i, j int) bool {
+				return gabs.Wrap(conditions[i]).S("type").Data().(string) < gabs.Wrap(conditions[j]).S("type").Data().(string)
+			})
+
+			if _, err := o.Set(conditions, "status", "conditions"); err != nil {
+				return nil, fmt.Errorf("failed to set sorted status.conditions: %w", err)
+			}
+		}
+	}
 
 	c, _ := o.ArrayCount("status", "conditions")
 	for i := 0; i < c; i += 1 {
