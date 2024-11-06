@@ -92,10 +92,11 @@ func PersistScrapeConfigFromCRD(ctx context.Context, scrapeConfig *v1.ScrapeConf
 	}
 
 	configScraper := models.ConfigScraper{
-		ID:     uuid.MustParse(string(scrapeConfig.GetUID())),
-		Name:   fmt.Sprintf("%s/%s", scrapeConfig.Namespace, scrapeConfig.Name),
-		Spec:   spec,
-		Source: models.SourceCRD,
+		ID:        uuid.MustParse(string(scrapeConfig.GetUID())),
+		Name:      fmt.Sprintf("%s/%s", scrapeConfig.Namespace, scrapeConfig.Name),
+		Namespace: scrapeConfig.Namespace,
+		Spec:      spec,
+		Source:    models.SourceCRD,
 	}
 	tx := ctx.DB().Save(&configScraper)
 	return changed, tx.Error
