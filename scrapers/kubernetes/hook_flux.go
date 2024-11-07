@@ -1,12 +1,21 @@
 package kubernetes
 
 import (
+	"strings"
+
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type flux struct{}
+
+func isKustomizationObject(obj *unstructured.Unstructured) bool {
+	if obj.GetKind() == "Kustomization" && strings.HasPrefix(obj.GetAPIVersion(), "kustomize.toolkit.fluxcd.io") {
+		return true
+	}
+	return false
+}
 
 func init() {
 	parentlookupHooks = append(parentlookupHooks, flux{})
@@ -26,7 +35,8 @@ func (flux flux) ParentLookupHook(ctx *KubernetesContext, obj *unstructured.Unst
 
 	kustomizeName := obj.GetLabels()["kustomize.toolkit.fluxcd.io/name"]
 	kustomizeNamespace := obj.GetLabels()["kustomize.toolkit.fluxcd.io/namespace"]
-	if kustomizeName != "" && kustomizeNamespace != "" {
+	// Kustomization objects should not have Kustomization parents
+	if kustomizeName != "" && kustomizeNamespace != "" && !isKustomizationObject(obj) {
 		return []v1.ConfigExternalKey{{
 			Type: ConfigTypePrefix + "Kustomization",
 			ExternalID: lo.CoalesceOrEmpty(
