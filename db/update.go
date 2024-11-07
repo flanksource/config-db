@@ -157,7 +157,13 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 		updates["updated_at"] = gorm.Expr("NOW()")
 	}
 
-	previousHealth := lo.CoalesceOrEmpty(lo.FromPtr(existing.Health), dutyModels.HealthUnknown)
+	var previousHealth dutyModels.Health
+	if err := ctx.DB().Model(&models.ConfigItem{}).Where("id = ?", existing.ID).Select("health").Scan(&previousHealth).Error; err != nil {
+		return false, nil, fmt.Errorf("failed to get previous health: %w", err)
+	} else if previousHealth == "" {
+		previousHealth = dutyModels.HealthUnhealthy
+	}
+
 	newHealth := lo.CoalesceOrEmpty(lo.FromPtr(ci.Health), dutyModels.HealthUnknown)
 	if previousHealth != newHealth {
 		// For every health change, we add a config change.
