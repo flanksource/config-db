@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
@@ -742,9 +743,20 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	return summary, nil
 }
 
+var lastScrapedTimeMutex sync.Map
+
 func updateLastScrapedTime(ctx api.ScrapeContext, ids []string) error {
 	if len(ids) == 0 {
 		return nil
+	}
+
+	{
+		// an incremental scraper might be trying to update last_scraped_time at the same time.
+		l, _ := lastScrapedTimeMutex.LoadOrStore(ctx.ScraperID(), &sync.Mutex{})
+		mu := l.(*sync.Mutex)
+
+		mu.Lock()
+		defer mu.Unlock()
 	}
 
 	for i := 0; i < len(ids); i = i + 5000 {
