@@ -158,61 +158,6 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 		updates["updated_at"] = gorm.Expr("NOW()")
 	}
 
-	var previousHealth dutyModels.Health
-	if err := ctx.DB().Model(&models.ConfigItem{}).Where("id = ?", existing.ID).Select("health").Scan(&previousHealth).Error; err != nil {
-		return false, nil, fmt.Errorf("failed to get previous health: %w", err)
-	} else if previousHealth == "" {
-		previousHealth = dutyModels.HealthUnhealthy
-	}
-
-	newHealth := lo.CoalesceOrEmpty(lo.FromPtr(ci.Health), dutyModels.HealthUnknown)
-	if previousHealth != newHealth {
-		// For every health change, we add a config change.
-		healthChange := &models.ConfigChange{
-			ConfigID:   ci.ID,
-			ChangeType: lo.PascalCase(string(newHealth)),
-			Source:     "config-db",
-			Count:      1,
-			Details: map[string]any{
-				"previous": map[string]any{
-					"status":      existing.Status,
-					"ready":       existing.Ready,
-					"description": existing.Description,
-				},
-				"current": map[string]any{
-					"status":      ci.Status,
-					"ready":       ci.Ready,
-					"description": ci.Description,
-				},
-			},
-		}
-
-		if lo.FromPtr(ci.Status) != "" {
-			healthChange.Summary = *ci.Status
-		}
-
-		if lo.FromPtr(ci.Description) != "" {
-			healthChange.Summary += fmt.Sprintf(": %s", *ci.Description)
-		}
-
-		if newHealth == dutyModels.HealthUnknown {
-			healthChange.ChangeType = "HealthUnknown"
-		}
-
-		switch newHealth {
-		case dutyModels.HealthHealthy:
-			healthChange.Severity = string(dutyModels.SeverityInfo)
-		case dutyModels.HealthUnhealthy:
-			healthChange.Severity = string(dutyModels.SeverityMedium)
-		case dutyModels.HealthWarning:
-			healthChange.Severity = string(dutyModels.SeverityLow)
-		case dutyModels.HealthUnknown:
-			healthChange.Severity = string(dutyModels.SeverityInfo)
-		}
-
-		changes = append(changes, healthChange)
-	}
-
 	if ci.ConfigClass != existing.ConfigClass {
 		updates["config_class"] = ci.ConfigClass
 	}
