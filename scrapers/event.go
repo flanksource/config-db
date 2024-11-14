@@ -66,10 +66,7 @@ func StartEventListener(ctx context.Context) {
 }
 
 func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
-	var (
-		scraperID = event.Properties["scraper_id"]
-		configID  = event.Properties["config_id"]
-	)
+	var configID = event.Properties["config_id"]
 
 	config, err := query.GetCachedConfig(ctx, configID)
 	if err != nil {
@@ -84,7 +81,7 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 	obj := unstructured.Unstructured{Object: configSpec}
 
 	var scraper models.ConfigScraper
-	if err := ctx.DB().Where("id = ?", scraperID).First(&scraper).Error; err != nil {
+	if err := ctx.DB().Where("id = ?", config.ScraperID).First(&scraper).Error; err != nil {
 		return fmt.Errorf("failed to get scraper: %w", err)
 	}
 
