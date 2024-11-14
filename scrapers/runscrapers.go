@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -20,15 +22,19 @@ import (
 
 // RunK8sObjectScraper extracts & saves the given kubernetes object.
 func RunK8sObjectScraper(ctx api.ScrapeContext, config v1.Kubernetes, namespace, name string, gvk schema.GroupVersionKind) ([]v1.ScrapeResult, error) {
-	// create the dynamic client for the gvk
+	client, err := ctx.KubernetesDynamicClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dyanmic client for gvk=%s: %w", gvk, err)
+	}
 
-	// get the object
-	objs := []*unstructured.Unstructured{}
+	obj, err := client.Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object %s/%s: %w", namespace, name, err)
+	}
 
-	// run the scraper
 	var results v1.ScrapeResults
 	var scraper kubernetes.KubernetesScraper
-	res := scraper.IncrementalScrape(ctx, config, objs)
+	res := scraper.IncrementalScrape(ctx, config, []*unstructured.Unstructured{obj})
 	for i := range res {
 		scraped := processScrapeResult(ctx, res[i])
 		results = append(results, scraped...)
