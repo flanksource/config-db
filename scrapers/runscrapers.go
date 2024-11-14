@@ -15,10 +15,30 @@ import (
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// RunK8ObjScraper extracts & saves the given kubernetes objects.
-func RunK8ObjScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured) ([]v1.ScrapeResult, error) {
+// RunK8sObjectScraper extracts & saves the given kubernetes object.
+func RunK8sObjectScraper(ctx api.ScrapeContext, config v1.Kubernetes, namespace, name string, gvk schema.GroupVersionKind) ([]v1.ScrapeResult, error) {
+	// create the dynamic client for the gvk
+
+	// get the object
+	objs := []*unstructured.Unstructured{}
+
+	// run the scraper
+	var results v1.ScrapeResults
+	var scraper kubernetes.KubernetesScraper
+	res := scraper.IncrementalScrape(ctx, config, objs)
+	for i := range res {
+		scraped := processScrapeResult(ctx, res[i])
+		results = append(results, scraped...)
+	}
+
+	return results, nil
+}
+
+// RunK8sObjectsScraper extracts & saves the given kubernetes objects.
+func RunK8sObjectsScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured) ([]v1.ScrapeResult, error) {
 	var results v1.ScrapeResults
 	var scraper kubernetes.KubernetesScraper
 	res := scraper.IncrementalScrape(ctx, config, objs)
