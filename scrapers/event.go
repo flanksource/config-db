@@ -24,11 +24,11 @@ const (
 	eventQueueUpdateChannel = "event_queue_updates"
 )
 
+// StartEventListener monitors event queue for 'config-db.incremental-scrape' events and triggers
+// incremental scraping for the specified config item.
 func StartEventListener(ctx context.Context) {
 	notifyChan := make(chan string)
 	go pg.Listen(ctx, eventQueueUpdateChannel, notifyChan)
-
-	workers := 2 // TODO: decide on this
 
 	consumer := postq.AsyncEventConsumer{
 		WatchEvents: []string{event},
@@ -49,7 +49,7 @@ func StartEventListener(ctx context.Context) {
 			MaxAttempts: 1, // retry only once
 		},
 		ConsumerOption: &postq.ConsumerOption{
-			NumConsumers: workers,
+			NumConsumers: ctx.Properties().Int("scrapers.event.workers", 2),
 			ErrorHandler: func(ctx context.Context, err error) bool {
 				ctx.Errorf("error consuming event(%s): %v", event, err)
 				return false // don't retry here. Event queue has its own retry mechanism.
