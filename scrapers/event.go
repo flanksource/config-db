@@ -38,6 +38,12 @@ func StartEventListener(ctx context.Context) {
 				return nil
 			}
 
+			if time.Since(events[0].CreatedAt) >= ctx.Properties().Duration("scrapers.event.stale-timeout", time.Hour) {
+				// for our use case, this is considered an outdated event.
+				// we disregard it and delete it.
+				return nil
+			}
+
 			if err := incrementalScrapeFromEvent(ctx, events[0]); err != nil {
 				events[0].Error = lo.ToPtr(err.Error())
 				return events
