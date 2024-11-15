@@ -2,6 +2,7 @@ package scrapers
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -10,7 +11,6 @@ import (
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/postq"
 	"github.com/flanksource/duty/postq/pg"
-	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/shutdown"
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -68,9 +68,14 @@ func StartEventListener(ctx context.Context) {
 func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 	var configID = event.Properties["config_id"]
 
-	config, err := query.GetCachedConfig(ctx, configID)
-	if err != nil {
-		return fmt.Errorf("failed to get config: %w", err)
+	var config models.ConfigItem
+	if err := ctx.DB().Where("id = ?", configID).First(&config).Error; err != nil {
+		return fmt.Errorf("failed to get config (%s): %w", configID, err)
+	}
+
+	if config.DeletedAt != nil || time.Since(lo.FromPtr(config.LastScrapedTime)) <= time.Second*30 {
+		// assume the health is upto-date
+		return nil
 	}
 
 	configSpec, err := config.ConfigJSONStringMap()
