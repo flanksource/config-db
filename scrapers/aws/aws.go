@@ -220,14 +220,12 @@ func (aws Scraper) cloudformationStacks(ctx *AWSContext, config v1.AWS, results 
 	for _, stack := range stacks.StackSummaries {
 		stackName := lo.FromPtr(stack.StackName)
 
-		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeCloudformationStack, string(stack.StackStatus))
-		resourceHealth.Message = lo.FromPtr(stack.StackStatusReason)
-
 		*results = append(*results, v1.ScrapeResult{
 			Type:         v1.AWSCloudFormationStack,
 			BaseScraper:  config.BaseScraper,
 			Properties:   []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSCloudFormationStack, stackName, nil)},
 			Config:       stack,
+			Status:       string(stack.StackStatus),
 			CreatedAt:    stack.CreationTime,
 			DeletedAt:    stack.DeletionTime,
 			DeleteReason: v1.DeletedReasonFromAttribute,
@@ -236,7 +234,7 @@ func (aws Scraper) cloudformationStacks(ctx *AWSContext, config v1.AWS, results 
 			ID:           *stack.StackId,
 			Aliases:      []string{lo.FromPtr(stack.StackId)},
 			Parents:      []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
-		}.WithHealthStatus(resourceHealth))
+		})
 	}
 }
 
@@ -630,7 +628,6 @@ func (aws Scraper) lambdaFunctions(ctx *AWSContext, config v1.AWS, results *v1.S
 			return
 		}
 
-		var resourceHealth health.HealthStatus // TODO: Lambda health check
 		for _, function := range functions.Functions {
 			*results = append(*results, v1.ScrapeResult{
 				Type:        v1.AWSLambdaFunction,
@@ -641,7 +638,7 @@ func (aws Scraper) lambdaFunctions(ctx *AWSContext, config v1.AWS, results *v1.S
 				BaseScraper: config.BaseScraper,
 				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSLambdaFunction, lo.FromPtr(function.FunctionName), nil)},
 				Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
-			}.WithHealthStatus(resourceHealth))
+			})
 		}
 
 		if functions.NextMarker == nil {
@@ -700,14 +697,13 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Relationship:      "EKSSecuritygroups",
 		})
 
-		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeEKS, string(cluster.Cluster.Status))
-
 		cluster.Cluster.Tags["account"] = lo.FromPtr(ctx.Caller.Account)
 		cluster.Cluster.Tags["region"] = getRegionFromArn(*cluster.Cluster.Arn, "eks")
 
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSEKSCluster,
 			CreatedAt:           cluster.Cluster.CreatedAt,
+			Status:              string(cluster.Cluster.Status),
 			Labels:              cluster.Cluster.Tags,
 			BaseScraper:         config.BaseScraper,
 			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEKSCluster, lo.FromPtr(cluster.Cluster.Name), nil)},
@@ -719,7 +715,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Ignore:              []string{"createdAt", "name"},
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: *cluster.Cluster.ResourcesVpcConfig.VpcId}},
 			RelationshipResults: relationships,
-		}.WithHealthStatus(resourceHealth))
+		})
 
 		aws.eksFargateProfiles(ctx, config, EKS, clusterName, results)
 	}
@@ -946,11 +942,10 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 		tags.Append("zone", *volume.AvailabilityZone)
 		tags.Append("region", (*volume.AvailabilityZone)[:len(*volume.AvailabilityZone)-1])
 
-		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeEBS, string(volume.State))
-
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSEBSVolume,
 			Labels:      labels,
+			Status:      string(volume.State),
 			Tags:        tags,
 			BaseScraper: config.BaseScraper,
 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEBSVolume, lo.FromPtr(volume.VolumeId), nil)},
@@ -960,7 +955,7 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Name:        getName(labels, *volume.VolumeId),
 			ID:          *volume.VolumeId,
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
-		}.WithHealthStatus(resourceHealth))
+		})
 	}
 }
 
@@ -1001,10 +996,9 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			})
 		}
 
-		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeRDS, lo.FromPtr(instance.DBInstanceStatus))
-
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSRDSInstance,
+			Status:              lo.FromPtr(instance.DBInstanceStatus),
 			Labels:              labels,
 			Tags:                []v1.Tag{{Name: "region", Value: getRegionFromArn(*instance.DBInstanceArn, "rds")}},
 			BaseScraper:         config.BaseScraper,
@@ -1016,7 +1010,7 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Aliases:             []string{"AmazonRDS/" + *instance.DBInstanceArn},
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(instance.DBSubnetGroup.VpcId)}},
 			RelationshipResults: relationships,
-		}.WithHealthStatus(resourceHealth))
+		})
 	}
 }
 
@@ -1059,9 +1053,9 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 		labels := getLabels(vpc.Tags)
 		labels["network"] = *vpc.VpcId
 
-		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeVPC, string(vpc.State))
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSEC2VPC,
+			Status:              string(vpc.State),
 			Labels:              labels,
 			Tags:                []v1.Tag{{Name: "region", Value: ctx.Session.Region}},
 			BaseScraper:         config.BaseScraper,
@@ -1073,7 +1067,7 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			Aliases:             []string{"AmazonEC2/" + *vpc.VpcId},
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 			RelationshipResults: relationships,
-		}.WithHealthStatus(resourceHealth))
+		})
 	}
 }
 
@@ -1178,11 +1172,10 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			tags.Append("zone", ctx.Subnets[instance.SubnetID].Zone)
 			tags.Append("region", ctx.Subnets[instance.SubnetID].Region)
 
-			resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeEC2, string(i.State.Name))
-
 			*results = append(*results, v1.ScrapeResult{
 				Type:                v1.AWSEC2Instance,
 				Labels:              labels,
+				Status:              string(i.State.Name),
 				Tags:                tags,
 				BaseScraper:         config.BaseScraper,
 				Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2Instance, instance.InstanceID, nil)},
@@ -1193,7 +1186,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				ID:                  instance.InstanceID,
 				Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: instance.VpcID}},
 				RelationshipResults: relationships,
-			}.WithHealthStatus(resourceHealth))
+			})
 		}
 	}
 }
@@ -1478,11 +1471,10 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 		}
 		labels := make(map[string]string)
 
-		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeELB, string(lb.State.Code))
-
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSLoadBalancerV2,
 			BaseScraper:         config.BaseScraper,
+			Status:              string(lb.State.Code),
 			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSLoadBalancerV2, lo.FromPtr(lb.LoadBalancerArn), nil)},
 			Ignore:              []string{"createdTime", "loadBalancerArn", "loadBalancerName"},
 			CreatedAt:           lb.CreatedTime,
@@ -1494,7 +1486,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			Labels:              labels,
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(lb.VpcId)}},
 			RelationshipResults: relationships,
-		}.WithHealthStatus(resourceHealth))
+		})
 	}
 }
 
@@ -1554,10 +1546,9 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			Relationship:      "AvailabilityZoneIDSubnet",
 		})
 
-		resourceHealth := health.GetAWSResourceHealth(health.AWSResourceTypeSubnet, string(subnet.State))
-
 		result := v1.ScrapeResult{
 			Type:                v1.AWSEC2Subnet,
+			Status:              string(subnet.State),
 			BaseScraper:         config.BaseScraper,
 			Labels:              labels,
 			Tags:                tags,
@@ -1567,7 +1558,7 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(subnet.VpcId)}},
 			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2Subnet, lo.FromPtr(subnet.SubnetId), nil)},
 			RelationshipResults: relationships,
-		}.WithHealthStatus(resourceHealth)
+		}
 
 		*results = append(*results, result)
 	}
@@ -1781,6 +1772,17 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		aws.s3Buckets(awsCtx, awsConfig, results)
 
 		for i, r := range *results {
+
+			rh := health.GetHealthByConfigType(r.Type, r.ConfigMap(), r.Status)
+
+			if rh.Status != "" {
+				r.Status = string(rh.Status)
+			}
+
+			r.Health = models.Health(rh.Health)
+			r.Ready = rh.Ready
+			r.Description = rh.Message
+
 			if lo.Contains([]string{v1.AWSRegion, v1.AWSAvailabilityZoneID}, r.Type) {
 				// We do not need to add tags to these resources.
 				// They are global resources.
