@@ -13,6 +13,7 @@ import (
 	"github.com/flanksource/duty/context"
 	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/job"
+	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 	"github.com/samber/lo"
@@ -35,6 +36,8 @@ var (
 	scrapeJobScheduler = cron.New()
 	scrapeJobs         sync.Map
 )
+
+const scrapeJobName = "Scraper"
 
 func init() {
 	dutyEcho.RegisterCron(scrapeJobScheduler)
@@ -97,9 +100,20 @@ func SyncScrapeConfigs(sc context.Context) {
 					continue
 				}
 
-				srapeCtx := api.NewScrapeContext(sc).WithScrapeConfig(&_scraper)
-				if err := SyncScrapeJob(srapeCtx); err != nil {
+				scrapeCtx := api.NewScrapeContext(sc).WithScrapeConfig(&_scraper)
+				if err := SyncScrapeJob(scrapeCtx); err != nil {
 					jr.History.AddErrorf("Error syncing scrape job[%s]: %v", scraper.ID, err)
+
+					{
+						// also, add to the job's history
+						jobHistory := models.NewJobHistory(scrapeCtx.Logger, scrapeJobName, job.ResourceTypeScraper, scraper.ID.String())
+						jobHistory.Start()
+						jobHistory.AddError(err)
+						if err := jobHistory.End().Persist(scrapeCtx.DB()); err != nil {
+							logger.Errorf("error persisting job history: %v", err)
+						}
+					}
+
 					continue
 				}
 
@@ -211,7 +225,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 	}
 
 	return &job.Job{
-		Name:         "Scraper",
+		Name:         scrapeJobName,
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", sc.ScrapeConfig()),
 		Schedule:     schedule,
 		Singleton:    true,
