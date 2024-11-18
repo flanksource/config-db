@@ -51,7 +51,7 @@ require (
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.29.10
 	github.com/flanksource/duty v1.0.747
-	github.com/flanksource/is-healthy v1.0.40
+	github.com/flanksource/is-healthy v1.0.41
 	github.com/flanksource/ketall v1.1.7
 	github.com/gobwas/glob v0.2.3
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
@@ -117,7 +117,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.29 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.7.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cert-manager/cert-manager v1.9.0 // indirect
