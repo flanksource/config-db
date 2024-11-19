@@ -1776,12 +1776,12 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			rh := health.GetHealthByConfigType(r.Type, r.ConfigMap(), r.Status)
 
 			if rh.Status != "" {
-				r.Status = string(rh.Status)
+				(*results)[i].Status = string(rh.Status)
 			}
 
-			r.Health = models.Health(rh.Health)
-			r.Ready = rh.Ready
-			r.Description = rh.Message
+			(*results)[i].Health = models.Health(rh.Health)
+			(*results)[i].Ready = rh.Ready
+			(*results)[i].Description = rh.Message
 
 			if lo.Contains([]string{v1.AWSRegion, v1.AWSAvailabilityZoneID}, r.Type) {
 				// We do not need to add tags to these resources.
