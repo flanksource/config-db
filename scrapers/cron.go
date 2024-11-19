@@ -397,7 +397,7 @@ func ConsumeKubernetesWatchResourcesJobFunc(sc api.ScrapeContext, config v1.Kube
 
 			cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History).AsIncrementalScrape()
 			cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
-			results, err := RunK8ObjScraper(cc, config, objs)
+			results, err := RunK8sObjectsScraper(cc, config, objs)
 			if err != nil {
 				return err
 			}

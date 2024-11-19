@@ -49,6 +49,7 @@ var Serve = &cobra.Command{
 		}
 
 		registerJobs(dutyCtx, args)
+		scrapers.StartEventListener(ctx)
 		serve(dutyCtx)
 		return nil
 	},

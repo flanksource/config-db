@@ -10,6 +10,7 @@ import (
 	configsv1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/controllers"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/leader"
@@ -83,6 +84,7 @@ func run(ctx dutyContext.Context, args []string) error {
 
 	registerJobs(ctx, args)
 	go serve(dutyCtx)
+	scrapers.StartEventListener(ctx)
 
 	mgr, err := ctrl.NewManager(ctx.KubernetesRestConfig(), ctrl.Options{
 		Scheme:                  scheme,
