@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
+	r53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -1335,12 +1337,112 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 		return
 	}
 	for _, zone := range zones.HostedZones {
+		var recordSets []map[string]interface{}
+		records, err := Route53.ListResourceRecordSets(ctx, &route53.ListResourceRecordSetsInput{
+			HostedZoneId: zone.Id,
+		})
+		if err != nil {
+			results.Errorf(err, "failed to list recordsets")
+		} else {
+
+			for _, record := range records.ResourceRecordSets {
+				var comments []string
+				if record.AliasTarget != nil {
+					comments = append(comments, fmt.Sprintf("AliasTarget=%s.%s", lo.FromPtrOr(record.AliasTarget.DNSName, ""),
+						lo.FromPtrOr(record.AliasTarget.HostedZoneId, "")))
+				}
+				if record.Failover != "" {
+					comments = append(comments, fmt.Sprintf("Failover=%s", strings.Join(
+						lo.Map(record.Failover.Values(), func(item r53types.ResourceRecordSetFailover, _ int) string {
+							return string(item)
+						}), ",")))
+				}
+				if record.GeoLocation != nil {
+					comments = append(comments, fmt.Sprintf("GeoLocation=%v", record.GeoLocation))
+				}
+				if record.HealthCheckId != nil {
+					comments = append(comments, fmt.Sprintf("HealthCheckId=%s", *record.HealthCheckId))
+				}
+				if record.MultiValueAnswer != nil {
+					comments = append(comments, fmt.Sprintf("MultiValueAnswer=%v", *record.MultiValueAnswer))
+				}
+				if record.Region != "" {
+					comments = append(comments, fmt.Sprintf("Region=%s", strings.Join(
+						lo.Map(record.Region.Values(), func(i r53types.ResourceRecordSetRegion, _ int) string {
+							return string(i)
+						}), ",")))
+				}
+				if record.SetIdentifier != nil {
+					comments = append(comments, fmt.Sprintf("SetIdentifier=%s", *record.SetIdentifier))
+				}
+				if record.TrafficPolicyInstanceId != nil {
+					comments = append(comments, fmt.Sprintf("TrafficPolicyInstanceId=%s", *record.TrafficPolicyInstanceId))
+				}
+				if record.Weight != nil {
+					comments = append(comments, fmt.Sprintf("Weight=%d", *record.Weight))
+				}
+
+				recordMap := map[string]interface{}{
+					"Name":   *record.Name,
+					"Type":   record.Type,
+					"Weight": lo.FromPtrOr(record.Weight, 0),
+				}
+
+				if record.TTL != nil {
+					recordMap["TTL"] = record.TTL
+				}
+
+				var values []string
+				if record.ResourceRecords != nil {
+					for _, rr := range record.ResourceRecords {
+						values = append(values, *rr.Value)
+					}
+				}
+
+				bindRecord := fmt.Sprintf("%s  %d  IN  %s  %s", *record.Name, lo.FromPtrOr(record.TTL, 300), record.Type, strings.Join(values, " "))
+				if len(comments) > 0 {
+					bindRecord += fmt.Sprintf(" ; %s", strings.Join(comments, ", "))
+				}
+				recordMap["BindRecord"] = bindRecord
+				recordSets = append(recordSets, recordMap)
+			}
+		}
+
+		// Sort recordSets by weight (descending) then by name and type
+		sort.Slice(recordSets, func(i, j int) bool {
+			weight1, ok1 := recordSets[i]["Weight"].(int64)
+			weight2, ok2 := recordSets[j]["Weight"].(int64)
+			if ok1 && ok2 && weight1 != weight2 {
+				return weight1 > weight2
+			}
+
+			name1, ok1 := recordSets[i]["Name"].(string)
+			name2, ok2 := recordSets[j]["Name"].(string)
+			if ok1 && ok2 && name1 != name2 {
+				return name1 < name2
+			}
+
+			type1, ok1 := recordSets[i]["Type"].(string)
+			type2, ok2 := recordSets[j]["Type"].(string)
+			if ok1 && ok2 {
+				return type1 < type2
+			}
+			return false
+		})
+
 		labels := make(map[string]string)
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSZone,
 			BaseScraper: config.BaseScraper,
 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSZone, strings.ReplaceAll(*zone.Id, "/hostedzone/", ""), nil)},
-			Config:      zone,
+			Config: map[string]interface{}{
+				"Id":     *zone.Id,
+				"Name":   *zone.Name,
+				"Config": zone.Config,
+				"ResourceRecordSets": lo.Map(recordSets, func(i map[string]any, _ int) string {
+					return i["BindRecord"].(string)
+				}),
+			},
 			ConfigClass: "DNSZone",
 			Name:        *zone.Name,
 			Labels:      labels,
