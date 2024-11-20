@@ -91,7 +91,7 @@ func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 func (ctx ScrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContext {
 	ctx.scrapeConfig = scraper
 
-	ctx.Context = ctx.Context.WithObject(*scraper)
+	ctx.Context = ctx.WithObject(scraper.ObjectMeta)
 
 	// Try to use the temp cache if it exits
 	if c, exists := scraperTempCache.Load(lo.FromPtr(scraper.GetPersistedID())); exists {
