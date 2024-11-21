@@ -127,6 +127,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 			continue
 		}
 
+		// TODO: Labels missing in here
 		if config.Exclusions.Filter(event.InvolvedObject.Name, event.InvolvedObject.Namespace, event.InvolvedObject.Kind, nil) {
 			continue
 		}

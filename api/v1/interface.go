@@ -220,7 +220,7 @@ func (t *ScrapeSummary) AddChangeSummary(configType string, cs ChangeSummary) {
 	v.Change = &ChangeSummary{
 		Ignored:          cs.Ignored,
 		Orphaned:         cs.Orphaned,
-		ForeginKeyErrors: cs.ForeginKeyErrors,
+		ForeignKeyErrors: cs.ForeignKeyErrors,
 	}
 	(*t)[configType] = v
 }
@@ -252,7 +252,7 @@ func (t *ScrapeSummary) AddWarning(configType, warning string) {
 type ChangeSummary struct {
 	Orphaned         map[string]int `json:"orphaned,omitempty"`
 	Ignored          map[string]int `json:"ignored,omitempty"`
-	ForeginKeyErrors int            `json:"foreign_key_errors,omitempty"`
+	ForeignKeyErrors int            `json:"foreign_key_errors,omitempty"`
 }
 
 func (t ChangeSummary) IsEmpty() bool {
