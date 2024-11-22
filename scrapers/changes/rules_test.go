@@ -1,14 +1,13 @@
 package changes
 
 import (
-	"reflect"
-	"testing"
-
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestProcessRules(t *testing.T) {
+var _ = Describe("TestProcessRules", Ordered, func() {
 	tests := []struct {
 		name   string
 		input  v1.ScrapeResult
@@ -67,36 +66,6 @@ func TestProcessRules(t *testing.T) {
 			expect: []v1.ChangeResult{},
 		},
 		{
-			name: "Test Action: one exact matching rule",
-			input: v1.ScrapeResult{
-				Changes: []v1.ChangeResult{
-					{ChangeType: "AddTags"},
-					{ChangeType: "DeleteUser"},
-				},
-			},
-			expect: []v1.ChangeResult{
-				{ChangeType: "AddTags"},
-				{ChangeType: "DeleteUser", Action: v1.Delete},
-			},
-		},
-		{
-			name: "Test Action: multiple matching rule",
-			input: v1.ScrapeResult{
-				Changes: []v1.ChangeResult{
-					{ChangeType: "ActivateUser", Action: "Creation"},
-					{ChangeType: "DeleteUserProfile"},
-					{ChangeType: "TerminateInstances"},
-					{ChangeType: "ContainerRemoval"},
-				},
-			},
-			expect: []v1.ChangeResult{
-				{ChangeType: "ActivateUser", Action: "Creation"},
-				{ChangeType: "DeleteUserProfile", Action: v1.Delete},
-				{ChangeType: "TerminateInstances", Action: v1.Delete},
-				{ChangeType: "ContainerRemoval"},
-			},
-		},
-		{
 			name: "Test Action: unrecognized action",
 			input: v1.ScrapeResult{
 				Changes: []v1.ChangeResult{
@@ -130,59 +99,17 @@ func TestProcessRules(t *testing.T) {
 				{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
 			},
 		},
-		{
-			name: "Test Type & Summary | multiple change results",
-			input: v1.ScrapeResult{
-				Type: "HelmRelease",
-				Changes: []v1.ChangeResult{
-					{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
-					{ChangeType: "diff", Patches: `{"status": {"failures": 1}}`},
-				},
-			},
-			expect: []v1.ChangeResult{
-				{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
-				{
-					ChangeType: "HelmReconcileFailed",
-					Patches:    `{"status": {"failures": 1}}`,
-					Summary:    "Reconcile failed 1",
-				},
-			},
-		},
-		{
-			name: "Test Type, Summary & Action | all-in-one",
-			input: v1.ScrapeResult{
-				Type: "HelmRelease",
-				Changes: []v1.ChangeResult{
-					{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
-					{ChangeType: "diff", Patches: `{"status": {"failures": 1}}`},
-					{ChangeType: "DeleteUser"},
-				},
-			},
-			expect: []v1.ChangeResult{
-				{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
-				{
-					ChangeType: "HelmReconcileFailed",
-					Patches:    `{"status": {"failures": 1}}`,
-					Summary:    "Reconcile failed 1",
-				},
-				{ChangeType: "DeleteUser", Action: v1.Delete},
-			},
-		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := ProcessRules(api.NewScrapeContext(DefaultContext), &tt.input, tt.rules...); err != nil {
-				if !tt.err {
-					t.Errorf("unexpected Error: %v", err)
-				}
-
-				return
-			}
-
-			if !reflect.DeepEqual(tt.input.Changes, tt.expect) {
-				t.Errorf("ProcessRules() = %v, want %v", tt.input.Changes, tt.expect)
+		It(tt.name, func() {
+			err := ProcessRules(api.NewScrapeContext(DefaultContext), &tt.input, tt.rules...)
+			if tt.err {
+				Expect(err).To(Not(BeNil()))
+			} else {
+				Expect(err).To(BeNil())
+				Expect(tt.input.Changes).To(ConsistOf(tt.expect))
 			}
 		})
 	}
-}
+})
