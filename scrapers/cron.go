@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	pq "github.com/emirpasic/gods/queues/priorityqueue"
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/context"
@@ -304,42 +305,54 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
 		Fn: func(ctx job.JobRuntime) error {
-			// TODO: Use priority queue
-			{
-				_ch, ok := kubernetes.WatchResourceBuffer.Load(config.Hash())
-				if !ok {
-					return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
-				}
-				ch := _ch.(chan *unstructured.Unstructured)
-				objs, _, _, _ := lo.Buffer(ch, len(ch))
+			var queue *pq.Queue
+			if q, ok := kubernetes.WatchQueue.Load(config.Hash()); !ok {
+				return fmt.Errorf("no watch queue found for config (scrapeconfig: %s) %s", scrapeConfig.GetUID(), config.Hash())
+			} else {
+				queue = q.(*pq.Queue)
+			}
 
-				// NOTE: The resource watcher can return multiple objects for the same NEW resource.
-				// Example: if a new pod is created, we'll get that pod object multiple times for different events.
-				// All those resource objects are seen as distinct new config items.
-				// Hence, we need to use the latest one otherwise saving fails
-				// as we'll be trying to BATCH INSERT multiple config items with the same id.
-				//
-				// In the process, we will lose diff changes though.
-				// If diff changes are necessary, then we can split up the results in such
-				// a way that no two objects in a batch have the same id.
-				objs = dedup(objs)
-				if err := consumeResources(ctx, scrapeConfig, config, objs); err != nil {
-					ctx.History.AddErrorf("failed to consume resources: %v", err)
-					return err
+			var events []v1.KubernetesEvent
+			var objs []*unstructured.Unstructured
+			var count int
+			for {
+				val, more := queue.Dequeue()
+				if !more {
+					break
+				}
+
+				// On the off chance the queue is populated faster than it's consumed
+				// and to keep each run short, we set a limit.
+				if count > kubernetes.BufferSize {
+					break
+				}
+
+				switch v := val.(type) {
+				case v1.KubernetesEvent:
+					events = append(events, v)
+				case *unstructured.Unstructured:
+					objs = append(objs, v)
+				default:
+					return fmt.Errorf("unexpected data in the queue: %T", v)
 				}
 			}
 
-			{
-				_ch, ok := kubernetes.WatchEventBuffers.Load(config.Hash())
-				if !ok {
-					return fmt.Errorf("no watcher found for config (scrapeconfig: %s) %s", scrapeConfig.GetUID(), config.Hash())
-				}
-
-				ch := _ch.(chan v1.KubernetesEvent)
-				events, _, _, _ := lo.Buffer(ch, len(ch))
-
-				return consumeWatchEvents(ctx, scrapeConfig, config, events)
+			// NOTE: The resource watcher can return multiple objects for the same NEW resource.
+			// Example: if a new pod is created, we'll get that pod object multiple times for different events.
+			// All those resource objects are seen as distinct new config items.
+			// Hence, we need to use the latest one otherwise saving fails
+			// as we'll be trying to BATCH INSERT multiple config items with the same id.
+			//
+			// In the process, we will lose diff changes though.
+			// If diff changes are necessary, then we can split up the results in such
+			// a way that no two objects in a batch have the same id.
+			objs = dedup(objs)
+			if err := consumeResources(ctx, scrapeConfig, config, objs); err != nil {
+				ctx.History.AddErrorf("failed to consume resources: %v", err)
+				return err
 			}
+
+			return consumeWatchEvents(ctx, scrapeConfig, config, events)
 		},
 	}
 }

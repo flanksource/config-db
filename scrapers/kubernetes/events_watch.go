@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/watch"
 
+	pq "github.com/emirpasic/gods/queues/priorityqueue"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
@@ -18,13 +20,8 @@ var (
 	// BufferSize is the size of the channel that buffers kubernetes watch events
 	BufferSize = 5000
 
-	// WatchEventBuffers stores a sync buffer per kubernetes config
-	WatchEventBuffers = sync.Map{}
-
-	WatchResourceBufferSize = 5000
-
-	// WatchEventBuffers stores a sync buffer per kubernetes config
-	WatchResourceBuffer = sync.Map{}
+	// WatchQueue stores a sync buffer per kubernetes config
+	WatchQueue = sync.Map{}
 
 	// DeleteResourceBuffer stores a buffer per kubernetes config
 	// that contains the ids of resources that have been deleted.
@@ -49,12 +46,40 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 	return &unstructured.Unstructured{Object: m}, nil
 }
 
+func pqComparator(a, b any) int {
+	var aTimestamp, bTimestamp time.Time
+
+	switch v := a.(type) {
+	case v1.KubernetesEvent:
+		aTimestamp = v.Metadata.GetCreationTimestamp().Time
+	case *unstructured.Unstructured:
+		aTimestamp = v.GetCreationTimestamp().Time
+	}
+
+	switch v := b.(type) {
+	case v1.KubernetesEvent:
+		bTimestamp = v.Metadata.GetCreationTimestamp().Time
+	case *unstructured.Unstructured:
+		bTimestamp = v.GetCreationTimestamp().Time
+	}
+
+	if aTimestamp.Before(bTimestamp) {
+		return -1
+	} else if aTimestamp.Equal(bTimestamp) {
+		return 0
+	} else {
+		return 1
+	}
+}
+
 // WatchResources watches Kubernetes resources with shared informers
 func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
-	buffer := make(chan *unstructured.Unstructured, ctx.DutyContext().Properties().Int("kubernetes.watch.resources.bufferSize", WatchResourceBufferSize))
-	WatchResourceBuffer.Store(config.Hash(), buffer)
+	priorityQueue := pq.NewWith(pqComparator)
+	if loaded, ok := WatchQueue.LoadOrStore(config.Hash(), priorityQueue); ok {
+		priorityQueue = loaded.(*pq.Queue)
+	}
 
-	deleteBuffer := make(chan string, WatchResourceBufferSize)
+	deleteBuffer := make(chan string, BufferSize)
 	DeleteResourceBuffer.Store(config.Hash(), deleteBuffer)
 
 	if config.Kubeconfig != nil {
@@ -67,7 +92,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 	}
 
 	for _, watchResource := range lo.Uniq(config.Watch) {
-		if err := globalSharedInformerManager.Register(ctx, watchResource, buffer, deleteBuffer); err != nil {
+		if err := globalSharedInformerManager.Register(ctx, watchResource, priorityQueue, deleteBuffer); err != nil {
 			return fmt.Errorf("failed to register informer: %w", err)
 		}
 	}
@@ -87,8 +112,10 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) error {
 // WatchEvents watches Kubernetes events for any config changes & fetches
 // the referenced config items in batches.
 func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
-	buffer := make(chan v1.KubernetesEvent, ctx.DutyContext().Properties().Int("kubernetes.watch.events.bufferSize", BufferSize))
-	WatchEventBuffers.Store(config.Hash(), buffer)
+	priorityQueue := pq.NewWith(pqComparator)
+	if loaded, ok := WatchQueue.LoadOrStore(config.Hash(), priorityQueue); ok {
+		priorityQueue = loaded.(*pq.Queue)
+	}
 
 	if config.Kubeconfig != nil {
 		var err error
@@ -127,14 +154,14 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 			continue
 		}
 
-		// NOTE: Labels missing in here
-		// as a result we have to make of the ignoredConfigsCache to filter out events of resources that have been excluded
+		// NOTE: Involved objects do not have labels.
+		// As a result, we have to make use of the ignoredConfigsCache to filter out events of resources that have been excluded
 		// with labels.
 		if config.Exclusions.Filter(event.InvolvedObject.Name, event.InvolvedObject.Namespace, event.InvolvedObject.Kind, nil) {
 			continue
 		}
 
-		buffer <- event
+		priorityQueue.Enqueue(event)
 	}
 
 	return nil
