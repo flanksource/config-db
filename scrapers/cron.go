@@ -251,6 +251,10 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 func scheduleScraperJob(sc api.ScrapeContext) error {
 	j := newScraperJob(sc)
 
+	if sc.PropertyOn(false, "disable") {
+		return nil
+	}
+
 	scrapeJobs.Store(sc.ScraperID(), j)
 	if err := j.AddToScheduler(scrapeJobScheduler); err != nil {
 		return fmt.Errorf("[%s] failed to schedule %v", j.Name, err)

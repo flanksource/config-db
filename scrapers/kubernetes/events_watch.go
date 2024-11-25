@@ -127,7 +127,9 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 			continue
 		}
 
-		// TODO: Labels missing in here
+		// NOTE: Labels missing in here
+		// as a result we have to make of the ignoredConfigsCache to filter out events of resources that have been excluded
+		// with labels.
 		if config.Exclusions.Filter(event.InvolvedObject.Name, event.InvolvedObject.Namespace, event.InvolvedObject.Kind, nil) {
 			continue
 		}

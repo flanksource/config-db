@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Jeffail/gabs/v2"
@@ -93,6 +94,10 @@ func (kubernetes KubernetesScraper) IncrementalEventScrape(
 	)
 
 	for _, event := range events {
+		if _, ok := ignoredConfigsCache.Load(event.InvolvedObject.UID); ok {
+			continue
+		}
+
 		if eventObj, err := event.ToUnstructured(); err != nil {
 			ctx.DutyContext().Errorf("failed to convert event to unstructured: %v", err)
 			continue
@@ -173,6 +178,8 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 	return results
 }
 
+var ignoredConfigsCache = sync.Map{}
+
 // ExtractResults extracts scrape results from the given list of kuberenetes objects.
 //   - withCluster: if true, will create & add a scrape result for the kubernetes cluster.
 func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v1.ScrapeResults {
@@ -214,6 +221,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			ctx.Warnf("failed to ignore obj[%s]: %v", obj.GetName(), err)
 			continue
 		} else if ignore {
+			ignoredConfigsCache.Store(obj.GetUID(), struct{}{})
 			continue
 		}
 
