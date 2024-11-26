@@ -693,7 +693,50 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	} else {
 		ctx.Logger.V(4).Infof("No Update: %s", summary)
 	}
+
+	// Add lag time in summary
+	if lagMap, err := calculateScrapeLag(ctx); err != nil {
+		ctx.Errorf("error calculating lag: %v", err)
+	} else {
+		summary.UpdateLag(lagMap)
+	}
 	return summary, nil
+}
+
+func calculateScrapeLag(ctx api.ScrapeContext) (map[string]float64, error) {
+	if ctx.ScraperID() == "" {
+		return nil, nil
+	}
+
+	q := `
+    SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (MAX(inserted_at - created_at))), 2), 0) AS lag
+    FROM config_items
+    WHERE
+        scraper_id = ? AND
+        inserted_at >= last_scraped_time
+    `
+	var configItemLag float64
+	if err := ctx.DB().Raw(q, ctx.ScraperID()).Scan(&configItemLag).Error; err != nil {
+		return nil, fmt.Errorf("error querying config_item scrape lag: %w", dutydb.ErrorDetails(err))
+	}
+
+	q = `
+    SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (MAX(cc.inserted_at - cc.created_at))), 2), 0) AS lag
+    FROM config_changes cc
+    INNER JOIN config_items ci ON cc.config_id = ci.id
+    WHERE
+        ci.scraper_id = ? AND
+        cc.inserted_at >= ci.last_scraped_time
+    `
+	var configChangeLag float64
+	if err := ctx.DB().Raw(q, ctx.ScraperID()).Scan(&configChangeLag).Error; err != nil {
+		return nil, fmt.Errorf("error querying config_change scrape lag: %w", dutydb.ErrorDetails(err))
+	}
+
+	return map[string]float64{
+		"config_item_lag_seconds":   configItemLag,
+		"config_change_lag_seconds": configChangeLag,
+	}, nil
 }
 
 var lastScrapedTimeMutex sync.Map
