@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	pq "github.com/emirpasic/gods/queues/priorityqueue"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -12,7 +13,6 @@ import (
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -37,7 +37,7 @@ type SharedInformerManager struct {
 
 type DeleteObjHandler func(ctx context.Context, id string) error
 
-func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, buffer chan<- *unstructured.Unstructured, deleteBuffer chan<- string) error {
+func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, queue *pq.Queue, deleteBuffer chan<- string) error {
 	apiVersion, kind := watchResource.ApiVersion, watchResource.Kind
 
 	informer, stopper, isNew := t.getOrCreate(ctx, apiVersion, kind)
@@ -65,7 +65,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
-			buffer <- u
+			queue.Enqueue(u)
 		},
 		UpdateFunc: func(oldObj any, newObj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, newObj)
@@ -77,7 +77,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(3).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
-			buffer <- u
+			queue.Enqueue(u)
 		},
 		DeleteFunc: func(obj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, obj)
