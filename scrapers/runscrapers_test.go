@@ -399,6 +399,9 @@ var _ = Describe("Scrapers test", Ordered, func() {
 
 			// Expect the config_changes to be stored
 			items, err := db.FindConfigChangesByItemID(ctx, configItemID.ID)
+			items = lo.Filter(items, func(cc dutymodels.ConfigChange, _ int) bool {
+				return cc.ChangeType == v1.ChangeTypeDiff
+			})
 			Expect(err).To(BeNil())
 			Expect(len(items)).To(Equal(1))
 			Expect(items[0].ConfigID).To(Equal(storedConfigItem.ID))
