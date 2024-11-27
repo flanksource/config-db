@@ -138,19 +138,23 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		if watchEvent.Type == watch.Error {
 			status, ok := watchEvent.Object.(*metav1.Status)
 			if ok {
+				ctx.Counter("kubernetes_scraper_error", "source", "watch", "reason", status.Status, "scraper_id", ctx.ScraperID()).Add(1)
 				return fmt.Errorf("watch error: (status=%s, reason=%s, message=%s)", status.Status, status.Reason, status.Message)
 			}
+			ctx.Counter("kubernetes_scraper_error", "reason", "unknown_error_object", "scraper_id", ctx.ScraperID()).Add(1)
 
 			return fmt.Errorf("watch error: unknown error object %T", watchEvent.Object)
 		}
 
 		var event v1.KubernetesEvent
 		if err := event.FromObjMap(watchEvent.Object); err != nil {
+			ctx.Counter("kubernetes_scraper_unmatched", "source", "watch", "reason", "unmarshal_error	", "scraper_id", ctx.ScraperID()).Add(1)
 			ctx.Errorf("failed to unmarshal event (id=%s): %v", event.GetUID(), err)
 			continue
 		}
 
 		if event.InvolvedObject == nil {
+			ctx.Counter("kubernetes_scraper_unmatched", "source", "watch", "reason", "involved_object_nil", "scraper_id", ctx.ScraperID()).Add(1)
 			continue
 		}
 
@@ -158,8 +162,11 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		// As a result, we have to make use of the ignoredConfigsCache to filter out events of resources that have been excluded
 		// with labels.
 		if config.Exclusions.Filter(event.InvolvedObject.Name, event.InvolvedObject.Namespace, event.InvolvedObject.Kind, nil) {
+			ctx.Counter("kubernetes_scraper_excluded", "source", "watch", "kind", event.InvolvedObject.Kind, "scraper_id", ctx.ScraperID()).Add(1)
+
 			continue
 		}
+		ctx.Counter("kubernetes_scraper_events", "source", "watch", "kind", event.InvolvedObject.Kind, "scraper_id", ctx.ScraperID()).Add(1)
 
 		priorityQueue.Enqueue(event)
 	}

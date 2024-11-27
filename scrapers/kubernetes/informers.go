@@ -58,10 +58,15 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 		AddFunc: func(obj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, obj)
 			if err != nil {
+				ctx.Counter("kubernetes_informer_errors",
+					"type", "add",
+					"reason", "unmarshal_error",
+					"scraper_id", ctx.ScraperID()).Add(1)
 				logger.Errorf("failed to get unstructured from new object: %v", err)
 				return
 			}
 
+			ctx.Counter("kubernetes_informer_events", "type", "add", "kind", u.GetKind(), "scraper_id", ctx.ScraperID()).Add(1)
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
@@ -70,9 +75,16 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 		UpdateFunc: func(oldObj any, newObj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, newObj)
 			if err != nil {
+				ctx.Counter("kubernetes_informer_errors",
+					"type", "update",
+					"reason", "unmarshal_error",
+					"scraper_id", ctx.ScraperID()).Add(1)
+
 				logger.Errorf("failed to get unstructured from updated object: %v", err)
 				return
 			}
+
+			ctx.Counter("kubernetes_informer_events", "type", "update", "kind", u.GetKind(), "scraper_id", ctx.ScraperID()).Add(1)
 
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(3).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
@@ -82,9 +94,15 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 		DeleteFunc: func(obj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, obj)
 			if err != nil {
+				ctx.Counter("kubernetes_informer_errors",
+					"type", "delete",
+					"reason", "unmarshal_error",
+					"scraper_id", ctx.ScraperID()).Add(1)
 				logToJobHistory(ctx.DutyContext(), "DeleteK8sWatchResource", ctx.ScrapeConfig().GetPersistedID(), "failed to get unstructured %v", err)
 				return
 			}
+
+			ctx.Counter("kubernetes_informer_events", "type", "delete", "kind", u.GetKind(), "scraper_id", ctx.ScraperID()).Add(1)
 
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(3).Infof("deleted: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())

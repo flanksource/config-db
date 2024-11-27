@@ -688,7 +688,32 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
+	scraperId := ctx.ScraperID()
+	for kind, v := range summary {
+
+		if v.Added > 0 {
+			ctx.Counter("scraper_added", "scraper_id", scraperId, "kind", kind).Add(v.Added)
+		}
+		if v.Updated > 0 {
+			ctx.Counter("scraper_updated", "scraper_id", scraperId, "kind", kind).Add(v.Added)
+		}
+
+		ignored, orphaned, fk_errors := v.Change.Totals()
+
+		if ignored > 0 {
+			ctx.Counter("scraper_changes_ignored", "scraper_id", scraperId, "kind", kind).Add(ignored)
+		}
+
+		if orphaned > 0 {
+			ctx.Counter("scraper_changes_orphaned", "scraper_id", scraperId, "kind", kind).Add(orphaned)
+		}
+		if fk_errors > 0 {
+			ctx.Counter("scraper_changes_fk_errors", "scraper_id", scraperId, "kind", kind).Add(fk_errors)
+		}
+	}
+
 	if summary.HasUpdates() {
+
 		ctx.Logger.Debugf("Updates %s", summary)
 	} else {
 		ctx.Logger.V(4).Infof("No Update: %s", summary)
