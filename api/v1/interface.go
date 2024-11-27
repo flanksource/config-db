@@ -305,6 +305,16 @@ func (t *ChangeSummary) Merge(b ChangeSummary) {
 	}
 }
 
+func (t *ChangeSummary) Totals() (ignored, orphaned, errors int) {
+	for _, v := range t.Ignored {
+		ignored += v
+	}
+	for _, v := range t.Orphaned {
+		orphaned += v
+	}
+	return ignored, orphaned, t.ForeignKeyErrors
+}
+
 type ChangeSummaryByType map[string]ChangeSummary
 
 func (t *ChangeSummaryByType) Merge(typ string, b ChangeSummary) {
@@ -721,8 +731,26 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 	return clone
 }
 
+func Ellipses(str string, length int) string {
+	if len(str) > length {
+		if len(str) < 3 || length < 3 {
+			return str
+		}
+		return str[0:length/2] + "..." + str[len(str)-length/2-3:]
+	}
+	return str
+}
+
 func (r ScrapeResult) String() string {
-	s := fmt.Sprintf("%s/%s (%s)", r.ConfigClass, r.Name, r.ID)
+	s := fmt.Sprintf("%s/%s (%s)", r.ConfigClass, Ellipses(r.Name, 40), Ellipses(r.ID, 40))
+
+	if r.Health != models.HealthUnknown {
+		s += fmt.Sprintf(" %s", r.Health.ColorString())
+	}
+
+	if r.Status != "" {
+		s += fmt.Sprintf(" %s", Ellipses(r.Status, 20))
+	}
 
 	if len(r.Changes) > 0 {
 		s += fmt.Sprintf(" changes=%d", len(r.Changes))
