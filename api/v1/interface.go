@@ -745,7 +745,7 @@ func (r ScrapeResult) String() string {
 	s := fmt.Sprintf("%s/%s (%s)", r.ConfigClass, Ellipses(r.Name, 40), Ellipses(r.ID, 40))
 
 	if r.Health != models.HealthUnknown {
-		s += fmt.Sprintf(" %s", r.Health.ColorString())
+		s += fmt.Sprintf(" %s", r.Health)
 	}
 
 	if r.Status != "" {
