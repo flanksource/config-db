@@ -47,11 +47,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.5
 	github.com/aws/aws-sdk-go-v2/service/support v1.24.3
 	github.com/aws/smithy-go v1.20.4
+	github.com/emirpasic/gods v1.18.1
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.29.10
 	github.com/flanksource/duty v1.0.762
-	github.com/flanksource/is-healthy v1.0.48
+	github.com/flanksource/is-healthy v1.0.49
 	github.com/flanksource/ketall v1.1.7
 	github.com/gobwas/glob v0.2.3
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
@@ -127,7 +128,6 @@ require (
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/eko/gocache/lib/v4 v4.1.6 // indirect
 	github.com/eko/gocache/store/go_cache/v4 v4.2.2 // indirect
-	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.7.0 // indirect
 	github.com/exaring/otelpgx v0.6.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
