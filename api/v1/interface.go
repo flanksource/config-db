@@ -306,6 +306,9 @@ func (t *ChangeSummary) Merge(b ChangeSummary) {
 }
 
 func (t *ChangeSummary) Totals() (ignored, orphaned, errors int) {
+	if t == nil {
+		return 0, 0, 0
+	}
 	for _, v := range t.Ignored {
 		ignored += v
 	}
