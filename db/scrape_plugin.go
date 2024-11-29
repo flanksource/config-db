@@ -20,3 +20,8 @@ func PersistScrapePluginFromCRD(ctx context.Context, plugin *v1.ScrapePlugin) er
 func DeleteScrapePlugin(ctx context.Context, id string) error {
 	return ctx.DB().Model(&models.ScrapePlugin{}).Where("id = ?", id).Update("deleted_at", duty.Now()).Error
 }
+
+func LoadAllPlugins(ctx context.Context) ([]models.ScrapePlugin, error) {
+	var plugins []models.ScrapePlugin
+	return plugins, ctx.DB().Where("deleted_at IS NULL").Find(&plugins).Error
+}
