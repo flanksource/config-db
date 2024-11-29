@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	pq "github.com/emirpasic/gods/queues/priorityqueue"
 	"github.com/flanksource/commons/logger"
@@ -71,6 +72,13 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
 
+			// TODO: We receive very old objects (months old) and that screws up the histogram
+			ctx.Histogram("informer_receive_lag", []float64{1, 100, 1000, 10_000, 100_000},
+				"scraper", ctx.ScraperID(),
+				"kind", watchResource.Kind,
+				"operation", "add",
+			).Record(time.Duration(time.Since(u.GetCreationTimestamp().Time).Milliseconds()))
+
 			queue.Enqueue(NewObjectQueueItem(u))
 		},
 		UpdateFunc: func(oldObj any, newObj any) {
@@ -109,6 +117,13 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(3).Infof("deleted: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
+
+			ctx.Histogram("informer_receive_lag", []float64{1, 100, 1000, 10_000, 100_000},
+				"scraper", ctx.ScraperID(),
+				"kind", watchResource.Kind,
+				"operation", "delete",
+			).Record(time.Duration(time.Since(u.GetDeletionTimestamp().Time).Milliseconds()))
+
 			deleteBuffer <- string(u.GetUID())
 		},
 	})

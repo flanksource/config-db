@@ -174,6 +174,10 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 			continue
 		}
 
+		// TODO: We receive old events (hours old) and that screws up the histogram
+		ctx.Histogram("event_receive_lag", []float64{1, 100, 1000, 10_000, 100_000}, "scraper", ctx.ScraperID()).
+			Record(time.Duration(time.Since(event.Metadata.CreationTimestamp.Time).Milliseconds()))
+
 		if event.InvolvedObject == nil {
 			ctx.Counter("kubernetes_scraper_unmatched", "source", "watch", "reason", "involved_object_nil", "scraper_id", ctx.ScraperID()).Add(1)
 			continue
