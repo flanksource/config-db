@@ -617,7 +617,6 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		update := map[string]any{
 			"change_type":         dedup.Change.ChangeType,
 			"count":               gorm.Expr("count + ?", dedup.CountIncrement),
-			"created_at":          gorm.Expr("NOW()"),
 			"created_by":          dedup.Change.CreatedBy,
 			"details":             dedup.Change.Details,
 			"diff":                dedup.Change.Diff,
