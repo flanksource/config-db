@@ -19,9 +19,10 @@ func init() {
 
 // TempCache is a temporary cache of config items that is used to speed up config item lookups during scrape, when all config items for a scraper are looked up any way
 type TempCache struct {
-	items    map[string]models.ConfigItem
-	aliases  map[string]string
-	notFound map[string]struct{}
+	items     map[string]models.ConfigItem
+	aliases   map[string]string
+	notFound  map[string]struct{}
+	scraperID string
 }
 
 func NewTempCache() *TempCache {
@@ -30,6 +31,14 @@ func NewTempCache() *TempCache {
 		aliases:  make(map[string]string),
 		notFound: make(map[string]struct{}),
 	}
+}
+
+func (t *TempCache) SetScraperID(id string) {
+	t.scraperID = id
+}
+
+func (t TempCache) GetScraperID() string {
+	return t.scraperID
 }
 
 func (t *TempCache) FindExternalID(ctx ScrapeContext, ext v1.ExternalID) (string, error) {
@@ -75,6 +84,9 @@ func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.Confi
 
 func (t *TempCache) Insert(item models.ConfigItem) {
 	scraperID := lo.FromPtr(item.ScraperID).String()
+	if scraperID == uuid.Nil.String() {
+		scraperID = t.GetScraperID()
+	}
 	for _, extID := range item.ExternalID {
 		key := v1.ExternalID{ConfigType: item.Type, ExternalID: extID, ScraperID: scraperID}.Key()
 		t.aliases[key] = item.ID
@@ -127,11 +139,12 @@ func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error
 	return nil, nil
 }
 
-func QueryCache(ctx context.Context, query string, args ...interface{}) (*TempCache, error) {
+func QueryCache(ctx context.Context, scraperID string, query string, args ...interface{}) (*TempCache, error) {
 	if ctx.DB() == nil {
 		return nil, fmt.Errorf("no db configured")
 	}
 	t := NewTempCache()
+	t.SetScraperID(scraperID)
 	items := []models.ConfigItem{}
 	if err := ctx.DB().Table("config_items").Where("deleted_at IS NULL").Where(query, args...).Find(&items).Error; err != nil {
 		return nil, err

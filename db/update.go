@@ -607,7 +607,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 					return summary, fmt.Errorf("failed to create config change: %w", dutydb.ErrorDetails(err))
 				}
 
-				ctx.Errorf("failed to save config change: (config:%s, details:%v changeType:%s, externalChangeID:%s)", c.ConfigID, c.Details, c.ChangeType, lo.FromPtr(c.ExternalChangeID))
+				ctx.Errorf("failed to save config change: (config:%s, details:%v changeType:%s, externalChangeID:%s), err=%v", c.ConfigID, c.Details, c.ChangeType, lo.FromPtr(c.ExternalChangeID), err)
 				summary.AddChangeSummary(c.ConfigType, v1.ChangeSummary{ForeignKeyErrors: 1})
 			}
 		}
