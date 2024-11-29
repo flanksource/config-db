@@ -315,6 +315,9 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 			var events []v1.KubernetesEvent
 			var objs []*unstructured.Unstructured
 			var count int
+
+			var firstObject, firstEvent *kubernetes.QueueItem
+
 			for {
 				val, more := queue.Dequeue()
 				if !more {
@@ -334,8 +337,14 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 
 				if queueItem.Event != nil {
 					events = append(events, *queueItem.Event)
+					if firstEvent == nil {
+						firstEvent = queueItem
+					}
 				} else if queueItem.Obj != nil {
 					objs = append(objs, queueItem.Obj)
+					if firstObject == nil {
+						firstObject = queueItem
+					}
 				}
 			}
 
@@ -348,13 +357,35 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 			// In the process, we will lose diff changes though.
 			// If diff changes are necessary, then we can split up the results in such
 			// a way that no two objects in a batch have the same id.
-			objs = dedup(objs)
-			if err := consumeResources(ctx, scrapeConfig, config, objs); err != nil {
-				ctx.History.AddErrorf("failed to consume resources: %v", err)
-				return err
+
+			scrapeStart := time.Now()
+
+			if len(objs) > 0 {
+				objs = dedup(objs)
+				if err := consumeResources(ctx, scrapeConfig, config, objs); err != nil {
+					ctx.History.AddErrorf("failed to consume resources: %v", err)
+					return err
+				}
+
+				// For now, measure a single lag for the entire batch instead of per config item
+				lag := time.Since(firstObject.Timestamp)
+				ctx.Histogram("informer_consume_lag", []float64{1000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000}, "scraper", sc.ScraperID()).
+					Record(time.Duration(lag.Milliseconds()))
 			}
 
-			return consumeWatchEvents(ctx, scrapeConfig, config, events)
+			if len(events) > 0 {
+				scrapeDuration := time.Since(scrapeStart)
+				if err := consumeWatchEvents(ctx, scrapeConfig, config, events); err != nil {
+					ctx.History.AddErrorf("failed to consume events: %v", err)
+					return err
+				}
+
+				eventConsumeLag := time.Since(firstEvent.Timestamp) - scrapeDuration
+				ctx.Histogram("events_consume_lag", []float64{1000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000}, "scraper", sc.ScraperID()).
+					Record(time.Duration(eventConsumeLag.Milliseconds()))
+			}
+
+			return nil
 		},
 	}
 }
