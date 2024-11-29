@@ -56,7 +56,7 @@ var scraperTempCache = sync.Map{}
 
 func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	if ctx.ScrapeConfig().GetPersistedID() == nil {
-		cache, err := QueryCache(ctx.Context, "scraper_id IS NULL")
+		cache, err := QueryCache(ctx.Context, "", "scraper_id IS NULL")
 		if err != nil {
 			return ctx, err
 		}
@@ -65,7 +65,7 @@ func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 
 	scraperID := ctx.ScrapeConfig().GetPersistedID()
 
-	cache, err := QueryCache(ctx.Context, "scraper_id = ?", scraperID)
+	cache, err := QueryCache(ctx.Context, scraperID.String(), "scraper_id = ? OR (type IN (?))", scraperID, v1.ScraperLessTypes)
 	if err != nil {
 		return ctx, err
 	}
