@@ -327,13 +327,15 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 					break
 				}
 
-				switch v := val.(type) {
-				case v1.KubernetesEvent:
-					events = append(events, v)
-				case *unstructured.Unstructured:
-					objs = append(objs, v)
-				default:
-					return fmt.Errorf("unexpected data in the queue: %T", v)
+				queueItem, ok := val.(*kubernetes.QueueItem)
+				if !ok {
+					return fmt.Errorf("unexpected item in the priority queue: %T", val)
+				}
+
+				if queueItem.Event != nil {
+					events = append(events, *queueItem.Event)
+				} else if queueItem.Obj != nil {
+					objs = append(objs, queueItem.Obj)
 				}
 			}
 

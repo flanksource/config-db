@@ -70,7 +70,8 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
-			queue.Enqueue(u)
+
+			queue.Enqueue(NewObjectQueueItem(u))
 		},
 		UpdateFunc: func(oldObj any, newObj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, newObj)
@@ -89,7 +90,8 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(3).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
-			queue.Enqueue(u)
+
+			queue.Enqueue(NewObjectQueueItem(u))
 		},
 		DeleteFunc: func(obj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, obj)

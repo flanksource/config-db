@@ -46,24 +46,45 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 	return &unstructured.Unstructured{Object: m}, nil
 }
 
+type QueueItem struct {
+	Timestamp time.Time
+	Event     *v1.KubernetesEvent
+	Obj       *unstructured.Unstructured
+}
+
+func NewEventQueueItem(e *v1.KubernetesEvent) *QueueItem {
+	return &QueueItem{
+		Timestamp: time.Now(),
+		Event:     e,
+	}
+}
+
+func NewObjectQueueItem(e *unstructured.Unstructured) *QueueItem {
+	return &QueueItem{
+		Timestamp: time.Now(),
+		Obj:       e,
+	}
+}
+
+// PayloadTimestamp returns the timestamp of the event or the object it contains.
+func (t *QueueItem) PayloadTimestamp() time.Time {
+	if t.Event != nil {
+		return t.Event.Metadata.CreationTimestamp.Time
+	}
+
+	if t.Obj != nil {
+		return t.Obj.GetCreationTimestamp().Time
+	}
+
+	panic("queue item is empty")
+}
+
 func pqComparator(a, b any) int {
 	var aTimestamp, bTimestamp time.Time
+	qa := a.(*QueueItem)
+	qb := b.(*QueueItem)
 
-	switch v := a.(type) {
-	case v1.KubernetesEvent:
-		aTimestamp = v.Metadata.GetCreationTimestamp().Time
-	case *unstructured.Unstructured:
-		aTimestamp = v.GetCreationTimestamp().Time
-	}
-
-	switch v := b.(type) {
-	case v1.KubernetesEvent:
-		bTimestamp = v.Metadata.GetCreationTimestamp().Time
-	case *unstructured.Unstructured:
-		bTimestamp = v.GetCreationTimestamp().Time
-	}
-
-	if aTimestamp.Before(bTimestamp) {
+	if qa.PayloadTimestamp().Before(qb.PayloadTimestamp()) {
 		return -1
 	} else if aTimestamp.Equal(bTimestamp) {
 		return 0
@@ -168,7 +189,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		}
 		ctx.Counter("kubernetes_scraper_events", "source", "watch", "kind", event.InvolvedObject.Kind, "scraper_id", ctx.ScraperID()).Add(1)
 
-		priorityQueue.Enqueue(event)
+		priorityQueue.Enqueue(NewEventQueueItem(&event))
 	}
 
 	return nil
