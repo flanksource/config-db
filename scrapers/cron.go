@@ -36,7 +36,7 @@ var (
 	scrapeJobScheduler = cron.New()
 	scrapeJobs         sync.Map
 
-	lagBuckets = []float64{1000, 5000, 15_000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
+	consumeLagBuckets = []float64{1_000, 5_000, 15_000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
 const scrapeJobName = "Scraper"
@@ -363,7 +363,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 
 			for _, obj := range objs {
 				lag := time.Since(queuedTime[string(obj.GetUID())])
-				ctx.Histogram("informer_consume_lag", lagBuckets, "scraper", sc.ScraperID()).Record(time.Duration(lag.Milliseconds()))
+				ctx.Histogram("informer_consume_lag", consumeLagBuckets, "scraper", sc.ScraperID()).Record(time.Duration(lag.Milliseconds()))
 			}
 
 			return nil

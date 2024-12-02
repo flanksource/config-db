@@ -33,7 +33,7 @@ var (
 	// that contains the ids of resources that have been deleted.
 	DeleteResourceBuffer = sync.Map{}
 
-	lagBuckets = []float64{1000, 5000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
+	informerLagBuckets = []float64{1_000, 5_000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
 // WatchResources watches Kubernetes resources with shared informers
@@ -127,7 +127,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 			}
 
 			// TODO: We receive very old objects (months old) and that screws up the histogram
-			ctx.Histogram("informer_receive_lag", lagBuckets,
+			ctx.Histogram("informer_receive_lag", informerLagBuckets,
 				"scraper", ctx.ScraperID(),
 				"kind", watchResource.Kind,
 				"operation", "add",
@@ -155,7 +155,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 
 			lastUpdatedTime := health.GetLastUpdatedTime(u)
 			if lastUpdatedTime != nil && lastUpdatedTime.After(u.GetCreationTimestamp().Time) && lastUpdatedTime.Before(time.Now()) {
-				ctx.Histogram("informer_receive_lag", lagBuckets,
+				ctx.Histogram("informer_receive_lag", informerLagBuckets,
 					"scraper", ctx.ScraperID(),
 					"kind", watchResource.Kind,
 					"operation", "update",
@@ -186,7 +186,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 			}
 
 			if u.GetDeletionTimestamp() != nil {
-				ctx.Histogram("informer_receive_lag", lagBuckets,
+				ctx.Histogram("informer_receive_lag", informerLagBuckets,
 					"scraper", ctx.ScraperID(),
 					"kind", watchResource.Kind,
 					"operation", "delete",

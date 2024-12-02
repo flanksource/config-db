@@ -596,8 +596,13 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	dedupWindow := ctx.Properties().Duration("changes.dedup.window", time.Hour)
 	newChanges, deduped := dedupChanges(dedupWindow, extractResult.newChanges)
 
-	ctx.Counter("config_changes", "scraper_id", ctx.ScraperID()).Add(len(newChanges))
-	ctx.Counter("config_changes_deduped", "scraper_id", ctx.ScraperID()).Add(len(deduped))
+	for _, c := range newChanges {
+		ctx.Counter("config_changes", "scraper_id", ctx.ScraperID(), "change_type", c.ChangeType, "config_type", c.ConfigType).Add(1)
+	}
+
+	for _, c := range deduped {
+		ctx.Counter("config_changes_deduped", "scraper_id", ctx.ScraperID(), "change_type", c.Change.ChangeType, "config_type", c.Change.ConfigType).Add(1)
+	}
 
 	if err := ctx.DB().CreateInBatches(&newChanges, configItemsBulkInsertSize).Error; err != nil {
 		if !dutydb.IsForeignKeyError(err) {
