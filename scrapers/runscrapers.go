@@ -56,18 +56,6 @@ func RunK8sObjectsScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*u
 	return results, nil
 }
 
-// RunK8IncrementalScraper scrapes the involved objects in the given events.
-func RunK8IncrementalScraper(ctx api.ScrapeContext, config v1.Kubernetes, events []v1.KubernetesEvent) ([]v1.ScrapeResult, error) {
-	var results v1.ScrapeResults
-	var scraper kubernetes.KubernetesScraper
-	for _, result := range scraper.IncrementalEventScrape(ctx, config, events) {
-		scraped := processScrapeResult(ctx, result)
-		results = append(results, scraped...)
-	}
-
-	return results, nil
-}
-
 // Run ...
 func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 	var results v1.ScrapeResults

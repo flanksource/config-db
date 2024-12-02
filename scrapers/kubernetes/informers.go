@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -15,10 +16,62 @@ import (
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
+
+var (
+	// BufferSize is the size of the channel that buffers kubernetes watch events
+	BufferSize = 5000
+
+	// WatchQueue stores a sync buffer per kubernetes config
+	WatchQueue = sync.Map{}
+
+	// DeleteResourceBuffer stores a buffer per kubernetes config
+	// that contains the ids of resources that have been deleted.
+	DeleteResourceBuffer = sync.Map{}
+
+	lagBuckets = []float64{1000, 5000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
+)
+
+// WatchResources watches Kubernetes resources with shared informers
+func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*pq.Queue, error) {
+	priorityQueue := pq.NewWith(pqComparator)
+	if loaded, ok := WatchQueue.LoadOrStore(config.Hash(), priorityQueue); ok {
+		priorityQueue = loaded.(*pq.Queue)
+	}
+
+	deleteBuffer := make(chan string, BufferSize)
+	DeleteResourceBuffer.Store(config.Hash(), deleteBuffer)
+
+	if config.Kubeconfig != nil {
+		var err error
+		c, err := ctx.WithKubeconfig(*config.Kubeconfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply kube config: %w", err)
+		}
+		ctx.Context = *c
+	}
+
+	for _, watchResource := range lo.Uniq(config.Watch) {
+		if err := globalSharedInformerManager.Register(ctx, watchResource, priorityQueue, deleteBuffer); err != nil {
+			return nil, fmt.Errorf("failed to register informer: %w", err)
+		}
+	}
+
+	// Stop all the other active shared informers, if any, that were previously started
+	// but then removed from the config.
+	var existingWatches []string
+	for _, w := range config.Watch {
+		existingWatches = append(existingWatches, w.ApiVersion+w.Kind)
+	}
+	globalSharedInformerManager.stop(ctx, kubeConfigIdentifier(ctx), existingWatches...)
+
+	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", ctx.ScraperID()).Add(1)
+	return priorityQueue, nil
+}
 
 type informerCacheData struct {
 	informer informers.GenericInformer
@@ -80,7 +133,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				"operation", "add",
 			).Record(time.Duration(time.Since(u.GetCreationTimestamp().Time).Milliseconds()))
 
-			queue.Enqueue(NewObjectQueueItem(u))
+			queue.Enqueue(NewQueueItem(u))
 		},
 		UpdateFunc: func(oldObj any, newObj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, newObj)
@@ -109,7 +162,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				).Record(time.Duration(time.Since(*lastUpdatedTime).Milliseconds()))
 			}
 
-			queue.Enqueue(NewObjectQueueItem(u))
+			queue.Enqueue(NewQueueItem(u))
 		},
 		DeleteFunc: func(obj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, obj)
@@ -119,6 +172,10 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 					"reason", "unmarshal_error",
 					"scraper_id", ctx.ScraperID()).Add(1)
 				logToJobHistory(ctx.DutyContext(), "DeleteK8sWatchResource", ctx.ScrapeConfig().GetPersistedID(), "failed to get unstructured %v", err)
+				return
+			}
+
+			if u.GetKind() == "Event" {
 				return
 			}
 
@@ -238,4 +295,58 @@ func logToJobHistory(ctx context.Context, job string, scraperID *uuid.UUID, err 
 
 func KindToResource(kind string) string {
 	return strings.ToLower(kind) + "s"
+}
+
+func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj any) (*unstructured.Unstructured, error) {
+	b, err := json.Marshal(obj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal on add func: %v", err)
+	}
+
+	// The object returned by the informers do not have kind and apiversion set
+	m["kind"] = resource.Kind
+	m["apiVersion"] = resource.ApiVersion
+
+	return &unstructured.Unstructured{Object: m}, nil
+}
+
+// kubeConfigIdentifier returns a unique identifier for a kubernetes config of a scraper.
+func kubeConfigIdentifier(ctx api.ScrapeContext) string {
+	rs := ctx.KubernetesRestConfig()
+	if rs == nil {
+		return ctx.ScrapeConfig().Name
+	}
+
+	return rs.Host
+}
+
+type QueueItem struct {
+	Timestamp time.Time // Queued time
+	Obj       *unstructured.Unstructured
+}
+
+func NewQueueItem(obj *unstructured.Unstructured) *QueueItem {
+	return &QueueItem{
+		Timestamp: time.Now(),
+		Obj:       obj,
+	}
+}
+
+func pqComparator(a, b any) int {
+	var aTimestamp, bTimestamp time.Time
+	qa := a.(*QueueItem)
+	qb := b.(*QueueItem)
+
+	if qa.Obj.GetCreationTimestamp().Time.Before(qb.Obj.GetCreationTimestamp().Time) {
+		return -1
+	} else if aTimestamp.Equal(bTimestamp) {
+		return 0
+	} else {
+		return 1
+	}
 }
