@@ -118,7 +118,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				ctx.Logger.V(3).Infof("deleted: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
 
-			ctx.Histogram("informer_receive_lag", []float64{1, 100, 1000, 10_000, 100_000},
+			ctx.Histogram("informer_receive_lag", lagBuckets,
 				"scraper", ctx.ScraperID(),
 				"kind", watchResource.Kind,
 				"operation", "delete",

@@ -26,6 +26,8 @@ var (
 	// DeleteResourceBuffer stores a buffer per kubernetes config
 	// that contains the ids of resources that have been deleted.
 	DeleteResourceBuffer = sync.Map{}
+
+	lagBuckets = []float64{1000, 5000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
 func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj any) (*unstructured.Unstructured, error) {
@@ -175,7 +177,7 @@ func WatchEvents(ctx api.ScrapeContext, config v1.Kubernetes) error {
 		}
 
 		// TODO: We receive old events (hours old) and that screws up the histogram
-		ctx.Histogram("event_receive_lag", []float64{1, 100, 1000, 10_000, 100_000}, "scraper", ctx.ScraperID()).
+		ctx.Histogram("event_receive_lag", lagBuckets, "scraper", ctx.ScraperID()).
 			Record(time.Duration(time.Since(event.Metadata.CreationTimestamp.Time).Milliseconds()))
 
 		if event.InvolvedObject == nil {

@@ -36,6 +36,8 @@ var (
 
 	scrapeJobScheduler = cron.New()
 	scrapeJobs         sync.Map
+
+	lagBuckets = []float64{1000, 5000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
 const scrapeJobName = "Scraper"
@@ -369,8 +371,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 
 				// For now, measure a single lag for the entire batch instead of per config item
 				lag := time.Since(firstObject.Timestamp)
-				ctx.Histogram("informer_consume_lag", []float64{1000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000}, "scraper", sc.ScraperID()).
-					Record(time.Duration(lag.Milliseconds()))
+				ctx.Histogram("informer_consume_lag", lagBuckets, "scraper", sc.ScraperID()).Record(time.Duration(lag.Milliseconds()))
 			}
 
 			if len(events) > 0 {
@@ -381,8 +382,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 				}
 
 				eventConsumeLag := time.Since(firstEvent.Timestamp) - scrapeDuration
-				ctx.Histogram("events_consume_lag", []float64{1000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000}, "scraper", sc.ScraperID()).
-					Record(time.Duration(eventConsumeLag.Milliseconds()))
+				ctx.Histogram("events_consume_lag", lagBuckets, "scraper", sc.ScraperID()).Record(time.Duration(eventConsumeLag.Milliseconds()))
 			}
 
 			return nil
