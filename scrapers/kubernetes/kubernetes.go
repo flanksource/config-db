@@ -15,11 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	coreV1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -64,97 +61,6 @@ func (kubernetes KubernetesScraper) IncrementalScrape(
 	return ExtractResults(newKubernetesContext(ctx, true, config), objects)
 }
 
-func (kubernetes KubernetesScraper) IncrementalEventScrape(
-	ctx api.ScrapeContext,
-	config v1.Kubernetes,
-	events []v1.KubernetesEvent,
-) v1.ScrapeResults {
-	if len(events) == 0 {
-		return nil
-	}
-	ctx.DutyContext().Logger.V(4).Infof("incrementally scraping resources from %d events", len(events))
-
-	var r v1.ScrapeResults
-	var err error
-	if config.Kubeconfig != nil {
-		c, err := ctx.WithKubeconfig(*config.Kubeconfig)
-		if err != nil {
-			return r.Errorf(err, "failed to apply custom kube config")
-		}
-		ctx.Context = *c
-	}
-
-	var (
-		kindClientCache   = map[string]dynamic.NamespaceableResourceInterface{}
-		resourcesWatching = lo.Map(config.Watch, func(k v1.KubernetesResourceToWatch, _ int) string { return k.Kind })
-
-		// seenObjects helps in avoiding fetching the same object in this run.
-		seenObjects = make(map[string]struct{})
-		objects     = make([]*unstructured.Unstructured, 0, len(events))
-	)
-
-	for _, event := range events {
-		if _, ok := ignoredConfigsCache.Load(event.InvolvedObject.UID); ok {
-			continue
-		}
-
-		if eventObj, err := event.ToUnstructured(); err != nil {
-			ctx.DutyContext().Errorf("failed to convert event to unstructured: %v", err)
-			continue
-		} else {
-			objects = append(objects, eventObj)
-		}
-
-		// Add the involved object
-		if lo.Contains(resourcesWatching, event.InvolvedObject.Kind) {
-			// If we're already watching the resource then we don't need to fetch it again.
-			continue
-		}
-
-		resource := event.InvolvedObject
-		cacheKey := fmt.Sprintf("%s/%s/%s", resource.Namespace, resource.Kind, resource.Name)
-		if _, ok := seenObjects[cacheKey]; !ok {
-			kclient, ok := kindClientCache[resource.APIVersion+resource.Kind]
-			if !ok {
-				gv, _ := schema.ParseGroupVersion(resource.APIVersion)
-				kclient, err = ctx.KubernetesDynamicClient().GetClientByGroupVersionKind(gv.Group, gv.Version, resource.Kind)
-				if err != nil {
-					ctx.Errorf("failed to get dynamic client for (%s/%s)", gv, resource.Kind)
-					continue
-				}
-
-				kindClientCache[resource.APIVersion+resource.Kind] = kclient
-			}
-
-			ctx.DutyContext().
-				Logger.V(5).
-				Infof("fetching resource namespace=%s name=%s kind=%s apiVersion=%s", resource.Namespace, resource.Name, resource.Kind, resource.APIVersion)
-
-			obj, err := kclient.Namespace(resource.Namespace).Get(ctx, resource.Name, metav1.GetOptions{})
-			if err != nil {
-				ctx.DutyContext().Logger.Warnf(
-					"failed to get resource (Kind=%s, Name=%s, Namespace=%s): %v",
-					resource.Kind,
-					resource.Name,
-					resource.Namespace,
-					err,
-				)
-				continue
-			} else if obj != nil {
-				seenObjects[cacheKey] = struct{}{} // mark it as seen so we don't run ketall.KetOne again (in this run)
-				objects = append(objects, obj)
-			}
-		}
-	}
-
-	ctx.DutyContext().Logger.V(4).Infof("found %d objects for %d events", len(objects)-len(events), len(events))
-	if len(objects) == 0 {
-		return nil
-	}
-
-	return ExtractResults(newKubernetesContext(ctx, true, config), objects)
-}
-
 func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var (
 		results v1.ScrapeResults
@@ -178,7 +84,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 	return results
 }
 
-var ignoredConfigsCache = sync.Map{}
+var IgnoredConfigsCache = sync.Map{}
 
 // ExtractResults extracts scrape results from the given list of kuberenetes objects.
 //   - withCluster: if true, will create & add a scrape result for the kubernetes cluster.
@@ -223,7 +129,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		} else if ignore {
 			ctx.Counter("kubernetes_scraper_ignored", "source", "scrape", "kind", obj.GetKind(), "scraper_id", ctx.ScraperID()).Add(1)
 
-			ignoredConfigsCache.Store(obj.GetUID(), struct{}{})
+			IgnoredConfigsCache.Store(obj.GetUID(), struct{}{})
 			continue
 		}
 

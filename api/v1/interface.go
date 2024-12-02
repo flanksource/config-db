@@ -153,12 +153,6 @@ func (summary ScrapeSummary) HasUpdates() bool {
 
 }
 
-func (summary *ScrapeSummary) UpdateLag(m map[string]float64) {
-	for k, v := range m {
-		summary.AddLag(k, v)
-	}
-}
-
 func (summary ConfigTypeScrapeSummary) String() string {
 	s := []string{}
 
@@ -255,12 +249,6 @@ func (t *ScrapeSummary) AddWarning(configType, warning string) {
 	(*t)[configType] = v
 }
 
-func (t *ScrapeSummary) AddLag(key string, lag float64) {
-	v := (*t)[key]
-	v.Lag = lag
-	(*t)[key] = v
-}
-
 type ChangeSummary struct {
 	Orphaned         map[string]int `json:"orphaned,omitempty"`
 	Ignored          map[string]int `json:"ignored,omitempty"`
@@ -332,7 +320,6 @@ type ConfigTypeScrapeSummary struct {
 	Unchanged int            `json:"unchanged,omitempty"`
 	Change    *ChangeSummary `json:"change,omitempty"`
 	Warnings  []string       `json:"warnings,omitempty"`
-	Lag       float64        `json:"lag,omitempty"`
 }
 
 // +kubebuilder:object:generate=false

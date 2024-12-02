@@ -1,8 +1,6 @@
 package scrapers
 
 import (
-	gocontext "context"
-	"errors"
 	"fmt"
 	"reflect"
 	"sync"
@@ -18,16 +16,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 	"github.com/samber/lo"
-	"github.com/sethvargo/go-retry"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/semaphore"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
+	"github.com/flanksource/config-db/utils/kube"
 )
 
 var (
@@ -36,6 +35,8 @@ var (
 
 	scrapeJobScheduler = cron.New()
 	scrapeJobs         sync.Map
+
+	consumeLagBuckets = []float64{1_000, 5_000, 15_000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
 const scrapeJobName = "Scraper"
@@ -125,7 +126,7 @@ func SyncScrapeConfigs(sc context.Context) {
 			var existing []string
 			for _, m := range scraperConfigsDB {
 				existing = append(existing, m.ID.String())
-				existing = append(existing, consumeKubernetesWatchEventsJobKey(m.ID.String()))
+				existing = append(existing, consumeKubernetesWatchJobKey(m.ID.String()))
 			}
 
 			scrapeJobs.Range(func(_key, value any) bool {
@@ -144,33 +145,6 @@ func SyncScrapeConfigs(sc context.Context) {
 	}
 	if err := j.AddToScheduler(scrapeJobScheduler); err != nil {
 		logger.Fatalf("error scheduling ConfigScraperSync job: %v", err)
-	}
-}
-
-func watchKubernetesEventsWithRetry(ctx api.ScrapeContext, config v1.Kubernetes) {
-	const (
-		timeout                 = time.Minute // how long to keep retrying before we reset and retry again
-		exponentialBaseDuration = time.Second
-	)
-
-	for {
-		backoff := retry.WithMaxDuration(timeout, retry.NewExponential(exponentialBaseDuration))
-		err := retry.Do(ctx, backoff, func(ctxt gocontext.Context) error {
-			ctx := ctxt.(api.ScrapeContext)
-			if err := kubernetes.WatchEvents(ctx, config); err != nil {
-				return retry.RetryableError(err)
-			}
-
-			return nil
-		})
-
-		if err != nil {
-			if errors.Is(err, gocontext.DeadlineExceeded) || errors.Is(err, gocontext.Canceled) {
-				return
-			}
-
-			logger.Errorf("failed to watch kubernetes events. cluster=%s: %v", config.ClusterName, err)
-		}
 	}
 }
 
@@ -261,38 +235,38 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		return fmt.Errorf("[%s] failed to schedule %v", j.Name, err)
 	}
 
-	if sc.PropertyOn(false, "watch.disable") {
-		return nil
-	}
-
 	for _, config := range sc.ScrapeConfig().Spec.Kubernetes {
-		if len(config.Watch) == 0 {
+		if sc.PropertyOn(false, "watch.disable") {
+			config.Watch = []v1.KubernetesResourceToWatch{}
+		} else if len(config.Watch) == 0 {
 			config.Watch = v1.DefaultWatchKinds
 		}
 
-		go watchKubernetesEventsWithRetry(sc, config)
+		// always watch for event objects
+		config.Watch = v1.AddEventResourceToWatch(config.Watch)
 
-		if err := kubernetes.WatchResources(sc, config); err != nil {
+		queue, err := kubernetes.WatchResources(sc, config)
+		if err != nil {
 			return fmt.Errorf("failed to watch kubernetes resources: %v", err)
 		}
 
-		watchConsumerJob := ConsumeKubernetesWatchJobFunc(sc, config)
+		watchConsumerJob := ConsumeKubernetesWatchJobFunc(sc, config, queue)
 		if err := watchConsumerJob.AddToScheduler(scrapeJobScheduler); err != nil {
 			return fmt.Errorf("failed to schedule kubernetes watch consumer job: %v", err)
 		}
-		scrapeJobs.Store(consumeKubernetesWatchEventsJobKey(sc.ScraperID()), watchConsumerJob)
+		scrapeJobs.Store(consumeKubernetesWatchJobKey(sc.ScraperID()), watchConsumerJob)
 	}
 
 	return nil
 }
 
-func consumeKubernetesWatchEventsJobKey(id string) string {
-	return id + "-consume-kubernetes-watch-events"
+func consumeKubernetesWatchJobKey(id string) string {
+	return id + "-consume-kubernetes-watch"
 }
 
-// ConsumeKubernetesWatchJobFunc returns a job that consumes kubernetes watch events
+// ConsumeKubernetesWatchJobFunc returns a job that consumes kubernetes objects received from shared informers
 // for the given config of the scrapeconfig.
-func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *job.Job {
+func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, queue *pq.Queue) *job.Job {
 	scrapeConfig := *sc.ScrapeConfig()
 	return &job.Job{
 		Name:         "ConsumeKubernetesWatch",
@@ -305,16 +279,14 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
 		Fn: func(ctx job.JobRuntime) error {
-			var queue *pq.Queue
-			if q, ok := kubernetes.WatchQueue.Load(config.Hash()); !ok {
-				return fmt.Errorf("no watch queue found for config (scrapeconfig: %s) %s", scrapeConfig.GetUID(), config.Hash())
-			} else {
-				queue = q.(*pq.Queue)
-			}
+			var (
+				objs       []*unstructured.Unstructured
+				queuedTime = map[string]time.Time{}
 
-			var events []v1.KubernetesEvent
-			var objs []*unstructured.Unstructured
-			var count int
+				seenObjects       = map[string]struct{}{}
+				objectsFromEvents = map[string]v1.InvolvedObject{}
+			)
+
 			for {
 				val, more := queue.Dequeue()
 				if !more {
@@ -323,18 +295,54 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 
 				// On the off chance the queue is populated faster than it's consumed
 				// and to keep each run short, we set a limit.
-				if count > kubernetes.BufferSize {
+				if len(objs) > kubernetes.BufferSize {
 					break
 				}
 
-				switch v := val.(type) {
-				case v1.KubernetesEvent:
-					events = append(events, v)
-				case *unstructured.Unstructured:
-					objs = append(objs, v)
-				default:
-					return fmt.Errorf("unexpected data in the queue: %T", v)
+				queueItem, ok := val.(*kubernetes.QueueItem)
+				if !ok {
+					return fmt.Errorf("unexpected item in the priority queue: %T", val)
 				}
+				obj := queueItem.Obj
+
+				if obj.GetKind() == "Event" {
+					involvedObjectRaw, ok, _ := unstructured.NestedMap(obj.Object, "involvedObject")
+					if !ok {
+						continue
+					}
+
+					if _, ok := kubernetes.IgnoredConfigsCache.Load(involvedObjectRaw["uid"]); ok {
+						continue
+					}
+
+					var involvedObject v1.InvolvedObject
+					if err := runtime.DefaultUnstructuredConverter.FromUnstructured(involvedObjectRaw, &involvedObject); err != nil {
+						return fmt.Errorf("failed to unmarshal endpoint (%s/%s): %w", obj.GetUID(), obj.GetName(), err)
+					}
+
+					objectsFromEvents[string(involvedObject.UID)] = involvedObject
+				} else {
+					seenObjects[string(obj.GetUID())] = struct{}{}
+				}
+
+				queuedTime[string(obj.GetUID())] = queueItem.Timestamp
+				objs = append(objs, obj)
+			}
+
+			// NOTE: Events whose involved objects aren't watched by informers, should be rescraped.
+			// If we trigger delayed re-scrape on addition of a config_change then this shouldn't be necessary.
+			var involvedObjectsToScrape []v1.InvolvedObject
+			for id, involvedObject := range objectsFromEvents {
+				if _, ok := seenObjects[id]; !ok {
+					involvedObjectsToScrape = append(involvedObjectsToScrape, involvedObject)
+				}
+			}
+
+			if res, err := kube.FetchInvolvedObjects(ctx.Context, involvedObjectsToScrape); err != nil {
+				ctx.History.AddErrorf("failed to fetch involved objects from events: %v", err)
+				return err
+			} else {
+				objs = append(objs, res...)
 			}
 
 			// NOTE: The resource watcher can return multiple objects for the same NEW resource.
@@ -346,40 +354,21 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 			// In the process, we will lose diff changes though.
 			// If diff changes are necessary, then we can split up the results in such
 			// a way that no two objects in a batch have the same id.
+
 			objs = dedup(objs)
 			if err := consumeResources(ctx, scrapeConfig, config, objs); err != nil {
 				ctx.History.AddErrorf("failed to consume resources: %v", err)
 				return err
 			}
 
-			return consumeWatchEvents(ctx, scrapeConfig, config, events)
+			for _, obj := range objs {
+				lag := time.Since(queuedTime[string(obj.GetUID())])
+				ctx.Histogram("informer_consume_lag", consumeLagBuckets, "scraper", sc.ScraperID()).Record(time.Duration(lag.Milliseconds()))
+			}
+
+			return nil
 		},
 	}
-}
-
-func consumeWatchEvents(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v1.Kubernetes, events []v1.KubernetesEvent) error {
-	cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History).AsIncrementalScrape()
-	cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("%s/%s", ctx.GetNamespace(), ctx.GetName()))
-	results, err := RunK8IncrementalScraper(cc, config, events)
-	if err != nil {
-		return err
-	}
-
-	if summary, err := db.SaveResults(cc, results); err != nil {
-		return fmt.Errorf("failed to save results: %w", err)
-	} else {
-		ctx.History.AddDetails("scrape_summary", summary)
-	}
-
-	for i := range results {
-		if results[i].Error != nil {
-			ctx.History.AddError(results[i].Error.Error())
-		} else {
-			ctx.History.SuccessCount++
-		}
-	}
-
-	return nil
 }
 
 func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v1.Kubernetes, objs []*unstructured.Unstructured) error {
@@ -455,7 +444,7 @@ func DeleteScrapeJob(id string) {
 		scrapeJobs.Delete(id)
 	}
 
-	if j, ok := scrapeJobs.Load(consumeKubernetesWatchEventsJobKey(id)); ok {
+	if j, ok := scrapeJobs.Load(consumeKubernetesWatchJobKey(id)); ok {
 		existingJob := j.(*job.Job)
 		existingJob.Unschedule()
 		scrapeJobs.Delete(id)

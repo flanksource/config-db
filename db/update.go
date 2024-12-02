@@ -596,6 +596,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	dedupWindow := ctx.Properties().Duration("changes.dedup.window", time.Hour)
 	newChanges, deduped := dedupChanges(dedupWindow, extractResult.newChanges)
 
+	for _, c := range newChanges {
+		ctx.Counter("config_changes", "scraper_id", ctx.ScraperID(), "change_type", c.ChangeType, "config_type", c.ConfigType).Add(1)
+	}
+
+	for _, c := range deduped {
+		ctx.Counter("config_changes_deduped", "scraper_id", ctx.ScraperID(), "change_type", c.Change.ChangeType, "config_type", c.Change.ConfigType).Add(1)
+	}
+
 	if err := ctx.DB().CreateInBatches(&newChanges, configItemsBulkInsertSize).Error; err != nil {
 		if !dutydb.IsForeignKeyError(err) {
 			return summary, fmt.Errorf("failed to create config changes: %w", dutydb.ErrorDetails(err))
@@ -719,49 +727,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		ctx.Logger.V(4).Infof("No Update: %s", summary)
 	}
 
-	// Add lag time in summary
-	if lagMap, err := calculateScrapeLag(ctx); err != nil {
-		ctx.Errorf("error calculating lag: %v", err)
-	} else {
-		summary.UpdateLag(lagMap)
-	}
 	return summary, nil
-}
-
-func calculateScrapeLag(ctx api.ScrapeContext) (map[string]float64, error) {
-	if ctx.ScraperID() == "" {
-		return nil, nil
-	}
-
-	q := `
-    SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (MAX(inserted_at - created_at))), 2), 0) AS lag
-    FROM config_items
-    WHERE
-        scraper_id = ? AND
-        inserted_at >= last_scraped_time
-    `
-	var configItemLag float64
-	if err := ctx.DB().Raw(q, ctx.ScraperID()).Scan(&configItemLag).Error; err != nil {
-		return nil, fmt.Errorf("error querying config_item scrape lag: %w", dutydb.ErrorDetails(err))
-	}
-
-	q = `
-    SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (MAX(cc.inserted_at - cc.created_at))), 2), 0) AS lag
-    FROM config_changes cc
-    INNER JOIN config_items ci ON cc.config_id = ci.id
-    WHERE
-        ci.scraper_id = ? AND
-        cc.inserted_at >= ci.last_scraped_time
-    `
-	var configChangeLag float64
-	if err := ctx.DB().Raw(q, ctx.ScraperID()).Scan(&configChangeLag).Error; err != nil {
-		return nil, fmt.Errorf("error querying config_change scrape lag: %w", dutydb.ErrorDetails(err))
-	}
-
-	return map[string]float64{
-		"config_item_lag_seconds":   configItemLag,
-		"config_change_lag_seconds": configChangeLag,
-	}, nil
 }
 
 var lastScrapedTimeMutex sync.Map

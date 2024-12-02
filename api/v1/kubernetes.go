@@ -186,12 +186,28 @@ var DefaultWatchKinds = []KubernetesResourceToWatch{
 	{ApiVersion: "batch/v1", Kind: "CronJob"},
 	{ApiVersion: "batch/v1", Kind: "Job"},
 	{ApiVersion: "v1", Kind: "Node"},
+	{ApiVersion: "v1", Kind: "Event"},
 	{ApiVersion: "v1", Kind: "Pod"},
 }
 
 type KubernetesResourceToWatch struct {
 	ApiVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`
+}
+
+func AddEventResourceToWatch(watches []KubernetesResourceToWatch) []KubernetesResourceToWatch {
+	for _, w := range watches {
+		if w.ApiVersion == "v1" && w.Kind == "Event" {
+			return watches
+		}
+	}
+
+	watches = append(watches, KubernetesResourceToWatch{
+		ApiVersion: "v1",
+		Kind:       "Event",
+	})
+
+	return watches
 }
 
 type Kubernetes struct {
