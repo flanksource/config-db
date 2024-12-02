@@ -24,7 +24,6 @@ import (
 )
 
 var outputDir string
-var filename string
 var debugPort int
 
 // Run ...
@@ -116,7 +115,7 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 	if outputDir != "" {
 
 		for _, result := range results {
-			if err := exportResource(result, filename, outputDir); err != nil {
+			if err := exportResource(result, outputDir); err != nil {
 				return fmt.Errorf("failed to export results %v", err)
 			}
 		}
@@ -127,7 +126,7 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 	return nil
 }
 
-func exportResource(resource v1.ScrapeResult, filename, outputDir string) error {
+func exportResource(resource v1.ScrapeResult, outputDir string) error {
 	if resource.Config == nil && resource.AnalysisResult != nil {
 		// logger.Debugf("%s/%s => %s", resource.Type, resource.ID, *resource.AnalysisResult)
 		return nil
@@ -164,6 +163,5 @@ func exportResource(resource v1.ScrapeResult, filename, outputDir string) error 
 
 func init() {
 	Run.Flags().StringVarP(&outputDir, "output-dir", "o", "", "The output folder for configurations")
-	Run.Flags().StringVarP(&filename, "filename", "f", ".id", "The filename to save seach resource under")
 	Run.Flags().IntVar(&debugPort, "debug-port", -1, "Start an HTTP server to use the /debug routes, Use -1 to disable and 0 to pick a free port")
 }
