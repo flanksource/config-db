@@ -49,7 +49,7 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 }
 
 type QueueItem struct {
-	Timestamp time.Time
+	Timestamp time.Time // Queued time
 	Event     *v1.KubernetesEvent
 	Obj       *unstructured.Unstructured
 }
@@ -68,6 +68,19 @@ func NewObjectQueueItem(e *unstructured.Unstructured) *QueueItem {
 	}
 }
 
+// PayloadID returns the uid of the event or the object it contains.
+func (t *QueueItem) PayloadID() string {
+	if t.Event != nil {
+		return t.Event.GetUID()
+	}
+
+	if t.Obj != nil {
+		return string(t.Obj.GetUID())
+	}
+
+	panic("invalid queue item: neither event nor object is present")
+}
+
 // PayloadTimestamp returns the timestamp of the event or the object it contains.
 func (t *QueueItem) PayloadTimestamp() time.Time {
 	if t.Event != nil {
@@ -78,7 +91,7 @@ func (t *QueueItem) PayloadTimestamp() time.Time {
 		return t.Obj.GetCreationTimestamp().Time
 	}
 
-	panic("queue item is empty")
+	panic("invalid queue item: neither event nor object is present")
 }
 
 func pqComparator(a, b any) int {

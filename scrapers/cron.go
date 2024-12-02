@@ -37,7 +37,7 @@ var (
 	scrapeJobScheduler = cron.New()
 	scrapeJobs         sync.Map
 
-	lagBuckets = []float64{1000, 5000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
+	lagBuckets = []float64{1000, 5000, 15_000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
 const scrapeJobName = "Scraper"
@@ -314,11 +314,13 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 				queue = q.(*pq.Queue)
 			}
 
-			var events []v1.KubernetesEvent
-			var objs []*unstructured.Unstructured
-			var count int
+			var (
+				events []v1.KubernetesEvent
+				objs   []*unstructured.Unstructured
+				count  int
 
-			var firstObject, firstEvent *kubernetes.QueueItem
+				queuedTime = map[string]time.Time{}
+			)
 
 			for {
 				val, more := queue.Dequeue()
@@ -337,16 +339,12 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 					return fmt.Errorf("unexpected item in the priority queue: %T", val)
 				}
 
+				queuedTime[queueItem.PayloadID()] = queueItem.Timestamp
+
 				if queueItem.Event != nil {
 					events = append(events, *queueItem.Event)
-					if firstEvent == nil {
-						firstEvent = queueItem
-					}
 				} else if queueItem.Obj != nil {
 					objs = append(objs, queueItem.Obj)
-					if firstObject == nil {
-						firstObject = queueItem
-					}
 				}
 			}
 
@@ -369,9 +367,10 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 					return err
 				}
 
-				// For now, measure a single lag for the entire batch instead of per config item
-				lag := time.Since(firstObject.Timestamp)
-				ctx.Histogram("informer_consume_lag", lagBuckets, "scraper", sc.ScraperID()).Record(time.Duration(lag.Milliseconds()))
+				for _, obj := range objs {
+					lag := time.Since(queuedTime[string(obj.GetUID())])
+					ctx.Histogram("informer_consume_lag", lagBuckets, "scraper", sc.ScraperID()).Record(time.Duration(lag.Milliseconds()))
+				}
 			}
 
 			if len(events) > 0 {
@@ -381,8 +380,10 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes) *
 					return err
 				}
 
-				eventConsumeLag := time.Since(firstEvent.Timestamp) - scrapeDuration
-				ctx.Histogram("events_consume_lag", lagBuckets, "scraper", sc.ScraperID()).Record(time.Duration(eventConsumeLag.Milliseconds()))
+				for _, event := range events {
+					lag := time.Since(queuedTime[string(event.GetUID())]) - scrapeDuration
+					ctx.Histogram("events_consume_lag", lagBuckets, "scraper", sc.ScraperID()).Record(time.Duration(lag.Milliseconds()))
+				}
 			}
 
 			return nil
