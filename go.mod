@@ -361,4 +361,4 @@ replace go.opentelemetry.io/otel/trace => go.opentelemetry.io/otel/trace v1.22.0
 
 // replace github.com/flanksource/postq => ../postq
 
-// replace github.com/flanksource/is-healthy => ../is-healthy
+replace github.com/flanksource/is-healthy => ../is-healthy

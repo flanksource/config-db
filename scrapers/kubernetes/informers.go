@@ -12,6 +12,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -73,7 +74,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 			}
 
 			// TODO: We receive very old objects (months old) and that screws up the histogram
-			ctx.Histogram("informer_receive_lag", []float64{1, 100, 1000, 10_000, 100_000},
+			ctx.Histogram("informer_receive_lag", lagBuckets,
 				"scraper", ctx.ScraperID(),
 				"kind", watchResource.Kind,
 				"operation", "add",
@@ -99,6 +100,15 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				ctx.Logger.V(3).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
 
+			lastUpdatedTime := health.GetLastUpdatedTime(u)
+			if lastUpdatedTime != nil && lastUpdatedTime.After(u.GetCreationTimestamp().Time) && lastUpdatedTime.Before(time.Now()) {
+				ctx.Histogram("informer_receive_lag", lagBuckets,
+					"scraper", ctx.ScraperID(),
+					"kind", watchResource.Kind,
+					"operation", "update",
+				).Record(time.Duration(time.Since(*lastUpdatedTime).Milliseconds()))
+			}
+
 			queue.Enqueue(NewObjectQueueItem(u))
 		},
 		DeleteFunc: func(obj any) {
@@ -118,11 +128,13 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				ctx.Logger.V(3).Infof("deleted: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
 
-			ctx.Histogram("informer_receive_lag", lagBuckets,
-				"scraper", ctx.ScraperID(),
-				"kind", watchResource.Kind,
-				"operation", "delete",
-			).Record(time.Duration(time.Since(u.GetDeletionTimestamp().Time).Milliseconds()))
+			if u.GetDeletionTimestamp() != nil {
+				ctx.Histogram("informer_receive_lag", lagBuckets,
+					"scraper", ctx.ScraperID(),
+					"kind", watchResource.Kind,
+					"operation", "delete",
+				).Record(time.Duration(time.Since(u.GetDeletionTimestamp().Time).Milliseconds()))
+			}
 
 			deleteBuffer <- string(u.GetUID())
 		},
