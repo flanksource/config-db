@@ -267,7 +267,6 @@ func consumeKubernetesWatchJobKey(id string) string {
 // ConsumeKubernetesWatchJobFunc returns a job that consumes kubernetes objects received from shared informers
 // for the given config of the scrapeconfig.
 func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, queue *pq.Queue) *job.Job {
-	scrapeConfig := *sc.ScrapeConfig()
 	return &job.Job{
 		Name:         "ConsumeKubernetesWatch",
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta),
@@ -275,10 +274,20 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 		Singleton:    true,
 		Retention:    job.RetentionFew,
 		Schedule:     "@every 15s",
-		ResourceID:   string(scrapeConfig.GetUID()),
+		ResourceID:   string(sc.ScrapeConfig().GetUID()),
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
 		Fn: func(ctx job.JobRuntime) error {
+			plugins, err := db.LoadAllPlugins(ctx.Context)
+			if err != nil {
+				return fmt.Errorf("failed to load plugins: %w", err)
+			}
+
+			config := config.DeepCopy()
+
+			sc := sc.WithScrapeConfig(sc.ScrapeConfig(), plugins...)
+			config.BaseScraper = config.BaseScraper.ApplyPlugins(plugins...)
+
 			var (
 				objs       []*unstructured.Unstructured
 				queuedTime = map[string]time.Time{}
@@ -356,7 +365,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			// a way that no two objects in a batch have the same id.
 
 			objs = dedup(objs)
-			if err := consumeResources(ctx, scrapeConfig, config, objs); err != nil {
+			if err := consumeResources(ctx, *sc.ScrapeConfig(), *config, objs); err != nil {
 				ctx.History.AddErrorf("failed to consume resources: %v", err)
 				return err
 			}

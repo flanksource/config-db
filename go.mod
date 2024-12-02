@@ -24,7 +24,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager v1.0.0
 	github.com/Jeffail/gabs/v2 v2.7.0
-	github.com/aws/aws-sdk-go-v2 v1.30.4
+	github.com/aws/aws-sdk-go-v2 v1.32.5
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.53.3
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.42.3
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.48.3
@@ -32,7 +32,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.30.3
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.44.3
 	github.com/aws/aws-sdk-go-v2/service/efs v1.31.1
-	github.com/aws/aws-sdk-go-v2/service/eks v1.46.2
+	github.com/aws/aws-sdk-go-v2/service/eks v1.52.1
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.40.3
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.26.3
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.33.3
@@ -46,7 +46,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.52.3
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.5
 	github.com/aws/aws-sdk-go-v2/service/support v1.24.3
-	github.com/aws/smithy-go v1.20.4
+	github.com/aws/smithy-go v1.22.1
 	github.com/emirpasic/gods v1.18.1
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/flanksource/artifacts v1.0.14
@@ -54,6 +54,7 @@ require (
 	github.com/flanksource/duty v1.0.766
 	github.com/flanksource/is-healthy v1.0.51
 	github.com/flanksource/ketall v1.1.7
+	github.com/flanksource/kopper v1.0.10
 	github.com/gobwas/glob v0.2.3
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
 	github.com/google/uuid v1.6.0
@@ -85,9 +86,9 @@ require (
 	go.opentelemetry.io/otel/sdk v1.24.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.25.11
-	k8s.io/apimachinery v0.28.2
-	k8s.io/client-go v0.28.2
-	sigs.k8s.io/controller-runtime v0.15.0
+	k8s.io/apimachinery v0.28.3
+	k8s.io/client-go v0.28.3
+	sigs.k8s.io/controller-runtime v0.16.3
 	sigs.k8s.io/yaml v1.4.0
 )
 
@@ -139,7 +140,6 @@ require (
 	github.com/go-git/go-billy/v5 v5.5.0 // indirect
 	github.com/go-git/go-git/v5 v5.12.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-logr/zapr v1.2.4 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/inflect v0.19.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
@@ -191,7 +191,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/skeema/knownhosts v1.2.2 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
-	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/gjson v1.17.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.0.4 // indirect
@@ -223,7 +223,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gorm.io/driver/postgres v1.5.9 // indirect
 	gorm.io/plugin/prometheus v0.1.0 // indirect
-	k8s.io/component-base v0.28.2 // indirect
+	k8s.io/component-base v0.28.3 // indirect
 	layeh.com/gopher-json v0.0.0-20201124131017-552bb3c4c3bf // indirect
 	sigs.k8s.io/gateway-api v0.4.3 // indirect
 	sigs.k8s.io/kustomize v2.0.3+incompatible // indirect
@@ -239,8 +239,8 @@ require (
 	github.com/aws/aws-sdk-go v1.55.1 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.3 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.12 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.16 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.16 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.24 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.24 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.4 // indirect
@@ -337,8 +337,8 @@ require (
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/api v0.28.2
-	k8s.io/apiextensions-apiserver v0.28.2 // indirect
+	k8s.io/api v0.28.3
+	k8s.io/apiextensions-apiserver v0.28.3 // indirect
 	k8s.io/cli-runtime v0.28.2 // indirect
 	k8s.io/klog/v2 v2.110.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect

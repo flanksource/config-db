@@ -6,15 +6,11 @@ import (
 
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
-	configsv1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/controllers"
-	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/leader"
 	"github.com/flanksource/duty/shutdown"
+	"github.com/flanksource/kopper"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel"
@@ -23,6 +19,11 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/scrapers"
 )
 
 var (
@@ -76,43 +77,56 @@ func run(ctx dutyContext.Context, args []string) error {
 	}
 
 	ctrl.SetLogger(logr.FromSlogHandler(logger.Handler()))
-	setupLog := ctrl.Log.WithName("setup")
 
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(configsv1.AddToScheme(scheme))
+	utilruntime.Must(v1.AddToScheme(scheme))
 
 	registerJobs(ctx, args)
-	go serve(dutyCtx)
 	scrapers.StartEventListener(ctx)
 
-	mgr, err := ctrl.NewManager(ctx.KubernetesRestConfig(), ctrl.Options{
-		Scheme:                  scheme,
-		MetricsBindAddress:      fmt.Sprintf("0.0.0.0:%d", metricsPort),
-		Port:                    9443,
-		LeaderElection:          enableLeaderElection,
-		LeaderElectionNamespace: api.Namespace,
-		LeaderElectionID:        "ca62cd4d.flanksource.com",
+	go serve(dutyCtx)
+	go tableUpdatesHandler(dutyCtx)
+
+	return launchKopper(ctx)
+}
+
+func launchKopper(ctx dutyContext.Context) error {
+	mgr, err := kopper.Manager(&kopper.ManagerOptions{
+		AddToSchemeFunc: v1.AddToScheme,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
-		return fmt.Errorf("unable to start manager: %w", err)
+		return err
 	}
 
-	if err = (&controllers.ScrapeConfigReconciler{
-		Client: mgr.GetClient(),
-		DB:     dutyCtx.DB(),
-		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("scrape_config"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Scraper")
-		return fmt.Errorf("unable to create controller: %w", err)
+	if err := kopper.SetupReconciler(ctx, mgr,
+		db.PersistScrapePluginFromCRD,
+		db.DeleteScrapePlugin,
+		"scrapePlugins.config.flanksource.com",
+	); err != nil {
+		return fmt.Errorf("unable to setup reconciler for scrape plugins: %w", err)
 	}
 
-	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		return fmt.Errorf("problem running manager: %w", err)
+	if err := kopper.SetupReconciler(ctx, mgr,
+		PersistScrapeConfigFromCRD,
+		db.DeleteScrapeConfig,
+		"scrapeConfig.config.flanksource.com",
+	); err != nil {
+		return fmt.Errorf("unable to setup reconciler for scrape plugins: %w", err)
+	}
+
+	return mgr.Start(ctrl.SetupSignalHandler())
+}
+
+func PersistScrapeConfigFromCRD(ctx dutyContext.Context, scrapeConfig *v1.ScrapeConfig) error {
+	if changed, err := db.PersistScrapeConfigFromCRD(ctx, scrapeConfig); err != nil {
+		return err
+	} else if changed {
+		// Sync jobs if new scrape config is created
+		scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(scrapeConfig)
+		if err := scrapers.SyncScrapeJob(scrapeCtx); err != nil {
+			logger.Errorf("failed to sync scrape job: %v", err)
+		}
 	}
 
 	return nil

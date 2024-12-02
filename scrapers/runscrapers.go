@@ -11,6 +11,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers/analysis"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/scrapers/processors"
@@ -58,11 +59,18 @@ func RunK8sObjectsScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*u
 
 // Run ...
 func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
+	plugins, err := db.LoadAllPlugins(ctx.DutyContext())
+	if err != nil {
+		return nil, err
+	}
+
 	var results v1.ScrapeResults
 	for _, scraper := range All {
 		if !scraper.CanScrape(ctx.ScrapeConfig().Spec) {
 			continue
 		}
+
+		ctx = ctx.WithScrapeConfig(ctx.ScrapeConfig(), plugins...)
 
 		ctx.Debugf("Starting scraper")
 		for _, result := range scraper.Scrape(ctx) {

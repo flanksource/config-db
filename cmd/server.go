@@ -18,6 +18,7 @@ import (
 	dutyContext "github.com/flanksource/duty/context"
 	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/postgrest"
+	"github.com/flanksource/duty/postq/pg"
 	"github.com/flanksource/duty/shutdown"
 
 	"github.com/labstack/echo-contrib/echoprometheus"
@@ -50,9 +51,24 @@ var Serve = &cobra.Command{
 
 		registerJobs(dutyCtx, args)
 		scrapers.StartEventListener(ctx)
+		go tableUpdatesHandler(dutyCtx)
 		serve(dutyCtx)
+
 		return nil
 	},
+}
+
+// tableUpdatesHandler handles all "table_activity" pg notifications.
+func tableUpdatesHandler(ctx dutyContext.Context) {
+	notifyRouter := pg.NewNotifyRouter()
+	go notifyRouter.Run(ctx, "table_activity")
+
+	for range notifyRouter.GetOrCreateChannel("scrape_plugins") {
+		ctx.Logger.V(3).Infof("reloading plugins")
+		if _, err := db.ReloadAllScrapePlugins(ctx); err != nil {
+			logger.Errorf("failed to reload plugins: %w", err)
+		}
+	}
 }
 
 func registerJobs(ctx dutyContext.Context, configFiles []string) {

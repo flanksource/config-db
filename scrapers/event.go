@@ -101,7 +101,12 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 		return err
 	}
 
-	scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(&scrapeConfig)
+	plugins, err := db.LoadAllPlugins(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load plugins: %w", err)
+	}
+
+	scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(&scrapeConfig, plugins...)
 
 	for _, sc := range scrapeConfig.Spec.Kubernetes {
 		// TODO: Which of the kubernetes spec from this scraper?

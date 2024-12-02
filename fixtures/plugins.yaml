@@ -1,0 +1,9 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapePlugin
+metadata:
+  name: exclude-info-level-changes
+  namespace: mc
+spec:
+  changes:
+    exclude:
+      - severity == "info"
