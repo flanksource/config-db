@@ -1,0 +1,8 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapePlugin
+metadata:
+  name: global-scraper
+spec:
+  changes:
+    exclude:
+      - config.config_class == "VirtualMachine"

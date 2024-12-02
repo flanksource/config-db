@@ -1,0 +1,263 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: scrapeplugins.configs.flanksource.com
+spec:
+  group: configs.flanksource.com
+  names:
+    kind: ScrapePlugin
+    listKind: ScrapePluginList
+    plural: scrapeplugins
+    singular: scrapeplugin
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: ScrapePlugin is the Schema for the scraper plugins
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              changes:
+                properties:
+                  exclude:
+                    description: Exclude is a list of CEL expressions that excludes
+                      a given change
+                    items:
+                      type: string
+                    type: array
+                  mapping:
+                    description: Mapping is a list of CEL expressions that maps a
+                      change to the specified type
+                    items:
+                      properties:
+                        action:
+                          description: "Action allows performing actions on the corresponding
+                            config item\nbased on this change. Example: You can map
+                            EC2 instance's \"TerminateInstances\"\nchange event to
+                            delete the corresponding EC2 instance config.\n\tAllowed
+                            actions: \"delete\", \"ignore\""
+                          type: string
+                        filter:
+                          description: Filter selects what change to apply the mapping
+                            to
+                          type: string
+                        severity:
+                          description: Severity is the severity to be set on the change
+                          type: string
+                        summary:
+                          description: Summary replaces the existing change summary.
+                          type: string
+                        type:
+                          description: Type is the type to be set on the change
+                          type: string
+                      type: object
+                    type: array
+                type: object
+              properties:
+                description: |-
+                  Properties are custom templatable properties for the scraped config items
+                  grouped by the config type.
+                items:
+                  properties:
+                    color:
+                      type: string
+                    filter:
+                      type: string
+                    headline:
+                      type: boolean
+                    icon:
+                      type: string
+                    label:
+                      type: string
+                    lastTransition:
+                      type: string
+                    links:
+                      items:
+                        properties:
+                          icon:
+                            type: string
+                          label:
+                            type: string
+                          text:
+                            type: string
+                          tooltip:
+                            type: string
+                          type:
+                            description: e.g. documentation, support, playbook
+                            type: string
+                          url:
+                            type: string
+                        type: object
+                      type: array
+                    max:
+                      format: int64
+                      type: integer
+                    min:
+                      format: int64
+                      type: integer
+                    name:
+                      type: string
+                    order:
+                      type: integer
+                    status:
+                      type: string
+                    text:
+                      description: Either text or value is required, but not both.
+                      type: string
+                    tooltip:
+                      type: string
+                    type:
+                      type: string
+                    unit:
+                      description: e.g. milliseconds, bytes, millicores, epoch etc.
+                      type: string
+                    value:
+                      format: int64
+                      type: integer
+                  type: object
+                type: array
+              relationship:
+                description: Relationship allows you to form relationships between
+                  config items using selectors.
+                items:
+                  properties:
+                    agent:
+                      description: |-
+                        Agent can be one of
+                         - agent id
+                         - agent name
+                         - 'self' (no agent)
+                      properties:
+                        expr:
+                          type: string
+                        label:
+                          type: string
+                        value:
+                          type: string
+                      type: object
+                    expr:
+                      description: |-
+                        Alternately, a single cel-expression can be used
+                        that returns a list of relationship selector.
+                      type: string
+                    external_id:
+                      description: Lookup offers different ways to specify a lookup
+                        value
+                      properties:
+                        expr:
+                          type: string
+                        label:
+                          type: string
+                        value:
+                          type: string
+                      type: object
+                    filter:
+                      description: |-
+                        Filter is a CEL expression that selects on what config items
+                        the relationship needs to be applied
+                      type: string
+                    id:
+                      description: Lookup offers different ways to specify a lookup
+                        value
+                      properties:
+                        expr:
+                          type: string
+                        label:
+                          type: string
+                        value:
+                          type: string
+                      type: object
+                    labels:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    name:
+                      description: Lookup offers different ways to specify a lookup
+                        value
+                      properties:
+                        expr:
+                          type: string
+                        label:
+                          type: string
+                        value:
+                          type: string
+                      type: object
+                    namespace:
+                      description: Lookup offers different ways to specify a lookup
+                        value
+                      properties:
+                        expr:
+                          type: string
+                        label:
+                          type: string
+                        value:
+                          type: string
+                      type: object
+                    parent:
+                      description: |-
+                        Parent sets all the configs found by the selector
+                        as the parent of the configs passed by the filter
+                      type: boolean
+                    scope:
+                      description: |-
+                        Scope is the id of the parent of the resource to select.
+                        Example: For config items, the scope is the scraper id
+                        - for checks, it's canaries and
+                        - for components, it's topology.
+                        If left empty, the scope is the requester's scope.
+                        Use `all` to disregard scope.
+                      properties:
+                        expr:
+                          type: string
+                        label:
+                          type: string
+                        value:
+                          type: string
+                      type: object
+                    type:
+                      description: Lookup offers different ways to specify a lookup
+                        value
+                      properties:
+                        expr:
+                          type: string
+                        label:
+                          type: string
+                        value:
+                          type: string
+                      type: object
+                  type: object
+                type: array
+            type: object
+          status:
+            description: ScrapePluginStatus defines the observed state of Plugin
+            properties:
+              observedGeneration:
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
