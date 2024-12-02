@@ -93,6 +93,8 @@ type SharedInformerManager struct {
 type DeleteObjHandler func(ctx context.Context, id string) error
 
 func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, queue *pq.Queue, deleteBuffer chan<- string) error {
+	start := time.Now()
+
 	apiVersion, kind := watchResource.ApiVersion, watchResource.Kind
 
 	informer, stopper, isNew := t.getOrCreate(ctx, apiVersion, kind)
@@ -121,19 +123,21 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				return
 			}
 
-			ctx.Counter("kubernetes_informer_events", "type", "add", "kind", u.GetKind(), "scraper_id", ctx.ScraperID()).Add(1)
+			queue.Enqueue(NewQueueItem(u))
+
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
 
-			// TODO: We receive very old objects (months old) and that screws up the histogram
-			ctx.Histogram("informer_receive_lag", informerLagBuckets,
-				"scraper", ctx.ScraperID(),
-				"kind", watchResource.Kind,
-				"operation", "add",
-			).Record(time.Duration(time.Since(u.GetCreationTimestamp().Time).Milliseconds()))
+			if u.GetCreationTimestamp().Time.After(start) {
+				ctx.Counter("kubernetes_informer_events", "type", "add", "kind", u.GetKind(), "scraper_id", ctx.ScraperID()).Add(1)
 
-			queue.Enqueue(NewQueueItem(u))
+				ctx.Histogram("informer_receive_lag", informerLagBuckets,
+					"scraper", ctx.ScraperID(),
+					"kind", watchResource.Kind,
+					"operation", "add",
+				).Record(time.Duration(time.Since(u.GetCreationTimestamp().Time).Milliseconds()))
+			}
 		},
 		UpdateFunc: func(oldObj any, newObj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, newObj)
