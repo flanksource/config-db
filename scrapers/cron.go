@@ -1,6 +1,7 @@
 package scrapers
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -267,7 +268,6 @@ func consumeKubernetesWatchJobKey(id string) string {
 // ConsumeKubernetesWatchJobFunc returns a job that consumes kubernetes objects received from shared informers
 // for the given config of the scrapeconfig.
 func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, queue *pq.Queue) *job.Job {
-	scrapeConfig := *sc.ScrapeConfig()
 	return &job.Job{
 		Name:         "ConsumeKubernetesWatch",
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta),
@@ -275,10 +275,12 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 		Singleton:    true,
 		Retention:    job.RetentionFew,
 		Schedule:     "@every 15s",
-		ResourceID:   string(scrapeConfig.GetUID()),
+		ResourceID:   string(sc.ScrapeConfig().GetUID()),
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
 		Fn: func(ctx job.JobRuntime) error {
+			scrapeConfig := *sc.ScrapeConfig()
+
 			var (
 				objs       []*unstructured.Unstructured
 				queuedTime = map[string]time.Time{}
@@ -344,6 +346,26 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			} else {
 				objs = append(objs, res...)
 			}
+
+			// TODO: maybe cache this and keep it in sync with pg notify
+			var plugins []v1.ScrapePluginSpec
+			if allPlugins, err := db.LoadAllPlugins(ctx.Context); err != nil {
+				return fmt.Errorf("failed to load plugins: %w", err)
+			} else {
+				for _, p := range allPlugins {
+					var spec v1.ScrapePluginSpec
+					if err := json.Unmarshal(p.Spec, &spec); err != nil {
+						return fmt.Errorf("failed to unmarshal scrape plugin spec: %w", err)
+					}
+
+					plugins = append(plugins, spec)
+				}
+			}
+
+			scraperSpec := scrapeConfig.Spec.ApplyPlugin(plugins)
+			scrapeConfig.Spec = scraperSpec
+
+			config.BaseScraper = config.BaseScraper.ApplyPlugins(plugins...)
 
 			// NOTE: The resource watcher can return multiple objects for the same NEW resource.
 			// Example: if a new pod is created, we'll get that pod object multiple times for different events.

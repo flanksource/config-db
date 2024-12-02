@@ -241,6 +241,18 @@ type BaseScraper struct {
 	Properties []ConfigProperties `json:"properties,omitempty" template:"true"`
 }
 
+func (base BaseScraper) ApplyPlugins(plugins ...ScrapePluginSpec) BaseScraper {
+	for _, p := range plugins {
+		base.Transform.Change.Exclude = append(base.Transform.Change.Exclude, p.Change.Exclude...)
+		base.Transform.Change.Mapping = append(base.Transform.Change.Mapping, p.Change.Mapping...)
+
+		base.Transform.Relationship = append(base.Transform.Relationship, p.Relationship...)
+		base.Properties = append(base.Properties, p.Properties...)
+	}
+
+	return base
+}
+
 func (base BaseScraper) WithoutTransform() BaseScraper {
 	base.Transform = Transform{}
 	return base

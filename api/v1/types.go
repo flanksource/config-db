@@ -72,6 +72,64 @@ type ScraperSpec struct {
 	Full bool `json:"full,omitempty"`
 }
 
+func (c ScraperSpec) ApplyPlugin(plugins []ScrapePluginSpec) ScraperSpec {
+	spec := c.DeepCopy()
+
+	for i := range spec.GCP {
+		spec.GCP[i].BaseScraper = spec.GCP[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.AWS {
+		spec.AWS[i].BaseScraper = spec.AWS[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.File {
+		spec.File[i].BaseScraper = spec.File[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.Kubernetes {
+		spec.Kubernetes[i].BaseScraper = spec.Kubernetes[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.KubernetesFile {
+		spec.KubernetesFile[i].BaseScraper = spec.KubernetesFile[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.AzureDevops {
+		spec.AzureDevops[i].BaseScraper = spec.AzureDevops[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.GithubActions {
+		spec.GithubActions[i].BaseScraper = spec.GithubActions[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.Azure {
+		spec.Azure[i].BaseScraper = spec.Azure[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.SQL {
+		spec.SQL[i].BaseScraper = spec.SQL[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.Slack {
+		spec.Slack[i].BaseScraper = spec.Slack[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.Trivy {
+		spec.Trivy[i].BaseScraper = spec.Trivy[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.Terraform {
+		spec.Terraform[i].BaseScraper = spec.Terraform[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.HTTP {
+		spec.HTTP[i].BaseScraper = spec.HTTP[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	return *spec
+}
+
 func (c ScraperSpec) GenerateName() (string, error) {
 	return utils.Hash(c)
 }
