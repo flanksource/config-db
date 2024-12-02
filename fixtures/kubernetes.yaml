@@ -64,7 +64,7 @@ spec:
               type: PodCrashLooping
             - filter: >
                 change.change_type == 'diff' &&
-                jq('.status.conditions[] | select(.type == "Healthy").message', patch).contains('Health check passed')
+                jq('.status.conditions[]? | select(.type == "Healthy").message', patch).contains('Health check passed')
               type: HealthCheckPassed
           exclude:
             - 'config_type == "Kubernetes::Endpoints" && details.message == "metadata.annotations.endpoints.kubernetes.io/last-change-trigger-time"'

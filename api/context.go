@@ -88,13 +88,15 @@ func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 
 }
 
-func (ctx ScrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig) ScrapeContext {
-	ctx.scrapeConfig = scraper
+func (ctx ScrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig, plugins ...v1.ScrapePluginSpec) ScrapeContext {
+	sc := scraper.DeepCopy()
+	sc.Spec = sc.Spec.ApplyPlugin(plugins)
 
-	ctx.Context = ctx.WithObject(scraper.ObjectMeta)
+	ctx.scrapeConfig = sc
+	ctx.Context = ctx.WithObject(sc.ObjectMeta)
 
 	// Try to use the temp cache if it exits
-	if c, exists := scraperTempCache.Load(lo.FromPtr(scraper.GetPersistedID())); exists {
+	if c, exists := scraperTempCache.Load(lo.FromPtr(sc.GetPersistedID())); exists {
 		ctx.temp = c.(*TempCache)
 	}
 	return ctx

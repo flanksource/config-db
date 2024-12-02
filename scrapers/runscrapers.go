@@ -70,10 +70,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 			continue
 		}
 
-		// This is where we inject the plugings into the scrape config
-		scraperSpec := ctx.ScrapeConfig().Spec.ApplyPlugin(plugins)
-		ctx.ScrapeConfig().Spec = scraperSpec
-		ctx.WithScrapeConfig(ctx.ScrapeConfig())
+		ctx = ctx.WithScrapeConfig(ctx.ScrapeConfig(), plugins...)
 
 		ctx.Debugf("Starting scraper")
 		for _, result := range scraper.Scrape(ctx) {

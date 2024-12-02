@@ -278,7 +278,15 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
 		Fn: func(ctx job.JobRuntime) error {
-			scrapeConfig := *sc.ScrapeConfig()
+			plugins, err := db.LoadAllPlugins(ctx.Context)
+			if err != nil {
+				return fmt.Errorf("failed to load plugins: %w", err)
+			}
+
+			config := config.DeepCopy()
+
+			sc := sc.WithScrapeConfig(sc.ScrapeConfig(), plugins...)
+			config.BaseScraper = config.BaseScraper.ApplyPlugins(plugins...)
 
 			var (
 				objs       []*unstructured.Unstructured
@@ -346,16 +354,6 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 				objs = append(objs, res...)
 			}
 
-			plugins, err := db.LoadAllPlugins(ctx.Context)
-			if err != nil {
-				return fmt.Errorf("failed to load plugins: %w", err)
-			}
-
-			scraperSpec := scrapeConfig.Spec.ApplyPlugin(plugins)
-			scrapeConfig.Spec = scraperSpec
-
-			config.BaseScraper = config.BaseScraper.ApplyPlugins(plugins...)
-
 			// NOTE: The resource watcher can return multiple objects for the same NEW resource.
 			// Example: if a new pod is created, we'll get that pod object multiple times for different events.
 			// All those resource objects are seen as distinct new config items.
@@ -367,7 +365,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			// a way that no two objects in a batch have the same id.
 
 			objs = dedup(objs)
-			if err := consumeResources(ctx, scrapeConfig, config, objs); err != nil {
+			if err := consumeResources(ctx, *sc.ScrapeConfig(), *config, objs); err != nil {
 				ctx.History.AddErrorf("failed to consume resources: %v", err)
 				return err
 			}
