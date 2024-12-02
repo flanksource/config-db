@@ -59,19 +59,9 @@ func RunK8sObjectsScraper(ctx api.ScrapeContext, config v1.Kubernetes, objs []*u
 
 // Run ...
 func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
-	// TODO: maybe cache this and keep it in sync with pg notify
-	var plugins []v1.ScrapePluginSpec
-	if allPlugins, err := db.LoadAllPlugins(ctx.DutyContext()); err != nil {
+	plugins, err := db.LoadAllPlugins(ctx.DutyContext())
+	if err != nil {
 		return nil, err
-	} else {
-		for _, p := range allPlugins {
-			var spec v1.ScrapePluginSpec
-			if err := json.Unmarshal(p.Spec, &spec); err != nil {
-				return nil, err
-			}
-
-			plugins = append(plugins, spec)
-		}
 	}
 
 	var results v1.ScrapeResults

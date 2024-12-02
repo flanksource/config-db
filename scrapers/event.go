@@ -1,7 +1,6 @@
 package scrapers
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -102,19 +101,9 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 		return err
 	}
 
-	// TODO: maybe cache this and keep it in sync with pg notify
-	var plugins []v1.ScrapePluginSpec
-	if allPlugins, err := db.LoadAllPlugins(ctx); err != nil {
+	plugins, err := db.LoadAllPlugins(ctx)
+	if err != nil {
 		return fmt.Errorf("failed to load plugins: %w", err)
-	} else {
-		for _, p := range allPlugins {
-			var spec v1.ScrapePluginSpec
-			if err := json.Unmarshal(p.Spec, &spec); err != nil {
-				return fmt.Errorf("failed to unmarshal scrape plugin spec: %w", err)
-			}
-
-			plugins = append(plugins, spec)
-		}
 	}
 
 	scrapeConfig.Spec = scrapeConfig.Spec.ApplyPlugin(plugins)

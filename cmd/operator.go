@@ -6,18 +6,11 @@ import (
 
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/kopper"
-
-	"github.com/flanksource/config-db/api"
-	configsv1 "github.com/flanksource/config-db/api/v1"
-	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty"
-	"github.com/flanksource/duty/context"
 	dutyContext "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/leader"
 	"github.com/flanksource/duty/shutdown"
+	"github.com/flanksource/kopper"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel"
@@ -26,6 +19,11 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/scrapers"
 )
 
 var (
@@ -82,16 +80,18 @@ func run(ctx dutyContext.Context, args []string) error {
 
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(configsv1.AddToScheme(scheme))
+	utilruntime.Must(v1.AddToScheme(scheme))
 
 	registerJobs(ctx, args)
-	go serve(dutyCtx)
 	scrapers.StartEventListener(ctx)
+
+	go serve(dutyCtx)
+	go tableUpdatesHandler(dutyCtx)
 
 	return launchKopper(ctx)
 }
 
-func launchKopper(ctx context.Context) error {
+func launchKopper(ctx dutyContext.Context) error {
 	mgr, err := kopper.Manager(&kopper.ManagerOptions{
 		AddToSchemeFunc: v1.AddToScheme,
 	})
@@ -118,7 +118,7 @@ func launchKopper(ctx context.Context) error {
 	return mgr.Start(ctrl.SetupSignalHandler())
 }
 
-func PersistScrapeConfigFromCRD(ctx context.Context, scrapeConfig *v1.ScrapeConfig) error {
+func PersistScrapeConfigFromCRD(ctx dutyContext.Context, scrapeConfig *v1.ScrapeConfig) error {
 	if changed, err := db.PersistScrapeConfigFromCRD(ctx, scrapeConfig); err != nil {
 		return err
 	} else if changed {

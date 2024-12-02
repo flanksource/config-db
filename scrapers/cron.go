@@ -1,7 +1,6 @@
 package scrapers
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -347,19 +346,9 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 				objs = append(objs, res...)
 			}
 
-			// TODO: maybe cache this and keep it in sync with pg notify
-			var plugins []v1.ScrapePluginSpec
-			if allPlugins, err := db.LoadAllPlugins(ctx.Context); err != nil {
+			plugins, err := db.LoadAllPlugins(ctx.Context)
+			if err != nil {
 				return fmt.Errorf("failed to load plugins: %w", err)
-			} else {
-				for _, p := range allPlugins {
-					var spec v1.ScrapePluginSpec
-					if err := json.Unmarshal(p.Spec, &spec); err != nil {
-						return fmt.Errorf("failed to unmarshal scrape plugin spec: %w", err)
-					}
-
-					plugins = append(plugins, spec)
-				}
 			}
 
 			scraperSpec := scrapeConfig.Spec.ApplyPlugin(plugins)
