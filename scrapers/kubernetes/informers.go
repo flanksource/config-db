@@ -46,14 +46,11 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*pq.Queue, err
 	deleteBuffer := make(chan string, BufferSize)
 	DeleteResourceBuffer.Store(config.Hash(), deleteBuffer)
 
-	if config.Kubeconfig != nil {
-		var err error
-		c, err := ctx.WithKubeconfig(*config.Kubeconfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply kube config: %w", err)
-		}
-		ctx.Context = *c
+	clientset, restConfig, err := config.KubernetesConnection.Populate(ctx.Context)
+	if err != nil {
+		return nil, err
 	}
+	ctx.Context = ctx.WithKubernetes(clientset, restConfig)
 
 	for _, watchResource := range lo.Uniq(config.Watch) {
 		if err := globalSharedInformerManager.Register(ctx, watchResource, priorityQueue, deleteBuffer); err != nil {

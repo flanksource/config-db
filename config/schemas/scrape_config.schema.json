@@ -1054,6 +1054,12 @@
           },
           "type": "array"
         },
+        "connection": {
+          "type": "string"
+        },
+        "kubeconfig": {
+          "$ref": "#/$defs/EnvVar"
+        },
         "clusterName": {
           "type": "string"
         },
@@ -1080,9 +1086,6 @@
         },
         "maxInflight": {
           "type": "integer"
-        },
-        "kubeconfig": {
-          "$ref": "#/$defs/EnvVar"
         },
         "watch": {
           "items": {
