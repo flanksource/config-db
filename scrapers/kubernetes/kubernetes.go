@@ -156,7 +156,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			if event.InvolvedObject == nil {
 				ctx.Counter("kubernetes_scraper_unmatched",
 					"source", "scrape",
-					"kind", event.InvolvedObject.Kind,
+					"kind", "",
 					"reason", "involved_object_nil",
 					"scraper_id", ctx.ScraperID(),
 				).Add(1)
