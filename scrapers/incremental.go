@@ -106,7 +106,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 				}
 			}
 
-			if res, err := kube.FetchInvolvedObjects(ctx.Context, involvedObjectsToScrape); err != nil {
+			if res, err := kube.FetchInvolvedObjects(sc, involvedObjectsToScrape); err != nil {
 				ctx.History.AddErrorf("failed to fetch involved objects from events: %v", err)
 				return err
 			} else {
