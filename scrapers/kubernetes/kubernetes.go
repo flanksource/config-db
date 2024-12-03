@@ -142,20 +142,35 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		if obj.GetKind() == "Event" {
 			var event v1.KubernetesEvent
 			if err := event.FromObjMap(obj.Object); err != nil {
-				ctx.Counter("kubernetes_scraper_unmatched", "source", "scrape", "reason", "unmarshal_error", "scraper_id", ctx.ScraperID()).Add(1)
+				ctx.Counter("kubernetes_scraper_unmatched",
+					"source", "scrape",
+					"kind", event.InvolvedObject.Kind,
+					"reason", "unmarshal_error",
+					"scraper_id", ctx.ScraperID(),
+				).Add(1)
 
 				ctx.Errorf("failed to parse event: %v", err)
 				return nil
 			}
 
 			if event.InvolvedObject == nil {
-				ctx.Counter("kubernetes_scraper_unmatched", "source", "scrape", "reason", "involved_object_nil", "scraper_id", ctx.ScraperID()).Add(1)
+				ctx.Counter("kubernetes_scraper_unmatched",
+					"source", "scrape",
+					"kind", event.InvolvedObject.Kind,
+					"reason", "involved_object_nil",
+					"scraper_id", ctx.ScraperID(),
+				).Add(1)
 
 				continue
 			}
 
 			if ctx.config.Event.Exclusions.Filter(event) {
-				ctx.Counter("kubernetes_scraper_changes_excluded", "source", "scrape", "kind", event.InvolvedObject.Kind, "scraper_id", ctx.ScraperID()).Add(1)
+				ctx.Counter("kubernetes_scraper_changes_excluded",
+					"source", "scrape",
+					"change_type", event.Reason,
+					"kind", event.InvolvedObject.Kind,
+					"scraper_id", ctx.ScraperID(),
+				).Add(1)
 
 				if ctx.logExclusions {
 					ctx.Tracef("excluding event object %s/%s/%s: %s",
@@ -168,14 +183,18 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 
 			uid, err := ctx.FindInvolvedConfigID(event)
 			if err != nil {
-				ctx.Counter("kubernetes_scraper_unmatched", "source", "scrape", "reason", "find_error", "kind", obj.GetKind(), "scraper_id", ctx.ScraperID()).Add(1)
+				ctx.Counter("kubernetes_scraper_unmatched",
+					"source", "scrape",
+					"kind", event.InvolvedObject.Kind,
+					"reason", "find_error",
+					"kind", obj.GetKind(),
+					"scraper_id", ctx.ScraperID(),
+				).Add(1)
 
-				results.Errorf(err, "")
+				results.Errorf(err, "could not find config for event")
 				continue
-			}
-			if uid == uuid.Nil {
+			} else if uid == uuid.Nil {
 				if ctx.logExclusions {
-
 					ctx.Counter("kubernetes_scraper_excluded",
 						"source", "scrape",
 						"kind", obj.GetKind(),
@@ -184,6 +203,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 						event.InvolvedObject.Namespace, event.InvolvedObject.Name,
 						event.InvolvedObject.Kind, event.InvolvedObject.UID)
 				}
+
 				continue
 			}
 
@@ -193,11 +213,17 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			if change == nil {
 				continue
 			}
+
 			if ignore, err := ctx.IgnoreChange(*change, event); err != nil {
 				results.Errorf(err, "Failed to determine if change should be ignored: %v", err)
 				continue
 			} else if ignore {
-				ctx.Counter("kubernetes_scraper_changes_ignored", "source", "scrape", "kind", event.InvolvedObject.Kind, "scraper_id", ctx.ScraperID()).Add(1)
+				ctx.Counter("kubernetes_scraper_changes_ignored",
+					"source", "scrape",
+					"change_type", change.ChangeType,
+					"kind", event.InvolvedObject.Kind,
+					"scraper_id", ctx.ScraperID(),
+				).Add(1)
 
 				continue
 			}
