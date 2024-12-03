@@ -131,7 +131,8 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 
 			for _, obj := range objs {
 				lag := time.Since(queuedTime[string(obj.GetUID())])
-				ctx.Histogram("informer_consume_lag", consumeLagBuckets, "scraper", sc.ScraperID()).Record(time.Duration(lag.Milliseconds()))
+				ctx.Histogram("informer_consume_lag", consumeLagBuckets, "scraper", sc.ScraperID(), "kind", obj.GetKind()).
+					Record(time.Duration(lag.Milliseconds()))
 			}
 
 			return nil
