@@ -211,17 +211,18 @@ func AddEventResourceToWatch(watches []KubernetesResourceToWatch) []KubernetesRe
 }
 
 type Kubernetes struct {
-	BaseScraper     `json:",inline"`
-	ClusterName     string        `json:"clusterName"`
-	Namespace       string        `json:"namespace,omitempty"`
-	UseCache        bool          `json:"useCache,omitempty"`
-	AllowIncomplete bool          `json:"allowIncomplete,omitempty"`
-	Scope           string        `json:"scope,omitempty"`
-	Since           string        `json:"since,omitempty"`
-	Selector        string        `json:"selector,omitempty"`
-	FieldSelector   string        `json:"fieldSelector,omitempty"`
-	MaxInflight     int64         `json:"maxInflight,omitempty"`
-	Kubeconfig      *types.EnvVar `json:"kubeconfig,omitempty"`
+	BaseScraper          `json:",inline"`
+	KubernetesConnection `json:",inline"`
+
+	ClusterName     string `json:"clusterName"`
+	Namespace       string `json:"namespace,omitempty"`
+	UseCache        bool   `json:"useCache,omitempty"`
+	AllowIncomplete bool   `json:"allowIncomplete,omitempty"`
+	Scope           string `json:"scope,omitempty"`
+	Since           string `json:"since,omitempty"`
+	Selector        string `json:"selector,omitempty"`
+	FieldSelector   string `json:"fieldSelector,omitempty"`
+	MaxInflight     int64  `json:"maxInflight,omitempty"`
 
 	// Watch specifies which Kubernetes resources should be watched.
 	// This allows for near real-time updates of the config items

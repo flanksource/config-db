@@ -501,6 +501,42 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "EKSConnection": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "accessKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "secretKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "sessionToken": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "assumeRole": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "cluster": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "cluster"
+      ]
+    },
     "EnvVar": {
       "properties": {
         "name": {
@@ -1054,6 +1090,12 @@
           },
           "type": "array"
         },
+        "kubeconfig": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "eks": {
+          "$ref": "#/$defs/EKSConnection"
+        },
         "clusterName": {
           "type": "string"
         },
@@ -1080,9 +1122,6 @@
         },
         "maxInflight": {
           "type": "integer"
-        },
-        "kubeconfig": {
-          "$ref": "#/$defs/EnvVar"
         },
         "watch": {
           "items": {
