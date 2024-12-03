@@ -36,16 +36,22 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 		ResourceID:   string(sc.ScrapeConfig().GetUID()),
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
-		Fn: func(ctx job.JobRuntime) error {
-			plugins, err := db.LoadAllPlugins(ctx.Context)
+		Fn: func(jobCtx job.JobRuntime) error {
+			plugins, err := db.LoadAllPlugins(jobCtx.Context)
 			if err != nil {
 				return fmt.Errorf("failed to load plugins: %w", err)
 			}
 
 			config := config.DeepCopy()
-
-			sc := sc.WithScrapeConfig(sc.ScrapeConfig(), plugins...)
 			config.BaseScraper = config.BaseScraper.ApplyPlugins(plugins...)
+
+			sc := sc.WithScrapeConfig(sc.ScrapeConfig(), plugins...).AsIncrementalScrape()
+
+			clientset, restConfig, err := config.KubernetesConnection.Populate(sc.Context)
+			if err != nil {
+				return err
+			}
+			sc.Context = sc.WithKubernetes(clientset, restConfig)
 
 			var (
 				objs       []*unstructured.Unstructured
@@ -107,7 +113,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			}
 
 			if res, err := kube.FetchInvolvedObjects(sc, involvedObjectsToScrape); err != nil {
-				ctx.History.AddErrorf("failed to fetch involved objects from events: %v", err)
+				jobCtx.History.AddErrorf("failed to fetch involved objects from events: %v", err)
 				return err
 			} else {
 				objs = append(objs, res...)
@@ -124,14 +130,14 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			// a way that no two objects in a batch have the same id.
 
 			objs = dedup(objs)
-			if err := consumeResources(ctx, *sc.ScrapeConfig(), *config, objs); err != nil {
-				ctx.History.AddErrorf("failed to consume resources: %v", err)
+			if err := consumeResources(jobCtx, sc, *config, objs); err != nil {
+				jobCtx.History.AddErrorf("failed to consume resources: %v", err)
 				return err
 			}
 
 			for _, obj := range objs {
 				lag := time.Since(queuedTime[string(obj.GetUID())])
-				ctx.Histogram("informer_consume_lag", consumeLagBuckets, "scraper", sc.ScraperID(), "kind", obj.GetKind()).
+				jobCtx.Histogram("informer_consume_lag", consumeLagBuckets, "scraper", sc.ScraperID(), "kind", obj.GetKind()).
 					Record(time.Duration(lag.Milliseconds()))
 			}
 
@@ -140,9 +146,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 	}
 }
 
-func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v1.Kubernetes, objs []*unstructured.Unstructured) error {
-	cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History).AsIncrementalScrape()
-	cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
+func consumeResources(ctx job.JobRuntime, cc api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured) error {
 	results, err := processObjects(cc, config, objs)
 	if err != nil {
 		return err
