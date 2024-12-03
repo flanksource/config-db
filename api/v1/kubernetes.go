@@ -291,6 +291,17 @@ func (r ResourceSelector) String() string {
 
 type InvolvedObject coreV1.ObjectReference
 
+func InvolvedObjectFromObj(obj unstructured.Unstructured) InvolvedObject {
+	return InvolvedObject{
+		Name:            obj.GetName(),
+		Namespace:       obj.GetNamespace(),
+		UID:             obj.GetUID(),
+		ResourceVersion: obj.GetResourceVersion(),
+		APIVersion:      obj.GetAPIVersion(),
+		Kind:            obj.GetKind(),
+	}
+}
+
 // KubernetesEvent represents a Kubernetes KubernetesEvent object
 type KubernetesEvent struct {
 	Reason         string             `json:"reason,omitempty"`

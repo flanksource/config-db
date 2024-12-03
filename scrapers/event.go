@@ -7,16 +7,14 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/scrapers/kubernetes"
+	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/postq"
 	"github.com/flanksource/duty/postq/pg"
 	"github.com/flanksource/duty/shutdown"
 	"github.com/samber/lo"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const event = "config-db.incremental-scrape"
@@ -115,7 +113,12 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 		// TODO: Which of the kubernetes spec from this scraper?
 		// For now, assume there's only one.
 
-		results, err := scrapeObject(scrapeCtx, sc, obj.GetNamespace(), obj.GetName(), obj.GroupVersionKind())
+		objs, err := kube.FetchInvolvedObjects(scrapeCtx, []v1.InvolvedObject{v1.InvolvedObjectFromObj(obj)})
+		if err != nil {
+			return fmt.Errorf("error fetching object: %w", err)
+		}
+
+		results, err := processObjects(scrapeCtx, sc, objs)
 		if err != nil {
 			return err
 		}
@@ -126,26 +129,4 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 	}
 
 	return nil
-}
-
-func scrapeObject(ctx api.ScrapeContext, config v1.Kubernetes, namespace, name string, gvk schema.GroupVersionKind) ([]v1.ScrapeResult, error) {
-	client, err := ctx.KubernetesDynamicClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dyanmic client for gvk=%s: %w", gvk, err)
-	}
-
-	obj, err := client.Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get object %s/%s: %w", namespace, name, err)
-	}
-
-	var results v1.ScrapeResults
-	var scraper kubernetes.KubernetesScraper
-	res := scraper.IncrementalScrape(ctx, config, []*unstructured.Unstructured{obj})
-	for i := range res {
-		scraped := processScrapeResult(ctx, res[i])
-		results = append(results, scraped...)
-	}
-
-	return results, nil
 }
