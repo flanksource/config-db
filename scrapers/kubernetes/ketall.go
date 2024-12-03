@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -12,13 +11,17 @@ import (
 	ketallClient "github.com/flanksource/ketall/client"
 	"github.com/flanksource/ketall/options"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 func scrape(ctx api.ScrapeContext, config v1.Kubernetes) ([]*unstructured.Unstructured, error) {
+	clientset, restConfig, err := config.KubernetesConnection.Populate(ctx.Context)
+	if err != nil {
+		return nil, err
+	}
+	ctx.Context = ctx.WithKubernetes(clientset, restConfig)
 
 	opts := options.NewDefaultCmdOptions()
-	opts, err := updateOptions(ctx.DutyContext(), opts, config)
+	opts, err = updateOptions(ctx.DutyContext(), opts, config)
 	if err != nil {
 		return nil, err
 	}
@@ -44,28 +47,7 @@ func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.K
 	opts.MaxInflight = config.MaxInflight
 	opts.Exclusions = append(config.Exclusions.List(), "componentstatuses", "Event")
 	opts.Since = config.Since
-	if config.Kubeconfig != nil {
-		val, err := ctx.GetEnvValueFromCache(*config.Kubeconfig, ctx.GetNamespace())
-		if err != nil {
-			return nil, err
-		}
-
-		if strings.HasPrefix(val, "/") {
-			opts.Flags.ConfigFlags.KubeConfig = &val
-		} else {
-			clientCfg, err := clientcmd.NewClientConfigFromBytes([]byte(val))
-			if err != nil {
-				return nil, fmt.Errorf("failed to create client config: %w", err)
-			}
-
-			restConfig, err := clientCfg.ClientConfig()
-			if err != nil {
-				return nil, err
-			}
-
-			opts.Flags.KubeConfig = restConfig
-		}
-	}
+	opts.Flags.KubeConfig = ctx.KubernetesRestConfig()
 
 	return opts, nil
 }
