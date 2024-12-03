@@ -246,6 +246,9 @@ var _ = Describe("plugins test", Ordered, func() {
 
 		scraperCtx = api.NewScrapeContext(DefaultContext.WithDB(tx, DefaultContext.Pool())).WithScrapeConfig(&scrapeConfig)
 
+		_, err = db.ReloadAllScrapePlugins(scraperCtx.Context)
+		Expect(err).To(BeNil())
+
 		err = scraperCtx.DB().Create(&scModel).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
 
@@ -297,9 +300,9 @@ var _ = Describe("plugins test", Ordered, func() {
 		Expect(err).To(BeNil())
 
 		var changes []models.ConfigChange
-		err = tx.Where("config_id = ?", cm.GetUID()).Find(&changes).Error
+		err = tx.Where("config_id = ?", cm.GetUID()).Where("diff LIKE '%restricted%'").Find(&changes).Error
 		Expect(err).To(BeNil())
-		Expect(len(changes)).To(Equal(1))
+		Expect(len(changes)).To(Equal(0))
 	})
 })
 
