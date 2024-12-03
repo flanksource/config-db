@@ -2,18 +2,33 @@ package kube
 
 import (
 	"fmt"
+	"sync"
+	"time"
 
-	"github.com/flanksource/duty/context"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
-func FetchInvolvedObjects(ctx context.Context, iObjs []v1.InvolvedObject) ([]*unstructured.Unstructured, error) {
-	var objGrouped = map[schema.GroupVersionKind][]v1.InvolvedObject{}
+var fetchDelayBuckets = []float64{500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 60_000}
+
+func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*unstructured.Unstructured, error) {
+	clientMap := map[schema.GroupVersionKind]dynamic.NamespaceableResourceInterface{}
+
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.SetLimit(ctx.Properties().Int("kubernetes.get.concurrency", 10))
+
+	ctx.Context.Context.Context = egCtx
+
+	var mu sync.Mutex
+	var output []*unstructured.Unstructured
+
 	for _, iObj := range iObjs {
 		gv, _ := schema.ParseGroupVersion(iObj.APIVersion)
 		gvk := schema.GroupVersionKind{
@@ -22,44 +37,53 @@ func FetchInvolvedObjects(ctx context.Context, iObjs []v1.InvolvedObject) ([]*un
 			Kind:    iObj.Kind,
 		}
 
-		objGrouped[gvk] = append(objGrouped[gvk], iObj)
-	}
+		client, ok := clientMap[gvk]
+		if !ok {
+			c, err := ctx.KubernetesDynamicClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create dynamic client for %s: %w", gvk, err)
+			}
 
-	// TODO: add concurrency
-	var output []*unstructured.Unstructured
-	for gvk, iObjs := range objGrouped {
-		objs, err := fetchGVKObjects(ctx, gvk, iObjs...)
-		if err != nil {
-			return nil, err
+			client = c
+			clientMap[gvk] = c
 		}
 
-		output = append(output, objs...)
+		eg.Go(func() error {
+			found, err := fetchObject(ctx, client, iObj)
+			if err != nil {
+				return err
+			} else if found != nil {
+				mu.Lock()
+				output = append(output, found)
+				mu.Unlock()
+			}
+
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return nil, err
 	}
 
 	return output, nil
 }
 
-// fetchGVKObjects fetches the given objects belonging to the same GVK.
-func fetchGVKObjects(ctx context.Context, gvk schema.GroupVersionKind, objs ...v1.InvolvedObject) ([]*unstructured.Unstructured, error) {
-	client, err := ctx.KubernetesDynamicClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
+func fetchObject(ctx api.ScrapeContext, client dynamic.NamespaceableResourceInterface, iObj v1.InvolvedObject) (*unstructured.Unstructured, error) {
+	start := time.Now()
+	obj, err := client.Namespace(iObj.Namespace).Get(ctx, iObj.Name, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create dynamic client for %s: %w", gvk, err)
-	}
-
-	var output []*unstructured.Unstructured
-	for _, iObj := range objs {
-		obj, err := client.Namespace(iObj.Namespace).Get(ctx, iObj.Name, metav1.GetOptions{})
-		if err != nil {
-			if errors.IsNotFound(err) {
-				// The object might have been deleted. we don't want to fail the rest.
-				continue
-			}
-
-			return nil, fmt.Errorf("failed to get object %s %s/%s: %w", gvk, iObj.Namespace, iObj.Name, err)
+		if errors.IsNotFound(err) {
+			return nil, nil
 		}
 
-		output = append(output, obj)
+		return nil, fmt.Errorf("failed to get object %s/%s: %w", iObj.Namespace, iObj.Name, err)
 	}
 
-	return output, nil
+	ctx.Histogram("kubernetes_object_get", fetchDelayBuckets,
+		"scraper_id", ctx.ScraperID(),
+		"kind", obj.GetKind(),
+	).Record(time.Duration(time.Since(start).Milliseconds()))
+
+	return obj, nil
 }
