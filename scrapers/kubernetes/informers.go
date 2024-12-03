@@ -50,9 +50,11 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 		return nil, fmt.Errorf("failed to create queue: %w", err)
 	}
 
-	if loaded, ok := WatchQueue.LoadOrStore(config.Hash(), priorityQueue); ok {
-		priorityQueue = loaded.(*collections.Queue[*QueueItem])
+	clientset, restConfig, err := config.KubernetesConnection.Populate(ctx.Context, false)
+	if err != nil {
+		return nil, err
 	}
+	ctx.Context = ctx.WithKubernetes(clientset, restConfig)
 
 	for _, watchResource := range lo.Uniq(config.Watch) {
 		if err := globalSharedInformerManager.Register(ctx, watchResource, priorityQueue); err != nil {
