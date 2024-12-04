@@ -337,15 +337,52 @@ func NewQueueItem(obj *unstructured.Unstructured, operation string) *QueueItem {
 }
 
 func pqComparator(a, b any) int {
-	var aTimestamp, bTimestamp time.Time
 	qa := a.(*QueueItem)
 	qb := b.(*QueueItem)
 
-	if qa.Obj.GetCreationTimestamp().Time.Before(qb.Obj.GetCreationTimestamp().Time) {
+	if opResult := pqCompareOperation(qa.Operation, qb.Operation); opResult != 0 {
+		return opResult
+	}
+
+	if opResult := pqCompareKind(qa.Obj.GetKind(), qb.Obj.GetKind()); opResult != 0 {
+		return opResult
+	}
+
+	aLastUpdatedAt := *health.GetLastUpdatedTime(qa.Obj)
+	bLastUpdatedAt := *health.GetLastUpdatedTime(qb.Obj)
+
+	if aLastUpdatedAt.Before(bLastUpdatedAt) {
 		return -1
-	} else if aTimestamp.Equal(bTimestamp) {
+	} else if aLastUpdatedAt.Equal(bLastUpdatedAt) {
 		return 0
 	} else {
 		return 1
 	}
+}
+
+func pqCompareOperation(a, b string) int {
+	// smaller means earlier in the queue
+	priority := map[string]int{
+		"add":    1,
+		"update": 2,
+		"delete": 3,
+	}
+
+	return priority[a] - priority[b]
+}
+
+func pqCompareKind(a, b string) int {
+	// smaller means earlier in the queue
+	priority := map[string]int{
+		"Namespace":  1,
+		"Deployment": 2,
+		"ReplicaSet": 3,
+		"Pod":        4,
+		"Event":      5,
+	}
+
+	pa := lo.CoalesceOrEmpty(priority[a], 3)
+	pb := lo.CoalesceOrEmpty(priority[b], 3)
+
+	return pa - pb
 }
