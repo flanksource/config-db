@@ -29,8 +29,6 @@ var (
 
 	scrapeJobScheduler = cron.New()
 	scrapeJobs         sync.Map
-
-	consumeLagBuckets = []float64{1_000, 5_000, 15_000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
 const scrapeJobName = "Scraper"

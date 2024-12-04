@@ -19,6 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+var consumeLagBuckets = []float64{1_000, 3_000, 5_000, 10_000, 15_000, 30_000, 60_000, 100_000, 150_000, 300_000, 600_000}
+
 func consumeKubernetesWatchJobKey(id string) string {
 	return id + "-consume-kubernetes-watch"
 }
@@ -31,8 +33,8 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta),
 		JobHistory:   true,
 		Singleton:    true,
-		Retention:    job.RetentionFew,
-		Schedule:     "@every 15s",
+		Retention:    job.RetentionFailed,
+		Schedule:     "@every 3s",
 		ResourceID:   string(sc.ScrapeConfig().GetUID()),
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
