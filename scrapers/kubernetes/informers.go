@@ -29,10 +29,6 @@ var (
 	// WatchQueue stores a sync buffer per kubernetes config
 	WatchQueue = sync.Map{}
 
-	// DeleteResourceBuffer stores a buffer per kubernetes config
-	// that contains the ids of resources that have been deleted.
-	DeleteResourceBuffer = sync.Map{}
-
 	informerLagBuckets = []float64{1_000, 5_000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
@@ -42,9 +38,6 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*pq.Queue, err
 	if loaded, ok := WatchQueue.LoadOrStore(config.Hash(), priorityQueue); ok {
 		priorityQueue = loaded.(*pq.Queue)
 	}
-
-	deleteBuffer := make(chan string, BufferSize)
-	DeleteResourceBuffer.Store(config.Hash(), deleteBuffer)
 
 	if config.Kubeconfig != nil {
 		var err error
@@ -56,7 +49,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*pq.Queue, err
 	}
 
 	for _, watchResource := range lo.Uniq(config.Watch) {
-		if err := globalSharedInformerManager.Register(ctx, watchResource, priorityQueue, deleteBuffer); err != nil {
+		if err := globalSharedInformerManager.Register(ctx, watchResource, priorityQueue); err != nil {
 			return nil, fmt.Errorf("failed to register informer: %w", err)
 		}
 	}
@@ -92,7 +85,7 @@ type SharedInformerManager struct {
 
 type DeleteObjHandler func(ctx context.Context, id string) error
 
-func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, queue *pq.Queue, deleteBuffer chan<- string) error {
+func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, queue *pq.Queue) error {
 	start := time.Now()
 
 	apiVersion, kind := watchResource.ApiVersion, watchResource.Kind
@@ -123,7 +116,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				return
 			}
 
-			queue.Enqueue(NewQueueItem(u))
+			queue.Enqueue(NewQueueItem(u, "add"))
 
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
@@ -166,7 +159,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				).Record(time.Duration(time.Since(*lastUpdatedTime).Milliseconds()))
 			}
 
-			queue.Enqueue(NewQueueItem(u))
+			queue.Enqueue(NewQueueItem(u, "update"))
 		},
 		DeleteFunc: func(obj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, obj)
@@ -197,7 +190,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				).Record(time.Duration(time.Since(u.GetDeletionTimestamp().Time).Milliseconds()))
 			}
 
-			deleteBuffer <- string(u.GetUID())
+			queue.Enqueue(NewQueueItem(u, "delete"))
 		},
 	})
 	if err != nil {
@@ -332,12 +325,14 @@ func kubeConfigIdentifier(ctx api.ScrapeContext) string {
 type QueueItem struct {
 	Timestamp time.Time // Queued time
 	Obj       *unstructured.Unstructured
+	Operation string // add, update, delete
 }
 
-func NewQueueItem(obj *unstructured.Unstructured) *QueueItem {
+func NewQueueItem(obj *unstructured.Unstructured, operation string) *QueueItem {
 	return &QueueItem{
 		Timestamp: time.Now(),
 		Obj:       obj,
+		Operation: operation,
 	}
 }
 

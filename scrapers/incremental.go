@@ -15,7 +15,6 @@ import (
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/duty/job"
-	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -48,8 +47,9 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			config.BaseScraper = config.BaseScraper.ApplyPlugins(plugins...)
 
 			var (
-				objs       []*unstructured.Unstructured
-				queuedTime = map[string]time.Time{}
+				objs           []*unstructured.Unstructured
+				deletedObjects []string
+				queuedTime     = map[string]time.Time{}
 
 				seenObjects       = map[string]struct{}{}
 				objectsFromEvents = map[string]v1.InvolvedObject{}
@@ -72,6 +72,11 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 					return fmt.Errorf("unexpected item in the priority queue: %T", val)
 				}
 				obj := queueItem.Obj
+
+				if queueItem.Operation == "delete" {
+					deletedObjects = append(deletedObjects, string(obj.GetUID()))
+					continue
+				}
 
 				if obj.GetKind() == "Event" {
 					involvedObjectRaw, ok, _ := unstructured.NestedMap(obj.Object, "involvedObject")
@@ -124,7 +129,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			// a way that no two objects in a batch have the same id.
 
 			objs = dedup(objs)
-			if err := consumeResources(ctx, *sc.ScrapeConfig(), *config, objs); err != nil {
+			if err := consumeResources(ctx, *sc.ScrapeConfig(), *config, objs, deletedObjects); err != nil {
 				ctx.History.AddErrorf("failed to consume resources: %v", err)
 				return err
 			}
@@ -140,7 +145,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 	}
 }
 
-func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v1.Kubernetes, objs []*unstructured.Unstructured) error {
+func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v1.Kubernetes, objs []*unstructured.Unstructured, deletedResourcesIDs []string) error {
 	cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History).AsIncrementalScrape()
 	cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
 	results, err := processObjects(cc, config, objs)
@@ -162,15 +167,7 @@ func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v
 		}
 	}
 
-	_deleteCh, ok := kubernetes.DeleteResourceBuffer.Load(config.Hash())
-	if !ok {
-		return fmt.Errorf("no resource watcher channel found for config (scrapeconfig: %s)", config.Hash())
-	}
-	deleteChan := _deleteCh.(chan string)
-
-	if len(deleteChan) > 0 {
-		deletedResourcesIDs, _, _, _ := lo.Buffer(deleteChan, len(deleteChan))
-
+	if len(deletedResourcesIDs) > 0 {
 		total, err := db.SoftDeleteConfigItems(ctx.Context, deletedResourcesIDs...)
 		if err != nil {
 			return fmt.Errorf("failed to delete %d resources: %w", len(deletedResourcesIDs), err)
