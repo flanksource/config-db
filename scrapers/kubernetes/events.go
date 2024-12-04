@@ -4,14 +4,23 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/is-healthy/events"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/types"
 )
+
+func maxTime(t1, t2 time.Time) time.Time {
+	if t1.Sub(t2) > 0 {
+		return t1
+	}
+	return t2
+}
 
 func getSeverityFromReason(reason string, errKeywords, warnKeywords []string) string {
 	if collections.MatchItems(reason, errKeywords...) {
@@ -70,9 +79,14 @@ func getChangeFromEvent(event v1.KubernetesEvent, severityKeywords v1.SeverityKe
 		severity = events.GetSeverity(event.Reason)
 	}
 
+	createdAt := event.Metadata.CreationTimestamp.Time
+	for _, mf := range event.Metadata.ManagedFields {
+		createdAt = maxTime(createdAt, lo.FromPtr(mf.Time).Time)
+	}
+
 	return &v1.ChangeResult{
 		ChangeType:       event.Reason,
-		CreatedAt:        &event.Metadata.CreationTimestamp.Time,
+		CreatedAt:        &createdAt,
 		Details:          getDetailsFromEvent(event),
 		ExternalChangeID: event.GetUID(),
 		ExternalID:       string(event.InvolvedObject.UID),

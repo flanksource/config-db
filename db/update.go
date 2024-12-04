@@ -24,6 +24,7 @@ import (
 	"github.com/flanksource/config-db/db/ulid"
 	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
 	dutydb "github.com/flanksource/duty/db"
 	dutyModels "github.com/flanksource/duty/models"
@@ -622,10 +623,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	for _, dedup := range deduped {
+		var createdAt any = dedup.Change.CreatedAt
+		if dedup.Change.CreatedAt.IsZero() {
+			createdAt = duty.Now()
+		}
 		update := map[string]any{
 			"change_type":         dedup.Change.ChangeType,
 			"count":               gorm.Expr("count + ?", dedup.CountIncrement),
-			"created_at":          gorm.Expr("NOW()"),
+			"created_at":          createdAt,
 			"created_by":          dedup.Change.CreatedBy,
 			"details":             dedup.Change.Details,
 			"diff":                dedup.Change.Diff,
