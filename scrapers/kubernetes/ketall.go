@@ -42,7 +42,7 @@ func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.K
 	opts.FieldSelector = config.FieldSelector
 	opts.UseCache = config.UseCache
 	opts.MaxInflight = config.MaxInflight
-	opts.Exclusions = append(config.Exclusions.List(), "componentstatuses")
+	opts.Exclusions = append(config.Exclusions.List(), "componentstatuses", "Event")
 	opts.Since = config.Since
 	if config.Kubeconfig != nil {
 		val, err := ctx.GetEnvValueFromCache(*config.Kubeconfig, ctx.GetNamespace())
