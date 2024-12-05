@@ -21,11 +21,11 @@ func TestPqComparator(t *testing.T) {
 		{
 			name: "add should have higher priority than update",
 			a: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructured("Pod", "a", now),
 			},
 			b: QueueItem{
-				Operation: "update",
+				Operation: QueueItemOperationUpdate,
 				Obj:       getUnstructured("Pod", "b", now),
 			},
 			expected: []string{"a", "b"},
@@ -33,11 +33,11 @@ func TestPqComparator(t *testing.T) {
 		{
 			name: "update should have higher priority than delete",
 			a: QueueItem{
-				Operation: "update",
+				Operation: QueueItemOperationUpdate,
 				Obj:       getUnstructured("Pod", "a", now),
 			},
 			b: QueueItem{
-				Operation: "delete",
+				Operation: QueueItemOperationDelete,
 				Obj:       getUnstructured("Pod", "b", now),
 			},
 			expected: []string{"a", "b"},
@@ -45,11 +45,11 @@ func TestPqComparator(t *testing.T) {
 		{
 			name: "same operation should compare by kind - Namespace vs Pod",
 			a: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructured("Namespace", "a", now),
 			},
 			b: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructured("Pod", "b", now),
 			},
 			expected: []string{"a", "b"},
@@ -57,11 +57,11 @@ func TestPqComparator(t *testing.T) {
 		{
 			name: "same operation and kind should compare by timestamp - earlier first",
 			a: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructured("Pod", "a", now.Add(-1*time.Hour)),
 			},
 			b: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructured("Pod", "b", now),
 			},
 			expected: []string{"a", "b"},
@@ -69,11 +69,11 @@ func TestPqComparator(t *testing.T) {
 		{
 			name: "namespace comes first even before a pod created earlier",
 			a: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructured("Pod", "a", now.Add(-1*time.Hour)),
 			},
 			b: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructured("Namespace", "b", now),
 			},
 			expected: []string{"b", "a"},
@@ -81,11 +81,11 @@ func TestPqComparator(t *testing.T) {
 		{
 			name: "operation priority should override kind priority",
 			a: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructured("Pod", "a", now),
 			},
 			b: QueueItem{
-				Operation: "delete",
+				Operation: QueueItemOperationDelete,
 				Obj:       getUnstructured("Namespace", "b", now),
 			},
 			expected: []string{"a", "b"},
@@ -93,11 +93,11 @@ func TestPqComparator(t *testing.T) {
 		{
 			name: "unknown kind should use default priority",
 			a: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructured("Canary", "a", now),
 			},
 			b: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructured("Pod", "b", now),
 			},
 			expected: []string{"a", "b"},
@@ -105,11 +105,11 @@ func TestPqComparator(t *testing.T) {
 		{
 			name: "events with managed fields",
 			a: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructuredEvent("Event", "a", now.Add(-2*time.Hour), now.Add(time.Hour)), // created ealier but re-created later
 			},
 			b: QueueItem{
-				Operation: "add",
+				Operation: QueueItemOperationAdd,
 				Obj:       getUnstructuredEvent("Event", "b", now.Add(-time.Hour), now.Add(time.Minute)),
 			},
 			expected: []string{"b", "a"},

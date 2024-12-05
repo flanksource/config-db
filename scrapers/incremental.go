@@ -73,7 +73,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 				}
 				obj := queueItem.Obj
 
-				if queueItem.Operation == "delete" {
+				if queueItem.Operation == kubernetes.QueueItemOperationDelete {
 					deletedObjects = append(deletedObjects, string(obj.GetUID()))
 					continue
 				}

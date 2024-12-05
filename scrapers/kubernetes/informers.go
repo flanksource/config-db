@@ -116,7 +116,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				return
 			}
 
-			queue.Enqueue(NewQueueItem(u, "add"))
+			queue.Enqueue(NewQueueItem(u, QueueItemOperationAdd))
 
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
@@ -159,7 +159,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				).Record(time.Duration(time.Since(*lastUpdatedTime).Milliseconds()))
 			}
 
-			queue.Enqueue(NewQueueItem(u, "update"))
+			queue.Enqueue(NewQueueItem(u, QueueItemOperationUpdate))
 		},
 		DeleteFunc: func(obj any) {
 			u, err := getUnstructuredFromInformedObj(watchResource, obj)
@@ -190,7 +190,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				).Record(time.Duration(time.Since(u.GetDeletionTimestamp().Time).Milliseconds()))
 			}
 
-			queue.Enqueue(NewQueueItem(u, "delete"))
+			queue.Enqueue(NewQueueItem(u, QueueItemOperationDelete))
 		},
 	})
 	if err != nil {
@@ -322,13 +322,32 @@ func kubeConfigIdentifier(ctx api.ScrapeContext) string {
 	return rs.Host
 }
 
+type QueueItemOperation int
+
+const (
+	QueueItemOperationAdd QueueItemOperation = iota + 1
+	QueueItemOperationUpdate
+	QueueItemOperationDelete
+)
+
+func (t *QueueItemOperation) Priority() int {
+	// smaller value represents higher priority
+	priority := map[QueueItemOperation]int{
+		QueueItemOperationAdd:    1,
+		QueueItemOperationUpdate: 2,
+		QueueItemOperationDelete: 3,
+	}
+
+	return priority[*t]
+}
+
 type QueueItem struct {
 	Timestamp time.Time // Queued time
 	Obj       *unstructured.Unstructured
-	Operation string // add, update, delete
+	Operation QueueItemOperation
 }
 
-func NewQueueItem(obj *unstructured.Unstructured, operation string) *QueueItem {
+func NewQueueItem(obj *unstructured.Unstructured, operation QueueItemOperation) *QueueItem {
 	return &QueueItem{
 		Timestamp: time.Now(),
 		Obj:       obj,
@@ -348,27 +367,20 @@ func pqComparator(a, b any) int {
 		return opResult
 	}
 
-	aLastUpdatedAt := *health.GetLastUpdatedTime(qa.Obj)
-	bLastUpdatedAt := *health.GetLastUpdatedTime(qb.Obj)
+	lastUpdatedTimeA := *health.GetLastUpdatedTime(qa.Obj)
+	lastUpdatedTimeB := *health.GetLastUpdatedTime(qb.Obj)
 
-	if aLastUpdatedAt.Before(bLastUpdatedAt) {
+	if lastUpdatedTimeA.Before(lastUpdatedTimeB) {
 		return -1
-	} else if aLastUpdatedAt.Equal(bLastUpdatedAt) {
+	} else if lastUpdatedTimeA.Equal(lastUpdatedTimeB) {
 		return 0
 	} else {
 		return 1
 	}
 }
 
-func pqCompareOperation(a, b string) int {
-	// smaller means earlier in the queue
-	priority := map[string]int{
-		"add":    1,
-		"update": 2,
-		"delete": 3,
-	}
-
-	return priority[a] - priority[b]
+func pqCompareOperation(a, b QueueItemOperation) int {
+	return a.Priority() - b.Priority()
 }
 
 func pqCompareKind(a, b string) int {
