@@ -386,11 +386,24 @@ func pqCompareOperation(a, b QueueItemOperation) int {
 func pqCompareKind(a, b string) int {
 	// smaller means earlier in the queue
 	priority := map[string]int{
-		"Namespace":  1,
-		"Deployment": 2,
-		"ReplicaSet": 3,
-		"Pod":        4,
-		"Event":      5,
+		"Namespace":          1,
+		"Deployment":         2,
+		"StatefulSet":        2,
+		"DaemonSet":          2,
+		"Service":            2,
+		"ClusterRole":        2,
+		"Role":               2,
+		"HelmChart":          2,
+		"HelmRepository":     2,
+		"OCIRepository":      2,
+		"ClusterRoleBinding": 3,
+		"RoleBinding":        3,
+		"Endpoints":          3,
+		"CronJob":            3,
+		"Job":                3,
+		"ReplicaSet":         3,
+		"Pod":                4,
+		"Event":              5,
 	}
 
 	pa := lo.CoalesceOrEmpty(priority[a], 3)
