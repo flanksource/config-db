@@ -52,7 +52,7 @@ require (
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.29.10
 	github.com/flanksource/duty v1.0.767
-	github.com/flanksource/is-healthy v1.0.51
+	github.com/flanksource/is-healthy v1.0.52
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/kopper v1.0.10
 	github.com/gobwas/glob v0.2.3
