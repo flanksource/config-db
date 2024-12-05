@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/emirpasic/gods/queues/priorityqueue"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -114,6 +115,18 @@ func TestPqComparator(t *testing.T) {
 			},
 			expected: []string{"b", "a"},
 		},
+		{
+			name: "identical objects of unknown kind with owner reference",
+			a: QueueItem{
+				Operation: QueueItemOperationAdd,
+				Obj:       getUnstructuredWithOwnerRef("Custom", "a", now, metav1.OwnerReference{Name: "http-canary", Kind: "Canary"}),
+			},
+			b: QueueItem{
+				Operation: QueueItemOperationAdd,
+				Obj:       getUnstructured("Custom", "b", now),
+			},
+			expected: []string{"a", "b"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -165,6 +178,24 @@ func getUnstructured(kind, name string, creationTimestamp time.Time) *unstructur
 			"metadata": map[string]any{
 				"name":              name,
 				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
+			},
+		},
+	}
+}
+
+func getUnstructuredWithOwnerRef(kind, name string, creationTimestamp time.Time, ownerRef metav1.OwnerReference) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"kind": kind,
+			"metadata": map[string]any{
+				"name":              name,
+				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
+				"ownerReferences": []any{
+					map[string]any{
+						"name": ownerRef.Name,
+						"kind": ownerRef.Kind,
+					},
+				},
 			},
 		},
 	}

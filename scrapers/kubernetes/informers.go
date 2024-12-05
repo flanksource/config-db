@@ -16,6 +16,7 @@ import (
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
@@ -363,6 +364,10 @@ func pqComparator(a, b any) int {
 		return opResult
 	}
 
+	if opResult := pqCompareOwnerRef(qa.Obj.GetOwnerReferences(), qb.Obj.GetOwnerReferences()); opResult != 0 {
+		return opResult
+	}
+
 	if opResult := pqCompareKind(qa.Obj.GetKind(), qb.Obj.GetKind()); opResult != 0 {
 		return opResult
 	}
@@ -381,6 +386,14 @@ func pqComparator(a, b any) int {
 
 func pqCompareOperation(a, b QueueItemOperation) int {
 	return a.Priority() - b.Priority()
+}
+
+func pqCompareOwnerRef(a, b []metav1.OwnerReference) int {
+	if len(a) == len(b) {
+		return 0
+	}
+
+	return len(b) - len(a)
 }
 
 func pqCompareKind(a, b string) int {
@@ -406,8 +419,10 @@ func pqCompareKind(a, b string) int {
 		"Event":              5,
 	}
 
-	pa := lo.CoalesceOrEmpty(priority[a], 3)
-	pb := lo.CoalesceOrEmpty(priority[b], 3)
+	const unknownKindPriority = 3 // set medium priority for unknown kinds
+
+	pa := lo.CoalesceOrEmpty(priority[a], unknownKindPriority)
+	pb := lo.CoalesceOrEmpty(priority[b], unknownKindPriority)
 
 	return pa - pb
 }
