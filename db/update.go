@@ -838,6 +838,7 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 		Diff:       &diff,
 		Patches:    string(patch),
 		Summary:    strings.Join(utils.ExtractLeafNodesAndCommonParents(patchJSON), ", "),
+		Source:     v1.ChangeTypeDiff,
 	}, nil
 }
 

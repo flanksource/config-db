@@ -7,4 +7,6 @@ var (
 	Ignore ChangeAction = "ignore"
 )
 
-const ChangeTypeDiff = "diff"
+const (
+	ChangeTypeDiff = "diff"
+)
