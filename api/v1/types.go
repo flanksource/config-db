@@ -212,4 +212,6 @@ var (
 	// DeletedReasonFromDeleteField is used when a deletion field (& reason)
 	// is picked up from the JSONPath expression provided in the scraper config.
 	DeletedReasonFromDeleteField ConfigDeleteReason = "FROM_DELETE_FIELD"
+
+	DeleteReasonEvent ConfigDeleteReason = "FROM_EVENT"
 )

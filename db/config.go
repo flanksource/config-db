@@ -21,7 +21,6 @@ import (
 	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
 	"github.com/samber/lo"
-	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -224,10 +223,15 @@ func FindConfigChangesByItemID(ctx api.ScrapeContext, configItemID string) ([]du
 	return ci, nil
 }
 
-func SoftDeleteConfigItems(ctx context.Context, ids ...string) (int, error) {
+func SoftDeleteConfigItems(ctx context.Context, reason v1.ConfigDeleteReason, ids ...string) (int, error) {
 	tx := ctx.DB().
 		Model(&models.ConfigItem{}).
 		Where("id IN ?", ids).
-		Update("deleted_at", gorm.Expr("NOW()"))
+		UpdateColumns(
+			map[string]any{
+				"deleted_at":    duty.Now(),
+				"delete_reason": reason,
+			},
+		)
 	return int(tx.RowsAffected), tx.Error
 }

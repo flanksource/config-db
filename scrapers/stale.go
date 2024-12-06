@@ -6,6 +6,7 @@ import (
 
 	"github.com/flanksource/commons/duration"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty/context"
 	"github.com/google/uuid"
 )
@@ -40,22 +41,28 @@ func DeleteStaleConfigItems(ctx context.Context, staleTimeout string, scraperID 
 	}
 
 	deleteQuery := `
-        UPDATE config_items
-        SET
-            deleted_at = NOW(),
-            delete_reason = ?
-        WHERE
-            ((NOW() - last_scraped_time) > INTERVAL '1 SECOND' * ?) AND
-            deleted_at IS NULL AND
-            scraper_id = ?`
+		UPDATE config_items
+		SET
+				deleted_at = NOW(),
+				delete_reason = ?
+		WHERE
+				((NOW() - last_scraped_time) > INTERVAL '1 SECOND' * ?) AND
+				deleted_at IS NULL AND
+				scraper_id = ?
+		RETURNING type`
 
-	result := ctx.DB().Exec(deleteQuery, v1.DeletedReasonStale, staleDuration.Seconds(), scraperID)
+	var deletedConfigs []models.ConfigItem
+	result := ctx.DB().Raw(deleteQuery, v1.DeletedReasonStale, staleDuration.Seconds(), scraperID).Scan(&deletedConfigs)
 	if err := result.Error; err != nil {
 		return 0, fmt.Errorf("failed to delete stale config items: %w", err)
 	}
 
-	if result.RowsAffected > 0 {
-		ctx.Logger.V(3).Infof("Deleted %d stale config items", result.RowsAffected)
+	if len(deletedConfigs) > 0 {
+		ctx.Logger.V(3).Infof("deleted %d stale config items for scraper: %s", len(deletedConfigs), scraperID)
+	}
+
+	for _, c := range deletedConfigs {
+		ctx.Counter("scraper_deleted", "scraper_id", scraperID.String(), "kind", c.Type, "reason", string(v1.DeletedReasonStale)).Add(1)
 	}
 
 	return result.RowsAffected, nil

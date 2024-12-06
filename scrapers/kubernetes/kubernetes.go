@@ -30,16 +30,17 @@ const ConfigTypePrefix = "Kubernetes::"
 
 var resourceIDMapPerCluster PerClusterResourceIDMap
 
-func getConfigTypePrefix(apiVersion string) string {
+func GetConfigType(obj *unstructured.Unstructured) string {
+	apiVersion := obj.GetAPIVersion()
 	if strings.Contains(apiVersion, ".upbound.io") || strings.Contains(apiVersion, ".crossplane.io") {
-		return "Crossplane::"
+		return "Crossplane::" + obj.GetKind()
 	}
 
 	if strings.HasSuffix(apiVersion, ".flanksource.com/v1") {
-		return api.MissionControlConfigTypePrefix
+		return api.MissionControlConfigTypePrefix + obj.GetKind()
 	}
 
-	return ConfigTypePrefix
+	return ConfigTypePrefix + obj.GetKind()
 }
 
 type KubernetesScraper struct{}
@@ -350,7 +351,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 						ConfigID: id.String(),
 					}.WithRelated(
 						ctx.GetID(obj.GetNamespace(), obj.GetKind(), obj.GetName()),
-						v1.ExternalID{ExternalID: string(obj.GetUID()), ConfigType: getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind()},
+						v1.ExternalID{ExternalID: string(obj.GetUID()), ConfigType: GetConfigType(obj)},
 					)
 
 					relationships = append(relationships, rel)
@@ -435,7 +436,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			BaseScraper:         ctx.config.BaseScraper,
 			Name:                obj.GetName(),
 			ConfigClass:         obj.GetKind(),
-			Type:                getConfigTypePrefix(obj.GetAPIVersion()) + obj.GetKind(),
+			Type:                GetConfigType(obj),
 			Status:              string(resourceHealth.Status),
 			Health:              models.Health(resourceHealth.Health),
 			Ready:               resourceHealth.Ready,
