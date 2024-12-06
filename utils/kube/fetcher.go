@@ -2,10 +2,12 @@ package kube
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -17,6 +19,22 @@ import (
 )
 
 var fetchDelayBuckets = []float64{10, 50, 100, 500, 1_000, 5_000, 10_000, 30_000, 60_000}
+
+func listAllCRDs(ctx api.ScrapeContext) ([]string, error) {
+	cs, err := clientset.NewForConfig(ctx.KubernetesRestConfig())
+	if err != nil {
+		return nil, fmt.Errorf("error creating api extension clientset: %w", err)
+	}
+	allCRDs, err := cs.ApiextensionsV1().CustomResourceDefinitions().List(ctx.Context, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error fetching all crds from clientset: %w", err)
+	}
+	var crds []string
+	for _, crd := range allCRDs.Items {
+		crds = append(crds, crd.GetName())
+	}
+	return crds, nil
+}
 
 func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*unstructured.Unstructured, error) {
 	clientMap := map[schema.GroupVersionKind]dynamic.NamespaceableResourceInterface{}
@@ -41,6 +59,17 @@ func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*
 		if !ok {
 			c, err := ctx.KubernetesDynamicClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
 			if err != nil {
+
+				// We suspect if this happens we might be on the wrong k8s context
+				// so we list all CRDs in job history error
+				if strings.Contains(err.Error(), "no matches for") {
+					crdList, err := listAllCRDs(ctx)
+					if err != nil {
+						ctx.JobHistory().AddErrorf("error listing existing crds: %v", err)
+					} else {
+						ctx.JobHistory().AddErrorf("failed to create dynamic client %s: %v, existing crds: %s", gvk, err, strings.Join(crdList, ","))
+					}
+				}
 				return nil, fmt.Errorf("failed to create dynamic client for %s: %w", gvk, err)
 			}
 
