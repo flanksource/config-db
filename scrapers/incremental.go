@@ -15,6 +15,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/duty/job"
+	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -50,7 +51,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 
 			var (
 				objs           []*unstructured.Unstructured
-				deletedObjects []string
+				deletedObjects []*unstructured.Unstructured
 				queuedTime     = map[string]time.Time{}
 
 				seenObjects       = map[string]struct{}{}
@@ -77,7 +78,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 				queuedTime[string(obj.GetUID())] = queueItem.Timestamp
 
 				if queueItem.Operation == kubernetes.QueueItemOperationDelete {
-					deletedObjects = append(deletedObjects, string(obj.GetUID()))
+					deletedObjects = append(deletedObjects, obj)
 					continue
 				}
 
@@ -152,7 +153,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 	}
 }
 
-func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v1.Kubernetes, objs []*unstructured.Unstructured, deletedResourcesIDs []string) error {
+func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v1.Kubernetes, objs, deletedResources []*unstructured.Unstructured) error {
 	cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History).AsIncrementalScrape()
 	cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
 	results, err := processObjects(cc, config, objs)
@@ -174,15 +175,27 @@ func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v
 		}
 	}
 
-	if len(deletedResourcesIDs) > 0 {
-		total, err := db.SoftDeleteConfigItems(ctx.Context, deletedResourcesIDs...)
+	if len(deletedResources) > 0 {
+		deletedResourceIDs := lo.Map(deletedResources, func(item *unstructured.Unstructured, _ int) string {
+			return string(item.GetUID())
+		})
+
+		total, err := db.SoftDeleteConfigItems(ctx.Context, v1.DeleteReasonEvent, deletedResourceIDs...)
 		if err != nil {
-			return fmt.Errorf("failed to delete %d resources: %w", len(deletedResourcesIDs), err)
-		} else if total != len(deletedResourcesIDs) {
-			ctx.GetSpan().SetAttributes(attribute.StringSlice("deletedResourcesIDs", deletedResourcesIDs))
+			return fmt.Errorf("failed to delete %d resources: %w", len(deletedResources), err)
+		} else if total != len(deletedResources) {
+			ctx.GetSpan().SetAttributes(attribute.StringSlice("deletedResourcesIDs", deletedResourceIDs))
 			if cc.PropertyOn(false, "log.missing") {
-				ctx.Logger.Warnf("attempted to delete %d resources but only deleted %d", len(deletedResourcesIDs), total)
+				ctx.Logger.Warnf("attempted to delete %d resources but only deleted %d", len(deletedResources), total)
 			}
+		}
+
+		for _, c := range deletedResources {
+			ctx.Counter("scraper_deleted",
+				"scraper_id", cc.ScraperID(),
+				"kind", kubernetes.GetConfigType(c),
+				"reason", string(v1.DeleteReasonEvent),
+			).Add(1)
 		}
 
 		ctx.History.SuccessCount += total

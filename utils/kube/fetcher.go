@@ -16,7 +16,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
-var fetchDelayBuckets = []float64{500, 1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 60_000}
+var fetchDelayBuckets = []float64{10, 50, 100, 500, 1_000, 5_000, 10_000, 30_000, 60_000}
 
 func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*unstructured.Unstructured, error) {
 	clientMap := map[schema.GroupVersionKind]dynamic.NamespaceableResourceInterface{}

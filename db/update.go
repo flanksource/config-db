@@ -125,6 +125,8 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 	updates := make(map[string]interface{})
 	changes := make([]*models.ConfigChange, 0)
 
+	isDeleted := existing.DeletedAt == nil && ci.DeletedAt != nil
+
 	if lo.FromPtr(ci.DeletedAt) != lo.FromPtr(existing.DeletedAt) {
 		updates["deleted_at"] = ci.DeletedAt
 		updates["delete_reason"] = ci.DeleteReason
@@ -231,6 +233,14 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 	updates["last_scraped_time"] = gorm.Expr("NOW()")
 	if err := ctx.DutyContext().DB().Model(ci).Updates(updates).Error; err != nil {
 		return false, nil, errors.Wrapf(dutydb.ErrorDetails(err), "unable to update config item: %s", ci)
+	}
+
+	if isDeleted {
+		ctx.Counter("scraper_deleted",
+			"scraper_id", ctx.ScraperID(),
+			"kind", ci.Type,
+			"reason", string(ci.DeleteReason),
+		).Add(1)
 	}
 
 	return true, changes, nil
