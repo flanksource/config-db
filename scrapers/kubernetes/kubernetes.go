@@ -521,6 +521,13 @@ func getKubernetesParent(ctx *KubernetesContext, obj *unstructured.Unstructured)
 
 	allParents = append(ParentLookupHooks(ctx, obj), allParents...)
 
+	if obj.GetKind() == "Endpoints" {
+		allParents = append([]v1.ConfigExternalKey{{
+			Type:       ConfigTypePrefix + "Service",
+			ExternalID: alias("Service", obj.GetNamespace(), obj.GetName()),
+		}}, allParents...)
+	}
+
 	return allParents
 }
 
