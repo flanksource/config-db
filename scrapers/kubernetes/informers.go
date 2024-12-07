@@ -357,6 +357,10 @@ func NewQueueItem(obj *unstructured.Unstructured, operation QueueItemOperation) 
 }
 
 func pqComparator(a, b any) int {
+	if a == nil || b == nil {
+		return 0
+	}
+
 	qa := a.(*QueueItem)
 	qb := b.(*QueueItem)
 
