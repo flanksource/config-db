@@ -568,6 +568,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 	for _, config := range extractResult.newConfigs {
 		summary.AddInserted(config.Type)
+		ctx.TempCache().Insert(*config)
 	}
 
 	// nonUpdatedConfigs are existing configs that were not updated in this scrape.
