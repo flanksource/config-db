@@ -329,14 +329,16 @@ const (
 	QueueItemOperationAdd QueueItemOperation = iota + 1
 	QueueItemOperationUpdate
 	QueueItemOperationDelete
+	QueueItemOperationReEnqueue // Involved objects from events are re-enqueued
 )
 
 func (t *QueueItemOperation) Priority() int {
 	// smaller value represents higher priority
 	priority := map[QueueItemOperation]int{
-		QueueItemOperationAdd:    1,
-		QueueItemOperationUpdate: 2,
-		QueueItemOperationDelete: 3,
+		QueueItemOperationAdd:       1,
+		QueueItemOperationReEnqueue: 1,
+		QueueItemOperationUpdate:    2,
+		QueueItemOperationDelete:    3,
 	}
 
 	return priority[*t]
