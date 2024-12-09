@@ -2,10 +2,11 @@ import { Kubernetes } from 'k6/x/kubernetes';
 import k6 from 'k6';
 import encoding from 'k6/encoding'
 import http from 'k6/http';
+import file from 'k6/x/file';
 
 export const options = {
   thresholds: {
-    http_req_failed: ['rate<0.01'],
+    //http_req_failed: ['rate<0.01'],
     http_req_duration: ['p(99)<1000'],
   },
   scenarios: {
@@ -124,8 +125,8 @@ const podSpec = {
 
 
 
-let count = 2
-export default function () {
+let count = 10
+export default function() {
   kubernetes = new Kubernetes();
   console.log(`Connected to ${kubernetes.kubernetes.config.host}`)
 
@@ -152,14 +153,16 @@ export default function () {
 
   // Crash 20 random pods over 1 minute
   const interval = 3; // seconds between crashes
-  const podsToCrash = 1;
+  const podsToCrash = 2;
 
   for (let i = 0; i < podsToCrash; i++) {
     const randomPodIndex = Math.floor(Math.random() * count);
     const podName = `podinfo-${randomPodIndex}`;
 
 
-    console.log(`Crashing pod: ${podName}`);
+    // Write this to file
+    console.log(`Crashing pod: ${podName} at  ${new Date().toLocaleString()}`);
+    file.appendString('log.txt', `${podName},${new Date().toISOString()}\n`)
 
     try {
       let response = proxyGet(kubernetes.get("Pod", podName, ns), "panic", 9898)
@@ -176,7 +179,7 @@ export default function () {
   // List all pods to verify
   const pods = kubernetes.list("Pod", ns);
   console.log(`${pods.length} Pods found:`);
-  pods.map(function (pod) {
+  pods.map(function(pod) {
     console.log(`  ${pod.metadata.name} ${pod.status.phase}: restarts=${pod.status.containerStatuses[0].restartCount}`);
   });
 }

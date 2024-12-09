@@ -49,7 +49,7 @@ func Stop() {
 	scrapeJobScheduler.Stop()
 }
 
-func SyncScrapeConfigs(sc context.Context) {
+func InitSemaphoreWeights(sc context.Context) {
 	if globalScraperSempahore == nil {
 		globalScraperSempahore = semaphore.NewWeighted(int64(sc.Properties().Int("scraper.concurrency", ScraperConcurrency)))
 	}
@@ -71,7 +71,10 @@ func SyncScrapeConfigs(sc context.Context) {
 			"trivy":          semaphore.NewWeighted(int64(sc.Properties().Int("scraper.trivy.concurrency", 1))),
 		}
 	}
+}
 
+func SyncScrapeConfigs(sc context.Context) {
+	InitSemaphoreWeights(sc)
 	DefaultSchedule = sc.Properties().String("scrapers.default.schedule", DefaultSchedule)
 	j := &job.Job{
 		Name:       "ConfigScraperSync",
