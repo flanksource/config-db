@@ -290,7 +290,8 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			}
 		}
 
-		if obj.GetKind() == "Pod" {
+		switch obj.GetKind() {
+		case "Pod":
 			nodeName := getString(obj, "spec", "nodeName")
 
 			if nodeName != "" {
@@ -304,6 +305,31 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 					ctx.GetID("", "Node", nodeName),
 					v1.ExternalID{ExternalID: nodeExternalID, ConfigType: ConfigTypePrefix + "Node"},
 				))
+			}
+
+		case "Ingress":
+			// Link ingress to to target service
+			if rules, ok, _ := unstructured.NestedSlice(obj.Object, "spec", "rules"); ok {
+				for _, r := range rules {
+					if rule, ok := r.(map[string]any); ok {
+						if paths, ok, _ := unstructured.NestedSlice(rule, "http", "paths"); ok {
+							for _, p := range paths {
+								if path, ok := p.(map[string]any); ok {
+									if service, ok, _ := unstructured.NestedString(path, "backend", "service", "name"); ok {
+										relationships = append(relationships, v1.RelationshipResult{
+											ConfigID:     string(obj.GetUID()),
+											Relationship: "IngressService",
+											RelatedExternalID: v1.ExternalID{
+												ConfigType: ConfigTypePrefix + "Service",
+												ExternalID: alias("Service", obj.GetNamespace(), service),
+											},
+										})
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 
