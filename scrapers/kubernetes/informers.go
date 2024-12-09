@@ -123,9 +123,15 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
 
-			if u.GetCreationTimestamp().Time.After(start) {
-				ctx.Counter("kubernetes_informer_events", "type", "add", "kind", u.GetKind(), "scraper_id", ctx.ScraperID()).Add(1)
+			ctx.Counter("kubernetes_informer_events",
+				"type", "add",
+				"kind", u.GetKind(),
+				"scraper_id", ctx.ScraperID(),
+				"valid_timestamp", lo.Ternary(u.GetCreationTimestamp().Time.After(start), "true", "false"),
+			).Add(1)
 
+			// This is a way to avoid instrumenting old objects so they don't skew the lag time.
+			if u.GetCreationTimestamp().Time.After(start) {
 				ctx.Histogram("informer_receive_lag", informerLagBuckets,
 					"scraper", ctx.ScraperID(),
 					"kind", watchResource.Kind,
@@ -145,20 +151,29 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				return
 			}
 
-			ctx.Counter("kubernetes_informer_events", "type", "update", "kind", u.GetKind(), "scraper_id", ctx.ScraperID()).Add(1)
-
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(3).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
 
 			lastUpdatedTime := health.GetLastUpdatedTime(u)
-			if lastUpdatedTime != nil && lastUpdatedTime.After(u.GetCreationTimestamp().Time) && lastUpdatedTime.Before(time.Now()) {
+			lastUpdatedInPast := lastUpdatedTime != nil && lastUpdatedTime.After(u.GetCreationTimestamp().Time) && lastUpdatedTime.Before(start)
+			if lastUpdatedInPast {
 				ctx.Histogram("informer_receive_lag", informerLagBuckets,
 					"scraper", ctx.ScraperID(),
 					"kind", watchResource.Kind,
 					"operation", "update",
 				).Record(time.Duration(time.Since(*lastUpdatedTime).Milliseconds()))
+			} else {
+				ctx.Warnf("%s/%s/%s has last updated time %s into the future. now=%s, lastupdatedTime=%s",
+					u.GetKind(), u.GetNamespace(), u.GetName(), time.Until(*lastUpdatedTime), start, *lastUpdatedTime)
 			}
+
+			ctx.Counter("kubernetes_informer_events",
+				"type", "update",
+				"kind", u.GetKind(),
+				"scraper_id", ctx.ScraperID(),
+				"valid_timestamp", lo.Ternary(lastUpdatedInPast, "true", "false"),
+			).Add(1)
 
 			queue.Enqueue(NewQueueItem(u, QueueItemOperationUpdate))
 		},
@@ -177,8 +192,6 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				return
 			}
 
-			ctx.Counter("kubernetes_informer_events", "type", "delete", "kind", u.GetKind(), "scraper_id", ctx.ScraperID()).Add(1)
-
 			if ctx.Properties().On(false, "scraper.log.items") {
 				ctx.Logger.V(3).Infof("deleted: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
@@ -190,6 +203,13 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 					"operation", "delete",
 				).Record(time.Duration(time.Since(u.GetDeletionTimestamp().Time).Milliseconds()))
 			}
+
+			ctx.Counter("kubernetes_informer_events",
+				"type", "delete",
+				"kind", u.GetKind(),
+				"scraper_id", ctx.ScraperID(),
+				"valid_timestamp", lo.Ternary(u.GetDeletionTimestamp() != nil, "true", "false"),
+			).Add(1)
 
 			queue.Enqueue(NewQueueItem(u, QueueItemOperationDelete))
 		},
