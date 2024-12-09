@@ -5,6 +5,5 @@ k6:
 
 .PHONY:
 run: k6
-	kubectl delete ns testns || true
-	kubectl create ns testns || true
+	kubectl delete pods --all -n testns
 	 ./k6 run load.ts --insecure-skip-tls-verify

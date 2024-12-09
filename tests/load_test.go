@@ -129,9 +129,6 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 			td := changeLog.Sub(v)
 			logger.Infof("Delta for %s is %v", k, td)
 			Expect(td).To(BeNumerically("<", time.Minute))
-			if td > time.Minute {
-
-			}
 		}
 	})
 })
