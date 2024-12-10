@@ -71,6 +71,10 @@ gotest:
 gotest-prod:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -tags rustdiffgen ./... -coverprofile cover.out
 
+.PHONY: gotest-prod
+gotest-load:
+	make -C fixtures/load k6
+	LOAD_TEST=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./tests -coverprofile cover.out
 
 .PHONY: env
 env: envtest ## Run tests.
