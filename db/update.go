@@ -606,7 +606,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	dedupWindow := ctx.Properties().Duration("changes.dedup.window", time.Hour)
-	newChanges, deduped := dedupChanges(dedupWindow, extractResult.newChanges)
+	var newChanges []*models.ConfigChange
+	var deduped []models.ConfigChangeUpdate
+
+	if ctx.Properties().On(false, "changes.dedup.disable") {
+		newChanges = extractResult.newChanges
+	} else {
+		newChanges, deduped = dedupChanges(dedupWindow, extractResult.newChanges)
+	}
 
 	for _, c := range newChanges {
 		ctx.Counter("config_changes", "scraper_id", ctx.ScraperID(), "change_type", c.ChangeType, "config_type", c.ConfigType).Add(1)
