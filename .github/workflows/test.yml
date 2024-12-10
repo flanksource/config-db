@@ -60,6 +60,8 @@ jobs:
         uses: buildjet/setup-go@v5
         with:
           go-version: 1.22.x
+      - name: Setup kubernetes cluster
+        uses: container-tools/kind-action@v2
       - name: Checkout code
         uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
       - uses: buildjet/cache@v4
