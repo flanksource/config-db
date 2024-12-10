@@ -63,6 +63,9 @@ test: manifests generate fmt vet envtest  ## Run tests.
 test-prod: manifests generate fmt vet envtest  ## Run tests.
 	$(MAKE) gotest-prod
 
+test-load: manifests generate fmt vet envtest  ## Run tests.
+	$(MAKE) gotest-load
+
 .PHONY: gotest
 gotest:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
@@ -71,7 +74,7 @@ gotest:
 gotest-prod:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -tags rustdiffgen ./... -coverprofile cover.out
 
-.PHONY: gotest-prod
+.PHONY: gotest-load
 gotest-load:
 	make -C fixtures/load k6
 	LOAD_TEST=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./tests -coverprofile cover.out
