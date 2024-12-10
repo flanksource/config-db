@@ -393,6 +393,16 @@ func pqComparator(a, b any) int {
 	qa := a.(*QueueItem)
 	qb := b.(*QueueItem)
 
+	if qa.Obj.GetUID() == qb.Obj.GetUID() {
+		resourceVersionA, ok, _ := unstructured.NestedString(qa.Obj.Object, "metadata", "resourceVersion")
+		if ok {
+			resourceVersionB, _, _ := unstructured.NestedString(qb.Obj.Object, "metadata", "resourceVersion")
+
+			// Because of the way we are deduping, we want the earlier version in front of the queue.
+			return strings.Compare(resourceVersionA, resourceVersionB)
+		}
+	}
+
 	if opResult := pqCompareOperation(qa.Operation, qb.Operation); opResult != 0 {
 		return opResult
 	}
