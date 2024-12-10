@@ -123,12 +123,21 @@ const podSpec = {
   }
 }
 
-
+const namespaceSpec = {
+  apiVersion: "v1",
+  kind: "Namespace",
+  metadata: {
+    name: ns,
+  }
+}
 
 let count = 10
 export default function() {
   kubernetes = new Kubernetes();
   console.log(`Connected to ${kubernetes.kubernetes.config.host}`)
+
+
+  kubernetes.apply(JSON.stringify(namespaceSpec))
 
   // Create 200 pods
   for (let i = 0; i < count; i++) {
