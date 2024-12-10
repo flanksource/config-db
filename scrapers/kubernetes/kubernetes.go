@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	coreV1 "k8s.io/api/core/v1"
+	netV1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -241,6 +242,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		var (
 			relationships v1.RelationshipResults
 			labels        = make(map[string]string)
+			aliases       = []string{alias(obj.GetKind(), obj.GetNamespace(), obj.GetName())}
 		)
 
 		if obj.GetLabels() != nil {
@@ -307,27 +309,76 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 				))
 			}
 
+		case "Service":
+			var svc coreV1.Service
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &svc); err != nil {
+				return results.Errorf(err, "failed to convert service to corev1.Service: %v", err)
+			}
+
+			for _, ingress := range svc.Status.LoadBalancer.Ingress {
+				if ingress.Hostname != "" {
+					aliases = append(aliases, lbServiceAlias(ingress.Hostname))
+					labels["hostname"] = ingress.Hostname
+
+					if strings.HasSuffix(ingress.Hostname, "elb.amazonaws.com") {
+						relationships = append(relationships, v1.RelationshipResult{
+							ConfigID:          string(obj.GetUID()),
+							RelatedExternalID: v1.ExternalID{ExternalID: ingress.Hostname, ConfigType: v1.AWSLoadBalancer, ScraperID: "all"},
+						})
+					}
+				}
+
+				if ingress.IP != "" {
+					aliases = append(aliases, lbServiceAlias(ingress.IP))
+					labels["ip"] = ingress.IP
+				}
+			}
+
 		case "Ingress":
+			var ingress netV1.Ingress
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &ingress); err != nil {
+				return results.Errorf(err, "failed to convert ingress to netV1.Ingress: %v", err)
+			}
+
+			// Link to Parent LoadBalancer Service
+			for _, ing := range ingress.Status.LoadBalancer.Ingress {
+				if ing.Hostname != "" {
+					labels["hostname"] = ing.Hostname
+
+					rel := v1.RelationshipResult{Relationship: "LBServiceIngress"}.
+						WithRelated(string(obj.GetUID()), v1.ExternalID{}).
+						WithConfig("", v1.ExternalID{
+							ConfigType: ConfigTypePrefix + "Service",
+							ExternalID: lbServiceAlias(ing.Hostname),
+						})
+					relationships = append(relationships, rel)
+				}
+
+				if ing.IP != "" {
+					labels["ip"] = ing.IP
+
+					rel := v1.RelationshipResult{Relationship: "LBServiceIngress"}.
+						WithRelated(string(obj.GetUID()), v1.ExternalID{}).
+						WithConfig("", v1.ExternalID{
+							ConfigType: ConfigTypePrefix + "Service",
+							ExternalID: lbServiceAlias(ing.IP),
+						})
+					relationships = append(relationships, rel)
+				}
+			}
+
 			// Link ingress to to target service
-			if rules, ok, _ := unstructured.NestedSlice(obj.Object, "spec", "rules"); ok {
-				for _, r := range rules {
-					if rule, ok := r.(map[string]any); ok {
-						if paths, ok, _ := unstructured.NestedSlice(rule, "http", "paths"); ok {
-							for _, p := range paths {
-								if path, ok := p.(map[string]any); ok {
-									if service, ok, _ := unstructured.NestedString(path, "backend", "service", "name"); ok {
-										relationships = append(relationships, v1.RelationshipResult{
-											ConfigID:     string(obj.GetUID()),
-											Relationship: "IngressService",
-											RelatedExternalID: v1.ExternalID{
-												ConfigType: ConfigTypePrefix + "Service",
-												ExternalID: alias("Service", obj.GetNamespace(), service),
-											},
-										})
-									}
-								}
-							}
-						}
+			for _, rule := range ingress.Spec.Rules {
+				for _, path := range rule.HTTP.Paths {
+					if service := path.Backend.Service.Name; service != "" {
+						relationships = append(relationships, v1.RelationshipResult{
+							ConfigID:     string(obj.GetUID()),
+							Relationship: "IngressService",
+							RelatedExternalID: v1.ExternalID{
+								ConfigType: ConfigTypePrefix + "Service",
+								ExternalID: alias("Service", obj.GetNamespace(), service),
+							},
+						})
 					}
 				}
 			}
@@ -394,41 +445,6 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 
 		labels["apiVersion"] = obj.GetAPIVersion()
 
-		if obj.GetKind() == "Service" {
-			if spec, ok := obj.Object["spec"].(map[string]any); ok {
-				if serviceType, ok := spec["type"].(string); ok {
-					labels["service-type"] = serviceType
-
-					if serviceType == "LoadBalancer" {
-						if status, ok := obj.Object["status"].(map[string]any); ok {
-							if lb, ok := status["loadBalancer"].(map[string]any); ok {
-								if ingresses, ok := lb["ingress"].([]any); ok {
-									for _, ing := range ingresses {
-										if ingress, ok := ing.(map[string]any); ok {
-											if hostname, ok := ingress["hostname"].(string); ok && hostname != "" {
-												labels["hostname"] = hostname
-
-												if strings.HasSuffix(hostname, "elb.amazonaws.com") {
-													relationships = append(relationships, v1.RelationshipResult{
-														ConfigID:          string(obj.GetUID()),
-														RelatedExternalID: v1.ExternalID{ExternalID: hostname, ConfigType: v1.AWSLoadBalancer, ScraperID: "all"},
-													})
-												}
-											}
-
-											if ip, ok := ingress["ip"].(string); ok && ip != "" {
-												labels["ip"] = ip
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
 		// Add health metadata
 		resourceHealth, err := health.GetResourceHealth(obj, lua.ResourceHealthOverrides{})
 		if err != nil {
@@ -475,7 +491,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			ID:                  string(obj.GetUID()),
 			Labels:              stripLabels(labels, "-hash"),
 			Tags:                tags,
-			Aliases:             []string{alias(obj.GetKind(), obj.GetNamespace(), obj.GetName())},
+			Aliases:             aliases,
 			Parents:             parents,
 			Children:            children,
 			RelationshipResults: relationships,
@@ -555,6 +571,10 @@ func getKubernetesParent(ctx *KubernetesContext, obj *unstructured.Unstructured)
 	}
 
 	return allParents
+}
+
+func lbServiceAlias(hostOrIP string) string {
+	return fmt.Sprintf("Kubernetes/LoadBalancerService/%s", hostOrIP)
 }
 
 func alias(kind, namespace, name string) string {
