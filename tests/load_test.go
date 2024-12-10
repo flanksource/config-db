@@ -34,8 +34,14 @@ var _ = ginkgo.BeforeSuite(func() {
 var _ = ginkgo.AfterSuite(setup.AfterSuiteFn)
 
 var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
+
 	var scraperCtx api.ScrapeContext
 	ginkgo.BeforeAll(func() {
+		// Skip load test for normal flow
+		if _, ok := os.LookupEnv("LOAD_TEST"); !ok {
+			ginkgo.Skip("Skipping load test, env: LOAD_TEST not set")
+		}
+
 		scrapeConfig := v1.ScrapeConfig{
 			Spec: v1.ScraperSpec{
 				Schedule: "@every 30s",
