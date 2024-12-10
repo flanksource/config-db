@@ -584,6 +584,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 		if updated {
 			summary.AddUpdated(updateArg.Existing.Type)
+			ctx.TempCache().Insert(*updateArg.New)
 		} else {
 			summary.AddUnchanged(updateArg.Existing.Type)
 			nonUpdatedConfigs = append(nonUpdatedConfigs, updateArg.Existing.ID)
