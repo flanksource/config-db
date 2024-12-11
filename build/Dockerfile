@@ -5,7 +5,7 @@ COPY Makefile /app
 COPY external/diffgen /app/external/diffgen
 RUN make rust-diffgen
 
-FROM golang:1.22.5@sha256:86a3c48a61915a8c62c0e1d7594730399caa3feb73655dfe96c7bc17710e96cf AS builder
+FROM golang:1.23.4@sha256:574185e5c6b9d09873f455a7c205ea0514bfd99738c5dc7750196403a44ed4b7 AS builder
 WORKDIR /app
 
 ARG VERSION
