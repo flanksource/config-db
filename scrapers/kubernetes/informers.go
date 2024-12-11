@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	pq "github.com/emirpasic/gods/queues/priorityqueue"
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -34,10 +34,24 @@ var (
 )
 
 // WatchResources watches Kubernetes resources with shared informers
-func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*pq.Queue, error) {
-	priorityQueue := pq.NewWith(pqComparator)
+func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Queue[*QueueItem], error) {
+	priorityQueue, err := collections.NewQueue(collections.QueueOpts[*QueueItem]{
+		Metrics: collections.MetricsOpts[*QueueItem]{
+			Name: "shared_informer",
+			Labels: map[string]any{
+				"scraper_id": ctx.ScraperID(),
+			},
+		},
+		Comparator: pqComparator,
+		Equals:     queueItemIsEqual,
+		Dedupe:     true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create queue: %w", err)
+	}
+
 	if loaded, ok := WatchQueue.LoadOrStore(config.Hash(), priorityQueue); ok {
-		priorityQueue = loaded.(*pq.Queue)
+		priorityQueue = loaded.(*collections.Queue[*QueueItem])
 	}
 
 	if config.Kubeconfig != nil {
@@ -86,7 +100,7 @@ type SharedInformerManager struct {
 
 type DeleteObjHandler func(ctx context.Context, id string) error
 
-func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, queue *pq.Queue) error {
+func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, queue *collections.Queue[*QueueItem]) error {
 	registrationTime := time.Now()
 
 	apiVersion, kind := watchResource.ApiVersion, watchResource.Kind
@@ -385,21 +399,19 @@ func NewQueueItem(obj *unstructured.Unstructured, operation QueueItemOperation) 
 	}
 }
 
-func pqComparator(a, b any) int {
-	if a == nil || b == nil {
-		return 0
-	}
+func queueItemIsEqual(qa, qb *QueueItem) bool {
+	return qa.Obj.GetUID() == qb.Obj.GetUID()
+}
 
-	qa := a.(*QueueItem)
-	qb := b.(*QueueItem)
-
+func pqComparator(qa, qb *QueueItem) int {
 	if qa.Obj.GetUID() == qb.Obj.GetUID() {
 		resourceVersionA, ok, _ := unstructured.NestedString(qa.Obj.Object, "metadata", "resourceVersion")
 		if ok {
 			resourceVersionB, _, _ := unstructured.NestedString(qb.Obj.Object, "metadata", "resourceVersion")
 
-			// Because of the way we are deduping, we want the earlier version in front of the queue.
-			return strings.Compare(resourceVersionA, resourceVersionB)
+			// Because of the way we are deduping, we want the latest version in front of the queue.
+			// the later versions are discarded.
+			return strings.Compare(resourceVersionB, resourceVersionA)
 		}
 	}
 
