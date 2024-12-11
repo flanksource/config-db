@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/emirpasic/gods/queues/priorityqueue"
+	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/hash"
 	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -166,13 +167,23 @@ func TestPqComparator(t *testing.T) {
 					Obj:       getUnstructuredWithResourceVersion("Pod", "a", "2c6a2f24-0199-435d-83a6-bd3f6d18d06d", "4", now.Add(-1*time.Hour)),
 				},
 			},
-			expected: []string{"a-1", "a-2", "a-3", "a-4"},
+			expected: []string{"a-4"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q := priorityqueue.NewWith(pqComparator)
+			q, err := collections.NewQueue(collections.QueueOpts[*QueueItem]{
+				Metrics: collections.MetricsOpts[*QueueItem]{
+					Name: fmt.Sprintf("m_%s", hash.Sha256Hex(tt.name)[:10]),
+				},
+				Comparator: pqComparator,
+				Equals:     queueItemIsEqual,
+				Dedupe:     true,
+			})
+			if err != nil {
+				t.Fatalf("failed to create queue: %v", err)
+			}
 
 			for _, item := range tt.Items {
 				q.Enqueue(&item)
@@ -180,12 +191,10 @@ func TestPqComparator(t *testing.T) {
 
 			var result []string
 			for {
-				v, ok := q.Dequeue()
+				item, ok := q.Dequeue()
 				if !ok {
 					break
 				}
-
-				item := v.(*QueueItem)
 
 				resourceVersion, ok, _ := unstructured.NestedString(item.Obj.Object, "metadata", "resourceVersion")
 				if ok {
@@ -207,6 +216,7 @@ func getUnstructuredEvent(kind, name string, creationTimestamp, recreationTimest
 		Object: map[string]any{
 			"kind": kind,
 			"metadata": map[string]any{
+				"uid":               uuid.NewString(),
 				"name":              name,
 				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
 				"managedFields": []any{

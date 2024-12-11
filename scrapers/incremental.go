@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	pq "github.com/emirpasic/gods/queues/priorityqueue"
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -32,7 +32,7 @@ func consumeKubernetesWatchJobKey(id string) string {
 
 // ConsumeKubernetesWatchJobFunc returns a job that consumes kubernetes objects received from shared informers
 // for the given config of the scrapeconfig.
-func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, queue *pq.Queue) *job.Job {
+func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, queue *collections.Queue[*kubernetes.QueueItem]) *job.Job {
 	return &job.Job{
 		Name:         "ConsumeKubernetesWatch",
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta),
@@ -64,7 +64,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			)
 
 			for {
-				val, more := queue.Dequeue()
+				queueItem, more := queue.Dequeue()
 				if !more {
 					break
 				}
@@ -75,10 +75,6 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 					break
 				}
 
-				queueItem, ok := val.(*kubernetes.QueueItem)
-				if !ok {
-					return fmt.Errorf("unexpected item in the priority queue: %T", val)
-				}
 				obj := queueItem.Obj
 				queuedTime[string(obj.GetUID())] = queueItem.Timestamp
 
