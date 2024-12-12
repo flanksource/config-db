@@ -57,7 +57,7 @@ func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*
 
 		client, ok := clientMap[gvk]
 		if !ok {
-			c, err := ctx.KubernetesDynamicClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
+			c, err := ctx.KubernetesClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
 			if err != nil {
 
 				// We suspect if this happens we might be on the wrong k8s context
