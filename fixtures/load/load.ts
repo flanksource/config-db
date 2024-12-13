@@ -131,6 +131,38 @@ const namespaceSpec = {
   }
 }
 
+const deploymentSpec = {
+  apiVersion: "apps/v1",
+  kind: "Deployment",
+  metadata: {
+    name: "nginx",
+    namespace: ns,
+  },
+  spec: {
+    replicas: 3,
+    selector: {
+      matchLabels: {
+        app: "nginx"
+      }
+    },
+    template: {
+      metadata: {
+        labels: {
+          app: "nginx"
+        }
+      },
+      spec: {
+        containers: [
+          {
+            name: "nginx",
+            image: "nginx:alpine",
+          }
+        ]
+      }
+    }
+  }
+};
+
 let count = 10
 export default function() {
   kubernetes = new Kubernetes();
@@ -171,7 +203,7 @@ export default function() {
 
     // Write this to file
     console.log(`Crashing pod: ${podName} at  ${new Date().toLocaleString()}`);
-    file.appendString('log.txt', `${podName},${new Date().toISOString()}\n`)
+    file.appendString('log.txt', `${podName},crash,${new Date().toISOString()}\n`)
 
     try {
       let response = proxyGet(kubernetes.get("Pod", podName, ns), "panic", 9898)
@@ -191,4 +223,14 @@ export default function() {
   pods.map(function(pod) {
     console.log(`  ${pod.metadata.name} ${pod.status.phase}: restarts=${pod.status.containerStatuses[0].restartCount}`);
   });
+
+  // Create deployment to scale up and down
+  console.log(`Creating nginx deployment`);
+  kubernetes.apply(JSON.stringify(deploymentSpec))
+
+  k6.sleep(5);
+  const deployment1Replica = JSON.parse(JSON.stringify(deploymentSpec));
+  deployment1Replica.spec.replicas = 1;
+  file.appendString('log.txt', `${deploymentSpec.metadata.name},scaledown,${new Date().toISOString()}\n`)
+  kubernetes.apply(JSON.stringify(deployment1Replica))
 }

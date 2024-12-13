@@ -83,12 +83,12 @@ func run(ctx dutyContext.Context, args []string) error {
 	utilruntime.Must(v1.AddToScheme(scheme))
 
 	registerJobs(ctx, args)
-	scrapers.StartEventListener(ctx)
+	scrapers.StartEventListener(dutyCtx)
 
 	go serve(dutyCtx)
 	go tableUpdatesHandler(dutyCtx)
 
-	return launchKopper(ctx)
+	return launchKopper(dutyCtx)
 }
 
 func launchKopper(ctx dutyContext.Context) error {
