@@ -242,6 +242,14 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 			return fmt.Errorf("failed to watch kubernetes resources: %v", err)
 		}
 
+		if config.Kubeconfig != nil {
+			c, err := sc.WithKubeconfig(*config.Kubeconfig)
+			if err != nil {
+				return fmt.Errorf("failed to apply custom kubeconfig: %w", err)
+			}
+			sc.Context = *c
+
+		}
 		watchConsumerJob := ConsumeKubernetesWatchJobFunc(sc, config, queue)
 		if err := watchConsumerJob.AddToScheduler(scrapeJobScheduler); err != nil {
 			return fmt.Errorf("failed to schedule kubernetes watch consumer job: %v", err)
