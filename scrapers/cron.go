@@ -1,6 +1,7 @@
 package scrapers
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -16,6 +17,11 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/samber/lo"
 	"golang.org/x/sync/semaphore"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	//"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -210,9 +216,39 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			}
 			jr.History.SuccessCount = output.Total
 			jr.History.AddDetails("scrape_summary", output.Summary)
+
+			if source := sc.ScrapeConfig().GetAnnotations()["source"]; source == models.SourceCRD {
+				if err := updateCRDStatus(jr.Context, sc.ScrapeConfig(), jr.History.SuccessCount, jr.History.ErrorCount, jr.History.Errors); err != nil {
+					return fmt.Errorf("error patching crd status: %w", err)
+				}
+			}
+
 			return nil
 		},
 	}
+}
+
+func updateCRDStatus(ctx context.Context, obj *v1.ScrapeConfig, success, error int, errors []string) error {
+	statusUpdate := v1.LastRunStatus{
+		Success:   success,
+		Error:     error,
+		Timestamp: metav1.Time{Time: time.Now()},
+	}
+	if len(errors) > 0 {
+		statusUpdate.Errors = errors
+	}
+
+	rawPatch, err := json.Marshal(v1.ScrapeConfigStatus{LastRun: statusUpdate})
+	if err != nil {
+		return fmt.Errorf("error marshaling status update for crd: %w", err)
+	}
+
+	patch := client.RawPatch(types.StrategicMergePatchType, rawPatch)
+	if err := v1.ScrapeConfigReconciler.Status().Patch(ctx, obj, patch); err != nil {
+		return fmt.Errorf("error patching crd status: %w", err)
+	}
+
+	return nil
 }
 
 func scheduleScraperJob(sc api.ScrapeContext) error {
