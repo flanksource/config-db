@@ -1156,12 +1156,6 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				Relationship:      "RegionInstance",
 			})
 
-			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID:  v1.ExternalID{ExternalID: ctx.Subnets[lo.FromPtr(i.SubnetId)].Zone, ConfigType: v1.AWSAvailabilityZone},
-				RelatedExternalID: selfExternalID,
-				Relationship:      "ZoneInstance",
-			})
-
 			instance := NewInstance(i)
 			labels := instance.Tags
 			if labels == nil {
@@ -1632,20 +1626,6 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			RelatedExternalID: selfExternalID,
 			ConfigExternalID:  v1.ExternalID{ExternalID: ctx.Session.Region, ConfigType: v1.AWSRegion},
 			Relationship:      "RegionSubnet",
-		})
-
-		// Subnet to availability zone relationship
-		relationships = append(relationships, v1.RelationshipResult{
-			RelatedExternalID: selfExternalID,
-			ConfigExternalID:  v1.ExternalID{ExternalID: lo.FromPtr(subnet.AvailabilityZone), ConfigType: v1.AWSAvailabilityZone},
-			Relationship:      "AvailabilityZoneSubnet",
-		})
-
-		// Subnet to availability zone relationship
-		relationships = append(relationships, v1.RelationshipResult{
-			RelatedExternalID: selfExternalID,
-			ConfigExternalID:  v1.ExternalID{ExternalID: lo.FromPtr(subnet.AvailabilityZoneId), ConfigType: v1.AWSAvailabilityZoneID},
-			Relationship:      "AvailabilityZoneIDSubnet",
 		})
 
 		result := v1.ScrapeResult{
