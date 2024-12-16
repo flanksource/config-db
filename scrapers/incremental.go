@@ -115,6 +115,14 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 
 					cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(sc.ScrapeConfig()).WithJobHistory(ctx.History).AsIncrementalScrape()
 					cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
+					if config.Kubeconfig != nil {
+						c, err := cc.WithKubeconfig(*config.Kubeconfig)
+						if err != nil {
+							ctx.History.AddErrorf("failed to apply custom kubeconfig: %v", err)
+							return
+						}
+						cc.Context = *c
+					}
 
 					backoff := retry.WithMaxRetries(3, retry.NewExponential(time.Second))
 					err := retry.Do(ctx, backoff, func(_ctx gocontext.Context) error {
