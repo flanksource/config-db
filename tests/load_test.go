@@ -1,8 +1,10 @@
 package tests
 
 import (
+	"maps"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/flanksource/duty/tests/setup"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/samber/lo"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -29,12 +32,16 @@ var (
 	DefaultContext context.Context
 )
 
-type ChangeTimes []struct {
+type ChangeTime struct {
 	ChangeType string
 	CreatedAt  time.Time
 	Name       string
 	Details    string
+	ConfigID   string
+	ConfigType string
 }
+
+type ChangeTimes []ChangeTime
 
 var _ = ginkgo.BeforeSuite(func() {
 	DefaultContext = setup.BeforeSuiteFn()
@@ -81,6 +88,7 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 
 		scrapers.InitSemaphoreWeights(scraperCtx.Context)
 	})
+
 	ginkgo.It("should start scrape once", func() {
 		_, err := scrapers.RunScraper(scraperCtx)
 		Expect(err).To(BeNil())
@@ -115,7 +123,7 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 
 		var podinfoChanges ChangeTimes
 		err = scraperCtx.DB().Raw(`
-            SELECT cc.change_type, cc.created_at, ci.name FROM config_changes cc
+            SELECT cc.change_type, cc.created_at, ci.name, ci.type as config_type, cc.config_id FROM config_changes cc
             INNER JOIN config_items ci ON cc.config_id = ci.id
             WHERE ci.name LIKE 'podinfo%'
             `).Scan(&podinfoChanges).Error
@@ -123,11 +131,22 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 		Expect(err).To(BeNil())
 
 		podinfoChangeDiffs := make(map[string]time.Time)
+		podinfoChangeByName := make(map[string][]string)
 		for _, c := range podinfoChanges {
 			logger.Infof("Change is %v", c)
+			podinfoChangeByName[c.Name] = append(podinfoChangeByName[c.Name], c.ChangeType)
 			if c.ChangeType == v1.ChangeTypeDiff {
 				podinfoChangeDiffs[c.Name] = c.CreatedAt
 			}
+		}
+
+		// podinfo-0 - podinfo-9
+		Expect(len(slices.Collect(maps.Keys(podinfoChangeByName)))).To(Equal(10))
+
+		podChangeTypes := []string{"Healthy", "Pulling", "Scheduled", "diff", "Created", "Started", "Pulled"}
+		for _, ct := range podinfoChangeByName {
+			_, diff := lo.Difference(ct, podChangeTypes)
+			Expect(len(diff)).To(Equal(0))
 		}
 
 		f, err := os.ReadFile("log.txt")
@@ -165,7 +184,7 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 
 		var nginxChanges ChangeTimes
 		err = scraperCtx.DB().Raw(`
-            SELECT cc.change_type, cc.created_at, ci.name FROM config_changes cc
+            SELECT cc.change_type, cc.created_at, ci.name, ci.type as config_type, cc.config_id FROM config_changes cc
             INNER JOIN config_items ci ON cc.config_id = ci.id
             WHERE ci.name LIKE 'nginx%'
             ORDER BY cc.created_at ASC
@@ -173,10 +192,17 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 
 		Expect(err).To(BeNil())
 
+		scalingReplicaSetEventCount := lo.CountBy(nginxChanges, func(c ChangeTime) bool {
+			return c.ChangeType == "ScalingReplicaSet"
+		})
+		Expect(scalingReplicaSetEventCount).To(Equal(2))
+
 		nginxChangeDiffs := make(map[string]time.Time)
 		nginxCounter := 0
 		for _, c := range nginxChanges {
 			logger.Infof("Nginx change is %v", c)
+			// There will be 2 events, one on setup and one when we manually
+			// scale down
 			if c.ChangeType == "ScalingReplicaSet" && nginxCounter != 0 {
 				nginxChangeDiffs[c.Name] = c.CreatedAt
 			}

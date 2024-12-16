@@ -63,10 +63,10 @@ test: manifests generate fmt vet envtest  ## Run tests.
 test-prod: manifests generate fmt vet envtest  ## Run tests.
 	$(MAKE) gotest-prod
 
-test-load: envtest  ## Run tests.
-	kubectl delete events --all -n testns
+test-load:
 	kubectl delete deployments --all -n testns
 	kubectl delete pods --all -n testns
+	kubectl delete events --all -n testns
 	$(MAKE) gotest-load
 
 .PHONY: gotest
