@@ -6478,6 +6478,20 @@ spec:
           status:
             description: ScrapeConfigStatus defines the observed state of ScrapeConfig
             properties:
+              lastRun:
+                properties:
+                  error:
+                    type: integer
+                  errors:
+                    items:
+                      type: string
+                    type: array
+                  success:
+                    type: integer
+                  timestamp:
+                    format: date-time
+                    type: string
+                type: object
               observedGeneration:
                 format: int64
                 type: integer

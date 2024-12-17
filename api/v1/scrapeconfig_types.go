@@ -29,8 +29,8 @@ import (
 )
 
 type LastRunStatus struct {
-	Success   int         `json:"success"`
-	Error     int         `json:"error"`
+	Success   int         `json:"success,omitempty"`
+	Error     int         `json:"error,omitempty"`
 	Errors    []string    `json:"errors,omitempty"`
 	Timestamp metav1.Time `json:"timestamp,omitempty"`
 }
