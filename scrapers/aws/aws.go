@@ -122,7 +122,7 @@ func getName(tags v1.JSONStringMap, def string) string {
 }
 
 type Zone struct {
-	Region, Zone string
+	Region, Zone, ZoneID string
 }
 
 func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
@@ -1166,6 +1166,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 
 			tags := v1.Tags{}
 			tags.Append("zone", ctx.Subnets[instance.SubnetID].Zone)
+			tags.Append("zone-id", ctx.Subnets[instance.SubnetID].ZoneID)
 			tags.Append("region", ctx.Subnets[instance.SubnetID].Region)
 
 			*results = append(*results, v1.ScrapeResult{
@@ -1606,12 +1607,13 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 
 		az := *subnet.AvailabilityZone
 		region := az[0 : len(az)-1]
-		ctx.Subnets[*subnet.SubnetId] = Zone{Zone: az, Region: region}
+		ctx.Subnets[*subnet.SubnetId] = Zone{Zone: az, Region: region, ZoneID: *subnet.AvailabilityZoneId}
 		labels["network"] = *subnet.VpcId
 		labels["subnet"] = *subnet.SubnetId
 
 		tags := v1.Tags{}
 		tags.Append("zone", az)
+		tags.Append("zone-id", *subnet.AvailabilityZoneId)
 		tags.Append("region", region)
 
 		if !config.Includes("subnet") {
