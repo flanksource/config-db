@@ -53,7 +53,7 @@ require (
 	github.com/flanksource/duty v1.0.771
 	github.com/flanksource/is-healthy v1.0.54
 	github.com/flanksource/ketall v1.1.7
-	github.com/flanksource/kopper v1.0.10
+	github.com/flanksource/kopper v1.0.11
 	github.com/gobwas/glob v0.2.3
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
 	github.com/google/uuid v1.6.0

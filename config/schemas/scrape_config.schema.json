@@ -1292,6 +1292,27 @@
         "kind"
       ]
     },
+    "LastRunStatus": {
+      "properties": {
+        "success": {
+          "type": "integer"
+        },
+        "error": {
+          "type": "integer"
+        },
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/Time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Link": {
       "properties": {
         "type": {
@@ -1750,6 +1771,9 @@
       "properties": {
         "observedGeneration": {
           "type": "integer"
+        },
+        "lastRun": {
+          "$ref": "#/$defs/LastRunStatus"
         }
       },
       "additionalProperties": false,

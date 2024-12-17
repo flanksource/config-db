@@ -99,7 +99,7 @@ func launchKopper(ctx dutyContext.Context) error {
 		return err
 	}
 
-	if err := kopper.SetupReconciler(ctx, mgr,
+	if _, err := kopper.SetupReconciler(ctx, mgr,
 		db.PersistScrapePluginFromCRD,
 		db.DeleteScrapePlugin,
 		"scrapePlugins.config.flanksource.com",
@@ -107,11 +107,12 @@ func launchKopper(ctx dutyContext.Context) error {
 		return fmt.Errorf("unable to setup reconciler for scrape plugins: %w", err)
 	}
 
-	if err := kopper.SetupReconciler(ctx, mgr,
+	v1.ScrapeConfigReconciler, err = kopper.SetupReconciler(ctx, mgr,
 		PersistScrapeConfigFromCRD,
 		db.DeleteScrapeConfig,
 		"scrapeConfig.config.flanksource.com",
-	); err != nil {
+	)
+	if err != nil {
 		return fmt.Errorf("unable to setup reconciler for scrape plugins: %w", err)
 	}
 
@@ -119,11 +120,15 @@ func launchKopper(ctx dutyContext.Context) error {
 }
 
 func PersistScrapeConfigFromCRD(ctx dutyContext.Context, scrapeConfig *v1.ScrapeConfig) error {
-	if changed, err := db.PersistScrapeConfigFromCRD(ctx, scrapeConfig); err != nil {
+	if configScraper, changed, err := db.PersistScrapeConfigFromCRD(ctx, scrapeConfig); err != nil {
 		return err
 	} else if changed {
 		// Sync jobs if new scrape config is created
-		scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(scrapeConfig)
+		sc, err := v1.ScrapeConfigFromModel(configScraper)
+		if err != nil {
+			return err
+		}
+		scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(&sc)
 		if err := scrapers.SyncScrapeJob(scrapeCtx); err != nil {
 			logger.Errorf("failed to sync scrape job: %v", err)
 		}
