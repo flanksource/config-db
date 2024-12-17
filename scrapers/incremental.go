@@ -59,7 +59,6 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 				deletedObjects []*unstructured.Unstructured
 				queuedTime     = map[string]time.Time{}
 
-				seenObjects       = map[string]struct{}{}
 				objectsFromEvents []v1.InvolvedObject
 			)
 
@@ -83,11 +82,10 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 					continue
 				}
 
-				seenObjects[string(obj.GetUID())] = struct{}{}
 				objs = append(objs, obj)
 
 				if obj.GetKind() == "Event" {
-					// For events, we want to re-scrape their involved objects as well.
+					// For events, we want to re-scrape their involved objects as well
 					involvedObjectRaw, ok, _ := unstructured.NestedMap(obj.Object, "involvedObject")
 					if !ok {
 						continue
@@ -102,15 +100,28 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 						return fmt.Errorf("failed to unmarshal endpoint (%s/%s): %w", obj.GetUID(), obj.GetName(), err)
 					}
 
-					if _, ok := seenObjects[string(involvedObject.UID)]; !ok {
-						objectsFromEvents = append(objectsFromEvents, involvedObject)
-						seenObjects[string(involvedObject.UID)] = struct{}{}
+					// If the involvedObject does not exist in db, we requeue the event after 30s
+					// to prevent foreign key errors
+					ci, err := sc.TempCache().Get(sc, string(involvedObject.UID), api.IgnoreNotFound)
+					if err != nil {
+						return fmt.Errorf("failed to fetch from cache: %w", err)
 					}
+					if ci == nil {
+						go func(queueObj *unstructured.Unstructured) {
+							time.Sleep(30 * time.Second)
+							queue.Enqueue(kubernetes.NewQueueItem(queueObj, kubernetes.QueueItemOperationReEnqueue))
+						}(obj)
+
+						objs = lo.DropRight(objs, 1)
+					}
+
+					objectsFromEvents = append(objectsFromEvents, involvedObject)
 				}
 			}
 
+			objectsFromEvents = lo.UniqBy(objectsFromEvents, func(obj v1.InvolvedObject) string { return string(obj.UID) })
 			if len(objectsFromEvents) > 0 {
-				go func() {
+				go func(eventInvolvedObjs []v1.InvolvedObject) {
 					start := time.Now()
 
 					cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(sc.ScrapeConfig()).WithJobHistory(ctx.History).AsIncrementalScrape()
@@ -126,7 +137,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 
 					backoff := retry.WithMaxRetries(3, retry.NewExponential(time.Second))
 					err := retry.Do(ctx, backoff, func(_ctx gocontext.Context) error {
-						objs, err := kube.FetchInvolvedObjects(cc, objectsFromEvents)
+						objs, err := kube.FetchInvolvedObjects(cc, eventInvolvedObjs)
 						if err != nil {
 							return retry.RetryableError(err)
 						}
@@ -143,7 +154,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 					if err != nil {
 						ctx.History.AddErrorf("failed to get invovled objects: %v", err)
 					}
-				}()
+				}(objectsFromEvents)
 			}
 
 			// NOTE: The resource watcher can return multiple objects for the same NEW resource.
