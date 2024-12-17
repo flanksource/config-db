@@ -49,8 +49,8 @@ require (
 	github.com/aws/smithy-go v1.22.1
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/flanksource/artifacts v1.0.14
-	github.com/flanksource/commons v1.34.0
 	github.com/flanksource/duty v1.0.772
+	github.com/flanksource/commons v1.35.2
 	github.com/flanksource/is-healthy v1.0.54
 	github.com/flanksource/ketall v1.1.7
 	github.com/flanksource/kopper v1.0.11

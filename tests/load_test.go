@@ -12,13 +12,17 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/tests/setup"
+	"github.com/google/uuid"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -73,6 +77,10 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 		DefaultContext = DefaultContext.WithKubernetes(clientset, config)
 
 		scrapeConfig := v1.ScrapeConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "k8s",
+				UID:  types.UID(uuid.New().String()),
+			},
 			Spec: v1.ScraperSpec{
 				Schedule: "@every 30s",
 				Kubernetes: []v1.Kubernetes{{
@@ -83,6 +91,10 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 					},
 				}},
 			},
+		}
+
+		if _, _, err = db.PersistScrapeConfigFromCRD(DefaultContext, &scrapeConfig); err != nil {
+			panic(err)
 		}
 		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
 
@@ -144,8 +156,11 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 		Expect(len(slices.Collect(maps.Keys(podinfoChangeByName)))).To(Equal(10))
 
 		podChangeTypes := []string{"Healthy", "Pulling", "Scheduled", "diff", "Created", "Started", "Pulled"}
-		for _, ct := range podinfoChangeByName {
+		for n, ct := range podinfoChangeByName {
 			_, diff := lo.Difference(ct, podChangeTypes)
+			if len(diff) != 0 {
+				logger.Infof("Got pod change events: %s -> %v", n, ct)
+			}
 			Expect(len(diff)).To(Equal(0))
 		}
 

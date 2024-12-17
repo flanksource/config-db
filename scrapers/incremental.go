@@ -54,6 +54,11 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			sc := sc.WithScrapeConfig(sc.ScrapeConfig(), plugins...)
 			config.BaseScraper = config.BaseScraper.ApplyPlugins(plugins...)
 
+			// Use temp cache if it already exists for scraper
+			if tc, exists := TempCacheStore[sc.ScraperID()]; exists {
+				sc = sc.WithTempCache(tc)
+			}
+
 			var (
 				objs           []*unstructured.Unstructured
 				deletedObjects []*unstructured.Unstructured
@@ -107,11 +112,8 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 						return fmt.Errorf("failed to fetch from cache: %w", err)
 					}
 					if ci == nil {
-						go func(queueObj *unstructured.Unstructured) {
-							time.Sleep(30 * time.Second)
-							queue.Enqueue(kubernetes.NewQueueItem(queueObj, kubernetes.QueueItemOperationReEnqueue))
-						}(obj)
-
+						queue.EnqueueWithDelay(kubernetes.NewQueueItem(obj, kubernetes.QueueItemOperationReEnqueue), 30*time.Second)
+						// Remove event object from objects list
 						objs = lo.DropRight(objs, 1)
 					}
 
