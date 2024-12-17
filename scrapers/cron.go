@@ -238,12 +238,16 @@ func updateCRDStatus(ctx context.Context, obj *v1.ScrapeConfig, success, error i
 		statusUpdate.Errors = errors
 	}
 
-	rawPatch, err := json.Marshal(v1.ScrapeConfigStatus{LastRun: statusUpdate})
+	rawPatch, err := json.Marshal(v1.ScrapeConfig{
+		Status: v1.ScrapeConfigStatus{
+			LastRun: statusUpdate,
+		},
+	})
 	if err != nil {
 		return fmt.Errorf("error marshaling status update for crd: %w", err)
 	}
 
-	patch := client.RawPatch(types.StrategicMergePatchType, rawPatch)
+	patch := client.RawPatch(types.MergePatchType, rawPatch)
 	if err := v1.ScrapeConfigReconciler.Status().Patch(ctx, obj, patch); err != nil {
 		return fmt.Errorf("error patching crd status: %w", err)
 	}
