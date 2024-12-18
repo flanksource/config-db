@@ -47,7 +47,7 @@ func (ctx ScrapeContext) TempCache() *TempCache {
 	return ctx.temp
 }
 
-func (ctx ScrapeContext) withTempCache(cache *TempCache) ScrapeContext {
+func (ctx ScrapeContext) WithTempCache(cache *TempCache) ScrapeContext {
 	ctx.temp = cache
 	return ctx
 }
@@ -60,7 +60,7 @@ func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 		if err != nil {
 			return ctx, err
 		}
-		return ctx.withTempCache(cache), nil
+		return ctx.WithTempCache(cache), nil
 	}
 
 	scraperID := ctx.ScrapeConfig().GetPersistedID()
@@ -74,7 +74,7 @@ func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	// and is reset on every InitTempCache() call which happens
 	// in RunScraper()
 	scraperTempCache.Store(*scraperID, cache)
-	return ctx.withTempCache(cache), nil
+	return ctx.WithTempCache(cache), nil
 }
 
 func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {

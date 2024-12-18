@@ -99,13 +99,23 @@ func (t *TempCache) Insert(item models.ConfigItem) {
 	delete(t.notFound, strings.ToLower(item.ID))
 }
 
-func (t *TempCache) Get(ctx ScrapeContext, id string) (*models.ConfigItem, error) {
+type CacheOption string
+
+var (
+	IgnoreNotFound CacheOption = "IgnoreNotFound"
+)
+
+func (t *TempCache) Get(ctx ScrapeContext, id string, opts ...CacheOption) (*models.ConfigItem, error) {
 	id = strings.ToLower(id)
 	if id == "" {
 		return nil, nil
 	}
 
-	if _, notFound := t.notFound[id]; notFound {
+	optMap := lo.SliceToMap(opts, func(opt CacheOption) (CacheOption, bool) {
+		return opt, true
+	})
+
+	if _, notFound := t.notFound[id]; notFound && !optMap[IgnoreNotFound] {
 		return nil, nil
 	}
 

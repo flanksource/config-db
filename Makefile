@@ -63,6 +63,12 @@ test: manifests generate fmt vet envtest  ## Run tests.
 test-prod: manifests generate fmt vet envtest  ## Run tests.
 	$(MAKE) gotest-prod
 
+test-load:
+	kubectl delete deployments --all -n testns
+	kubectl delete pods --all -n testns
+	kubectl delete events --all -n testns
+	$(MAKE) gotest-load
+
 .PHONY: gotest
 gotest:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
@@ -71,6 +77,10 @@ gotest:
 gotest-prod:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -tags rustdiffgen ./... -coverprofile cover.out
 
+.PHONY: gotest-load
+gotest-load:
+	make -C fixtures/load k6
+	LOAD_TEST=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./tests -coverprofile cover.out
 
 .PHONY: env
 env: envtest ## Run tests.

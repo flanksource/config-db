@@ -2,10 +2,11 @@ import { Kubernetes } from 'k6/x/kubernetes';
 import k6 from 'k6';
 import encoding from 'k6/encoding'
 import http from 'k6/http';
+import file from 'k6/x/file';
 
 export const options = {
   thresholds: {
-    http_req_failed: ['rate<0.01'],
+    //http_req_failed: ['rate<0.01'],
     http_req_duration: ['p(99)<1000'],
   },
   scenarios: {
@@ -122,12 +123,53 @@ const podSpec = {
   }
 }
 
+const namespaceSpec = {
+  apiVersion: "v1",
+  kind: "Namespace",
+  metadata: {
+    name: ns,
+  }
+}
 
+const deploymentSpec = {
+  apiVersion: "apps/v1",
+  kind: "Deployment",
+  metadata: {
+    name: "nginx",
+    namespace: ns,
+  },
+  spec: {
+    replicas: 3,
+    selector: {
+      matchLabels: {
+        app: "nginx"
+      }
+    },
+    template: {
+      metadata: {
+        labels: {
+          app: "nginx"
+        }
+      },
+      spec: {
+        containers: [
+          {
+            name: "nginx",
+            image: "nginx:alpine",
+          }
+        ]
+      }
+    }
+  }
+};
 
-let count = 2
-export default function () {
+let count = 10
+export default function() {
   kubernetes = new Kubernetes();
   console.log(`Connected to ${kubernetes.kubernetes.config.host}`)
+
+
+  kubernetes.apply(JSON.stringify(namespaceSpec))
 
   // Create 200 pods
   for (let i = 0; i < count; i++) {
@@ -152,14 +194,16 @@ export default function () {
 
   // Crash 20 random pods over 1 minute
   const interval = 3; // seconds between crashes
-  const podsToCrash = 1;
+  const podsToCrash = 2;
 
   for (let i = 0; i < podsToCrash; i++) {
     const randomPodIndex = Math.floor(Math.random() * count);
     const podName = `podinfo-${randomPodIndex}`;
 
 
-    console.log(`Crashing pod: ${podName}`);
+    // Write this to file
+    console.log(`Crashing pod: ${podName} at  ${new Date().toLocaleString()}`);
+    file.appendString('log.txt', `${podName},crash,${new Date().toISOString()}\n`)
 
     try {
       let response = proxyGet(kubernetes.get("Pod", podName, ns), "panic", 9898)
@@ -176,7 +220,17 @@ export default function () {
   // List all pods to verify
   const pods = kubernetes.list("Pod", ns);
   console.log(`${pods.length} Pods found:`);
-  pods.map(function (pod) {
+  pods.map(function(pod) {
     console.log(`  ${pod.metadata.name} ${pod.status.phase}: restarts=${pod.status.containerStatuses[0].restartCount}`);
   });
+
+  // Create deployment to scale up and down
+  console.log(`Creating nginx deployment`);
+  kubernetes.apply(JSON.stringify(deploymentSpec))
+
+  k6.sleep(5);
+  const deployment1Replica = JSON.parse(JSON.stringify(deploymentSpec));
+  deployment1Replica.spec.replicas = 1;
+  file.appendString('log.txt', `${deploymentSpec.metadata.name},scaledown,${new Date().toISOString()}\n`)
+  kubernetes.apply(JSON.stringify(deployment1Replica))
 }

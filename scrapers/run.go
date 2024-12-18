@@ -25,6 +25,9 @@ const (
 	contextKeyScrapeStart contextKey = "scrape_start_time"
 )
 
+// Cache store to be used by watch jobs
+var TempCacheStore = make(map[string]*api.TempCache)
+
 type ScrapeOutput struct {
 	Total   int // all configs & changes
 	Summary map[string]v1.ConfigTypeScrapeSummary
@@ -33,6 +36,7 @@ type ScrapeOutput struct {
 func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 	var timer = timer.NewMemoryTimer()
 	ctx, err := ctx.InitTempCache()
+	TempCacheStore[ctx.ScraperID()] = ctx.TempCache()
 	if err != nil {
 		return nil, err
 	}
