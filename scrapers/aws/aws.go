@@ -1140,7 +1140,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 
 			relationships = append(relationships, v1.RelationshipResult{
 				ConfigExternalID:  selfExternalID,
-				RelatedExternalID: v1.ExternalID{ExternalID: "Kubernetes/Node//" + *i.PrivateDnsName, ConfigType: "Kubernetes::Node"},
+				RelatedExternalID: v1.ExternalID{ExternalID: "Kubernetes/Node//" + *i.PrivateDnsName, ConfigType: "Kubernetes::Node", ScraperID: "all"},
 				Relationship:      "InstanceKuberenetesNode",
 			})
 
