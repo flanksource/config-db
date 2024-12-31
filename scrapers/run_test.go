@@ -485,7 +485,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
 
-			storedConfigItem, err = db.GetConfigItemFromID(ctx, configItemID.ID)
+			storedConfigItem, err = GetConfigItemFromID(ctx, configItemID.ID)
 			Expect(err).To(BeNil())
 			Expect(storedConfigItem).ToNot(BeNil())
 		})
@@ -517,7 +517,7 @@ var _ = Describe("Scrapers test", Ordered, func() {
 			Expect(err).To(BeNil())
 			Expect(configItemID).ToNot(BeNil())
 
-			configItem, err := db.GetConfigItemFromID(ctx, configItemID.ID)
+			configItem, err := GetConfigItemFromID(ctx, configItemID.ID)
 			Expect(err).To(BeNil())
 			Expect(storedConfigItem).ToNot(BeNil())
 
@@ -692,4 +692,11 @@ func createRandomConfigMap(name string) *apiv1.ConfigMap {
 	Expect(err).NotTo(HaveOccurred(), "failed to create ConfigMap")
 
 	return cm1
+}
+
+// GetConfigItemFromID returns a single config item result
+func GetConfigItemFromID(ctx api.ScrapeContext, id string) (*models.ConfigItem, error) {
+	var ci models.ConfigItem
+	err := ctx.DB().Limit(1).Omit("config").Find(&ci, "id = ?", id).Error
+	return &ci, err
 }

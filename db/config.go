@@ -41,13 +41,6 @@ func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.Config
 	return &ci, nil
 }
 
-// GetConfigItemFromID returns a single config item result
-func GetConfigItemFromID(ctx api.ScrapeContext, id string) (*models.ConfigItem, error) {
-	var ci models.ConfigItem
-	err := ctx.DB().Limit(1).Omit("config").Find(&ci, "id = ?", id).Error
-	return &ci, dutydb.ErrorDetails(err)
-}
-
 // CreateConfigItem inserts a new config item row in the db
 func CreateConfigItem(ctx api.ScrapeContext, ci *models.ConfigItem) error {
 	if err := ctx.DB().Clauses(clause.OnConflict{UpdateAll: true}).Create(ci).Error; err != nil {

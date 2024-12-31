@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/flanksource/commons/logger"
@@ -56,6 +57,11 @@ func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.Confi
 	}
 
 	if _, ok := t.notFound[lookup.Key()]; ok {
+		ctx.Counter("temp_cache_missing_hit",
+			"scraper_id", ctx.ScraperID(),
+			"incremental", strconv.FormatBool(ctx.IsIncrementalScrape()),
+			"query_type", "external_id",
+		).Add(1)
 		return nil, nil
 	}
 
@@ -67,6 +73,12 @@ func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.Confi
 	if alias, ok := t.aliases[lookup.Key()]; ok {
 		return t.Get(ctx, alias)
 	}
+
+	ctx.Counter("temp_cache_miss",
+		"scraper_id", ctx.ScraperID(),
+		"incremental", strconv.FormatBool(ctx.IsIncrementalScrape()),
+		"query_type", "external_id",
+	).Add(1)
 
 	var result models.ConfigItem
 	if err := lookup.Find(ctx.DB()).Find(&result).Error; err != nil {
@@ -116,12 +128,28 @@ func (t *TempCache) Get(ctx ScrapeContext, id string, opts ...CacheOption) (*mod
 	})
 
 	if _, notFound := t.notFound[id]; notFound && !optMap[IgnoreNotFound] {
+		ctx.Counter("temp_cache_missing_hit",
+			"scraper_id", ctx.ScraperID(),
+			"incremental", strconv.FormatBool(ctx.IsIncrementalScrape()),
+			"query_type", "id",
+		).Add(1)
 		return nil, nil
 	}
 
 	if item, ok := t.items[id]; ok {
+		ctx.Counter("temp_cache_hit",
+			"scraper_id", ctx.ScraperID(),
+			"incremental", strconv.FormatBool(ctx.IsIncrementalScrape()),
+			"query_type", "id",
+		).Add(1)
 		return &item, nil
 	}
+
+	ctx.Counter("temp_cache_miss",
+		"scraper_id", ctx.ScraperID(),
+		"incremental", strconv.FormatBool(ctx.IsIncrementalScrape()),
+		"query_type", "id",
+	).Add(1)
 
 	result := models.ConfigItem{}
 
