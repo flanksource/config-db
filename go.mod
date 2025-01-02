@@ -52,7 +52,7 @@ require (
 	github.com/flanksource/commons v1.35.3
 	github.com/flanksource/duty v1.0.788
 	github.com/flanksource/is-healthy v1.0.56
-	github.com/flanksource/ketall v1.1.7
+	github.com/flanksource/ketall v1.1.8
 	github.com/flanksource/kopper v1.0.11
 	github.com/gobwas/glob v0.2.3
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
@@ -102,6 +102,7 @@ require (
 	cloud.google.com/go/longrunning v0.6.0 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
+	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
@@ -116,10 +117,9 @@ require (
 	github.com/asecurityteam/rolling v2.0.4+incompatible // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.27.36 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.34 // indirect
-	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.7.1 // indirect
-	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cert-manager/cert-manager v1.16.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -163,7 +163,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.21.0 // indirect
 	github.com/henvic/httpretty v0.1.3 // indirect
 	github.com/hirochachacha/go-smb2 v1.1.0 // indirect
-	github.com/invopop/jsonschema v0.12.0 // indirect
 	github.com/itchyny/gojq v0.12.17 // indirect
 	github.com/itchyny/timefmt-go v0.1.6 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
@@ -187,6 +186,7 @@ require (
 	github.com/lrita/cmap v0.0.0-20231108122212-cb084a67f554 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
+	github.com/moby/term v0.5.0 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
@@ -215,12 +215,8 @@ require (
 	github.com/vadimi/go-http-ntlm v1.0.3 // indirect
 	github.com/vadimi/go-http-ntlm/v2 v2.4.1 // indirect
 	github.com/vadimi/go-ntlm v1.2.1 // indirect
-	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
-	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
-	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
@@ -238,7 +234,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20240827150818-7e3bb234dfed // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
-	gopkg.in/evanphx/json-patch.v5 v5.7.0 // indirect
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gorm.io/driver/postgres v1.5.9 // indirect
@@ -357,13 +352,13 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/api v0.31.1
 	k8s.io/apiextensions-apiserver v0.31.1
-	k8s.io/cli-runtime v0.28.2 // indirect
+	k8s.io/cli-runtime v0.31.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240903163716-9e1beecbcb38 // indirect
 	k8s.io/utils v0.0.0-20240921022957-49e7df575cb6 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
-	sigs.k8s.io/kustomize/api v0.15.0 // indirect
-	sigs.k8s.io/kustomize/kyaml v0.15.0 // indirect
+	sigs.k8s.io/kustomize/api v0.17.2 // indirect
+	sigs.k8s.io/kustomize/kyaml v0.17.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
