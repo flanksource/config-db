@@ -51,7 +51,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 
 			config := config.DeepCopy()
 
-			sc := sc.WithScrapeConfig(sc.ScrapeConfig(), plugins...)
+			sc := sc.WithScrapeConfig(sc.ScrapeConfig(), plugins...).AsIncrementalScrape()
 			config.BaseScraper = config.BaseScraper.ApplyPlugins(plugins...)
 
 			// Use temp cache if it already exists for scraper
@@ -110,11 +110,15 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 					ci, err := sc.TempCache().Get(sc, string(involvedObject.UID), api.IgnoreNotFound)
 					if err != nil {
 						return fmt.Errorf("failed to fetch from cache: %w", err)
-					}
-					if ci == nil {
-						queue.EnqueueWithDelay(kubernetes.NewQueueItem(obj, kubernetes.QueueItemOperationReEnqueue), 30*time.Second)
+					} else if ci == nil {
 						// Remove event object from objects list
 						objs = lo.DropRight(objs, 1)
+
+						// Re-enqueue the event with a delay but only if it wasn't previously enqueued
+						// else the event gets recycled indefinitely
+						if queueItem.Operation != kubernetes.QueueItemOperationReEnqueue {
+							queue.EnqueueWithDelay(kubernetes.NewQueueItem(obj, kubernetes.QueueItemOperationReEnqueue), 30*time.Second)
+						}
 					}
 
 					objectsFromEvents = append(objectsFromEvents, involvedObject)
