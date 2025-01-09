@@ -132,20 +132,18 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 
 					cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(sc.ScrapeConfig()).WithJobHistory(ctx.History).AsIncrementalScrape()
 					cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
-					if config.Kubeconfig != nil {
-						c, err := cc.WithKubeconfig(*config.Kubeconfig)
-						if err != nil {
-							ctx.History.AddErrorf("failed to apply custom kubeconfig: %v", err)
-							return
-						}
-						cc.Context = *c
-					}
 
 					backoff := retry.WithMaxRetries(3, retry.NewExponential(time.Second))
 					err := retry.Do(ctx, backoff, func(_ctx gocontext.Context) error {
 						objs, err := kube.FetchInvolvedObjects(cc, eventInvolvedObjs)
 						if err != nil {
 							return retry.RetryableError(err)
+						}
+
+						percent := float64(len(objs)) / float64(len(eventInvolvedObjs))
+						if percent < 0.5 {
+							// smells like a bug
+							ctx.Logger.V(3).Infof("requested %d involved objects but fetched only %d", len(eventInvolvedObjs), len(objs))
 						}
 
 						// we put these involved objects back into the queue
