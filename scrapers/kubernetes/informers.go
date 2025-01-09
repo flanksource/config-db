@@ -54,15 +54,6 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 		priorityQueue = loaded.(*collections.Queue[*QueueItem])
 	}
 
-	if config.Kubeconfig != nil {
-		var err error
-		c, err := ctx.WithKubeconfig(*config.Kubeconfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply kube config: %w", err)
-		}
-		ctx.Context = *c
-	}
-
 	for _, watchResource := range lo.Uniq(config.Watch) {
 		if err := globalSharedInformerManager.Register(ctx, watchResource, priorityQueue); err != nil {
 			return nil, fmt.Errorf("failed to register informer: %w", err)
