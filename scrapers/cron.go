@@ -220,7 +220,9 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			jr.History.SuccessCount = output.Total
 			jr.History.AddDetails("scrape_summary", output.Summary)
 
-			if source := sc.ScrapeConfig().GetAnnotations()["source"]; source == models.SourceCRD {
+			source := sc.ScrapeConfig().GetAnnotations()["source"]
+			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
+			if source == models.SourceCRD && agentID == uuid.Nil.String() {
 				if err := updateCRDStatus(jr.Context, sc.ScrapeConfig(), jr.History.SuccessCount, jr.History.ErrorCount, jr.History.Errors); err != nil {
 					return fmt.Errorf("error patching crd status: %w", err)
 				}
