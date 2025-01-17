@@ -129,10 +129,16 @@ func (t *ScrapeConfig) ToModel() (models.ConfigScraper, error) {
 		return models.ConfigScraper{}, err
 	}
 
+	agentID := uuid.Nil
+	if id, err := uuid.Parse(t.Annotations["agent_id"]); err == nil {
+		agentID = id
+	}
+
 	return models.ConfigScraper{
-		Name:   t.Name,
-		Spec:   string(spec),
-		Source: t.Annotations["source"],
+		Name:    t.Name,
+		Spec:    string(spec),
+		Source:  t.Annotations["source"],
+		AgentID: agentID,
 	}, nil
 }
 
@@ -155,7 +161,8 @@ func ScrapeConfigFromModel(m models.ConfigScraper) (ScrapeConfig, error) {
 			Name:      name,
 			Namespace: namespace,
 			Annotations: map[string]string{
-				"source": m.Source,
+				"source":   m.Source,
+				"agent_id": m.AgentID.String(),
 			},
 			UID:               k8stypes.UID(m.ID.String()),
 			CreationTimestamp: metav1.Time{Time: m.CreatedAt},
