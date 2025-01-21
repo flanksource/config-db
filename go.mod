@@ -40,17 +40,17 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.56.3
 	github.com/aws/aws-sdk-go-v2/service/rds v1.81.5
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.44.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.2
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.3
 	github.com/aws/aws-sdk-go-v2/service/sns v1.31.3
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.3
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.52.3
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.52.4
 	github.com/aws/aws-sdk-go-v2/service/sts v1.31.0
 	github.com/aws/aws-sdk-go-v2/service/support v1.24.3
 	github.com/aws/smithy-go v1.22.1
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.35.3
-	github.com/flanksource/duty v1.0.817
+	github.com/flanksource/duty v1.0.820
 	github.com/flanksource/is-healthy v1.0.59
 	github.com/flanksource/ketall v1.1.8
 	github.com/flanksource/kopper v1.0.11
@@ -99,9 +99,13 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
 	cloud.google.com/go/cloudsqlconn v1.5.1 // indirect
 	cloud.google.com/go/compute/metadata v0.5.1 // indirect
+	cloud.google.com/go/kms v1.19.0 // indirect
 	cloud.google.com/go/longrunning v0.6.0 // indirect
 	dario.cat/mergo v1.0.0 // indirect
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys v0.10.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
@@ -117,6 +121,7 @@ require (
 	github.com/asecurityteam/rolling v2.0.4+incompatible // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.27.36 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.34 // indirect
+	github.com/aws/aws-sdk-go-v2/service/kms v1.35.3 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
@@ -160,6 +165,7 @@ require (
 	github.com/google/gops v0.3.28 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
+	github.com/google/wire v0.6.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.21.0 // indirect
@@ -233,10 +239,11 @@ require (
 	go.opentelemetry.io/otel/metric v1.29.0 // indirect
 	go.opentelemetry.io/otel/trace v1.29.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
+	gocloud.dev v0.40.0 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/tools v0.28.0 // indirect
-	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
+	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240827150818-7e3bb234dfed // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
@@ -256,7 +263,7 @@ require (
 	cloud.google.com/go/storage v1.43.0
 	github.com/DATA-DOG/go-sqlmock v1.5.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/aws/aws-sdk-go v1.55.1 // indirect
+	github.com/aws/aws-sdk-go v1.55.5 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.3 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.14 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.24 // indirect
@@ -279,7 +286,7 @@ require (
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-resty/resty/v2 v2.7.0
-	github.com/go-sql-driver/mysql v1.7.1
+	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
