@@ -76,6 +76,52 @@ func (ctx AWSContext) String() string {
 	return fmt.Sprintf("account=%s user=%s region=%s", lo.FromPtr(ctx.Caller.Account), *ctx.Caller.UserId, ctx.Session.Region)
 }
 
+// Function to return an endpoint resolver based on input options type
+func getEndpointResolver[T any](awsConfig v1.AWS) func(o *T) {
+	var val *string
+	if awsConfig.Endpoint != "" {
+		val = lo.ToPtr(awsConfig.Endpoint)
+	}
+	return func(o *T) {
+		switch opts := any(o).(type) {
+		case *ec2.Options:
+			opts.BaseEndpoint = val
+		case *iam.Options:
+			opts.BaseEndpoint = val
+		case *ssm.Options:
+			opts.BaseEndpoint = val
+		case *sns.Options:
+			opts.BaseEndpoint = val
+		case *ecr.Options:
+			opts.BaseEndpoint = val
+		case *sqs.Options:
+			opts.BaseEndpoint = val
+		case *cloudformation.Options:
+			opts.BaseEndpoint = val
+		case *ecs.Options:
+			opts.BaseEndpoint = val
+		case *elasticache.Options:
+			opts.BaseEndpoint = val
+		case *lambda.Options:
+			opts.BaseEndpoint = val
+		case *eks.Options:
+			opts.BaseEndpoint = val
+		case *efs.Options:
+			opts.BaseEndpoint = val
+		case *rds.Options:
+			opts.BaseEndpoint = val
+		case *s3.Options:
+			opts.BaseEndpoint = val
+		case *route53.Options:
+			opts.BaseEndpoint = val
+		case *sts.Options:
+			opts.BaseEndpoint = val
+		default:
+			fmt.Println("Unsupported options type")
+		}
+	}
+}
+
 func (aws Scraper) getContext(ctx api.ScrapeContext, awsConfig v1.AWS, region string) (*AWSContext, error) {
 	awsConn := awsConfig.AWSConnection.ToDutyAWSConnection(region)
 	if err := awsConn.Populate(ctx); err != nil {
@@ -87,7 +133,7 @@ func (aws Scraper) getContext(ctx api.ScrapeContext, awsConfig v1.AWS, region st
 		return nil, fmt.Errorf("failed to create AWS session for region=%q: %w", region, err)
 	}
 
-	STS := sts.NewFromConfig(session)
+	STS := sts.NewFromConfig(session, getEndpointResolver[sts.Options](awsConfig))
 	caller, err := STS.GetCallerIdentity(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity for region=%q: %w", region, err)
@@ -102,9 +148,9 @@ func (aws Scraper) getContext(ctx api.ScrapeContext, awsConfig v1.AWS, region st
 		Caller:        caller,
 		STS:           STS,
 		Support:       support.NewFromConfig(usEast1),
-		EC2:           ec2.NewFromConfig(session),
-		SSM:           ssm.NewFromConfig(session),
-		IAM:           iam.NewFromConfig(session),
+		EC2:           ec2.NewFromConfig(session, getEndpointResolver[ec2.Options](awsConfig)),
+		SSM:           ssm.NewFromConfig(session, getEndpointResolver[ssm.Options](awsConfig)),
+		IAM:           iam.NewFromConfig(session, getEndpointResolver[iam.Options](awsConfig)),
 		Subnets:       make(map[string]Zone),
 		Config:        configservice.NewFromConfig(session),
 	}, nil
@@ -132,7 +178,7 @@ func (aws Scraper) containerImages(ctx *AWSContext, config v1.AWS, results *v1.S
 
 	ctx.Logger.V(2).Infof("scraping ECR")
 
-	ECR := ecr.NewFromConfig(*ctx.Session)
+	ECR := ecr.NewFromConfig(*ctx.Session, getEndpointResolver[ecr.Options](config))
 	images, err := ECR.DescribeRepositories(ctx, &ecr.DescribeRepositoriesInput{})
 	if err != nil {
 		results.Errorf(err, "failed to get ecr")
@@ -165,8 +211,7 @@ func (aws Scraper) sqs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	}
 
 	ctx.Logger.V(2).Infof("scraping SQS queues")
-
-	client := sqs.NewFromConfig(*ctx.Session)
+	client := sqs.NewFromConfig(*ctx.Session, getEndpointResolver[sqs.Options](config))
 	listQueuesOutput, err := client.ListQueues(ctx, &sqs.ListQueuesInput{})
 	if err != nil {
 		results.Errorf(err, "failed to list SQS queues")
@@ -212,7 +257,7 @@ func (aws Scraper) cloudformationStacks(ctx *AWSContext, config v1.AWS, results 
 
 	ctx.Logger.V(2).Infof("scraping CloudFormation stacks")
 
-	client := cloudformation.NewFromConfig(*ctx.Session)
+	client := cloudformation.NewFromConfig(*ctx.Session, getEndpointResolver[cloudformation.Options](config))
 	stacks, err := client.ListStacks(ctx, &cloudformation.ListStacksInput{})
 	if err != nil {
 		results.Errorf(err, "failed to list CloudFormation stacks")
@@ -246,8 +291,7 @@ func (aws Scraper) snsTopics(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	}
 
 	ctx.Logger.V(2).Infof("scraping SNS topics")
-
-	client := sns.NewFromConfig(*ctx.Session)
+	client := sns.NewFromConfig(*ctx.Session, getEndpointResolver[sns.Options](config))
 	topics, err := client.ListTopics(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "failed to list SNS topics")
@@ -289,8 +333,7 @@ func (aws Scraper) ecsClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	}
 
 	ctx.Logger.V(2).Infof("scraping ECS clusters")
-
-	client := ecs.NewFromConfig(*ctx.Session)
+	client := ecs.NewFromConfig(*ctx.Session, getEndpointResolver[ecs.Options](config))
 	clusters, err := client.ListClusters(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "failed to list ECS clusters")
@@ -494,8 +537,7 @@ func (aws Scraper) ecsTaskDefinitions(ctx *AWSContext, config v1.AWS, results *v
 	}
 
 	ctx.Logger.V(2).Infof("scraping ECS task definitions")
-
-	client := ecs.NewFromConfig(*ctx.Session)
+	client := ecs.NewFromConfig(*ctx.Session, getEndpointResolver[ecs.Options](config))
 	var tdStatus ecsTypes.TaskDefinitionStatus
 	for _, status := range tdStatus.Values() {
 		ctx.Logger.V(3).Infof("scraping %s ECS task definitions", status)
@@ -592,8 +634,7 @@ func (aws Scraper) elastiCache(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	}
 
 	ctx.Logger.V(2).Infof("scraping elastiCache")
-
-	svc := elasticache.NewFromConfig(*ctx.Session)
+	svc := elasticache.NewFromConfig(*ctx.Session, getEndpointResolver[elasticache.Options](config))
 
 	clusters, err := svc.DescribeCacheClusters(ctx, &elasticache.DescribeCacheClustersInput{})
 	if err != nil {
@@ -619,8 +660,7 @@ func (aws Scraper) lambdaFunctions(ctx *AWSContext, config v1.AWS, results *v1.S
 		return
 	}
 	ctx.Logger.V(2).Infof("scraping lambda functions")
-
-	lambdaClient := lambda.NewFromConfig(*ctx.Session)
+	lambdaClient := lambda.NewFromConfig(*ctx.Session, getEndpointResolver[lambda.Options](config))
 	input := &lambda.ListFunctionsInput{}
 
 	for {
@@ -656,8 +696,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	}
 
 	ctx.Logger.V(2).Infof("scraping EKS clusters")
-
-	EKS := eks.NewFromConfig(*ctx.Session)
+	EKS := eks.NewFromConfig(*ctx.Session, getEndpointResolver[eks.Options](config))
 	clusters, err := EKS.ListClusters(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "failed to list clusters")
@@ -729,9 +768,8 @@ func (aws Scraper) efs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	}
 
 	ctx.Logger.V(2).Infof("scraping EFS")
-
+	EFS := efs.NewFromConfig(*ctx.Session, getEndpointResolver[efs.Options](config))
 	describeInput := &efs.DescribeFileSystemsInput{}
-	EFS := efs.NewFromConfig(*ctx.Session)
 	describeOutput, err := EFS.DescribeFileSystems(ctx, describeInput)
 	if err != nil {
 		results.Errorf(err, "failed to get efs")
@@ -969,7 +1007,7 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	ctx.Logger.V(2).Infof("scraping RDS")
 
 	describeInput := &rds.DescribeDBInstancesInput{}
-	RDS := rds.NewFromConfig(*ctx.Session)
+	RDS := rds.NewFromConfig(*ctx.Session, getEndpointResolver[rds.Options](config))
 	describeOutput, err := RDS.DescribeDBInstances(ctx, describeInput)
 	if err != nil {
 		results.Errorf(err, "failed to get rds")
@@ -1279,7 +1317,7 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 
 	ctx.Logger.V(2).Infof("scraping S3 buckets")
 
-	S3 := s3.NewFromConfig(*ctx.Session)
+	S3 := s3.NewFromConfig(*ctx.Session, getEndpointResolver[s3.Options](config))
 	buckets, err := S3.ListBuckets(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "failed to list s3 buckets")
@@ -1312,7 +1350,7 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 
 	ctx.Logger.V(2).Infof("scraping DNS zones")
 
-	Route53 := route53.NewFromConfig(*ctx.Session)
+	Route53 := route53.NewFromConfig(*ctx.Session, getEndpointResolver[route53.Options](config))
 	zones, err := Route53.ListHostedZones(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "failed to describe hosted zones")
@@ -1442,7 +1480,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 
 	ctx.Logger.V(2).Infof("scraping load balancers")
 
-	elb := elasticloadbalancing.NewFromConfig(*ctx.Session)
+	elb := elasticloadbalancing.NewFromConfig(*ctx.Session, getEndpointResolver[elasticloadbalancing.Options](config))
 	loadbalancers, err := elb.DescribeLoadBalancers(ctx, nil)
 	if err != nil {
 		results.Errorf(err, "failed to describe load balancers")
@@ -1517,7 +1555,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 		})
 	}
 
-	elbv2 := elasticloadbalancingv2.NewFromConfig(*ctx.Session)
+	elbv2 := elasticloadbalancingv2.NewFromConfig(*ctx.Session, getEndpointResolver[elasticloadbalancingv2.Options](config))
 	loadbalancersv2, err := elbv2.DescribeLoadBalancers(ctx, &elasticloadbalancingv2.DescribeLoadBalancersInput{})
 	if err != nil {
 		results.Errorf(err, "failed to describe load balancers")

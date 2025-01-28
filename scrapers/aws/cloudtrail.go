@@ -14,11 +14,11 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
-func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<- types.Event) error {
+func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<- types.Event, config v1.AWS) error {
 	defer close(c)
 
 	ctx.Logger.V(3).Infof("Looking up events from %v", input.StartTime)
-	CloudTrail := cloudtrail.NewFromConfig(*ctx.Session)
+	CloudTrail := cloudtrail.NewFromConfig(*ctx.Session, getEndpointResolver[cloudtrail.Options](config))
 
 	var total int
 	for {
@@ -149,7 +149,7 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 				AttributeValue: strPtr("false"),
 			},
 		},
-	}, c)
+	}, c, config)
 
 	if err != nil {
 		results.Errorf(err, "Failed to describe cloudtrail events")
