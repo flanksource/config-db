@@ -116,6 +116,10 @@ func getEndpointResolver[T any](awsConfig v1.AWS) func(o *T) {
 			opts.BaseEndpoint = val
 		case *sts.Options:
 			opts.BaseEndpoint = val
+		case *elasticloadbalancing.Options:
+			opts.BaseEndpoint = val
+		case *elasticloadbalancingv2.Options:
+			opts.BaseEndpoint = val
 		default:
 			fmt.Println("Unsupported options type")
 		}
