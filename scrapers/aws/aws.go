@@ -121,7 +121,7 @@ func getEndpointResolver[T any](awsConfig v1.AWS) func(o *T) {
 		case *elasticloadbalancingv2.Options:
 			opts.BaseEndpoint = val
 		default:
-			fmt.Println("Unsupported options type")
+			logger.Errorf("unsupported type for resolver endpoint: %T", o)
 		}
 	}
 }
