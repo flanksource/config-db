@@ -80,7 +80,7 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 		return fmt.Errorf("failed to get config (%s): %w", configID, err)
 	}
 
-	if config.DeletedAt != nil || time.Since(lo.FromPtr(config.LastScrapedTime)) <= time.Second*30 {
+	if config.DeletedAt != nil {
 		// assume the health is upto-date
 		return nil
 	}
@@ -127,6 +127,9 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 			return fmt.Errorf("failed to save %d results: %w", len(results), err)
 		}
 	}
+
+	ctx.Histogram("incremental_scrape_event", involvedObjectsFetchBuckets, "scraper_id", lo.FromPtr(config.ScraperID), "type", lo.FromPtr(config.Type)).
+		Record(time.Duration(time.Since(event.CreatedAt).Milliseconds()))
 
 	return nil
 }
