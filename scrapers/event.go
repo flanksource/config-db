@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
@@ -128,7 +129,13 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 		}
 	}
 
-	ctx.Histogram("incremental_scrape_event", involvedObjectsFetchBuckets, "scraper_id", lo.FromPtr(config.ScraperID), "type", lo.FromPtr(config.Type)).
+	labels := []string{"scraper_id", lo.FromPtr(config.ScraperID), "type", lo.FromPtr(config.Type)}
+	// Useful for debugging but inefficient for long term as it creates too many series
+	if properties.On(false, "incremental_scrape_event.record_config_id") {
+		labels = append(labels, "config_id", configID)
+	}
+
+	ctx.Histogram("incremental_scrape_event", involvedObjectsFetchBuckets, labels...).
 		Record(time.Duration(time.Since(event.CreatedAt).Milliseconds()))
 
 	return nil
