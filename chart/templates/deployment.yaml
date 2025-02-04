@@ -59,6 +59,9 @@ spec:
         - name: {{ include "config-db.name" . }}
           image: "{{ tpl .Values.global.imageRegistry . }}/{{ tpl .Values.image.name . }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
           livenessProbe:
             failureThreshold: 3
             httpGet:
