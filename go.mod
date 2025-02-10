@@ -50,7 +50,7 @@ require (
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.36.1
-	github.com/flanksource/duty v1.0.837
+	github.com/flanksource/duty v1.0.839
 	github.com/flanksource/is-healthy v1.0.60
 	github.com/flanksource/ketall v1.1.8
 	github.com/flanksource/kopper v1.0.11
@@ -93,7 +93,7 @@ require (
 )
 
 require (
-	ariga.io/atlas v0.14.2 // indirect
+	ariga.io/atlas v0.15.0 // indirect
 	cel.dev/expr v0.18.0 // indirect
 	cloud.google.com/go/auth v0.9.4 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
@@ -138,7 +138,7 @@ require (
 	github.com/emirpasic/gods/v2 v2.0.0-alpha // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/exaring/otelpgx v0.6.2 // indirect
-	github.com/fatih/color v1.16.0 // indirect
+	github.com/fatih/color v1.17.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fergusstrange/embedded-postgres v1.29.0 // indirect
 	github.com/flanksource/kubectl-neat v1.0.4 // indirect
