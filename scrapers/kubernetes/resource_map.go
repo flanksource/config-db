@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"fmt"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -15,7 +14,7 @@ type ResourceIDMapContainer struct {
 }
 
 func ResourceIDMapKey(namespace, kind, name string) string {
-	return fmt.Sprintf("namespace=%s,kind=%s,name=%s", namespace, kind, name)
+	return namespace + "|" + kind + "|" + name
 }
 
 func (t *ResourceIDMapContainer) Set(namespace, kind, name, id string) {

@@ -36,9 +36,8 @@ func listAllCRDs(ctx api.ScrapeContext) ([]string, error) {
 	return crds, nil
 }
 
-var clientMap sync.Map
-
 func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*unstructured.Unstructured, error) {
+	clientMap := map[schema.GroupVersionKind]dynamic.NamespaceableResourceInterface{}
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(ctx.Properties().Int("kubernetes.get.concurrency", 10))
@@ -56,9 +55,8 @@ func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*
 			Kind:    iObj.Kind,
 		}
 
-		var client dynamic.NamespaceableResourceInterface
-		clientAny, exists := clientMap.Load(gvk)
-		if !exists {
+		client, ok := clientMap[gvk]
+		if !ok {
 			c, err := ctx.KubernetesClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
 			if err != nil {
 
@@ -75,14 +73,8 @@ func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*
 				return nil, fmt.Errorf("failed to create dynamic client for %s: %w", gvk, err)
 			}
 
-			clientMap.Store(gvk, c)
 			client = c
-		} else {
-			var ok bool
-			client, ok = clientAny.(dynamic.NamespaceableResourceInterface)
-			if !ok {
-				return nil, fmt.Errorf("error converting client to dynamic.NamespaceableResourceInterface type")
-			}
+			clientMap[gvk] = c
 		}
 
 		eg.Go(func() error {
