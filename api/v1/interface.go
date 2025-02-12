@@ -507,9 +507,9 @@ func (t Tags) valid() error {
 	return nil
 }
 
-func (t Tags) AsMap() (map[string]string, error) {
+func (t Tags) AsMap() map[string]string {
 	if len(t) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	output := make(map[string]string, len(t))
@@ -517,7 +517,7 @@ func (t Tags) AsMap() (map[string]string, error) {
 		output[t[i].Name] = t[i].Value
 	}
 
-	return output, nil
+	return output
 }
 
 func (t Tags) Eval(labels map[string]string, config string) (Tags, error) {
@@ -660,23 +660,31 @@ func (s ScrapeResult) WithHealthStatus(hs health.HealthStatus) ScrapeResult {
 }
 
 func (s ScrapeResult) AsMap() map[string]any {
-	output := make(map[string]any)
-
-	b, err := json.Marshal(s)
-	if err != nil {
-		logger.Errorf("failed to marshal change result: %v", err)
-		return output
+	return map[string]any{
+		"id":                s.ID,
+		"created_at":        s.CreatedAt,
+		"deleted_at":        s.DeletedAt,
+		"delete_reason":     s.DeleteReason,
+		"last_modified":     s.LastModified,
+		"config_class":      s.ConfigClass,
+		"config_type":       s.Type,
+		"status":            s.Status,
+		"health":            s.Health,
+		"ready":             s.Ready,
+		"name":              s.Name,
+		"description":       s.Description,
+		"aliases":           s.Aliases,
+		"source":            s.Source,
+		"config":            s.Config, // TODO Change
+		"format":            s.Format,
+		"icon":              s.Icon,
+		"labels":            s.Labels,
+		"tags":              s.Tags.AsMap(),
+		"action":            s.Action,
+		"properties":        s.Properties.AsMap(),
+		"last_scraped_time": s.LastScrapedTime,
+		"scraper_less":      s.ScraperLess,
 	}
-
-	if err := json.Unmarshal(b, &output); err != nil {
-		logger.Errorf("failed to unmarshal change result: %v", err)
-	}
-
-	// override tags because it's a slice
-	// make it a map so it's easier to use inside expressions.
-	output["tags"], _ = s.Tags.AsMap()
-
-	return output
 }
 
 func NewScrapeResult(base BaseScraper) *ScrapeResult {

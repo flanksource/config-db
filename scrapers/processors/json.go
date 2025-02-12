@@ -348,11 +348,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		// All tags are stored as labels.
 		// This is so that end users do not need to worry about tags/labels as
 		// everything will be available as labels when writing cel expressions.
-		if tags, err := input.Tags.AsMap(); err != nil {
-			return nil, fmt.Errorf("error converting tags to json string map: %w", err)
-		} else {
-			input.Labels = collections.MergeMap(input.Labels, tags)
-		}
+		input.Labels = collections.MergeMap(input.Labels, input.Tags.AsMap())
 
 		if input.Format == "properties" {
 			props, err := properties.LoadString(input.Config.(string))

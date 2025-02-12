@@ -146,12 +146,7 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		ci.ScraperID = nil
 	}
 
-	if parsed, err := result.Tags.AsMap(); err != nil {
-		return nil, err
-	} else {
-		ci.Tags = parsed
-	}
-
+	ci.Tags = result.Tags.AsMap()
 	// If the config result hasn't specified an id for the config,
 	// we try to use the external id as the primary key of the config item.
 	if ci.ID == "" {
