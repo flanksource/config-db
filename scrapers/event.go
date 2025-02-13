@@ -133,6 +133,8 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 	// Useful for debugging but inefficient for long term as it creates too many series
 	if properties.On(false, "incremental_scrape_event.record_config_id") {
 		labels = append(labels, "config_id", configID)
+		counterLabels := append(labels, "timestamp", time.Now().Format(time.RFC3339))
+		ctx.Counter("incremental_scrape_event_config_id", counterLabels...)
 	}
 
 	ctx.Histogram("incremental_scrape_event", involvedObjectsFetchBuckets, labels...).
