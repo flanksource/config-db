@@ -2,8 +2,10 @@ package scrapers
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -130,15 +132,15 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 	}
 
 	labels := []string{"scraper_id", lo.FromPtr(config.ScraperID), "type", lo.FromPtr(config.Type)}
+	timeTaken := time.Since(event.CreatedAt)
 	// Useful for debugging but inefficient for long term as it creates too many series
 	if properties.On(false, "incremental_scrape_event.record_config_id") {
 		labels = append(labels, "config_id", configID)
-		counterLabels := append(labels, "timestamp", time.Now().Format(time.RFC3339))
-		ctx.Counter("incremental_scrape_event_config_id", counterLabels...)
+		logger.Infof("[SLOW EVENT SCRAPE] %s took %s", strings.Join(labels, "."), timeTaken)
 	}
 
 	ctx.Histogram("incremental_scrape_event", involvedObjectsFetchBuckets, labels...).
-		Record(time.Duration(time.Since(event.CreatedAt).Milliseconds()))
+		Record(time.Duration(timeTaken.Milliseconds()))
 
 	return nil
 }
