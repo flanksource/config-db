@@ -37,8 +37,6 @@ func listAllCRDs(ctx api.ScrapeContext) ([]string, error) {
 }
 
 func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*unstructured.Unstructured, error) {
-	clientMap := map[schema.GroupVersionKind]dynamic.NamespaceableResourceInterface{}
-
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(ctx.Properties().Int("kubernetes.get.concurrency", 10))
 
@@ -55,26 +53,19 @@ func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*
 			Kind:    iObj.Kind,
 		}
 
-		client, ok := clientMap[gvk]
-		if !ok {
-			c, err := ctx.KubernetesClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
-			if err != nil {
-
-				// We suspect if this happens we might be on the wrong k8s context
-				// so we list all CRDs in job history error
-				if strings.Contains(err.Error(), "no matches for") {
-					crdList, err := listAllCRDs(ctx)
-					if err != nil {
-						ctx.JobHistory().AddErrorf("error listing existing crds: %v", err)
-					} else {
-						ctx.JobHistory().AddErrorf("failed to create dynamic client %s: %v, existing crds: %s", gvk, err, strings.Join(crdList, ","))
-					}
+		client, err := ctx.KubernetesClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
+		if err != nil {
+			// We suspect if this happens we might be on the wrong k8s context
+			// so we list all CRDs in job history error
+			if strings.Contains(err.Error(), "no matches for") {
+				crdList, err := listAllCRDs(ctx)
+				if err != nil {
+					ctx.JobHistory().AddErrorf("error listing existing crds: %v", err)
+				} else {
+					ctx.JobHistory().AddErrorf("failed to create dynamic client %s: %v, existing crds: %s", gvk, err, strings.Join(crdList, ","))
 				}
-				return nil, fmt.Errorf("failed to create dynamic client for %s: %w", gvk, err)
 			}
-
-			client = c
-			clientMap[gvk] = c
+			return nil, fmt.Errorf("failed to create dynamic client for %s: %w", gvk, err)
 		}
 
 		eg.Go(func() error {
