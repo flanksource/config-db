@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/duty/tests/fixtures/dummy"
 	"github.com/flanksource/duty/types"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -116,7 +117,7 @@ severity: high`, *dummy.KubernetesNodeA.Name, *dummy.KubernetesNodeA.Type)},
 				Expect(err).NotTo(BeNil())
 			}
 
-			diff := cmp.Diff(got, tt.expected)
+			diff := cmp.Diff(got, tt.expected, cmpopts.IgnoreUnexported(v1.ChangeResult{}))
 			Expect(diff).To(BeEmpty())
 		})
 	}
