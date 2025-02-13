@@ -133,9 +133,7 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 
 	labels := []string{"scraper_id", lo.FromPtr(config.ScraperID), "type", lo.FromPtr(config.Type)}
 	timeTaken := time.Since(event.CreatedAt)
-	// Useful for debugging but inefficient for long term as it creates too many series
-	if properties.On(false, "incremental_scrape_event.record_config_id") {
-		labels = append(labels, "config_id", configID)
+	if timeTaken > properties.Duration(30*time.Second, "incremental_scrape_event.lag_threshold") {
 		logger.Infof("[SLOW EVENT SCRAPE] %s took %s", strings.Join(labels, "."), timeTaken)
 	}
 
