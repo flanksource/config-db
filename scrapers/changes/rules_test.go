@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("TestProcessRules", Ordered, func() {
+var _ = FDescribe("TestProcessRules", Ordered, func() {
 	tests := []struct {
 		name   string
 		input  v1.ScrapeResult
@@ -105,11 +105,20 @@ var _ = Describe("TestProcessRules", Ordered, func() {
 		It(tt.name, func() {
 			err := ProcessRules(api.NewScrapeContext(DefaultContext), &tt.input, tt.rules...)
 			if tt.err {
-				Expect(err).To(Not(BeNil()))
+				Expect(err).ToNot(BeNil())
 			} else {
 				Expect(err).To(BeNil())
-				Expect(tt.input.Changes).To(ConsistOf(tt.expect))
+				Expect(cleanChangeResults(tt.input.Changes)).To(ConsistOf(tt.expect))
 			}
 		})
 	}
 })
+
+func cleanChangeResults(changes []v1.ChangeResult) []v1.ChangeResult {
+	var cleanChanges []v1.ChangeResult
+	for _, c := range changes {
+		c.FlushMap()
+		cleanChanges = append(cleanChanges, c)
+	}
+	return cleanChanges
+}

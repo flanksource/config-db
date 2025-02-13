@@ -95,11 +95,12 @@ type ChangeResult struct {
 	UpdateExisting bool `json:"update_existing"`
 
 	// For storing struct as map[string]any
-	_map map[string]any
+	_map map[string]any `json:"-"`
 }
 
 func (r *ChangeResult) AsMap() map[string]any {
 	if r._map != nil {
+		logger.Infof("Change smap %v", r.ExternalID)
 		return r._map
 	}
 	r._map = map[string]any{
@@ -121,6 +122,10 @@ func (r *ChangeResult) AsMap() map[string]any {
 		"update_existing":    r.UpdateExisting,
 	}
 	return r._map
+}
+
+func (r *ChangeResult) FlushMap() {
+	r._map = nil
 }
 
 func (r ChangeResult) PatchesMap() map[string]any {
@@ -638,7 +643,7 @@ type ScrapeResult struct {
 	RelationshipSelectors []DirectedRelationship `json:"-"`
 
 	// For storing struct as map[string]any
-	_map map[string]any
+	_map map[string]any `json:"-"`
 }
 
 // SetHealthIfEmpty sets the health, status & readiness of the scrape result
