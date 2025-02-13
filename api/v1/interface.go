@@ -100,7 +100,6 @@ type ChangeResult struct {
 
 func (r *ChangeResult) AsMap() map[string]any {
 	if r._map != nil {
-		logger.Infof("Change smap %v", r.ExternalID)
 		return r._map
 	}
 	r._map = map[string]any{

@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("TestProcessRules", Ordered, func() {
+var _ = Describe("TestProcessRules", Ordered, func() {
 	tests := []struct {
 		name   string
 		input  v1.ScrapeResult
