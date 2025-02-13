@@ -75,40 +75,52 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 
 // +kubebuilder:object:generate=false
 type ChangeResult struct {
-	ExternalID       string                 `json:"external_id"`
-	ConfigType       string                 `json:"config_type"`
-	ExternalChangeID string                 `json:"external_change_id"`
-	Action           ChangeAction           `json:"action"`
-	ChangeType       string                 `json:"change_type"`
-	Patches          string                 `json:"patches"`
-	Summary          string                 `json:"summary"`
-	Severity         string                 `json:"severity"`
-	Source           string                 `json:"source"`
-	CreatedBy        *string                `json:"created_by"`
-	CreatedAt        *time.Time             `json:"created_at"`
-	Details          map[string]interface{} `json:"details"`
-	Diff             *string                `json:"diff,omitempty"`
+	ExternalID       string         `json:"external_id"`
+	ConfigType       string         `json:"config_type"`
+	ExternalChangeID string         `json:"external_change_id"`
+	Action           ChangeAction   `json:"action"`
+	ChangeType       string         `json:"change_type"`
+	Patches          string         `json:"patches"`
+	Summary          string         `json:"summary"`
+	Severity         string         `json:"severity"`
+	Source           string         `json:"source"`
+	CreatedBy        *string        `json:"created_by"`
+	CreatedAt        *time.Time     `json:"created_at"`
+	Details          map[string]any `json:"details"`
+	Diff             *string        `json:"diff,omitempty"`
 
 	ConfigID string `json:"configID,omitempty"`
 
 	// UpdateExisting indicates whether to update an existing change
 	UpdateExisting bool `json:"update_existing"`
+
+	// For storing struct as map[string]any
+	_map map[string]any
 }
 
 func (r ChangeResult) AsMap() map[string]any {
-	output := make(map[string]any)
-
-	b, err := json.Marshal(r)
-	if err != nil {
-		logger.Errorf("failed to marshal change result: %v", err)
-		return output
+	if r._map != nil {
+		return r._map
 	}
-
-	if err := json.Unmarshal(b, &output); err != nil {
-		logger.Errorf("failed to unmarshal change result: %v", err)
+	r._map = map[string]any{
+		"external_id":        r.ExternalID,
+		"config_type":        r.ConfigType,
+		"external_change_id": r.ExternalChangeID,
+		"action":             r.Action,
+		"change_type":        r.ChangeType,
+		"patches":            r.Patches,
+		"summary":            r.Summary,
+		"severity":           r.Severity,
+		"source":             r.Source,
+		"created_by":         r.CreatedBy,
+		"created_at":         r.CreatedAt,
+		"details":            r.Details,
+		"diff":               r.Diff,
+		"config_id":          r.ConfigID,
+		"configID":           r.ConfigID, // config_id should be used, this for backward compatibility
+		"update_existing":    r.UpdateExisting,
 	}
-
-	return output
+	return r._map
 }
 
 func (r ChangeResult) PatchesMap() map[string]any {
@@ -624,6 +636,9 @@ type ScrapeResult struct {
 	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without
 	// knowing the external ids of the item to be linked.
 	RelationshipSelectors []DirectedRelationship `json:"-"`
+
+	// For storing struct as map[string]any
+	_map map[string]any
 }
 
 // SetHealthIfEmpty sets the health, status & readiness of the scrape result
@@ -659,8 +674,11 @@ func (s ScrapeResult) WithHealthStatus(hs health.HealthStatus) ScrapeResult {
 	return s
 }
 
-func (s ScrapeResult) AsMap() map[string]any {
-	return map[string]any{
+func (s *ScrapeResult) AsMap() map[string]any {
+	if s._map != nil {
+		return s._map
+	}
+	s._map = map[string]any{
 		"id":                s.ID,
 		"created_at":        s.CreatedAt,
 		"deleted_at":        s.DeletedAt,
@@ -685,6 +703,7 @@ func (s ScrapeResult) AsMap() map[string]any {
 		"last_scraped_time": s.LastScrapedTime,
 		"scraper_less":      s.ScraperLess,
 	}
+	return s._map
 }
 
 func NewScrapeResult(base BaseScraper) *ScrapeResult {
