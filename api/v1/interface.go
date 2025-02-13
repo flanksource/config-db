@@ -98,7 +98,7 @@ type ChangeResult struct {
 	_map map[string]any
 }
 
-func (r ChangeResult) AsMap() map[string]any {
+func (r *ChangeResult) AsMap() map[string]any {
 	if r._map != nil {
 		return r._map
 	}
