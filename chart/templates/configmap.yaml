@@ -5,7 +5,7 @@ metadata:
   labels:
     {{- include "config-db.labels" . | nindent 4 }}
 data:
- config.properties: |
+  config-db.properties: |
     {{- range $k, $v := .Values.properties }}
     {{ $k }}={{ $v }}
     {{- end }}
