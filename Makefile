@@ -27,12 +27,12 @@ tidy:
 # Generate OpenAPI schema
 .PHONY: gen-schemas
 gen-schemas:
-	# cp go.mod hack/generate-schemas && \
+	cp go.mod hack/generate-schemas && \
 	cd hack/generate-schemas && \
-	# go mod edit -module=github.com/flanksource/config-db/hack/generate-schemas && \
-	# go mod edit -require=github.com/flanksource/config-db@v1.0.0 && \
-	# go mod edit -replace=github.com/flanksource/config-db=../../ && \
-	# go mod tidy && \
+	go mod edit -module=github.com/flanksource/config-db/hack/generate-schemas && \
+	go mod edit -require=github.com/flanksource/config-db@v1.0.0 && \
+	go mod edit -replace=github.com/flanksource/config-db=../../ && \
+	go mod tidy && \
 	go run ./main.go
 
 

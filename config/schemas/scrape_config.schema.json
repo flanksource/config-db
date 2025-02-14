@@ -315,6 +315,26 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "CNRMConnection": {
+      "properties": {
+        "gke": {
+          "$ref": "#/$defs/GKEConnection"
+        },
+        "clusterResource": {
+          "type": "string"
+        },
+        "clusterResourceNamespace": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "gke",
+        "clusterResource",
+        "clusterResourceNamespace"
+      ]
+    },
     "ChangeExtractionMapping": {
       "properties": {
         "createdAt": {
@@ -449,6 +469,9 @@
         "headline": {
           "type": "boolean"
         },
+        "hidden": {
+          "type": "boolean"
+        },
         "text": {
           "type": "string"
         },
@@ -501,6 +524,42 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "EKSConnection": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "accessKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "secretKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "sessionToken": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "assumeRole": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "cluster": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "cluster"
+      ]
+    },
     "EnvVar": {
       "properties": {
         "name": {
@@ -543,6 +602,12 @@
           "type": "array"
         },
         "statuses": {
+          "items": {
+            "$ref": "#/$defs/ValueExpression"
+          },
+          "type": "array"
+        },
+        "healths": {
           "items": {
             "$ref": "#/$defs/ValueExpression"
           },
@@ -775,6 +840,38 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "GKEConnection": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "credentials": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "projectID": {
+          "type": "string"
+        },
+        "zone": {
+          "type": "string"
+        },
+        "cluster": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "projectID",
+        "zone",
+        "cluster"
+      ]
     },
     "GitHubActions": {
       "properties": {
@@ -1059,6 +1156,15 @@
         },
         "kubeconfig": {
           "$ref": "#/$defs/EnvVar"
+        },
+        "eks": {
+          "$ref": "#/$defs/EKSConnection"
+        },
+        "gke": {
+          "$ref": "#/$defs/GKEConnection"
+        },
+        "cnrm": {
+          "$ref": "#/$defs/CNRMConnection"
         },
         "clusterName": {
           "type": "string"
