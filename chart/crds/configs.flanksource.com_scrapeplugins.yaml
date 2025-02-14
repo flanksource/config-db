@@ -86,6 +86,8 @@ spec:
                       type: string
                     headline:
                       type: boolean
+                    hidden:
+                      type: boolean
                     icon:
                       type: string
                     label:
