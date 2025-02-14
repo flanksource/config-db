@@ -59,6 +59,12 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 				sc = sc.WithTempCache(tc)
 			}
 
+			clientset, restConfig, err := config.KubernetesConnection.Populate(sc.Context, false)
+			if err != nil {
+				return err
+			}
+			sc.Context = sc.WithKubernetes(clientset, restConfig)
+
 			var (
 				objs           []*unstructured.Unstructured
 				deletedObjects []*unstructured.Unstructured
@@ -129,7 +135,6 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			if len(objectsFromEvents) > 0 {
 				go func(eventInvolvedObjs []v1.InvolvedObject) {
 					start := time.Now()
-
 					cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(sc.ScrapeConfig()).WithJobHistory(ctx.History).AsIncrementalScrape()
 					cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
 

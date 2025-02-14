@@ -99,6 +99,9 @@
         "headline": {
           "type": "boolean"
         },
+        "hidden": {
+          "type": "boolean"
+        },
         "text": {
           "type": "string"
         },
