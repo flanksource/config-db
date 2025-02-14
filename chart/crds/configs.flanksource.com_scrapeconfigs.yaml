@@ -184,6 +184,8 @@ spec:
                             type: string
                           headline:
                             type: boolean
+                          hidden:
+                            type: boolean
                           icon:
                             type: string
                           label:
@@ -691,6 +693,8 @@ spec:
                             type: string
                           headline:
                             type: boolean
+                          hidden:
+                            type: boolean
                           icon:
                             type: string
                           label:
@@ -1108,6 +1112,8 @@ spec:
                             type: string
                           headline:
                             type: boolean
+                          hidden:
+                            type: boolean
                           icon:
                             type: string
                           label:
@@ -1485,6 +1491,8 @@ spec:
                           filter:
                             type: string
                           headline:
+                            type: boolean
+                          hidden:
                             type: boolean
                           icon:
                             type: string
@@ -1902,6 +1910,8 @@ spec:
                             type: string
                           headline:
                             type: boolean
+                          hidden:
+                            type: boolean
                           icon:
                             type: string
                           label:
@@ -2307,6 +2317,8 @@ spec:
                           filter:
                             type: string
                           headline:
+                            type: boolean
+                          hidden:
                             type: boolean
                           icon:
                             type: string
@@ -2961,6 +2973,8 @@ spec:
                           filter:
                             type: string
                           headline:
+                            type: boolean
+                          hidden:
                             type: boolean
                           icon:
                             type: string
@@ -3912,6 +3926,8 @@ spec:
                             type: string
                           headline:
                             type: boolean
+                          hidden:
+                            type: boolean
                           icon:
                             type: string
                           label:
@@ -4393,6 +4409,8 @@ spec:
                             type: string
                           headline:
                             type: boolean
+                          hidden:
+                            type: boolean
                           icon:
                             type: string
                           label:
@@ -4804,6 +4822,8 @@ spec:
                             type: string
                           headline:
                             type: boolean
+                          hidden:
+                            type: boolean
                           icon:
                             type: string
                           label:
@@ -4887,6 +4907,16 @@ spec:
                                       description: Value is a static value
                                       type: string
                                   type: object
+                                healths:
+                                  items:
+                                    properties:
+                                      expr:
+                                        type: string
+                                      value:
+                                        description: Value is a static value
+                                        type: string
+                                    type: object
+                                  type: array
                                 id:
                                   properties:
                                     expr:
@@ -5494,6 +5524,8 @@ spec:
                             type: string
                           headline:
                             type: boolean
+                          hidden:
+                            type: boolean
                           icon:
                             type: string
                           label:
@@ -5853,6 +5885,8 @@ spec:
                           filter:
                             type: string
                           headline:
+                            type: boolean
+                          hidden:
                             type: boolean
                           icon:
                             type: string
@@ -6458,6 +6492,8 @@ spec:
                           filter:
                             type: string
                           headline:
+                            type: boolean
+                          hidden:
                             type: boolean
                           icon:
                             type: string
