@@ -7,6 +7,7 @@ import (
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty"
+	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/types"
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -211,17 +212,18 @@ func AddEventResourceToWatch(watches []KubernetesResourceToWatch) []KubernetesRe
 }
 
 type Kubernetes struct {
-	BaseScraper     `json:",inline"`
-	ClusterName     string        `json:"clusterName"`
-	Namespace       string        `json:"namespace,omitempty"`
-	UseCache        bool          `json:"useCache,omitempty"`
-	AllowIncomplete bool          `json:"allowIncomplete,omitempty"`
-	Scope           string        `json:"scope,omitempty"`
-	Since           string        `json:"since,omitempty"`
-	Selector        string        `json:"selector,omitempty"`
-	FieldSelector   string        `json:"fieldSelector,omitempty"`
-	MaxInflight     int64         `json:"maxInflight,omitempty"`
-	Kubeconfig      *types.EnvVar `json:"kubeconfig,omitempty"`
+	BaseScraper                     `json:",inline"`
+	connection.KubernetesConnection `json:",inline"`
+
+	ClusterName     string `json:"clusterName"`
+	Namespace       string `json:"namespace,omitempty"`
+	UseCache        bool   `json:"useCache,omitempty"`
+	AllowIncomplete bool   `json:"allowIncomplete,omitempty"`
+	Scope           string `json:"scope,omitempty"`
+	Since           string `json:"since,omitempty"`
+	Selector        string `json:"selector,omitempty"`
+	FieldSelector   string `json:"fieldSelector,omitempty"`
+	MaxInflight     int64  `json:"maxInflight,omitempty"`
 
 	// Watch specifies which Kubernetes resources should be watched.
 	// This allows for near real-time updates of the config items

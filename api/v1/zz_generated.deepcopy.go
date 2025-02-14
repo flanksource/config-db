@@ -717,11 +717,7 @@ func (in JSONStringMap) DeepCopy() JSONStringMap {
 func (in *Kubernetes) DeepCopyInto(out *Kubernetes) {
 	*out = *in
 	in.BaseScraper.DeepCopyInto(&out.BaseScraper)
-	if in.Kubeconfig != nil {
-		in, out := &in.Kubeconfig, &out.Kubeconfig
-		*out = new(types.EnvVar)
-		(*in).DeepCopyInto(*out)
-	}
+	in.KubernetesConnection.DeepCopyInto(&out.KubernetesConnection)
 	if in.Watch != nil {
 		in, out := &in.Watch, &out.Watch
 		*out = make([]KubernetesResourceToWatch, len(*in))
