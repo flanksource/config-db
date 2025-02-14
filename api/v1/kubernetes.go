@@ -7,6 +7,7 @@ import (
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty"
+	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/types"
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -211,8 +212,8 @@ func AddEventResourceToWatch(watches []KubernetesResourceToWatch) []KubernetesRe
 }
 
 type Kubernetes struct {
-	BaseScraper          `json:",inline"`
-	KubernetesConnection `json:",inline"`
+	BaseScraper                     `json:",inline"`
+	connection.KubernetesConnection `json:",inline"`
 
 	ClusterName     string `json:"clusterName"`
 	Namespace       string `json:"namespace,omitempty"`

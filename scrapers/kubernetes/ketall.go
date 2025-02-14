@@ -14,7 +14,7 @@ import (
 )
 
 func scrape(ctx api.ScrapeContext, config v1.Kubernetes) ([]*unstructured.Unstructured, error) {
-	clientset, restConfig, err := config.KubernetesConnection.Populate(ctx.Context)
+	clientset, restConfig, err := config.KubernetesConnection.Populate(ctx.Context, true)
 	if err != nil {
 		return nil, err
 	}

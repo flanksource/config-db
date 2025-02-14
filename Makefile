@@ -31,7 +31,7 @@ gen-schemas:
 	cd hack/generate-schemas && \
 	go mod edit -module=github.com/flanksource/config-db/hack/generate-schemas && \
 	go mod edit -require=github.com/flanksource/config-db@v1.0.0 && \
- 	go mod edit -replace=github.com/flanksource/config-db=../../ && \
+	go mod edit -replace=github.com/flanksource/config-db=../../ && \
 	go mod tidy && \
 	go run ./main.go
 
