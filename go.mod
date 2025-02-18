@@ -50,7 +50,7 @@ require (
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.36.1
-	github.com/flanksource/duty v1.0.850
+	github.com/flanksource/duty v1.0.851
 	github.com/flanksource/is-healthy v1.0.61
 	github.com/flanksource/ketall v1.1.8
 	github.com/flanksource/kopper v1.0.11
@@ -75,7 +75,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/uber/athenadriver v1.1.14
 	github.com/xo/dburl v0.13.1
 	github.com/zclconf/go-cty v1.15.0
@@ -140,7 +140,7 @@ require (
 	github.com/exaring/otelpgx v0.6.2 // indirect
 	github.com/fatih/color v1.17.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fergusstrange/embedded-postgres v1.29.0 // indirect
+	github.com/fergusstrange/embedded-postgres v1.30.0 // indirect
 	github.com/flanksource/kubectl-neat v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
