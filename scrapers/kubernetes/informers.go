@@ -349,12 +349,11 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 
 // kubeConfigIdentifier returns a unique identifier for a kubernetes config of a scraper.
 func kubeConfigIdentifier(ctx api.ScrapeContext) string {
-	rs := ctx.KubernetesRestConfig()
-	if rs == nil {
-		return ctx.ScrapeConfig().Name
+	rc := ctx.Kubernetes().RestConfig()
+	if rc == nil {
+		return ctx.ScrapeConfig().GetPersistedID().String() + ctx.ScrapeConfig().Name
 	}
-
-	return rs.Host
+	return ctx.KubeAuthFingerprint()
 }
 
 type QueueItemOperation int

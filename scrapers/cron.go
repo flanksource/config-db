@@ -9,6 +9,7 @@ import (
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/context"
 	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/job"
@@ -275,11 +276,13 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 	for _, config := range sc.ScrapeConfig().Spec.Kubernetes {
 		// Update scrape context with provided kubeconfig
 		if config.Kubeconfig != nil {
-			c, err := sc.WithKubeconfig(*config.Kubeconfig)
+			kc := connection.KubernetesConnection{KubeconfigConnection: connection.KubeconfigConnection{Kubeconfig: config.Kubeconfig}}
+			k8sclient, err := kc.Populate(sc.Context, true)
 			if err != nil {
 				return fmt.Errorf("failed to apply custom kubeconfig: %w", err)
 			}
-			sc.Context = *c
+			c := sc.WithKubernetes(k8sclient)
+			sc.Context = c
 		}
 
 		if sc.PropertyOn(false, "watch.disable") {
