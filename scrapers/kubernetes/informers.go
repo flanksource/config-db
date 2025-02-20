@@ -50,11 +50,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 		return nil, fmt.Errorf("failed to create queue: %w", err)
 	}
 
-	clientset, restConfig, err := config.KubernetesConnection.Populate(ctx.Context, false)
-	if err != nil {
-		return nil, err
-	}
-	ctx.Context = ctx.WithKubernetes(clientset, restConfig)
+	ctx.Context = ctx.WithKubernetes(config.KubernetesConnection)
 
 	for _, watchResource := range lo.Uniq(config.Watch) {
 		if err := globalSharedInformerManager.Register(ctx, watchResource, priorityQueue); err != nil {
@@ -98,7 +94,10 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 
 	apiVersion, kind := watchResource.ApiVersion, watchResource.Kind
 
-	informer, stopper, isNew := t.getOrCreate(ctx, apiVersion, kind)
+	informer, stopper, isNew, err := t.getOrCreate(ctx, apiVersion, kind)
+	if err != nil {
+		return fmt.Errorf("error creating informer for apiVersion=%v kind=%v: %w", apiVersion, kind, err)
+	}
 	if informer == nil {
 		return fmt.Errorf("could not find informer for: apiVersion=%v kind=%v", apiVersion, kind)
 	}
@@ -112,7 +111,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 	ctx.Context = ctx.WithName("watch." + ctx.ScrapeConfig().Name)
 
 	ctx.Logger.V(1).Infof("registering shared informer for: %v", watchResource)
-	_, err := informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
 			receivedAt := time.Now().Round(time.Second)
 
@@ -240,7 +239,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 }
 
 // getOrCreate returns an existing shared informer instance or creates & returns a new one.
-func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, kind string) (informers.GenericInformer, chan struct{}, bool) {
+func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, kind string) (informers.GenericInformer, chan struct{}, bool, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -249,16 +248,17 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 
 	if val, ok := t.cache[clusterID]; ok {
 		if data, ok := val[cacheKey]; ok {
-			return data.informer, data.stopper, false
+			return data.informer, data.stopper, false, nil
 		}
 	}
 
-	factory := informers.NewSharedInformerFactory(ctx.Kubernetes(), 0)
+	k8s, err := ctx.Kubernetes()
+	factory := informers.NewSharedInformerFactory(k8s, 0)
 	stopper := make(chan struct{})
 
 	informer, err := getInformer(factory, apiVersion, kind)
 	if err != nil {
-		return nil, nil, false
+		return nil, nil, false, err
 	}
 	ctx.Gauge("kubernetes_active_shared_informers").Add(1)
 
@@ -274,7 +274,7 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 		}
 	}
 
-	return informer, stopper, true
+	return informer, stopper, true, nil
 }
 
 // stop stops all shared informers for the given kubeconfig
@@ -349,7 +349,11 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 
 // kubeConfigIdentifier returns a unique identifier for a kubernetes config of a scraper.
 func kubeConfigIdentifier(ctx api.ScrapeContext) string {
-	rc := ctx.Kubernetes().RestConfig()
+	k8s, _ := ctx.Kubernetes()
+	if k8s == nil {
+		return ctx.ScrapeConfig().GetPersistedID().String() + ctx.ScrapeConfig().Name
+	}
+	rc := k8s.RestConfig()
 	if rc == nil {
 		return ctx.ScrapeConfig().GetPersistedID().String() + ctx.ScrapeConfig().Name
 	}

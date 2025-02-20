@@ -277,11 +277,7 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		// Update scrape context with provided kubeconfig
 		if config.Kubeconfig != nil {
 			kc := connection.KubernetesConnection{KubeconfigConnection: connection.KubeconfigConnection{Kubeconfig: config.Kubeconfig}}
-			k8sclient, err := kc.Populate(sc.Context, true)
-			if err != nil {
-				return fmt.Errorf("failed to apply custom kubeconfig: %w", err)
-			}
-			c := sc.WithKubernetes(k8sclient)
+			c := sc.WithKubernetes(kc)
 			sc.Context = c
 		}
 

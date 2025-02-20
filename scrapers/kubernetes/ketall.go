@@ -14,14 +14,10 @@ import (
 )
 
 func scrape(ctx api.ScrapeContext, config v1.Kubernetes) ([]*unstructured.Unstructured, error) {
-	clientset, restConfig, err := config.KubernetesConnection.Populate(ctx.Context, true)
-	if err != nil {
-		return nil, err
-	}
-	ctx.Context = ctx.WithKubernetes(clientset, restConfig)
+	ctx.Context = ctx.WithKubernetes(config.KubernetesConnection)
 
 	opts := options.NewDefaultCmdOptions()
-	opts, err = updateOptions(ctx.DutyContext(), opts, config)
+	opts, err := updateOptions(ctx.DutyContext(), opts, config)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +43,12 @@ func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.K
 	opts.MaxInflight = config.MaxInflight
 	opts.Exclusions = append(config.Exclusions.List(), "componentstatuses", "Event")
 	opts.Since = config.Since
-	opts.Flags.KubeConfig = ctx.KubernetesRestConfig()
+
+	k8s, err := ctx.Kubernetes()
+	if err != nil {
+		return opts, fmt.Errorf("error creating k8s client: %w", err)
+	}
+	opts.Flags.KubeConfig = k8s.RestConfig()
 
 	return opts, nil
 }

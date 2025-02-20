@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils/kube"
+	"github.com/flanksource/duty/connection"
 
 	appsv1 "k8s.io/api/apps/v1"
 	k8sv1 "k8s.io/api/core/v1"
@@ -128,11 +129,12 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 	for _, config := range ctx.ScrapeConfig().Spec.KubernetesFile {
 
 		if config.Kubeconfig != nil {
-			c, err := ctx.WithKubeconfig(*config.Kubeconfig)
-			if err != nil {
-				return results.Errorf(err, "failed to apply custom kube config")
-			}
-			ctx.Context = *c
+			c := ctx.WithKubernetes(connection.KubernetesConnection{
+				KubeconfigConnection: connection.KubeconfigConnection{
+					Kubeconfig: config.Kubeconfig,
+				},
+			})
+			ctx.Context = c
 		}
 
 		if config.Selector.Kind == "" {
@@ -142,8 +144,12 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 		ctx.Logger.V(3).Infof("Scraping pods %s => %s", config.Selector, config.Files)
 
 		var pods []pod
+		k8s, err := ctx.Kubernetes()
+		if err != nil {
+			return results.Errorf(err, "error creating kubernetes client")
+		}
 		if startsWith(config.Selector.Kind, "pod") {
-			podList, err := findPods(ctx, ctx.Kubernetes(), config.Selector)
+			podList, err := findPods(ctx, k8s, config.Selector)
 			if err != nil {
 				results.Errorf(err, "failed to find pods")
 				continue
@@ -152,13 +158,13 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 				pods = append(pods, newPod(p, config, p.Labels))
 			}
 		} else if startsWith(config.Selector.Kind, "deployment") {
-			deployments, err := findDeployments(ctx, ctx.Kubernetes(), config.Selector)
+			deployments, err := findDeployments(ctx, k8s, config.Selector)
 			if err != nil {
 				results.Errorf(err, "failed to find deployments")
 			}
 
 			for _, deployment := range deployments {
-				_pods, err := findBySelector(ctx, ctx.Kubernetes(), config,
+				_pods, err := findBySelector(ctx, k8s, config,
 					deployment.Namespace,
 					metav1.FormatLabelSelector(deployment.Spec.Selector),
 					fmt.Sprintf("%s/%s/%s", deployment.Namespace, "deployment", deployment.Name),
@@ -171,7 +177,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 			}
 		} else if startsWith(config.Selector.Kind, "statefulset") {
 			if config.Selector.Name != "" {
-				statefulset, err := ctx.Kubernetes().AppsV1().StatefulSets(config.Selector.Namespace).Get(ctx, config.Selector.Name, metav1.GetOptions{})
+				statefulset, err := k8s.AppsV1().StatefulSets(config.Selector.Namespace).Get(ctx, config.Selector.Name, metav1.GetOptions{})
 				if errors.IsNotFound(err) {
 					continue
 				} else if err != nil {
@@ -179,7 +185,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 					continue
 				}
 
-				podsList, err := findPods(ctx, ctx.Kubernetes(), v1.ResourceSelector{
+				podsList, err := findPods(ctx, k8s, v1.ResourceSelector{
 					Namespace:     config.Selector.Namespace,
 					LabelSelector: metav1.FormatLabelSelector(statefulset.Spec.Selector),
 				})
