@@ -253,6 +253,10 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 	}
 
 	k8s, err := ctx.Kubernetes()
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("error creating kubernetes client: %w", err)
+	}
+
 	factory := informers.NewSharedInformerFactory(k8s, 0)
 	stopper := make(chan struct{})
 
