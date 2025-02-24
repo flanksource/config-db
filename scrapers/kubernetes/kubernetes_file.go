@@ -213,7 +213,7 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 		for _, pod := range pods {
 			for _, file := range pod.Config.Files {
 				for _, p := range file.Path {
-					stdout, _, err := ctx.KubernetesClient().ExecutePodf(ctx, pod.Namespace, pod.Name, pod.Container, "cat", p)
+					stdout, _, err := k8s.ExecutePodf(ctx, pod.Namespace, pod.Name, pod.Container, "cat", p)
 					if err != nil {
 						results.Errorf(err, "Failed to fetch %s/%s/%s: %v", pod.Namespace, pod.Name, pod.Container, p)
 						continue
