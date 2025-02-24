@@ -14,6 +14,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
+	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/tests/setup"
@@ -23,8 +24,6 @@ import (
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 func TestLoad(t *testing.T) {
@@ -64,17 +63,7 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 		}
 
 		// This is required since duty.Setup uses a Fake Kubernetes Client by default
-		kubeconfig := clientcmd.RecommendedHomeFile
-		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			panic(err)
-		}
-
-		clientset, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			panic(err)
-		}
-		DefaultContext = DefaultContext.WithKubernetes(clientset, config)
+		DefaultContext = DefaultContext.WithKubernetes(connection.KubernetesConnection{})
 
 		scrapeConfig := v1.ScrapeConfig{
 			ObjectMeta: metav1.ObjectMeta{
@@ -93,7 +82,7 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 			},
 		}
 
-		if _, _, err = db.PersistScrapeConfigFromCRD(DefaultContext, &scrapeConfig); err != nil {
+		if _, _, err := db.PersistScrapeConfigFromCRD(DefaultContext, &scrapeConfig); err != nil {
 			panic(err)
 		}
 		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
