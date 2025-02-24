@@ -21,7 +21,11 @@ import (
 var fetchDelayBuckets = []float64{10, 50, 100, 500, 1_000, 5_000, 10_000, 30_000, 60_000}
 
 func listAllCRDs(ctx api.ScrapeContext) ([]string, error) {
-	cs, err := clientset.NewForConfig(ctx.KubernetesRestConfig())
+	k8s, err := ctx.Kubernetes()
+	if err != nil {
+		return nil, fmt.Errorf("error fetching k8s client: %w", err)
+	}
+	cs, err := clientset.NewForConfig(k8s.RestConfig())
 	if err != nil {
 		return nil, fmt.Errorf("error creating api extension clientset: %w", err)
 	}
@@ -53,7 +57,11 @@ func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*
 			Kind:    iObj.Kind,
 		}
 
-		client, err := ctx.KubernetesClient().GetClientByGroupVersionKind(gvk.Group, gvk.Version, gvk.Kind)
+		k8s, err := ctx.Kubernetes()
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch kubernetes client: %w", err)
+		}
+		client, err := k8s.GetClientByGroupVersionKind(ctx, gvk.Group, gvk.Version, gvk.Kind)
 		if err != nil {
 			// We suspect if this happens we might be on the wrong k8s context
 			// so we list all CRDs in job history error

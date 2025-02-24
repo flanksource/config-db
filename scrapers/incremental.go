@@ -59,11 +59,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 				sc = sc.WithTempCache(tc)
 			}
 
-			clientset, restConfig, err := config.KubernetesConnection.Populate(sc.Context, false)
-			if err != nil {
-				return err
-			}
-			sc.Context = sc.WithKubernetes(clientset, restConfig)
+			sc.Context = sc.WithKubernetes(config.KubernetesConnection)
 
 			var (
 				objs           []*unstructured.Unstructured
