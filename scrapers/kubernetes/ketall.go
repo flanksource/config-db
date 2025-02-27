@@ -50,5 +50,11 @@ func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.K
 	}
 	opts.Flags.KubeConfig = k8s.RestConfig()
 
+	rm, err := k8s.GetRestMapper()
+	if err != nil {
+		return opts, fmt.Errorf("error getting k8s rest mapper: %w", err)
+	}
+	opts.Flags.RestMapper = rm
+
 	return opts, nil
 }
