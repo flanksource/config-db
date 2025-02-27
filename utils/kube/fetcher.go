@@ -49,6 +49,11 @@ func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*
 	var mu sync.Mutex
 	var output []*unstructured.Unstructured
 
+	k8s, err := ctx.Kubernetes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch kubernetes client: %w", err)
+	}
+
 	for _, iObj := range iObjs {
 		gv, _ := schema.ParseGroupVersion(iObj.APIVersion)
 		gvk := schema.GroupVersionKind{
@@ -57,10 +62,6 @@ func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*
 			Kind:    iObj.Kind,
 		}
 
-		k8s, err := ctx.Kubernetes()
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch kubernetes client: %w", err)
-		}
 		client, err := k8s.GetClientByGroupVersionKind(ctx, gvk.Group, gvk.Version, gvk.Kind)
 		if err != nil {
 			// We suspect if this happens we might be on the wrong k8s context
