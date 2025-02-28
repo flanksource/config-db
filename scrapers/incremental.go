@@ -43,8 +43,8 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 		ResourceID:   string(sc.ScrapeConfig().GetUID()),
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		ResourceType: job.ResourceTypeScraper,
-		Fn: func(ctx job.JobRuntime) error {
-			plugins, err := db.LoadAllPlugins(ctx.Context)
+		Fn: func(jobCtx job.JobRuntime) error {
+			plugins, err := db.LoadAllPlugins(jobCtx.Context)
 			if err != nil {
 				return fmt.Errorf("failed to load plugins: %w", err)
 			}
@@ -131,11 +131,12 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			if len(objectsFromEvents) > 0 {
 				go func(eventInvolvedObjs []v1.InvolvedObject) {
 					start := time.Now()
-					cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(sc.ScrapeConfig()).WithJobHistory(ctx.History).AsIncrementalScrape()
+
+					cc := api.NewScrapeContext(jobCtx.Context).WithScrapeConfig(sc.ScrapeConfig()).WithJobHistory(jobCtx.History).AsIncrementalScrape()
 					cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
 
 					backoff := retry.WithMaxRetries(3, retry.NewExponential(time.Second))
-					err := retry.Do(ctx, backoff, func(_ctx gocontext.Context) error {
+					err := retry.Do(jobCtx, backoff, func(_ctx gocontext.Context) error {
 						objs, err := kube.FetchInvolvedObjects(cc, eventInvolvedObjs)
 						if err != nil {
 							return retry.RetryableError(err)
@@ -144,20 +145,20 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 						percent := float64(len(objs)) / float64(len(eventInvolvedObjs))
 						if percent < 0.5 {
 							// smells like a bug
-							ctx.Logger.V(3).Infof("requested %d involved objects but fetched only %d", len(eventInvolvedObjs), len(objs))
+							jobCtx.Logger.V(3).Infof("requested %d involved objects but fetched only %d", len(eventInvolvedObjs), len(objs))
 						}
 
 						// we put these involved objects back into the queue
 						for _, obj := range objs {
 							queue.Enqueue(kubernetes.NewQueueItem(obj, kubernetes.QueueItemOperationReEnqueue))
-							ctx.Histogram("involved_objects_enqueue", involvedObjectsFetchBuckets, "scraper_id", cc.ScraperID()).
+							jobCtx.Histogram("involved_objects_enqueue", involvedObjectsFetchBuckets, "scraper_id", cc.ScraperID()).
 								Record(time.Duration(time.Since(start).Milliseconds()))
 						}
 
 						return nil
 					})
 					if err != nil {
-						ctx.History.AddErrorf("failed to get invovled objects: %v", err)
+						jobCtx.History.AddErrorf("failed to get invovled objects: %v", err)
 					}
 				}(objectsFromEvents)
 			}
@@ -173,20 +174,20 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			// a way that no two objects in a batch have the same id.
 
 			objs = dedup(objs)
-			if err := consumeResources(ctx, *sc.ScrapeConfig(), *config, objs, deletedObjects); err != nil {
-				ctx.History.AddErrorf("failed to consume resources: %v", err)
+			if err := consumeResources(jobCtx, *sc.ScrapeConfig(), *config, objs, deletedObjects); err != nil {
+				jobCtx.History.AddErrorf("failed to consume resources: %v", err)
 				return err
 			}
 
 			for _, obj := range objs {
 				queuedtime, ok := queuedTime[string(obj.GetUID())]
 				if !ok {
-					ctx.Warnf("found object (%s/%s/%s) with zero queuedTime", obj.GetNamespace(), obj.GetName(), obj.GetUID())
+					jobCtx.Warnf("found object (%s/%s/%s) with zero queuedTime", obj.GetNamespace(), obj.GetName(), obj.GetUID())
 					continue
 				}
 
 				lag := time.Since(queuedtime)
-				ctx.Histogram("informer_consume_lag", consumeLagBuckets,
+				jobCtx.Histogram("informer_consume_lag", consumeLagBuckets,
 					"scraper", sc.ScraperID(),
 					"kind", obj.GetKind(),
 				).Record(time.Duration(lag.Milliseconds()))
