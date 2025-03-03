@@ -1,0 +1,17 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapePlugin
+metadata:
+  name: change-mapping-rules 
+  namespace: mc
+spec:
+  changes:
+    mapping:
+      - filter: >
+          change.change_type == 'diff' && change.summary == "status.containerStatuses" &&
+          patch != null && has(patch.status) && has(patch.status.containerStatuses) &&
+          patch.status.containerStatuses.size() > 0 &&
+          has(patch.status.containerStatuses[0].restartCount)
+        type: PodCrashLooping
+      - filter: >
+          change.change_type == 'diff' && change.summary == "status.images" && config.kind == "Node"
+        type: ImageUpdated
