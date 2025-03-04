@@ -33,6 +33,7 @@ func RunNowHandler(c echo.Context) error {
 
 	scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(&configScraper)
 	j := newScraperJob(scrapeCtx)
+	j.JitterDisable = true
 	j.Run()
 
 	return c.JSON(http.StatusOK, j.LastJob.Details)
