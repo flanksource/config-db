@@ -1,7 +1,6 @@
 package scrapers
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -21,8 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	//"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -213,6 +210,8 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 		ResourceType: job.ResourceTypeScraper,
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		Fn: func(jr job.JobRuntime) error {
+			start := time.Now()
+
 			output, err := RunScraper(sc.WithJobHistory(jr.History))
 			if err != nil {
 				jr.History.AddError(err.Error())
@@ -224,7 +223,14 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			source := sc.ScrapeConfig().GetAnnotations()["source"]
 			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
 			if source == models.SourceCRD && agentID == uuid.Nil.String() {
-				if err := updateCRDStatus(jr.Context, sc.ScrapeConfig(), jr.History.SuccessCount, jr.History.ErrorCount, jr.History.Errors); err != nil {
+				lastRun := v1.LastRunStatus{
+					Success:   jr.History.SuccessCount,
+					Error:     jr.History.ErrorCount,
+					Timestamp: metav1.Time{Time: start},
+					Errors:    jr.History.Errors,
+				}
+
+				if err := updateCRDStatus(jr.Context, sc.ScrapeConfig(), lastRun); err != nil {
 					return fmt.Errorf("error patching crd status: %w", err)
 				}
 			}
@@ -234,27 +240,17 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 	}
 }
 
-func updateCRDStatus(ctx context.Context, obj *v1.ScrapeConfig, success, error int, errors []string) error {
-	statusUpdate := v1.LastRunStatus{
-		Success:   success,
-		Error:     error,
-		Timestamp: metav1.Time{Time: time.Now()},
-	}
-	if len(errors) > 0 {
-		statusUpdate.Errors = errors
+func updateCRDStatus(ctx context.Context, obj *v1.ScrapeConfig, lastRun v1.LastRunStatus) error {
+	var latest v1.ScrapeConfig
+	objectKey := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
+	if err := v1.ScrapeConfigReconciler.Get(ctx, objectKey, &latest); err != nil {
+		return fmt.Errorf("failed to get latest ScrapeConfig: %w", err)
 	}
 
-	rawPatch, err := json.Marshal(v1.ScrapeConfig{
-		Status: v1.ScrapeConfigStatus{
-			LastRun: statusUpdate,
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("error marshaling status update for crd: %w", err)
-	}
+	patch := client.MergeFrom(latest.DeepCopy())
+	latest.Status.LastRun = lastRun
 
-	patch := client.RawPatch(types.MergePatchType, rawPatch)
-	if err := v1.ScrapeConfigReconciler.Status().Patch(ctx, obj, patch); err != nil {
+	if err := v1.ScrapeConfigReconciler.Status().Patch(ctx, &latest, patch); err != nil {
 		return fmt.Errorf("error patching crd status: %w", err)
 	}
 
