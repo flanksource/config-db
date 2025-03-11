@@ -64,7 +64,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 	for _, w := range config.Watch {
 		existingWatches = append(existingWatches, w.ApiVersion+w.Kind)
 	}
-	globalSharedInformerManager.stop(ctx, kubeConfigIdentifier(ctx), existingWatches...)
+	globalSharedInformerManager.stop(ctx, ctx.KubeAuthFingerprint(), existingWatches...)
 
 	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", ctx.ScraperID()).Add(1)
 	return priorityQueue, nil
@@ -244,7 +244,10 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 	defer t.mu.Unlock()
 
 	cacheKey := apiVersion + kind
-	clusterID := kubeConfigIdentifier(ctx)
+	clusterID := ctx.KubeAuthFingerprint()
+	if clusterID == "" {
+		return nil, nil, false, fmt.Errorf("error fingerprinting kubernetes auth")
+	}
 
 	if val, ok := t.cache[clusterID]; ok {
 		if data, ok := val[cacheKey]; ok {
@@ -349,19 +352,6 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 	m["apiVersion"] = resource.ApiVersion
 
 	return &unstructured.Unstructured{Object: m}, nil
-}
-
-// kubeConfigIdentifier returns a unique identifier for a kubernetes config of a scraper.
-func kubeConfigIdentifier(ctx api.ScrapeContext) string {
-	k8s, _ := ctx.Kubernetes()
-	if k8s == nil {
-		return ctx.ScrapeConfig().GetPersistedID().String() + ctx.ScrapeConfig().Name
-	}
-	rc := k8s.RestConfig()
-	if rc == nil {
-		return ctx.ScrapeConfig().GetPersistedID().String() + ctx.ScrapeConfig().Name
-	}
-	return ctx.KubeAuthFingerprint()
 }
 
 type QueueItemOperation int
