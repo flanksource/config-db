@@ -52,13 +52,14 @@ require (
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.36.1
-	github.com/flanksource/duty v1.0.875
+	github.com/flanksource/duty v1.0.876
 	github.com/flanksource/is-healthy v1.0.65
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.11
 	github.com/gobwas/glob v0.2.3
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
 	github.com/google/uuid v1.6.0
+	github.com/grafana/pyroscope-go v1.2.0
 	github.com/hashicorp/go-getter v1.7.5
 	github.com/hexops/gotextdiff v1.0.3
 	github.com/labstack/echo-contrib v0.17.1
@@ -174,7 +175,6 @@ require (
 	github.com/google/s2a-go v0.1.8 // indirect
 	github.com/google/wire v0.6.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
-	github.com/grafana/pyroscope-go v1.2.0 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.8 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.21.0 // indirect
