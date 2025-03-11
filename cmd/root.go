@@ -58,6 +58,11 @@ var Root = &cobra.Command{
 			_ = telemetry.InitTracer(otelServiceName, otelcollectorURL, true) // TODO: Setup runner
 		}
 
+		if pyroAddr := os.Getenv("PYROSCOPE_SERVER_ADDR"); pyroAddr != "" {
+			logger.Infof("Sending pyroscope profiles to %s", pyroAddr)
+			telemetry.StartPyroscope("config-db", pyroAddr)
+		}
+
 		shutdown.WaitForSignal()
 
 		return nil
