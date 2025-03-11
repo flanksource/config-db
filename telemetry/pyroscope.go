@@ -7,8 +7,8 @@ import (
 	"github.com/grafana/pyroscope-go"
 )
 
-func StartPyroscope(serviceName, address string) {
-	pyroscope.Start(pyroscope.Config{
+func StartPyroscope(serviceName, address string) error {
+	_, err := pyroscope.Start(pyroscope.Config{
 		ApplicationName: serviceName,
 
 		// address of pyroscope server <http://pyroscope-server:4040>
@@ -41,4 +41,5 @@ func StartPyroscope(serviceName, address string) {
 			//pyroscope.ProfileBlockDuration,
 		},
 	})
+	return err
 }

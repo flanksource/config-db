@@ -70,10 +70,6 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 	return priorityQueue, nil
 }
 
-func RemoveOrphans() {
-
-}
-
 type informerCacheData struct {
 	informer informers.GenericInformer
 	stopper  chan (struct{})
