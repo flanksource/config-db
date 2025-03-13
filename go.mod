@@ -52,7 +52,7 @@ require (
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.36.1
-	github.com/flanksource/duty v1.0.877
+	github.com/flanksource/duty v1.0.878
 	github.com/flanksource/is-healthy v1.0.66
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.11
