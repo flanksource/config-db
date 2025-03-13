@@ -25,6 +25,7 @@ A Helm chart for config-db
 | env | object | `{}` |  |
 | extra | object | `{}` |  |
 | extraArgs | object | `{}` |  |
+| extraEnvFrom | list | `[]` |  |
 | global.affinity | object | `{}` |  |
 | global.db.connectionPooler.enabled | bool | `false` |  |
 | global.db.connectionPooler.secretKeyRef.key | string | `"DB_URL"` |  |
@@ -37,7 +38,7 @@ A Helm chart for config-db
 | global.otel.collector | string | `""` |  |
 | global.otel.labels | string | `""` |  |
 | global.serviceAccount.annotations | object | `{}` |  |
-| global.serviceAccount.name | string | `nil` |  |
+| global.serviceAccount.name | string | `""` |  |
 | global.serviceMonitor.enabled | bool | `false` |  |
 | global.serviceMonitor.labels | object | `{}` |  |
 | global.tolerations | list | `[]` |  |
