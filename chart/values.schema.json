@@ -1,9 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "additionalProperties": false,
   "properties": {
     "affinity": {
-      "additionalProperties": false,
       "required": [],
       "title": "affinity",
       "type": "object"
@@ -135,21 +133,18 @@
       "type": "boolean"
     },
     "env": {
-      "additionalProperties": false,
       "description": "environment variables to add e.g. GOMEMLIMIT",
       "required": [],
       "title": "env",
       "type": "object"
     },
     "extra": {
-      "additionalProperties": false,
       "description": "Extra values to be applied to the pod spec",
       "required": [],
       "title": "extra",
       "type": "object"
     },
     "extraArgs": {
-      "additionalProperties": false,
       "description": "command line arguments to config-db",
       "required": [],
       "title": "extraArgs",
@@ -164,20 +159,16 @@
       "title": "extraEnvFrom"
     },
     "global": {
-      "additionalProperties": false,
       "description": "yaml-language-server: $schema=values.schema.json\nDefault values for config-db.\nDeclare variables to be passed into your templates.\nyaml-language-server: $schema=./values.schema.json",
       "properties": {
         "affinity": {
-          "additionalProperties": false,
           "required": [],
           "title": "affinity",
           "type": "object"
         },
         "db": {
-          "additionalProperties": false,
           "properties": {
             "connectionPooler": {
-              "additionalProperties": false,
               "properties": {
                 "enabled": {
                   "default": false,
@@ -186,7 +177,6 @@
                   "type": "boolean"
                 },
                 "secretKeyRef": {
-                  "additionalProperties": false,
                   "properties": {
                     "key": {
                       "default": "DB_URL",
@@ -244,19 +234,16 @@
           "type": "string"
         },
         "labels": {
-          "additionalProperties": false,
           "required": [],
           "title": "labels",
           "type": "object"
         },
         "nodeSelector": {
-          "additionalProperties": false,
           "required": [],
           "title": "nodeSelector",
           "type": "object"
         },
         "otel": {
-          "additionalProperties": false,
           "properties": {
             "collector": {
               "default": "",
@@ -279,10 +266,8 @@
           "type": "object"
         },
         "serviceAccount": {
-          "additionalProperties": false,
           "properties": {
             "annotations": {
-              "additionalProperties": false,
               "required": [],
               "title": "annotations",
               "type": "object"
@@ -303,7 +288,6 @@
           "type": "object"
         },
         "serviceMonitor": {
-          "additionalProperties": false,
           "properties": {
             "enabled": {
               "default": false,
@@ -312,7 +296,6 @@
               "type": "boolean"
             },
             "labels": {
-              "additionalProperties": false,
               "required": [],
               "title": "labels",
               "type": "object"
@@ -351,7 +334,6 @@
       "type": "object"
     },
     "image": {
-      "additionalProperties": false,
       "properties": {
         "name": {
           "default": "{{.Values.global.imagePrefix}}/config-db",
@@ -393,7 +375,6 @@
       "additionalProperties": false,
       "properties": {
         "annotations": {
-          "additionalProperties": false,
           "required": [],
           "title": "annotations",
           "type": "object"
@@ -448,7 +429,6 @@
       "type": "string"
     },
     "nodeSelector": {
-      "additionalProperties": false,
       "required": [],
       "title": "nodeSelector",
       "type": "object"
@@ -485,7 +465,6 @@
       "title": "otel"
     },
     "podSecurityContext": {
-      "additionalProperties": false,
       "properties": {
         "fsGroup": {
           "default": 1000,
@@ -500,7 +479,6 @@
       "title": "podSecurityContext"
     },
     "properties": {
-      "additionalProperties": false,
       "description": "config-db properties to override",
       "required": [],
       "title": "properties",
@@ -516,7 +494,6 @@
       "additionalProperties": false,
       "properties": {
         "limits": {
-          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "500m",
@@ -539,7 +516,6 @@
           "type": "object"
         },
         "requests": {
-          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "200m",
@@ -584,7 +560,6 @@
       "type": "array"
     },
     "securityContext": {
-      "additionalProperties": false,
       "required": [],
       "title": "securityContext",
       "type": "object"
@@ -593,7 +568,6 @@
       "additionalProperties": false,
       "properties": {
         "annotations": {
-          "additionalProperties": false,
           "required": [],
           "title": "annotations",
           "type": "object"
@@ -673,7 +647,6 @@
       "title": "serviceAccount"
     },
     "serviceMonitor": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
@@ -702,7 +675,6 @@
       "type": "array"
     },
     "upstream": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
@@ -717,7 +689,6 @@
           "type": "integer"
         },
         "secretKeyRef": {
-          "additionalProperties": false,
           "properties": {
             "name": {
               "default": "config-db-upstream",
