@@ -105,10 +105,13 @@ spec:
             {{- range $k, $v := .Values.extraArgs}}
             - --{{$k}}={{$v}}
             {{- end }}
-          {{- if .Values.upstream.enabled}}
           envFrom:
+          {{- if .Values.upstream.enabled}}
             - secretRef:
                 name: {{ .Values.upstream.secretKeyRef.name }}
+          {{- end}}
+          {{- if .Values.extraEnvFrom }}
+            {{- toYaml .Values.extraEnvFrom | nindent 12 }}
           {{- end}}
           env:
             - name: GOMAXPROCS

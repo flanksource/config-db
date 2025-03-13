@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=values.schema.json
 # Default values for config-db.
 # Declare variables to be passed into your templates.
 # yaml-language-server: $schema=./values.schema.json
@@ -57,6 +58,11 @@ extraArgs: {}
 
 # environment variables to add e.g. GOMEMLIMIT
 env: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+extraEnvFrom: []
 
 # config-db properties to override
 properties: {}
