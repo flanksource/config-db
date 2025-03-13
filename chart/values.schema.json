@@ -1,16 +1,22 @@
 {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
   "properties": {
     "affinity": {
+      "additionalProperties": false,
+      "required": [],
       "title": "affinity",
       "type": "object"
     },
     "configAnalysisRetentionDays": {
       "default": 60,
+      "required": [],
       "title": "configAnalysisRetentionDays",
       "type": "integer"
     },
     "configChangeRetentionDays": {
       "default": 60,
+      "required": [],
       "title": "configChangeRetentionDays",
       "type": "integer"
     },
@@ -23,39 +29,44 @@
             "persist": {
               "default": true,
               "description": "If the database is embedded, setting this to true will persist the contents of the database\nthrough a persistent volume",
+              "required": [],
               "title": "persist",
               "type": "boolean"
             },
             "storage": {
               "default": "20Gi",
+              "required": [],
               "title": "storage",
               "type": "string"
             },
             "storageClass": {
               "default": "",
+              "required": [],
               "title": "storageClass",
               "type": "string"
             }
           },
-          "title": "embedded",
           "required": [
             "persist",
             "storageClass",
             "storage"
-          ]
+          ],
+          "title": "embedded"
         },
         "external": {
           "additionalProperties": false,
           "properties": {
             "create": {
               "default": false,
-              "description": "Setting create:true will create\n  - a postgres stateful set\n  - the secret \u0026\n  - the service to expose the postgres stateful set.\nBy default, the generated secret will use 'postgres' as the username and a randomly generated password.\nIf you need to set a custom username and password, you can populate a secret named 'postgres-connection' before install\nwith POSTGRES_USER and POSTGRES_PASSWORD\n#\nIf create:false, a preexisting secret containing the URI to an existing postgres database must be provided\nThe URI must be in the format 'postgresql://\"$user\":\"$password\"@\"$host\"/\"$database\"'",
+              "description": "Setting create:true will create\n  - a postgres stateful set\n  - the secret \u0026\n  - the service to expose the postgres stateful set.\nBy default, the generated secret will use 'postgres' as the username and a randomly generated password.\nIf you need to set a custom username and password, you can populate a secret named 'postgres-connection' before install\nwith POSTGRES_USER and POSTGRES_PASSWORD\n\nIf create:false, a preexisting secret containing the URI to an existing postgres database must be provided\nThe URI must be in the format 'postgresql://\"$user\":\"$password\"@\"$host\"/\"$database\"'",
+              "required": [],
               "title": "create",
               "type": "boolean"
             },
             "enabled": {
               "default": false,
               "description": "Setting enabled to true will use an external postgres DB.\nYou can either use the embedded db or an external db.\nIf both is enabled, then embedded db will take precedence.",
+              "required": [],
               "title": "enabled",
               "type": "boolean"
             },
@@ -65,214 +76,264 @@
                 "key": {
                   "default": "DB_URL",
                   "description": "This is the key that we look for in the secret.",
+                  "required": [],
                   "title": "key",
                   "type": "string"
                 },
                 "name": {
                   "default": "config-db-postgresql",
                   "description": "The name of the secret to look for.",
+                  "required": [],
                   "title": "name",
                   "type": "string"
                 }
               },
-              "title": "secretKeyRef",
               "required": [
                 "name",
                 "key"
-              ]
+              ],
+              "title": "secretKeyRef"
             },
             "storage": {
               "default": "20Gi",
+              "required": [],
               "title": "storage",
               "type": "string"
             },
             "storageClass": {
               "default": "",
+              "required": [],
               "title": "storageClass",
               "type": "string"
             }
           },
-          "title": "external",
           "required": [
             "enabled",
             "create",
             "storageClass",
             "storage"
-          ]
+          ],
+          "title": "external"
         },
         "runMigrations": {
           "default": true,
+          "required": [],
           "title": "runMigrations",
           "type": "boolean"
         }
       },
-      "title": "db",
       "required": [
         "runMigrations"
-      ]
+      ],
+      "title": "db"
     },
     "disablePostgrest": {
       "default": false,
       "description": "Set to true if you want to disable the postgrest service",
+      "required": [],
       "title": "disablePostgrest",
       "type": "boolean"
     },
     "env": {
+      "additionalProperties": false,
       "description": "environment variables to add e.g. GOMEMLIMIT",
+      "required": [],
       "title": "env",
       "type": "object"
     },
     "extra": {
+      "additionalProperties": false,
       "description": "Extra values to be applied to the pod spec",
+      "required": [],
       "title": "extra",
       "type": "object"
     },
     "extraArgs": {
+      "additionalProperties": false,
       "description": "command line arguments to config-db",
+      "required": [],
       "title": "extraArgs",
       "type": "object"
     },
+    "extraEnvFrom": {
+      "additionalProperties": true,
+      "items": {
+        "required": []
+      },
+      "required": [],
+      "title": "extraEnvFrom"
+    },
     "global": {
+      "additionalProperties": false,
+      "description": "yaml-language-server: $schema=values.schema.json\nDefault values for config-db.\nDeclare variables to be passed into your templates.\nyaml-language-server: $schema=./values.schema.json",
       "properties": {
         "affinity": {
+          "additionalProperties": false,
+          "required": [],
           "title": "affinity",
           "type": "object"
         },
         "db": {
+          "additionalProperties": false,
           "properties": {
             "connectionPooler": {
+              "additionalProperties": false,
               "properties": {
                 "enabled": {
                   "default": false,
+                  "required": [],
                   "title": "enabled",
                   "type": "boolean"
                 },
                 "secretKeyRef": {
+                  "additionalProperties": false,
                   "properties": {
                     "key": {
                       "default": "DB_URL",
+                      "required": [],
                       "title": "key",
                       "type": "string"
                     },
                     "name": {
                       "default": "mission-control-connection-pooler",
+                      "required": [],
                       "title": "name",
                       "type": "string"
                     }
                   },
-                  "title": "secretKeyRef",
-                  "type": "object",
                   "required": [
                     "name",
                     "key"
-                  ]
+                  ],
+                  "title": "secretKeyRef",
+                  "type": "object"
                 }
               },
-              "title": "connectionPooler",
-              "type": "object",
               "required": [
                 "enabled",
                 "secretKeyRef"
-              ]
+              ],
+              "title": "connectionPooler",
+              "type": "object"
             }
           },
-          "title": "db",
-          "type": "object",
           "required": [
             "connectionPooler"
-          ]
+          ],
+          "title": "db",
+          "type": "object"
         },
         "imagePrefix": {
           "default": "flanksource",
+          "required": [],
           "title": "imagePrefix",
           "type": "string"
         },
         "imagePullSecrets": {
-          "items": {},
+          "items": {
+            "required": []
+          },
+          "required": [],
           "title": "imagePullSecrets",
           "type": "array"
         },
         "imageRegistry": {
           "default": "docker.io",
+          "required": [],
           "title": "imageRegistry",
           "type": "string"
         },
         "labels": {
+          "additionalProperties": false,
+          "required": [],
           "title": "labels",
           "type": "object"
         },
         "nodeSelector": {
+          "additionalProperties": false,
+          "required": [],
           "title": "nodeSelector",
           "type": "object"
         },
         "otel": {
+          "additionalProperties": false,
           "properties": {
             "collector": {
               "default": "",
+              "required": [],
               "title": "collector",
               "type": "string"
             },
             "labels": {
               "default": "",
+              "required": [],
               "title": "labels",
               "type": "string"
             }
           },
-          "title": "otel",
-          "type": "object",
           "required": [
             "collector",
             "labels"
-          ]
+          ],
+          "title": "otel",
+          "type": "object"
         },
         "serviceAccount": {
+          "additionalProperties": false,
           "properties": {
             "annotations": {
+              "additionalProperties": false,
+              "required": [],
               "title": "annotations",
               "type": "object"
             },
             "name": {
               "default": "",
               "description": "Note unlike other globals, the global serviceAccount.name overrides the local value",
+              "required": [],
               "title": "name",
               "type": "string"
             }
           },
-          "title": "serviceAccount",
-          "type": "object",
           "required": [
             "annotations",
             "name"
-          ]
+          ],
+          "title": "serviceAccount",
+          "type": "object"
         },
         "serviceMonitor": {
+          "additionalProperties": false,
           "properties": {
             "enabled": {
               "default": false,
+              "required": [],
               "title": "enabled",
               "type": "boolean"
             },
             "labels": {
+              "additionalProperties": false,
+              "required": [],
               "title": "labels",
               "type": "object"
             }
           },
-          "title": "serviceMonitor",
-          "type": "object",
           "required": [
             "enabled",
             "labels"
-          ]
+          ],
+          "title": "serviceMonitor",
+          "type": "object"
         },
         "tolerations": {
-          "items": {},
+          "items": {
+            "required": []
+          },
+          "required": [],
           "title": "tolerations",
           "type": "array"
         }
       },
-      "description": "Default values for config-db.\nDeclare variables to be passed into your templates.\nyaml-language-server: $schema=./values.schema.json",
-      "title": "global",
-      "type": "object",
       "required": [
         "otel",
         "serviceMonitor",
@@ -285,37 +346,46 @@
         "imagePullSecrets",
         "labels",
         "db"
-      ]
+      ],
+      "title": "global",
+      "type": "object"
     },
     "image": {
+      "additionalProperties": false,
       "properties": {
         "name": {
           "default": "{{.Values.global.imagePrefix}}/config-db",
+          "required": [],
           "title": "name",
           "type": "string"
         },
         "pullPolicy": {
           "default": "IfNotPresent",
+          "required": [],
           "title": "pullPolicy",
           "type": "string"
         },
         "tag": {
           "default": "latest",
           "description": "Overrides the image tag whose default is the chart appVersion.",
+          "required": [],
           "title": "tag",
           "type": "string"
         }
       },
-      "title": "image",
-      "type": "object",
       "required": [
         "name",
         "pullPolicy",
         "tag"
-      ]
+      ],
+      "title": "image",
+      "type": "object"
     },
     "imagePullSecrets": {
-      "items": {},
+      "items": {
+        "required": []
+      },
+      "required": [],
       "title": "imagePullSecrets",
       "type": "array"
     },
@@ -323,51 +393,63 @@
       "additionalProperties": false,
       "properties": {
         "annotations": {
+          "additionalProperties": false,
+          "required": [],
           "title": "annotations",
           "type": "object"
         },
         "enabled": {
           "default": false,
+          "required": [],
           "title": "enabled",
           "type": "boolean"
         },
         "host": {
           "default": "config-db.local",
           "description": " kubernetes.io/ingress.class: nginx\nkubernetes.io/tls-acme: \"true\"",
+          "required": [],
           "title": "host",
           "type": "string"
         },
         "tls": {
-          "items": {},
+          "items": {
+            "required": []
+          },
+          "required": [],
           "title": "tls",
           "type": "array"
         }
       },
-      "title": "ingress",
       "required": [
         "enabled",
         "annotations",
         "host",
         "tls"
-      ]
+      ],
+      "title": "ingress"
     },
     "jsonLogs": {
       "default": true,
+      "required": [],
       "title": "jsonLogs",
       "type": "boolean"
     },
     "logLevel": {
       "default": "",
+      "required": [],
       "title": "logLevel",
       "type": "string"
     },
     "nameOverride": {
       "default": "",
       "description": "Use this only if you want to replace the default that is .Chart.Name as the name of all the objects.",
+      "required": [],
       "title": "nameOverride",
       "type": "string"
     },
     "nodeSelector": {
+      "additionalProperties": false,
+      "required": [],
       "title": "nodeSelector",
       "type": "object"
     },
@@ -377,48 +459,56 @@
         "collector": {
           "default": "",
           "description": "OpenTelemetry gRPC collector endpoint in host:port format",
+          "required": [],
           "title": "collector",
           "type": "string"
         },
         "labels": {
           "default": "",
           "description": "labels in \"a=b,c=d\" format",
+          "required": [],
           "title": "labels",
           "type": "string"
         },
         "serviceName": {
           "default": "config-db",
+          "required": [],
           "title": "serviceName",
           "type": "string"
         }
       },
-      "title": "otel",
       "required": [
         "collector",
         "serviceName",
         "labels"
-      ]
+      ],
+      "title": "otel"
     },
     "podSecurityContext": {
+      "additionalProperties": false,
       "properties": {
         "fsGroup": {
           "default": 1000,
+          "required": [],
           "title": "fsGroup",
           "type": "integer"
         }
       },
-      "title": "podSecurityContext",
       "required": [
         "fsGroup"
-      ]
+      ],
+      "title": "podSecurityContext"
     },
     "properties": {
+      "additionalProperties": false,
       "description": "config-db properties to override",
+      "required": [],
       "title": "properties",
       "type": "object"
     },
     "replicas": {
       "default": 1,
+      "required": [],
       "title": "replicas",
       "type": "integer"
     },
@@ -426,65 +516,76 @@
       "additionalProperties": false,
       "properties": {
         "limits": {
+          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "500m",
+              "required": [],
               "title": "cpu",
               "type": "string"
             },
             "memory": {
               "default": "4Gi",
+              "required": [],
               "title": "memory",
               "type": "string"
             }
           },
-          "title": "limits",
-          "type": "object",
           "required": [
             "memory",
             "cpu"
-          ]
+          ],
+          "title": "limits",
+          "type": "object"
         },
         "requests": {
+          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "200m",
+              "required": [],
               "title": "cpu",
               "type": "string"
             },
             "memory": {
               "default": "1Gi",
+              "required": [],
               "title": "memory",
               "type": "string"
             }
           },
-          "title": "requests",
-          "type": "object",
           "required": [
             "cpu",
             "memory"
-          ]
+          ],
+          "title": "requests",
+          "type": "object"
         }
       },
-      "title": "resources",
       "required": [
         "requests",
         "limits"
-      ]
+      ],
+      "title": "resources"
     },
     "scrapeRuleConfigMaps": {
+      "description": "a list of configmaps to load scrape rules from, the configmap should have a single entry called \"config.yaml\"",
       "items": {
         "anyOf": [
           {
+            "required": [],
             "type": "string"
           }
-        ]
+        ],
+        "required": []
       },
-      "description": "a list of configmaps to load scrape rules from, the configmap should have a single entry called \"config.yaml\"",
+      "required": [],
       "title": "scrapeRuleConfigMaps",
       "type": "array"
     },
     "securityContext": {
+      "additionalProperties": false,
+      "required": [],
       "title": "securityContext",
       "type": "object"
     },
@@ -492,16 +593,20 @@
       "additionalProperties": false,
       "properties": {
         "annotations": {
+          "additionalProperties": false,
+          "required": [],
           "title": "annotations",
           "type": "object"
         },
         "create": {
           "default": true,
+          "required": [],
           "title": "create",
           "type": "boolean"
         },
         "name": {
           "default": "config-db-sa",
+          "required": [],
           "title": "name",
           "type": "string"
         },
@@ -511,39 +616,44 @@
             "clusterRole": {
               "default": true,
               "description": "Whether to create cluster-wide or namespaced roles",
+              "required": [],
               "title": "clusterRole",
               "type": "boolean"
             },
             "configmaps": {
               "default": true,
+              "required": [],
               "title": "configmaps",
               "type": "boolean"
             },
             "exec": {
               "default": true,
               "description": "for kubernetesFile lookups",
+              "required": [],
               "title": "exec",
               "type": "boolean"
             },
             "readAll": {
               "default": true,
               "description": "for use with kubernetes resource lookups",
+              "required": [],
               "title": "readAll",
               "type": "boolean"
             },
             "secrets": {
               "default": true,
+              "required": [],
               "title": "secrets",
               "type": "boolean"
             },
             "tokenRequest": {
               "default": true,
               "description": "for secret management with valueFrom",
+              "required": [],
               "title": "tokenRequest",
               "type": "boolean"
             }
           },
-          "title": "rbac",
           "required": [
             "clusterRole",
             "tokenRequest",
@@ -551,89 +661,105 @@
             "configmaps",
             "readAll",
             "exec"
-          ]
+          ],
+          "title": "rbac"
         }
       },
-      "title": "serviceAccount",
       "required": [
         "create",
         "name",
         "annotations"
-      ]
+      ],
+      "title": "serviceAccount"
     },
     "serviceMonitor": {
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
+          "required": [],
           "title": "enabled",
           "type": "boolean"
         },
         "labels": {
           "additionalProperties": true,
+          "required": [],
           "title": "labels"
         }
       },
-      "title": "serviceMonitor",
-      "type": "object",
       "required": [
         "enabled"
-      ]
+      ],
+      "title": "serviceMonitor",
+      "type": "object"
     },
     "tolerations": {
-      "items": {},
+      "items": {
+        "required": []
+      },
+      "required": [],
       "title": "tolerations",
       "type": "array"
     },
     "upstream": {
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
+          "required": [],
           "title": "enabled",
           "type": "boolean"
         },
         "pageSize": {
           "default": 500,
+          "required": [],
           "title": "pageSize",
           "type": "integer"
         },
         "secretKeyRef": {
+          "additionalProperties": false,
           "properties": {
             "name": {
               "default": "config-db-upstream",
+              "required": [],
               "title": "name",
               "type": "string"
             }
           },
-          "title": "secretKeyRef",
-          "type": "object",
           "required": [
             "name"
-          ]
+          ],
+          "title": "secretKeyRef",
+          "type": "object"
         }
       },
-      "title": "upstream",
-      "type": "object",
       "required": [
         "enabled",
         "secretKeyRef",
         "pageSize"
-      ]
+      ],
+      "title": "upstream",
+      "type": "object"
     },
     "volumeMounts": {
-      "items": {},
       "description": "Additional volumeMounts on the output Deployment definition.",
+      "items": {
+        "required": []
+      },
+      "required": [],
       "title": "volumeMounts",
       "type": "array"
     },
     "volumes": {
-      "items": {},
       "description": "Additional volumes on the output Deployment definition.",
+      "items": {
+        "required": []
+      },
+      "required": [],
       "title": "volumes",
       "type": "array"
     }
   },
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
   "required": [
     "global",
     "replicas",
@@ -658,5 +784,6 @@
     "tolerations",
     "affinity",
     "imagePullSecrets"
-  ]
+  ],
+  "type": "object"
 }
