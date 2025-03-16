@@ -64,7 +64,11 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 	for _, w := range config.Watch {
 		existingWatches = append(existingWatches, w.ApiVersion+w.Kind)
 	}
-	globalSharedInformerManager.stop(ctx, ctx.KubeAuthFingerprint(), existingWatches...)
+	k8s, err := ctx.Kubernetes()
+	if err != nil {
+		return nil, fmt.Errorf("error creating kubernetes client: %w", err)
+	}
+	globalSharedInformerManager.stop(ctx, k8s.RestConfig().Host, existingWatches...)
 
 	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", ctx.ScraperID()).Add(1)
 	return priorityQueue, nil
@@ -244,7 +248,11 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 	defer t.mu.Unlock()
 
 	cacheKey := apiVersion + kind
-	clusterID := ctx.KubeAuthFingerprint()
+	k8s, err := ctx.Kubernetes()
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("error creating kubernetes client: %w", err)
+	}
+	clusterID := k8s.RestConfig().Host
 	if clusterID == "" {
 		return nil, nil, false, fmt.Errorf("error fingerprinting kubernetes auth")
 	}
@@ -253,11 +261,6 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 		if data, ok := val[cacheKey]; ok {
 			return data.informer, data.stopper, false, nil
 		}
-	}
-
-	k8s, err := ctx.Kubernetes()
-	if err != nil {
-		return nil, nil, false, fmt.Errorf("error creating kubernetes client: %w", err)
 	}
 
 	factory := informers.NewSharedInformerFactory(k8s, 0)
