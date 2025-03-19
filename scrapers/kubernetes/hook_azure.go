@@ -33,7 +33,7 @@ func init() {
 	onObjectHooks = append(onObjectHooks, Azure{})
 }
 
-func (azure Azure) OnObject(ctx *KubernetesContext, obj *unstructured.Unstructured) (bool, map[string]string, error) {
+func (azure Azure) OnObject(ctx *KubernetesContext, obj unstructured.Unstructured) (bool, map[string]string, error) {
 	labels := make(map[string]string)
 	if obj.GetKind() == "Node" {
 		if clusterName, ok := obj.GetLabels()["kubernetes.azure.com/cluster"]; ok {

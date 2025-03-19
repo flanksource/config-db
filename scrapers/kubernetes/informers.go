@@ -190,7 +190,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 				ctx.Logger.V(3).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
 			}
 
-			lastUpdatedTime := lo.FromPtr(health.GetLastUpdatedTime(u))
+			lastUpdatedTime := lo.FromPtr(health.GetLastUpdatedTime(lo.ToPtr(u)))
 			lastUpdatedInFuture := lastUpdatedTime.After(receivedAt)
 			if !lastUpdatedInFuture {
 				ctx.Histogram("informer_receive_lag", informerLagBuckets,
@@ -374,22 +374,22 @@ func KindToResource(kind string) string {
 	return strings.ToLower(kind) + "s"
 }
 
-func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj any) (*unstructured.Unstructured, error) {
+func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj any) (unstructured.Unstructured, error) {
 	b, err := json.Marshal(obj)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal: %v", err)
+		return unstructured.Unstructured{}, fmt.Errorf("failed to marshal: %v", err)
 	}
 
 	var m map[string]any
 	if err := json.Unmarshal(b, &m); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal on add func: %v", err)
+		return unstructured.Unstructured{}, fmt.Errorf("failed to unmarshal on add func: %v", err)
 	}
 
 	// The object returned by the informers do not have kind and apiversion set
 	m["kind"] = resource.Kind
 	m["apiVersion"] = resource.ApiVersion
 
-	return &unstructured.Unstructured{Object: m}, nil
+	return unstructured.Unstructured{Object: m}, nil
 }
 
 type QueueItemOperation int
@@ -415,11 +415,11 @@ func (t *QueueItemOperation) Priority() int {
 
 type QueueItem struct {
 	Timestamp time.Time // Queued time
-	Obj       *unstructured.Unstructured
+	Obj       unstructured.Unstructured
 	Operation QueueItemOperation
 }
 
-func NewQueueItem(obj *unstructured.Unstructured, operation QueueItemOperation) *QueueItem {
+func NewQueueItem(obj unstructured.Unstructured, operation QueueItemOperation) *QueueItem {
 	return &QueueItem{
 		Timestamp: time.Now(),
 		Obj:       obj,
@@ -455,8 +455,8 @@ func pqComparator(qa, qb *QueueItem) int {
 		return opResult
 	}
 
-	lastUpdatedTimeA := *health.GetLastUpdatedTime(qa.Obj)
-	lastUpdatedTimeB := *health.GetLastUpdatedTime(qb.Obj)
+	lastUpdatedTimeA := *health.GetLastUpdatedTime(lo.ToPtr(qa.Obj))
+	lastUpdatedTimeB := *health.GetLastUpdatedTime(lo.ToPtr(qb.Obj))
 
 	if lastUpdatedTimeA.Before(lastUpdatedTimeB) {
 		return -1

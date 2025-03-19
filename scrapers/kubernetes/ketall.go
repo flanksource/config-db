@@ -10,10 +10,11 @@ import (
 	"github.com/flanksource/ketall"
 	ketallClient "github.com/flanksource/ketall/client"
 	"github.com/flanksource/ketall/options"
+	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func scrape(ctx api.ScrapeContext, config v1.Kubernetes) ([]*unstructured.Unstructured, error) {
+func scrape(ctx api.ScrapeContext, config v1.Kubernetes) ([]unstructured.Unstructured, error) {
 	ctx.Context = ctx.WithKubernetes(config.KubernetesConnection)
 
 	opts := options.NewDefaultCmdOptions()
@@ -30,7 +31,7 @@ func scrape(ctx api.ScrapeContext, config v1.Kubernetes) ([]*unstructured.Unstru
 		return nil, err
 	}
 
-	return objs, nil
+	return lo.Map(objs, func(o *unstructured.Unstructured, _ int) unstructured.Unstructured { return lo.FromPtr(o) }), nil
 }
 
 func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.Kubernetes) (*options.KetallOptions, error) {

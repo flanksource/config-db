@@ -10,7 +10,7 @@ import (
 
 type flux struct{}
 
-func isKustomizationObject(obj *unstructured.Unstructured) bool {
+func isKustomizationObject(obj unstructured.Unstructured) bool {
 	if obj.GetKind() == "Kustomization" && strings.HasPrefix(obj.GetAPIVersion(), "kustomize.toolkit.fluxcd.io") {
 		return true
 	}
@@ -21,7 +21,7 @@ func init() {
 	parentlookupHooks = append(parentlookupHooks, flux{})
 }
 
-func (flux flux) ParentLookupHook(ctx *KubernetesContext, obj *unstructured.Unstructured) []v1.ConfigExternalKey {
+func (flux flux) ParentLookupHook(ctx *KubernetesContext, obj unstructured.Unstructured) []v1.ConfigExternalKey {
 	helmName := obj.GetLabels()["helm.toolkit.fluxcd.io/name"]
 	helmNamespace := obj.GetLabels()["helm.toolkit.fluxcd.io/namespace"]
 	if helmName != "" && helmNamespace != "" {

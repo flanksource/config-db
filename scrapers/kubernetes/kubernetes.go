@@ -31,7 +31,7 @@ const ConfigTypePrefix = "Kubernetes::"
 
 var resourceIDMapPerCluster PerClusterResourceIDMap
 
-func GetConfigType(obj *unstructured.Unstructured) string {
+func GetConfigType(obj unstructured.Unstructured) string {
 	apiVersion := obj.GetAPIVersion()
 	if strings.Contains(apiVersion, ".upbound.io") || strings.Contains(apiVersion, ".crossplane.io") {
 		return "Crossplane::" + obj.GetKind()
@@ -50,7 +50,7 @@ func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
 }
 
-func getString(obj *unstructured.Unstructured, path ...string) string {
+func getString(obj unstructured.Unstructured, path ...string) string {
 	s, _, _ := unstructured.NestedString(obj.Object, path...)
 	return s
 }
@@ -58,7 +58,7 @@ func getString(obj *unstructured.Unstructured, path ...string) string {
 func (kubernetes KubernetesScraper) IncrementalScrape(
 	ctx api.ScrapeContext,
 	config v1.Kubernetes,
-	objects []*unstructured.Unstructured,
+	objects []unstructured.Unstructured,
 ) v1.ScrapeResults {
 	return ExtractResults(newKubernetesContext(ctx, true, config), objects)
 }
@@ -90,7 +90,7 @@ var IgnoredConfigsCache = sync.Map{}
 
 // ExtractResults extracts scrape results from the given list of kuberenetes objects.
 //   - withCluster: if true, will create & add a scrape result for the kubernetes cluster.
-func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v1.ScrapeResults {
+func ExtractResults(ctx *KubernetesContext, objs []unstructured.Unstructured) v1.ScrapeResults {
 	var (
 		results       v1.ScrapeResults
 		changeResults v1.ScrapeResults
@@ -446,7 +446,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		labels["apiVersion"] = obj.GetAPIVersion()
 
 		// Add health metadata
-		resourceHealth, err := health.GetResourceHealth(obj, lua.ResourceHealthOverrides{})
+		resourceHealth, err := health.GetResourceHealth(lo.ToPtr(obj), lua.ResourceHealthOverrides{})
 		if err != nil {
 			ctx.Errorf("failed to get resource health: %v", err)
 			resourceHealth = &health.HealthStatus{}
@@ -520,7 +520,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 
 // getKubernetesParent returns a list of potential parents in order.
 // Example: For a Pod the parents would be [Replicaset, Namespace, Cluster]
-func getKubernetesParent(ctx *KubernetesContext, obj *unstructured.Unstructured) []v1.ConfigExternalKey {
+func getKubernetesParent(ctx *KubernetesContext, obj unstructured.Unstructured) []v1.ConfigExternalKey {
 	var allParents []v1.ConfigExternalKey
 	allParents = append(allParents, v1.ConfigExternalKey{
 		Type:       ConfigTypePrefix + "Cluster",

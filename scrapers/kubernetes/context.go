@@ -59,7 +59,7 @@ func newKubernetesContext(ctx api.ScrapeContext, isIncremental bool, config v1.K
 	}
 }
 
-func (ctx *KubernetesContext) Load(objs []*unstructured.Unstructured) {
+func (ctx *KubernetesContext) Load(objs []unstructured.Unstructured) {
 	ctx.resourceIDMap = NewResourceIDMap(objs)
 
 	ctx.resourceIDMap.Set("", "Cluster", ctx.cluster.Name, ctx.cluster.ID)

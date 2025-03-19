@@ -63,7 +63,7 @@ func (t *PerClusterResourceIDMap) MergeAndUpdate(clusterID string, resourceIDMap
 	return resourceIDMap
 }
 
-func NewResourceIDMap(objs []*unstructured.Unstructured) *ResourceIDMapContainer {
+func NewResourceIDMap(objs []unstructured.Unstructured) *ResourceIDMapContainer {
 	resourceIDMap := make(ResourceIDMap)
 	for _, obj := range objs {
 		resourceIDMap[ResourceIDMapKey(obj.GetNamespace(), obj.GetKind(), obj.GetName())] = string(obj.GetUID())

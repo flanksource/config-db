@@ -23,7 +23,7 @@ func init() {
 	onObjectHooks = append(onObjectHooks, AWS{})
 }
 
-func (aws AWS) OnObject(ctx *KubernetesContext, obj *unstructured.Unstructured) (bool, map[string]string, error) {
+func (aws AWS) OnObject(ctx *KubernetesContext, obj unstructured.Unstructured) (bool, map[string]string, error) {
 	if obj.GetKind() == "ConfigMap" && obj.GetName() == "aws-auth" {
 		cm, ok := obj.Object["data"].(map[string]any)
 		if ok {

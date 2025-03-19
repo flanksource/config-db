@@ -53,14 +53,14 @@ func (ctx *KubernetesContext) getObjectChangeExclusionAnnotations(id string) (st
 
 	return changeTypeExclusion, changeSeverityExclusion, nil
 }
-func (ctx *KubernetesContext) ignore(obj *unstructured.Unstructured) {
+func (ctx *KubernetesContext) ignore(obj unstructured.Unstructured) {
 	if ctx.logExclusions {
 		ctx.Debugf("excluding object: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 	}
 	ignoreCache.Set(string(obj.GetUID()), true, 0)
 }
 
-func (ctx *KubernetesContext) IsIgnored(obj *unstructured.Unstructured) (bool, error) {
+func (ctx *KubernetesContext) IsIgnored(obj unstructured.Unstructured) (bool, error) {
 	if string(obj.GetUID()) == "" {
 		if ctx.logNoResourceId {
 			ctx.Warnf("Found kubernetes object with no resource ID: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())

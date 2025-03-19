@@ -16,7 +16,7 @@ func init() {
 	childlookupHooks = append(childlookupHooks, argo{})
 }
 
-func (argo argo) ChildLookupHook(ctx *KubernetesContext, obj *unstructured.Unstructured) []v1.ConfigExternalKey {
+func (argo argo) ChildLookupHook(ctx *KubernetesContext, obj unstructured.Unstructured) []v1.ConfigExternalKey {
 	children := []v1.ConfigExternalKey{}
 	// Argo Applications have children references
 	if strings.HasPrefix(obj.GetAPIVersion(), "argoproj.io") && obj.GetKind() == "Application" {
