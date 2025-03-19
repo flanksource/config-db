@@ -269,13 +269,16 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		return fmt.Errorf("[%s] failed to schedule %v", j.Name, err)
 	}
 
+	existingInformers := kubernetes.GetInformersInCacheForScraper(sc.ScraperID())
+	var newInformers []string
 	for _, config := range sc.ScrapeConfig().Spec.Kubernetes {
 		// Update scrape context with provided kubeconfig
+		kc := connection.KubernetesConnection{}
 		if config.Kubeconfig != nil {
-			kc := connection.KubernetesConnection{KubeconfigConnection: connection.KubeconfigConnection{Kubeconfig: config.Kubeconfig}}
-			c := sc.WithKubernetes(kc)
-			sc.Context = c
+			kc = connection.KubernetesConnection{KubeconfigConnection: connection.KubeconfigConnection{Kubeconfig: config.Kubeconfig}}
 		}
+		c := sc.WithKubernetes(kc)
+		sc.Context = c
 
 		if sc.PropertyOn(false, "watch.disable") {
 			config.Watch = []v1.KubernetesResourceToWatch{}
@@ -295,7 +298,12 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		if err := watchConsumerJob.AddToScheduler(scrapeJobScheduler); err != nil {
 			return fmt.Errorf("failed to schedule kubernetes watch consumer job: %v", err)
 		}
+		newInformers = append(newInformers, kubernetes.InformerClusterID(sc.ScraperID(), sc.KubeAuthFingerprint()))
 		scrapeJobs.Store(consumeKubernetesWatchJobKey(sc.ScraperID()), watchConsumerJob)
+	}
+	_, informerDiff := lo.Difference(newInformers, existingInformers)
+	for _, inf := range informerDiff {
+		kubernetes.StopInformers(sc, inf)
 	}
 
 	return nil

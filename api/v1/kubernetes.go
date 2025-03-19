@@ -196,6 +196,10 @@ type KubernetesResourceToWatch struct {
 	Kind       string `json:"kind"`
 }
 
+func (krw KubernetesResourceToWatch) String() string {
+	return fmt.Sprintf("ApiVersion=%s,Kind=%s", krw.ApiVersion, krw.Kind)
+}
+
 func AddEventResourceToWatch(watches []KubernetesResourceToWatch) []KubernetesResourceToWatch {
 	for _, w := range watches {
 		if w.ApiVersion == "v1" && w.Kind == "Event" {
