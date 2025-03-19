@@ -253,10 +253,12 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 		return fmt.Errorf("failed to add informer event handlers: %w", err)
 	}
 
-	ctx.Counter("kubernetes_informers",
+	ctx.Counter("kubernetes_informers_created",
 		"watch_resource", watchResource.String(),
 		"scraper_id", ctx.ScraperID(),
 	).Add(1)
+
+	ctx.Gauge("kubernetes_active_shared_informers").Add(1)
 
 	go func() {
 		informer.Informer().Run(stopper)
@@ -296,7 +298,6 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 	if err != nil {
 		return nil, nil, false, err
 	}
-	ctx.Gauge("kubernetes_active_shared_informers").Add(1)
 
 	cacheValue := &informerCacheData{
 		stopper:  stopper,
@@ -331,6 +332,10 @@ func (t *SharedInformerManager) stop(ctx api.ScrapeContext, clusterID string, ex
 
 				cached.informer.Informer().IsStopped()
 				ctx.Gauge("kubernetes_active_shared_informers").Sub(1)
+				ctx.Counter("kubernetes_informers_deleted",
+					"watch_resource", key,
+					"scraper_id", ctx.ScraperID(),
+				).Add(1)
 
 				toDelete = append(toDelete, key)
 				close(cached.stopper)
