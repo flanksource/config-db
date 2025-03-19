@@ -33,6 +33,10 @@ var (
 	informerLagBuckets = []float64{1_000, 5_000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
+func InformerClusterID(scraperID, authFingerprint string) string {
+	return strings.Join([]string{scraperID, authFingerprint}, "/")
+}
+
 // WatchResources watches Kubernetes resources with shared informers
 func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Queue[*QueueItem], error) {
 	priorityQueue, err := collections.NewQueue(collections.QueueOpts[*QueueItem]{
@@ -64,11 +68,9 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 	for _, w := range config.Watch {
 		existingWatches = append(existingWatches, w.ApiVersion+w.Kind)
 	}
-	k8s, err := ctx.Kubernetes()
-	if err != nil {
-		return nil, fmt.Errorf("error creating kubernetes client: %w", err)
-	}
-	globalSharedInformerManager.stop(ctx, k8s.RestConfig().Host, existingWatches...)
+
+	clusterID := InformerClusterID(ctx.ScraperID(), ctx.KubeAuthFingerprint())
+	globalSharedInformerManager.stop(ctx, clusterID, existingWatches...)
 
 	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", ctx.ScraperID()).Add(1)
 	return priorityQueue, nil
@@ -92,6 +94,22 @@ type SharedInformerManager struct {
 }
 
 type DeleteObjHandler func(ctx context.Context, id string) error
+
+func GetInformersInCacheForScraper(scraperID string) []string {
+	return globalSharedInformerManager.GetInformersInCacheForScraper(scraperID)
+}
+
+func (t *SharedInformerManager) GetInformersInCacheForScraper(scraperID string) []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var keys []string
+	for k := range t.cache {
+		if strings.HasPrefix(k, scraperID) {
+			keys = append(keys, k)
+		}
+	}
+	return keys
+}
 
 func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, queue *collections.Queue[*QueueItem]) error {
 	registrationTime := time.Now()
@@ -235,6 +253,11 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 		return fmt.Errorf("failed to add informer event handlers: %w", err)
 	}
 
+	ctx.Counter("kubernetes_informers",
+		"watch_resource", watchResource.String(),
+		"scraper_id", ctx.ScraperID(),
+	).Add(1)
+
 	go func() {
 		informer.Informer().Run(stopper)
 		ctx.Logger.V(1).Infof("stopped shared informer for: %v", watchResource)
@@ -252,10 +275,13 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("error creating kubernetes client: %w", err)
 	}
-	clusterID := k8s.RestConfig().Host
-	if clusterID == "" {
-		return nil, nil, false, fmt.Errorf("error fingerprinting kubernetes auth")
+
+	authFingerprint := ctx.KubeAuthFingerprint()
+	if authFingerprint == "" {
+		return nil, nil, false, fmt.Errorf("kube auth fingerprint is empty")
 	}
+
+	clusterID := InformerClusterID(ctx.ScraperID(), ctx.KubeAuthFingerprint())
 
 	if val, ok := t.cache[clusterID]; ok {
 		if data, ok := val[cacheKey]; ok {
@@ -285,6 +311,10 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 	}
 
 	return informer, stopper, true, nil
+}
+
+func StopInformers(ctx api.ScrapeContext, clusterID string) {
+	globalSharedInformerManager.stop(ctx, clusterID)
 }
 
 // stop stops all shared informers for the given kubeconfig
