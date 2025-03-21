@@ -62,8 +62,8 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			sc.Context = sc.WithKubernetes(config.KubernetesConnection)
 
 			var (
-				objs           []*unstructured.Unstructured
-				deletedObjects []*unstructured.Unstructured
+				objs           []unstructured.Unstructured
+				deletedObjects []unstructured.Unstructured
 				queuedTime     = map[string]time.Time{}
 
 				objectsFromEvents []v1.InvolvedObject
@@ -150,7 +150,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 
 						// we put these involved objects back into the queue
 						for _, obj := range objs {
-							queue.Enqueue(kubernetes.NewQueueItem(obj, kubernetes.QueueItemOperationReEnqueue))
+							queue.Enqueue(kubernetes.NewQueueItem(*obj, kubernetes.QueueItemOperationReEnqueue))
 							jobCtx.Histogram("involved_objects_enqueue", involvedObjectsFetchBuckets, "scraper_id", cc.ScraperID()).
 								Record(time.Duration(time.Since(start).Milliseconds()))
 						}
@@ -198,7 +198,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 	}
 }
 
-func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v1.Kubernetes, objs, deletedResources []*unstructured.Unstructured) error {
+func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v1.Kubernetes, objs, deletedResources []unstructured.Unstructured) error {
 	cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History).AsIncrementalScrape()
 	cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
 	results, err := processObjects(cc, config, objs)
@@ -221,7 +221,7 @@ func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v
 	}
 
 	if len(deletedResources) > 0 {
-		deletedResourceIDs := lo.Map(deletedResources, func(item *unstructured.Unstructured, _ int) string {
+		deletedResourceIDs := lo.Map(deletedResources, func(item unstructured.Unstructured, _ int) string {
 			return string(item.GetUID())
 		})
 
@@ -238,7 +238,7 @@ func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v
 		for _, c := range deletedResources {
 			ctx.Counter("scraper_deleted",
 				"scraper_id", cc.ScraperID(),
-				"kind", kubernetes.GetConfigType(c),
+				"kind", kubernetes.GetConfigType(lo.ToPtr(c)),
 				"reason", string(v1.DeleteReasonEvent),
 			).Add(1)
 		}
@@ -250,10 +250,10 @@ func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v
 }
 
 // processObjects runs the given fully populated objects through the kubernetes scraper.
-func processObjects(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstructured.Unstructured) ([]v1.ScrapeResult, error) {
+func processObjects(ctx api.ScrapeContext, config v1.Kubernetes, objs []unstructured.Unstructured) ([]v1.ScrapeResult, error) {
 	var results v1.ScrapeResults
 	var scraper kubernetes.KubernetesScraper
-	res := scraper.IncrementalScrape(ctx, config, objs)
+	res := scraper.IncrementalScrape(ctx, config, lo.ToSlicePtr(objs))
 	for i := range res {
 		scraped := processScrapeResult(ctx, res[i])
 		results = append(results, scraped...)
@@ -262,8 +262,8 @@ func processObjects(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 	return results, nil
 }
 
-func dedup(objs []*unstructured.Unstructured) []*unstructured.Unstructured {
-	var output []*unstructured.Unstructured
+func dedup(objs []unstructured.Unstructured) []unstructured.Unstructured {
+	var output []unstructured.Unstructured
 	seen := make(map[types.UID]struct{})
 
 	// Iterate in reverse, cuz we want the latest
