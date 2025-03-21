@@ -13,6 +13,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/jobs"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty"
 	dutyAPI "github.com/flanksource/duty/api"
 	dutyContext "github.com/flanksource/duty/context"
@@ -84,6 +85,13 @@ func serve(ctx dutyContext.Context) {
 	e := echo.New()
 
 	dutyEcho.AddDebugHandlers(ctx, e, func(next echo.HandlerFunc) echo.HandlerFunc { return next })
+	e.GET("/", utils.MemsizeEchoHandler)
+	e.POST("/scan", utils.MemsizeEchoHandler)
+	e.GET("/report*", utils.MemsizeEchoHandler)
+	e.GET("/debug/memsize", utils.MemsizeEchoHandler)
+	e.POST("/debug/memsize/scan*", utils.MemsizeEchoHandler)
+	e.GET("/debug/memsize/report*", utils.MemsizeEchoHandler)
+
 	e.Use(otelecho.Middleware(app, otelecho.WithSkipper(telemetryURLSkipper)))
 
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {

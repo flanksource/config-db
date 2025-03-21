@@ -56,6 +56,7 @@ var Run = &cobra.Command{
 			e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 				return func(c echo.Context) error {
 					c.SetRequest(c.Request().WithContext(dutyCtx.Wrap(c.Request().Context())))
+
 					return next(c)
 				}
 			})
