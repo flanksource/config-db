@@ -374,13 +374,32 @@ func KindToResource(kind string) string {
 	return strings.ToLower(kind) + "s"
 }
 
+type FilteredData map[string]interface{}
+
+func (f *FilteredData) UnmarshalJSON(data []byte) error {
+	// Use a temporary map to hold the full JSON structure
+	var temp map[string]interface{}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Check if "metadata" exists and remove "managedFields" if present
+	if metadata, ok := temp["metadata"].(map[string]interface{}); ok {
+		delete(metadata, "managedFields")
+	}
+
+	// Assign the filtered data back to the custom type
+	*f = temp
+	return nil
+}
+
 func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj any) (unstructured.Unstructured, error) {
 	b, err := json.Marshal(obj)
 	if err != nil {
 		return unstructured.Unstructured{}, fmt.Errorf("failed to marshal: %v", err)
 	}
 
-	var m map[string]any
+	var m FilteredData
 	if err := json.Unmarshal(b, &m); err != nil {
 		return unstructured.Unstructured{}, fmt.Errorf("failed to unmarshal on add func: %v", err)
 	}

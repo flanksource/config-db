@@ -121,7 +121,7 @@ func incrementalScrapeFromEvent(ctx context.Context, event models.Event) error {
 			return fmt.Errorf("error fetching object: %w", err)
 		}
 
-		results, err := processObjects(scrapeCtx, sc, objs)
+		results, err := processObjects(scrapeCtx, sc, lo.FromSlicePtr(objs))
 		if err != nil {
 			return err
 		}
