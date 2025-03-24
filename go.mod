@@ -50,9 +50,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/support v1.24.3
 	github.com/aws/smithy-go v1.22.1
 	github.com/evanphx/json-patch v5.9.0+incompatible
+	github.com/fjl/memsize v0.0.2
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.36.1
-	github.com/flanksource/duty v1.0.890
+	github.com/flanksource/duty v1.0.892
 	github.com/flanksource/is-healthy v1.0.66
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.11
@@ -148,7 +149,6 @@ require (
 	github.com/fatih/color v1.17.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fergusstrange/embedded-postgres v1.30.0 // indirect
-	github.com/fjl/memsize v0.0.2 // indirect
 	github.com/flanksource/kubectl-neat v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
