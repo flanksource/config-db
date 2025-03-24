@@ -29,7 +29,7 @@ import (
 
 const ConfigTypePrefix = "Kubernetes::"
 
-var resourceIDMapPerCluster PerClusterResourceIDMap
+var ResourceIDMapPerCluster PerClusterResourceIDMap
 
 func GetConfigType(obj *unstructured.Unstructured) string {
 	apiVersion := obj.GetAPIVersion()
@@ -114,12 +114,12 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	if ctx.IsIncrementalScrape() {
 		// On incremental scrape, we do not have all the data in the resource ID map.
 		// we use it from the cached resource id map.
-		ctx.resourceIDMap.data = resourceIDMapPerCluster.MergeAndUpdate(
+		ctx.resourceIDMap.data = ResourceIDMapPerCluster.MergeAndUpdate(
 			string(ctx.ScrapeConfig().GetUID()),
 			ctx.resourceIDMap.data,
 		)
 	} else {
-		resourceIDMapPerCluster.Swap(string(ctx.ScrapeConfig().GetUID()), ctx.resourceIDMap.data)
+		ResourceIDMapPerCluster.Swap(string(ctx.ScrapeConfig().GetUID()), ctx.resourceIDMap.data)
 	}
 
 	for _, obj := range objs {

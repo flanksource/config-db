@@ -50,7 +50,7 @@ const configItemsBulkInsertSize = 200
 // During incremental scrape, the child can look into this cache to find its parent
 // (that would have been set in a full scape).
 
-var parentCache = cache.New(time.Hour*24, time.Hour*24)
+var ParentCache = cache.New(time.Hour*24, time.Hour*24)
 
 func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	var deletedAt interface{}
@@ -298,14 +298,14 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		}
 
 		if changeResult.ConfigID != "" {
-			if _, ok := orphanCache.Get(changeResult.ConfigID); ok {
+			if _, ok := OrphanCache.Get(changeResult.ConfigID); ok {
 				changeSummary.AddOrphaned(changeResult.ChangeType)
 				continue
 			}
 		}
 
 		if changeResult.ExternalID != "" {
-			if _, ok := orphanCache.Get(changeResult.ExternalID); ok {
+			if _, ok := OrphanCache.Get(changeResult.ExternalID); ok {
 				changeSummary.AddOrphaned(changeResult.ChangeType)
 				continue
 			}
@@ -366,7 +366,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			changeSummary.AddOrphaned(changeResult.ChangeType)
 
 			if change.ExternalID != "" {
-				orphanCache.Set(change.ExternalID, true, 0)
+				OrphanCache.Set(change.ExternalID, true, 0)
 			}
 
 			if logUnmatched {
@@ -386,7 +386,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 	return newOnes, updates, changeSummary, nil
 }
 
-var orphanCache = cache.New(60*time.Minute, 10*time.Minute)
+var OrphanCache = cache.New(60*time.Minute, 10*time.Minute)
 
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
@@ -1101,7 +1101,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 		// This is to preserve the child-parent hard relationship
 		// when the child doesn't know about its parent.
 		for _, c := range allConfigs {
-			if parentID, ok := parentCache.Get(c.ID); ok {
+			if parentID, ok := ParentCache.Get(c.ID); ok {
 				c.ParentID = lo.ToPtr(parentID.(string))
 			}
 		}
@@ -1196,7 +1196,7 @@ func setParentForChildren(ctx api.ScrapeContext, allConfigs models.ConfigItems) 
 
 			childRef := allConfigs.GetByID(found.ID)
 			if childRef != nil {
-				parentCache.Set(childRef.ID, ci.ID, cacheExpiry)
+				ParentCache.Set(childRef.ID, ci.ID, cacheExpiry)
 				childRef.ParentID = &ci.ID
 			}
 		}

@@ -1,0 +1,52 @@
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: image tag
+        required: true
+
+name: Build Debug
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@eb238b55efaa70779f274895e782ed17c84f2895 # v2.6.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
+
+      - name: Publish to DockerHub Registry
+        uses: elgohr/Publish-Docker-Github-Action@ec61b713af46c32efaa27ac2626c2acb82ce6435 # v5
+        with:
+          name: flanksource/config-db
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          snapshot: true
+          dockerfile: build/Dockerfile.debug
+          tags: "v${{inputs.image_tag}}"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.ECR_AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.ECR_AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Publish to ECR Public
+        env:
+          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+          REGISTRY_ALIAS: k4y9r6y5
+          REPOSITORY: config-db
+          IMAGE_TAG: "v${{inputs.image_tag}}"
+        run: |
+          docker build -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG -f build/Dockerfile.debug .
+          docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
+

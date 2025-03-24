@@ -25,6 +25,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
+	"github.com/flanksource/config-db/utils"
 )
 
 var (
@@ -293,6 +294,7 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		if err != nil {
 			return fmt.Errorf("failed to watch kubernetes resources: %v", err)
 		}
+		utils.TrackObject(fmt.Sprintf("kubernetes-WatchQueue-%s-%s", sc.ScraperID(), time.Now()), queue)
 
 		watchConsumerJob := ConsumeKubernetesWatchJobFunc(sc, config, queue)
 		if err := watchConsumerJob.AddToScheduler(scrapeJobScheduler); err != nil {
