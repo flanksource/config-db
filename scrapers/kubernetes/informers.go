@@ -431,7 +431,7 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 			size := utils.MemsizeScan(&m)
 			u := &unstructured.Unstructured{Object: m}
 			if size > (100 * 1024) { // 100 KB
-				logger.Infof("Size for %s/%s/%s/%s is %s", resource.ApiVersion, resource.Kind, u.GetNamespace(), u.GetName(), HumanSize(size))
+				logger.Infof("Size for %s/%s/%s/%s=%s", resource.ApiVersion, resource.Kind, u.GetNamespace(), u.GetName(), HumanSize(size))
 			}
 		}
 	}
