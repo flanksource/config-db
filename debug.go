@@ -3,6 +3,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/fjl/memsize"
 	"github.com/fjl/memsize/memsizeui"
 	"github.com/flanksource/config-db/api"
@@ -16,7 +18,14 @@ import (
 func init() {
 	var memsizeHandler memsizeui.Handler
 	utils.TrackObject = func(name string, obj any) {
-		memsizeHandler.Add(name, obj)
+		if obj == nil {
+			go func() {
+				time.Sleep(5 * time.Minute)
+				utils.TrackObject(name, obj)
+			}()
+		} else {
+			memsizeHandler.Add(name, obj)
+		}
 	}
 
 	utils.MemsizeScan = func(obj any) uintptr {
@@ -29,12 +38,11 @@ func init() {
 		return nil
 	}
 
-	utils.TrackObject("TempCacheStore", scrapers.TempCacheStore)
-	utils.TrackObject("ScraperTempCache", api.ScraperTempCache)
-	utils.TrackObject("IgnoreCache", kubernetes.IgnoreCache)
-	utils.TrackObject("OrphanCache", db.OrphanCache)
-	utils.TrackObject("ChangeCacheByFingerprint", db.ChangeCacheByFingerprint)
-	utils.TrackObject("ParentCache", db.ParentCache)
-	utils.TrackObject("ResourceIDMapPerCluster", kubernetes.ResourceIDMapPerCluster)
-
+	utils.TrackObject("TempCacheStore", &scrapers.TempCacheStore)
+	utils.TrackObject("ScraperTempCache", &api.ScraperTempCache)
+	utils.TrackObject("IgnoreCache", &kubernetes.IgnoreCache)
+	utils.TrackObject("OrphanCache", &db.OrphanCache)
+	utils.TrackObject("ChangeCacheByFingerprint", &db.ChangeCacheByFingerprint)
+	utils.TrackObject("ParentCache", &db.ParentCache)
+	utils.TrackObject("ResourceIDMapPerCluster", &kubernetes.ResourceIDMapPerCluster)
 }
