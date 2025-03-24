@@ -414,7 +414,7 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 	}
 
 	if properties.On(false, "informer.exclude_managed_fields") {
-		var m FilteredData
+		m := make(FilteredData)
 		// The object returned by the informers do not have kind and apiversion set
 		m["kind"] = resource.Kind
 		m["apiVersion"] = resource.ApiVersion
