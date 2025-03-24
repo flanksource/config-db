@@ -10,7 +10,7 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
-var changeCacheByFingerprint = cache.New(time.Hour, time.Hour)
+var ChangeCacheByFingerprint = cache.New(time.Hour, time.Hour)
 
 func changeFingeprintCacheKey(configID, fingerprint string) string {
 	return fmt.Sprintf("%s:%s", configID, fingerprint)
@@ -26,7 +26,7 @@ func InitChangeFingerprintCache(ctx context.Context, window time.Duration) error
 
 	for _, c := range changes {
 		key := changeFingeprintCacheKey(c.ConfigID, *c.Fingerprint)
-		changeCacheByFingerprint.Set(key, c.ID, time.Until(c.CreatedAt.Add(window)))
+		ChangeCacheByFingerprint.Set(key, c.ID, time.Until(c.CreatedAt.Add(window)))
 	}
 
 	return nil
@@ -47,12 +47,12 @@ func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*mode
 		}
 
 		key := changeFingeprintCacheKey(change.ConfigID, *change.Fingerprint)
-		if existingChangeID, ok := changeCacheByFingerprint.Get(key); !ok {
-			changeCacheByFingerprint.Set(key, change.ID, window)
+		if existingChangeID, ok := ChangeCacheByFingerprint.Get(key); !ok {
+			ChangeCacheByFingerprint.Set(key, change.ID, window)
 			fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: 0}
 		} else {
 			change.ID = existingChangeID.(string)
-			changeCacheByFingerprint.Set(key, change.ID, window) // Refresh the cache expiry
+			ChangeCacheByFingerprint.Set(key, change.ID, window) // Refresh the cache expiry
 
 			if existing, ok := fingerprinted[change.ID]; ok {
 				fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: existing.CountIncrement + 1}

@@ -52,7 +52,7 @@ func (ctx ScrapeContext) WithTempCache(cache *TempCache) ScrapeContext {
 	return ctx
 }
 
-var scraperTempCache = sync.Map{}
+var ScraperTempCache = sync.Map{}
 
 func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	if ctx.ScrapeConfig().GetPersistedID() == nil {
@@ -73,7 +73,7 @@ func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	// For kubernetes consumer jobs, this cache can be reused
 	// and is reset on every InitTempCache() call which happens
 	// in RunScraper()
-	scraperTempCache.Store(*scraperID, cache)
+	ScraperTempCache.Store(*scraperID, cache)
 	return ctx.WithTempCache(cache), nil
 }
 
@@ -96,7 +96,7 @@ func (ctx ScrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig, plugins ...v
 	ctx.Context = ctx.WithObject(sc.ObjectMeta)
 
 	// Try to use the temp cache if it exits
-	if c, exists := scraperTempCache.Load(lo.FromPtr(sc.GetPersistedID())); exists {
+	if c, exists := ScraperTempCache.Load(lo.FromPtr(sc.GetPersistedID())); exists {
 		ctx.temp = c.(*TempCache)
 	}
 	return ctx

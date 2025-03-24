@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-var ignoreCache = cache.New(1*time.Hour, 30*time.Minute)
+var IgnoreCache = cache.New(1*time.Hour, 30*time.Minute)
 
 func (ctx *KubernetesContext) getObjectChangeExclusionAnnotations(id string) (string, string, error) {
 	var changeTypeExclusion, changeSeverityExclusion string
@@ -57,7 +57,7 @@ func (ctx *KubernetesContext) ignore(obj *unstructured.Unstructured) {
 	if ctx.logExclusions {
 		ctx.Debugf("excluding object: %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 	}
-	ignoreCache.Set(string(obj.GetUID()), true, 0)
+	IgnoreCache.Set(string(obj.GetUID()), true, 0)
 }
 
 func (ctx *KubernetesContext) IsIgnored(obj *unstructured.Unstructured) (bool, error) {
@@ -81,7 +81,7 @@ func (ctx *KubernetesContext) IsIgnored(obj *unstructured.Unstructured) (bool, e
 }
 
 func (ctx *KubernetesContext) IgnoreChange(change v1.ChangeResult, event v1.KubernetesEvent) (bool, error) {
-	if _, ok := ignoreCache.Get(string(event.InvolvedObject.UID)); ok {
+	if _, ok := IgnoreCache.Get(string(event.InvolvedObject.UID)); ok {
 		return true, nil
 	}
 	changeTypeExclusion, changeSeverityExclusion, err := ctx.getObjectChangeExclusionAnnotations(string(event.InvolvedObject.UID))
