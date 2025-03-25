@@ -294,7 +294,7 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		if err != nil {
 			return fmt.Errorf("failed to watch kubernetes resources: %v", err)
 		}
-		utils.TrackObject(fmt.Sprintf("kubernetes-WatchQueue-%s-%s", sc.ScraperID(), time.Now()), queue)
+		utils.TrackObject(fmt.Sprintf("kubernetes-WatchQueue-%s-%s", sc.ScraperID(), time.Now().Format("2006-01-02-15-04-05")), queue)
 
 		watchConsumerJob := ConsumeKubernetesWatchJobFunc(sc, config, queue)
 		if err := watchConsumerJob.AddToScheduler(scrapeJobScheduler); err != nil {
