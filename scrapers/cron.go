@@ -103,6 +103,7 @@ func SyncScrapeConfigs(sc context.Context) {
 					continue
 				}
 
+				logger.Infof("Running SyncScrapeConfigs")
 				scrapeCtx := api.NewScrapeContext(sc).WithScrapeConfig(&_scraper)
 				if err := SyncScrapeJob(scrapeCtx); err != nil {
 					jr.History.AddErrorf("Error syncing scrape job[%s]: %v", scraper.ID, err)
@@ -176,6 +177,11 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 		newSpec, _ := json.MarshalIndent(sc.ScrapeConfig().Spec, "", "  ")
 		logger.Infof("Scheduling new job, spec changed old=%s //// new=%s", string(oldSpec), string(newSpec))
 		return scheduleScraperJob(sc)
+	} else {
+		logger.Infof("scrape spec is same for scraper %s", sc.ScraperID())
+		if len(sc.ScrapeConfig().Spec.Kubernetes) > 0 {
+			logger.Infof("SyncScrapeJob [Scraper=%s] Kubeconfig for cron spec is %v", sc.ScraperID(), sc.ScrapeConfig().Spec.Kubernetes[0].Kubeconfig)
+		}
 	}
 
 	return nil
@@ -204,9 +210,14 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 		semaphores = append([]*semaphore.Weighted{s}, semaphores...)
 	}
 
+	sconfig := sc.ScrapeConfig().DeepCopy()
+	if len(sconfig.Spec.Kubernetes) > 0 {
+		logger.Infof("newScraperJob [Scraper=%s] Kubeconfig for cron spec is %v", sc.ScraperID(), sconfig.Spec.Kubernetes[0].Kubeconfig)
+	}
+
 	return &job.Job{
 		Name:         scrapeJobName,
-		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", lo.FromPtr(sc.ScrapeConfig())),
+		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", lo.FromPtr(sconfig)),
 		Schedule:     schedule,
 		Singleton:    true,
 		JobHistory:   true,
