@@ -58,13 +58,6 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 
 	ctx.Context = ctx.WithKubernetes(config.KubernetesConnection)
 
-	// Stop all the other active shared informers, if any, that were previously started
-	// but then removed from the config.
-	var existingWatches []string
-	for _, w := range config.Watch {
-		existingWatches = append(existingWatches, w.ApiVersion+w.Kind)
-	}
-
 	watchResources := lo.Uniq(config.Watch)
 
 	// Register returns the priorityQueue from cache or the one we created
@@ -268,11 +261,11 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v
 
 		ctx.Gauge("kubernetes_active_shared_informers").Add(1)
 
-		go func(informerGroup informerGroup) {
+		go func(ctx api.ScrapeContext, informerGroup informerGroup) {
 			utils.TrackObject(fmt.Sprintf("informer-%s-%s", informerGroup.watchResource.String()+ctx.ScraperID(), time.Now().Format("2006-01-02-15-04-05")), informerGroup.informer)
 			informerGroup.informer.Informer().Run(informerGroup.stopper)
 			ctx.Logger.V(1).Infof("stopped shared informer for: %v", informerGroup.watchResource)
-		}(ig)
+		}(ctx, ig)
 	}
 	return queue, nil
 }
