@@ -1,6 +1,7 @@
 package scrapers
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -84,7 +85,7 @@ func SyncScrapeConfigs(sc context.Context) {
 	j := &job.Job{
 		Name:       "ConfigScraperSync",
 		Context:    sc,
-		Schedule:   "@every 10m",
+		Schedule:   "@every 1m",
 		Singleton:  true,
 		JobHistory: true,
 		Retention:  job.RetentionFew,
@@ -162,13 +163,18 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 	}
 
 	if existingJob == nil {
+		logger.Infof("Scheduling new job, no existing found. ScraperID=%s", sc.ScraperID())
 		return scheduleScraperJob(sc)
 	}
 
 	existingScraper := existingJob.Context.Value("scraper")
-	if existingScraper != nil && !reflect.DeepEqual(existingScraper.(*v1.ScrapeConfig).Spec, sc.ScrapeConfig().Spec) {
+	if existingScraper != nil && !reflect.DeepEqual(existingScraper.(v1.ScrapeConfig).Spec, sc.ScrapeConfig().Spec) {
 		sc.DutyContext().Debugf("Rescheduling %s scraper with updated specs", sc.ScrapeConfig().Name)
 		DeleteScrapeJob(id)
+		logger.Infof("Scheduling new job, spec changed. ScraperID=%s", sc.ScraperID())
+		oldSpec, _ := json.MarshalIndent(existingScraper.(v1.ScrapeConfig).Spec, "", "  ")
+		newSpec, _ := json.MarshalIndent(sc.ScrapeConfig().Spec, "", "  ")
+		logger.Infof("Scheduling new job, spec changed old=%s //// new=%s", string(oldSpec), string(newSpec))
 		return scheduleScraperJob(sc)
 	}
 
@@ -200,7 +206,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 
 	return &job.Job{
 		Name:         scrapeJobName,
-		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", sc.ScrapeConfig()),
+		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", lo.FromPtr(sc.ScrapeConfig())),
 		Schedule:     schedule,
 		Singleton:    true,
 		JobHistory:   true,
@@ -270,6 +276,7 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		return fmt.Errorf("[%s] failed to schedule %v", j.Name, err)
 	}
 
+	// Same thing is being scheduled twice ?
 	existingInformers := kubernetes.GetInformersInCacheForScraper(sc.ScraperID())
 	var newInformers []string
 	for _, config := range sc.ScrapeConfig().Spec.Kubernetes {
@@ -294,7 +301,9 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		if err != nil {
 			return fmt.Errorf("failed to watch kubernetes resources: %v", err)
 		}
-		utils.TrackObject(fmt.Sprintf("kubernetes-WatchQueue-%s-%s", sc.ScraperID(), time.Now().Format("2006-01-02-15-04-05")), queue)
+		// Informer sending data to old queue which never gets consumed
+		logger.Infof("New queue created for scraper=%s, addr=%p", sc.ScraperID(), queue)
+		utils.TrackObject(fmt.Sprintf("kubernetes-WatchQueue-%s-%s-%p", sc.ScraperID(), time.Now().Format("2006-01-02-15-04-05"), queue), queue)
 
 		watchConsumerJob := ConsumeKubernetesWatchJobFunc(sc, config, queue)
 		if err := watchConsumerJob.AddToScheduler(scrapeJobScheduler); err != nil {
@@ -323,6 +332,7 @@ func DeleteScrapeJob(id string) {
 	if j, ok := scrapeJobs.Load(consumeKubernetesWatchJobKey(id)); ok {
 		existingJob := j.(*job.Job)
 		existingJob.Unschedule()
+		//scrapeJobs.Delete(consumeKubernetesWatchJobKey(id))
 		scrapeJobs.Delete(id)
 	}
 }

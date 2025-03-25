@@ -32,7 +32,7 @@ func consumeKubernetesWatchJobKey(id string) string {
 
 // ConsumeKubernetesWatchJobFunc returns a job that consumes kubernetes objects received from shared informers
 // for the given config of the scrapeconfig.
-func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, queue *collections.Queue[*kubernetes.QueueItem]) *job.Job {
+func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, queue *collections.Queue[kubernetes.QueueItem]) *job.Job {
 	return &job.Job{
 		Name:         "ConsumeKubernetesWatch",
 		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta),
@@ -192,6 +192,8 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 					"kind", obj.GetKind(),
 				).Record(time.Duration(lag.Milliseconds()))
 			}
+
+			//objs = []*unstructured.Unstructured{}
 
 			return nil
 		},
