@@ -59,7 +59,11 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 	ctx.Context = ctx.WithKubernetes(config.KubernetesConnection)
 
 	for _, watchResource := range lo.Uniq(config.Watch) {
-		if err := globalSharedInformerManager.Register(ctx, watchResource, priorityQueue); err != nil {
+		// Register returns the priorityQueue from cache or the one we created
+		// it is important to reuse the queue to prevent it from dangling (can cause memory leaks)
+		// since we keep the informers cached which enqueue to the queue they were created with
+		priorityQueue, err = globalSharedInformerManager.Register(ctx, watchResource, priorityQueue)
+		if err != nil {
 			return nil, fmt.Errorf("failed to register informer: %w", err)
 		}
 	}
@@ -81,6 +85,7 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 type informerCacheData struct {
 	informer informers.GenericInformer
 	stopper  chan (struct{})
+	queue    *collections.Queue[*QueueItem]
 }
 
 // singleton
@@ -113,23 +118,25 @@ func (t *SharedInformerManager) GetInformersInCacheForScraper(scraperID string) 
 	return keys
 }
 
-func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, queue *collections.Queue[*QueueItem]) error {
+func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, queue *collections.Queue[*QueueItem]) (*collections.Queue[*QueueItem], error) {
 	registrationTime := time.Now()
 
 	apiVersion, kind := watchResource.ApiVersion, watchResource.Kind
 
-	informer, stopper, isNew, err := t.getOrCreate(ctx, apiVersion, kind)
+	informerData, isNew, err := t.getOrCreate(ctx, apiVersion, kind, queue)
 	if err != nil {
-		return fmt.Errorf("error creating informer for apiVersion=%v kind=%v: %w", apiVersion, kind, err)
+		return nil, fmt.Errorf("error creating informer for apiVersion=%v kind=%v: %w", apiVersion, kind, err)
 	}
+	informer := informerData.informer
+	stopper := informerData.stopper
 	if informer == nil {
-		return fmt.Errorf("could not find informer for: apiVersion=%v kind=%v", apiVersion, kind)
+		return nil, fmt.Errorf("could not find informer for: apiVersion=%v kind=%v", apiVersion, kind)
 	}
 
 	if !isNew {
 		// event handlers have already been set.
 		// nothing left to do.
-		return nil
+		return informerData.queue, nil
 	}
 
 	ctx.Context = ctx.WithName("watch." + ctx.ScrapeConfig().Name)
@@ -252,7 +259,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to add informer event handlers: %w", err)
+		return nil, fmt.Errorf("failed to add informer event handlers: %w", err)
 	}
 
 	ctx.Counter("kubernetes_informers_created",
@@ -267,30 +274,30 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 		informer.Informer().Run(stopper)
 		ctx.Logger.V(1).Infof("stopped shared informer for: %v", watchResource)
 	}()
-	return nil
+	return queue, nil
 }
 
 // getOrCreate returns an existing shared informer instance or creates & returns a new one.
-func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, kind string) (informers.GenericInformer, chan struct{}, bool, error) {
+func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, kind string, queue *collections.Queue[*QueueItem]) (*informerCacheData, bool, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	cacheKey := apiVersion + kind
 	k8s, err := ctx.Kubernetes()
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("error creating kubernetes client: %w", err)
+		return nil, false, fmt.Errorf("error creating kubernetes client: %w", err)
 	}
 
 	authFingerprint := ctx.KubeAuthFingerprint()
 	if authFingerprint == "" {
-		return nil, nil, false, fmt.Errorf("kube auth fingerprint is empty")
+		return nil, false, fmt.Errorf("kube auth fingerprint is empty")
 	}
 
 	clusterID := InformerClusterID(ctx.ScraperID(), ctx.KubeAuthFingerprint())
 
 	if val, ok := t.cache[clusterID]; ok {
 		if data, ok := val[cacheKey]; ok {
-			return data.informer, data.stopper, false, nil
+			return data, false, nil
 		}
 	}
 
@@ -299,12 +306,13 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 
 	informer, err := getInformer(factory, apiVersion, kind)
 	if err != nil {
-		return nil, nil, false, err
+		return nil, false, err
 	}
 
 	cacheValue := &informerCacheData{
 		stopper:  stopper,
 		informer: informer,
+		queue:    queue,
 	}
 	if _, ok := t.cache[clusterID]; ok {
 		t.cache[clusterID][cacheKey] = cacheValue
@@ -314,7 +322,7 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 		}
 	}
 
-	return informer, stopper, true, nil
+	return cacheValue, true, nil
 }
 
 func StopInformers(ctx api.ScrapeContext, clusterID string) {
