@@ -191,6 +191,16 @@ var DefaultWatchKinds = []KubernetesResourceToWatch{
 	{ApiVersion: "v1", Kind: "Pod"},
 }
 
+type KubernetesResourcesToWatch []KubernetesResourceToWatch
+
+func (krws KubernetesResourcesToWatch) String() string {
+	var str string
+	for _, krw := range krws {
+		str += krw.String()
+	}
+	return str
+}
+
 type KubernetesResourceToWatch struct {
 	ApiVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`

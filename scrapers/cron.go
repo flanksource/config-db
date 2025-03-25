@@ -270,8 +270,6 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		return fmt.Errorf("[%s] failed to schedule %v", j.Name, err)
 	}
 
-	existingInformers := kubernetes.GetInformersInCacheForScraper(sc.ScraperID())
-	var newInformers []string
 	for _, config := range sc.ScrapeConfig().Spec.Kubernetes {
 		// Update scrape context with provided kubeconfig
 		kc := connection.KubernetesConnection{}
@@ -300,12 +298,7 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		if err := watchConsumerJob.AddToScheduler(scrapeJobScheduler); err != nil {
 			return fmt.Errorf("failed to schedule kubernetes watch consumer job: %v", err)
 		}
-		newInformers = append(newInformers, kubernetes.InformerClusterID(sc.ScraperID(), sc.KubeAuthFingerprint()))
 		scrapeJobs.Store(consumeKubernetesWatchJobKey(sc.ScraperID()), watchConsumerJob)
-	}
-	_, informerDiff := lo.Difference(newInformers, existingInformers)
-	for _, inf := range informerDiff {
-		kubernetes.StopInformers(sc, inf)
 	}
 
 	return nil

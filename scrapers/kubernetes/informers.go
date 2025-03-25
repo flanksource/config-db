@@ -35,8 +35,8 @@ var (
 	informerLagBuckets = []float64{1_000, 5_000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
-func InformerClusterID(scraperID, authFingerprint string) string {
-	return strings.Join([]string{scraperID, authFingerprint}, "/")
+func InformerClusterID(scraperID string, watchResources v1.KubernetesResourcesToWatch, authFingerprint string) string {
+	return strings.Join([]string{scraperID, watchResources.String(), authFingerprint}, "/")
 }
 
 // WatchResources watches Kubernetes resources with shared informers
@@ -58,16 +58,6 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 
 	ctx.Context = ctx.WithKubernetes(config.KubernetesConnection)
 
-	for _, watchResource := range lo.Uniq(config.Watch) {
-		// Register returns the priorityQueue from cache or the one we created
-		// it is important to reuse the queue to prevent it from dangling (can cause memory leaks)
-		// since we keep the informers cached which enqueue to the queue they were created with
-		priorityQueue, err = globalSharedInformerManager.Register(ctx, watchResource, priorityQueue)
-		if err != nil {
-			return nil, fmt.Errorf("failed to register informer: %w", err)
-		}
-	}
-
 	// Stop all the other active shared informers, if any, that were previously started
 	// but then removed from the config.
 	var existingWatches []string
@@ -75,29 +65,41 @@ func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Q
 		existingWatches = append(existingWatches, w.ApiVersion+w.Kind)
 	}
 
-	clusterID := InformerClusterID(ctx.ScraperID(), ctx.KubeAuthFingerprint())
-	globalSharedInformerManager.stop(ctx, clusterID, existingWatches...)
+	watchResources := lo.Uniq(config.Watch)
+
+	// Register returns the priorityQueue from cache or the one we created
+	// it is important to reuse the queue to prevent it from dangling (can cause memory leaks)
+	// since we keep the informers cached which enqueue to the queue they were created with
+	priorityQueue, err = globalSharedInformerManager.Register(ctx, watchResources, priorityQueue)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register informer: %w", err)
+	}
 
 	ctx.Counter("kubernetes_scraper_resource_watcher", "scraper_id", ctx.ScraperID()).Add(1)
 	return priorityQueue, nil
 }
 
+type informerGroup struct {
+	informer      informers.GenericInformer
+	stopper       chan (struct{})
+	watchResource v1.KubernetesResourceToWatch
+}
+
 type informerCacheData struct {
-	informer informers.GenericInformer
-	stopper  chan (struct{})
-	queue    *collections.Queue[*QueueItem]
+	group []informerGroup
+	queue *collections.Queue[*QueueItem]
 }
 
 // singleton
 var globalSharedInformerManager = SharedInformerManager{
-	cache: make(map[string]map[string]*informerCacheData),
+	cache: make(map[string]*informerCacheData),
 }
 
 // SharedInformerManager distributes the same share informer for a given pair of
 // <kubeconfig, groupVersionKind>
 type SharedInformerManager struct {
 	mu    sync.Mutex
-	cache map[string]map[string]*informerCacheData
+	cache map[string]*informerCacheData
 }
 
 type DeleteObjHandler func(ctx context.Context, id string) error
@@ -118,19 +120,12 @@ func (t *SharedInformerManager) GetInformersInCacheForScraper(scraperID string) 
 	return keys
 }
 
-func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1.KubernetesResourceToWatch, queue *collections.Queue[*QueueItem]) (*collections.Queue[*QueueItem], error) {
+func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v1.KubernetesResourcesToWatch, queue *collections.Queue[*QueueItem]) (*collections.Queue[*QueueItem], error) {
 	registrationTime := time.Now()
 
-	apiVersion, kind := watchResource.ApiVersion, watchResource.Kind
-
-	informerData, isNew, err := t.getOrCreate(ctx, apiVersion, kind, queue)
+	informerData, isNew, err := t.getOrCreate(ctx, watchResources, queue)
 	if err != nil {
-		return nil, fmt.Errorf("error creating informer for apiVersion=%v kind=%v: %w", apiVersion, kind, err)
-	}
-	informer := informerData.informer
-	stopper := informerData.stopper
-	if informer == nil {
-		return nil, fmt.Errorf("could not find informer for: apiVersion=%v kind=%v", apiVersion, kind)
+		return nil, fmt.Errorf("error creating informer for watchResources[%s]: %w", watchResources, err)
 	}
 
 	if !isNew {
@@ -139,150 +134,154 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 		return informerData.queue, nil
 	}
 
+	// Stop all existing informers
+	StopInformers(ctx, ctx.ScraperID())
+
 	ctx.Context = ctx.WithName("watch." + ctx.ScrapeConfig().Name)
 
-	ctx.Logger.V(1).Infof("registering shared informer for: %v", watchResource)
-	_, err = informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			receivedAt := time.Now().Round(time.Second)
+	for _, ig := range informerData.group {
+		ctx.Logger.V(1).Infof("registering shared informer for [%s]", ig.watchResource)
+		_, err = ig.informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj any) {
+				receivedAt := time.Now().Round(time.Second)
 
-			u, err := getUnstructuredFromInformedObj(watchResource, obj)
-			if err != nil {
-				ctx.Counter("kubernetes_informer_errors",
+				u, err := getUnstructuredFromInformedObj(ig.watchResource, obj)
+				if err != nil {
+					ctx.Counter("kubernetes_informer_errors",
+						"type", "add",
+						"reason", "unmarshal_error",
+						"scraper_id", ctx.ScraperID()).Add(1)
+					logger.Errorf("failed to get unstructured from new object: %v", err)
+					return
+				}
+
+				queue.Enqueue(NewQueueItem(u, QueueItemOperationAdd))
+
+				if ctx.Properties().On(false, "scraper.log.items") {
+					ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
+				}
+
+				ctx.Counter("kubernetes_informer_events",
 					"type", "add",
-					"reason", "unmarshal_error",
-					"scraper_id", ctx.ScraperID()).Add(1)
-				logger.Errorf("failed to get unstructured from new object: %v", err)
-				return
-			}
+					"kind", u.GetKind(),
+					"scraper_id", ctx.ScraperID(),
+					"valid_timestamp", lo.Ternary(u.GetCreationTimestamp().Time.After(registrationTime), "true", "false"),
+				).Add(1)
 
-			queue.Enqueue(NewQueueItem(u, QueueItemOperationAdd))
+				// This is a way to avoid instrumenting old objects so they don't skew the lag time.
+				if u.GetCreationTimestamp().Time.After(registrationTime) {
+					ctx.Histogram("informer_receive_lag", informerLagBuckets,
+						"scraper", ctx.ScraperID(),
+						"kind", ig.watchResource.Kind,
+						"operation", "add",
+					).Record(time.Duration(u.GetCreationTimestamp().Time.Sub(receivedAt).Milliseconds()))
+				}
+			},
+			UpdateFunc: func(oldObj any, newObj any) {
+				// Kubernetes object timestamps are only precise to the second, so we round
+				// the current time to the nearest second to avoid incorrectly marking
+				// timestamps as being in the past due to millisecond differences.
+				receivedAt := time.Now().UTC().Round(time.Second)
 
-			if ctx.Properties().On(false, "scraper.log.items") {
-				ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
-			}
+				u, err := getUnstructuredFromInformedObj(ig.watchResource, newObj)
+				if err != nil {
+					ctx.Counter("kubernetes_informer_errors",
+						"type", "update",
+						"reason", "unmarshal_error",
+						"scraper_id", ctx.ScraperID()).Add(1)
 
-			ctx.Counter("kubernetes_informer_events",
-				"type", "add",
-				"kind", u.GetKind(),
-				"scraper_id", ctx.ScraperID(),
-				"valid_timestamp", lo.Ternary(u.GetCreationTimestamp().Time.After(registrationTime), "true", "false"),
-			).Add(1)
+					logger.Errorf("failed to get unstructured from updated object: %v", err)
+					return
+				}
 
-			// This is a way to avoid instrumenting old objects so they don't skew the lag time.
-			if u.GetCreationTimestamp().Time.After(registrationTime) {
-				ctx.Histogram("informer_receive_lag", informerLagBuckets,
-					"scraper", ctx.ScraperID(),
-					"kind", watchResource.Kind,
-					"operation", "add",
-				).Record(time.Duration(u.GetCreationTimestamp().Time.Sub(receivedAt).Milliseconds()))
-			}
-		},
-		UpdateFunc: func(oldObj any, newObj any) {
-			// Kubernetes object timestamps are only precise to the second, so we round
-			// the current time to the nearest second to avoid incorrectly marking
-			// timestamps as being in the past due to millisecond differences.
-			receivedAt := time.Now().UTC().Round(time.Second)
+				if ctx.Properties().On(false, "scraper.log.items") {
+					ctx.Logger.V(3).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
+				}
 
-			u, err := getUnstructuredFromInformedObj(watchResource, newObj)
-			if err != nil {
-				ctx.Counter("kubernetes_informer_errors",
+				lastUpdatedTime := lo.FromPtr(health.GetLastUpdatedTime(u))
+				lastUpdatedInFuture := lastUpdatedTime.After(receivedAt)
+				if !lastUpdatedInFuture {
+					ctx.Histogram("informer_receive_lag", informerLagBuckets,
+						"scraper", ctx.ScraperID(),
+						"kind", ig.watchResource.Kind,
+						"operation", "update",
+					).Record(time.Duration(receivedAt.Sub(lastUpdatedTime).Milliseconds()))
+				} else {
+					ctx.Warnf("%s/%s/%s has last updated time %s into the future. receivedAt=%s, lastupdatedTime=%s",
+						u.GetKind(), u.GetNamespace(), u.GetName(), lastUpdatedTime.Sub(receivedAt), receivedAt, lastUpdatedTime)
+				}
+
+				ctx.Counter("kubernetes_informer_events",
 					"type", "update",
-					"reason", "unmarshal_error",
-					"scraper_id", ctx.ScraperID()).Add(1)
+					"kind", u.GetKind(),
+					"scraper_id", ctx.ScraperID(),
+					"valid_timestamp", lo.Ternary(!lastUpdatedInFuture, "true", "false"),
+				).Add(1)
 
-				logger.Errorf("failed to get unstructured from updated object: %v", err)
-				return
-			}
+				queue.Enqueue(NewQueueItem(u, QueueItemOperationUpdate))
+			},
+			DeleteFunc: func(obj any) {
+				u, err := getUnstructuredFromInformedObj(ig.watchResource, obj)
+				if err != nil {
+					ctx.Counter("kubernetes_informer_errors",
+						"type", "delete",
+						"reason", "unmarshal_error",
+						"scraper_id", ctx.ScraperID()).Add(1)
+					logToJobHistory(ctx.DutyContext(), "DeleteK8sWatchResource", ctx.ScrapeConfig().GetPersistedID(), "failed to get unstructured %v", err)
+					return
+				}
 
-			if ctx.Properties().On(false, "scraper.log.items") {
-				ctx.Logger.V(3).Infof("updated: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
-			}
+				if u.GetKind() == "Event" {
+					return
+				}
 
-			lastUpdatedTime := lo.FromPtr(health.GetLastUpdatedTime(u))
-			lastUpdatedInFuture := lastUpdatedTime.After(receivedAt)
-			if !lastUpdatedInFuture {
-				ctx.Histogram("informer_receive_lag", informerLagBuckets,
-					"scraper", ctx.ScraperID(),
-					"kind", watchResource.Kind,
-					"operation", "update",
-				).Record(time.Duration(receivedAt.Sub(lastUpdatedTime).Milliseconds()))
-			} else {
-				ctx.Warnf("%s/%s/%s has last updated time %s into the future. receivedAt=%s, lastupdatedTime=%s",
-					u.GetKind(), u.GetNamespace(), u.GetName(), lastUpdatedTime.Sub(receivedAt), receivedAt, lastUpdatedTime)
-			}
+				if ctx.Properties().On(false, "scraper.log.items") {
+					ctx.Logger.V(3).Infof("deleted: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
+				}
 
-			ctx.Counter("kubernetes_informer_events",
-				"type", "update",
-				"kind", u.GetKind(),
-				"scraper_id", ctx.ScraperID(),
-				"valid_timestamp", lo.Ternary(!lastUpdatedInFuture, "true", "false"),
-			).Add(1)
+				if u.GetDeletionTimestamp() != nil {
+					ctx.Histogram("informer_receive_lag", informerLagBuckets,
+						"scraper", ctx.ScraperID(),
+						"kind", ig.watchResource.Kind,
+						"operation", "delete",
+					).Record(time.Duration(time.Since(u.GetDeletionTimestamp().Time).Milliseconds()))
+				}
 
-			queue.Enqueue(NewQueueItem(u, QueueItemOperationUpdate))
-		},
-		DeleteFunc: func(obj any) {
-			u, err := getUnstructuredFromInformedObj(watchResource, obj)
-			if err != nil {
-				ctx.Counter("kubernetes_informer_errors",
+				ctx.Counter("kubernetes_informer_events",
 					"type", "delete",
-					"reason", "unmarshal_error",
-					"scraper_id", ctx.ScraperID()).Add(1)
-				logToJobHistory(ctx.DutyContext(), "DeleteK8sWatchResource", ctx.ScrapeConfig().GetPersistedID(), "failed to get unstructured %v", err)
-				return
-			}
+					"kind", u.GetKind(),
+					"scraper_id", ctx.ScraperID(),
+					"valid_timestamp", lo.Ternary(u.GetDeletionTimestamp() != nil, "true", "false"),
+				).Add(1)
 
-			if u.GetKind() == "Event" {
-				return
-			}
+				queue.Enqueue(NewQueueItem(u, QueueItemOperationDelete))
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to add informer event handlers: %w", err)
+		}
 
-			if ctx.Properties().On(false, "scraper.log.items") {
-				ctx.Logger.V(3).Infof("deleted: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
-			}
+		ctx.Counter("kubernetes_informers_created",
+			"watch_resource", ig.watchResource.String(),
+			"scraper_id", ctx.ScraperID(),
+		).Add(1)
 
-			if u.GetDeletionTimestamp() != nil {
-				ctx.Histogram("informer_receive_lag", informerLagBuckets,
-					"scraper", ctx.ScraperID(),
-					"kind", watchResource.Kind,
-					"operation", "delete",
-				).Record(time.Duration(time.Since(u.GetDeletionTimestamp().Time).Milliseconds()))
-			}
+		ctx.Gauge("kubernetes_active_shared_informers").Add(1)
 
-			ctx.Counter("kubernetes_informer_events",
-				"type", "delete",
-				"kind", u.GetKind(),
-				"scraper_id", ctx.ScraperID(),
-				"valid_timestamp", lo.Ternary(u.GetDeletionTimestamp() != nil, "true", "false"),
-			).Add(1)
-
-			queue.Enqueue(NewQueueItem(u, QueueItemOperationDelete))
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to add informer event handlers: %w", err)
+		go func(informerGroup informerGroup) {
+			utils.TrackObject(fmt.Sprintf("informer-%s-%s", informerGroup.watchResource.String()+ctx.ScraperID(), time.Now().Format("2006-01-02-15-04-05")), informerGroup.informer)
+			informerGroup.informer.Informer().Run(informerGroup.stopper)
+			ctx.Logger.V(1).Infof("stopped shared informer for: %v", informerGroup.watchResource)
+		}(ig)
 	}
-
-	ctx.Counter("kubernetes_informers_created",
-		"watch_resource", watchResource.String(),
-		"scraper_id", ctx.ScraperID(),
-	).Add(1)
-
-	ctx.Gauge("kubernetes_active_shared_informers").Add(1)
-
-	go func() {
-		utils.TrackObject(fmt.Sprintf("informer-%s-%s", watchResource.String()+ctx.ScraperID(), time.Now().Format("2006-01-02-15-04-05")), informer)
-		informer.Informer().Run(stopper)
-		ctx.Logger.V(1).Infof("stopped shared informer for: %v", watchResource)
-	}()
 	return queue, nil
 }
 
 // getOrCreate returns an existing shared informer instance or creates & returns a new one.
-func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, kind string, queue *collections.Queue[*QueueItem]) (*informerCacheData, bool, error) {
+func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, watchResources v1.KubernetesResourcesToWatch, queue *collections.Queue[*QueueItem]) (*informerCacheData, bool, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	cacheKey := apiVersion + kind
 	k8s, err := ctx.Kubernetes()
 	if err != nil {
 		return nil, false, fmt.Errorf("error creating kubernetes client: %w", err)
@@ -293,69 +292,57 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, apiVersion, k
 		return nil, false, fmt.Errorf("kube auth fingerprint is empty")
 	}
 
-	clusterID := InformerClusterID(ctx.ScraperID(), ctx.KubeAuthFingerprint())
+	clusterID := InformerClusterID(ctx.ScraperID(), watchResources, ctx.KubeAuthFingerprint())
 
 	if val, ok := t.cache[clusterID]; ok {
-		if data, ok := val[cacheKey]; ok {
-			return data, false, nil
-		}
+		return val, false, nil
 	}
 
 	factory := informers.NewSharedInformerFactory(k8s, 0)
-	stopper := make(chan struct{})
 
-	informer, err := getInformer(factory, apiVersion, kind)
-	if err != nil {
-		return nil, false, err
-	}
-
-	cacheValue := &informerCacheData{
-		stopper:  stopper,
-		informer: informer,
-		queue:    queue,
-	}
-	if _, ok := t.cache[clusterID]; ok {
-		t.cache[clusterID][cacheKey] = cacheValue
-	} else {
-		t.cache[clusterID] = map[string]*informerCacheData{
-			cacheKey: cacheValue,
+	cacheValue := &informerCacheData{queue: queue}
+	for _, wr := range watchResources {
+		stopper := make(chan struct{})
+		informer, err := getInformer(factory, wr.ApiVersion, wr.Kind)
+		if err != nil {
+			return nil, false, err
 		}
+		cacheValue.group = append(cacheValue.group, informerGroup{
+			informer:      informer,
+			stopper:       stopper,
+			watchResource: wr,
+		})
 	}
 
+	t.cache[clusterID] = cacheValue
 	return cacheValue, true, nil
 }
 
-func StopInformers(ctx api.ScrapeContext, clusterID string) {
-	globalSharedInformerManager.stop(ctx, clusterID)
+func StopInformers(ctx api.ScrapeContext, scraperID string) {
+	globalSharedInformerManager.stop(ctx, scraperID)
 }
 
 // stop stops all shared informers for the given kubeconfig
 // apart from the ones provided.
-func (t *SharedInformerManager) stop(ctx api.ScrapeContext, clusterID string, exception ...string) {
+func (t *SharedInformerManager) stop(ctx api.ScrapeContext, scraperID string, exception ...string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	var toDelete []string
-	if informers, ok := t.cache[clusterID]; ok {
-		for key, cached := range informers {
-			if !lo.Contains(exception, key) {
-				ctx.Logger.V(1).Infof("stopping informer for %s", key)
-
-				cached.informer.Informer().IsStopped()
+	for k, v := range t.cache {
+		if strings.HasPrefix(k, scraperID) {
+			for _, ig := range v.group {
+				ig.informer.Informer().IsStopped()
 				ctx.Gauge("kubernetes_active_shared_informers").Sub(1)
 				ctx.Counter("kubernetes_informers_deleted",
-					"watch_resource", key,
+					"watch_resource", ig.watchResource.String(),
 					"scraper_id", ctx.ScraperID(),
 				).Add(1)
 
-				toDelete = append(toDelete, key)
-				close(cached.stopper)
+				close(ig.stopper)
 			}
-		}
-	}
 
-	for _, key := range toDelete {
-		delete(t.cache[clusterID], key)
+			delete(t.cache, scraperID)
+		}
 	}
 }
 
