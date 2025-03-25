@@ -419,12 +419,16 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 		m["kind"] = resource.Kind
 		m["apiVersion"] = resource.ApiVersion
 		return &unstructured.Unstructured{Object: m}, nil
-
 	}
+
 	var m map[string]any
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal on add func: %v", err)
 	}
+
+	// The object returned by the informers do not have kind and apiversion set
+	m["kind"] = resource.Kind
+	m["apiVersion"] = resource.ApiVersion
 
 	if properties.On(false, "log.informed_obj_size") {
 		if m != nil {
