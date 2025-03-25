@@ -263,7 +263,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResource v1
 	ctx.Gauge("kubernetes_active_shared_informers").Add(1)
 
 	go func() {
-		utils.TrackObject(fmt.Sprintf("informer-%s", watchResource.String()+ctx.ScraperID()), informer)
+		utils.TrackObject(fmt.Sprintf("informer-%s-%s", watchResource.String()+ctx.ScraperID(), time.Now().Format("2006-01-02-15-04-05")), informer)
 		informer.Informer().Run(stopper)
 		ctx.Logger.V(1).Infof("stopped shared informer for: %v", watchResource)
 	}()
