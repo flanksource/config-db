@@ -128,7 +128,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v
 	}
 
 	// Stop all existing informers
-	StopInformers(ctx, ctx.ScraperID())
+	StopInformers(ctx, ctx.ScraperID(), watchResources)
 
 	ctx.Context = ctx.WithName("watch." + ctx.ScrapeConfig().Name)
 
@@ -148,7 +148,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v
 					return
 				}
 
-				queue.Enqueue(NewQueueItem(u, QueueItemOperationAdd))
+				informerData.queue.Enqueue(NewQueueItem(u, QueueItemOperationAdd))
 
 				if ctx.Properties().On(false, "scraper.log.items") {
 					ctx.Logger.V(4).Infof("added: %s %s %s", u.GetUID(), u.GetKind(), u.GetName())
@@ -211,7 +211,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v
 					"valid_timestamp", lo.Ternary(!lastUpdatedInFuture, "true", "false"),
 				).Add(1)
 
-				queue.Enqueue(NewQueueItem(u, QueueItemOperationUpdate))
+				informerData.queue.Enqueue(NewQueueItem(u, QueueItemOperationUpdate))
 			},
 			DeleteFunc: func(obj any) {
 				u, err := getUnstructuredFromInformedObj(ig.watchResource, obj)
@@ -247,7 +247,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v
 					"valid_timestamp", lo.Ternary(u.GetDeletionTimestamp() != nil, "true", "false"),
 				).Add(1)
 
-				queue.Enqueue(NewQueueItem(u, QueueItemOperationDelete))
+				informerData.queue.Enqueue(NewQueueItem(u, QueueItemOperationDelete))
 			},
 		})
 		if err != nil {
@@ -264,10 +264,11 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v
 		go func(ctx api.ScrapeContext, informerGroup informerGroup) {
 			utils.TrackObject(fmt.Sprintf("informer-%s-%s", informerGroup.watchResource.String()+ctx.ScraperID(), time.Now().Format("2006-01-02-15-04-05")), informerGroup.informer)
 			informerGroup.informer.Informer().Run(informerGroup.stopper)
-			ctx.Logger.V(1).Infof("stopped shared informer for: %v", informerGroup.watchResource)
+			ctx.Logger.V(1).Infof("stopped shared informer for scraper[%s]: %v", ctx.ScraperID(), informerGroup.watchResource)
 		}(ctx, ig)
 	}
-	return queue, nil
+
+	return informerData.queue, nil
 }
 
 // getOrCreate returns an existing shared informer instance or creates & returns a new one.
@@ -311,19 +312,22 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, watchResource
 	return cacheValue, true, nil
 }
 
-func StopInformers(ctx api.ScrapeContext, scraperID string) {
-	globalSharedInformerManager.stop(ctx, scraperID)
+func StopInformers(ctx api.ScrapeContext, scraperID string, watchResourcesToExclude v1.KubernetesResourcesToWatch) {
+	globalSharedInformerManager.stop(ctx, scraperID, watchResourcesToExclude)
 }
 
 // stop stops all shared informers for the given kubeconfig
 // apart from the ones provided.
-func (t *SharedInformerManager) stop(ctx api.ScrapeContext, scraperID string, exception ...string) {
+func (t *SharedInformerManager) stop(ctx api.ScrapeContext, scraperID string, watchResourcesToExclude v1.KubernetesResourcesToWatch) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	for k, v := range t.cache {
 		if strings.HasPrefix(k, scraperID) {
 			for _, ig := range v.group {
+				if watchResourcesToExclude.Contains(ig.watchResource) {
+					continue
+				}
 				ig.informer.Informer().IsStopped()
 				ctx.Gauge("kubernetes_active_shared_informers").Sub(1)
 				ctx.Counter("kubernetes_informers_deleted",
