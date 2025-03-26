@@ -9,7 +9,6 @@ import (
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
@@ -97,22 +96,6 @@ type SharedInformerManager struct {
 
 type DeleteObjHandler func(ctx context.Context, id string) error
 
-func GetInformersInCacheForScraper(scraperID string) []string {
-	return globalSharedInformerManager.GetInformersInCacheForScraper(scraperID)
-}
-
-func (t *SharedInformerManager) GetInformersInCacheForScraper(scraperID string) []string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	var keys []string
-	for k := range t.cache {
-		if strings.HasPrefix(k, scraperID) {
-			keys = append(keys, k)
-		}
-	}
-	return keys
-}
-
 func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v1.KubernetesResourcesToWatch, queue *collections.Queue[*QueueItem]) (*collections.Queue[*QueueItem], error) {
 	registrationTime := time.Now()
 
@@ -127,7 +110,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v
 		return informerData.queue, nil
 	}
 
-	// Stop all existing informers
+	// Stop existing informers that should not be watched
 	StopInformers(ctx, ctx.ScraperID(), watchResources)
 
 	ctx.Context = ctx.WithName("watch." + ctx.ScrapeConfig().Name)
@@ -369,48 +352,10 @@ func KindToResource(kind string) string {
 	return strings.ToLower(kind) + "s"
 }
 
-func HumanSize(bytes uintptr) string {
-	switch {
-	case bytes < 1024:
-		return fmt.Sprintf("%d B", bytes)
-	case bytes < 1024*1024:
-		return fmt.Sprintf("%.3f KB", float64(bytes)/1024)
-	default:
-		return fmt.Sprintf("%.3f MB", float64(bytes)/1024/1024)
-	}
-}
-
-type FilteredData map[string]interface{}
-
-func (f *FilteredData) UnmarshalJSON(data []byte) error {
-	// Use a temporary map to hold the full JSON structure
-	var temp map[string]interface{}
-	if err := json.Unmarshal(data, &temp); err != nil {
-		return err
-	}
-
-	// Check if "metadata" exists and remove "managedFields" if present
-	if metadata, ok := temp["metadata"].(map[string]interface{}); ok {
-		delete(metadata, "managedFields")
-	}
-
-	// Assign the filtered data back to the custom type
-	*f = temp
-	return nil
-}
-
 func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj any) (*unstructured.Unstructured, error) {
 	b, err := json.Marshal(obj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal: %v", err)
-	}
-
-	if properties.On(false, "informer.exclude_managed_fields") {
-		m := make(FilteredData)
-		// The object returned by the informers do not have kind and apiversion set
-		m["kind"] = resource.Kind
-		m["apiVersion"] = resource.ApiVersion
-		return &unstructured.Unstructured{Object: m}, nil
 	}
 
 	var m map[string]any
@@ -421,16 +366,6 @@ func getUnstructuredFromInformedObj(resource v1.KubernetesResourceToWatch, obj a
 	// The object returned by the informers do not have kind and apiversion set
 	m["kind"] = resource.Kind
 	m["apiVersion"] = resource.ApiVersion
-
-	if properties.On(false, "log.informed_obj_size") {
-		if m != nil {
-			size := utils.MemsizeScan(&m)
-			u := &unstructured.Unstructured{Object: m}
-			if size > (100 * 1024) { // 100 KB
-				logger.Infof("Size for %s/%s/%s/%s=%s", resource.ApiVersion, resource.Kind, u.GetNamespace(), u.GetName(), HumanSize(size))
-			}
-		}
-	}
 
 	return &unstructured.Unstructured{Object: m}, nil
 }
