@@ -201,6 +201,15 @@ func (krws KubernetesResourcesToWatch) String() string {
 	return str
 }
 
+func (krws KubernetesResourcesToWatch) Contains(elem KubernetesResourceToWatch) bool {
+	for _, krw := range krws {
+		if krw.Kind == elem.Kind && krw.ApiVersion == elem.ApiVersion {
+			return true
+		}
+	}
+	return false
+}
+
 type KubernetesResourceToWatch struct {
 	ApiVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`
