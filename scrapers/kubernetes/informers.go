@@ -40,29 +40,14 @@ func informerClusterID(scraperID string, watchResources v1.KubernetesResourcesTo
 
 // WatchResources watches Kubernetes resources with shared informers
 func WatchResources(ctx api.ScrapeContext, config v1.Kubernetes) (*collections.Queue[*QueueItem], error) {
-	priorityQueue, err := collections.NewQueue(collections.QueueOpts[*QueueItem]{
-		Metrics: collections.MetricsOpts[*QueueItem]{
-			Name: "shared_informer",
-			Labels: map[string]any{
-				"scraper_id": ctx.ScraperID(),
-			},
-		},
-		Comparator: pqComparator,
-		Equals:     queueItemIsEqual,
-		Dedupe:     true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create queue: %w", err)
-	}
-
 	ctx.Context = ctx.WithKubernetes(config.KubernetesConnection)
 
 	watchResources := lo.Uniq(config.Watch)
 
-	// Register returns the priorityQueue from cache or the one we created
+	// Register returns the priorityQueue from cache or the one we create
 	// it is important to reuse the queue to prevent it from dangling (can cause memory leaks)
 	// since we keep the informers cached which enqueue to the queue they were created with
-	priorityQueue, err = globalSharedInformerManager.Register(ctx, watchResources, priorityQueue)
+	priorityQueue, err := globalSharedInformerManager.Register(ctx, watchResources)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register informer: %w", err)
 	}
@@ -96,10 +81,10 @@ type SharedInformerManager struct {
 
 type DeleteObjHandler func(ctx context.Context, id string) error
 
-func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v1.KubernetesResourcesToWatch, queue *collections.Queue[*QueueItem]) (*collections.Queue[*QueueItem], error) {
+func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v1.KubernetesResourcesToWatch) (*collections.Queue[*QueueItem], error) {
 	registrationTime := time.Now()
 
-	informerData, isNew, err := t.getOrCreate(ctx, watchResources, queue)
+	informerData, isNew, err := t.getOrCreate(ctx, watchResources)
 	if err != nil {
 		return nil, fmt.Errorf("error creating informer for watchResources[%s]: %w", watchResources, err)
 	}
@@ -255,7 +240,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v
 }
 
 // getOrCreate returns an existing shared informer instance or creates & returns a new one.
-func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, watchResources v1.KubernetesResourcesToWatch, queue *collections.Queue[*QueueItem]) (*informerCacheData, bool, error) {
+func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, watchResources v1.KubernetesResourcesToWatch) (*informerCacheData, bool, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -273,6 +258,21 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, watchResource
 
 	if val, ok := t.cache[clusterID]; ok {
 		return val, false, nil
+	}
+
+	queue, err := collections.NewQueue(collections.QueueOpts[*QueueItem]{
+		Metrics: collections.MetricsOpts[*QueueItem]{
+			Name: "shared_informer",
+			Labels: map[string]any{
+				"scraper_id": ctx.ScraperID(),
+			},
+		},
+		Comparator: pqComparator,
+		Equals:     queueItemIsEqual,
+		Dedupe:     true,
+	})
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to create queue: %w", err)
 	}
 
 	factory := informers.NewSharedInformerFactory(k8s, 0)
@@ -305,6 +305,7 @@ func (t *SharedInformerManager) stop(ctx api.ScrapeContext, scraperID string, cu
 	for k, v := range t.cache {
 		if strings.HasPrefix(k, scraperID) {
 			for _, ig := range v.group {
+				// If fingerprint is changed, new informers are created so old ones need to be stopped
 				if watchResourcesToExclude.Contains(ig.watchResource) && strings.Contains(k, currentFingerpint) {
 					continue
 				}
