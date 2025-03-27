@@ -46,11 +46,16 @@ func lastTrustedAdvisorCheck(ctx *AWSContext) (*time.Time, error) {
 		AND resource_id = ? 
 		AND details->'trusted_advisor' IS NOT NULL 
 	ORDER BY time_start DESC
+	LIMIT 1
 	`
 
 	var lastRan string
 	if err := ctx.DB().Raw(query, ctx.ScraperID()).Scan(&lastRan).Error; err != nil {
 		return nil, ctx.Oops().Wrapf(err, "failed to get last trusted advisor check")
+	}
+
+	if lastRan == "" {
+		return nil, nil
 	}
 
 	lastRanTime, err := time.Parse(time.RFC3339, lastRan)
