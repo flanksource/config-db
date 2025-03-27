@@ -34,7 +34,7 @@ var (
 	informerLagBuckets = []float64{1_000, 5_000, 30_000, 120_000, 300_000, 600_000, 900_000, 1_800_000}
 )
 
-func InformerClusterID(scraperID string, watchResources v1.KubernetesResourcesToWatch, authFingerprint string) string {
+func informerClusterID(scraperID string, watchResources v1.KubernetesResourcesToWatch, authFingerprint string) string {
 	return strings.Join([]string{scraperID, watchResources.String(), authFingerprint}, "/")
 }
 
@@ -269,7 +269,7 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, watchResource
 		return nil, false, fmt.Errorf("kube auth fingerprint is empty")
 	}
 
-	clusterID := InformerClusterID(ctx.ScraperID(), watchResources, ctx.KubeAuthFingerprint())
+	clusterID := informerClusterID(ctx.ScraperID(), watchResources, ctx.KubeAuthFingerprint())
 
 	if val, ok := t.cache[clusterID]; ok {
 		return val, false, nil
@@ -305,6 +305,7 @@ func (t *SharedInformerManager) stop(ctx api.ScrapeContext, scraperID string, wa
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	var keysToDelete []string
 	for k, v := range t.cache {
 		if strings.HasPrefix(k, scraperID) {
 			for _, ig := range v.group {
@@ -319,10 +320,13 @@ func (t *SharedInformerManager) stop(ctx api.ScrapeContext, scraperID string, wa
 				).Add(1)
 
 				close(ig.stopper)
+				keysToDelete = append(keysToDelete, k)
 			}
-
-			delete(t.cache, scraperID)
 		}
+	}
+
+	for _, k := range keysToDelete {
+		delete(t.cache, k)
 	}
 }
 
