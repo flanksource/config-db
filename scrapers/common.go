@@ -18,7 +18,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/sql"
 )
 
-// All is the scrappers registry
+// All is the scrapers registry
 var All = []api.Scraper{
 	azure.Scraper{},
 	aws.Scraper{},
