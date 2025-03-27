@@ -1,7 +1,6 @@
 package db
 
 import (
-	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -183,14 +182,6 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 	}
 
 	return ci, nil
-}
-
-func GetJSON(ci models.ConfigItem) []byte {
-	data, err := json.Marshal(ci.Config)
-	if err != nil {
-		logger.Errorf("Failed to marshal config: %+v", err)
-	}
-	return data
 }
 
 func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.ConfigRelationship) error {
