@@ -111,7 +111,7 @@ func (t *SharedInformerManager) Register(ctx api.ScrapeContext, watchResources v
 	}
 
 	// Stop existing informers that should not be watched
-	StopInformers(ctx, ctx.ScraperID(), watchResources)
+	globalSharedInformerManager.stop(ctx, ctx.ScraperID(), ctx.KubeAuthFingerprint(), watchResources)
 
 	ctx.Context = ctx.WithName("watch." + ctx.ScrapeConfig().Name)
 
@@ -295,13 +295,9 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, watchResource
 	return cacheValue, true, nil
 }
 
-func StopInformers(ctx api.ScrapeContext, scraperID string, watchResourcesToExclude v1.KubernetesResourcesToWatch) {
-	globalSharedInformerManager.stop(ctx, scraperID, watchResourcesToExclude)
-}
-
 // stop stops all shared informers for the given kubeconfig
 // apart from the ones provided.
-func (t *SharedInformerManager) stop(ctx api.ScrapeContext, scraperID string, watchResourcesToExclude v1.KubernetesResourcesToWatch) {
+func (t *SharedInformerManager) stop(ctx api.ScrapeContext, scraperID string, currentFingerpint string, watchResourcesToExclude v1.KubernetesResourcesToWatch) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -309,7 +305,7 @@ func (t *SharedInformerManager) stop(ctx api.ScrapeContext, scraperID string, wa
 	for k, v := range t.cache {
 		if strings.HasPrefix(k, scraperID) {
 			for _, ig := range v.group {
-				if watchResourcesToExclude.Contains(ig.watchResource) {
+				if watchResourcesToExclude.Contains(ig.watchResource) && strings.Contains(k, currentFingerpint) {
 					continue
 				}
 				ig.informer.Informer().IsStopped()
