@@ -97,7 +97,7 @@ func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) err
 func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 	plugins, err := db.LoadAllPlugins(ctx.DutyContext())
 	if err != nil {
-		return nil, err
+		return nil, ctx.Oops().Wrapf(err, "failed to load plugins")
 	}
 
 	var results v1.ScrapeResults
@@ -126,6 +126,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 			results = append(results, scraped...)
 		}
 	}
+
 	return results, nil
 }
 

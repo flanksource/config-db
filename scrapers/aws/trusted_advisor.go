@@ -2,6 +2,7 @@ package aws
 
 import (
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/support"
 	"github.com/flanksource/commons/logger"
@@ -9,6 +10,8 @@ import (
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 )
+
+const TrustedAdvisorCheckDefaultInterval = time.Hour * 16
 
 func mapCategoryToAnalysisType(category string) models.AnalysisType {
 	switch category {
@@ -36,8 +39,38 @@ func mapSeverity(severity string) models.Severity {
 	return models.SeverityInfo
 }
 
+func lastTrustedAdvisorCheck(ctx *AWSContext) (*time.Time, error) {
+	query := `SELECT details->>'trusted_advisor' AS lastRan 
+	FROM job_history 
+	WHERE name = 'Scraper' 
+		AND resource_id = ? 
+		AND details->'trusted_advisor' IS NOT NULL 
+	ORDER BY time_start DESC
+	`
+
+	var lastRan string
+	if err := ctx.DB().Raw(query, ctx.ScraperID()).Scan(&lastRan).Error; err != nil {
+		return nil, ctx.Oops().Wrapf(err, "failed to get last trusted advisor check")
+	}
+
+	lastRanTime, err := time.Parse(time.RFC3339, lastRan)
+	if err != nil {
+		return nil, err
+	}
+
+	return &lastRanTime, nil
+}
+
 func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
 	if config.Excludes("trusted_advisor") {
+		return
+	}
+
+	checkInterval := ctx.Properties().Duration("scraper.aws.trusted_advisor.minInterval", TrustedAdvisorCheckDefaultInterval)
+	if lastRan, err := lastTrustedAdvisorCheck(ctx); err != nil {
+		results.Errorf(err, "failed to get last trusted advisor check")
+	} else if lastRan != nil && time.Since(*lastRan) < checkInterval {
+		logger.Infof("skipping trusted advisor check as it was run %s ago", time.Since(*lastRan))
 		return
 	}
 
@@ -49,6 +82,9 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 		results.Errorf(err, "Failed to describe trusted advisor checks")
 		return
 	}
+
+	// Keep track of a successful trusted advisor check so we can skip the next check if it was run less than min interval
+	ctx.JobHistory().AddDetails("trusted_advisor", time.Now().Format(time.RFC3339))
 
 	for _, check := range trustAdvidorChecksDescribeOutput.Checks {
 		if config.Excludes(*check.Name) {
