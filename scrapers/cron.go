@@ -166,7 +166,7 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 	}
 
 	existingScraper := existingJob.Context.Value("scraper")
-	if existingScraper != nil && !reflect.DeepEqual(existingScraper.(*v1.ScrapeConfig).Spec, sc.ScrapeConfig().Spec) {
+	if existingScraper != nil && !reflect.DeepEqual(existingScraper.(v1.ScrapeConfig).Spec, sc.ScrapeConfig().Spec) {
 		sc.DutyContext().Debugf("Rescheduling %s scraper with updated specs", sc.ScrapeConfig().Name)
 		DeleteScrapeJob(id)
 		return scheduleScraperJob(sc)
@@ -200,7 +200,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 
 	return &job.Job{
 		Name:         scrapeJobName,
-		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", sc.ScrapeConfig()),
+		Context:      sc.DutyContext().WithObject(sc.ScrapeConfig().ObjectMeta).WithAnyValue("scraper", lo.FromPtr(sc.ScrapeConfig().DeepCopy())),
 		Schedule:     schedule,
 		Singleton:    true,
 		JobHistory:   true,
@@ -316,6 +316,6 @@ func DeleteScrapeJob(id string) {
 	if j, ok := scrapeJobs.Load(consumeKubernetesWatchJobKey(id)); ok {
 		existingJob := j.(*job.Job)
 		existingJob.Unschedule()
-		scrapeJobs.Delete(id)
+		scrapeJobs.Delete(consumeKubernetesWatchJobKey(id))
 	}
 }
