@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
@@ -186,12 +187,15 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 }
 
 var configRelationshipUpdateMutex sync.Mutex
+var mutexWaitBucketsMs = []float64{500, 1_000, 3_000, 5_000, 10_000, 15_000, 30_000, 60_000, 100_000, 150_000, 300_000, 600_000}
 
 func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.ConfigRelationship) error {
 	// The mutex prevents ShareLock deadlock errors since this function can be called by
 	// both Scraper & consumeWatchKubernetes job and might end up trying to update the same rows
 	// at the same time
+	lockWaitStart := time.Now()
 	configRelationshipUpdateMutex.Lock()
+	ctx.Histogram("config_relationship_update_mutex_wait_ms", mutexWaitBucketsMs).Record(time.Duration(time.Since(lockWaitStart).Milliseconds()))
 	defer configRelationshipUpdateMutex.Unlock()
 
 	return dutydb.ErrorDetails(ctx.DB().Clauses(clause.OnConflict{
