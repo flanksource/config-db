@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
@@ -184,11 +185,19 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 	return ci, nil
 }
 
+var configRelationshipUpdateMutex sync.Mutex
+
 func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.ConfigRelationship) error {
+	// The mutex prevents ShareLock deadlock errors since this function can be called by
+	// both Scraper & consumeWatchKubernetes job and might end up trying to update the same rows
+	// at the same time
+	configRelationshipUpdateMutex.Lock()
+	defer configRelationshipUpdateMutex.Unlock()
+
 	return dutydb.ErrorDetails(ctx.DB().Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "relation"}},
 		DoNothing: true,
-	}).CreateInBatches(relationships, 200).Error)
+	}).CreateInBatches(relationships, 500).Error)
 }
 
 // FindConfigChangesByItemID returns all the changes of the given config item
