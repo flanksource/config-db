@@ -742,6 +742,11 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Relationship:      "EKSSecuritygroups",
 		})
 
+		var parents []v1.ConfigExternalKey
+		if vpcID := lo.FromPtr(cluster.Cluster.ResourcesVpcConfig.VpcId); vpcID != "" {
+			parents = []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: vpcID}}
+		}
+
 		cluster.Cluster.Tags["account"] = lo.FromPtr(ctx.Caller.Account)
 		cluster.Cluster.Tags["region"] = getRegionFromArn(*cluster.Cluster.Arn, "eks")
 
@@ -758,7 +763,7 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			Aliases:             []string{*cluster.Cluster.Arn, "AmazonEKS/" + *cluster.Cluster.Arn},
 			ID:                  *cluster.Cluster.Arn,
 			Ignore:              []string{"createdAt", "name"},
-			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: *cluster.Cluster.ResourcesVpcConfig.VpcId}},
+			Parents:             parents,
 			RelationshipResults: relationships,
 		})
 
