@@ -1,8 +1,10 @@
 package kubernetes
 
 import (
+	gocontext "context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -10,6 +12,7 @@ import (
 	"github.com/flanksource/ketall"
 	ketallClient "github.com/flanksource/ketall/client"
 	"github.com/flanksource/ketall/options"
+	"github.com/sethvargo/go-retry"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -22,13 +25,32 @@ func scrape(ctx api.ScrapeContext, config v1.Kubernetes) ([]*unstructured.Unstru
 		return nil, err
 	}
 
-	objs, err := ketall.KetAll(ctx, opts)
-	if err != nil {
-		if errors.Is(err, ketallClient.ErrEmpty) {
-			return nil, fmt.Errorf("no resources returned due to insufficient access")
+	var objs []*unstructured.Unstructured
+
+	backoff := retry.WithMaxRetries(3, retry.NewExponential(time.Second))
+	err = retry.Do(ctx, backoff, func(goctx gocontext.Context) error {
+		objs, err = ketall.KetAll(ctx, opts)
+		if err != nil {
+			if errors.Is(err, ketallClient.ErrEmpty) {
+				return fmt.Errorf("no resources returned due to insufficient access")
+			}
+			return err
 		}
-		return nil, err
-	}
+
+		if len(objs) == 0 {
+			// This scenario happens when new CRDs are introduced but we have a cached
+			// restmapper who's discovery information is outdated
+			// We reset the internal discovery cache
+			k8s, err := ctx.Kubernetes()
+			if err != nil {
+				return fmt.Errorf("error getting k8s client: %w", err)
+			}
+			k8s.ResetRestMapper()
+			return retry.RetryableError(fmt.Errorf("no resources or error returned"))
+		}
+
+		return nil
+	})
 
 	return objs, nil
 }
