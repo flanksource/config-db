@@ -13,6 +13,7 @@ import (
 	"github.com/Jeffail/gabs/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
 	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -119,6 +120,8 @@ func getEndpointResolver[T any](awsConfig v1.AWS) func(o *T) {
 		case *elasticloadbalancing.Options:
 			opts.BaseEndpoint = val
 		case *elasticloadbalancingv2.Options:
+			opts.BaseEndpoint = val
+		case *cloudtrail.Options:
 			opts.BaseEndpoint = val
 		default:
 			logger.Errorf("unsupported type for resolver endpoint: %T", o)
