@@ -35,7 +35,8 @@ func (t *changeRule) match(result *v1.ScrapeResult) (bool, error) {
 		"config":      result.ConfigMap(),
 		"config_type": result.Type,
 	}
-	return evaluateCelExpression(t.Filter, env)
+
+	return gomplate.RunTemplateBool(env, gomplate.Template{Expression: t.Filter})
 }
 
 func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) error {
@@ -44,11 +45,10 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) err
 		"patch":  change.PatchesMap(),
 	}
 
-	ok, err := evaluateCelExpression(t.Rule, env)
+	ok, err := gomplate.RunTemplateBool(env, gomplate.Template{Expression: t.Rule})
 	if err != nil {
-		return fmt.Errorf("failed to evaluate rule (%s): %w", lo.Elipse(t.Rule, 30), err)
-	}
-	if !ok {
+		return fmt.Errorf("failed to evaluate change mapping rule (%s): %w", lo.Elipse(t.Rule, 30), err)
+	} else if !ok {
 		return nil
 	}
 
