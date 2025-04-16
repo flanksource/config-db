@@ -16,6 +16,17 @@ var _ = Describe("TestProcessRules", Ordered, func() {
 		err    bool
 	}{
 		{
+			name: "config_type in celenv",
+			input: v1.ScrapeResult{
+				Changes: []v1.ChangeResult{{ChangeType: "diff", Patches: "", ConfigType: "HelmRelease"}},
+			},
+			expect: []v1.ChangeResult{{ChangeType: "diff", Patches: "", ConfigType: "HelmRelease"}},
+			rules: []v1.ChangeMapping{{
+				Type:   "diff",
+				Filter: `config_type == 'HelmRelease'`,
+			}},
+		},
+		{
 			name: "health mapping - fail",
 			input: v1.ScrapeResult{
 				Changes: []v1.ChangeResult{{ChangeType: "diff", Patches: ""}},
@@ -102,6 +113,10 @@ var _ = Describe("TestProcessRules", Ordered, func() {
 	}
 
 	for _, tt := range tests {
+		// if tt.name != "config_type in celenv" {
+		// 	continue
+		// }
+
 		It(tt.name, func() {
 			err := ProcessRules(api.NewScrapeContext(DefaultContext), &tt.input, tt.rules...)
 			if tt.err {

@@ -40,10 +40,12 @@ func (t *changeRule) match(result *v1.ScrapeResult) (bool, error) {
 }
 
 func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) error {
-	env := map[string]any{
-		"change": change.AsMap(),
-		"patch":  change.PatchesMap(),
-	}
+	env := change.AsMap()
+
+	// Deprecated: For backwards compatibility
+	change.FlushMap() // To prevent recursion
+	env["change"] = change.AsMap()
+	env["patch"] = change.PatchesMap()
 
 	ok, err := gomplate.RunTemplateBool(env, gomplate.Template{Expression: t.Rule})
 	if err != nil {
