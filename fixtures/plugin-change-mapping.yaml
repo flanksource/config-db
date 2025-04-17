@@ -7,11 +7,11 @@ spec:
   changes:
     mapping:
       - filter: >
-          change.change_type == 'diff' && change.summary == "status.containerStatuses" &&
+          change_type == 'diff' && summary == "status.containerStatuses" &&
           patch != null && has(patch.status) && has(patch.status.containerStatuses) &&
           patch.status.containerStatuses.size() > 0 &&
           has(patch.status.containerStatuses[0].restartCount)
         type: PodCrashLooping
       - filter: >
-          change.change_type == 'diff' && change.summary == "status.images" && config.kind == "Node"
+          change_type == 'diff' && summary == "status.images" && config.kind == "Node"
         type: ImageUpdated
