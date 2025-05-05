@@ -42,14 +42,17 @@ func (t *changeRule) match(result *v1.ScrapeResult) (bool, error) {
 func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) error {
 	env := change.AsMap()
 
-	// Deprecated: For backwards compatibility
+	// The "change" and "patch" variables are deprecated.
+	// For backwards compatibility, we set them to the current change and patch.
+	//
 	change.FlushMap() // To prevent recursion
+
 	env["change"] = change.AsMap()
 	env["patch"] = change.PatchesMap()
 
 	ok, err := gomplate.RunTemplateBool(env, gomplate.Template{Expression: t.Rule})
 	if err != nil {
-		return fmt.Errorf("failed to evaluate change mapping rule (%s): %w", lo.Elipse(t.Rule, 30), err)
+		return fmt.Errorf("failed to evaluate change mapping rule (%s): %w", lo.Ellipsis(t.Rule, 30), err)
 	} else if !ok {
 		return nil
 	}
