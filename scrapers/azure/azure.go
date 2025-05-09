@@ -25,7 +25,6 @@ import (
 	"github.com/flanksource/commons/utils"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
-	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/samber/lo"
 
@@ -812,16 +811,6 @@ func (azure Scraper) fetchAppServices() v1.ScrapeResults {
 	}
 
 	return results
-}
-
-func (azure Scraper) getGraphClient() (*msgraphsdkgo.GraphServiceClient, error) {
-	graphCred, err := azidentity.NewClientSecretCredential(azure.config.TenantID, azure.config.ClientID.ValueStatic, azure.config.ClientSecret.ValueStatic, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return msgraphsdkgo.NewGraphServiceClientWithCredentials(graphCred, []string{"https://graph.microsoft.com/.default"})
-
 }
 
 // fetchDNS gets Azure app services in a subscription.

@@ -204,6 +204,12 @@
         "tenantID": {
           "type": "string"
         },
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "exclusions": {
           "$ref": "#/$defs/AzureExclusions"
         }

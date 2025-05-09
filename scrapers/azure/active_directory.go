@@ -3,8 +3,10 @@ package azure
 import (
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/types"
+	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
 	graphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
 	"github.com/microsoftgraph/msgraph-sdk-go/applications"
 	msgraphModels "github.com/microsoftgraph/msgraph-sdk-go/models"
@@ -24,6 +26,15 @@ func (azure Scraper) scrapeActiveDirectory() v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 	results = append(results, azure.fetchAppRegistrations()...)
 	return results
+}
+
+func (azure Scraper) getGraphClient() (*msgraphsdkgo.GraphServiceClient, error) {
+	graphCred, err := azidentity.NewClientSecretCredential(azure.config.TenantID, azure.config.ClientID.ValueStatic, azure.config.ClientSecret.ValueStatic, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return msgraphsdkgo.NewGraphServiceClientWithCredentials(graphCred, []string{"https://graph.microsoft.com/.default"})
 }
 
 // fetchAppRegistrations gets Azure App Registrations in a tenant.
