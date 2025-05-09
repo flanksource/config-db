@@ -361,6 +361,28 @@ func (aws AWSConnection) ToDutyAWSConnection(region string) *connection.AWSConne
 	}
 }
 
+// GCPConnection ...
+type GCPConnection struct {
+	Endpoint    string        `yaml:"endpoint" json:"endpoint,omitempty"`
+	Credentials *types.EnvVar `yaml:"credentials" json:"credentials,omitempty"`
+}
+
+func (gcp GCPConnection) GetModel() *models.Connection {
+	return &models.Connection{
+		URL:         gcp.Endpoint,
+		Certificate: gcp.Credentials.String(),
+	}
+}
+
+type AzureConnection struct {
+	ConnectionName string       `yaml:"connection,omitempty" json:"connection,omitempty"`
+	SubscriptionID string       `yaml:"subscriptionID" json:"subscriptionID"`
+	Organisation   string       `yaml:"organisation" json:"organisation"`
+	ClientID       types.EnvVar `yaml:"clientID,omitempty" json:"clientID,omitempty"`
+	ClientSecret   types.EnvVar `yaml:"clientSecret,omitempty" json:"clientSecret,omitempty"`
+	TenantID       string       `yaml:"tenantID,omitempty" json:"tenantID,omitempty"`
+}
+
 type Connection struct {
 	// Connection is either the name of the connection to lookup
 	// or the connection string itself.

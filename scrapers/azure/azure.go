@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
@@ -26,6 +25,9 @@ import (
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
+	graphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
+	"github.com/microsoftgraph/msgraph-sdk-go/applications"
+	msgraphModels "github.com/microsoftgraph/msgraph-sdk-go/models"
 
 	"github.com/samber/lo"
 
@@ -186,6 +188,7 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		results = append(results, azure.fetchStorageAccounts()...)
 		results = append(results, azure.fetchAppServices()...)
 		results = append(results, azure.fetchDNS()...)
+		results = append(results, azure.fetchAppRegistrations()...)
 		results = append(results, azure.fetchPrivateDNSZones()...)
 		results = append(results, azure.fetchTrafficManagerProfiles()...)
 		results = append(results, azure.fetchNetworkSecurityGroups()...)
@@ -640,7 +643,7 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 func (azure Scraper) fetchVirtualMachines() v1.ScrapeResults {
 
 	var results v1.ScrapeResults
-	if !azure.config.Includes(IncludeVirtualMachines) {
+	if !azure.config.Includes("virtualMachines") {
 		return results
 	}
 	azure.ctx.Logger.V(3).Infof("fetching virtual machines for subscription %s", azure.config.SubscriptionID)
@@ -737,7 +740,7 @@ func (azure *Scraper) fetchResourceGroups() v1.ScrapeResults {
 
 	var results v1.ScrapeResults
 
-	if !azure.config.Includes(IncludeResourceGroups) {
+	if !azure.config.Includes("resourceGroups") {
 		return results
 	}
 
@@ -810,7 +813,7 @@ func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
 	azure.ctx.Logger.V(3).Infof("fetching storage accounts for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
-	if !azure.config.Includes(IncludeStorageAccounts) {
+	if !azure.config.Includes("storageAccounts") {
 		return results
 	}
 
@@ -848,7 +851,7 @@ func (azure Scraper) fetchAppServices() v1.ScrapeResults {
 
 	var results v1.ScrapeResults
 
-	if !azure.config.Includes(IncludeAppServices) {
+	if !azure.config.Includes("appServices") {
 		return results
 	}
 
@@ -880,41 +883,91 @@ func (azure Scraper) fetchAppServices() v1.ScrapeResults {
 	return results
 }
 
-// fetchDNS gets Azure app services in a subscription.
-func (azure Scraper) fetchDNS() v1.ScrapeResults {
-	if !azure.config.Includes(IncludeDNS) {
-		return nil
+func (azure Scraper) getGraphClient() (*msgraphsdkgo.GraphServiceClient, error) {
+	graphCred, err := azidentity.NewClientSecretCredential(azure.config.TenantID, azure.config.ClientID.ValueStatic, azure.config.ClientSecret.ValueStatic, nil)
+	if err != nil {
+		return nil, err
 	}
 
-	azure.ctx.Logger.V(3).Infof("fetching dns zones for subscription %s", azure.config.SubscriptionID)
+	return msgraphsdkgo.NewGraphServiceClientWithCredentials(graphCred, []string{"https://graph.microsoft.com/.default"})
+
+}
+
+// fetchAppRegistrations gets Azure App Registrations in a tenant.
+func (azure Scraper) fetchAppRegistrations() v1.ScrapeResults {
+	azure.ctx.Logger.V(3).Infof("fetching app registrations for tenant %s", azure.config.TenantID)
 
 	var results v1.ScrapeResults
-	client, err := armdns.NewZonesClient(azure.config.SubscriptionID, azure.cred, nil)
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate dns zone client: %w", err)})
+
+	if !azure.config.Includes("appRegistrations") {
+		return results
 	}
 
-	pager := client.NewListPager(nil)
-	for pager.More() {
-		respPage, err := pager.NextPage(azure.ctx)
-		if err != nil {
-			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read dns zone next page: %w", err)})
-		}
+	graphClient, err := azure.getGraphClient()
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create graph client: %w", err)})
+	}
 
-		for _, v := range respPage.Value {
-			results = append(results, v1.ScrapeResult{
-				BaseScraper: azure.config.BaseScraper,
-				ID:          getARMID(v.ID),
-				Name:        deref(v.Name),
-				Config:      v,
-				ConfigClass: "DNSZone",
-				Type:        getARMType(v.Type),
-				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
-			})
-		}
+	// Get apps with pagination
+	apps, err := graphClient.Applications().Get(azure.ctx, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch app registrations: %w", err)})
+	}
+
+	// Process the first page
+	for _, app := range apps.GetValue() {
+		results = append(results, azure.appToScrapeResult(app.(*msgraphModels.Application)))
+	}
+
+	// Process additional pages if they exist
+	pageIterator, err := graphcore.NewPageIterator[*msgraphModels.Application](apps, graphClient.GetAdapter(), applications.CreateDeltaGetResponseFromDiscriminatorValue)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
+	}
+
+	err = pageIterator.Iterate(azure.ctx, func(app *msgraphModels.Application) bool {
+		results = append(results, azure.appToScrapeResult(app))
+
+		return true
+	})
+
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to iterate through pages: %w", err)})
 	}
 
 	return results
+}
+
+func (azure Scraper) appToScrapeResult(app *msgraphModels.Application) v1.ScrapeResult {
+	appID := *app.GetId()
+	displayName := *app.GetDisplayName()
+
+	return v1.ScrapeResult{
+		BaseScraper: azure.config.BaseScraper,
+		ID:          fmt.Sprintf("/tenants/%s/applications/%s", azure.config.TenantID, appID),
+		Name:        displayName,
+		Config:      app,
+		ConfigClass: "AppRegistration",
+		Type:        ConfigTypePrefix + "AppRegistration",
+		Properties: []*types.Property{
+			{
+				Name: "URL",
+				Icon: ConfigTypePrefix + "AppRegistration",
+				Links: []types.Link{
+					{
+						Text: types.Text{Label: "Console"},
+						URL:  fmt.Sprintf("https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/%s", *app.GetAppId()),
+					},
+				},
+			},
+		},
+		Tags: []v1.Tag{
+			{
+				Name:  "appId",
+				Value: *app.GetAppId(),
+			},
+		},
+	}
 }
 
 // fetchPrivateDNSZones gets Azure app services in a subscription.
@@ -923,7 +976,7 @@ func (azure Scraper) fetchPrivateDNSZones() v1.ScrapeResults {
 
 	var results v1.ScrapeResults
 
-	if !azure.config.Includes(IncludePrivateDNS) {
+	if !azure.config.Includes("privateDns") {
 		return results
 	}
 
@@ -961,7 +1014,7 @@ func (azure Scraper) fetchTrafficManagerProfiles() v1.ScrapeResults {
 
 	var results v1.ScrapeResults
 
-	if !azure.config.Includes(IncludeTrafficManager) {
+	if !azure.config.Includes("trafficManager") {
 		return results
 	}
 
@@ -998,7 +1051,7 @@ func (azure Scraper) fetchNetworkSecurityGroups() v1.ScrapeResults {
 	azure.ctx.Logger.V(3).Infof("fetching network security groups for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
-	if !azure.config.Includes(IncludeSecurityGroups) {
+	if !azure.config.Includes("securityGroups") {
 		return results
 	}
 
@@ -1037,7 +1090,7 @@ func (azure Scraper) fetchPublicIPAddresses() v1.ScrapeResults {
 
 	var results v1.ScrapeResults
 
-	if !azure.config.Includes(IncludePublicIPs) {
+	if !azure.config.Includes("publicIps") {
 		return results
 	}
 

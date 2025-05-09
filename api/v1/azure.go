@@ -41,6 +41,13 @@ func (azure Azure) Includes(resource string) bool {
 	return collections.MatchItems(resource, azure.Include...)
 }
 
+func (azure Azure) Includes(resource string) bool {
+	if len(azure.Include) == 0 {
+		return true
+	}
+	return collections.MatchItems(resource, azure.Include...)
+}
+
 type AzureExclusions struct {
 	// ActivityLogs is a list of operations to exclude from activity logs.
 	// Example:
