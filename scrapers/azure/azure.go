@@ -170,9 +170,8 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		results = append(results, azure.fetchAdvisorAnalysis()...)
 		results = append(results, azure.fetchActivityLogs()...)
 
-		results = append(results, azure.scrapeActiveDirectory()...)
-
-		// Post processing of all results
+		// Set subscription id and name as tags & parents where missing for all resources
+		// before we fetch active directory resources as they're not part of a subscription
 		for i := range results {
 			if results[i].ID == "" {
 				continue // changes & analysis only
@@ -189,13 +188,6 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				Value: azure.subscriptionName,
 			})
 
-			for _, t := range config.Tags {
-				results[i].Tags = append(results[i].Tags, v1.Tag{
-					Name:  t.Name,
-					Value: t.Value,
-				})
-			}
-
 			// Set parents where missing
 			for j, parent := range results[i].Parents {
 				if parent.ExternalID == "" {
@@ -209,6 +201,18 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 						results[i].Parents[j].Type = getARMType(lo.ToPtr(ResourceTypeSubscription))
 					}
 				}
+			}
+		}
+
+		results = append(results, azure.scrapeActiveDirectory()...)
+
+		// Set tags
+		for i := range results {
+			for _, t := range config.Tags {
+				results[i].Tags = append(results[i].Tags, v1.Tag{
+					Name:  t.Name,
+					Value: t.Value,
+				})
 			}
 		}
 	}
