@@ -18,26 +18,30 @@ const (
 	IncludeActiveDirectory  = "activeDirectory"
 	IncludeAppRegistrations = "appRegistrations"
 	IncludeUsers            = "users"
+	IncludeGroups           = "groups"
 )
 
-func (azure Scraper) scrapeActiveDirectory() v1.ScrapeResults {
+func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	if !azure.config.Includes(IncludeActiveDirectory) {
-		return nil
+		return nil, nil
 	}
 
-	results := v1.ScrapeResults{}
-	results = append(results, azure.fetchAppRegistrations()...)
-	results = append(results, azure.fetchUsers()...)
-	return results
-}
-
-func (azure Scraper) getGraphClient() (*msgraphsdkgo.GraphServiceClient, error) {
 	graphCred, err := azidentity.NewClientSecretCredential(azure.config.TenantID, azure.config.ClientID.ValueStatic, azure.config.ClientSecret.ValueStatic, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return msgraphsdkgo.NewGraphServiceClientWithCredentials(graphCred, []string{"https://graph.microsoft.com/.default"})
+	client, err := msgraphsdkgo.NewGraphServiceClientWithCredentials(graphCred, []string{"https://graph.microsoft.com/.default"})
+	if err != nil {
+		return nil, err
+	}
+	azure.graphClient = client
+
+	results := v1.ScrapeResults{}
+	results = append(results, azure.fetchAppRegistrations()...)
+	results = append(results, azure.fetchUsers()...)
+	results = append(results, azure.fetchGroups()...)
+	return results, nil
 }
 
 // fetchAppRegistrations gets Azure App Registrations in a tenant.
@@ -49,12 +53,8 @@ func (azure Scraper) fetchAppRegistrations() v1.ScrapeResults {
 	azure.ctx.Logger.V(3).Infof("fetching app registrations for tenant %s", azure.config.TenantID)
 
 	var results v1.ScrapeResults
-	graphClient, err := azure.getGraphClient()
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create graph client: %w", err)})
-	}
 
-	apps, err := graphClient.Applications().Get(azure.ctx, nil)
+	apps, err := azure.graphClient.Applications().Get(azure.ctx, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch app registrations: %w", err)})
 	}
@@ -63,7 +63,7 @@ func (azure Scraper) fetchAppRegistrations() v1.ScrapeResults {
 		results = append(results, azure.appToScrapeResult(app.(*msgraphModels.Application)))
 	}
 
-	pageIterator, err := graphcore.NewPageIterator[*msgraphModels.Application](apps, graphClient.GetAdapter(), applications.CreateDeltaGetResponseFromDiscriminatorValue)
+	pageIterator, err := graphcore.NewPageIterator[*msgraphModels.Application](apps, azure.graphClient.GetAdapter(), applications.CreateDeltaGetResponseFromDiscriminatorValue)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
 	}
@@ -116,12 +116,8 @@ func (azure Scraper) fetchUsers() v1.ScrapeResults {
 	azure.ctx.Logger.V(3).Infof("fetching users for tenant %s", azure.config.TenantID)
 
 	var results v1.ScrapeResults
-	graphClient, err := azure.getGraphClient()
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create graph client: %w", err)})
-	}
 
-	users, err := graphClient.Users().Get(azure.ctx, nil)
+	users, err := azure.graphClient.Users().Get(azure.ctx, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch users: %w", err)})
 	}
@@ -130,7 +126,7 @@ func (azure Scraper) fetchUsers() v1.ScrapeResults {
 		results = append(results, azure.userToScrapeResult(user))
 	}
 
-	pageIterator, err := graphcore.NewPageIterator[msgraphModels.Userable](users, graphClient.GetAdapter(), nil)
+	pageIterator, err := graphcore.NewPageIterator[msgraphModels.Userable](users, azure.graphClient.GetAdapter(), nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
 	}
@@ -166,6 +162,66 @@ func (azure Scraper) userToScrapeResult(user msgraphModels.Userable) v1.ScrapeRe
 					{
 						Text: types.Text{Label: "Console"},
 						URL:  fmt.Sprintf("https://portal.azure.com/#view/Microsoft_AAD_UsersAndTenants/UserProfileMenuBlade/~/overview/userId/%s/hidePreviewBanner~/true", userID),
+					},
+				},
+			},
+		},
+	}
+}
+
+// fetchGroups gets Azure AD groups in a tenant.
+func (azure Scraper) fetchGroups() v1.ScrapeResults {
+	if !azure.config.Includes(IncludeGroups) {
+		return nil
+	}
+
+	azure.ctx.Logger.V(3).Infof("fetching groups for tenant %s", azure.config.TenantID)
+
+	var results v1.ScrapeResults
+	groups, err := azure.graphClient.Groups().Get(azure.ctx, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch groups: %w", err)})
+	}
+
+	for _, group := range groups.GetValue() {
+		results = append(results, azure.groupToScrapeResult(group))
+	}
+
+	pageIterator, err := graphcore.NewPageIterator[msgraphModels.Groupable](groups, azure.graphClient.GetAdapter(), nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
+	}
+
+	err = pageIterator.Iterate(azure.ctx, func(group msgraphModels.Groupable) bool {
+		results = append(results, azure.groupToScrapeResult(group))
+		return true
+	})
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to iterate through pages: %w", err)})
+	}
+
+	return results
+}
+
+func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable) v1.ScrapeResult {
+	groupID := lo.FromPtr(group.GetId())
+	displayName := *group.GetDisplayName()
+
+	return v1.ScrapeResult{
+		BaseScraper: azure.config.BaseScraper,
+		ID:          groupID,
+		Name:        displayName,
+		Config:      group.GetBackingStore().Enumerate(),
+		ConfigClass: "Group",
+		Type:        ConfigTypePrefix + "Group",
+		Properties: []*types.Property{
+			{
+				Name: "URL",
+				Icon: ConfigTypePrefix + "Group",
+				Links: []types.Link{
+					{
+						Text: types.Text{Label: "Console"},
+						URL:  fmt.Sprintf("https://portal.azure.com/#view/Microsoft_AAD_UsersAndTenants/GroupMenuBlade/~/Properties/groupId/%s/hidePreviewBanner~/true", groupID),
 					},
 				},
 			},

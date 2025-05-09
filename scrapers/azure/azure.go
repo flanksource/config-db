@@ -25,6 +25,7 @@ import (
 	"github.com/flanksource/commons/utils"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/samber/lo"
 
@@ -86,6 +87,8 @@ type Scraper struct {
 	ctx    api.ScrapeContext
 	cred   *azidentity.ClientSecretCredential
 	config *v1.Azure
+
+	graphClient *msgraphsdkgo.GraphServiceClient
 
 	// Populate these first with list of all resource groups
 	// to fetch items grouped by resourceGroups
@@ -204,7 +207,10 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 		}
 
-		results = append(results, azure.scrapeActiveDirectory()...)
+		results, err = azure.scrapeActiveDirectory()
+		if err != nil {
+			results.Errorf(err, "failed to scrape active directory")
+		}
 
 		// Set tags
 		for i := range results {
