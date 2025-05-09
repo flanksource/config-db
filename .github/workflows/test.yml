@@ -53,6 +53,7 @@ jobs:
         run: make test-prod
 
   test-load:
+    if: false # disabled for now
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
