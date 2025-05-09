@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
@@ -152,7 +153,7 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		results = append(results, azure.fetchSubscriptions()...)
 		results = append(results, azure.fetchStorageAccounts()...)
 		results = append(results, azure.fetchAppServices()...)
-		// results = append(results, azure.fetchDNS()...)
+		results = append(results, azure.fetchDNS()...)
 		results = append(results, azure.fetchAppRegistrations()...)
 		results = append(results, azure.fetchPrivateDNSZones()...)
 		results = append(results, azure.fetchTrafficManagerProfiles()...)
@@ -887,6 +888,43 @@ func (azure Scraper) appToScrapeResult(app *msgraphModels.Application) v1.Scrape
 			},
 		},
 	}
+}
+
+// fetchDNS gets Azure app services in a subscription.
+func (azure Scraper) fetchDNS() v1.ScrapeResults {
+	if !azure.config.Includes("dns") {
+		return nil
+	}
+
+	azure.ctx.Logger.V(3).Infof("fetching dns zones for subscription %s", azure.config.SubscriptionID)
+
+	var results v1.ScrapeResults
+	client, err := armdns.NewZonesClient(azure.config.SubscriptionID, azure.cred, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate dns zone client: %w", err)})
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		respPage, err := pager.NextPage(azure.ctx)
+		if err != nil {
+			return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to read dns zone next page: %w", err)})
+		}
+
+		for _, v := range respPage.Value {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper: azure.config.BaseScraper,
+				ID:          getARMID(v.ID),
+				Name:        deref(v.Name),
+				Config:      v,
+				ConfigClass: "DNSZone",
+				Type:        getARMType(v.Type),
+				Properties:  []*types.Property{getConsoleLink(lo.FromPtr(v.ID), getARMType(v.Type))},
+			})
+		}
+	}
+
+	return results
 }
 
 // fetchPrivateDNSZones gets Azure app services in a subscription.
