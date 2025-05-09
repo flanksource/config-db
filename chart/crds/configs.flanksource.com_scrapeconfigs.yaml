@@ -665,6 +665,10 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the ID for the resource.
                       type: string
+                    include:
+                      items:
+                        type: string
+                      type: array
                     items:
                       description: |-
                         A JSONPath expression to use to extract individual items from the resource,
