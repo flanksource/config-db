@@ -3,10 +3,8 @@ package azure
 import (
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/types"
-	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
 	graphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
 	"github.com/microsoftgraph/msgraph-sdk-go/applications"
 	msgraphModels "github.com/microsoftgraph/msgraph-sdk-go/models"
@@ -25,17 +23,6 @@ func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	if !azure.config.Includes(IncludeActiveDirectory) {
 		return nil, nil
 	}
-
-	graphCred, err := azidentity.NewClientSecretCredential(azure.config.TenantID, azure.config.ClientID.ValueStatic, azure.config.ClientSecret.ValueStatic, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := msgraphsdkgo.NewGraphServiceClientWithCredentials(graphCred, []string{"https://graph.microsoft.com/.default"})
-	if err != nil {
-		return nil, err
-	}
-	azure.graphClient = client
 
 	results := v1.ScrapeResults{}
 	results = append(results, azure.fetchAppRegistrations()...)

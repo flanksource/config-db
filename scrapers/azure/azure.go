@@ -153,6 +153,18 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		azure.config = &config
 		azure.cred = cred
 
+		if err := azure.setGraphClient(); err != nil {
+			results.Errorf(err, "failed to create graph client for tenant %s", config.TenantID)
+			continue
+		}
+
+		tenantResult, err := azure.fetchTenantDetails()
+		if err != nil {
+			results.Errorf(err, "failed to fetch tenant details")
+			return results
+		}
+		results = append(results, tenantResult)
+
 		// We fetch resource groups first as they are used to fetch further resources
 		results = append(results, azure.fetchResourceGroups()...)
 		results = append(results, azure.fetchVirtualMachines()...)
@@ -207,13 +219,19 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 		}
 
-		results, err = azure.scrapeActiveDirectory()
+		adResults, err := azure.scrapeActiveDirectory()
 		if err != nil {
 			results.Errorf(err, "failed to scrape active directory")
 		}
+		results = append(results, adResults...)
 
 		// Set tags
 		for i := range results {
+			results[i].Tags = append(results[i].Tags, v1.Tag{
+				Name:  "Tenant",
+				Value: tenantResult.Name,
+			})
+
 			for _, t := range config.Tags {
 				results[i].Tags = append(results[i].Tags, v1.Tag{
 					Name:  t.Name,
@@ -1056,4 +1074,57 @@ func extractResourceGroup(resourceID string) string {
 
 	// The resource group is the third segment
 	return segments[3]
+}
+
+func (azure *Scraper) setGraphClient() error {
+	if azure.graphClient != nil {
+		return nil
+	}
+
+	graphCred, err := azidentity.NewClientSecretCredential(azure.config.TenantID, azure.config.ClientID.ValueStatic, azure.config.ClientSecret.ValueStatic, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create graph credentials: %w", err)
+	}
+
+	client, err := msgraphsdkgo.NewGraphServiceClientWithCredentials(graphCred, []string{"https://graph.microsoft.com/.default"})
+	if err != nil {
+		return fmt.Errorf("failed to create graph client: %w", err)
+	}
+
+	azure.graphClient = client
+	return nil
+}
+
+func (azure *Scraper) fetchTenantDetails() (v1.ScrapeResult, error) {
+	azure.ctx.Logger.V(3).Infof("fetching tenant details for tenant %s", azure.config.TenantID)
+
+	orgCollection, err := azure.graphClient.Organization().Get(azure.ctx, nil)
+	if err != nil {
+		return v1.ScrapeResult{}, fmt.Errorf("failed to fetch organization details: %w", err)
+	}
+
+	if len(orgCollection.GetValue()) == 0 {
+		return v1.ScrapeResult{}, fmt.Errorf("no organization details found for tenant %s", azure.config.TenantID)
+	}
+
+	for _, org := range orgCollection.GetValue() {
+		if lo.FromPtr(org.GetId()) != azure.config.TenantID {
+			continue
+		}
+
+		return v1.ScrapeResult{
+			BaseScraper: azure.config.BaseScraper,
+			ID:          azure.config.TenantID,
+			ConfigID:    lo.ToPtr(azure.config.TenantID),
+			Name:        deref(org.GetDisplayName()),
+			Config:      org.GetBackingStore().Enumerate(),
+			ConfigClass: "Tenant",
+			Type:        ConfigTypePrefix + "Tenant",
+			Properties: []*types.Property{
+				getConsoleLink("/tenants/"+azure.config.TenantID, ConfigTypePrefix+"Tenant"),
+			},
+		}, nil
+	}
+
+	return v1.ScrapeResult{}, fmt.Errorf("no organization details found for tenant %s", azure.config.TenantID)
 }
