@@ -13,17 +13,12 @@ import (
 
 // Include types for Azure Active Directory
 const (
-	IncludeActiveDirectory  = "activeDirectory"
 	IncludeAppRegistrations = "appRegistrations"
 	IncludeUsers            = "users"
 	IncludeGroups           = "groups"
 )
 
 func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
-	if !azure.config.Includes(IncludeActiveDirectory) {
-		return nil, nil
-	}
-
 	results := v1.ScrapeResults{}
 	results = append(results, azure.fetchAppRegistrations()...)
 	results = append(results, azure.fetchUsers()...)
