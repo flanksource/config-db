@@ -177,7 +177,15 @@ func (azure Scraper) fetchGroups() v1.ScrapeResults {
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(group msgraphModels.Groupable) bool {
-		results = append(results, azure.groupToScrapeResult(group))
+		result := azure.groupToScrapeResult(group)
+		members, err := azure.fetchGroupMembers(lo.FromPtr(group.GetId()))
+		if err != nil {
+			azure.ctx.Logger.Errorf("failed to fetch group members: %s", err)
+		} else if len(members) > 0 {
+			result.RelationshipResults = members
+		}
+
+		results = append(results, result)
 		return true
 	})
 	if err != nil {
@@ -260,4 +268,36 @@ func (azure Scraper) roleToScrapeResult(role msgraphModels.UnifiedRoleDefinition
 		ScraperLess: lo.FromPtr(role.GetIsBuiltIn()), // built-in roles are common across tenants (i.e. they have the same global uid). They should be made scraper less just like aws regions.
 		Type:        ConfigTypePrefix + "Role",
 	}
+}
+
+// fetchGroupMembers gets members of an Azure AD group.
+func (azure Scraper) fetchGroupMembers(groupID string) (v1.RelationshipResults, error) {
+	if !azure.config.Includes(IncludeUsers) || !azure.config.Includes(IncludeGroups) {
+		return nil, nil
+	}
+
+	var results v1.RelationshipResults
+	members, err := azure.graphClient.Groups().ByGroupId(groupID).Members().Get(azure.ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch group members: %w", err)
+	}
+
+	pageIterator, err := graphcore.NewPageIterator[msgraphModels.DirectoryObjectable](members, azure.graphClient.GetAdapter(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page iterator: %w", err)
+	}
+
+	err = pageIterator.Iterate(azure.ctx, func(member msgraphModels.DirectoryObjectable) bool {
+		results = append(results, v1.RelationshipResult{
+			RelatedExternalID: v1.ExternalID{ExternalID: lo.FromPtr(member.GetId()), ConfigType: ConfigTypePrefix + "User"},
+			ConfigExternalID:  v1.ExternalID{ExternalID: groupID, ConfigType: ConfigTypePrefix + "Group"},
+			Relationship:      "GroupUser",
+		})
+		return true
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to iterate through pages: %w", err)
+	}
+
+	return results, nil
 }
