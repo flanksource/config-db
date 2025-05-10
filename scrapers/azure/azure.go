@@ -196,7 +196,7 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		// Set subscription id and name as tags & parents where missing for all resources
 		// before we fetch active directory resources as they're not part of a subscription
 		for i := range results {
-			if results[i].ID == "" {
+			if results[i].ID == "" || results[i].ScraperLess {
 				continue // changes & analysis only
 			}
 
@@ -237,6 +237,10 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 		// Set tags
 		for i := range results {
+			if results[i].ID == "" || results[i].ScraperLess {
+				continue
+			}
+
 			results[i].Tags = append(results[i].Tags, v1.Tag{
 				Name:  "Tenant",
 				Value: tenantResult.Name,

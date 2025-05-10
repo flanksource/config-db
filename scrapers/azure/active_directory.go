@@ -16,6 +16,7 @@ const (
 	IncludeAppRegistrations = "appRegistrations"
 	IncludeUsers            = "users"
 	IncludeGroups           = "groups"
+	IncludeRoles            = "roles"
 )
 
 func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
@@ -23,6 +24,7 @@ func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	results = append(results, azure.fetchAppRegistrations()...)
 	results = append(results, azure.fetchUsers()...)
 	results = append(results, azure.fetchGroups()...)
+	results = append(results, azure.fetchRoles()...)
 	return results, nil
 }
 
@@ -208,5 +210,54 @@ func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable) v1.Scrap
 				},
 			},
 		},
+	}
+}
+
+// fetchRoles gets Azure AD roles in a tenant.
+func (azure Scraper) fetchRoles() v1.ScrapeResults {
+	if !azure.config.Includes(IncludeRoles) {
+		return nil
+	}
+
+	azure.ctx.Logger.V(3).Infof("fetching roles for tenant %s", azure.config.TenantID)
+
+	var results v1.ScrapeResults
+	roles, err := azure.graphClient.RoleManagement().Directory().RoleDefinitions().Get(azure.ctx, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch roles: %w", err)})
+	}
+
+	for _, role := range roles.GetValue() {
+		results = append(results, azure.roleToScrapeResult(role))
+	}
+
+	pageIterator, err := graphcore.NewPageIterator[msgraphModels.UnifiedRoleDefinitionable](roles, azure.graphClient.GetAdapter(), nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
+	}
+
+	err = pageIterator.Iterate(azure.ctx, func(role msgraphModels.UnifiedRoleDefinitionable) bool {
+		results = append(results, azure.roleToScrapeResult(role))
+		return true
+	})
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to iterate through pages: %w", err)})
+	}
+
+	return results
+}
+
+func (azure Scraper) roleToScrapeResult(role msgraphModels.UnifiedRoleDefinitionable) v1.ScrapeResult {
+	roleID := lo.FromPtr(role.GetId())
+	displayName := *role.GetDisplayName()
+
+	return v1.ScrapeResult{
+		BaseScraper: azure.config.BaseScraper,
+		ID:          roleID,
+		Name:        displayName,
+		Config:      role.GetBackingStore().Enumerate(),
+		ConfigClass: "Role",
+		ScraperLess: lo.FromPtr(role.GetIsBuiltIn()), // built-in roles are common across tenants (i.e. they have the same global uid). They should be made scraper less just like aws regions.
+		Type:        ConfigTypePrefix + "Role",
 	}
 }
