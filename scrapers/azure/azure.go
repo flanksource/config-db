@@ -42,15 +42,23 @@ const (
 
 // Include types for Azure resources
 const (
-	IncludeAppServices     = "appServices"
-	IncludeDNS             = "dns"
-	IncludePrivateDNS      = "privateDns"
-	IncludePublicIPs       = "publicIps"
-	IncludeResourceGroups  = "resourceGroups"
-	IncludeSecurityGroups  = "securityGroups"
-	IncludeStorageAccounts = "storageAccounts"
-	IncludeTrafficManager  = "trafficManager"
-	IncludeVirtualMachines = "virtualMachines"
+	IncludeActivityLogs        = "activityLogs"
+	IncludeAdvisor             = "advisor"
+	IncludeAppServices         = "appServices"
+	IncludeContainerRegistries = "containerRegistries"
+	IncludeDatabases           = "databases"
+	IncludeDNS                 = "dns"
+	IncludeFirewalls           = "firewalls"
+	IncludeK8s                 = "k8s"
+	IncludeLoadBalancers       = "loadBalancers"
+	IncludePrivateDNS          = "privateDNS"
+	IncludePublicIPs           = "publicIPs"
+	IncludeResourceGroups      = "resourceGroups"
+	IncludeSecurityGroups      = "securityGroups"
+	IncludeStorageAccounts     = "storageAccounts"
+	IncludeTrafficManager      = "trafficManager"
+	IncludeVirtualMachines     = "virtualMachines"
+	IncludeVirtualNetworks     = "virtualNetworks"
 )
 
 // activityLogLastRecordTime keeps track of the time of the last activity log per subscription.
@@ -198,10 +206,12 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				Value: azure.config.SubscriptionID,
 			})
 
-			results[i].Tags = append(results[i].Tags, v1.Tag{
-				Name:  "subscriptionName",
-				Value: azure.subscriptionName,
-			})
+			if azure.subscriptionName != "" {
+				results[i].Tags = append(results[i].Tags, v1.Tag{
+					Name:  "subscriptionName",
+					Value: azure.subscriptionName,
+				})
+			}
 
 			// Set parents where missing
 			for j, parent := range results[i].Parents {
@@ -296,6 +306,10 @@ type activityChangeRecord struct {
 }
 
 func (azure Scraper) fetchActivityLogs() v1.ScrapeResults {
+	if !azure.config.Includes(IncludeActivityLogs) {
+		return nil
+	}
+
 	azure.ctx.Logger.V(3).Infof("fetching activity logs for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
@@ -408,6 +422,9 @@ func (azure Scraper) fetchDatabases() v1.ScrapeResults {
 	azure.ctx.Logger.V(3).Infof("fetching databases for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
+	if !azure.config.Includes(IncludeDatabases) {
+		return results
+	}
 	databases, err := armresources.NewClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate database client: %w", err)})
@@ -445,6 +462,9 @@ func (azure Scraper) fetchK8s() v1.ScrapeResults {
 	azure.ctx.Logger.V(3).Infof("fetching k8s for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
+	if !azure.config.Includes(IncludeK8s) {
+		return results
+	}
 	managedClustersClient, err := armcontainerservice.NewManagedClustersClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate k8s client: %w", err)})
@@ -476,6 +496,9 @@ func (azure Scraper) fetchFirewalls() v1.ScrapeResults {
 	azure.ctx.Logger.V(3).Infof("fetching firewalls for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
+	if !azure.config.Includes(IncludeFirewalls) {
+		return results
+	}
 	firewallClient, err := armnetwork.NewAzureFirewallsClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate firewall client: %w", err)})
@@ -507,6 +530,9 @@ func (azure Scraper) fetchContainerRegistries() v1.ScrapeResults {
 	azure.ctx.Logger.V(3).Infof("fetching container registries for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
+	if !azure.config.Includes(IncludeContainerRegistries) {
+		return results
+	}
 	registriesClient, err := armcontainerregistry.NewRegistriesClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate container registries client: %w", err)})
@@ -537,6 +563,9 @@ func (azure Scraper) fetchVirtualNetworks() v1.ScrapeResults {
 	azure.ctx.Logger.V(3).Infof("fetching virtual networks for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
+	if !azure.config.Includes(IncludeVirtualNetworks) {
+		return results
+	}
 	virtualNetworksClient, err := armnetwork.NewVirtualNetworksClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate virtual network client: %w", err)})
@@ -569,6 +598,9 @@ func (azure Scraper) fetchLoadBalancers() v1.ScrapeResults {
 	azure.ctx.Logger.V(3).Infof("fetching load balancers for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
+	if !azure.config.Includes(IncludeLoadBalancers) {
+		return results
+	}
 	lbClient, err := armnetwork.NewLoadBalancersClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate load balancer client: %w", err)})

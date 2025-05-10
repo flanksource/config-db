@@ -10,6 +10,10 @@ import (
 )
 
 func (azure Scraper) fetchAdvisorAnalysis() v1.ScrapeResults {
+	if !azure.config.Includes(IncludeAdvisor) {
+		return nil
+	}
+
 	advisorClient, err := armadvisor.NewRecommendationsClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
 		return v1.ScrapeResults{v1.ScrapeResult{Error: fmt.Errorf("failed to initiate advisor client: %w", err)}}
