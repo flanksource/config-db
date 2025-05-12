@@ -2,10 +2,10 @@ package azure
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	graphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
 	"github.com/microsoftgraph/msgraph-sdk-go/applications"
@@ -22,15 +22,18 @@ const (
 	IncludeRoles            = "roles"
 	IncludeAuthMethods      = "authMethods"
 	IncludeAccessReviews    = "accessReviews"
+	IncludeEnterpriseApps   = "enterpriseApps"
 )
 
 func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	results := v1.ScrapeResults{}
-	results = append(results, azure.fetchAccessReviews()...)
-	results = append(results, azure.fetchAppRegistrations()...)
 	results = append(results, azure.fetchUsers()...)
 	results = append(results, azure.fetchGroups()...)
 	results = append(results, azure.fetchRoles()...)
+
+	results = append(results, azure.fetchAppRegistrations()...)
+	results = append(results, azure.fetchEnterpriseApplications()...)
+
 	results = append(results, azure.fetchAuthMethods()...)
 	return results, nil
 }
@@ -73,7 +76,7 @@ func (azure Scraper) fetchAppRegistrations() v1.ScrapeResults {
 }
 
 func (azure Scraper) appToScrapeResult(app *msgraphModels.Application) v1.ScrapeResult {
-	appID := lo.FromPtr(app.GetId())
+	appID := lo.FromPtr(app.GetAppId())
 	displayName := *app.GetDisplayName()
 
 	return v1.ScrapeResult{
@@ -96,6 +99,100 @@ func (azure Scraper) appToScrapeResult(app *msgraphModels.Application) v1.Scrape
 			},
 		},
 	}
+}
+
+// fetchEnterpriseApplications gets all enterprise applications (service principals) and their assigned users
+func (azure Scraper) fetchEnterpriseApplications() v1.ScrapeResults {
+	if !azure.config.Includes(IncludeEnterpriseApps) {
+		return nil
+	}
+
+	azure.ctx.Logger.V(3).Infof("fetching enterprise applications for tenant %s", azure.config.TenantID)
+
+	var results v1.ScrapeResults
+
+	// Get all service principals
+	servicePrincipals, err := azure.graphClient.ServicePrincipals().Get(azure.ctx, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch service principals: %w", err)})
+	}
+
+	pageIterator, err := graphcore.NewPageIterator[msgraphModels.ServicePrincipalable](servicePrincipals, azure.graphClient.GetAdapter(), msgraphModels.CreateServicePrincipalCollectionResponseFromDiscriminatorValue)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
+	}
+
+	err = pageIterator.Iterate(azure.ctx, func(sp msgraphModels.ServicePrincipalable) bool {
+		spID := lo.FromPtr(sp.GetId())
+		appID := lo.FromPtr(sp.GetAppId())
+		displayName := *sp.GetDisplayName()
+
+		if orgID := sp.GetAppOwnerOrganizationId(); orgID == nil {
+			return true
+		} else if orgID.String() != azure.config.TenantID {
+			return true // there are a lot of built-in service principals. Only process the ones for this tenant
+		}
+
+		assignments, err := azure.graphClient.ServicePrincipals().ByServicePrincipalId(spID).AppRoleAssignedTo().Get(azure.ctx, nil)
+		if err != nil {
+			azure.ctx.Logger.Errorf("failed to fetch app role assignments for service principal %s: %v", spID, err)
+			return true
+		}
+
+		relationshipResults := []v1.RelationshipResult{{
+			RelatedConfigID: spID,
+			ConfigID:        appID,
+			Relationship:    "AppServicePrincipal",
+		}}
+
+		assignmentIterator, err := graphcore.NewPageIterator[msgraphModels.AppRoleAssignmentable](assignments, azure.graphClient.GetAdapter(), nil)
+		if err != nil {
+			azure.ctx.Logger.Errorf("failed to create assignment iterator for service principal %s: %v", spID, err)
+			return true
+		}
+
+		err = assignmentIterator.Iterate(azure.ctx, func(assignment msgraphModels.AppRoleAssignmentable) bool {
+			principalID := lo.FromPtr(assignment.GetPrincipalId()).String()
+			principalType := lo.FromPtr(assignment.GetPrincipalType())
+
+			if principalType == "User" {
+				relationshipResults = append(relationshipResults, v1.RelationshipResult{
+					RelatedConfigID: principalID,
+					ConfigID:        spID,
+					Relationship:    "AppRoleAssignment",
+				})
+			}
+
+			return true
+		})
+
+		if err != nil {
+			azure.ctx.Logger.Errorf("failed to iterate through app role assignments for service principal %s: %v", spID, err)
+		}
+
+		result := v1.ScrapeResult{
+			BaseScraper: azure.config.BaseScraper,
+			ID:          spID,
+			Name:        displayName,
+			Config:      sp.GetBackingStore().Enumerate(),
+			ConfigClass: "EnterpriseApplication",
+			Type:        ConfigTypePrefix + "EnterpriseApplication",
+		}
+
+		if len(relationshipResults) > 0 {
+			result.RelationshipResults = relationshipResults
+			azure.ctx.Logger.Infof("Found %d users assigned to enterprise application %s", len(relationshipResults), displayName)
+		}
+
+		results = append(results, result)
+		return true
+	})
+
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to iterate through service principals: %w", err)})
+	}
+
+	return results
 }
 
 // fetchUsers gets Azure AD users in a tenant.
@@ -356,20 +453,15 @@ func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 	methods := authMethods.GetAuthenticationMethodConfigurations()
 	for _, method := range methods {
 		methodID := lo.FromPtr(method.GetId())
-		methodType := lo.FromPtr(method.GetOdataType())
-
-		// Extract the method name from the OData type
-		// Example: "#microsoft.graph.fido2AuthenticationMethodConfiguration"
-		methodName := strings.TrimPrefix(methodType, "#microsoft.graph.")
-		methodName = strings.TrimSuffix(methodName, "AuthenticationMethodConfiguration")
-		methodName = strings.ToUpper(methodName)
 
 		results = append(results, v1.ScrapeResult{
 			BaseScraper: azure.config.BaseScraper,
 			ScraperLess: true,
 			ID:          methodID,
-			Name:        methodName,
+			Name:        methodID,
 			Config:      method.GetBackingStore().Enumerate(),
+			Status:      lo.Ternary(lo.FromPtr(method.GetState()) == msgraphModels.ENABLED_AUTHENTICATIONMETHODSTATE, "Enabled", "Disabled"),
+			Health:      lo.Ternary(lo.FromPtr(method.GetState()) == msgraphModels.ENABLED_AUTHENTICATIONMETHODSTATE, models.HealthHealthy, models.HealthUnknown),
 			ConfigClass: "AuthenticationMethod",
 			Type:        ConfigTypePrefix + "AuthenticationMethod",
 		})
@@ -379,49 +471,49 @@ func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 }
 
 // fetchAccessReviews gets Azure AD access reviews in a tenant.
-func (azure Scraper) fetchAccessReviews() v1.ScrapeResults {
-	if !azure.config.Includes(IncludeAccessReviews) {
-		return nil
-	}
+// func (azure Scraper) fetchAccessReviews() v1.ScrapeResults {
+// 	if !azure.config.Includes(IncludeAccessReviews) {
+// 		return nil
+// 	}
 
-	azure.ctx.Logger.V(3).Infof("fetching access reviews for tenant %s", azure.config.TenantID)
+// 	azure.ctx.Logger.V(3).Infof("fetching access reviews for tenant %s", azure.config.TenantID)
 
-	var results v1.ScrapeResults
-	accessReviews, err := azure.graphClient.IdentityGovernance().AccessReviews().Definitions().Get(azure.ctx, nil)
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch access reviews: %w", err)})
-	}
+// 	var results v1.ScrapeResults
+// 	accessReviews, err := azure.graphClient.IdentityGovernance().AccessReviews().Definitions().Get(azure.ctx, nil)
+// 	if err != nil {
+// 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch access reviews: %w", err)})
+// 	}
 
-	for _, review := range accessReviews.GetValue() {
-		results = append(results, azure.accessReviewToScrapeResult(review))
-	}
+// 	for _, review := range accessReviews.GetValue() {
+// 		results = append(results, azure.accessReviewToScrapeResult(review))
+// 	}
 
-	pageIterator, err := graphcore.NewPageIterator[msgraphModels.AccessReviewScheduleDefinitionable](accessReviews, azure.graphClient.GetAdapter(), nil)
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
-	}
+// 	pageIterator, err := graphcore.NewPageIterator[msgraphModels.AccessReviewScheduleDefinitionable](accessReviews, azure.graphClient.GetAdapter(), nil)
+// 	if err != nil {
+// 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
+// 	}
 
-	err = pageIterator.Iterate(azure.ctx, func(review msgraphModels.AccessReviewScheduleDefinitionable) bool {
-		results = append(results, azure.accessReviewToScrapeResult(review))
-		return true
-	})
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to iterate through pages: %w", err)})
-	}
+// 	err = pageIterator.Iterate(azure.ctx, func(review msgraphModels.AccessReviewScheduleDefinitionable) bool {
+// 		results = append(results, azure.accessReviewToScrapeResult(review))
+// 		return true
+// 	})
+// 	if err != nil {
+// 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to iterate through pages: %w", err)})
+// 	}
 
-	return results
-}
+// 	return results
+// }
 
-func (azure Scraper) accessReviewToScrapeResult(review msgraphModels.AccessReviewScheduleDefinitionable) v1.ScrapeResult {
-	reviewID := lo.FromPtr(review.GetId())
-	displayName := *review.GetDisplayName()
+// func (azure Scraper) accessReviewToScrapeResult(review msgraphModels.AccessReviewScheduleDefinitionable) v1.ScrapeResult {
+// 	reviewID := lo.FromPtr(review.GetId())
+// 	displayName := *review.GetDisplayName()
 
-	return v1.ScrapeResult{
-		BaseScraper: azure.config.BaseScraper,
-		ID:          reviewID,
-		Name:        displayName,
-		Config:      review.GetBackingStore().Enumerate(),
-		ConfigClass: "AccessReview",
-		Type:        ConfigTypePrefix + "AccessReview",
-	}
-}
+// 	return v1.ScrapeResult{
+// 		BaseScraper: azure.config.BaseScraper,
+// 		ID:          reviewID,
+// 		Name:        displayName,
+// 		Config:      review.GetBackingStore().Enumerate(),
+// 		ConfigClass: "AccessReview",
+// 		Type:        ConfigTypePrefix + "AccessReview",
+// 	}
+// }
