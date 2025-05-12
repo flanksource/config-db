@@ -262,11 +262,14 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 
 		var relateSubscription, relateResourceGroup bool
-		switch r.Type {
-		case ConfigTypePrefix + "SUBSCRIPTION":
+		switch strings.ToLower(r.Type) {
+		case strings.ToLower(ConfigTypePrefix + "SUBSCRIPTION"):
 			continue
 
-		case ConfigTypePrefix + "MICROSOFT.RESOURCES/RESOURCEGROUPS":
+		case strings.ToLower(ConfigTypePrefix + "Tenant"):
+			continue
+
+		case strings.ToLower(ConfigTypePrefix + "MICROSOFT.RESOURCES/RESOURCEGROUPS"):
 			relateSubscription = true
 
 		default:
