@@ -21,10 +21,12 @@ const (
 	IncludeGroups           = "groups"
 	IncludeRoles            = "roles"
 	IncludeAuthMethods      = "authMethods"
+	IncludeAccessReviews    = "accessReviews"
 )
 
 func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	results := v1.ScrapeResults{}
+	results = append(results, azure.fetchAccessReviews()...)
 	results = append(results, azure.fetchAppRegistrations()...)
 	results = append(results, azure.fetchUsers()...)
 	results = append(results, azure.fetchGroups()...)
@@ -374,4 +376,52 @@ func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 	}
 
 	return results
+}
+
+// fetchAccessReviews gets Azure AD access reviews in a tenant.
+func (azure Scraper) fetchAccessReviews() v1.ScrapeResults {
+	if !azure.config.Includes(IncludeAccessReviews) {
+		return nil
+	}
+
+	azure.ctx.Logger.V(3).Infof("fetching access reviews for tenant %s", azure.config.TenantID)
+
+	var results v1.ScrapeResults
+	accessReviews, err := azure.graphClient.IdentityGovernance().AccessReviews().Definitions().Get(azure.ctx, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch access reviews: %w", err)})
+	}
+
+	for _, review := range accessReviews.GetValue() {
+		results = append(results, azure.accessReviewToScrapeResult(review))
+	}
+
+	pageIterator, err := graphcore.NewPageIterator[msgraphModels.AccessReviewScheduleDefinitionable](accessReviews, azure.graphClient.GetAdapter(), nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
+	}
+
+	err = pageIterator.Iterate(azure.ctx, func(review msgraphModels.AccessReviewScheduleDefinitionable) bool {
+		results = append(results, azure.accessReviewToScrapeResult(review))
+		return true
+	})
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to iterate through pages: %w", err)})
+	}
+
+	return results
+}
+
+func (azure Scraper) accessReviewToScrapeResult(review msgraphModels.AccessReviewScheduleDefinitionable) v1.ScrapeResult {
+	reviewID := lo.FromPtr(review.GetId())
+	displayName := *review.GetDisplayName()
+
+	return v1.ScrapeResult{
+		BaseScraper: azure.config.BaseScraper,
+		ID:          reviewID,
+		Name:        displayName,
+		Config:      review.GetBackingStore().Enumerate(),
+		ConfigClass: "AccessReview",
+		Type:        ConfigTypePrefix + "AccessReview",
+	}
 }
