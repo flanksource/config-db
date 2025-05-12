@@ -2,6 +2,7 @@ package azure
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -19,6 +20,7 @@ const (
 	IncludeUsers            = "users"
 	IncludeGroups           = "groups"
 	IncludeRoles            = "roles"
+	IncludeAuthMethods      = "authMethods"
 )
 
 func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
@@ -27,6 +29,7 @@ func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	results = append(results, azure.fetchUsers()...)
 	results = append(results, azure.fetchGroups()...)
 	results = append(results, azure.fetchRoles()...)
+	results = append(results, azure.fetchAuthMethods()...)
 	return results, nil
 }
 
@@ -332,4 +335,43 @@ func (azure Scraper) fetchGroupMembers(groupID string) (v1.RelationshipResults, 
 	}
 
 	return results, nil
+}
+
+// fetchAuthMethods gets authentication methods configured in Azure AD.
+func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
+	if !azure.config.Includes(IncludeAuthMethods) {
+		return nil
+	}
+
+	azure.ctx.Logger.V(3).Infof("fetching authentication methods for tenant %s", azure.config.TenantID)
+
+	var results v1.ScrapeResults
+	authMethods, err := azure.graphClient.Policies().AuthenticationMethodsPolicy().Get(azure.ctx, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch authentication methods: %w", err)})
+	}
+
+	methods := authMethods.GetAuthenticationMethodConfigurations()
+	for _, method := range methods {
+		methodID := lo.FromPtr(method.GetId())
+		methodType := lo.FromPtr(method.GetOdataType())
+
+		// Extract the method name from the OData type
+		// Example: "#microsoft.graph.fido2AuthenticationMethodConfiguration"
+		methodName := strings.TrimPrefix(methodType, "#microsoft.graph.")
+		methodName = strings.TrimSuffix(methodName, "AuthenticationMethodConfiguration")
+		methodName = strings.ToUpper(methodName)
+
+		results = append(results, v1.ScrapeResult{
+			BaseScraper: azure.config.BaseScraper,
+			ScraperLess: true,
+			ID:          methodID,
+			Name:        methodName,
+			Config:      method.GetBackingStore().Enumerate(),
+			ConfigClass: "AuthenticationMethod",
+			Type:        ConfigTypePrefix + "AuthenticationMethod",
+		})
+	}
+
+	return results
 }
