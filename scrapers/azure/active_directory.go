@@ -2,11 +2,13 @@ package azure
 
 import (
 	"fmt"
+	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/types"
 	graphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
 	"github.com/microsoftgraph/msgraph-sdk-go/applications"
+	"github.com/microsoftgraph/msgraph-sdk-go/auditlogs"
 	msgraphModels "github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/samber/lo"
 )
@@ -127,17 +129,47 @@ func (azure Scraper) fetchUsers() v1.ScrapeResults {
 	return results
 }
 
+// fetchLastLogin gets sign-in activity logs for a user
+func (azure Scraper) fetchLastLogin(userID string) (*time.Time, error) {
+	azure.ctx.Logger.V(3).Infof("fetching sign-in logs for user %s", userID)
+
+	requestConfig := &auditlogs.SignInsRequestBuilderGetRequestConfiguration{
+		QueryParameters: &auditlogs.SignInsRequestBuilderGetQueryParameters{
+			Filter: lo.ToPtr(fmt.Sprintf("userId eq '%s'", userID)),
+			Top:    lo.ToPtr(int32(1)), // Get last 1 sign-in
+		},
+	}
+
+	signIns, err := azure.graphClient.AuditLogs().SignIns().Get(azure.ctx, requestConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch sign-in logs: %w", err)
+	}
+
+	if len(signIns.GetValue()) == 0 {
+		return nil, nil
+	}
+
+	latestLogin := signIns.GetValue()[0].GetCreatedDateTime()
+	return latestLogin, nil
+}
+
 func (azure Scraper) userToScrapeResult(user msgraphModels.Userable) v1.ScrapeResult {
 	userID := lo.FromPtr(user.GetId())
 	displayName := *user.GetDisplayName()
 
+	latestLogin, err := azure.fetchLastLogin(userID)
+	if err != nil {
+		azure.ctx.Logger.Errorf("failed to fetch sign-in logs for user %s: %v", userID, err)
+	}
+
 	return v1.ScrapeResult{
-		BaseScraper: azure.config.BaseScraper,
-		ID:          userID,
-		Name:        displayName,
-		Config:      user.GetBackingStore().Enumerate(),
-		ConfigClass: "User",
-		Type:        ConfigTypePrefix + "User",
+		BaseScraper:    azure.config.BaseScraper,
+		ID:             userID,
+		Name:           displayName,
+		Config:         user.GetBackingStore().Enumerate(),
+		ConfigClass:    "User",
+		Type:           ConfigTypePrefix + "User",
+		LatestActivity: latestLogin,
 		Properties: []*types.Property{
 			{
 				Name: "URL",
