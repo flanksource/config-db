@@ -626,13 +626,6 @@ type ScrapeResult struct {
 	Properties          types.Properties    `json:"properties,omitempty"`
 	LastScrapedTime     *time.Time          `json:"last_scraped_time"`
 
-	// LatestActivity depends on the config type.
-	// Example: For an external user, it's the last time the user signed in.
-	LatestActivity *time.Time `json:"last_activity,omitempty"`
-
-	// IsConfigAccessModel when true indicates that this config item is a config access model.
-	IsConfigAccessModel bool `json:"-"`
-
 	// ScraperLess when true indicates that this config item
 	// does not belong to any scraper. Example: AWS region & availability zone.
 	ScraperLess bool `json:"scraper_less,omitempty"`
