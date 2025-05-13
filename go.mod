@@ -2,7 +2,7 @@ module github.com/flanksource/config-db
 
 go 1.24
 
-toolchain go1.24.0
+toolchain go1.24.3
 
 require (
 	cloud.google.com/go/container v1.42.2
@@ -425,7 +425,7 @@ require (
 
 // replace github.com/flanksource/commons => ../commons
 
-replace github.com/flanksource/duty => ../duty
+// replace github.com/flanksource/duty => ../duty
 
 // replace github.com/flanksource/ketall => ../ketall
 
