@@ -31,7 +31,7 @@ jobs:
       - name: Install Go
         uses: buildjet/setup-go@v5
         with:
-          go-version: v1.23.x
+          go-version: v1.24.x
       - uses: buildjet/cache@v4
         with:
           path: |
