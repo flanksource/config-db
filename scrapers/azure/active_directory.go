@@ -410,7 +410,9 @@ func (azure Scraper) fetchRoles() v1.ScrapeResults {
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(role msgraphModels.UnifiedRoleDefinitionable) bool {
-		results = append(results, azure.roleToScrapeResult(role))
+		if r := azure.roleToScrapeResult(role); r.ID != "" {
+			results = append(results, r)
+		}
 		return true
 	})
 	if err != nil {
@@ -421,50 +423,21 @@ func (azure Scraper) fetchRoles() v1.ScrapeResults {
 }
 
 func (azure Scraper) roleToScrapeResult(role msgraphModels.UnifiedRoleDefinitionable) v1.ScrapeResult {
-	roleID := lo.FromPtr(role.GetId())
-	displayName := *role.GetDisplayName()
+	roleID, err := uuid.Parse(lo.FromPtr(role.GetId()))
+	if err != nil {
+		return v1.ScrapeResult{}
+	}
 
 	return v1.ScrapeResult{
-		BaseScraper: azure.config.BaseScraper,
-		ID:          roleID,
-		Name:        displayName,
-		Config:      role.GetBackingStore().Enumerate(),
-		ConfigClass: "Role",
-		ScraperLess: lo.FromPtr(role.GetIsBuiltIn()), // built-in roles are common across tenants (i.e. they have the same global uid). They should be made scraper less just like aws regions.
-		Type:        ConfigTypePrefix + "Role",
+		ExternalRoles: []models.ExternalRole{
+			{
+				ID:          roleID,
+				Name:        lo.FromPtr(role.GetDisplayName()),
+				AccountID:   azure.config.TenantID,
+				Description: lo.FromPtr(role.GetDescription()),
+			},
+		},
 	}
-}
-
-// fetchGroupMembers gets members of an Azure AD group.
-func (azure Scraper) fetchGroupMembers(groupID string) (v1.RelationshipResults, error) {
-	if !azure.config.Includes(IncludeUsers) || !azure.config.Includes(IncludeGroups) {
-		return nil, nil
-	}
-
-	var results v1.RelationshipResults
-	members, err := azure.graphClient.Groups().ByGroupId(groupID).Members().Get(azure.ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch group members: %w", err)
-	}
-
-	pageIterator, err := graphcore.NewPageIterator[msgraphModels.DirectoryObjectable](members, azure.graphClient.GetAdapter(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create page iterator: %w", err)
-	}
-
-	err = pageIterator.Iterate(azure.ctx, func(member msgraphModels.DirectoryObjectable) bool {
-		results = append(results, v1.RelationshipResult{
-			RelatedExternalID: v1.ExternalID{ExternalID: lo.FromPtr(member.GetId()), ConfigType: ConfigTypePrefix + "User"},
-			ConfigExternalID:  v1.ExternalID{ExternalID: groupID, ConfigType: ConfigTypePrefix + "Group"},
-			Relationship:      "GroupUser",
-		})
-		return true
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to iterate through pages: %w", err)
-	}
-
-	return results, nil
 }
 
 // fetchAuthMethods gets authentication methods configured in Azure AD.
@@ -571,4 +544,36 @@ func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 
 // 	latestLogin := signIns.GetValue()[0].GetCreatedDateTime()
 // 	return latestLogin, nil
+// }
+
+// fetchGroupMembers gets members of an Azure AD group.
+// func (azure Scraper) fetchGroupMembers(groupID string) (v1.RelationshipResults, error) {
+// 	if !azure.config.Includes(IncludeUsers) || !azure.config.Includes(IncludeGroups) {
+// 		return nil, nil
+// 	}
+
+// 	var results v1.RelationshipResults
+// 	members, err := azure.graphClient.Groups().ByGroupId(groupID).Members().Get(azure.ctx, nil)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to fetch group members: %w", err)
+// 	}
+
+// 	pageIterator, err := graphcore.NewPageIterator[msgraphModels.DirectoryObjectable](members, azure.graphClient.GetAdapter(), nil)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to create page iterator: %w", err)
+// 	}
+
+// 	err = pageIterator.Iterate(azure.ctx, func(member msgraphModels.DirectoryObjectable) bool {
+// 		results = append(results, v1.RelationshipResult{
+// 			RelatedExternalID: v1.ExternalID{ExternalID: lo.FromPtr(member.GetId()), ConfigType: ConfigTypePrefix + "User"},
+// 			ConfigExternalID:  v1.ExternalID{ExternalID: groupID, ConfigType: ConfigTypePrefix + "Group"},
+// 			Relationship:      "GroupUser",
+// 		})
+// 		return true
+// 	})
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to iterate through pages: %w", err)
+// 	}
+
+// 	return results, nil
 // }
