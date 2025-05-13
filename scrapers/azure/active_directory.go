@@ -3,6 +3,7 @@ package azure
 import (
 	"fmt"
 
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
@@ -32,7 +33,21 @@ func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	results = append(results, azure.fetchRoles()...)
 
 	results = append(results, azure.fetchAppRegistrations()...)
-	results = append(results, azure.fetchEnterpriseApplications()...)
+
+	if enterpriseApps := azure.fetchEnterpriseApplications(); len(enterpriseApps) > 0 {
+		results = append(results, enterpriseApps...)
+		for _, app := range enterpriseApps {
+			spID, err := uuid.Parse(app.ID)
+			if err != nil {
+				azure.ctx.Logger.Errorf("failed to parse service principal ID %s: %v", app.ID, err)
+				continue
+			}
+
+			if configAccesses := azure.fetchAppRoleAssignments(spID); len(configAccesses) > 0 {
+				results = append(results, configAccesses...)
+			}
+		}
+	}
 
 	results = append(results, azure.fetchAuthMethods()...)
 	return results, nil
@@ -101,6 +116,62 @@ func (azure Scraper) appToScrapeResult(app *msgraphModels.Application) v1.Scrape
 	}
 }
 
+func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
+	var results v1.ScrapeResults
+	assignments, err := azure.graphClient.ServicePrincipals().ByServicePrincipalId(spID.String()).AppRoleAssignedTo().Get(azure.ctx, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch app role assignments for service principal %s: %w", spID, err)})
+	}
+
+	assignmentIterator, err := graphcore.NewPageIterator[msgraphModels.AppRoleAssignmentable](assignments, azure.graphClient.GetAdapter(), nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create assignment iterator for service principal %s: %w", spID, err)})
+	}
+
+	var result v1.ScrapeResult
+	err = assignmentIterator.Iterate(azure.ctx, func(assignment msgraphModels.AppRoleAssignmentable) bool {
+		principalType := lo.FromPtr(assignment.GetPrincipalType())
+		assignmentID := lo.FromPtr(assignment.GetId())
+
+		switch principalType {
+		case "User":
+			result.ConfigAccess = append(result.ConfigAccess, models.ConfigAccess{
+				ID:             assignmentID,
+				ExternalUserID: assignment.GetPrincipalId(),
+				ConfigID:       spID,
+				CreatedAt:      lo.FromPtr(assignment.GetCreatedDateTime()),
+				DeletedAt:      assignment.GetDeletedDateTime(),
+			})
+		case "Group":
+			result.ConfigAccess = append(result.ConfigAccess, models.ConfigAccess{
+				ID:              assignmentID,
+				ExternalGroupID: assignment.GetPrincipalId(),
+				ConfigID:        spID,
+				CreatedAt:       lo.FromPtr(assignment.GetCreatedDateTime()),
+				DeletedAt:       assignment.GetDeletedDateTime(),
+			})
+		case "Role":
+			result.ConfigAccess = append(result.ConfigAccess, models.ConfigAccess{
+				ID:             assignmentID,
+				ExternalRoleID: assignment.GetPrincipalId(),
+				ConfigID:       spID,
+				CreatedAt:      lo.FromPtr(assignment.GetCreatedDateTime()),
+				DeletedAt:      assignment.GetDeletedDateTime(),
+			})
+		default:
+			logger.Warnf("unknown principal type %s for app role assignment %s", principalType, assignmentID)
+		}
+
+		return true
+	})
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to iterate through app role assignments: %w", err)})
+	}
+
+	results = append(results, result)
+	return results
+}
+
 // fetchEnterpriseApplications gets all enterprise applications (service principals) and their assigned users
 func (azure Scraper) fetchEnterpriseApplications() v1.ScrapeResults {
 	if !azure.config.Includes(IncludeEnterpriseApps) {
@@ -111,7 +182,6 @@ func (azure Scraper) fetchEnterpriseApplications() v1.ScrapeResults {
 
 	var results v1.ScrapeResults
 
-	// Get all service principals
 	servicePrincipals, err := azure.graphClient.ServicePrincipals().Get(azure.ctx, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch service principals: %w", err)})
@@ -133,43 +203,6 @@ func (azure Scraper) fetchEnterpriseApplications() v1.ScrapeResults {
 			return true // there are a lot of built-in service principals. Only process the ones for this tenant
 		}
 
-		assignments, err := azure.graphClient.ServicePrincipals().ByServicePrincipalId(spID).AppRoleAssignedTo().Get(azure.ctx, nil)
-		if err != nil {
-			azure.ctx.Logger.Errorf("failed to fetch app role assignments for service principal %s: %v", spID, err)
-			return true
-		}
-
-		relationshipResults := []v1.RelationshipResult{{
-			RelatedConfigID: spID,
-			ConfigID:        appID,
-			Relationship:    "AppServicePrincipal",
-		}}
-
-		assignmentIterator, err := graphcore.NewPageIterator[msgraphModels.AppRoleAssignmentable](assignments, azure.graphClient.GetAdapter(), nil)
-		if err != nil {
-			azure.ctx.Logger.Errorf("failed to create assignment iterator for service principal %s: %v", spID, err)
-			return true
-		}
-
-		err = assignmentIterator.Iterate(azure.ctx, func(assignment msgraphModels.AppRoleAssignmentable) bool {
-			principalID := lo.FromPtr(assignment.GetPrincipalId()).String()
-			principalType := lo.FromPtr(assignment.GetPrincipalType())
-
-			if principalType == "User" {
-				relationshipResults = append(relationshipResults, v1.RelationshipResult{
-					RelatedConfigID: principalID,
-					ConfigID:        spID,
-					Relationship:    "AppRoleAssignment",
-				})
-			}
-
-			return true
-		})
-
-		if err != nil {
-			azure.ctx.Logger.Errorf("failed to iterate through app role assignments for service principal %s: %v", spID, err)
-		}
-
 		result := v1.ScrapeResult{
 			BaseScraper: azure.config.BaseScraper,
 			ID:          spID,
@@ -177,14 +210,14 @@ func (azure Scraper) fetchEnterpriseApplications() v1.ScrapeResults {
 			Config:      sp.GetBackingStore().Enumerate(),
 			ConfigClass: "EnterpriseApplication",
 			Type:        ConfigTypePrefix + "EnterpriseApplication",
+			RelationshipResults: []v1.RelationshipResult{{
+				RelatedConfigID: spID,
+				ConfigID:        appID,
+				Relationship:    "AppServicePrincipal",
+			}},
 		}
-
-		if len(relationshipResults) > 0 {
-			result.RelationshipResults = relationshipResults
-			azure.ctx.Logger.Infof("Found %d users assigned to enterprise application %s", len(relationshipResults), displayName)
-		}
-
 		results = append(results, result)
+
 		return true
 	})
 
