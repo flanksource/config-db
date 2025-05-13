@@ -2,15 +2,15 @@ package azure
 
 import (
 	"fmt"
-	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	"github.com/google/uuid"
 	graphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
 	"github.com/microsoftgraph/msgraph-sdk-go/applications"
-	"github.com/microsoftgraph/msgraph-sdk-go/auditlogs"
 	msgraphModels "github.com/microsoftgraph/msgraph-sdk-go/models"
+	"github.com/microsoftgraph/msgraph-sdk-go/users"
 	"github.com/samber/lo"
 )
 
@@ -205,13 +205,27 @@ func (azure Scraper) fetchUsers() v1.ScrapeResults {
 
 	var results v1.ScrapeResults
 
-	users, err := azure.graphClient.Users().Get(azure.ctx, nil)
+	// Specify the fields to select
+	queryParams := &users.UsersRequestBuilderGetQueryParameters{
+		Select: []string{"id", "displayName", "givenName", "mail", "createdDateTime", "deletedDateTime"},
+	}
+	requestConfig := &users.UsersRequestBuilderGetRequestConfiguration{
+		QueryParameters: queryParams,
+	}
+
+	users, err := azure.graphClient.Users().Get(azure.ctx, requestConfig) // Pass requestConfig here
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch users: %w", err)})
 	}
 
 	for _, user := range users.GetValue() {
-		results = append(results, azure.userToScrapeResult(user))
+		scrapeResult, err := azure.userToScrapeResult(user)
+		if err != nil {
+			azure.ctx.Logger.Errorf("failed to convert user to scrape result: %v", err)
+			continue
+		}
+
+		results = append(results, scrapeResult)
 	}
 
 	pageIterator, err := graphcore.NewPageIterator[msgraphModels.Userable](users, azure.graphClient.GetAdapter(), nil)
@@ -220,7 +234,13 @@ func (azure Scraper) fetchUsers() v1.ScrapeResults {
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(user msgraphModels.Userable) bool {
-		results = append(results, azure.userToScrapeResult(user))
+		scrapeResult, err := azure.userToScrapeResult(user)
+		if err != nil {
+			azure.ctx.Logger.Errorf("failed to convert user to scrape result: %v", err)
+			return true
+		}
+
+		results = append(results, scrapeResult)
 		return true
 	})
 
@@ -231,60 +251,29 @@ func (azure Scraper) fetchUsers() v1.ScrapeResults {
 	return results
 }
 
-// fetchLastLogin gets sign-in activity logs for a user
-func (azure Scraper) fetchLastLogin(userID string) (*time.Time, error) {
-	azure.ctx.Logger.V(3).Infof("fetching sign-in logs for user %s", userID)
-
-	requestConfig := &auditlogs.SignInsRequestBuilderGetRequestConfiguration{
-		QueryParameters: &auditlogs.SignInsRequestBuilderGetQueryParameters{
-			Filter: lo.ToPtr(fmt.Sprintf("userId eq '%s'", userID)),
-			Top:    lo.ToPtr(int32(1)), // Get last 1 sign-in
-		},
-	}
-
-	signIns, err := azure.graphClient.AuditLogs().SignIns().Get(azure.ctx, requestConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch sign-in logs: %w", err)
-	}
-
-	if len(signIns.GetValue()) == 0 {
-		return nil, nil
-	}
-
-	latestLogin := signIns.GetValue()[0].GetCreatedDateTime()
-	return latestLogin, nil
-}
-
-func (azure Scraper) userToScrapeResult(user msgraphModels.Userable) v1.ScrapeResult {
-	userID := lo.FromPtr(user.GetId())
+func (azure Scraper) userToScrapeResult(user msgraphModels.Userable) (v1.ScrapeResult, error) {
 	displayName := *user.GetDisplayName()
 
-	latestLogin, err := azure.fetchLastLogin(userID)
+	userID, err := uuid.Parse(lo.FromPtr(user.GetId()))
 	if err != nil {
-		azure.ctx.Logger.Errorf("failed to fetch sign-in logs for user %s: %v", userID, err)
+		azure.ctx.Logger.Errorf("failed to parse user ID %s: %v", lo.FromPtr(user.GetId()), err)
+		return v1.ScrapeResult{}, err
+	}
+
+	externalUser := models.ExternalUser{
+		ID:        userID,
+		Name:      displayName,
+		AccountID: azure.config.TenantID,
+		UserType:  "User",
+		Email:     user.GetMail(),
+		CreatedAt: lo.FromPtr(user.GetCreatedDateTime()),
+		DeletedAt: user.GetDeletedDateTime(),
 	}
 
 	return v1.ScrapeResult{
-		BaseScraper:    azure.config.BaseScraper,
-		ID:             userID,
-		Name:           displayName,
-		Config:         user.GetBackingStore().Enumerate(),
-		ConfigClass:    "User",
-		Type:           ConfigTypePrefix + "User",
-		LatestActivity: latestLogin,
-		Properties: []*types.Property{
-			{
-				Name: "URL",
-				Icon: ConfigTypePrefix + "User",
-				Links: []types.Link{
-					{
-						Text: types.Text{Label: "Console"},
-						URL:  fmt.Sprintf("https://portal.azure.com/#view/Microsoft_AAD_UsersAndTenants/UserProfileMenuBlade/~/overview/userId/%s/hidePreviewBanner~/true", userID),
-					},
-				},
-			},
-		},
-	}
+		BaseScraper:   azure.config.BaseScraper,
+		ExternalUsers: []models.ExternalUser{externalUser},
+	}, nil
 }
 
 // fetchGroups gets Azure AD groups in a tenant.
@@ -302,7 +291,13 @@ func (azure Scraper) fetchGroups() v1.ScrapeResults {
 	}
 
 	for _, group := range groups.GetValue() {
-		results = append(results, azure.groupToScrapeResult(group))
+		scrapeResult, err := azure.groupToScrapeResult(group)
+		if err != nil {
+			azure.ctx.Logger.Errorf("failed to convert group to scrape result: %v", err)
+			continue
+		}
+
+		results = append(results, scrapeResult)
 	}
 
 	pageIterator, err := graphcore.NewPageIterator[msgraphModels.Groupable](groups, azure.graphClient.GetAdapter(), nil)
@@ -311,13 +306,19 @@ func (azure Scraper) fetchGroups() v1.ScrapeResults {
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(group msgraphModels.Groupable) bool {
-		result := azure.groupToScrapeResult(group)
-		members, err := azure.fetchGroupMembers(lo.FromPtr(group.GetId()))
+		result, err := azure.groupToScrapeResult(group)
 		if err != nil {
-			azure.ctx.Logger.Errorf("failed to fetch group members: %s", err)
-		} else if len(members) > 0 {
-			result.RelationshipResults = members
+			azure.ctx.Logger.Errorf("failed to convert group to scrape result: %v", err)
+			return true
 		}
+
+		// TODO:
+		// members, err := azure.fetchGroupMembers(lo.FromPtr(group.GetId()))
+		// if err != nil {
+		// 	azure.ctx.Logger.Errorf("failed to fetch group members: %s", err)
+		// } else if len(members) > 0 {
+		// 	result.RelationshipResults = members
+		// }
 
 		results = append(results, result)
 		return true
@@ -329,30 +330,27 @@ func (azure Scraper) fetchGroups() v1.ScrapeResults {
 	return results
 }
 
-func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable) v1.ScrapeResult {
-	groupID := lo.FromPtr(group.GetId())
-	displayName := *group.GetDisplayName()
+func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable) (v1.ScrapeResult, error) {
+	groupID, err := uuid.Parse(lo.FromPtr(group.GetId()))
+	if err != nil {
+		return v1.ScrapeResult{}, fmt.Errorf("failed to parse group ID %s: %w", lo.FromPtr(group.GetId()), err)
+	}
+
+	externalGroup := models.ExternalGroup{
+		ID:        groupID,
+		AccountID: azure.config.TenantID,
+		Name:      lo.FromPtr(group.GetDisplayName()),
+		CreatedAt: lo.FromPtr(group.GetCreatedDateTime()),
+		DeletedAt: group.GetDeletedDateTime(),
+	}
+
+	if gt := group.GetGroupTypes(); len(gt) > 0 {
+		externalGroup.GroupType = gt[0]
+	}
 
 	return v1.ScrapeResult{
-		BaseScraper: azure.config.BaseScraper,
-		ID:          groupID,
-		Name:        displayName,
-		Config:      group.GetBackingStore().Enumerate(),
-		ConfigClass: "Group",
-		Type:        ConfigTypePrefix + "Group",
-		Properties: []*types.Property{
-			{
-				Name: "URL",
-				Icon: ConfigTypePrefix + "Group",
-				Links: []types.Link{
-					{
-						Text: types.Text{Label: "Console"},
-						URL:  fmt.Sprintf("https://portal.azure.com/#view/Microsoft_AAD_UsersAndTenants/GroupMenuBlade/~/Properties/groupId/%s/hidePreviewBanner~/true", groupID),
-					},
-				},
-			},
-		},
-	}
+		ExternalGroups: []models.ExternalGroup{externalGroup},
+	}, nil
 }
 
 // fetchRoles gets Azure AD roles in a tenant.
@@ -516,4 +514,28 @@ func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 // 		ConfigClass: "AccessReview",
 // 		Type:        ConfigTypePrefix + "AccessReview",
 // 	}
+// }
+
+// // fetchLastLogin gets sign-in activity logs for a user
+// func (azure Scraper) fetchLastLogin(userID string) (*time.Time, error) {
+// 	azure.ctx.Logger.V(3).Infof("fetching sign-in logs for user %s", userID)
+
+// 	requestConfig := &auditlogs.SignInsRequestBuilderGetRequestConfiguration{
+// 		QueryParameters: &auditlogs.SignInsRequestBuilderGetQueryParameters{
+// 			Filter: lo.ToPtr(fmt.Sprintf("userId eq '%s'", userID)),
+// 			Top:    lo.ToPtr(int32(1)), // Get last 1 sign-in
+// 		},
+// 	}
+
+// 	signIns, err := azure.graphClient.AuditLogs().SignIns().Get(azure.ctx, requestConfig)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to fetch sign-in logs: %w", err)
+// 	}
+
+// 	if len(signIns.GetValue()) == 0 {
+// 		return nil, nil
+// 	}
+
+// 	latestLogin := signIns.GetValue()[0].GetCreatedDateTime()
+// 	return latestLogin, nil
 // }
