@@ -573,13 +573,19 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	for _, externalUser := range extractResult.externalUsers {
 		if err := ctx.DB().Save(&externalUser).Error; err != nil {
-			return summary, fmt.Errorf("failed to create external user: %w", dutydb.ErrorDetails(err))
+			return summary, fmt.Errorf("failed to save external user: %w", err)
 		}
 	}
 
 	for _, externalGroup := range extractResult.externalGroups {
 		if err := ctx.DB().Save(&externalGroup).Error; err != nil {
-			return summary, fmt.Errorf("failed to create external group: %w", dutydb.ErrorDetails(err))
+			return summary, fmt.Errorf("failed to save external group: %w", err)
+		}
+	}
+
+	for _, configAccess := range extractResult.configAccesses {
+		if err := ctx.DB().Save(&configAccess).Error; err != nil {
+			return summary, fmt.Errorf("failed to save config access: %w", err)
 		}
 	}
 
@@ -1000,6 +1006,7 @@ type extractResult struct {
 
 	externalUsers  []dutyModels.ExternalUser
 	externalGroups []dutyModels.ExternalGroup
+	configAccesses []dutyModels.ConfigAccess
 
 	changeSummary v1.ChangeSummaryByType
 }
@@ -1030,6 +1037,11 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 
 		if len(result.ExternalGroups) > 0 {
 			extractResult.externalGroups = append(extractResult.externalGroups, result.ExternalGroups...)
+			continue
+		}
+
+		if len(result.ConfigAccess) > 0 {
+			extractResult.configAccesses = append(extractResult.configAccesses, result.ConfigAccess...)
 			continue
 		}
 

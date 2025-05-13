@@ -650,6 +650,7 @@ type ScrapeResult struct {
 
 	ExternalUsers  []models.ExternalUser  `json:"-"`
 	ExternalGroups []models.ExternalGroup `json:"-"`
+	ConfigAccess   []models.ConfigAccess  `json:"-"`
 
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
