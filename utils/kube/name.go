@@ -17,7 +17,8 @@ func (n Name) String() string {
 	if n.Namespace == "" {
 		n.Namespace = "*"
 	}
-	return fmt.Sprintf("%s/%s/%s", console.Bluef(n.Kind), console.Grayf(n.Namespace), console.LightWhitef(n.Name)) //nolint:all
+
+	return fmt.Sprintf("%s/%s/%s", console.Bluef("%s", n.Kind), console.Grayf("%s", n.Namespace), console.LightWhitef("%s", n.Name))
 }
 
 func (n Name) GetName() string {
