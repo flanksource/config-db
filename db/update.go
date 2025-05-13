@@ -571,6 +571,18 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		ctx.TempCache().Insert(*config)
 	}
 
+	for _, externalUser := range extractResult.externalUsers {
+		if err := ctx.DB().Save(&externalUser).Error; err != nil {
+			return summary, fmt.Errorf("failed to create external user: %w", dutydb.ErrorDetails(err))
+		}
+	}
+
+	for _, externalGroup := range extractResult.externalGroups {
+		if err := ctx.DB().Save(&externalGroup).Error; err != nil {
+			return summary, fmt.Errorf("failed to create external group: %w", dutydb.ErrorDetails(err))
+		}
+	}
+
 	// nonUpdatedConfigs are existing configs that were not updated in this scrape.
 	// We keep track of them so that we can update their last scraped time.
 	var nonUpdatedConfigs []string
@@ -985,7 +997,11 @@ type extractResult struct {
 	configsToUpdate []*updateConfigArgs
 	newChanges      []*models.ConfigChange
 	changesToUpdate []*models.ConfigChange
-	changeSummary   v1.ChangeSummaryByType
+
+	externalUsers  []dutyModels.ExternalUser
+	externalGroups []dutyModels.ExternalGroup
+
+	changeSummary v1.ChangeSummaryByType
 }
 
 func NewExtractResult() *extractResult {
@@ -1006,6 +1022,16 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 
 		var ci *models.ConfigItem
 		var err error
+
+		if len(result.ExternalUsers) > 0 {
+			extractResult.externalUsers = append(extractResult.externalUsers, result.ExternalUsers...)
+			continue
+		}
+
+		if len(result.ExternalGroups) > 0 {
+			extractResult.externalGroups = append(extractResult.externalGroups, result.ExternalGroups...)
+			continue
+		}
 
 		if result.Name == "" {
 			result.Name = lo.CoalesceOrEmpty(lo.FirstOrEmpty(result.Aliases), result.ID)
