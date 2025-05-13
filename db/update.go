@@ -583,6 +583,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
+	for _, externalRole := range extractResult.externalRoles {
+		if err := ctx.DB().Save(&externalRole).Error; err != nil {
+			return summary, fmt.Errorf("failed to save external role: %w", err)
+		}
+	}
+
 	for _, configAccess := range extractResult.configAccesses {
 		if err := ctx.DB().Save(&configAccess).Error; err != nil {
 			return summary, fmt.Errorf("failed to save config access: %w", err)
@@ -1006,6 +1012,7 @@ type extractResult struct {
 
 	externalUsers  []dutyModels.ExternalUser
 	externalGroups []dutyModels.ExternalGroup
+	externalRoles  []dutyModels.ExternalRole
 	configAccesses []dutyModels.ConfigAccess
 
 	changeSummary v1.ChangeSummaryByType
@@ -1037,6 +1044,11 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 
 		if len(result.ExternalGroups) > 0 {
 			extractResult.externalGroups = append(extractResult.externalGroups, result.ExternalGroups...)
+			continue
+		}
+
+		if len(result.ExternalRoles) > 0 {
+			extractResult.externalRoles = append(extractResult.externalRoles, result.ExternalRoles...)
 			continue
 		}
 
