@@ -5,7 +5,6 @@ metadata:
 spec:
   azure:
     - connection: connection://azure/flanksource
-      organisation: flanksource
       subscriptionID: e3911016-5810-415f-b075-682db169988f
       transform:
         relationship:
