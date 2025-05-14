@@ -683,8 +683,6 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the Name for the resource.
                       type: string
-                    organisation:
-                      type: string
                     properties:
                       description: |-
                         Properties are custom templatable properties for the scraped config items
@@ -994,7 +992,6 @@ spec:
                         the type for the resource.
                       type: string
                   required:
-                  - organisation
                   - subscriptionID
                   type: object
                 type: array

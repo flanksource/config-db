@@ -68,9 +68,6 @@
         "subscriptionID": {
           "type": "string"
         },
-        "organisation": {
-          "type": "string"
-        },
         "clientID": {
           "$ref": "#/$defs/EnvVar"
         },
@@ -93,8 +90,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "subscriptionID",
-        "organisation"
+        "subscriptionID"
       ]
     },
     "AzureExclusions": {
