@@ -6,6 +6,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	graphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
@@ -17,13 +18,18 @@ import (
 
 // Include types for Azure Active Directory
 const (
-	IncludeAppRegistrations = "appRegistrations"
-	IncludeUsers            = "users"
-	IncludeGroups           = "groups"
-	IncludeRoles            = "roles"
-	IncludeAuthMethods      = "authMethods"
-	IncludeAccessReviews    = "accessReviews"
-	IncludeEnterpriseApps   = "enterpriseApps"
+	IncludeAppRegistrations   = "appRegistrations"
+	IncludeUsers              = "users"
+	IncludeGroups             = "groups"
+	IncludeRoles              = "roles"
+	IncludeAuthMethods        = "authMethods"
+	IncludeAccessReviews      = "accessReviews"
+	IncludeEnterpriseApps     = "enterpriseApps"
+	IncludeAppRoleAssignments = "appRoleAssignments"
+)
+
+const (
+	EnterpriseApplicationType = "EnterpriseApplication"
 )
 
 func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
@@ -33,24 +39,46 @@ func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	results = append(results, azure.fetchRoles()...)
 
 	results = append(results, azure.fetchAppRegistrations()...)
-
-	if enterpriseApps := azure.fetchEnterpriseApplications(); len(enterpriseApps) > 0 {
-		results = append(results, enterpriseApps...)
-		for _, app := range enterpriseApps {
-			spID, err := uuid.Parse(app.ID)
-			if err != nil {
-				azure.ctx.Logger.Errorf("failed to parse service principal ID %s: %v", app.ID, err)
-				continue
-			}
-
-			if configAccesses := azure.fetchAppRoleAssignments(spID); len(configAccesses) > 0 {
-				results = append(results, configAccesses...)
-			}
-		}
-	}
+	enterpriseApps := azure.fetchEnterpriseApplications()
+	results = append(results, enterpriseApps...)
+	results = append(results, azure.fetchAllAppRoleAssignments(azure.config.AppRoleAssignments)...)
 
 	results = append(results, azure.fetchAuthMethods()...)
 	return results, nil
+}
+
+func (azure Scraper) fetchAllAppRoleAssignments(selector types.ResourceSelectors) v1.ScrapeResults {
+	if !azure.config.Includes(IncludeAppRoleAssignments) && len(azure.config.Include) > 0 {
+		return nil
+	}
+
+	if len(selector) == 0 {
+		// We'll never fetch role assignments for all apps.
+		// A selector must be provided.
+		return nil
+	}
+
+	selectors := lo.Map(selector, func(s types.ResourceSelector, _ int) types.ResourceSelector {
+		s.Types = []string{ConfigTypePrefix + EnterpriseApplicationType}
+		return s
+	})
+
+	var results v1.ScrapeResults
+	appIDs, err := query.FindConfigIDsByResourceSelector(azure.ctx.DutyContext(), -1, selectors...)
+	if err != nil {
+		azure.ctx.Logger.Errorf("failed to find config IDs by resource selector: %v", err)
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to find config IDs by resource selector: %w", err)})
+	}
+
+	// TODO: make this work with enterprise applications that were fetched in this run.
+	// v1.ScrapeResult must be made types.ResourceSelectable
+	for _, appID := range appIDs {
+		if configAccesses := azure.fetchAppRoleAssignments(appID); len(configAccesses) > 0 {
+			results = append(results, configAccesses...)
+		}
+	}
+
+	return results
 }
 
 // fetchAppRegistrations gets Azure App Registrations in a tenant.
@@ -208,8 +236,8 @@ func (azure Scraper) fetchEnterpriseApplications() v1.ScrapeResults {
 			ID:          spID,
 			Name:        displayName,
 			Config:      sp.GetBackingStore().Enumerate(),
-			ConfigClass: "EnterpriseApplication",
-			Type:        ConfigTypePrefix + "EnterpriseApplication",
+			ConfigClass: EnterpriseApplicationType,
+			Type:        ConfigTypePrefix + EnterpriseApplicationType,
 			RelationshipResults: []v1.RelationshipResult{{
 				RelatedConfigID: spID,
 				ConfigID:        appID,

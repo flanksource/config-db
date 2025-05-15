@@ -85,6 +85,12 @@
         },
         "exclusions": {
           "$ref": "#/$defs/AzureExclusions"
+        },
+        "appRoleAssignments": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,
@@ -270,6 +276,12 @@
         "key"
       ]
     },
+    "Items": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "JSONStringMap": {
       "additionalProperties": {
         "type": "string"
@@ -373,6 +385,57 @@
         },
         "parent": {
           "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ResourceSelector": {
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "cache": {
+          "type": "string"
+        },
+        "search": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "includeDeleted": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "tagSelector": {
+          "type": "string"
+        },
+        "labelSelector": {
+          "type": "string"
+        },
+        "fieldSelector": {
+          "type": "string"
+        },
+        "health": {
+          "type": "string"
+        },
+        "types": {
+          "$ref": "#/$defs/Items"
+        },
+        "statuses": {
+          "$ref": "#/$defs/Items"
         }
       },
       "additionalProperties": false,

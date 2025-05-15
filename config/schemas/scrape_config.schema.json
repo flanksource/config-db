@@ -209,6 +209,12 @@
         },
         "exclusions": {
           "$ref": "#/$defs/AzureExclusions"
+        },
+        "appRoleAssignments": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,
