@@ -104,7 +104,7 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 		err := scrapers.SyncScrapeJob(scraperCtx)
 		Expect(err).To(BeNil())
 
-		os.Remove("log.txt")
+		os.Remove("log.txt") // nolint:errcheck
 
 		time.Sleep(15 * time.Second)
 		logger.Infof("Exec k6")
@@ -167,9 +167,10 @@ var _ = ginkgo.Describe("Load Test", ginkgo.Ordered, func() {
 			t, err := time.Parse(time.RFC3339, parts[2])
 			Expect(err).To(BeNil())
 
-			if parts[1] == "crash" {
+			switch parts[1] {
+			case "crash":
 				k6CrashTime[parts[0]] = t
-			} else if parts[1] == "scaledown" {
+			case "scaledown":
 				deployTimes[parts[0]] = t
 			}
 

@@ -54,7 +54,7 @@ func (s SqlScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			results.Errorf(err, "failed to open connection to %s", config.GetEndpoint())
 			continue
 		}
-		defer db.Close()
+		defer db.Close() // nolint:errcheck
 
 		rows, err := querySQL(db, config.Query)
 		if err != nil {
