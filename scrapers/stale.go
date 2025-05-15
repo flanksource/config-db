@@ -23,9 +23,10 @@ func DeleteStaleConfigItems(ctx context.Context, staleTimeout string, scraperID 
 		}
 	}
 
-	if staleTimeout == "keep" {
+	switch staleTimeout {
+	case "keep":
 		return 0, nil
-	} else if staleTimeout == "" {
+	case "":
 		if defaultVal, exists := ctx.Properties()["config.retention.stale_item_age"]; exists {
 			staleTimeout = defaultVal
 		} else {
@@ -43,12 +44,12 @@ func DeleteStaleConfigItems(ctx context.Context, staleTimeout string, scraperID 
 	deleteQuery := `
 		UPDATE config_items
 		SET
-				deleted_at = NOW(),
-				delete_reason = ?
+			deleted_at = NOW(),
+			delete_reason = ?
 		WHERE
-				((NOW() - last_scraped_time) > INTERVAL '1 SECOND' * ?) AND
-				deleted_at IS NULL AND
-				scraper_id = ?
+			((NOW() - last_scraped_time) > INTERVAL '1 SECOND' * ?) AND
+			deleted_at IS NULL AND
+			scraper_id = ?
 		RETURNING type`
 
 	var deletedConfigs []models.ConfigItem

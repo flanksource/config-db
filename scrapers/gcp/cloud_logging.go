@@ -19,7 +19,7 @@ func (gcp Scraper) AuditLogs(ctx *GCPContext, config v1.GCP, results *v1.ScrapeR
 		results.Errorf(err, "failed to create logging admin client")
 		return
 	}
-	defer adminClient.Close()
+	defer adminClient.Close() // nolint:errcheck
 
 	// Define the time range for the logs
 	startTime := time.Now().Add(-24 * time.Hour) // Last 24 hours

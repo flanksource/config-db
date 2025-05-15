@@ -82,7 +82,7 @@ func pullUpstreamConfigScrapers(ctx context.Context, config upstream.UpstreamCon
 	if err != nil {
 		return 0, fmt.Errorf("error making request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint:errcheck
 
 	if !resp.IsOK() {
 		body, _ := io.ReadAll(resp.Body)
