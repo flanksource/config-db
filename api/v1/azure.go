@@ -23,6 +23,9 @@ type Azure struct {
 	TenantID       string           `yaml:"tenantID,omitempty" json:"tenantID,omitempty"`
 	Include        []string         `yaml:"include,omitempty" json:"include,omitempty"`
 	Exclusions     *AzureExclusions `yaml:"exclusions,omitempty" json:"exclusions,omitempty"`
+
+	// Role assignments for only these enterprise applications will be fetched.
+	AppRoleAssignments []types.ResourceSelector `yaml:"appRoleAssignments,omitempty" json:"appRoleAssignments,omitempty"`
 }
 
 func (azure Azure) Includes(resource string) bool {
