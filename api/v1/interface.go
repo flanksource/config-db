@@ -641,10 +641,11 @@ type ScrapeResult struct {
 	// knowing the external ids of the item to be linked.
 	RelationshipSelectors []DirectedRelationship `json:"-"`
 
-	ExternalRoles  []models.ExternalRole  `json:"-"`
-	ExternalUsers  []models.ExternalUser  `json:"-"`
-	ExternalGroups []models.ExternalGroup `json:"-"`
-	ConfigAccess   []models.ConfigAccess  `json:"-"`
+	ExternalRoles      []models.ExternalRole      `json:"-"`
+	ExternalUsers      []models.ExternalUser      `json:"-"`
+	ExternalGroups     []models.ExternalGroup     `json:"-"`
+	ExternalUserGroups []models.ExternalUserGroup `json:"-"`
+	ConfigAccess       []models.ConfigAccess      `json:"-"`
 
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
