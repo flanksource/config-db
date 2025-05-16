@@ -12,6 +12,7 @@ import (
 	graphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
 	"github.com/microsoftgraph/msgraph-sdk-go/applications"
 	msgraphModels "github.com/microsoftgraph/msgraph-sdk-go/models"
+	"github.com/microsoftgraph/msgraph-sdk-go/serviceprincipals"
 	"github.com/microsoftgraph/msgraph-sdk-go/users"
 	"github.com/samber/lo"
 )
@@ -47,15 +48,15 @@ func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	return results, nil
 }
 
-func (azure Scraper) fetchAppRoles(appID string) v1.ScrapeResults {
+func (azure Scraper) fetchAppRoles(appObjectID string) v1.ScrapeResults {
 	if !azure.config.Includes(IncludeAppRoles) {
 		return nil
 	}
 
-	azure.ctx.Logger.V(3).Infof("fetching app roles for app %s", appID)
+	azure.ctx.Logger.V(3).Infof("fetching app roles for app %s", appObjectID)
 
 	var results v1.ScrapeResults
-	app, err := azure.graphClient.Applications().ByApplicationId(appID).Get(azure.ctx, nil)
+	app, err := azure.graphClient.Applications().ByApplicationId(appObjectID).Get(azure.ctx, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch application: %w", err)})
 	}
@@ -184,7 +185,13 @@ func (azure Scraper) appToScrapeResult(app *msgraphModels.Application) v1.Scrape
 
 func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 	var results v1.ScrapeResults
-	assignments, err := azure.graphClient.ServicePrincipals().ByServicePrincipalId(spID.String()).AppRoleAssignedTo().Get(azure.ctx, nil)
+
+	query := &serviceprincipals.ItemAppRoleAssignedToRequestBuilderGetRequestConfiguration{
+		QueryParameters: &serviceprincipals.ItemAppRoleAssignedToRequestBuilderGetQueryParameters{
+			Select: []string{"id", "principalId", "principalType", "appRoleId", "resourceId", "createdDateTime", "deletedDateTime"},
+		},
+	}
+	assignments, err := azure.graphClient.ServicePrincipals().ByServicePrincipalId(spID.String()).AppRoleAssignedTo().Get(azure.ctx, query)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch app role assignments for service principal %s: %w", spID, err)})
 	}
@@ -201,25 +208,35 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 
 		switch principalType {
 		case "User":
-			result.ConfigAccess = append(result.ConfigAccess, models.ConfigAccess{
+			ca := models.ConfigAccess{
 				ID:             assignmentID,
 				ExternalUserID: assignment.GetPrincipalId(),
-				ExternalRoleID: assignment.GetResourceId(),
 				ConfigID:       spID,
 				ScraperID:      lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
 				CreatedAt:      lo.FromPtr(assignment.GetCreatedDateTime()),
 				DeletedAt:      assignment.GetDeletedDateTime(),
-			})
+			}
+			if assignment.GetAppRoleId() != nil && assignment.GetAppRoleId().String() != uuid.Nil.String() {
+				ca.ExternalRoleID = assignment.GetAppRoleId()
+			}
+
+			result.ConfigAccess = append(result.ConfigAccess, ca)
+
 		case "Group":
-			result.ConfigAccess = append(result.ConfigAccess, models.ConfigAccess{
+			ca := models.ConfigAccess{
 				ID:              assignmentID,
 				ExternalGroupID: assignment.GetPrincipalId(),
-				ExternalRoleID:  assignment.GetResourceId(),
 				ConfigID:        spID,
 				ScraperID:       lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
 				CreatedAt:       lo.FromPtr(assignment.GetCreatedDateTime()),
 				DeletedAt:       assignment.GetDeletedDateTime(),
-			})
+			}
+			if assignment.GetAppRoleId() != nil && assignment.GetAppRoleId().String() != uuid.Nil.String() {
+				ca.ExternalRoleID = assignment.GetAppRoleId()
+			}
+
+			result.ConfigAccess = append(result.ConfigAccess, ca)
+
 		default:
 			logger.Warnf("unknown principal type %s for app role assignment %s", principalType, assignmentID)
 		}
