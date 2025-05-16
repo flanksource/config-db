@@ -18,14 +18,16 @@ import (
 
 // Include types for Azure Active Directory
 const (
+	IncludeAuthMethods = "authMethods"
+	IncludeGroups      = "groups"
+	IncludeUsers       = "users"
+
+	IncludeAccessReviews = "accessReviews"
+
 	IncludeAppRegistrations   = "appRegistrations"
-	IncludeUsers              = "users"
-	IncludeGroups             = "groups"
-	IncludeRoles              = "roles"
-	IncludeAuthMethods        = "authMethods"
-	IncludeAccessReviews      = "accessReviews"
-	IncludeEnterpriseApps     = "enterpriseApps"
 	IncludeAppRoleAssignments = "appRoleAssignments"
+	IncludeAppRoles           = "appRoles"
+	IncludeEnterpriseApps     = "enterpriseApps"
 )
 
 const (
@@ -43,6 +45,44 @@ func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 
 	results = append(results, azure.fetchAuthMethods()...)
 	return results, nil
+}
+
+func (azure Scraper) fetchAppRoles(appID string) v1.ScrapeResults {
+	if !azure.config.Includes(IncludeAppRoles) {
+		return nil
+	}
+
+	azure.ctx.Logger.V(3).Infof("fetching app roles for app %s", appID)
+
+	var results v1.ScrapeResults
+	app, err := azure.graphClient.Applications().ByApplicationId(appID).Get(azure.ctx, nil)
+	if err != nil {
+		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch application: %w", err)})
+	}
+
+	appRoles := app.GetAppRoles()
+	for _, role := range appRoles {
+		if role.GetId() == nil {
+			continue
+		}
+
+		externalRole := v1.ScrapeResult{
+			BaseScraper: azure.config.BaseScraper,
+			ExternalRoles: []models.ExternalRole{
+				{
+					ID:          lo.FromPtr(role.GetId()),
+					AccountID:   azure.config.TenantID,
+					ScraperID:   lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
+					Name:        lo.FromPtr(role.GetDisplayName()),
+					Description: lo.FromPtr(role.GetDescription()),
+				},
+			},
+		}
+
+		results = append(results, externalRole)
+	}
+
+	return results
 }
 
 func (azure Scraper) fetchAllAppRoleAssignments(selector types.ResourceSelectors) v1.ScrapeResults {
@@ -105,7 +145,7 @@ func (azure Scraper) fetchAppRegistrations() v1.ScrapeResults {
 
 	err = pageIterator.Iterate(azure.ctx, func(app *msgraphModels.Application) bool {
 		results = append(results, azure.appToScrapeResult(app))
-
+		results = append(results, azure.fetchAppRoles(lo.FromPtr(app.GetId()))...)
 		return true
 	})
 
