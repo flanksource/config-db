@@ -2,7 +2,6 @@ package azure
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -12,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	graphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
 	"github.com/microsoftgraph/msgraph-sdk-go/applications"
-	"github.com/microsoftgraph/msgraph-sdk-go/auditlogs"
 	msgraphModels "github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/users"
 	"github.com/samber/lo"
@@ -38,7 +36,7 @@ func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	results := v1.ScrapeResults{}
 	results = append(results, azure.fetchUsers()...)
 	results = append(results, azure.fetchGroups()...)
-	results = append(results, azure.fetchRoles()...)
+	// results = append(results, azure.fetchRoles()...)
 
 	results = append(results, azure.fetchAppRegistrations()...)
 	enterpriseApps := azure.fetchEnterpriseApplications()
@@ -148,15 +146,6 @@ func (azure Scraper) appToScrapeResult(app *msgraphModels.Application) v1.Scrape
 
 func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 	var results v1.ScrapeResults
-
-	lastLogins, err := azure.fetchLastLogins(spID.String(), time.Now().Add(-time.Hour*24))
-	if err != nil {
-		azure.ctx.Logger.Errorf("failed to fetch last login for service principal %s: %v", spID, err)
-	}
-
-	// TODO: cache last login and fetch from last scrape time
-	azure.ctx.Infof("last logins for service principal %s: %d", spID, len(lastLogins))
-
 	assignments, err := azure.graphClient.ServicePrincipals().ByServicePrincipalId(spID.String()).AppRoleAssignedTo().Get(azure.ctx, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch app role assignments for service principal %s: %w", spID, err)})
@@ -177,7 +166,9 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 			result.ConfigAccess = append(result.ConfigAccess, models.ConfigAccess{
 				ID:             assignmentID,
 				ExternalUserID: assignment.GetPrincipalId(),
+				ExternalRoleID: assignment.GetResourceId(),
 				ConfigID:       spID,
+				ScraperID:      lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
 				CreatedAt:      lo.FromPtr(assignment.GetCreatedDateTime()),
 				DeletedAt:      assignment.GetDeletedDateTime(),
 			})
@@ -185,17 +176,11 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 			result.ConfigAccess = append(result.ConfigAccess, models.ConfigAccess{
 				ID:              assignmentID,
 				ExternalGroupID: assignment.GetPrincipalId(),
+				ExternalRoleID:  assignment.GetResourceId(),
 				ConfigID:        spID,
+				ScraperID:       lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
 				CreatedAt:       lo.FromPtr(assignment.GetCreatedDateTime()),
 				DeletedAt:       assignment.GetDeletedDateTime(),
-			})
-		case "Role":
-			result.ConfigAccess = append(result.ConfigAccess, models.ConfigAccess{
-				ID:             assignmentID,
-				ExternalRoleID: assignment.GetPrincipalId(),
-				ConfigID:       spID,
-				CreatedAt:      lo.FromPtr(assignment.GetCreatedDateTime()),
-				DeletedAt:      assignment.GetDeletedDateTime(),
 			})
 		default:
 			logger.Warnf("unknown principal type %s for app role assignment %s", principalType, assignmentID)
@@ -335,6 +320,7 @@ func (azure Scraper) userToScrapeResult(user msgraphModels.Userable) (v1.ScrapeR
 	externalUser := models.ExternalUser{
 		ID:        userID,
 		Name:      displayName,
+		ScraperID: lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
 		AccountID: azure.config.TenantID,
 		UserType:  "User",
 		Email:     user.GetMail(),
@@ -411,6 +397,7 @@ func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable) (v1.Scra
 	externalGroup := models.ExternalGroup{
 		ID:        groupID,
 		AccountID: azure.config.TenantID,
+		ScraperID: lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
 		Name:      lo.FromPtr(group.GetDisplayName()),
 		CreatedAt: lo.FromPtr(group.GetCreatedDateTime()),
 		DeletedAt: group.GetDeletedDateTime(),
@@ -514,63 +501,63 @@ func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 }
 
 // fetchLastLogins returns a map of userID to their last login time for a given app
-func (azure Scraper) fetchLastLogins(appID string, since time.Time) (map[string]*time.Time, error) {
-	azure.ctx.Logger.V(3).Infof("fetching sign-in logs for app %s", appID)
+// func (azure Scraper) fetchLastLogins(appID string, since time.Time) (map[string]*time.Time, error) {
+// 	azure.ctx.Logger.V(3).Infof("fetching sign-in logs for app %s", appID)
 
-	// Initialize result map
-	userLastLogins := make(map[string]*time.Time)
+// 	// Initialize result map
+// 	userLastLogins := make(map[string]*time.Time)
 
-	// Configure the request to get sign-ins for the app since the given time
-	// $filter docs: https://learn.microsoft.com/en-us/graph/query-parameters#filter-parameter
-	requestConfig := &auditlogs.SignInsRequestBuilderGetRequestConfiguration{
-		QueryParameters: &auditlogs.SignInsRequestBuilderGetQueryParameters{
-			Filter: lo.ToPtr(fmt.Sprintf("appId eq '%s' and createdDateTime gt %s",
-				appID,
-				since.Format(time.RFC3339),
-			)),
-			Top:     lo.ToPtr(int32(999)),
-			Orderby: []string{"createdDateTime desc"},
-		},
-	}
+// 	// Configure the request to get sign-ins for the app since the given time
+// 	// $filter docs: https://learn.microsoft.com/en-us/graph/query-parameters#filter-parameter
+// 	requestConfig := &auditlogs.SignInsRequestBuilderGetRequestConfiguration{
+// 		QueryParameters: &auditlogs.SignInsRequestBuilderGetQueryParameters{
+// 			Filter: lo.ToPtr(fmt.Sprintf("appId eq '%s' and createdDateTime gt %s",
+// 				appID,
+// 				since.Format(time.RFC3339),
+// 			)),
+// 			Top:     lo.ToPtr(int32(999)),
+// 			Orderby: []string{"createdDateTime desc"},
+// 		},
+// 	}
 
-	start := time.Now()
-	signIns, err := azure.graphClient.AuditLogs().SignIns().Get(azure.ctx, requestConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch sign-in logs: %w", err)
-	}
-	azure.ctx.Infof("signIns for app %s: %v (took %s)", appID, len(signIns.GetValue()), time.Since(start))
+// 	start := time.Now()
+// 	signIns, err := azure.graphClient.AuditLogs().SignIns().Get(azure.ctx, requestConfig)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to fetch sign-in logs: %w", err)
+// 	}
+// 	azure.ctx.Infof("signIns for app %s: %v (took %s)", appID, len(signIns.GetValue()), time.Since(start))
 
-	for _, signIn := range signIns.GetValue() {
-		userID := lo.FromPtr(signIn.GetUserId())
-		loginTime := signIn.GetCreatedDateTime()
+// 	for _, signIn := range signIns.GetValue() {
+// 		userID := lo.FromPtr(signIn.GetUserId())
+// 		loginTime := signIn.GetCreatedDateTime()
 
-		// Only store if it's the first (latest) login we've seen for this user
-		if _, exists := userLastLogins[userID]; !exists {
-			userLastLogins[userID] = loginTime
-		}
-	}
+// 		// Only store if it's the first (latest) login we've seen for this user
+// 		if _, exists := userLastLogins[userID]; !exists {
+// 			userLastLogins[userID] = loginTime
+// 		}
+// 	}
 
-	pageIterator, err := graphcore.NewPageIterator[msgraphModels.SignInable](signIns, azure.graphClient.GetAdapter(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create page iterator: %w", err)
-	}
+// 	pageIterator, err := graphcore.NewPageIterator[msgraphModels.SignInable](signIns, azure.graphClient.GetAdapter(), nil)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to create page iterator: %w", err)
+// 	}
 
-	err = pageIterator.Iterate(azure.ctx, func(signIn msgraphModels.SignInable) bool {
-		userID := lo.FromPtr(signIn.GetUserId())
-		loginTime := signIn.GetCreatedDateTime()
+// 	err = pageIterator.Iterate(azure.ctx, func(signIn msgraphModels.SignInable) bool {
+// 		userID := lo.FromPtr(signIn.GetUserId())
+// 		loginTime := signIn.GetCreatedDateTime()
 
-		if _, exists := userLastLogins[userID]; !exists {
-			userLastLogins[userID] = loginTime
-		}
-		return true
-	})
+// 		if _, exists := userLastLogins[userID]; !exists {
+// 			userLastLogins[userID] = loginTime
+// 		}
+// 		return true
+// 	})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to iterate through sign-in pages: %w", err)
-	}
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to iterate through sign-in pages: %w", err)
+// 	}
 
-	return userLastLogins, nil
-}
+// 	return userLastLogins, nil
+// }
 
 // func (azure Scraper) fetchLastLogin(appID, userID string) (*time.Time, error) {
 // 	azure.ctx.Logger.V(3).Infof("fetching sign-in logs for user %s", userID)
