@@ -1,8 +1,6 @@
 module github.com/flanksource/config-db
 
-go 1.24
-
-toolchain go1.24.0
+go 1.24.0
 
 require (
 	cloud.google.com/go/container v1.42.2
@@ -90,7 +88,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.35.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.25.12
-	k8s.io/apimachinery v0.32.2
+	k8s.io/apimachinery v0.33.1
 	k8s.io/client-go v0.32.2
 	sigs.k8s.io/controller-runtime v0.19.0
 	sigs.k8s.io/yaml v1.4.0
@@ -284,6 +282,7 @@ require (
 	modernc.org/memory v1.5.0 // indirect
 	modernc.org/sqlite v1.20.3 // indirect
 	sigs.k8s.io/gateway-api v1.1.0 // indirect
+	sigs.k8s.io/randfill v1.0.0 // indirect
 )
 
 require (
@@ -323,7 +322,6 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.7.0
-	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
@@ -396,12 +394,12 @@ require (
 	k8s.io/apiextensions-apiserver v0.31.1
 	k8s.io/cli-runtime v0.32.2 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20241212222426-2c72e554b1e7 // indirect
+	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 	sigs.k8s.io/kustomize/api v0.19.0 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.19.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
 )
 
 // replace github.com/flanksource/commons => ../commons
