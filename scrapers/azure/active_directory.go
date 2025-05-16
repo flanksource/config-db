@@ -36,11 +36,9 @@ func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	results := v1.ScrapeResults{}
 	results = append(results, azure.fetchUsers()...)
 	results = append(results, azure.fetchGroups()...)
-	// results = append(results, azure.fetchRoles()...)
 
 	results = append(results, azure.fetchAppRegistrations()...)
-	enterpriseApps := azure.fetchEnterpriseApplications()
-	results = append(results, enterpriseApps...)
+	results = append(results, azure.fetchEnterpriseApplications()...)
 	results = append(results, azure.fetchAllAppRoleAssignments(azure.config.AppRoleAssignments)...)
 
 	results = append(results, azure.fetchAuthMethods()...)
@@ -275,16 +273,6 @@ func (azure Scraper) fetchUsers() v1.ScrapeResults {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch users: %w", err)})
 	}
 
-	for _, user := range users.GetValue() {
-		scrapeResult, err := azure.userToScrapeResult(user)
-		if err != nil {
-			azure.ctx.Logger.Errorf("failed to convert user to scrape result: %v", err)
-			continue
-		}
-
-		results = append(results, scrapeResult)
-	}
-
 	pageIterator, err := graphcore.NewPageIterator[msgraphModels.Userable](users, azure.graphClient.GetAdapter(), nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
@@ -370,13 +358,11 @@ func (azure Scraper) fetchGroups() v1.ScrapeResults {
 			return true
 		}
 
-		// TODO:
-		// members, err := azure.fetchGroupMembers(lo.FromPtr(group.GetId()))
-		// if err != nil {
-		// 	azure.ctx.Logger.Errorf("failed to fetch group members: %s", err)
-		// } else if len(members) > 0 {
-		// 	result.RelationshipResults = members
-		// }
+		if members, err := azure.fetchGroupMembers(lo.FromPtr(group.GetId())); err != nil {
+			azure.ctx.Logger.Errorf("failed to fetch group members: %s", err)
+		} else if len(members) > 0 {
+			result.ExternalUserGroups = members
+		}
 
 		results = append(results, result)
 		return true
@@ -412,60 +398,6 @@ func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable) (v1.Scra
 	}, nil
 }
 
-// fetchRoles gets Azure AD roles in a tenant.
-func (azure Scraper) fetchRoles() v1.ScrapeResults {
-	if !azure.config.Includes(IncludeRoles) {
-		return nil
-	}
-
-	azure.ctx.Logger.V(3).Infof("fetching roles for tenant %s", azure.config.TenantID)
-
-	var results v1.ScrapeResults
-	roles, err := azure.graphClient.RoleManagement().Directory().RoleDefinitions().Get(azure.ctx, nil)
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch roles: %w", err)})
-	}
-
-	for _, role := range roles.GetValue() {
-		results = append(results, azure.roleToScrapeResult(role))
-	}
-
-	pageIterator, err := graphcore.NewPageIterator[msgraphModels.UnifiedRoleDefinitionable](roles, azure.graphClient.GetAdapter(), nil)
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
-	}
-
-	err = pageIterator.Iterate(azure.ctx, func(role msgraphModels.UnifiedRoleDefinitionable) bool {
-		if r := azure.roleToScrapeResult(role); r.ID != "" {
-			results = append(results, r)
-		}
-		return true
-	})
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to iterate through pages: %w", err)})
-	}
-
-	return results
-}
-
-func (azure Scraper) roleToScrapeResult(role msgraphModels.UnifiedRoleDefinitionable) v1.ScrapeResult {
-	roleID, err := uuid.Parse(lo.FromPtr(role.GetId()))
-	if err != nil {
-		return v1.ScrapeResult{}
-	}
-
-	return v1.ScrapeResult{
-		ExternalRoles: []models.ExternalRole{
-			{
-				ID:          roleID,
-				Name:        lo.FromPtr(role.GetDisplayName()),
-				AccountID:   azure.config.TenantID,
-				Description: lo.FromPtr(role.GetDescription()),
-			},
-		},
-	}
-}
-
 // fetchAuthMethods gets authentication methods configured in Azure AD.
 func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 	if !azure.config.Includes(IncludeAuthMethods) {
@@ -498,6 +430,51 @@ func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 	}
 
 	return results
+}
+
+// fetchGroupMembers gets members of an Azure AD group.
+func (azure Scraper) fetchGroupMembers(groupID string) ([]models.ExternalUserGroup, error) {
+	if !azure.config.Includes(IncludeUsers) || !azure.config.Includes(IncludeGroups) {
+		return nil, nil
+	}
+
+	groupUUID, err := uuid.Parse(groupID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse group ID %s: %w", groupID, err)
+	}
+
+	var results []models.ExternalUserGroup
+	members, err := azure.graphClient.Groups().ByGroupId(groupID).Members().Get(azure.ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch group members: %w", err)
+	}
+
+	pageIterator, err := graphcore.NewPageIterator[msgraphModels.DirectoryObjectable](members, azure.graphClient.GetAdapter(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page iterator: %w", err)
+	}
+
+	err = pageIterator.Iterate(azure.ctx, func(member msgraphModels.DirectoryObjectable) bool {
+		memberID, err := uuid.Parse(lo.FromPtr(member.GetId()))
+		if err != nil {
+			azure.ctx.Logger.Errorf("failed to parse azure group member ID %s: %v", lo.FromPtr(member.GetId()), err)
+			return true
+		}
+
+		ug := models.ExternalUserGroup{
+			ExternalUserID:  memberID,
+			ExternalGroupID: groupUUID,
+			// CreatedAt: , // TODO: The API doesn't return created date
+			// DeletedAt: member.GetDeletedDateTime(), // TODO: The API doesn't return deleted date
+		}
+		results = append(results, ug)
+		return true
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to iterate through pages: %w", err)
+	}
+
+	return results, nil
 }
 
 // fetchLastLogins returns a map of userID to their last login time for a given app
@@ -628,36 +605,4 @@ func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 // 		ConfigClass: "AccessReview",
 // 		Type:        ConfigTypePrefix + "AccessReview",
 // 	}
-// }
-
-// fetchGroupMembers gets members of an Azure AD group.
-// func (azure Scraper) fetchGroupMembers(groupID string) (v1.RelationshipResults, error) {
-// 	if !azure.config.Includes(IncludeUsers) || !azure.config.Includes(IncludeGroups) {
-// 		return nil, nil
-// 	}
-
-// 	var results v1.RelationshipResults
-// 	members, err := azure.graphClient.Groups().ByGroupId(groupID).Members().Get(azure.ctx, nil)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to fetch group members: %w", err)
-// 	}
-
-// 	pageIterator, err := graphcore.NewPageIterator[msgraphModels.DirectoryObjectable](members, azure.graphClient.GetAdapter(), nil)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to create page iterator: %w", err)
-// 	}
-
-// 	err = pageIterator.Iterate(azure.ctx, func(member msgraphModels.DirectoryObjectable) bool {
-// 		results = append(results, v1.RelationshipResult{
-// 			RelatedExternalID: v1.ExternalID{ExternalID: lo.FromPtr(member.GetId()), ConfigType: ConfigTypePrefix + "User"},
-// 			ConfigExternalID:  v1.ExternalID{ExternalID: groupID, ConfigType: ConfigTypePrefix + "Group"},
-// 			Relationship:      "GroupUser",
-// 		})
-// 		return true
-// 	})
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to iterate through pages: %w", err)
-// 	}
-
-// 	return results, nil
 // }
