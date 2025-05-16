@@ -68,9 +68,6 @@
         "subscriptionID": {
           "type": "string"
         },
-        "organisation": {
-          "type": "string"
-        },
         "clientID": {
           "$ref": "#/$defs/EnvVar"
         },
@@ -80,15 +77,26 @@
         "tenantID": {
           "type": "string"
         },
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "exclusions": {
           "$ref": "#/$defs/AzureExclusions"
+        },
+        "appRoleAssignments": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "subscriptionID",
-        "organisation"
+        "subscriptionID"
       ]
     },
     "AzureExclusions": {
@@ -268,6 +276,12 @@
         "key"
       ]
     },
+    "Items": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "JSONStringMap": {
       "additionalProperties": {
         "type": "string"
@@ -371,6 +385,57 @@
         },
         "parent": {
           "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ResourceSelector": {
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "cache": {
+          "type": "string"
+        },
+        "search": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "includeDeleted": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "tagSelector": {
+          "type": "string"
+        },
+        "labelSelector": {
+          "type": "string"
+        },
+        "fieldSelector": {
+          "type": "string"
+        },
+        "health": {
+          "type": "string"
+        },
+        "types": {
+          "$ref": "#/$defs/Items"
+        },
+        "statuses": {
+          "$ref": "#/$defs/Items"
         }
       },
       "additionalProperties": false,

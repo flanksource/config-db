@@ -611,7 +611,7 @@ type ScrapeResult struct {
 	Description         string              `json:"description,omitempty"`
 	Aliases             []string            `json:"aliases,omitempty"`
 	Source              string              `json:"source,omitempty"`
-	Config              interface{}         `json:"config,omitempty"`
+	Config              any                 `json:"config,omitempty"`
 	Format              string              `json:"format,omitempty"`
 	Icon                string              `json:"icon,omitempty"`
 	Labels              JSONStringMap       `json:"labels,omitempty"`
@@ -640,6 +640,12 @@ type ScrapeResult struct {
 	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without
 	// knowing the external ids of the item to be linked.
 	RelationshipSelectors []DirectedRelationship `json:"-"`
+
+	ExternalRoles      []models.ExternalRole      `json:"-"`
+	ExternalUsers      []models.ExternalUser      `json:"-"`
+	ExternalGroups     []models.ExternalGroup     `json:"-"`
+	ExternalUserGroups []models.ExternalUserGroup `json:"-"`
+	ConfigAccess       []models.ConfigAccess      `json:"-"`
 
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
