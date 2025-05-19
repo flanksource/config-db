@@ -595,6 +595,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
+	for _, accessLog := range extractResult.configAccessLogs {
+		if err := ctx.DB().Save(&accessLog).Error; err != nil {
+			return summary, fmt.Errorf("failed to save access log: %w", err)
+		}
+	}
+
 	for _, externalUserGroup := range extractResult.externalUserGroups {
 		if err := ctx.DB().Save(&externalUserGroup).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external user group: %w", err)
@@ -1020,8 +1026,9 @@ type extractResult struct {
 	externalGroups     []dutyModels.ExternalGroup
 	externalUserGroups []dutyModels.ExternalUserGroup
 
-	externalRoles  []dutyModels.ExternalRole
-	configAccesses []dutyModels.ConfigAccess
+	externalRoles    []dutyModels.ExternalRole
+	configAccesses   []dutyModels.ConfigAccess
+	configAccessLogs []dutyModels.ConfigAccessLog
 
 	changeSummary v1.ChangeSummaryByType
 }
@@ -1059,6 +1066,13 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 
 		if len(result.ConfigAccess) > 0 {
 			extractResult.configAccesses = append(extractResult.configAccesses, result.ConfigAccess...)
+		}
+
+		if len(result.ConfigAccessLogs) > 0 {
+			extractResult.configAccessLogs = append(extractResult.configAccessLogs, lo.Map(result.ConfigAccessLogs, func(accessLog dutyModels.ConfigAccessLog, _ int) dutyModels.ConfigAccessLog {
+				accessLog.ScraperID = lo.FromPtr(ctx.ScrapeConfig().GetPersistedID())
+				return accessLog
+			})...)
 		}
 
 		if len(result.ExternalUserGroups) > 0 {
