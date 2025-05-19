@@ -1,0 +1,21 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: azure-access-logs
+  namespace: mc
+spec:
+  full: true
+  http:
+    - type: 'None'
+      name: 'none'
+      id: 'none'
+      url: 'http://localhost:8000/azure_enterprise_app_access_logs.json'
+      transform:
+        expr: |
+          dyn(config).map(item, {
+            "access_logs": [{
+              "config_id": item.app_id,
+              "external_user_id": item.user_id,
+              "created_at": item.created_at
+            }]
+          }).toJSON()
