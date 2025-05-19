@@ -428,7 +428,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		var ongoingInput v1.ScrapeResults = []v1.ScrapeResult{input}
 		if !input.BaseScraper.Transform.Script.IsEmpty() {
 			ctx.Logger.V(3).Infof("Applying script transformation")
-			transformed, err := RunScript(input, input.BaseScraper.Transform.Script)
+			transformed, err := RunScript(ctx, input, input.BaseScraper.Transform.Script)
 			if err != nil {
 				return results, fmt.Errorf("failed to run script: %v", err)
 			}
