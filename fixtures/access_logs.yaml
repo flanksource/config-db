@@ -12,10 +12,13 @@ spec:
       url: 'http://localhost:8000/azure_enterprise_app_access_logs.json'
       transform:
         expr: |
-          dyn(config).map(item, {
-            "access_logs": [{
-              "config_id": item.app_id,
-              "external_user_id": item.user_id,
-              "created_at": item.created_at
-            }]
-          }).toJSON()
+          dyn(config).
+            filter(item, catalog.hasRelationToType(item.app_id, "MissionControl::Application")).
+            map(item, {
+              "access_logs": [{
+                "config_id": item.app_id,
+                "external_user_id": item.user_id,
+                "created_at": item.created_at
+              }]
+            }).toJSON()
+
