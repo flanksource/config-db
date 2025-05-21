@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	cdbsql "github.com/flanksource/config-db/scrapers/sql"
@@ -50,21 +50,35 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 		}
 
-		sdd, err := cdbsql.QuerySQL(conn, config.Query)
-		if err != nil {
-			results.Errorf(err, "failed to query clickhouse: %s", config.Query)
-			continue
-		}
-		logger.Infof("Clickhouse Output 2 is %+v", sdd)
+		limit := properties.Int(5000, "clickhouse.limit")
+		offset := 0
+		for {
+			query := addLimitOffset(config.Query, limit, offset)
+			offset += limit
 
-		for _, row := range sdd.Rows {
-			results = append(results, v1.ScrapeResult{
-				BaseScraper: config.BaseScraper,
-				Config:      row,
-			})
+			qr, err := cdbsql.QuerySQL(conn, query)
+			if err != nil {
+				results.Errorf(err, "failed to query clickhouse: %s", config.Query)
+				continue
+			}
+
+			if qr.Count == 0 {
+				break
+			}
+
+			for _, row := range qr.Rows {
+				results = append(results, v1.ScrapeResult{
+					BaseScraper: config.BaseScraper,
+					Config:      row,
+				})
+			}
 		}
 	}
 	return results
+}
+
+func addLimitOffset(query string, limit, offset int) string {
+	return fmt.Sprintf("%s LIMIT %d OFFSET %d", strings.TrimSuffix(query, ";"), limit, offset)
 }
 
 type NamedCollection struct {
