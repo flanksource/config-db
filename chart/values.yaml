@@ -6,16 +6,34 @@ global:
   otel:
     collector: ""
     labels: ""
+
   serviceMonitor:
     enabled: false
+    # @schema
+    # additionalProperties: true
+    # @schema
     labels: {}
+
   serviceAccount:
+    # @schema
+    # additionalProperties: true
+    # @schema
     annotations: {}
     # Note unlike other globals, the global serviceAccount.name overrides the local value
     name: ""
+
+  # @schema
+  # additionalProperties: true
+  # @schema
   nodeSelector: {}
+
   tolerations: []
+
+  # @schema
+  # additionalProperties: true
+  # @schema
   affinity: {}
+
   imageRegistry: docker.io
   imagePrefix: flanksource
   imagePullSecrets: []
@@ -25,6 +43,9 @@ global:
   # @schema
   labels: {}
 
+  # @schema
+  # additionalProperties: true
+  # @schema
   db:
     connectionPooler:
       enabled: false
@@ -48,6 +69,7 @@ image:
 
 configChangeRetentionDays: 60
 configAnalysisRetentionDays: 60
+
 serviceMonitor:
   enabled: false
   # @schema
@@ -59,9 +81,15 @@ logLevel: ""
 jsonLogs: true
 
 # command line arguments to config-db
+# @schema
+# additionalProperties: true
+# @schema
 extraArgs: {}
 
 # environment variables to add e.g. GOMEMLIMIT
+# @schema
+# additionalProperties: true
+# @schema
 env: {}
 
 # @schema
@@ -70,6 +98,9 @@ env: {}
 extraEnvFrom: []
 
 # config-db properties to override
+# @schema
+# additionalProperties: true
+# @schema
 properties: {}
 
 # @schema
@@ -150,6 +181,10 @@ db:
 # @schema
 ingress:
   enabled: false
+
+  # @schema
+  # additionalProperties: true
+  # @schema
   annotations:
     {}
     #  kubernetes.io/ingress.class: nginx
@@ -166,7 +201,12 @@ ingress:
 serviceAccount:
   create: true
   name: config-db-sa
+
+  # @schema
+  # additionalProperties: true
+  # @schema
   annotations: {}
+
   # @schema
   # additionalProperties: false
   # @schema
@@ -192,14 +232,21 @@ upstream:
   pageSize: 500
 
 # Extra values to be applied to the pod spec
+# @schema
+# additionalProperties: true
+# @schema
 extra: {}
 
 # @schema
 # skipProperties: true
+# additionalProperties: true
 # @schema
 podSecurityContext:
   fsGroup: 1000
 
+# @schema
+# additionalProperties: true
+# @schema
 securityContext: {}
 
 # Additional volumes on the output Deployment definition.
@@ -215,10 +262,16 @@ volumeMounts: []
 #   mountPath: "/etc/foo"
 #   readOnly: true
 
+# @schema
+# additionalProperties: true
+# @schema
 nodeSelector: {}
 
 tolerations: []
 
+# @schema
+# additionalProperties: true
+# @schema
 affinity: {}
 
 imagePullSecrets: []
