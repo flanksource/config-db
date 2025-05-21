@@ -82,6 +82,10 @@ resources:
 scrapeRuleConfigMaps:
   - config-db-rules
 
+clickhouse:
+  enabled: false
+  url: clickhouse://
+
 # @schema
 # additionalProperties: false
 # @schema

@@ -1,0 +1,144 @@
+{{- if .Values.clickhouse.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse
+data:
+  config.xml: |
+    <clickhouse>
+      <logger>
+        <level>information</level>
+        <console>true</console>
+      </logger>
+      
+      <http_port>8123</http_port>
+      <tcp_port>9000</tcp_port>
+      <interserver_http_port>9009</interserver_http_port>
+      
+      <max_connections>4096</max_connections>
+      <keep_alive_timeout>300</keep_alive_timeout>
+      <max_concurrent_queries>100</max_concurrent_queries>
+      <uncompressed_cache_size>8589934592</uncompressed_cache_size>
+      <mark_cache_size>5368709120</mark_cache_size>
+      
+      <path>/var/lib/clickhouse/</path>
+      <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+      <user_files_path>/var/lib/clickhouse/user_files/</user_files_path>
+      
+      <users_config>users.xml</users_config>
+      <default_profile>default</default_profile>
+      <default_database>default</default_database>
+    </clickhouse>
+
+  users.xml: |
+    <clickhouse>
+      <users>
+        <default>
+          <password>default</password>
+          <networks>
+            <ip>::/0</ip>
+          </networks>
+          <profile>default</profile>
+          <quota>default</quota>
+        </default>
+      </users>
+      
+      <profiles>
+        <default>
+          <max_memory_usage>10000000000</max_memory_usage>
+          <use_uncompressed_cache>0</use_uncompressed_cache>
+          <load_balancing>random</load_balancing>
+        </default>
+      </profiles>
+      
+      <quotas>
+        <default>
+          <interval>
+            <duration>3600</duration>
+            <queries>0</queries>
+            <errors>0</errors>
+            <result_rows>0</result_rows>
+            <read_rows>0</read_rows>
+            <execution_time>0</execution_time>
+          </interval>
+        </default>
+      </quotas>
+    </clickhouse>
+
+---
+# ClickHouse Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clickhouse
+  labels:
+    app: clickhouse
+spec:
+  selector:
+    matchLabels:
+      app: clickhouse
+  template:
+    metadata:
+      labels:
+        app: clickhouse
+    spec:
+      containers:
+      - name: clickhouse
+        image: clickhouse/clickhouse-server:25.4 
+        ports:
+        - containerPort: 8123
+          name: http
+        - containerPort: 9000
+          name: client
+        volumeMounts:
+        - name: clickhouse-config
+          mountPath: /etc/clickhouse-server/config.d/custom-config.xml
+          subPath: config.xml
+        - name: clickhouse-config
+          mountPath: /etc/clickhouse-server/users.d/custom-users.xml
+          subPath: users.xml
+        resources:
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+          requests:
+            cpu: "1"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: clickhouse-config
+        configMap:
+          name: clickhouse
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  labels:
+    app: clickhouse
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8123
+    targetPort: 8123
+    protocol: TCP
+    name: http
+  - port: 9000
+    targetPort: 9000
+    protocol: TCP
+    name: client
+  selector:
+    app: clickhouse
+{{- end }}

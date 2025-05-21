@@ -93,6 +93,9 @@ spec:
             {{- if .Values.jsonLogs }}
             - --json-logs
             {{- end }}
+            {{- if .Values.clickhouse.enabled }}
+            - --clickhouse-url={{.Values.clickhouse.url}}
+            {{- end }}
             {{- if .Values.db.runMigrations}}
             - --db-migrations
             {{- end}}

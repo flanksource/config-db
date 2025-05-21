@@ -46,7 +46,7 @@ func GetConfigType(obj *unstructured.Unstructured) string {
 
 type KubernetesScraper struct{}
 
-func (kubernetes KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
+func (KubernetesScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Kubernetes) > 0
 }
 

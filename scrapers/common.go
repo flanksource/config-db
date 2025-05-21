@@ -3,6 +3,7 @@ package scrapers
 import (
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/scrapers/azure"
+	"github.com/flanksource/config-db/scrapers/clickhouse"
 	"github.com/flanksource/config-db/scrapers/http"
 	"github.com/flanksource/config-db/scrapers/slack"
 	"github.com/flanksource/config-db/scrapers/terraform"
@@ -28,6 +29,7 @@ var All = []api.Scraper{
 	kubernetes.KubernetesFileScraper{},
 	devops.AzureDevopsScraper{},
 	github.GithubActionsScraper{},
+	clickhouse.ClickhouseScraper{},
 	slack.Scraper{},
 	sql.SqlScraper{},
 	trivy.Scanner{},

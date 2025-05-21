@@ -56,7 +56,7 @@ func (s SqlScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 		defer db.Close() // nolint:errcheck
 
-		rows, err := querySQL(db, config.Query)
+		rows, err := QuerySQL(db, config.Query)
 		if err != nil {
 			results.Errorf(err, "failed to query %s", config.GetEndpoint())
 			continue
@@ -90,7 +90,7 @@ type SQLDetails struct {
 // Connects to a db using the specified `driver` and `connectionstring`
 // Performs the test query given in `query`.
 // Gives the single row test query result as result.
-func querySQL(db *sql.DB, query string) (*SQLDetails, error) {
+func QuerySQL(db *sql.DB, query string) (*SQLDetails, error) {
 	rows, err := db.Query(query)
 	result := SQLDetails{}
 	if err != nil || rows.Err() != nil {
