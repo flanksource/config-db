@@ -83,8 +83,8 @@ func (s SqlScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 type SQLDetails struct {
 	Columns []string
-	Rows    []map[string]interface{} `json:"rows,omitempty"`
-	Count   int                      `json:"count,omitempty"`
+	Rows    []map[string]any `json:"rows,omitempty"`
+	Count   int              `json:"count,omitempty"`
 }
 
 // Connects to a db using the specified `driver` and `connectionstring`

@@ -17,8 +17,7 @@ import (
 type ClickhouseScraper struct{}
 
 var (
-	DefaultClickhouseURL = "clickhouse://default@localhost:9000/default"
-	ClickhouseURL        string
+	ClickhouseURL string
 )
 
 func (ClickhouseScraper) CanScrape(configs v1.ScraperSpec) bool {
@@ -26,8 +25,6 @@ func (ClickhouseScraper) CanScrape(configs v1.ScraperSpec) bool {
 }
 
 // TODO:
-// Update helm chart to deploy clickhouse
-// Set default clickhouse url from env
 // Add pagination
 
 func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {

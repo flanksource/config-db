@@ -89,7 +89,7 @@ func ServerFlags(flags *pflag.FlagSet) {
 	flags.IntVar(&kubernetes.BufferSize, "watch-event-buffer", kubernetes.BufferSize, "Buffer size for kubernetes events")
 	flags.StringVar(&otelcollectorURL, "otel-collector-url", "", "OpenTelemetry gRPC Collector URL in host:port format")
 	flags.StringVar(&otelServiceName, "otel-service-name", app, "OpenTelemetry service name for the resource")
-	flags.StringVar(&clickhouse.ClickhouseURL, "clickhouse-url", clickhouse.DefaultClickhouseURL, "Clickhouse URL for clickhouse scraper")
+	flags.StringVar(&clickhouse.ClickhouseURL, "clickhouse-url", "", "Clickhouse URL for clickhouse scraper")
 
 	// Flags for push/pull
 	var upstreamPageSizeDefault = 500

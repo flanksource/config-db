@@ -65,16 +65,16 @@ data:
         </default>
       </quotas>
     </clickhouse>
-
 ---
-# ClickHouse Deployment
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: clickhouse
   labels:
     app: clickhouse
 spec:
+  serviceName: clickhouse
+  replicas: 1
   selector:
     matchLabels:
       app: clickhouse
@@ -91,6 +91,8 @@ spec:
           name: http
         - containerPort: 9000
           name: client
+        - containerPort: 9009
+          name: interserver
         volumeMounts:
         - name: clickhouse-config
           mountPath: /etc/clickhouse-server/config.d/custom-config.xml

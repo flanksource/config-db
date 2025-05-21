@@ -19,7 +19,12 @@ global:
   imageRegistry: docker.io
   imagePrefix: flanksource
   imagePullSecrets: []
+
+  # @schema
+  # additionalProperties: true
+  # @schema
   labels: {}
+
   db:
     connectionPooler:
       enabled: false
@@ -84,7 +89,7 @@ scrapeRuleConfigMaps:
 
 clickhouse:
   enabled: false
-  url: clickhouse://
+  url: clickhouse://default:default@clickhouse:9000/default
 
 # @schema
 # additionalProperties: false
