@@ -1,0 +1,19 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: lastfm-scraper
+spec:
+  http:
+    - type: 'LastFM::Singer'
+      name: '$.name'
+      id: '$.url'
+      env:
+        - name: api_key
+          valueFrom:
+            secretKeyRef:
+              name: lastfm
+              key: API_KEY
+      url: 'http://ws.audioscrobbler.com/2.0/?method=chart.gettopartists&api_key={{.api_key}}&format=json'
+      transform:
+        expr: |
+          dyn(config).artists.artist.map(item, item).toJSON()
