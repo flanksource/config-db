@@ -358,15 +358,6 @@ func (gcp GCPConnection) GetModel() *models.Connection {
 	}
 }
 
-type AzureConnection struct {
-	ConnectionName string       `yaml:"connection,omitempty" json:"connection,omitempty"`
-	SubscriptionID string       `yaml:"subscriptionID" json:"subscriptionID"`
-	Organisation   string       `yaml:"organisation" json:"organisation"`
-	ClientID       types.EnvVar `yaml:"clientID,omitempty" json:"clientID,omitempty"`
-	ClientSecret   types.EnvVar `yaml:"clientSecret,omitempty" json:"clientSecret,omitempty"`
-	TenantID       string       `yaml:"tenantID,omitempty" json:"tenantID,omitempty"`
-}
-
 type Connection struct {
 	// Connection is either the name of the connection to lookup
 	// or the connection string itself.
