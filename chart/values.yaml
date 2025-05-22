@@ -132,9 +132,16 @@ clickhouse:
       cpu: "100m"
       memory: "2Gi"
 
+
+  # @schema
+  # additionalProperties: true
+  # @schema
   properties:
     max_connections: '4'
-    mark_cache_size: '524288000'
+    mark_cache_size: '67108864'
+    keep_alive_timeout: '300'
+    max_concurrent_queries: '10'
+    uncompressed_cache_size: '134217728'
 
 # @schema
 # additionalProperties: false

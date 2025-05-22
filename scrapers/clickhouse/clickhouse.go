@@ -94,6 +94,7 @@ func createNamedCollectionForStorage(ctx api.ScrapeContext, config v1.Clickhouse
 	switch {
 	case config.AzureBlobStorage != nil:
 		ex.Connections.Azure = config.AzureBlobStorage.AzureConnection
+		// TODO: Move AzureBlobStorage struct and its functions to duty
 		ex.Script = config.AzureBlobStorage.GetAccountKeyCommand()
 		out, err := shell.Run(ctx.DutyContext(), ex)
 		if err != nil {

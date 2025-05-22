@@ -29,12 +29,10 @@ data:
       <http_port>8123</http_port>
       <tcp_port>9000</tcp_port>
       <interserver_http_port>9009</interserver_http_port>
-      
-      <max_connections>{{.Values.clickhouse.properties.max_connections}}</max_connections>
-      <keep_alive_timeout>300</keep_alive_timeout>
-      <max_concurrent_queries>100</max_concurrent_queries>
-      <uncompressed_cache_size>8589934592</uncompressed_cache_size>
-      <mark_cache_size>{{.Values.clickhouse.properties.mark_cache_size}}</mark_cache_size>
+
+      {{ range $key, $value := .Values.clickhouse.properties }}
+      <{{$key}}>{{$value}}</{{$key}}>
+      {{- end }}
       
       <path>/var/lib/clickhouse/</path>
       <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>

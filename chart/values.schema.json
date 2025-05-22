@@ -40,27 +40,47 @@
           "type": "object"
         },
         "properties": {
-          "additionalProperties": false,
+          "additionalProperties": true,
           "properties": {
+            "keep_alive_timeout": {
+              "default": "300",
+              "required": [],
+              "title": "keep_alive_timeout",
+              "type": "string"
+            },
             "mark_cache_size": {
-              "default": "524288000",
+              "default": "67108864",
               "required": [],
               "title": "mark_cache_size",
               "type": "string"
             },
+            "max_concurrent_queries": {
+              "default": "10",
+              "required": [],
+              "title": "max_concurrent_queries",
+              "type": "string"
+            },
             "max_connections": {
-              "default": "2",
+              "default": "4",
               "required": [],
               "title": "max_connections",
+              "type": "string"
+            },
+            "uncompressed_cache_size": {
+              "default": "134217728",
+              "required": [],
+              "title": "uncompressed_cache_size",
               "type": "string"
             }
           },
           "required": [
             "max_connections",
-            "mark_cache_size"
+            "mark_cache_size",
+            "keep_alive_timeout",
+            "max_concurrent_queries",
+            "uncompressed_cache_size"
           ],
-          "title": "properties",
-          "type": "object"
+          "title": "properties"
         },
         "resources": {
           "additionalProperties": false,
@@ -123,8 +143,7 @@
       "required": [
         "enabled",
         "image",
-        "resources",
-        "properties"
+        "resources"
       ],
       "title": "clickhouse",
       "type": "object"
