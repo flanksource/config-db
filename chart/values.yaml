@@ -133,7 +133,7 @@ clickhouse:
       memory: "2Gi"
 
   properties:
-    max_connections: '2'
+    max_connections: '4'
     mark_cache_size: '524288000'
 
 # @schema
