@@ -46,13 +46,13 @@
               "additionalProperties": false,
               "properties": {
                 "cpu": {
-                  "default": "4",
+                  "default": "1",
                   "required": [],
                   "title": "cpu",
                   "type": "string"
                 },
                 "memory": {
-                  "default": "8Gi",
+                  "default": "4Gi",
                   "required": [],
                   "title": "memory",
                   "type": "string"
@@ -69,13 +69,13 @@
               "additionalProperties": false,
               "properties": {
                 "cpu": {
-                  "default": "1",
+                  "default": "100m",
                   "required": [],
                   "title": "cpu",
                   "type": "string"
                 },
                 "memory": {
-                  "default": "256Mi",
+                  "default": "2Gi",
                   "required": [],
                   "title": "memory",
                   "type": "string"
@@ -471,6 +471,12 @@
       "title": "imagePullSecrets",
       "type": "array"
     },
+    "imageRegistry": {
+      "default": "",
+      "required": [],
+      "title": "imageRegistry",
+      "type": "string"
+    },
     "ingress": {
       "additionalProperties": false,
       "properties": {
@@ -840,6 +846,7 @@
     "replicas",
     "nameOverride",
     "disablePostgrest",
+    "imageRegistry",
     "image",
     "configChangeRetentionDays",
     "configAnalysisRetentionDays",

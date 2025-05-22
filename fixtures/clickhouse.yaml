@@ -1,0 +1,20 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: clickhouse-scraper
+spec:
+  clickhouse:
+    - query: |
+        SELECT 
+            concat('ORD-', toString(10000 + number)) as order_id,
+            ['Electronics', 'Clothing', 'Books', 'Home', 'Sports'][rand() % 5 + 1] as category,
+            ['New York', 'London', 'Tokyo', 'Paris', 'Sydney'][rand() % 5 + 1] as city,
+            round((rand() % 50000) / 100, 2) as amount,
+            ['completed', 'pending', 'cancelled'][rand() % 3 + 1] as status,
+            toDateTime('2024-01-01 00:00:00') + toIntervalSecond(rand() % 31536000) as order_date
+        FROM numbers(1000)
+      type: Order
+      id: $.order_id
+      transform:
+        #full: true
+        expr: "[config].toJSON()"

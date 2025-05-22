@@ -57,7 +57,7 @@ spec:
         {{- end }}
       containers:
         - name: {{ include "config-db.name" . }}
-          image: "{{ tpl .Values.global.imageRegistry . }}/{{ tpl .Values.image.name . }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.imageRegistry | default tpl .Values.global.imageRegistry . }}/{{ tpl .Values.image.name . }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http

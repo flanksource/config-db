@@ -61,6 +61,7 @@ nameOverride: ""
 # Set to true if you want to disable the postgrest service
 disablePostgrest: false
 
+imageRegistry: ''
 image:
   name: "{{.Values.global.imagePrefix}}/config-db"
   pullPolicy: IfNotPresent
@@ -125,11 +126,11 @@ clickhouse:
     tag: '25.4'
   resources:
     limits:
-      cpu: "4"
-      memory: "8Gi"
-    requests:
       cpu: "1"
-      memory: "256Mi"
+      memory: "4Gi"
+    requests:
+      cpu: "100m"
+      memory: "2Gi"
 
 # @schema
 # additionalProperties: false
