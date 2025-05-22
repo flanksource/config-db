@@ -84,10 +84,12 @@ jobs:
       run: |
         helm install config-db chart \
           --namespace default \
-          --wait \
-          --timeout=300s \
           --set clickhouse.enabled=true \
           --set imageRegistry="kind-registry:5000"
+
+    - name: Check pod status
+      run: |
+          timeout 600 bash -c 'while true; do kubectl get pods -n default; sleep 5; done'
 
     - name: Run clickhouse fixture
       run: |

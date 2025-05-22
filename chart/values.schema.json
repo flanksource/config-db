@@ -43,16 +43,16 @@
           "additionalProperties": false,
           "properties": {
             "mark_cache_size": {
-              "default": 524288000,
+              "default": "524288000",
               "required": [],
               "title": "mark_cache_size",
-              "type": "integer"
+              "type": "string"
             },
             "max_connections": {
-              "default": 2,
+              "default": "2",
               "required": [],
               "title": "max_connections",
-              "type": "integer"
+              "type": "string"
             }
           },
           "required": [
