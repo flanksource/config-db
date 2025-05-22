@@ -17,10 +17,14 @@ var AllScraperConfigs = map[string]any{
 	"azure":          Azure{},
 	"azuredevops":    AzureDevops{},
 	"file":           File{},
+	"gcp":            GCP{},
 	"githubactions":  GitHubActions{},
+	"http":           HTTP{},
 	"kubernetes":     Kubernetes{},
 	"kubernetesfile": KubernetesFile{},
+	"slack":          Slack{},
 	"sql":            SQL{},
+	"terraform":      Terraform{},
 	"trivy":          Trivy{},
 }
 

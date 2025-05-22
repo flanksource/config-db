@@ -1,0 +1,602 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/flanksource/config-db/api/v1/slack",
+  "$ref": "#/$defs/Slack",
+  "$defs": {
+    "ChangeExtractionMapping": {
+      "properties": {
+        "createdAt": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "severity": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "summary": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "type": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "details": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "timeFormat": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ChangeMapping": {
+      "properties": {
+        "filter": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ConfigFieldExclusion": {
+      "properties": {
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "jsonpath": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "jsonpath"
+      ]
+    },
+    "ConfigMapKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "ConfigProperties": {
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "headline": {
+          "type": "boolean"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "min": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "lastTransition": {
+          "type": "string"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/Link"
+          },
+          "type": "array"
+        },
+        "filter": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVar": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "valueFrom": {
+          "$ref": "#/$defs/EnvVarSource"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVarResourceSelector": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "cache": {
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "name": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "namespace": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "types": {
+          "items": {
+            "$ref": "#/$defs/ValueExpression"
+          },
+          "type": "array"
+        },
+        "statuses": {
+          "items": {
+            "$ref": "#/$defs/ValueExpression"
+          },
+          "type": "array"
+        },
+        "healths": {
+          "items": {
+            "$ref": "#/$defs/ValueExpression"
+          },
+          "type": "array"
+        },
+        "tagSelector": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "labelSelector": {
+          "$ref": "#/$defs/ValueExpression"
+        },
+        "fieldSelector": {
+          "$ref": "#/$defs/ValueExpression"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVarSource": {
+      "properties": {
+        "serviceAccount": {
+          "type": "string"
+        },
+        "helmRef": {
+          "$ref": "#/$defs/HelmRefKeySelector"
+        },
+        "configMapKeyRef": {
+          "$ref": "#/$defs/ConfigMapKeySelector"
+        },
+        "secretKeyRef": {
+          "$ref": "#/$defs/SecretKeySelector"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HelmRefKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "JSONStringMap": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "Link": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Lookup": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Mask": {
+      "properties": {
+        "selector": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MaskList": {
+      "items": {
+        "$ref": "#/$defs/Mask"
+      },
+      "type": "array"
+    },
+    "MatchExpressions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "RelationshipConfig": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "external_id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "name": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "type": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "agent": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "scope": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "parent": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SecretKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "Slack": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "health": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "token": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "since": {
+          "type": "string"
+        },
+        "channels": {
+          "$ref": "#/$defs/MatchExpressions"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/SlackChangeExtractionRule"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "token",
+        "rules"
+      ]
+    },
+    "SlackChangeAcceptanceFilter": {
+      "properties": {
+        "bot": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/SlackUserFilter"
+        },
+        "expr": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SlackChangeExtractionRule": {
+      "properties": {
+        "regexp": {
+          "type": "string"
+        },
+        "mapping": {
+          "$ref": "#/$defs/ChangeExtractionMapping"
+        },
+        "config": {
+          "items": {
+            "$ref": "#/$defs/EnvVarResourceSelector"
+          },
+          "type": "array"
+        },
+        "filter": {
+          "$ref": "#/$defs/SlackChangeAcceptanceFilter"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "config"
+      ]
+    },
+    "SlackUserFilter": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Tag": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "Tags": {
+      "items": {
+        "$ref": "#/$defs/Tag"
+      },
+      "type": "array"
+    },
+    "Transform": {
+      "properties": {
+        "gotemplate": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "javascript": {
+          "type": "string"
+        },
+        "exclude": {
+          "items": {
+            "$ref": "#/$defs/ConfigFieldExclusion"
+          },
+          "type": "array"
+        },
+        "mask": {
+          "$ref": "#/$defs/MaskList"
+        },
+        "relationship": {
+          "items": {
+            "$ref": "#/$defs/RelationshipConfig"
+          },
+          "type": "array"
+        },
+        "changes": {
+          "$ref": "#/$defs/TransformChange"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TransformChange": {
+      "properties": {
+        "mapping": {
+          "items": {
+            "$ref": "#/$defs/ChangeMapping"
+          },
+          "type": "array"
+        },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ValueExpression": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}

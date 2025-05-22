@@ -1,0 +1,521 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/flanksource/config-db/api/v1/terraform",
+  "$ref": "#/$defs/Terraform",
+  "$defs": {
+    "ChangeMapping": {
+      "properties": {
+        "filter": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ConfigFieldExclusion": {
+      "properties": {
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "jsonpath": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "jsonpath"
+      ]
+    },
+    "ConfigMapKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "ConfigProperties": {
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "headline": {
+          "type": "boolean"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "min": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "lastTransition": {
+          "type": "string"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/Link"
+          },
+          "type": "array"
+        },
+        "filter": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVar": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "valueFrom": {
+          "$ref": "#/$defs/EnvVarSource"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVarSource": {
+      "properties": {
+        "serviceAccount": {
+          "type": "string"
+        },
+        "helmRef": {
+          "$ref": "#/$defs/HelmRefKeySelector"
+        },
+        "configMapKeyRef": {
+          "$ref": "#/$defs/ConfigMapKeySelector"
+        },
+        "secretKeyRef": {
+          "$ref": "#/$defs/SecretKeySelector"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GCSConnection": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "credentials": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "bucket": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HelmRefKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "JSONStringMap": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "Link": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Lookup": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Mask": {
+      "properties": {
+        "selector": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MaskList": {
+      "items": {
+        "$ref": "#/$defs/Mask"
+      },
+      "type": "array"
+    },
+    "RelationshipConfig": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "external_id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "name": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "type": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "agent": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "scope": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "parent": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "S3Connection": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "accessKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "secretKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "sessionToken": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "assumeRole": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "bucket": {
+          "type": "string"
+        },
+        "objectPath": {
+          "type": "string"
+        },
+        "usePathStyle": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SecretKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "Tag": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "Tags": {
+      "items": {
+        "$ref": "#/$defs/Tag"
+      },
+      "type": "array"
+    },
+    "Terraform": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "health": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/TerraformStateSource"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "state"
+      ]
+    },
+    "TerraformStateSource": {
+      "properties": {
+        "s3": {
+          "$ref": "#/$defs/S3Connection"
+        },
+        "gcs": {
+          "$ref": "#/$defs/GCSConnection"
+        },
+        "local": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Transform": {
+      "properties": {
+        "gotemplate": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "javascript": {
+          "type": "string"
+        },
+        "exclude": {
+          "items": {
+            "$ref": "#/$defs/ConfigFieldExclusion"
+          },
+          "type": "array"
+        },
+        "mask": {
+          "$ref": "#/$defs/MaskList"
+        },
+        "relationship": {
+          "items": {
+            "$ref": "#/$defs/RelationshipConfig"
+          },
+          "type": "array"
+        },
+        "changes": {
+          "$ref": "#/$defs/TransformChange"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TransformChange": {
+      "properties": {
+        "mapping": {
+          "items": {
+            "$ref": "#/$defs/ChangeMapping"
+          },
+          "type": "array"
+        },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}
