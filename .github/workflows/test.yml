@@ -94,17 +94,20 @@ jobs:
 
     - name: Check pod status
       run: |
-          timeout 60 bash -c 'while true; do kubectl get pods -n default; sleep 5; done'
-
-    - name: Check pod logs
-      run: |
-          kubectl logs -p config-db-0
-
+          sleep 60
+          kubectl get pods
+          kubectl logs config-db-0
+          echo "Previous pod"
+          kubectl logs -p config-db-0 || true
+          kubectl describe pods
+          sleep 60
+          kubectl describe pods
+          
 
     - name: Run clickhouse fixture
       run: |
-        kubectl cp fixtures/clickhouse.yaml sts/config-db:/app/clickhouse.yaml
-        kubectl exec -it sts/config-db -- /app/config-db run clickhouse.yaml
+        kubectl cp fixtures/clickhouse.yaml config-db-0:/app/clickhouse.yaml
+        kubectl exec -it config-db-0 -- /app/config-db run /app/clickhouse.yaml
 
   test-load:
     if: false # disabled for now
