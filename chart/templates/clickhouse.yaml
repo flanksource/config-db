@@ -1,6 +1,19 @@
 {{- if .Values.clickhouse.enabled }}
 ---
 apiVersion: v1
+kind: Secret
+metadata:
+  name: clickhouse
+  annotations:
+    "helm.sh/resource-policy": "keep"
+type: Opaque
+stringData:
+  {{- $secretObj := ( lookup "v1" "Secret" .Release.Namespace "clickhouse" ) | default dict }}
+  {{- $secretData := ( get $secretObj "data" | default dict ) }}
+  {{- $password := (( get $secretData "PASSWORD" ) | b64dec ) | default (randAlphaNum 32) }}
+  PASSWORD: {{ $password | quote }}
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: clickhouse
@@ -35,7 +48,7 @@ data:
     <clickhouse>
       <users>
         <default>
-          <password>default</password>
+          <password>{{$password}}></password>
           <networks>
             <ip>::/0</ip>
           </networks>
@@ -46,7 +59,7 @@ data:
       
       <profiles>
         <default>
-          <max_memory_usage>10000000000</max_memory_usage>
+          <max_memory_usage>{{ include "clickhouse.maxMemory" .}}</max_memory_usage>
           <use_uncompressed_cache>0</use_uncompressed_cache>
           <load_balancing>random</load_balancing>
         </default>
@@ -85,7 +98,7 @@ spec:
     spec:
       containers:
       - name: clickhouse
-        image: clickhouse/clickhouse-server:25.4 
+        image: "{{ tpl .Values.global.imageRegistry . }}/{{ tpl .Values.clickhouse.image.name . }}:{{tpl .Values.clickhouse.image.tag . }}"
         ports:
         - containerPort: 8123
           name: http
@@ -101,12 +114,7 @@ spec:
           mountPath: /etc/clickhouse-server/users.d/custom-users.xml
           subPath: users.xml
         resources:
-          limits:
-            cpu: "4"
-            memory: "8Gi"
-          requests:
-            cpu: "1"
-            memory: "256Mi"
+          {{- .Values.clickhouse.resources | toYaml | nindent 10 }}
         livenessProbe:
           httpGet:
             path: /ping

@@ -16,6 +16,86 @@
           "title": "enabled",
           "type": "boolean"
         },
+        "image": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "default": "clickhouse/clickhouse-server",
+              "required": [],
+              "title": "name",
+              "type": "string"
+            },
+            "tag": {
+              "default": "25.4",
+              "required": [],
+              "title": "tag",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "tag"
+          ],
+          "title": "image",
+          "type": "object"
+        },
+        "resources": {
+          "additionalProperties": false,
+          "properties": {
+            "limits": {
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "default": "4",
+                  "required": [],
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "8Gi",
+                  "required": [],
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "title": "limits",
+              "type": "object"
+            },
+            "requests": {
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "default": "1",
+                  "required": [],
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "256Mi",
+                  "required": [],
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "title": "requests",
+              "type": "object"
+            }
+          },
+          "required": [
+            "limits",
+            "requests"
+          ],
+          "title": "resources",
+          "type": "object"
+        },
         "url": {
           "default": "clickhouse://default:default@clickhouse:9000/default",
           "required": [],
@@ -25,7 +105,9 @@
       },
       "required": [
         "enabled",
-        "url"
+        "url",
+        "image",
+        "resources"
       ],
       "title": "clickhouse",
       "type": "object"

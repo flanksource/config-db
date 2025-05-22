@@ -121,6 +121,16 @@ scrapeRuleConfigMaps:
 clickhouse:
   enabled: false
   url: clickhouse://default:default@clickhouse:9000/default
+  image:
+    name: clickhouse/clickhouse-server
+    tag: '25.4'
+  resources:
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+    requests:
+      cpu: "1"
+      memory: "256Mi"
 
 # @schema
 # additionalProperties: false

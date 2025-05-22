@@ -88,4 +88,22 @@ false
 
 {{- end -}}
 
+{{- define "clickhouse.maxMemory" -}}
+{{- $input := .Values.clickhouse.resources.limits.memory -}}
+{{- $bytes := 0 -}}
 
+{{- if hasSuffix "Gi" $input -}}
+  {{- $number := trimSuffix "Gi" $input | int64 | float64 -}}
+  {{- $bytes = mulf $number 1073741824.0 | mulf 0.6667 | floor -}}
+{{- else if hasSuffix "Mi" $input -}}
+  {{- $number := trimSuffix "Mi" $input | int64 | float64 -}}
+  {{- $bytes = mulf $number 1048576.0 | mulf 0.6667 | floor -}}
+{{- else if hasSuffix "Ki" $input -}}
+  {{- $number := trimSuffix "Ki" $input | int64 | float64 -}}
+  {{- $bytes = mulf $number 1024.0 | mulf 0.6667 | floor -}}
+{{- else -}}
+  {{- $bytes = . | int64 | float64 | mulf 0.6667 | floor -}}
+{{- end -}}
+
+{{- $bytes | printf "%.0f" -}}
+{{- end -}}

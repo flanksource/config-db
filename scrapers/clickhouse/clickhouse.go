@@ -29,6 +29,7 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	for _, config := range ctx.ScrapeConfig().Spec.Clickhouse {
 		clickhouseURL := lo.CoalesceOrEmpty(config.ClickhouseURL, ClickhouseURL)
 		conn, err := sql.Open("clickhouse", clickhouseURL)
+		defer conn.Close() //nolint:errcheck
 		if err != nil {
 			results.Errorf(err, "failed to open clickhouse connection")
 			continue
@@ -98,13 +99,12 @@ func createNamedCollectionForStorage(ctx api.ScrapeContext, config v1.Clickhouse
 			return fmt.Errorf("error generating azure account key: %w", err)
 		}
 		accountKey := out.Stdout
-		connString := config.AzureBlobStorage.GetConnectionString(accountKey)
 
 		nc.Name = lo.CoalesceOrEmpty(config.AzureBlobStorage.CollectionName, "azure_blob_storage")
 		nc.Values = map[string]string{
 			"container":         config.AzureBlobStorage.Container,
 			"blob_path":         config.AzureBlobStorage.Path,
-			"connection_string": connString,
+			"connection_string": config.AzureBlobStorage.GetConnectionString(accountKey),
 		}
 
 	case config.AWSS3 != nil:
