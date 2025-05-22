@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	cdbsql "github.com/flanksource/config-db/scrapers/sql"
@@ -23,9 +22,6 @@ var (
 func (ClickhouseScraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Clickhouse) > 0
 }
-
-// TODO:
-// Add pagination
 
 func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
@@ -50,35 +46,20 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 		}
 
-		limit := properties.Int(5000, "clickhouse.limit")
-		offset := 0
-		for {
-			query := addLimitOffset(config.Query, limit, offset)
-			offset += limit
+		qr, err := cdbsql.QuerySQL(conn, config.Query)
+		if err != nil {
+			results.Errorf(err, "failed to query clickhouse: %s", config.Query)
+			continue
+		}
 
-			qr, err := cdbsql.QuerySQL(conn, query)
-			if err != nil {
-				results.Errorf(err, "failed to query clickhouse: %s", config.Query)
-				continue
-			}
-
-			if qr.Count == 0 {
-				break
-			}
-
-			for _, row := range qr.Rows {
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
-					Config:      row,
-				})
-			}
+		for _, row := range qr.Rows {
+			results = append(results, v1.ScrapeResult{
+				BaseScraper: config.BaseScraper,
+				Config:      row,
+			})
 		}
 	}
 	return results
-}
-
-func addLimitOffset(query string, limit, offset int) string {
-	return fmt.Sprintf("%s LIMIT %d OFFSET %d", strings.TrimSuffix(query, ";"), limit, offset)
 }
 
 type NamedCollection struct {
@@ -114,7 +95,7 @@ func createNamedCollectionForStorage(ctx api.ScrapeContext, config v1.Clickhouse
 		ex.Script = config.AzureBlobStorage.GetAccountKeyCommand()
 		out, err := shell.Run(ctx.DutyContext(), ex)
 		if err != nil {
-			return fmt.Errorf("error generating azure sas token: %w", err)
+			return fmt.Errorf("error generating azure account key: %w", err)
 		}
 		accountKey := out.Stdout
 		connString := config.AzureBlobStorage.GetConnectionString(accountKey)
