@@ -14,7 +14,6 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
-	"github.com/flanksource/config-db/scrapers/clickhouse"
 	"github.com/flanksource/duty"
 	dutyapi "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
@@ -165,5 +164,4 @@ func exportResource(resource v1.ScrapeResult, outputDir string) error {
 func init() {
 	Run.Flags().StringVarP(&outputDir, "output-dir", "o", "", "The output folder for configurations")
 	Run.Flags().IntVar(&debugPort, "debug-port", -1, "Start an HTTP server to use the /debug routes, Use -1 to disable and 0 to pick a free port")
-	Run.Flags().StringVar(&clickhouse.ClickhouseURL, "clickhouse-url", "", "Clickhouse URL for clickhouse scraper")
 }

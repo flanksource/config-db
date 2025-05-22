@@ -12,6 +12,7 @@ stringData:
   {{- $secretData := ( get $secretObj "data" | default dict ) }}
   {{- $password := (( get $secretData "PASSWORD" ) | b64dec ) | default (randAlphaNum 32) }}
   PASSWORD: {{ $password | quote }}
+  URL: 'clickhouse://default:{{$password}}@clickhouse:9000/default'
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -48,7 +49,7 @@ data:
     <clickhouse>
       <users>
         <default>
-          <password>{{$password}}></password>
+          <password>{{$password}}</password>
           <networks>
             <ip>::/0</ip>
           </networks>

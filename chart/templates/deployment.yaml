@@ -93,9 +93,6 @@ spec:
             {{- if .Values.jsonLogs }}
             - --json-logs
             {{- end }}
-            {{- if .Values.clickhouse.enabled }}
-            - --clickhouse-url={{.Values.clickhouse.url}}
-            {{- end }}
             {{- if .Values.db.runMigrations}}
             - --db-migrations
             {{- end}}
@@ -144,6 +141,13 @@ spec:
             - name: OTEL_LABELS
               value: '{{ tpl .Values.otel.labels .}}'
             {{- end}}
+            {{- if .Values.clickhouse.enabled }}
+            - name: CLICKHOUSE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: URL
+                  name: clickhouse
+            {{- end }}
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}

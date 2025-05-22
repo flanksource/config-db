@@ -3,6 +3,7 @@ package clickhouse
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
@@ -16,7 +17,7 @@ import (
 type ClickhouseScraper struct{}
 
 var (
-	ClickhouseURL string
+	ClickhouseURL = os.Getenv("CLICKHOUSE_URL")
 )
 
 func (ClickhouseScraper) CanScrape(configs v1.ScraperSpec) bool {
@@ -29,11 +30,11 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	for _, config := range ctx.ScrapeConfig().Spec.Clickhouse {
 		clickhouseURL := lo.CoalesceOrEmpty(config.ClickhouseURL, ClickhouseURL)
 		conn, err := sql.Open("clickhouse", clickhouseURL)
-		defer conn.Close() //nolint:errcheck
 		if err != nil {
 			results.Errorf(err, "failed to open clickhouse connection")
 			continue
 		}
+		defer conn.Close() //nolint:errcheck
 
 		if err := conn.Ping(); err != nil {
 			results.Errorf(err, "failed to ping clickhouse")

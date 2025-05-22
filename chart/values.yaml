@@ -120,7 +120,6 @@ scrapeRuleConfigMaps:
 
 clickhouse:
   enabled: false
-  url: clickhouse://default:default@clickhouse:9000/default
   image:
     name: clickhouse/clickhouse-server
     tag: '25.4'

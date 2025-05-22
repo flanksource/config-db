@@ -95,17 +95,10 @@
           ],
           "title": "resources",
           "type": "object"
-        },
-        "url": {
-          "default": "clickhouse://default:default@clickhouse:9000/default",
-          "required": [],
-          "title": "url",
-          "type": "string"
         }
       },
       "required": [
         "enabled",
-        "url",
         "image",
         "resources"
       ],
