@@ -94,7 +94,12 @@ jobs:
 
     - name: Check pod status
       run: |
-          timeout 600 bash -c 'while true; do kubectl get pods -n default; sleep 5; done'
+          timeout 60 bash -c 'while true; do kubectl get pods -n default; sleep 5; done'
+
+    - name: Check pod logs
+      run: |
+          kubectl logs -p config-db-0
+
 
     - name: Run clickhouse fixture
       run: |
