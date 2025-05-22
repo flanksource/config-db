@@ -39,6 +39,29 @@
           "title": "image",
           "type": "object"
         },
+        "properties": {
+          "additionalProperties": false,
+          "properties": {
+            "mark_cache_size": {
+              "default": 524288000,
+              "required": [],
+              "title": "mark_cache_size",
+              "type": "integer"
+            },
+            "max_connections": {
+              "default": 2,
+              "required": [],
+              "title": "max_connections",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "max_connections",
+            "mark_cache_size"
+          ],
+          "title": "properties",
+          "type": "object"
+        },
         "resources": {
           "additionalProperties": false,
           "properties": {
@@ -100,7 +123,8 @@
       "required": [
         "enabled",
         "image",
-        "resources"
+        "resources",
+        "properties"
       ],
       "title": "clickhouse",
       "type": "object"
