@@ -80,9 +80,14 @@ jobs:
         tags: localhost:5000/flanksource/config-db:latest
         cache-from: type=registry,ref=docker.io/flanksource/config-db
 
+    - name: Package helm chart
+      run: |
+        helm dependency build ./chart
+        helm package ./chart --version 1.0.0
+
     - name: Install Helm chart
       run: |
-        helm install config-db chart \
+        helm install config-db config-db-1.0.0.tgz \
           --namespace default \
           --set clickhouse.enabled=true \
           --set imageRegistry="kind-registry:5000"
