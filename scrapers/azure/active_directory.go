@@ -139,17 +139,18 @@ func (azure Scraper) fetchAppRegistrations(selector types.ResourceSelectors) v1.
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch app registrations: %w", err)})
 	}
 
-	for _, app := range apps.GetValue() {
-		results = append(results, azure.appToScrapeResult(app.(*msgraphModels.Application)))
-	}
-
 	pageIterator, err := graphcore.NewPageIterator[*msgraphModels.Application](apps, azure.graphClient.GetAdapter(), applications.CreateDeltaGetResponseFromDiscriminatorValue)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(app *msgraphModels.Application) bool {
-		results = append(results, azure.appToScrapeResult(app))
+		scrapeResult := azure.appToScrapeResult(app)
+		if !selector.Matches(scrapeResult) {
+			return true
+		}
+
+		results = append(results, scrapeResult)
 		results = append(results, azure.fetchAppRoles(lo.FromPtr(app.GetId()))...)
 		return true
 	})
@@ -298,6 +299,9 @@ func (azure Scraper) fetchEnterpriseApplications(selector types.ResourceSelector
 				ConfigID:        appID,
 				Relationship:    "AppServicePrincipal",
 			}},
+		}
+		if !selector.Matches(result) {
+			return true
 		}
 		results = append(results, result)
 

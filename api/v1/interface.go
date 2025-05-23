@@ -15,6 +15,7 @@ import (
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
 	"github.com/samber/lo"
+	"k8s.io/apimachinery/pkg/fields"
 )
 
 const maxTagsCount = 5
@@ -589,6 +590,8 @@ type DirectedRelationship struct {
 // ScrapeResult ...
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
+	types.NoOpResourceSelectable
+
 	// ID is the id of the config at it's origin (i.e. the external id)
 	// Eg: For Azure, it's the azure resource id and for kuberetenes it's the object UID.
 	// If it's a valid UUID & ConfigID is nil, it'll be used as the primary key id of the config item in the database.
@@ -650,6 +653,24 @@ type ScrapeResult struct {
 
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
+}
+
+var _ types.ResourceSelectable = (*ScrapeResult)(nil)
+
+func (e ScrapeResult) GetFieldsMatcher() fields.Fields {
+	return types.GenericFieldMatcher{Fields: e.AsMap()}
+}
+
+func (s ScrapeResult) GetID() string {
+	return s.ID
+}
+
+func (s ScrapeResult) GetName() string {
+	return s.Name
+}
+
+func (s ScrapeResult) GetType() string {
+	return s.Type
 }
 
 // SetHealthIfEmpty sets the health, status & readiness of the scrape result
