@@ -64,6 +64,7 @@ type ScraperSpec struct {
 	Trivy          []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
 	Terraform      []Terraform      `json:"terraform,omitempty" yaml:"trivy,omitempty"`
 	HTTP           []HTTP           `json:"http,omitempty"`
+	Clickhouse     []Clickhouse     `json:"clickhouse,omitempty"`
 
 	// CRDSync when set to true, will create (or update) the corresponding database record
 	// for a config item of the following types

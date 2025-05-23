@@ -52,6 +52,61 @@ jobs:
       - name: Test
         run: make test-prod
 
+  test-clickhouse:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Kubernetes KinD Cluster
+      uses: container-tools/kind-action@v2
+
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+
+    - name: Verify cluster is ready
+      run: |
+        echo "Waiting for cluster to be ready..."
+        kubectl wait --for=condition=Ready nodes --all --timeout=300s
+        kubectl get nodes
+        kubectl get pods -A
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
+      with:
+        context: .
+        file: ./build/Dockerfile
+        push: true
+        tags: localhost:5000/flanksource/config-db:latest
+        cache-from: type=registry,ref=docker.io/flanksource/config-db
+
+    - name: Package helm chart
+      run: |
+        helm dependency build ./chart
+        helm package ./chart --version 1.0.0
+
+    - name: Install Helm chart
+      run: |
+        helm install config-db config-db-1.0.0.tgz \
+          --namespace default \
+          --set clickhouse.enabled=true \
+          --set imageRegistry="kind-registry:5000"
+
+    - name: Check pod status
+      run: |
+          sleep 60
+          kubectl get pods
+          kubectl describe pods
+          sleep 60
+          kubectl get pods
+          kubectl describe pods
+          
+
+    - name: Run clickhouse fixture
+      run: |
+        kubectl cp fixtures/clickhouse.yaml config-db-0:/app/clickhouse.yaml
+        kubectl exec -it config-db-0 -- /app/config-db run /app/clickhouse.yaml
+
   test-load:
     if: false # disabled for now
     runs-on: ubuntu-latest

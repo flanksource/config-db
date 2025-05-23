@@ -57,7 +57,7 @@ spec:
         {{- end }}
       containers:
         - name: {{ include "config-db.name" . }}
-          image: "{{ tpl .Values.global.imageRegistry . }}/{{ tpl .Values.image.name . }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.imageRegistry | default (tpl .Values.global.imageRegistry .) }}/{{ tpl .Values.image.name . }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
@@ -141,6 +141,13 @@ spec:
             - name: OTEL_LABELS
               value: '{{ tpl .Values.otel.labels .}}'
             {{- end}}
+            {{- if .Values.clickhouse.enabled }}
+            - name: CLICKHOUSE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: URL
+                  name: clickhouse
+            {{- end }}
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}

@@ -1,9 +1,151 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
   "properties": {
     "affinity": {
+      "additionalProperties": true,
       "required": [],
-      "title": "affinity",
+      "title": "affinity"
+    },
+    "clickhouse": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "required": [],
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "image": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "default": "clickhouse/clickhouse-server",
+              "required": [],
+              "title": "name",
+              "type": "string"
+            },
+            "tag": {
+              "default": "25.4",
+              "required": [],
+              "title": "tag",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "tag"
+          ],
+          "title": "image",
+          "type": "object"
+        },
+        "properties": {
+          "additionalProperties": true,
+          "properties": {
+            "keep_alive_timeout": {
+              "default": "300",
+              "required": [],
+              "title": "keep_alive_timeout",
+              "type": "string"
+            },
+            "mark_cache_size": {
+              "default": "67108864",
+              "required": [],
+              "title": "mark_cache_size",
+              "type": "string"
+            },
+            "max_concurrent_queries": {
+              "default": "10",
+              "required": [],
+              "title": "max_concurrent_queries",
+              "type": "string"
+            },
+            "max_connections": {
+              "default": "4",
+              "required": [],
+              "title": "max_connections",
+              "type": "string"
+            },
+            "uncompressed_cache_size": {
+              "default": "134217728",
+              "required": [],
+              "title": "uncompressed_cache_size",
+              "type": "string"
+            }
+          },
+          "required": [
+            "max_connections",
+            "mark_cache_size",
+            "keep_alive_timeout",
+            "max_concurrent_queries",
+            "uncompressed_cache_size"
+          ],
+          "title": "properties"
+        },
+        "resources": {
+          "additionalProperties": false,
+          "properties": {
+            "limits": {
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "default": "1",
+                  "required": [],
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "4Gi",
+                  "required": [],
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "title": "limits",
+              "type": "object"
+            },
+            "requests": {
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "default": "100m",
+                  "required": [],
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "2Gi",
+                  "required": [],
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "title": "requests",
+              "type": "object"
+            }
+          },
+          "required": [
+            "limits",
+            "requests"
+          ],
+          "title": "resources",
+          "type": "object"
+        }
+      },
+      "required": [
+        "enabled",
+        "image",
+        "resources"
+      ],
+      "title": "clickhouse",
       "type": "object"
     },
     "configAnalysisRetentionDays": {
@@ -133,22 +275,22 @@
       "type": "boolean"
     },
     "env": {
+      "additionalProperties": true,
       "description": "environment variables to add e.g. GOMEMLIMIT",
       "required": [],
-      "title": "env",
-      "type": "object"
+      "title": "env"
     },
     "extra": {
+      "additionalProperties": true,
       "description": "Extra values to be applied to the pod spec",
       "required": [],
-      "title": "extra",
-      "type": "object"
+      "title": "extra"
     },
     "extraArgs": {
+      "additionalProperties": true,
       "description": "command line arguments to config-db",
       "required": [],
-      "title": "extraArgs",
-      "type": "object"
+      "title": "extraArgs"
     },
     "extraEnvFrom": {
       "additionalProperties": true,
@@ -159,16 +301,19 @@
       "title": "extraEnvFrom"
     },
     "global": {
+      "additionalProperties": false,
       "description": "yaml-language-server: $schema=values.schema.json\nDefault values for config-db.\nDeclare variables to be passed into your templates.\nyaml-language-server: $schema=./values.schema.json",
       "properties": {
         "affinity": {
+          "additionalProperties": true,
           "required": [],
-          "title": "affinity",
-          "type": "object"
+          "title": "affinity"
         },
         "db": {
+          "additionalProperties": true,
           "properties": {
             "connectionPooler": {
+              "additionalProperties": false,
               "properties": {
                 "enabled": {
                   "default": false,
@@ -177,6 +322,7 @@
                   "type": "boolean"
                 },
                 "secretKeyRef": {
+                  "additionalProperties": false,
                   "properties": {
                     "key": {
                       "default": "DB_URL",
@@ -210,8 +356,7 @@
           "required": [
             "connectionPooler"
           ],
-          "title": "db",
-          "type": "object"
+          "title": "db"
         },
         "imagePrefix": {
           "default": "flanksource",
@@ -234,16 +379,17 @@
           "type": "string"
         },
         "labels": {
+          "additionalProperties": true,
           "required": [],
-          "title": "labels",
-          "type": "object"
+          "title": "labels"
         },
         "nodeSelector": {
+          "additionalProperties": true,
           "required": [],
-          "title": "nodeSelector",
-          "type": "object"
+          "title": "nodeSelector"
         },
         "otel": {
+          "additionalProperties": false,
           "properties": {
             "collector": {
               "default": "",
@@ -266,11 +412,12 @@
           "type": "object"
         },
         "serviceAccount": {
+          "additionalProperties": false,
           "properties": {
             "annotations": {
+              "additionalProperties": true,
               "required": [],
-              "title": "annotations",
-              "type": "object"
+              "title": "annotations"
             },
             "name": {
               "default": "",
@@ -281,13 +428,13 @@
             }
           },
           "required": [
-            "annotations",
             "name"
           ],
           "title": "serviceAccount",
           "type": "object"
         },
         "serviceMonitor": {
+          "additionalProperties": false,
           "properties": {
             "enabled": {
               "default": false,
@@ -296,14 +443,13 @@
               "type": "boolean"
             },
             "labels": {
+              "additionalProperties": true,
               "required": [],
-              "title": "labels",
-              "type": "object"
+              "title": "labels"
             }
           },
           "required": [
-            "enabled",
-            "labels"
+            "enabled"
           ],
           "title": "serviceMonitor",
           "type": "object"
@@ -321,19 +467,16 @@
         "otel",
         "serviceMonitor",
         "serviceAccount",
-        "nodeSelector",
         "tolerations",
-        "affinity",
         "imageRegistry",
         "imagePrefix",
-        "imagePullSecrets",
-        "labels",
-        "db"
+        "imagePullSecrets"
       ],
       "title": "global",
       "type": "object"
     },
     "image": {
+      "additionalProperties": false,
       "properties": {
         "name": {
           "default": "{{.Values.global.imagePrefix}}/config-db",
@@ -371,13 +514,19 @@
       "title": "imagePullSecrets",
       "type": "array"
     },
+    "imageRegistry": {
+      "default": "",
+      "required": [],
+      "title": "imageRegistry",
+      "type": "string"
+    },
     "ingress": {
       "additionalProperties": false,
       "properties": {
         "annotations": {
+          "additionalProperties": true,
           "required": [],
-          "title": "annotations",
-          "type": "object"
+          "title": "annotations"
         },
         "enabled": {
           "default": false,
@@ -403,7 +552,6 @@
       },
       "required": [
         "enabled",
-        "annotations",
         "host",
         "tls"
       ],
@@ -429,9 +577,9 @@
       "type": "string"
     },
     "nodeSelector": {
+      "additionalProperties": true,
       "required": [],
-      "title": "nodeSelector",
-      "type": "object"
+      "title": "nodeSelector"
     },
     "otel": {
       "additionalProperties": false,
@@ -465,6 +613,7 @@
       "title": "otel"
     },
     "podSecurityContext": {
+      "additionalProperties": true,
       "properties": {
         "fsGroup": {
           "default": 1000,
@@ -479,10 +628,10 @@
       "title": "podSecurityContext"
     },
     "properties": {
+      "additionalProperties": true,
       "description": "config-db properties to override",
       "required": [],
-      "title": "properties",
-      "type": "object"
+      "title": "properties"
     },
     "replicas": {
       "default": 1,
@@ -494,6 +643,7 @@
       "additionalProperties": false,
       "properties": {
         "limits": {
+          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "500m",
@@ -516,6 +666,7 @@
           "type": "object"
         },
         "requests": {
+          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "200m",
@@ -560,17 +711,17 @@
       "type": "array"
     },
     "securityContext": {
+      "additionalProperties": true,
       "required": [],
-      "title": "securityContext",
-      "type": "object"
+      "title": "securityContext"
     },
     "serviceAccount": {
       "additionalProperties": false,
       "properties": {
         "annotations": {
+          "additionalProperties": true,
           "required": [],
-          "title": "annotations",
-          "type": "object"
+          "title": "annotations"
         },
         "create": {
           "default": true,
@@ -641,12 +792,12 @@
       },
       "required": [
         "create",
-        "name",
-        "annotations"
+        "name"
       ],
       "title": "serviceAccount"
     },
     "serviceMonitor": {
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
@@ -675,6 +826,7 @@
       "type": "array"
     },
     "upstream": {
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
@@ -689,6 +841,7 @@
           "type": "integer"
         },
         "secretKeyRef": {
+          "additionalProperties": false,
           "properties": {
             "name": {
               "default": "config-db-upstream",
@@ -736,24 +889,19 @@
     "replicas",
     "nameOverride",
     "disablePostgrest",
+    "imageRegistry",
     "image",
     "configChangeRetentionDays",
     "configAnalysisRetentionDays",
     "serviceMonitor",
     "logLevel",
     "jsonLogs",
-    "extraArgs",
-    "env",
-    "properties",
     "scrapeRuleConfigMaps",
+    "clickhouse",
     "upstream",
-    "extra",
-    "securityContext",
     "volumes",
     "volumeMounts",
-    "nodeSelector",
     "tolerations",
-    "affinity",
     "imagePullSecrets"
   ],
   "type": "object"
