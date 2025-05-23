@@ -77,7 +77,7 @@ func (azure Scraper) fetchAppRoles(appObjectID string) v1.ScrapeResults {
 				{
 					ID:          lo.FromPtr(role.GetId()),
 					AccountID:   azure.config.TenantID,
-					ScraperID:   lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
+					ScraperID:   azure.ctx.ScrapeConfig().GetPersistedID(),
 					Name:        lo.FromPtr(role.GetDisplayName()),
 					Description: lo.FromPtr(role.GetDescription()),
 				},
@@ -217,7 +217,7 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 				ID:             assignmentID,
 				ExternalUserID: assignment.GetPrincipalId(),
 				ConfigID:       spID,
-				ScraperID:      lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
+				ScraperID:      azure.ctx.ScrapeConfig().GetPersistedID(),
 				CreatedAt:      lo.FromPtr(assignment.GetCreatedDateTime()),
 				DeletedAt:      assignment.GetDeletedDateTime(),
 			}
@@ -232,7 +232,7 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 				ID:              assignmentID,
 				ExternalGroupID: assignment.GetPrincipalId(),
 				ConfigID:        spID,
-				ScraperID:       lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
+				ScraperID:       azure.ctx.ScrapeConfig().GetPersistedID(),
 				CreatedAt:       lo.FromPtr(assignment.GetCreatedDateTime()),
 				DeletedAt:       assignment.GetDeletedDateTime(),
 			}
