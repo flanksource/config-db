@@ -3,17 +3,17 @@ package processors
 import (
 	"encoding/json"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/gomplate/v3"
 )
 
-func RunScript(result v1.ScrapeResult, script v1.Script) ([]v1.ScrapeResult, error) {
+func RunScript(ctx api.ScrapeContext, result v1.ScrapeResult, script v1.Script) ([]v1.ScrapeResult, error) {
 	env := map[string]interface{}{
 		"config": result.Config,
 		"result": result,
 	}
 
-	out, err := gomplate.RunTemplate(env, script.ToGomplate())
+	out, err := ctx.RunTemplate(script.ToGomplate(), env)
 	if err != nil {
 		return nil, err
 	}

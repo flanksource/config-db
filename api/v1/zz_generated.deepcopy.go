@@ -101,10 +101,22 @@ func (in *Azure) DeepCopyInto(out *Azure) {
 	in.BaseScraper.DeepCopyInto(&out.BaseScraper)
 	in.ClientID.DeepCopyInto(&out.ClientID)
 	in.ClientSecret.DeepCopyInto(&out.ClientSecret)
+	if in.Include != nil {
+		in, out := &in.Include, &out.Include
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Exclusions != nil {
 		in, out := &in.Exclusions, &out.Exclusions
 		*out = new(AzureExclusions)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.AppRoleAssignments != nil {
+		in, out := &in.AppRoleAssignments, &out.AppRoleAssignments
+		*out = make([]types.ResourceSelector, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 }
 

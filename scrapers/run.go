@@ -187,14 +187,17 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 		return []v1.ScrapeResult{result}
 	}
 
-	// In full mode, we extract all configs and changes from the result.
+	// In full mode, we extract changes & access logs from the config.
 	if spec.Full {
+		allAccessLogs := []models.ConfigAccessLog{}
 		for i := range scraped {
-			extractedConfig, changeRes, err := extractConfigChangesFromConfig(scraped[i].Config)
+			extractedConfig, changeRes, accessLogs, err := extractConfigChangesFromConfig(scraped[i].Config)
 			if err != nil {
 				scraped[i].Error = err
 				continue
 			}
+
+			allAccessLogs = append(allAccessLogs, accessLogs...)
 
 			for _, cr := range changeRes {
 				cr.ExternalID = scraped[i].ID
@@ -210,6 +213,12 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 			scraped[i].Config = extractedConfig
 		}
 
+		if len(allAccessLogs) > 0 {
+			result := v1.NewScrapeResult(scraped[0].BaseScraper)
+			result.ConfigAccessLogs = allAccessLogs
+			scraped = append(scraped, *result)
+		}
+
 		return scraped
 	}
 
@@ -220,34 +229,43 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 // the scraped config.
 //
 // The scraped config is expected to have fields "config" & "changes".
-func extractConfigChangesFromConfig(config any) (any, []v1.ChangeResult, error) {
+func extractConfigChangesFromConfig(config any) (any, []v1.ChangeResult, []models.ConfigAccessLog, error) {
 	configMap, ok := config.(map[string]any)
 	if !ok {
-		return nil, nil, errors.New("config is not a map")
+		return nil, nil, nil, errors.New("config is not a map")
 	}
 
 	var (
-		extractedConfig  any
-		extractedChanges []v1.ChangeResult
+		extractedConfig     any
+		extractedChanges    []v1.ChangeResult
+		extractedAccessLogs []models.ConfigAccessLog
 	)
 
 	if eConf, ok := configMap["config"]; ok {
 		extractedConfig = eConf
 	}
 
-	changes, ok := configMap["changes"].([]any)
-	if !ok {
-		return nil, nil, errors.New("changes is not a slice of map")
+	if changes, ok := configMap["changes"]; ok {
+		raw, err := json.Marshal(changes)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to marshal changes: %v", err)
+		}
+
+		if err := json.Unmarshal(raw, &extractedChanges); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to unmarshal changes map into []v1.ChangeResult: %v", err)
+		}
 	}
 
-	raw, err := json.Marshal(changes)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal changes: %v", err)
+	if accessLogs, ok := configMap["access_logs"]; ok {
+		raw, err := json.Marshal(accessLogs)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to marshal changes: %v", err)
+		}
+
+		if err := json.Unmarshal(raw, &extractedAccessLogs); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to unmarshal access logs into []v1.ChangeResult: %v", err)
+		}
 	}
 
-	if err := json.Unmarshal(raw, &extractedChanges); err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal changes map into []v1.ChangeResult: %v", err)
-	}
-
-	return extractedConfig, extractedChanges, nil
+	return extractedConfig, extractedChanges, extractedAccessLogs, nil
 }
