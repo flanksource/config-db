@@ -14,6 +14,14 @@ type AzureDevops struct {
 	Pipelines           []string     `yaml:"pipelines" json:"pipelines"`
 }
 
+type ActiveDirectory struct {
+	Users              []types.ResourceSelector `yaml:"users,omitempty" json:"users,omitempty"`
+	Groups             []types.ResourceSelector `yaml:"groups,omitempty" json:"groups,omitempty"`
+	AppRegistrations   []types.ResourceSelector `yaml:"appRegistrations,omitempty" json:"appRegistrations,omitempty"`
+	EnterpriseApps     []types.ResourceSelector `yaml:"enterpriseApps,omitempty" json:"enterpriseApps,omitempty"`
+	AppRoleAssignments []types.ResourceSelector `yaml:"appRoleAssignments,omitempty" json:"appRoleAssignments,omitempty"`
+}
+
 type Azure struct {
 	BaseScraper    `json:",inline"`
 	ConnectionName string           `yaml:"connection,omitempty" json:"connection,omitempty"`
@@ -23,9 +31,7 @@ type Azure struct {
 	TenantID       string           `yaml:"tenantID,omitempty" json:"tenantID,omitempty"`
 	Include        []string         `yaml:"include,omitempty" json:"include,omitempty"`
 	Exclusions     *AzureExclusions `yaml:"exclusions,omitempty" json:"exclusions,omitempty"`
-
-	// Role assignments for only these enterprise applications will be fetched.
-	AppRoleAssignments []types.ResourceSelector `yaml:"appRoleAssignments,omitempty" json:"appRoleAssignments,omitempty"`
+	AD             *ActiveDirectory `yaml:"activeDirectory,omitempty" json:"activeDirectory,omitempty"`
 }
 
 func (azure Azure) Includes(resource string) bool {

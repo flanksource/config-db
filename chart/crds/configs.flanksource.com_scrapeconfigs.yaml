@@ -531,68 +531,309 @@ spec:
               azure:
                 items:
                   properties:
-                    appRoleAssignments:
-                      description: Role assignments for only these enterprise applications
-                        will be fetched.
-                      items:
-                        properties:
-                          agent:
-                            description: |-
-                              Agent can be the agent id or the name of the agent.
-                               Additionally, the special "self" value can be used to select resources without an agent.
-                            type: string
-                          cache:
-                            description: |-
-                              Cache directives
-                               'no-cache' (should not fetch from cache but can be cached)
-                               'no-store' (should not cache)
-                               'max-age=X' (cache for X duration)
-                            type: string
-                          fieldSelector:
-                            type: string
-                          health:
-                            description: |-
-                              Health filters resources by the health.
-                              Multiple healths can be provided separated by comma.
-                            type: string
-                          id:
-                            type: string
-                          includeDeleted:
-                            type: boolean
-                          labelSelector:
-                            type: string
-                          limit:
-                            type: integer
-                          name:
-                            type: string
-                          namespace:
-                            type: string
-                          scope:
-                            description: |-
-                              Scope is the reference for parent of the resource to select.
-                              For config items, the scope is the scraper id
-                              For checks, it's canaries and
-                              For components, it's topology.
-                              It can either be a uuid or namespace/name
-                            type: string
-                          search:
-                            description: Search query that applies to the resource
-                              name, tag & labels.
-                            type: string
-                          statuses:
-                            description: Statuses filter resources by the status
-                            items:
-                              type: string
-                            type: array
-                          tagSelector:
-                            type: string
-                          types:
-                            description: Types filter resources by the type
-                            items:
-                              type: string
-                            type: array
-                        type: object
-                      type: array
+                    activeDirectory:
+                      properties:
+                        appRegistrations:
+                          items:
+                            properties:
+                              agent:
+                                description: |-
+                                  Agent can be the agent id or the name of the agent.
+                                   Additionally, the special "self" value can be used to select resources without an agent.
+                                type: string
+                              cache:
+                                description: |-
+                                  Cache directives
+                                   'no-cache' (should not fetch from cache but can be cached)
+                                   'no-store' (should not cache)
+                                   'max-age=X' (cache for X duration)
+                                type: string
+                              fieldSelector:
+                                type: string
+                              health:
+                                description: |-
+                                  Health filters resources by the health.
+                                  Multiple healths can be provided separated by comma.
+                                type: string
+                              id:
+                                type: string
+                              includeDeleted:
+                                type: boolean
+                              labelSelector:
+                                type: string
+                              limit:
+                                type: integer
+                              name:
+                                type: string
+                              namespace:
+                                type: string
+                              scope:
+                                description: |-
+                                  Scope is the reference for parent of the resource to select.
+                                  For config items, the scope is the scraper id
+                                  For checks, it's canaries and
+                                  For components, it's topology.
+                                  It can either be a uuid or namespace/name
+                                type: string
+                              search:
+                                description: Search query that applies to the resource
+                                  name, tag & labels.
+                                type: string
+                              statuses:
+                                description: Statuses filter resources by the status
+                                items:
+                                  type: string
+                                type: array
+                              tagSelector:
+                                type: string
+                              types:
+                                description: Types filter resources by the type
+                                items:
+                                  type: string
+                                type: array
+                            type: object
+                          type: array
+                        appRoleAssignments:
+                          items:
+                            properties:
+                              agent:
+                                description: |-
+                                  Agent can be the agent id or the name of the agent.
+                                   Additionally, the special "self" value can be used to select resources without an agent.
+                                type: string
+                              cache:
+                                description: |-
+                                  Cache directives
+                                   'no-cache' (should not fetch from cache but can be cached)
+                                   'no-store' (should not cache)
+                                   'max-age=X' (cache for X duration)
+                                type: string
+                              fieldSelector:
+                                type: string
+                              health:
+                                description: |-
+                                  Health filters resources by the health.
+                                  Multiple healths can be provided separated by comma.
+                                type: string
+                              id:
+                                type: string
+                              includeDeleted:
+                                type: boolean
+                              labelSelector:
+                                type: string
+                              limit:
+                                type: integer
+                              name:
+                                type: string
+                              namespace:
+                                type: string
+                              scope:
+                                description: |-
+                                  Scope is the reference for parent of the resource to select.
+                                  For config items, the scope is the scraper id
+                                  For checks, it's canaries and
+                                  For components, it's topology.
+                                  It can either be a uuid or namespace/name
+                                type: string
+                              search:
+                                description: Search query that applies to the resource
+                                  name, tag & labels.
+                                type: string
+                              statuses:
+                                description: Statuses filter resources by the status
+                                items:
+                                  type: string
+                                type: array
+                              tagSelector:
+                                type: string
+                              types:
+                                description: Types filter resources by the type
+                                items:
+                                  type: string
+                                type: array
+                            type: object
+                          type: array
+                        enterpriseApps:
+                          items:
+                            properties:
+                              agent:
+                                description: |-
+                                  Agent can be the agent id or the name of the agent.
+                                   Additionally, the special "self" value can be used to select resources without an agent.
+                                type: string
+                              cache:
+                                description: |-
+                                  Cache directives
+                                   'no-cache' (should not fetch from cache but can be cached)
+                                   'no-store' (should not cache)
+                                   'max-age=X' (cache for X duration)
+                                type: string
+                              fieldSelector:
+                                type: string
+                              health:
+                                description: |-
+                                  Health filters resources by the health.
+                                  Multiple healths can be provided separated by comma.
+                                type: string
+                              id:
+                                type: string
+                              includeDeleted:
+                                type: boolean
+                              labelSelector:
+                                type: string
+                              limit:
+                                type: integer
+                              name:
+                                type: string
+                              namespace:
+                                type: string
+                              scope:
+                                description: |-
+                                  Scope is the reference for parent of the resource to select.
+                                  For config items, the scope is the scraper id
+                                  For checks, it's canaries and
+                                  For components, it's topology.
+                                  It can either be a uuid or namespace/name
+                                type: string
+                              search:
+                                description: Search query that applies to the resource
+                                  name, tag & labels.
+                                type: string
+                              statuses:
+                                description: Statuses filter resources by the status
+                                items:
+                                  type: string
+                                type: array
+                              tagSelector:
+                                type: string
+                              types:
+                                description: Types filter resources by the type
+                                items:
+                                  type: string
+                                type: array
+                            type: object
+                          type: array
+                        groups:
+                          items:
+                            properties:
+                              agent:
+                                description: |-
+                                  Agent can be the agent id or the name of the agent.
+                                   Additionally, the special "self" value can be used to select resources without an agent.
+                                type: string
+                              cache:
+                                description: |-
+                                  Cache directives
+                                   'no-cache' (should not fetch from cache but can be cached)
+                                   'no-store' (should not cache)
+                                   'max-age=X' (cache for X duration)
+                                type: string
+                              fieldSelector:
+                                type: string
+                              health:
+                                description: |-
+                                  Health filters resources by the health.
+                                  Multiple healths can be provided separated by comma.
+                                type: string
+                              id:
+                                type: string
+                              includeDeleted:
+                                type: boolean
+                              labelSelector:
+                                type: string
+                              limit:
+                                type: integer
+                              name:
+                                type: string
+                              namespace:
+                                type: string
+                              scope:
+                                description: |-
+                                  Scope is the reference for parent of the resource to select.
+                                  For config items, the scope is the scraper id
+                                  For checks, it's canaries and
+                                  For components, it's topology.
+                                  It can either be a uuid or namespace/name
+                                type: string
+                              search:
+                                description: Search query that applies to the resource
+                                  name, tag & labels.
+                                type: string
+                              statuses:
+                                description: Statuses filter resources by the status
+                                items:
+                                  type: string
+                                type: array
+                              tagSelector:
+                                type: string
+                              types:
+                                description: Types filter resources by the type
+                                items:
+                                  type: string
+                                type: array
+                            type: object
+                          type: array
+                        users:
+                          items:
+                            properties:
+                              agent:
+                                description: |-
+                                  Agent can be the agent id or the name of the agent.
+                                   Additionally, the special "self" value can be used to select resources without an agent.
+                                type: string
+                              cache:
+                                description: |-
+                                  Cache directives
+                                   'no-cache' (should not fetch from cache but can be cached)
+                                   'no-store' (should not cache)
+                                   'max-age=X' (cache for X duration)
+                                type: string
+                              fieldSelector:
+                                type: string
+                              health:
+                                description: |-
+                                  Health filters resources by the health.
+                                  Multiple healths can be provided separated by comma.
+                                type: string
+                              id:
+                                type: string
+                              includeDeleted:
+                                type: boolean
+                              labelSelector:
+                                type: string
+                              limit:
+                                type: integer
+                              name:
+                                type: string
+                              namespace:
+                                type: string
+                              scope:
+                                description: |-
+                                  Scope is the reference for parent of the resource to select.
+                                  For config items, the scope is the scraper id
+                                  For checks, it's canaries and
+                                  For components, it's topology.
+                                  It can either be a uuid or namespace/name
+                                type: string
+                              search:
+                                description: Search query that applies to the resource
+                                  name, tag & labels.
+                                type: string
+                              statuses:
+                                description: Statuses filter resources by the status
+                                items:
+                                  type: string
+                                type: array
+                              tagSelector:
+                                type: string
+                              types:
+                                description: Types filter resources by the type
+                                items:
+                                  type: string
+                                type: array
+                            type: object
+                          type: array
+                      type: object
                     class:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.

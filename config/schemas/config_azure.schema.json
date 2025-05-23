@@ -3,6 +3,42 @@
   "$id": "https://github.com/flanksource/config-db/api/v1/azure",
   "$ref": "#/$defs/Azure",
   "$defs": {
+    "ActiveDirectory": {
+      "properties": {
+        "users": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
+        },
+        "appRegistrations": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
+        },
+        "enterpriseApps": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
+        },
+        "appRoleAssignments": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Azure": {
       "properties": {
         "id": {
@@ -86,11 +122,8 @@
         "exclusions": {
           "$ref": "#/$defs/AzureExclusions"
         },
-        "appRoleAssignments": {
-          "items": {
-            "$ref": "#/$defs/ResourceSelector"
-          },
-          "type": "array"
+        "activeDirectory": {
+          "$ref": "#/$defs/ActiveDirectory"
         }
       },
       "additionalProperties": false,

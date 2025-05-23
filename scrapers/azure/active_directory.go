@@ -36,13 +36,17 @@ const (
 )
 
 func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
-	results := v1.ScrapeResults{}
-	results = append(results, azure.fetchUsers()...)
-	results = append(results, azure.fetchGroups()...)
+	if azure.config.AD == nil {
+		return nil, nil
+	}
 
-	results = append(results, azure.fetchAppRegistrations()...)
-	results = append(results, azure.fetchEnterpriseApplications()...)
-	results = append(results, azure.fetchAllAppRoleAssignments(azure.config.AppRoleAssignments)...)
+	results := v1.ScrapeResults{}
+	results = append(results, azure.fetchUsers(azure.config.AD.Users)...)
+	results = append(results, azure.fetchGroups(azure.config.AD.Groups)...)
+
+	results = append(results, azure.fetchAppRegistrations(azure.config.AD.AppRegistrations)...)
+	results = append(results, azure.fetchEnterpriseApplications(azure.config.AD.EnterpriseApps)...)
+	results = append(results, azure.fetchAllAppRoleAssignments(azure.config.AD.AppRoleAssignments)...)
 
 	results = append(results, azure.fetchAuthMethods()...)
 	return results, nil
@@ -121,7 +125,7 @@ func (azure Scraper) fetchAllAppRoleAssignments(selector types.ResourceSelectors
 }
 
 // fetchAppRegistrations gets Azure App Registrations in a tenant.
-func (azure Scraper) fetchAppRegistrations() v1.ScrapeResults {
+func (azure Scraper) fetchAppRegistrations(selector types.ResourceSelectors) v1.ScrapeResults {
 	if !azure.config.Includes(IncludeAppRegistrations) {
 		return nil
 	}
@@ -252,7 +256,7 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 }
 
 // fetchEnterpriseApplications gets all enterprise applications (service principals) and their assigned users
-func (azure Scraper) fetchEnterpriseApplications() v1.ScrapeResults {
+func (azure Scraper) fetchEnterpriseApplications(selector types.ResourceSelectors) v1.ScrapeResults {
 	if !azure.config.Includes(IncludeEnterpriseApps) {
 		return nil
 	}
@@ -308,7 +312,7 @@ func (azure Scraper) fetchEnterpriseApplications() v1.ScrapeResults {
 }
 
 // fetchUsers gets Azure AD users in a tenant.
-func (azure Scraper) fetchUsers() v1.ScrapeResults {
+func (azure Scraper) fetchUsers(selector types.ResourceSelectors) v1.ScrapeResults {
 	if !azure.config.Includes(IncludeUsers) {
 		return nil
 	}
@@ -336,13 +340,14 @@ func (azure Scraper) fetchUsers() v1.ScrapeResults {
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(user msgraphModels.Userable) bool {
-		scrapeResult, err := azure.userToScrapeResult(user)
+		scrapeResult, err := azure.userToScrapeResult(user, selector)
 		if err != nil {
 			azure.ctx.Logger.Errorf("failed to convert user to scrape result: %v", err)
 			return true
+		} else if len(scrapeResult.ExternalUsers) > 0 {
+			results = append(results, scrapeResult)
 		}
 
-		results = append(results, scrapeResult)
 		return true
 	})
 
@@ -353,7 +358,7 @@ func (azure Scraper) fetchUsers() v1.ScrapeResults {
 	return results
 }
 
-func (azure Scraper) userToScrapeResult(user msgraphModels.Userable) (v1.ScrapeResult, error) {
+func (azure Scraper) userToScrapeResult(user msgraphModels.Userable, selector types.ResourceSelectors) (v1.ScrapeResult, error) {
 	displayName := *user.GetDisplayName()
 
 	userID, err := uuid.Parse(lo.FromPtr(user.GetId()))
@@ -373,6 +378,10 @@ func (azure Scraper) userToScrapeResult(user msgraphModels.Userable) (v1.ScrapeR
 		DeletedAt: user.GetDeletedDateTime(),
 	}
 
+	if selector.Matches(externalUser) {
+		return v1.ScrapeResult{}, nil
+	}
+
 	return v1.ScrapeResult{
 		BaseScraper:   azure.config.BaseScraper,
 		ExternalUsers: []models.ExternalUser{externalUser},
@@ -380,7 +389,7 @@ func (azure Scraper) userToScrapeResult(user msgraphModels.Userable) (v1.ScrapeR
 }
 
 // fetchGroups gets Azure AD groups in a tenant.
-func (azure Scraper) fetchGroups() v1.ScrapeResults {
+func (azure Scraper) fetchGroups(selector types.ResourceSelectors) v1.ScrapeResults {
 	if !azure.config.Includes(IncludeGroups) {
 		return nil
 	}
@@ -393,25 +402,17 @@ func (azure Scraper) fetchGroups() v1.ScrapeResults {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch groups: %w", err)})
 	}
 
-	for _, group := range groups.GetValue() {
-		scrapeResult, err := azure.groupToScrapeResult(group)
-		if err != nil {
-			azure.ctx.Logger.Errorf("failed to convert group to scrape result: %v", err)
-			continue
-		}
-
-		results = append(results, scrapeResult)
-	}
-
 	pageIterator, err := graphcore.NewPageIterator[msgraphModels.Groupable](groups, azure.graphClient.GetAdapter(), nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(group msgraphModels.Groupable) bool {
-		result, err := azure.groupToScrapeResult(group)
+		result, err := azure.groupToScrapeResult(group, selector)
 		if err != nil {
 			azure.ctx.Logger.Errorf("failed to convert group to scrape result: %v", err)
+			return true
+		} else if len(result.ExternalGroups) == 0 {
 			return true
 		}
 
@@ -431,7 +432,7 @@ func (azure Scraper) fetchGroups() v1.ScrapeResults {
 	return results
 }
 
-func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable) (v1.ScrapeResult, error) {
+func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable, selector types.ResourceSelectors) (v1.ScrapeResult, error) {
 	groupID, err := uuid.Parse(lo.FromPtr(group.GetId()))
 	if err != nil {
 		return v1.ScrapeResult{}, fmt.Errorf("failed to parse group ID %s: %w", lo.FromPtr(group.GetId()), err)
@@ -448,6 +449,10 @@ func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable) (v1.Scra
 
 	if gt := group.GetGroupTypes(); len(gt) > 0 {
 		externalGroup.GroupType = gt[0]
+	}
+
+	if selector.Matches(externalGroup) {
+		return v1.ScrapeResult{}, nil
 	}
 
 	return v1.ScrapeResult{
