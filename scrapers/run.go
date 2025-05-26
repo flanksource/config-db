@@ -248,22 +248,22 @@ func extractConfigChangesFromConfig(config any) (any, []v1.ChangeResult, []model
 	if changes, ok := configMap["changes"]; ok {
 		raw, err := json.Marshal(changes)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to marshal changes: %v", err)
+			return nil, nil, nil, fmt.Errorf("failed to marshal changes: %w", err)
 		}
 
 		if err := json.Unmarshal(raw, &extractedChanges); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to unmarshal changes map into []v1.ChangeResult: %v", err)
+			return nil, nil, nil, fmt.Errorf("failed to unmarshal changes map into []v1.ChangeResult: %w", err)
 		}
 	}
 
 	if accessLogs, ok := configMap["access_logs"]; ok {
 		raw, err := json.Marshal(accessLogs)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to marshal changes: %v", err)
+			return nil, nil, nil, fmt.Errorf("failed to marshal access logs: %w", err)
 		}
 
 		if err := json.Unmarshal(raw, &extractedAccessLogs); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to unmarshal access logs into []v1.ChangeResult: %v", err)
+			return nil, nil, nil, fmt.Errorf("failed to unmarshal access logs into []models.ConfigAccessLog: %w", err)
 		}
 	}
 
