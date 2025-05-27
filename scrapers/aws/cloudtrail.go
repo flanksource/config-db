@@ -49,6 +49,7 @@ var LastEventTime = sync.Map{}
 
 type CloudTrailEvent struct {
 	UserIdentity struct {
+		Type           string `json:"type"`
 		Arn            string `json:"arn"`
 		Username       string `json:"userName"`
 		SessionContext struct {
@@ -161,10 +162,10 @@ func cloudtrailEventToChange(event types.Event, resource types.Resource) (*v1.Ch
 
 	change.CreatedBy = lo.ToPtr(
 		lo.CoalesceOrEmpty(
-			cloudtrailEvent.UserIdentity.Username,
 			cloudtrailEvent.UserIdentity.Arn,
-			cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username,
+			cloudtrailEvent.UserIdentity.Username,
 			cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Arn,
+			cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username,
 			lo.FromPtr(event.Username),
 		),
 	)
