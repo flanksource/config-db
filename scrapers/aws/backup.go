@@ -78,11 +78,12 @@ func (aws Scraper) scrapeBackupJobs(ctx *AWSContext, config v1.AWS, client *back
 				ExternalChangeID: lo.FromPtr(job.BackupJobId),
 				ChangeType:       changeType,
 				Severity:         string(severity),
-				Source:           "AWS Backup",
+				Source:           SourceAWSBackup,
 				Summary:          fmt.Sprintf("%s %s backup %s", lo.FromPtr(job.ResourceType), lo.FromPtr(job.ResourceName), strings.ToLower(string(job.State))),
 				CreatedAt:        job.CreationDate,
 				Details: map[string]any{
-					"job": job,
+					"job":    job,
+					"status": lo.PascalCase(string(job.State)),
 				},
 			}
 
@@ -125,7 +126,8 @@ func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *bac
 				Summary:          fmt.Sprintf("%s restore %s", lo.FromPtr(job.ResourceType), strings.ToLower(string(job.Status))),
 				CreatedAt:        job.CreationDate,
 				Details: map[string]any{
-					"job": job,
+					"job":    job,
+					"status": lo.PascalCase(string(job.Status)),
 				},
 			}
 

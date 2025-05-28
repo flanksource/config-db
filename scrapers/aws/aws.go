@@ -71,6 +71,12 @@ const (
 	IncludeRDSEvents = "RDSEvents"
 )
 
+// Config changes sources
+const (
+	SourceRDSEvents = "RDS Events"
+	SourceAWSBackup = "AWS Backup"
+)
+
 func getLabels(tags []ec2Types.Tag) v1.JSONStringMap {
 	result := make(v1.JSONStringMap)
 	for _, tag := range tags {
@@ -1176,7 +1182,7 @@ func (aws Scraper) rdsEvents(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				sourceID := lo.FromPtr(event.SourceIdentifier)
 				eventID := fmt.Sprintf("%s-%d", sourceID, event.Date.Unix())
 
-				changeType, severity := rdsChangeType(source.Type, event.EventCategories[0], message)
+				changeType, status, severity := rdsChangeType(source.Type, event.EventCategories[0], message)
 
 				changeResult := v1.ChangeResult{
 					ExternalChangeID: eventID,
@@ -1185,12 +1191,11 @@ func (aws Scraper) rdsEvents(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 					ChangeType:       changeType,
 					Summary:          message,
 					Severity:         string(severity),
-					Source:           "RDSEvent",
+					Source:           SourceRDSEvents,
 					CreatedAt:        event.Date,
 					Details: map[string]any{
-						"message":   event.Message,
-						"sourceARN": event.SourceArn,
-						"category":  event.EventCategories,
+						"event":  event,
+						"status": lo.PascalCase(status),
 					},
 				}
 
@@ -1209,38 +1214,38 @@ func (aws Scraper) rdsEvents(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	return nil
 }
 
-func rdsChangeType(sourceType rdsTypes.SourceType, category, message string) (string, models.Severity) {
+func rdsChangeType(sourceType rdsTypes.SourceType, category, message string) (string, string, models.Severity) {
 	switch sourceType {
 	case rdsTypes.SourceTypeDbInstance:
 		switch category {
 		case "backup":
 			if strings.Contains(message, "Finished") {
-				return "BackupCompleted", models.SeverityInfo
+				return "BackupCompleted", "Completed", models.SeverityInfo
 			} else if strings.Contains(message, "Backing up") {
-				return "BackupStarted", models.SeverityInfo
+				return "BackupStarted", "Started", models.SeverityInfo
 			}
-			return "BackupCreated", models.SeverityInfo
+			return "BackupCreated", "Completed", models.SeverityInfo
 		case "restoration":
-			return "BackupRestored", models.SeverityMedium
+			return "BackupRestored", "Completed", models.SeverityMedium
 		}
 
 	case rdsTypes.SourceTypeDbSnapshot:
 		switch category {
 		case "creation":
 			if strings.Contains(message, "Creating") {
-				return "BackupStarted", models.SeverityInfo
+				return "BackupStarted", "Started", models.SeverityInfo
 			} else if strings.Contains(message, "Created") {
-				return "BackupCompleted", models.SeverityInfo
+				return "BackupCompleted", "Completed", models.SeverityInfo
 			}
 		case "restoration":
-			return "BackupRestored", models.SeverityMedium
+			return "BackupRestored", "Completed", models.SeverityMedium
 		case "deletion":
 			// TODO: This should delete the original BackupCreated/BackupCompleted changes
-			return "BackupDeleted", models.SeverityLow
+			return "BackupDeleted", "Completed", models.SeverityLow
 		}
 	}
 
-	return "Unknown", models.SeverityInfo
+	return "Unknown", "Unknown", models.SeverityInfo
 }
 
 func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
