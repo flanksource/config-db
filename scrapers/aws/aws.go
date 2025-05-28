@@ -12,6 +12,7 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/backup"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
@@ -90,6 +91,8 @@ func getEndpointResolver[T any](awsConfig v1.AWS) func(o *T) {
 	}
 	return func(o *T) {
 		switch opts := any(o).(type) {
+		case *backup.Options:
+			opts.BaseEndpoint = val
 		case *ec2.Options:
 			opts.BaseEndpoint = val
 		case *iam.Options:
@@ -1053,18 +1056,19 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			})
 		}
 
+		arn := lo.FromPtr(instance.DBInstanceArn)
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSRDSInstance,
 			Status:              lo.FromPtr(instance.DBInstanceStatus),
 			Labels:              labels,
-			Tags:                []v1.Tag{{Name: "region", Value: getRegionFromArn(*instance.DBInstanceArn, "rds")}},
+			Tags:                []v1.Tag{{Name: "region", Value: getRegionFromArn(arn, "rds")}},
 			BaseScraper:         config.BaseScraper,
 			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSRDSInstance, lo.FromPtr(instance.DBInstanceIdentifier), nil)},
 			Config:              instance,
 			ConfigClass:         "RelationalDatabase",
 			Name:                getName(labels, *instance.DBInstanceIdentifier),
 			ID:                  *instance.DBInstanceIdentifier,
-			Aliases:             []string{"AmazonRDS/" + *instance.DBInstanceArn},
+			Aliases:             []string{"AmazonRDS/" + arn, arn},
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(instance.DBSubnetGroup.VpcId)}},
 			RelationshipResults: relationships,
 		})
@@ -2011,6 +2015,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 
 			ctx.Logger.V(1).Infof("scraping %s", awsCtx)
+			aws.awsBackups(awsCtx, awsConfig, results)
 			aws.cloudformationStacks(awsCtx, awsConfig, results)
 			aws.ecsClusters(awsCtx, awsConfig, results)
 			aws.ecsTaskDefinitions(awsCtx, awsConfig, results)
@@ -2170,8 +2175,6 @@ func getConsoleLink(region, resourceType, resourceID string, opt map[string]stri
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?region=%s#SubnetDetails:subnetId=%s", region, region, resourceID)
 	case v1.AWSLambdaFunction:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/lambda/home?region=%s#/functions/%s", region, region, resourceID)
-	case v1.AWSEC2Instance:
-		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#Instances:search=%s", region, region, resourceID)
 	case v1.AWSEKSCluster:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/eks/home?region=%s#/clusters/%s", region, region, resourceID)
 	case v1.AWSLoadBalancer:
