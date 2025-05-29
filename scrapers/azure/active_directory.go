@@ -37,7 +37,7 @@ const (
 
 func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
 	if azure.config.EntraID == nil {
-		return nil, nil
+		azure.config.EntraID = &v1.EntraID{}
 	}
 
 	results := v1.ScrapeResults{}
