@@ -52,6 +52,8 @@ type CloudTrailEvent struct {
 		Type           string `json:"type"`
 		Arn            string `json:"arn"`
 		Username       string `json:"userName"`
+		PrincipalID    string `json:"principalId"`
+		InvokedBy      string `json:"invokedBy"`
 		SessionContext struct {
 			SessionIssuer struct {
 				Username string `json:"userName"`
@@ -160,15 +162,20 @@ func cloudtrailEventToChange(event types.Event, resource types.Resource) (*v1.Ch
 		return nil, fmt.Errorf("error parsing cloudtrail event: %w", err)
 	}
 
-	change.CreatedBy = lo.ToPtr(
-		lo.CoalesceOrEmpty(
-			cloudtrailEvent.UserIdentity.Arn,
-			cloudtrailEvent.UserIdentity.Username,
-			cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Arn,
-			cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username,
-			lo.FromPtr(event.Username),
-		),
-	)
+	switch cloudtrailEvent.UserIdentity.Type {
+	case "AssumedRole":
+		if cloudtrailEvent.UserIdentity.PrincipalID != "" {
+			change.CreatedBy = lo.ToPtr(cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username)
+		} else {
+			splits := strings.Split(cloudtrailEvent.UserIdentity.Arn, "/")
+			name := splits[len(splits)-1]
+			change.CreatedBy = lo.ToPtr(name)
+		}
+	case "IAMUser":
+		change.CreatedBy = lo.ToPtr(cloudtrailEvent.UserIdentity.Username)
+	default:
+		change.CreatedBy = lo.ToPtr(cloudtrailEvent.UserIdentity.Arn)
+	}
 
 	if resource.ResourceName != nil {
 		change.ExternalID = *resource.ResourceName
