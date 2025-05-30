@@ -17,25 +17,17 @@ import (
 	"github.com/samber/lo"
 )
 
-// Include types for Azure Active Directory
+// Include types for Entra
 const (
 	IncludeAuthMethods = "authMethods"
-	IncludeGroups      = "groups"
-	IncludeUsers       = "users"
-
-	IncludeAccessReviews = "accessReviews"
-
-	IncludeAppRegistrations   = "appRegistrations"
-	IncludeAppRoleAssignments = "appRoleAssignments"
-	IncludeAppRoles           = "appRoles"
-	IncludeEnterpriseApps     = "enterpriseApps"
+	IncludeAppRoles    = "appRoles"
 )
 
 const (
 	EnterpriseApplicationType = "EnterpriseApplication"
 )
 
-func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
+func (azure *Scraper) scrapeEntra() (v1.ScrapeResults, error) {
 	if azure.config.Entra == nil {
 		azure.config.Entra = &v1.Entra{}
 	}
@@ -90,18 +82,14 @@ func (azure Scraper) fetchAppRoles(appObjectID string) v1.ScrapeResults {
 	return results
 }
 
-func (azure Scraper) fetchAllAppRoleAssignments(selector types.ResourceSelectors) v1.ScrapeResults {
-	if !azure.config.Includes(IncludeAppRoleAssignments) && len(azure.config.Include) > 0 {
-		return nil
-	}
-
-	if len(selector) == 0 {
+func (azure Scraper) fetchAllAppRoleAssignments(selectors types.ResourceSelectors) v1.ScrapeResults {
+	if len(selectors) == 0 {
 		// We'll never fetch role assignments for all apps.
 		// A selector must be provided.
 		return nil
 	}
 
-	selectors := lo.Map(selector, func(s types.ResourceSelector, _ int) types.ResourceSelector {
+	selectors = lo.Map(selectors, func(s types.ResourceSelector, _ int) types.ResourceSelector {
 		s.Types = []string{ConfigTypePrefix + EnterpriseApplicationType}
 		return s
 	})
@@ -125,8 +113,8 @@ func (azure Scraper) fetchAllAppRoleAssignments(selector types.ResourceSelectors
 }
 
 // fetchAppRegistrations gets Azure App Registrations in a tenant.
-func (azure Scraper) fetchAppRegistrations(selector types.ResourceSelectors) v1.ScrapeResults {
-	if !azure.config.Includes(IncludeAppRegistrations) {
+func (azure Scraper) fetchAppRegistrations(selectors types.ResourceSelectors) v1.ScrapeResults {
+	if len(selectors) == 0 {
 		return nil
 	}
 
@@ -146,7 +134,7 @@ func (azure Scraper) fetchAppRegistrations(selector types.ResourceSelectors) v1.
 
 	err = pageIterator.Iterate(azure.ctx, func(app *msgraphModels.Application) bool {
 		scrapeResult := azure.appToScrapeResult(app)
-		if !selector.Matches(scrapeResult) {
+		if !selectors.Matches(scrapeResult) {
 			return true
 		}
 
@@ -257,8 +245,8 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 }
 
 // fetchEnterpriseApplications gets all enterprise applications (service principals) and their assigned users
-func (azure Scraper) fetchEnterpriseApplications(selector types.ResourceSelectors) v1.ScrapeResults {
-	if !azure.config.Includes(IncludeEnterpriseApps) {
+func (azure Scraper) fetchEnterpriseApplications(selectors types.ResourceSelectors) v1.ScrapeResults {
+	if len(selectors) == 0 {
 		return nil
 	}
 
@@ -300,7 +288,7 @@ func (azure Scraper) fetchEnterpriseApplications(selector types.ResourceSelector
 				Relationship:    "AppServicePrincipal",
 			}},
 		}
-		if !selector.Matches(result) {
+		if !selectors.Matches(result) {
 			return true
 		}
 		results = append(results, result)
@@ -316,8 +304,8 @@ func (azure Scraper) fetchEnterpriseApplications(selector types.ResourceSelector
 }
 
 // fetchUsers gets Azure AD users in a tenant.
-func (azure Scraper) fetchUsers(selector types.ResourceSelectors) v1.ScrapeResults {
-	if !azure.config.Includes(IncludeUsers) {
+func (azure Scraper) fetchUsers(selectors types.ResourceSelectors) v1.ScrapeResults {
+	if len(selectors) == 0 {
 		return nil
 	}
 
@@ -344,7 +332,7 @@ func (azure Scraper) fetchUsers(selector types.ResourceSelectors) v1.ScrapeResul
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(user msgraphModels.Userable) bool {
-		scrapeResult, err := azure.userToScrapeResult(user, selector)
+		scrapeResult, err := azure.userToScrapeResult(user, selectors)
 		if err != nil {
 			azure.ctx.Logger.Errorf("failed to convert user to scrape result: %v", err)
 			return true
@@ -393,8 +381,8 @@ func (azure Scraper) userToScrapeResult(user msgraphModels.Userable, selector ty
 }
 
 // fetchGroups gets Azure AD groups in a tenant.
-func (azure Scraper) fetchGroups(selector types.ResourceSelectors) v1.ScrapeResults {
-	if !azure.config.Includes(IncludeGroups) {
+func (azure Scraper) fetchGroups(selectors types.ResourceSelectors) v1.ScrapeResults {
+	if len(selectors) == 0 {
 		return nil
 	}
 
@@ -412,7 +400,7 @@ func (azure Scraper) fetchGroups(selector types.ResourceSelectors) v1.ScrapeResu
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(group msgraphModels.Groupable) bool {
-		result, err := azure.groupToScrapeResult(group, selector)
+		result, err := azure.groupToScrapeResult(group, selectors)
 		if err != nil {
 			azure.ctx.Logger.Errorf("failed to convert group to scrape result: %v", err)
 			return true
@@ -500,10 +488,6 @@ func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 
 // fetchGroupMembers gets members of an Azure AD group.
 func (azure Scraper) fetchGroupMembers(groupID string) ([]models.ExternalUserGroup, error) {
-	if !azure.config.Includes(IncludeUsers) || !azure.config.Includes(IncludeGroups) {
-		return nil, nil
-	}
-
 	groupUUID, err := uuid.Parse(groupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse group ID %s: %w", groupID, err)

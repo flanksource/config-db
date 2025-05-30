@@ -229,9 +229,9 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 		}
 
-		adResults, err := azure.scrapeActiveDirectory()
+		adResults, err := azure.scrapeEntra()
 		if err != nil {
-			results.Errorf(err, "failed to scrape active directory")
+			results.Errorf(err, "failed to scrape Entra")
 		}
 		results = append(results, adResults...)
 

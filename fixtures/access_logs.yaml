@@ -13,7 +13,7 @@ spec:
       transform:
         expr: |
           dyn(config).
-            filter(item, catalog.hasRelationToType(item.app_id, "MissionControl::Application")).
+            filter(item, len(catalog.traverse(item.app_id, "MissionControl::Application")) > 0).
             map(item, {
               "access_logs": [{
                 "config_id": item.app_id,
