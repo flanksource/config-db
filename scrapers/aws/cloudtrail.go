@@ -10,8 +10,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/aws/smithy-go/ptr"
-	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/samber/lo"
 )
 
 func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<- types.Event, config v1.AWS) error {
@@ -49,11 +49,15 @@ var LastEventTime = sync.Map{}
 
 type CloudTrailEvent struct {
 	UserIdentity struct {
+		Type           string `json:"type"`
 		Arn            string `json:"arn"`
 		Username       string `json:"userName"`
+		PrincipalID    string `json:"principalId"`
+		InvokedBy      string `json:"invokedBy"`
 		SessionContext struct {
 			SessionIssuer struct {
 				Username string `json:"userName"`
+				Arn      string `json:"arn"`
 			} `json:"sessionIssuer"`
 		} `json:"sessionContext"`
 	} `json:"userIdentity"`
@@ -99,36 +103,15 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 			}
 
 			for _, resource := range event.Resources {
-				change := v1.ChangeResult{
-					CreatedAt:        event.EventTime,
-					ExternalChangeID: *event.EventId,
-					ChangeType:       *event.EventName,
-					Details:          v1.NewJSON(*event.CloudTrailEvent),
-					Source:           fmt.Sprintf("AWS::CloudTrail::%s:%s", ctx.Session.Region, *ctx.Caller.Account),
-				}
-
-				var cloudtrailEvent CloudTrailEvent
-				if err := cloudtrailEvent.FromJSON(ptr.ToString(event.CloudTrailEvent)); err != nil {
-					logger.Warnf("error parsing cloudtrail event: %v", err)
+				change, err := cloudtrailEventToChange(event, resource)
+				if err != nil {
+					results.Errorf(err, "failed to convert cloudtrail event to change")
 					ignored++
 					continue
 				}
 
-				if cloudtrailEvent.UserIdentity.Username != "" {
-					change.CreatedBy = &cloudtrailEvent.UserIdentity.Username
-				} else if cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username != "" {
-					change.CreatedBy = &cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username
-				} else if event.Username != nil {
-					change.CreatedBy = event.Username
-				}
-				if resource.ResourceName != nil {
-					change.ExternalID = *resource.ResourceName
-				}
-				if resource.ResourceType != nil {
-					change.ConfigType = *resource.ResourceType
-				}
-
-				results.AddChange(config.BaseScraper, change)
+				change.Source = fmt.Sprintf("AWS::CloudTrail::%s:%s", ctx.Session.Region, *ctx.Caller.Account)
+				results.AddChange(config.BaseScraper, *change)
 			}
 		}
 
@@ -164,4 +147,42 @@ func containsAny(a []string, v string) bool {
 		}
 	}
 	return false
+}
+
+func cloudtrailEventToChange(event types.Event, resource types.Resource) (*v1.ChangeResult, error) {
+	change := &v1.ChangeResult{
+		CreatedAt:        event.EventTime,
+		ExternalChangeID: lo.FromPtr(event.EventId),
+		ChangeType:       lo.FromPtr(event.EventName),
+		Details:          v1.NewJSON(lo.FromPtr(event.CloudTrailEvent)),
+	}
+
+	var cloudtrailEvent CloudTrailEvent
+	if err := cloudtrailEvent.FromJSON(ptr.ToString(event.CloudTrailEvent)); err != nil {
+		return nil, fmt.Errorf("error parsing cloudtrail event: %w", err)
+	}
+
+	switch cloudtrailEvent.UserIdentity.Type {
+	case "AssumedRole":
+		if cloudtrailEvent.UserIdentity.PrincipalID != "" {
+			change.CreatedBy = lo.ToPtr(cloudtrailEvent.UserIdentity.SessionContext.SessionIssuer.Username)
+		} else {
+			splits := strings.Split(cloudtrailEvent.UserIdentity.Arn, "/")
+			name := splits[len(splits)-1]
+			change.CreatedBy = lo.ToPtr(name)
+		}
+	case "IAMUser":
+		change.CreatedBy = lo.ToPtr(cloudtrailEvent.UserIdentity.Username)
+	default:
+		change.CreatedBy = lo.ToPtr(cloudtrailEvent.UserIdentity.Arn)
+	}
+
+	if resource.ResourceName != nil {
+		change.ExternalID = *resource.ResourceName
+	}
+	if resource.ResourceType != nil {
+		change.ConfigType = *resource.ResourceType
+	}
+
+	return change, nil
 }
