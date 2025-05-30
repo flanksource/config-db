@@ -36,17 +36,17 @@ const (
 )
 
 func (azure *Scraper) scrapeActiveDirectory() (v1.ScrapeResults, error) {
-	if azure.config.EntraID == nil {
-		azure.config.EntraID = &v1.EntraID{}
+	if azure.config.Entra == nil {
+		azure.config.Entra = &v1.Entra{}
 	}
 
 	results := v1.ScrapeResults{}
-	results = append(results, azure.fetchUsers(azure.config.EntraID.Users)...)
-	results = append(results, azure.fetchGroups(azure.config.EntraID.Groups)...)
+	results = append(results, azure.fetchUsers(azure.config.Entra.Users)...)
+	results = append(results, azure.fetchGroups(azure.config.Entra.Groups)...)
 
-	results = append(results, azure.fetchAppRegistrations(azure.config.EntraID.AppRegistrations)...)
-	results = append(results, azure.fetchEnterpriseApplications(azure.config.EntraID.EnterpriseApps)...)
-	results = append(results, azure.fetchAllAppRoleAssignments(azure.config.EntraID.AppRoleAssignments)...)
+	results = append(results, azure.fetchAppRegistrations(azure.config.Entra.AppRegistrations)...)
+	results = append(results, azure.fetchEnterpriseApplications(azure.config.Entra.EnterpriseApps)...)
+	results = append(results, azure.fetchAllAppRoleAssignments(azure.config.Entra.AppRoleAssignments)...)
 
 	results = append(results, azure.fetchAuthMethods()...)
 	return results, nil

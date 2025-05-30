@@ -147,42 +147,6 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "ActiveDirectory": {
-      "properties": {
-        "users": {
-          "items": {
-            "$ref": "#/$defs/ResourceSelector"
-          },
-          "type": "array"
-        },
-        "groups": {
-          "items": {
-            "$ref": "#/$defs/ResourceSelector"
-          },
-          "type": "array"
-        },
-        "appRegistrations": {
-          "items": {
-            "$ref": "#/$defs/ResourceSelector"
-          },
-          "type": "array"
-        },
-        "enterpriseApps": {
-          "items": {
-            "$ref": "#/$defs/ResourceSelector"
-          },
-          "type": "array"
-        },
-        "appRoleAssignments": {
-          "items": {
-            "$ref": "#/$defs/ResourceSelector"
-          },
-          "type": "array"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
     "Authentication": {
       "properties": {
         "username": {
@@ -282,8 +246,8 @@
         "exclusions": {
           "$ref": "#/$defs/AzureExclusions"
         },
-        "activeDirectory": {
-          "$ref": "#/$defs/ActiveDirectory"
+        "entra": {
+          "$ref": "#/$defs/Entra"
         }
       },
       "additionalProperties": false,
@@ -750,6 +714,42 @@
       "required": [
         "cluster"
       ]
+    },
+    "Entra": {
+      "properties": {
+        "users": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
+        },
+        "appRegistrations": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
+        },
+        "enterpriseApps": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
+        },
+        "appRoleAssignments": {
+          "items": {
+            "$ref": "#/$defs/ResourceSelector"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "EnvVar": {
       "properties": {

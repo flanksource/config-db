@@ -531,7 +531,117 @@ spec:
               azure:
                 items:
                   properties:
-                    activeDirectory:
+                    class:
+                      description: A static value or JSONPath expression to use as
+                        the class for the resource.
+                      type: string
+                    clientID:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            helmRef:
+                              properties:
+                                key:
+                                  description: Key is a JSONPath expression used to
+                                    fetch the key from the merged JSON.
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            serviceAccount:
+                              description: ServiceAccount specifies the service account
+                                whose token should be fetched
+                              type: string
+                          type: object
+                      type: object
+                    clientSecret:
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            helmRef:
+                              properties:
+                                key:
+                                  description: Key is a JSONPath expression used to
+                                    fetch the key from the merged JSON.
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            serviceAccount:
+                              description: ServiceAccount specifies the service account
+                                whose token should be fetched
+                              type: string
+                          type: object
+                      type: object
+                    connection:
+                      type: string
+                    createFields:
+                      description: |-
+                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
+                      items:
+                        type: string
+                      type: array
+                    deleteFields:
+                      description: |-
+                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
+                        If multiple fields are specified, the first non-empty value will be used.
+                      items:
+                        type: string
+                      type: array
+                    description:
+                      description: A static value or JSONPath expression to use as
+                        the description for the resource.
+                      type: string
+                    entra:
                       properties:
                         appRegistrations:
                           items:
@@ -834,116 +944,6 @@ spec:
                             type: object
                           type: array
                       type: object
-                    class:
-                      description: A static value or JSONPath expression to use as
-                        the class for the resource.
-                      type: string
-                    clientID:
-                      properties:
-                        name:
-                          type: string
-                        value:
-                          type: string
-                        valueFrom:
-                          properties:
-                            configMapKeyRef:
-                              properties:
-                                key:
-                                  type: string
-                                name:
-                                  type: string
-                              required:
-                              - key
-                              type: object
-                            helmRef:
-                              properties:
-                                key:
-                                  description: Key is a JSONPath expression used to
-                                    fetch the key from the merged JSON.
-                                  type: string
-                                name:
-                                  type: string
-                              required:
-                              - key
-                              type: object
-                            secretKeyRef:
-                              properties:
-                                key:
-                                  type: string
-                                name:
-                                  type: string
-                              required:
-                              - key
-                              type: object
-                            serviceAccount:
-                              description: ServiceAccount specifies the service account
-                                whose token should be fetched
-                              type: string
-                          type: object
-                      type: object
-                    clientSecret:
-                      properties:
-                        name:
-                          type: string
-                        value:
-                          type: string
-                        valueFrom:
-                          properties:
-                            configMapKeyRef:
-                              properties:
-                                key:
-                                  type: string
-                                name:
-                                  type: string
-                              required:
-                              - key
-                              type: object
-                            helmRef:
-                              properties:
-                                key:
-                                  description: Key is a JSONPath expression used to
-                                    fetch the key from the merged JSON.
-                                  type: string
-                                name:
-                                  type: string
-                              required:
-                              - key
-                              type: object
-                            secretKeyRef:
-                              properties:
-                                key:
-                                  type: string
-                                name:
-                                  type: string
-                              required:
-                              - key
-                              type: object
-                            serviceAccount:
-                              description: ServiceAccount specifies the service account
-                                whose token should be fetched
-                              type: string
-                          type: object
-                      type: object
-                    connection:
-                      type: string
-                    createFields:
-                      description: |-
-                        CreateFields is a list of JSONPath expression used to identify the created time of the config.
-                        If multiple fields are specified, the first non-empty value will be used.
-                      items:
-                        type: string
-                      type: array
-                    deleteFields:
-                      description: |-
-                        DeleteFields is a JSONPath expression used to identify the deleted time of the config.
-                        If multiple fields are specified, the first non-empty value will be used.
-                      items:
-                        type: string
-                      type: array
-                    description:
-                      description: A static value or JSONPath expression to use as
-                        the description for the resource.
-                      type: string
                     exclusions:
                       properties:
                         activityLogs:

@@ -14,8 +14,7 @@ type AzureDevops struct {
 	Pipelines           []string     `yaml:"pipelines" json:"pipelines"`
 }
 
-// EntraID is the Azure Active Directory (AAD) configuration.
-type EntraID struct {
+type Entra struct {
 	Users              []types.ResourceSelector `yaml:"users,omitempty" json:"users,omitempty"`
 	Groups             []types.ResourceSelector `yaml:"groups,omitempty" json:"groups,omitempty"`
 	AppRegistrations   []types.ResourceSelector `yaml:"appRegistrations,omitempty" json:"appRegistrations,omitempty"`
@@ -32,7 +31,7 @@ type Azure struct {
 	TenantID       string           `yaml:"tenantID,omitempty" json:"tenantID,omitempty"`
 	Include        []string         `yaml:"include,omitempty" json:"include,omitempty"`
 	Exclusions     *AzureExclusions `yaml:"exclusions,omitempty" json:"exclusions,omitempty"`
-	EntraID        *EntraID         `yaml:"entraID,omitempty" json:"entraID,omitempty"`
+	Entra          *Entra           `yaml:"entra,omitempty" json:"entra,omitempty"`
 }
 
 func (azure Azure) Includes(resource string) bool {
