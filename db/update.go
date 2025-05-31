@@ -571,6 +571,42 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		ctx.TempCache().Insert(*config)
 	}
 
+	for _, externalUser := range extractResult.externalUsers {
+		if err := ctx.DB().Save(&externalUser).Error; err != nil {
+			return summary, fmt.Errorf("failed to save external user: %w", err)
+		}
+	}
+
+	for _, externalGroup := range extractResult.externalGroups {
+		if err := ctx.DB().Save(&externalGroup).Error; err != nil {
+			return summary, fmt.Errorf("failed to save external group: %w", err)
+		}
+	}
+
+	for _, externalRole := range extractResult.externalRoles {
+		if err := ctx.DB().Save(&externalRole).Error; err != nil {
+			return summary, fmt.Errorf("failed to save external role: %w", err)
+		}
+	}
+
+	for _, configAccess := range extractResult.configAccesses {
+		if err := ctx.DB().Save(&configAccess).Error; err != nil {
+			return summary, fmt.Errorf("failed to save config access: %w", err)
+		}
+	}
+
+	for _, accessLog := range extractResult.configAccessLogs {
+		if err := ctx.DB().Save(&accessLog).Error; err != nil {
+			return summary, fmt.Errorf("failed to save access log: %w", err)
+		}
+	}
+
+	for _, externalUserGroup := range extractResult.externalUserGroups {
+		if err := ctx.DB().Save(&externalUserGroup).Error; err != nil {
+			return summary, fmt.Errorf("failed to save external user group: %w", err)
+		}
+	}
+
 	// nonUpdatedConfigs are existing configs that were not updated in this scrape.
 	// We keep track of them so that we can update their last scraped time.
 	var nonUpdatedConfigs []string
@@ -985,7 +1021,16 @@ type extractResult struct {
 	configsToUpdate []*updateConfigArgs
 	newChanges      []*models.ConfigChange
 	changesToUpdate []*models.ConfigChange
-	changeSummary   v1.ChangeSummaryByType
+
+	externalUsers      []dutyModels.ExternalUser
+	externalGroups     []dutyModels.ExternalGroup
+	externalUserGroups []dutyModels.ExternalUserGroup
+
+	externalRoles    []dutyModels.ExternalRole
+	configAccesses   []dutyModels.ConfigAccess
+	configAccessLogs []dutyModels.ConfigAccessLog
+
+	changeSummary v1.ChangeSummaryByType
 }
 
 func NewExtractResult() *extractResult {
@@ -1006,6 +1051,33 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 
 		var ci *models.ConfigItem
 		var err error
+
+		if len(result.ExternalUsers) > 0 {
+			extractResult.externalUsers = append(extractResult.externalUsers, result.ExternalUsers...)
+		}
+
+		if len(result.ExternalGroups) > 0 {
+			extractResult.externalGroups = append(extractResult.externalGroups, result.ExternalGroups...)
+		}
+
+		if len(result.ExternalRoles) > 0 {
+			extractResult.externalRoles = append(extractResult.externalRoles, result.ExternalRoles...)
+		}
+
+		if len(result.ConfigAccess) > 0 {
+			extractResult.configAccesses = append(extractResult.configAccesses, result.ConfigAccess...)
+		}
+
+		if len(result.ConfigAccessLogs) > 0 {
+			extractResult.configAccessLogs = append(extractResult.configAccessLogs, lo.Map(result.ConfigAccessLogs, func(accessLog dutyModels.ConfigAccessLog, _ int) dutyModels.ConfigAccessLog {
+				accessLog.ScraperID = lo.FromPtr(ctx.ScrapeConfig().GetPersistedID())
+				return accessLog
+			})...)
+		}
+
+		if len(result.ExternalUserGroups) > 0 {
+			extractResult.externalUserGroups = append(extractResult.externalUserGroups, result.ExternalUserGroups...)
+		}
 
 		if result.Name == "" {
 			result.Name = lo.CoalesceOrEmpty(lo.FirstOrEmpty(result.Aliases), result.ID)

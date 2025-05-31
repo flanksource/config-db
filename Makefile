@@ -45,13 +45,13 @@ docker-push:
 
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: generate gen-schemas ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	#$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=chart/crds
 
 
 .PHONY: generate
-generate: controller-gen gen-schemas ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 
 .PHONY: resources
@@ -121,8 +121,8 @@ release: binaries
 	cp .bin/$(NAME)* .release/
 
 .PHONY: lint
-lint:
-	golangci-lint run -v ./...
+lint: golangci-lint ## Run golangci-lint against code.
+	$(GOLANGCI_LINT) run -v ./...
 
 .PHONY: build
 build:
@@ -170,10 +170,12 @@ LOCALBIN ?= $(shell pwd)/.bin
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
+GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
 CONTROLLER_TOOLS_VERSION ?= v0.14.0
+GOLANGCI_LINT_VERSION ?= v2.1.6
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 
@@ -218,6 +220,11 @@ CONTROLLER_RUNTIME_VERSION = v0.0.0-20240320141353-395cfc7486e6
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(CONTROLLER_RUNTIME_VERSION)
+
+.PHONY: golangci-lint
+golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
+$(GOLANGCI_LINT): $(LOCALBIN)
+	test -s $(LOCALBIN)/golangci-lint || GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 .PHONY: rust-diffgen
 rust-diffgen:
