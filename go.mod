@@ -100,12 +100,12 @@ require (
 require (
 	ariga.io/atlas v0.15.0 // indirect
 	cel.dev/expr v0.22.1 // indirect
-	cloud.google.com/go/auth v0.15.0 // indirect
+	cloud.google.com/go/auth v0.16.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/cloudsqlconn v1.5.1 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	cloud.google.com/go/kms v1.21.1 // indirect
-	cloud.google.com/go/longrunning v0.6.6 // indirect
+	cloud.google.com/go/longrunning v0.6.7 // indirect
 	cloud.google.com/go/monitoring v1.24.1 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
@@ -172,6 +172,7 @@ require (
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.5.0 // indirect
 	github.com/go-git/go-git/v5 v5.12.0 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/inflect v0.19.0 // indirect
@@ -241,6 +242,7 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/skeema/knownhosts v1.2.2 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/tidwall/gjson v1.17.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -261,6 +263,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	github.com/zeebo/errs v1.4.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.35.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
@@ -277,8 +280,8 @@ require (
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250324211829-b45e905df463 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250324211829-b45e905df463 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250505200425-f936aa4a68b2 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250505200425-f936aa4a68b2 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
@@ -296,10 +299,10 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.120.0 // indirect
+	cloud.google.com/go v0.121.0 // indirect
 	cloud.google.com/go/compute v1.34.0
-	cloud.google.com/go/iam v1.4.2
-	cloud.google.com/go/storage v1.51.0
+	cloud.google.com/go/iam v1.5.2
+	cloud.google.com/go/storage v1.54.0
 	github.com/DATA-DOG/go-sqlmock v1.5.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/aws/aws-sdk-go v1.55.6 // indirect
@@ -388,16 +391,16 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
-	golang.org/x/net v0.38.0 // indirect
-	golang.org/x/oauth2 v0.28.0 // indirect
-	golang.org/x/sync v0.13.0
+	golang.org/x/net v0.39.0 // indirect
+	golang.org/x/oauth2 v0.30.0 // indirect
+	golang.org/x/sync v0.14.0
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/term v0.31.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
-	google.golang.org/api v0.228.0
+	google.golang.org/api v0.232.0
 	google.golang.org/genproto v0.0.0-20250324211829-b45e905df463 // indirect
-	google.golang.org/grpc v1.71.0
+	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
