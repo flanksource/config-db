@@ -26,9 +26,9 @@ func (aws Scraper) awsBackups(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 
 	backupClient := backup.NewFromConfig(*ctx.Session, getEndpointResolver[backup.Options](config))
 
-	// if err := aws.scrapeRecoveryPoints(ctx, config, backupClient, results); err != nil {
-	// 	results.Errorf(err, "failed to scrape recovery points")
-	// }
+	if err := aws.scrapeRecoveryPoints(ctx, config, backupClient, results); err != nil {
+		results.Errorf(err, "failed to scrape recovery points")
+	}
 
 	if err := aws.scrapeBackupJobs(ctx, config, backupClient, results); err != nil {
 		results.Errorf(err, "failed to scrape backup jobs")
@@ -59,7 +59,7 @@ func (aws Scraper) scrapeBackupJobs(ctx *AWSContext, config v1.AWS, client *back
 	}
 	paginator := backup.NewListBackupJobsPaginator(client, input)
 
-	changes := []v1.ChangeResult{}
+	var changes []v1.ChangeResult
 
 	for paginator.HasMorePages() {
 		output, err := paginator.NextPage(ctx)
@@ -126,7 +126,7 @@ func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *bac
 		ByCreatedBefore: &endTime,
 	}
 
-	changes := []v1.ChangeResult{}
+	var changes []v1.ChangeResult
 	paginator := backup.NewListRestoreJobsPaginator(client, input)
 	for paginator.HasMorePages() {
 		output, err := paginator.NextPage(ctx)
@@ -163,9 +163,79 @@ func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *bac
 			}
 
 			changeResult.ExternalID = lo.FromPtr(job.CreatedResourceArn)
-			switch lo.FromPtr(job.ResourceType) {
-			case "RDS":
-				changeResult.ConfigType = v1.AWSRDSInstance
+			changeResult.ConfigType = resourceTypeToConfigType(lo.FromPtr(job.ResourceType))
+			changes = append(changes, changeResult)
+		}
+	}
+
+	result := v1.NewScrapeResult(config.BaseScraper)
+	result.Changes = changes
+	*results = append(*results, *result)
+
+	return nil
+}
+
+func (aws Scraper) scrapeRecoveryPoints(ctx *AWSContext, config v1.AWS, client *backup.Client, results *v1.ScrapeResults) error {
+	ctx.Logger.V(3).Infof("scraping recovery points")
+
+	vaultsInput := &backup.ListBackupVaultsInput{}
+	vaultsPaginator := backup.NewListBackupVaultsPaginator(client, vaultsInput)
+	for vaultsPaginator.HasMorePages() {
+		vaultsOutput, err := vaultsPaginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list backup vaults for recovery points: %w", err)
+		}
+
+		for _, vault := range vaultsOutput.BackupVaultList {
+			if err := aws.scrapeRecoveryPointsForVault(ctx, config, client, vault, results); err != nil {
+				ctx.Logger.Errorf("failed to scrape recovery points for vault %s: %v", lo.FromPtr(vault.BackupVaultName), err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (aws Scraper) scrapeRecoveryPointsForVault(ctx *AWSContext, config v1.AWS, client *backup.Client, vault backupTypes.BackupVaultListMember, results *v1.ScrapeResults) error {
+	ctx.Logger.V(3).Infof("scraping recovery points for vault %s", lo.FromPtr(vault.BackupVaultName))
+
+	input := &backup.ListRecoveryPointsByBackupVaultInput{
+		BackupVaultName: vault.BackupVaultName,
+	}
+	paginator := backup.NewListRecoveryPointsByBackupVaultPaginator(client, input)
+
+	var changes []v1.ChangeResult
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list recovery points for vault %s: %w", lo.FromPtr(vault.BackupVaultName), err)
+		}
+
+		for _, recoveryPoint := range output.RecoveryPoints {
+			changeResult := v1.ChangeResult{
+				ConfigType:       resourceTypeToConfigType(lo.FromPtr(recoveryPoint.ResourceType)),
+				ExternalID:       lo.FromPtr(recoveryPoint.ResourceArn),
+				Source:           "AWS Backup",
+				ExternalChangeID: lo.FromPtr(recoveryPoint.RecoveryPointArn) + "-" + string(recoveryPoint.Status),
+				ChangeType:       fmt.Sprintf("RecoveryPoint%s", lo.PascalCase(string(recoveryPoint.Status))),
+				Severity:         string(models.SeverityInfo),
+				Summary:          fmt.Sprintf("Recovery point %s in vault %s", strings.ToLower(string(recoveryPoint.Status)), lo.FromPtr(vault.BackupVaultName)),
+				CreatedAt:        recoveryPoint.CreationDate,
+				Details: map[string]any{
+					"recoveryPoint": recoveryPoint,
+					"status":        lo.PascalCase(string(recoveryPoint.Status)),
+				},
+			}
+
+			switch recoveryPoint.Status {
+			case backupTypes.RecoveryPointStatusCompleted:
+				changeResult.Severity = string(models.SeverityInfo)
+			case backupTypes.RecoveryPointStatusPartial:
+				changeResult.Severity = string(models.SeverityMedium)
+			case backupTypes.RecoveryPointStatusDeleting:
+				changeResult.Severity = string(models.SeverityLow)
+			case backupTypes.RecoveryPointStatusExpired:
+				changeResult.Severity = string(models.SeverityLow)
 			}
 
 			changes = append(changes, changeResult)
@@ -178,57 +248,3 @@ func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *bac
 
 	return nil
 }
-
-// func (aws Scraper) scrapeRecoveryPoints(ctx *AWSContext, config v1.AWS, client *backup.Client, results *v1.ScrapeResults) error {
-// 	ctx.Logger.V(3).Infof("scraping recovery points")
-
-// 	vaultsInput := &backup.ListBackupVaultsInput{}
-// 	vaultsPaginator := backup.NewListBackupVaultsPaginator(client, vaultsInput)
-// 	for vaultsPaginator.HasMorePages() {
-// 		vaultsOutput, err := vaultsPaginator.NextPage(ctx)
-// 		if err != nil {
-// 			return fmt.Errorf("failed to list backup vaults for recovery points: %w", err)
-// 		}
-
-// 		for _, vault := range vaultsOutput.BackupVaultList {
-// 			if err := aws.scrapeRecoveryPointsForVault(ctx, config, client, vault, results); err != nil {
-// 				ctx.Logger.Errorf("failed to scrape recovery points for vault %s: %v", lo.FromPtr(vault.BackupVaultName), err)
-// 			}
-// 		}
-// 	}
-
-// 	return nil
-// }
-
-// func (aws Scraper) scrapeRecoveryPointsForVault(ctx *AWSContext, config v1.AWS, client *backup.Client, vault backupTypes.BackupVaultListMember, results *v1.ScrapeResults) error {
-// 	ctx.Logger.V(3).Infof("scraping recovery points for vault %s", lo.FromPtr(vault.BackupVaultName))
-
-// 	input := &backup.ListRecoveryPointsByBackupVaultInput{
-// 		BackupVaultName: vault.BackupVaultName,
-// 	}
-// 	paginator := backup.NewListRecoveryPointsByBackupVaultPaginator(client, input)
-
-// 	for paginator.HasMorePages() {
-// 		output, err := paginator.NextPage(ctx)
-// 		if err != nil {
-// 			return fmt.Errorf("failed to list recovery points for vault %s: %w", lo.FromPtr(vault.BackupVaultName), err)
-// 		}
-
-// 		for _, recoveryPoint := range output.RecoveryPoints {
-// 			*results = append(*results, v1.ScrapeResult{
-// 				Type:        v1.AWSBackupRecoveryPoint,
-// 				BaseScraper: config.BaseScraper,
-// 				Config:      recoveryPoint,
-// 				ConfigClass: "BackupRecoveryPoint",
-// 				Name:        lo.FromPtr(recoveryPoint.RecoveryPointArn),
-// 				ID:          lo.FromPtr(recoveryPoint.RecoveryPointArn),
-// 				Status:      lo.PascalCase(string(recoveryPoint.Status)),
-// 				CreatedAt:   recoveryPoint.CreationDate,
-// 				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSBackupRecoveryPoint, lo.FromPtr(recoveryPoint.RecoveryPointArn), nil)},
-// 				Tags:        []v1.Tag{{Name: "region", Value: ctx.Session.Region}},
-// 			})
-// 		}
-// 	}
-
-// 	return nil
-// }
