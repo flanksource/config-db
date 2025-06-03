@@ -70,14 +70,12 @@ func (aws Scraper) scrapeBackupJobs(ctx *AWSContext, config v1.AWS, client *back
 
 		for _, job := range output.BackupJobs {
 			changeType := fmt.Sprintf("Backup%s", lo.PascalCase(string(job.State)))
-			severity := models.SeverityInfo
 
 			changeResult := v1.ChangeResult{
 				ConfigType:       resourceTypeToConfigType(lo.FromPtr(job.ResourceType)),
 				ExternalID:       lo.FromPtr(job.ResourceArn),
 				ExternalChangeID: lo.FromPtr(job.BackupJobId),
 				ChangeType:       changeType,
-				Severity:         string(severity),
 				Source:           SourceAWSBackup,
 				Summary:          fmt.Sprintf("%s %s backup %s", lo.FromPtr(job.ResourceType), lo.FromPtr(job.ResourceName), strings.ToLower(string(job.State))),
 				CreatedAt:        job.CreationDate,
@@ -85,6 +83,27 @@ func (aws Scraper) scrapeBackupJobs(ctx *AWSContext, config v1.AWS, client *back
 					"job":    job,
 					"status": lo.PascalCase(string(job.State)),
 				},
+			}
+
+			switch job.State {
+			case backupTypes.BackupJobStateCreated:
+				changeResult.Severity = string(models.SeverityInfo)
+			case backupTypes.BackupJobStatePending:
+				changeResult.Severity = string(models.SeverityInfo)
+			case backupTypes.BackupJobStateRunning:
+				changeResult.Severity = string(models.SeverityInfo)
+			case backupTypes.BackupJobStateAborting:
+				changeResult.Severity = string(models.SeverityLow)
+			case backupTypes.BackupJobStateAborted:
+				changeResult.Severity = string(models.SeverityLow)
+			case backupTypes.BackupJobStateCompleted:
+				changeResult.Severity = string(models.SeverityInfo)
+			case backupTypes.BackupJobStateFailed:
+				changeResult.Severity = string(models.SeverityHigh)
+			case backupTypes.BackupJobStateExpired:
+				changeResult.Severity = string(models.SeverityMedium)
+			case backupTypes.BackupJobStatePartial:
+				changeResult.Severity = string(models.SeverityMedium)
 			}
 
 			changes = append(changes, changeResult)
