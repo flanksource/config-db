@@ -2020,7 +2020,6 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 
 			ctx.Logger.V(1).Infof("scraping %s", awsCtx)
-			aws.awsBackups(awsCtx, awsConfig, results)
 			aws.cloudformationStacks(awsCtx, awsConfig, results)
 			aws.ecsClusters(awsCtx, awsConfig, results)
 			aws.ecsTaskDefinitions(awsCtx, awsConfig, results)
@@ -2043,6 +2042,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			aws.availabilityZones(awsCtx, awsConfig, results)
 			aws.containerImages(awsCtx, awsConfig, results)
 			aws.cloudtrail(awsCtx, awsConfig, results)
+			aws.awsBackups(awsCtx, awsConfig, results)
 			// We are querying half a million amis, need to optimize for this
 			// aws.ami(awsCtx, awsConfig, results)
 

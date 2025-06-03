@@ -8,7 +8,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/backup"
 	backupTypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 	"github.com/flanksource/duty/models"
-	"github.com/flanksource/duty/types"
 	"github.com/samber/lo"
 
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -27,9 +26,9 @@ func (aws Scraper) awsBackups(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 
 	backupClient := backup.NewFromConfig(*ctx.Session, getEndpointResolver[backup.Options](config))
 
-	if err := aws.scrapeRecoveryPoints(ctx, config, backupClient, results); err != nil {
-		results.Errorf(err, "failed to scrape recovery points")
-	}
+	// if err := aws.scrapeRecoveryPoints(ctx, config, backupClient, results); err != nil {
+	// 	results.Errorf(err, "failed to scrape recovery points")
+	// }
 
 	if err := aws.scrapeBackupJobs(ctx, config, backupClient, results); err != nil {
 		results.Errorf(err, "failed to scrape backup jobs")
@@ -163,11 +162,11 @@ func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *bac
 				changeResult.Severity = string(models.SeverityInfo)
 			}
 
-			// NOTE: The restore job doesn't have a resource ARN (example: linking back to an RDS instance)
-			//
-			// It only has a reference to recovery point so we link to that instead.
-			changeResult.ConfigType = v1.AWSBackupRecoveryPoint
-			changeResult.ExternalID = lo.FromPtr(job.RecoveryPointArn)
+			changeResult.ExternalID = lo.FromPtr(job.CreatedResourceArn)
+			switch lo.FromPtr(job.ResourceType) {
+			case "RDS":
+				changeResult.ConfigType = v1.AWSRDSInstance
+			}
 
 			changes = append(changes, changeResult)
 		}
@@ -180,56 +179,56 @@ func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *bac
 	return nil
 }
 
-func (aws Scraper) scrapeRecoveryPoints(ctx *AWSContext, config v1.AWS, client *backup.Client, results *v1.ScrapeResults) error {
-	ctx.Logger.V(3).Infof("scraping recovery points")
+// func (aws Scraper) scrapeRecoveryPoints(ctx *AWSContext, config v1.AWS, client *backup.Client, results *v1.ScrapeResults) error {
+// 	ctx.Logger.V(3).Infof("scraping recovery points")
 
-	vaultsInput := &backup.ListBackupVaultsInput{}
-	vaultsPaginator := backup.NewListBackupVaultsPaginator(client, vaultsInput)
-	for vaultsPaginator.HasMorePages() {
-		vaultsOutput, err := vaultsPaginator.NextPage(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list backup vaults for recovery points: %w", err)
-		}
+// 	vaultsInput := &backup.ListBackupVaultsInput{}
+// 	vaultsPaginator := backup.NewListBackupVaultsPaginator(client, vaultsInput)
+// 	for vaultsPaginator.HasMorePages() {
+// 		vaultsOutput, err := vaultsPaginator.NextPage(ctx)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to list backup vaults for recovery points: %w", err)
+// 		}
 
-		for _, vault := range vaultsOutput.BackupVaultList {
-			if err := aws.scrapeRecoveryPointsForVault(ctx, config, client, vault, results); err != nil {
-				ctx.Logger.Errorf("failed to scrape recovery points for vault %s: %v", lo.FromPtr(vault.BackupVaultName), err)
-			}
-		}
-	}
+// 		for _, vault := range vaultsOutput.BackupVaultList {
+// 			if err := aws.scrapeRecoveryPointsForVault(ctx, config, client, vault, results); err != nil {
+// 				ctx.Logger.Errorf("failed to scrape recovery points for vault %s: %v", lo.FromPtr(vault.BackupVaultName), err)
+// 			}
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-func (aws Scraper) scrapeRecoveryPointsForVault(ctx *AWSContext, config v1.AWS, client *backup.Client, vault backupTypes.BackupVaultListMember, results *v1.ScrapeResults) error {
-	ctx.Logger.V(3).Infof("scraping recovery points for vault %s", lo.FromPtr(vault.BackupVaultName))
+// func (aws Scraper) scrapeRecoveryPointsForVault(ctx *AWSContext, config v1.AWS, client *backup.Client, vault backupTypes.BackupVaultListMember, results *v1.ScrapeResults) error {
+// 	ctx.Logger.V(3).Infof("scraping recovery points for vault %s", lo.FromPtr(vault.BackupVaultName))
 
-	input := &backup.ListRecoveryPointsByBackupVaultInput{
-		BackupVaultName: vault.BackupVaultName,
-	}
-	paginator := backup.NewListRecoveryPointsByBackupVaultPaginator(client, input)
+// 	input := &backup.ListRecoveryPointsByBackupVaultInput{
+// 		BackupVaultName: vault.BackupVaultName,
+// 	}
+// 	paginator := backup.NewListRecoveryPointsByBackupVaultPaginator(client, input)
 
-	for paginator.HasMorePages() {
-		output, err := paginator.NextPage(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list recovery points for vault %s: %w", lo.FromPtr(vault.BackupVaultName), err)
-		}
+// 	for paginator.HasMorePages() {
+// 		output, err := paginator.NextPage(ctx)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to list recovery points for vault %s: %w", lo.FromPtr(vault.BackupVaultName), err)
+// 		}
 
-		for _, recoveryPoint := range output.RecoveryPoints {
-			*results = append(*results, v1.ScrapeResult{
-				Type:        v1.AWSBackupRecoveryPoint,
-				BaseScraper: config.BaseScraper,
-				Config:      recoveryPoint,
-				ConfigClass: "BackupRecoveryPoint",
-				Name:        lo.FromPtr(recoveryPoint.RecoveryPointArn),
-				ID:          lo.FromPtr(recoveryPoint.RecoveryPointArn),
-				Status:      lo.PascalCase(string(recoveryPoint.Status)),
-				CreatedAt:   recoveryPoint.CreationDate,
-				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSBackupRecoveryPoint, lo.FromPtr(recoveryPoint.RecoveryPointArn), nil)},
-				Tags:        []v1.Tag{{Name: "region", Value: ctx.Session.Region}},
-			})
-		}
-	}
+// 		for _, recoveryPoint := range output.RecoveryPoints {
+// 			*results = append(*results, v1.ScrapeResult{
+// 				Type:        v1.AWSBackupRecoveryPoint,
+// 				BaseScraper: config.BaseScraper,
+// 				Config:      recoveryPoint,
+// 				ConfigClass: "BackupRecoveryPoint",
+// 				Name:        lo.FromPtr(recoveryPoint.RecoveryPointArn),
+// 				ID:          lo.FromPtr(recoveryPoint.RecoveryPointArn),
+// 				Status:      lo.PascalCase(string(recoveryPoint.Status)),
+// 				CreatedAt:   recoveryPoint.CreationDate,
+// 				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSBackupRecoveryPoint, lo.FromPtr(recoveryPoint.RecoveryPointArn), nil)},
+// 				Tags:        []v1.Tag{{Name: "region", Value: ctx.Session.Region}},
+// 			})
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }

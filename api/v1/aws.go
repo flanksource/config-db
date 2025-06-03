@@ -75,7 +75,6 @@ const (
 	AWSIAMInstanceProfile  = "AWS::IAM::InstanceProfile"
 	AWSEC2AMI              = "AWS::EC2::AMI"
 	AWSEC2DHCPOptions      = "AWS::EC2::DHCPOptions"
-	AWSBackupRecoveryPoint = "AWS::Backup::RecoveryPoint"
 )
 
 var defaultAWSExclusions = []string{"ECSTaskDefinition"}
