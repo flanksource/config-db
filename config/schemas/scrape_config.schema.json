@@ -111,6 +111,42 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "AWSS3": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "accessKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "secretKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "assumeRole": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "region": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "bucket": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Authentication": {
       "properties": {
         "username": {
@@ -213,6 +249,42 @@
       "required": [
         "subscriptionID",
         "organisation"
+      ]
+    },
+    "AzureBlobStorage": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "clientID": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "clientSecret": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "tenantID": {
+          "type": "string"
+        },
+        "account": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "collection": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "collection"
       ]
     },
     "AzureDevops": {
@@ -394,6 +466,84 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "Clickhouse": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "health": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "awsS3": {
+          "$ref": "#/$defs/AWSS3"
+        },
+        "azureBlobStorage": {
+          "$ref": "#/$defs/AzureBlobStorage"
+        },
+        "clickhouseURL": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "query"
+      ]
     },
     "CloudTrail": {
       "properties": {
@@ -792,11 +942,17 @@
           },
           "type": "array"
         },
+        "connection": {
+          "type": "string"
+        },
         "endpoint": {
           "type": "string"
         },
         "credentials": {
           "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
         },
         "project": {
           "type": "string"
@@ -1971,6 +2127,12 @@
         "http": {
           "items": {
             "$ref": "#/$defs/HTTP"
+          },
+          "type": "array"
+        },
+        "clickhouse": {
+          "items": {
+            "$ref": "#/$defs/Clickhouse"
           },
           "type": "array"
         },

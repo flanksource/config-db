@@ -2376,6 +2376,10 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.
                       type: string
+                    connection:
+                      description: ConnectionName of the connection. It'll be used
+                        to populate the endpoint and credentials.
+                      type: string
                     createFields:
                       description: |-
                         CreateFields is a list of JSONPath expression used to identify the created time of the config.
@@ -2542,6 +2546,9 @@ spec:
                             type: integer
                         type: object
                       type: array
+                    skipTLSVerify:
+                      description: Skip TLS verify
+                      type: boolean
                     status:
                       description: A static value or JSONPath expression to use as
                         the status of the config item
