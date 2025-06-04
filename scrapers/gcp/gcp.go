@@ -179,7 +179,7 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			CreatedAt:   lo.ToPtr(rd.CreatedAt),
 			Labels:      rd.Labels,
 			Tags:        tags,
-			Aliases:     []string{rd.Name},
+			Aliases:     []string{rd.Name, asset.Name},
 			Properties:  []*types.Property{getLink(rd)},
 		}
 
