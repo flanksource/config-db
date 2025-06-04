@@ -14,7 +14,7 @@ func (gcp Scraper) AuditLogs(ctx *GCPContext, config v1.GCP, results *v1.ScrapeR
 		return
 	}
 
-	adminClient, err := logadmin.NewClient(ctx, ctx.ProjectID)
+	adminClient, err := logadmin.NewClient(ctx, config.Project)
 	if err != nil {
 		results.Errorf(err, "failed to create logging admin client")
 		return
@@ -27,7 +27,7 @@ func (gcp Scraper) AuditLogs(ctx *GCPContext, config v1.GCP, results *v1.ScrapeR
 
 	// Define the filter for audit logs
 	filter := fmt.Sprintf(`logName="projects/%s/logs/cloudaudit.googleapis.com%%2Factivity" AND timestamp>="%s" AND timestamp<="%s"`,
-		ctx.ProjectID, startTime.Format(time.RFC3339), endTime.Format(time.RFC3339))
+		config.Project, startTime.Format(time.RFC3339), endTime.Format(time.RFC3339))
 
 	it := adminClient.Entries(ctx, logadmin.Filter(filter))
 

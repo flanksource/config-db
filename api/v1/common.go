@@ -345,19 +345,6 @@ func (aws AWSConnection) ToDutyAWSConnection(region string) *connection.AWSConne
 	}
 }
 
-// GCPConnection ...
-type GCPConnection struct {
-	Endpoint    string        `yaml:"endpoint" json:"endpoint,omitempty"`
-	Credentials *types.EnvVar `yaml:"credentials" json:"credentials,omitempty"`
-}
-
-func (gcp GCPConnection) GetModel() *models.Connection {
-	return &models.Connection{
-		URL:         gcp.Endpoint,
-		Certificate: gcp.Credentials.String(),
-	}
-}
-
 type Connection struct {
 	// Connection is either the name of the connection to lookup
 	// or the connection string itself.

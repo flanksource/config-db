@@ -212,11 +212,17 @@
           },
           "type": "array"
         },
+        "connection": {
+          "type": "string"
+        },
         "endpoint": {
           "type": "string"
         },
         "credentials": {
           "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
         },
         "project": {
           "type": "string"

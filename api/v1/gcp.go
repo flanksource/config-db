@@ -1,6 +1,10 @@
 package v1
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/flanksource/duty/connection"
+)
 
 const (
 	GCSBucket         = "GCP::Bucket"
@@ -14,11 +18,11 @@ const (
 )
 
 type GCP struct {
-	BaseScraper   `json:",inline"`
-	GCPConnection `json:",inline"`
-	Project       string   `json:"project"`
-	Include       []string `json:"include,omitempty"`
-	Exclude       []string `json:"exclude,omitempty"`
+	BaseScraper              `json:",inline"`
+	connection.GCPConnection `json:",inline"`
+	Project                  string   `json:"project"`
+	Include                  []string `json:"include,omitempty"`
+	Exclude                  []string `json:"exclude,omitempty"`
 }
 
 func (gcp GCP) Includes(resource string) bool {

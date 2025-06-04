@@ -292,6 +292,42 @@
         "collection"
       ]
     },
+    "AzureBlobStorage": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "clientID": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "clientSecret": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "tenantID": {
+          "type": "string"
+        },
+        "account": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "collection": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "collection"
+      ]
+    },
     "AzureDevops": {
       "properties": {
         "id": {
@@ -983,11 +1019,17 @@
           },
           "type": "array"
         },
+        "connection": {
+          "type": "string"
+        },
         "endpoint": {
           "type": "string"
         },
         "credentials": {
           "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
         },
         "project": {
           "type": "string"

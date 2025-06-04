@@ -5,6 +5,7 @@ go 1.24
 toolchain go1.24.3
 
 require (
+	cloud.google.com/go/asset v1.20.4
 	cloud.google.com/go/container v1.42.2
 	cloud.google.com/go/logging v1.13.0
 	cloud.google.com/go/memcache v1.11.3
@@ -103,6 +104,7 @@ require (
 require (
 	ariga.io/atlas v0.15.0 // indirect
 	cel.dev/expr v0.22.1 // indirect
+	cloud.google.com/go/accesscontextmanager v1.9.3 // indirect
 	cloud.google.com/go/auth v0.15.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/cloudsqlconn v1.5.1 // indirect
@@ -110,6 +112,8 @@ require (
 	cloud.google.com/go/kms v1.21.1 // indirect
 	cloud.google.com/go/longrunning v0.6.6 // indirect
 	cloud.google.com/go/monitoring v1.24.1 // indirect
+	cloud.google.com/go/orgpolicy v1.14.2 // indirect
+	cloud.google.com/go/osconfig v1.14.3 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.0 // indirect
@@ -393,7 +397,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
-	golang.org/x/oauth2 v0.28.0 // indirect
+	golang.org/x/oauth2 v0.28.0
 	golang.org/x/sync v0.13.0
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/term v0.31.0 // indirect
