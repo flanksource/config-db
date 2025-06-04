@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	"github.com/flanksource/commons/logger"
@@ -122,7 +123,14 @@ func (azure Scraper) fetchAppRegistrations(selectors types.ResourceSelectors) v1
 
 	var results v1.ScrapeResults
 
-	apps, err := azure.graphClient.Applications().Get(azure.ctx, nil)
+	requestParameters := &applications.ApplicationsRequestBuilderGetQueryParameters{
+		Select: []string{"id", "appId", "displayName", "passwordCredentials", "keyCredentials"},
+	}
+	requestConfig := &applications.ApplicationsRequestBuilderGetRequestConfiguration{
+		QueryParameters: requestParameters,
+	}
+
+	apps, err := azure.graphClient.Applications().Get(azure.ctx, requestConfig)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch app registrations: %w", err)})
 	}
@@ -133,12 +141,21 @@ func (azure Scraper) fetchAppRegistrations(selectors types.ResourceSelectors) v1
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(app *msgraphModels.Application) bool {
-		scrapeResult := azure.appToScrapeResult(app)
-		if !selectors.Matches(scrapeResult) {
+		appScrapeResult := azure.appToScrapeResult(app)
+		if !selectors.Matches(appScrapeResult) {
 			return true
 		}
+		results = append(results, appScrapeResult)
 
-		results = append(results, scrapeResult)
+		appRegAppID := lo.FromPtr(app.GetAppId())
+		for _, pc := range app.GetPasswordCredentials() {
+			results = append(results, azure.passwordCredentialToScrapeResult(pc, appRegAppID))
+		}
+
+		for _, kc := range app.GetKeyCredentials() {
+			results = append(results, azure.keyCredentialToScrapeResult(kc, appRegAppID))
+		}
+
 		results = append(results, azure.fetchAppRoles(lo.FromPtr(app.GetId()))...)
 		return true
 	})
@@ -171,6 +188,50 @@ func (azure Scraper) appToScrapeResult(app *msgraphModels.Application) v1.Scrape
 						URL:  fmt.Sprintf("https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/%s", appID),
 					},
 				},
+			},
+		},
+	}
+}
+
+func (azure Scraper) passwordCredentialToScrapeResult(cred msgraphModels.PasswordCredentialable, appRegAppID string) v1.ScrapeResult {
+	return v1.ScrapeResult{
+		BaseScraper: azure.config.BaseScraper,
+		ID:          lo.FromPtr(cred.GetKeyId()).String(),
+		Name:        lo.FromPtr(cred.GetDisplayName()),
+		ConfigClass: "ClientSecret",
+		Type:        ConfigTypePrefix + "AppRegistration::ClientSecret",
+		Config:      cred.GetBackingStore().Enumerate(),
+		Parents: []v1.ConfigExternalKey{
+			{
+				ExternalID: appRegAppID,
+				Type:       ConfigTypePrefix + "AppRegistration",
+			},
+		},
+	}
+}
+
+func (azure Scraper) keyCredentialToScrapeResult(cred msgraphModels.KeyCredentialable, appRegAppID string) v1.ScrapeResult {
+	config := cred.GetBackingStore().Enumerate()
+
+	// Key ID and custom key identifier are base64 encoded as they contain non-unicode characters.
+	if keyID, ok := config["keyId"].([]byte); ok {
+		config["keyId"] = base64.StdEncoding.EncodeToString(keyID)
+	}
+	if customKeyIdentifier, ok := config["customKeyIdentifier"].([]byte); ok {
+		config["customKeyIdentifier"] = base64.StdEncoding.EncodeToString(customKeyIdentifier)
+	}
+
+	return v1.ScrapeResult{
+		BaseScraper: azure.config.BaseScraper,
+		ID:          lo.FromPtr(cred.GetKeyId()).String(),
+		Name:        lo.FromPtr(cred.GetDisplayName()),
+		ConfigClass: "ClientCertificate",
+		Type:        ConfigTypePrefix + "AppRegistration::Certificate",
+		Config:      config,
+		Parents: []v1.ConfigExternalKey{
+			{
+				ExternalID: appRegAppID,
+				Type:       ConfigTypePrefix + "AppRegistration",
 			},
 		},
 	}
