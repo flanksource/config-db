@@ -36,7 +36,6 @@ func NewGCPContext(ctx api.ScrapeContext, gcpConfig v1.GCP) (*GCPContext, error)
 			return nil, fmt.Errorf("%w", err)
 		}
 		opts = append(opts, option.WithCredentials(c))
-
 	}
 
 	return &GCPContext{
@@ -127,10 +126,14 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 	req := &assetpb.ListAssetsRequest{
 		Parent:      fmt.Sprintf("projects/%s", config.Project),
 		ContentType: assetpb.ContentType_RESOURCE,
-		AssetTypes:  append([]string{".*.googleapis.com.*"}, config.Include...),
+		AssetTypes:  []string{".*.googleapis.com.*"},
 	}
 
-	assetClient, err := asset.NewClient(ctx)
+	if len(config.Include) > 0 {
+		req.AssetTypes = config.Include
+	}
+
+	assetClient, err := asset.NewClient(ctx, ctx.ClientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating asset client: %w", err)
 	}
@@ -193,12 +196,14 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		gcpCtx, err := NewGCPContext(ctx, gcpConfig)
 		if err != nil {
 			results.Errorf(err, "failed to create GCP context")
+			allResults = append(allResults, results...)
 			continue
 		}
 
 		results, err = gcp.FetchAllAssets(gcpCtx, gcpConfig)
 		if err != nil {
 			results.Errorf(err, "failed to fetch GCP assets")
+			allResults = append(allResults, results...)
 			continue
 		}
 
