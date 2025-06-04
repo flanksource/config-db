@@ -12,6 +12,7 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/backup"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
@@ -28,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	r53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -65,6 +67,16 @@ type AWSContext struct {
 	Subnets map[string]Zone
 }
 
+const (
+	IncludeRDSEvents = "RDSEvents"
+)
+
+// Config changes sources
+const (
+	SourceRDSEvents = "RDS Events"
+	SourceAWSBackup = "AWS Backup"
+)
+
 func getLabels(tags []ec2Types.Tag) v1.JSONStringMap {
 	result := make(v1.JSONStringMap)
 	for _, tag := range tags {
@@ -85,6 +97,8 @@ func getEndpointResolver[T any](awsConfig v1.AWS) func(o *T) {
 	}
 	return func(o *T) {
 		switch opts := any(o).(type) {
+		case *backup.Options:
+			opts.BaseEndpoint = val
 		case *ec2.Options:
 			opts.BaseEndpoint = val
 		case *iam.Options:
@@ -1048,22 +1062,190 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			})
 		}
 
+		arn := lo.FromPtr(instance.DBInstanceArn)
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSRDSInstance,
 			Status:              lo.FromPtr(instance.DBInstanceStatus),
 			Labels:              labels,
-			Tags:                []v1.Tag{{Name: "region", Value: getRegionFromArn(*instance.DBInstanceArn, "rds")}},
+			Tags:                []v1.Tag{{Name: "region", Value: getRegionFromArn(arn, "rds")}},
 			BaseScraper:         config.BaseScraper,
 			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSRDSInstance, lo.FromPtr(instance.DBInstanceIdentifier), nil)},
 			Config:              instance,
 			ConfigClass:         "RelationalDatabase",
 			Name:                getName(labels, *instance.DBInstanceIdentifier),
 			ID:                  *instance.DBInstanceIdentifier,
-			Aliases:             []string{"AmazonRDS/" + *instance.DBInstanceArn},
+			Aliases:             []string{"AmazonRDS/" + arn, arn},
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(instance.DBSubnetGroup.VpcId)}},
 			RelationshipResults: relationships,
 		})
+
+		// if backups, err := aws.rdsBackups(ctx, config, instance); err != nil {
+		// 	results.Errorf(err, "failed to get backups for RDS instances")
+		// } else if len(backups) > 0 {
+		// 	*results = append(*results, backups...)
+		// }
 	}
+
+	// Fetch and process restore operations
+	if err := aws.rdsEvents(ctx, config, results); err != nil {
+		results.Errorf(err, "failed to get restore operations for RDS instances")
+	}
+}
+
+// func (aws Scraper) rdsBackups(ctx *AWSContext, config v1.AWS, instance rdsTypes.DBInstance) (v1.ScrapeResults, error) {
+// 	if !config.Includes("RDSBackup") {
+// 		return nil, nil
+// 	}
+
+// 	ctx.Logger.V(2).Infof("scraping RDS backups for instance %s", *instance.DBInstanceIdentifier)
+// 	var results v1.ScrapeResults
+
+// 	// Get DB snapshots (both automated and manual)
+// 	snapshotsInput := &rds.DescribeDBSnapshotsInput{
+// 		DBInstanceIdentifier: instance.DBInstanceIdentifier,
+// 	}
+
+// 	rdsClient := rds.NewFromConfig(*ctx.Session, getEndpointResolver[rds.Options](config))
+// 	snapshots, err := rdsClient.DescribeDBSnapshots(ctx, snapshotsInput)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to get RDS snapshots for %s: %w", *instance.DBInstanceIdentifier, err)
+// 	}
+
+// 	for _, snapshot := range snapshots.DBSnapshots {
+// 		labels := make(v1.JSONStringMap)
+// 		for _, tag := range snapshot.TagList {
+// 			labels[*tag.Key] = *tag.Value
+// 		}
+
+// 		results = append(results, v1.ScrapeResult{
+// 			Type:        v1.AWSRDSSnapshot,
+// 			Status:      lo.FromPtr(snapshot.Status),
+// 			Labels:      labels,
+// 			Tags:        []v1.Tag{{Name: "region", Value: getRegionFromArn(*snapshot.DBSnapshotArn, "rds")}},
+// 			BaseScraper: config.BaseScraper,
+// 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSRDSSnapshot, lo.FromPtr(snapshot.DBSnapshotIdentifier), nil)},
+// 			Config:      snapshot,
+// 			ConfigClass: "DatabaseBackup",
+// 			Name:        lo.FromPtr(snapshot.DBSnapshotIdentifier),
+// 			ID:          lo.FromPtr(snapshot.DBSnapshotArn),
+// 			Aliases:     []string{lo.FromPtr(snapshot.DBSnapshotIdentifier)},
+// 			CreatedAt:   snapshot.SnapshotCreateTime,
+// 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSRDSInstance, ExternalID: lo.FromPtr(instance.DBInstanceIdentifier)}},
+// 			Description: fmt.Sprintf("%s snapshot of %s", lo.FromPtr(snapshot.SnapshotType), lo.FromPtr(instance.DBInstanceIdentifier)),
+// 		})
+// 	}
+
+// 	return results, nil
+// }
+
+func (aws Scraper) rdsEvents(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) error {
+	if !config.Includes(IncludeRDSEvents) {
+		return nil
+	}
+
+	ctx.Logger.V(2).Infof("scraping RDS events")
+
+	// Source: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html#USER_Events.Messages.cluster-snapshot
+	sources := []struct {
+		Type       rdsTypes.SourceType
+		Categories []string
+	}{
+		{Type: rdsTypes.SourceTypeDbInstance, Categories: []string{"backup", "restoration"}},
+		{Type: rdsTypes.SourceTypeDbSnapshot, Categories: []string{"creation", "deletion", "restoration"}},
+		{Type: rdsTypes.SourceTypeDbClusterSnapshot, Categories: []string{"backup"}},
+	}
+
+	rdsClient := rds.NewFromConfig(*ctx.Session, getEndpointResolver[rds.Options](config))
+
+	var changes []v1.ChangeResult
+	for _, source := range sources {
+		endTime := time.Now()
+		startTime := endTime.Add(-14 * 24 * time.Hour).Add(time.Minute * 5) // 14 days minus 5 minutes to stay just within AWS's limit
+
+		input := &rds.DescribeEventsInput{
+			SourceType:      source.Type,
+			StartTime:       &startTime,
+			EndTime:         &endTime,
+			EventCategories: source.Categories,
+		}
+
+		paginator := rds.NewDescribeEventsPaginator(rdsClient, input)
+
+		for paginator.HasMorePages() {
+			output, err := paginator.NextPage(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get RDS events: %w", err)
+			}
+
+			for _, event := range output.Events {
+				message := lo.FromPtr(event.Message)
+				sourceID := lo.FromPtr(event.SourceIdentifier)
+				eventID := fmt.Sprintf("%s-%d", sourceID, event.Date.Unix())
+
+				changeType, status, severity := rdsChangeType(source.Type, event.EventCategories[0], message)
+
+				changeResult := v1.ChangeResult{
+					ExternalChangeID: eventID,
+					ConfigType:       v1.AWSRDSInstance,
+					ExternalID:       lo.FromPtr(event.SourceIdentifier),
+					ChangeType:       changeType,
+					Summary:          message,
+					Severity:         string(severity),
+					Source:           SourceRDSEvents,
+					CreatedAt:        event.Date,
+					Details: map[string]any{
+						"event":  event,
+						"status": lo.PascalCase(status),
+					},
+				}
+
+				changes = append(changes, changeResult)
+			}
+		}
+	}
+
+	if len(changes) == 0 {
+		return nil
+	}
+
+	result := v1.NewScrapeResult(config.BaseScraper)
+	result.Changes = changes
+	*results = append(*results, *result)
+	return nil
+}
+
+func rdsChangeType(sourceType rdsTypes.SourceType, category, message string) (string, string, models.Severity) {
+	switch sourceType {
+	case rdsTypes.SourceTypeDbInstance:
+		switch category {
+		case "backup":
+			if strings.Contains(message, "Finished") {
+				return "BackupCompleted", "Completed", models.SeverityInfo
+			} else if strings.Contains(message, "Backing up") {
+				return "BackupStarted", "Started", models.SeverityInfo
+			}
+			return "BackupCreated", "Completed", models.SeverityInfo
+		case "restoration":
+			return "BackupRestored", "Completed", models.SeverityMedium
+		}
+
+	case rdsTypes.SourceTypeDbSnapshot:
+		switch category {
+		case "creation":
+			if strings.Contains(message, "Creating") {
+				return "BackupStarted", "Started", models.SeverityInfo
+			} else if strings.Contains(message, "Created") {
+				return "BackupCompleted", "Completed", models.SeverityInfo
+			}
+		case "restoration":
+			return "BackupRestored", "Completed", models.SeverityMedium
+		case "deletion":
+			// TODO: This should delete the original BackupCreated/BackupCompleted changes
+			return "BackupDeleted", "Completed", models.SeverityLow
+		}
+	}
+
+	return "Unknown", "Unknown", models.SeverityInfo
 }
 
 func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
@@ -1860,6 +2042,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			aws.availabilityZones(awsCtx, awsConfig, results)
 			aws.containerImages(awsCtx, awsConfig, results)
 			aws.cloudtrail(awsCtx, awsConfig, results)
+			aws.awsBackups(awsCtx, awsConfig, results)
 			// We are querying half a million amis, need to optimize for this
 			// aws.ami(awsCtx, awsConfig, results)
 
@@ -1997,8 +2180,6 @@ func getConsoleLink(region, resourceType, resourceID string, opt map[string]stri
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?region=%s#SubnetDetails:subnetId=%s", region, region, resourceID)
 	case v1.AWSLambdaFunction:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/lambda/home?region=%s#/functions/%s", region, region, resourceID)
-	case v1.AWSEC2Instance:
-		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#Instances:search=%s", region, region, resourceID)
 	case v1.AWSEKSCluster:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/eks/home?region=%s#/clusters/%s", region, region, resourceID)
 	case v1.AWSLoadBalancer:
