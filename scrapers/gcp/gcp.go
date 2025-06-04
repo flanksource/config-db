@@ -137,6 +137,8 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 	if err != nil {
 		return nil, fmt.Errorf("error creating asset client: %w", err)
 	}
+	defer assetClient.Close()
+
 	baseTags := []v1.Tag{{Name: "project", Value: config.Project}}
 	ignoreList := append(defaultIgnoreList, config.Exclude...)
 
@@ -167,7 +169,7 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			)
 		}
 
-		results = append(results, v1.ScrapeResult{
+		res := v1.ScrapeResult{
 			BaseScraper: config.BaseScraper,
 			ID:          lo.CoalesceOrEmpty(rd.ID, rd.Name),
 			Name:        rd.Name,
@@ -177,8 +179,79 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			CreatedAt:   lo.ToPtr(rd.CreatedAt),
 			Labels:      rd.Labels,
 			Tags:        tags,
+			Aliases:     []string{rd.Name},
 			Properties:  []*types.Property{getLink(rd)},
-		})
+		}
+
+		if rd.ID != "" {
+			res.Aliases = append(res.Aliases, rd.ID)
+		}
+
+		results = append(results, res)
+	}
+
+	return results, nil
+}
+
+func (gcp Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
+	var results v1.ScrapeResults
+
+	req := &assetpb.ListAssetsRequest{
+		Parent:      fmt.Sprintf("projects/%s", config.Project),
+		ContentType: assetpb.ContentType_IAM_POLICY,
+	}
+
+	assetClient, err := asset.NewClient(ctx, ctx.ClientOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("error creating asset client for IAM policies: %w", err)
+	}
+	defer assetClient.Close()
+
+	it := assetClient.ListAssets(ctx, req)
+	for {
+		assetItem, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error listing IAM policies: %w", err)
+		}
+
+		fmt.Printf("\n\nIAM Policy: %+v\n", assetItem.Name)
+		if assetItem.IamPolicy == nil {
+			continue
+		}
+
+		for _, binding := range assetItem.IamPolicy.Bindings {
+			fmt.Printf("Binding Role: %+v\n", binding.Role)
+			for _, member := range binding.Members {
+				fmt.Printf("Member: %+v\n", member)
+				// Extract a more user-friendly name if member is like "user:email@example.com"
+				memberName := member
+				if strings.HasPrefix(member, "user:") {
+					memberName = strings.TrimPrefix(member, "user:")
+				} else if strings.HasPrefix(member, "serviceAccount:") {
+					memberName = strings.TrimPrefix(member, "serviceAccount:")
+				} else if strings.HasPrefix(member, "group:") {
+					memberName = strings.TrimPrefix(member, "group:")
+				}
+
+				bindingID := fmt.Sprintf("projects/%s/%s/%s", config.Project, member, binding.Role)
+
+				results = append(results, v1.ScrapeResult{
+					BaseScraper: config.BaseScraper,
+					ID:          bindingID,
+					Name:        memberName, // Use the extracted member name
+					Config: map[string]string{
+						"member": member,
+						"role":   binding.Role,
+					},
+					ConfigClass: "IAMPrincipalBinding",
+					Type:        "GCP::IAMPrincipalBinding",
+					Tags:        []v1.Tag{{Name: "project", Value: config.Project}},
+				})
+			}
+		}
 	}
 
 	return results, nil
@@ -193,6 +266,7 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 	for _, gcpConfig := range ctx.ScrapeConfig().Spec.GCP {
 		results := v1.ScrapeResults{}
+
 		gcpCtx, err := NewGCPContext(ctx, gcpConfig)
 		if err != nil {
 			results.Errorf(err, "failed to create GCP context")
@@ -200,14 +274,23 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 
-		results, err = gcp.FetchAllAssets(gcpCtx, gcpConfig)
+		assetResults, err := gcp.FetchAllAssets(gcpCtx, gcpConfig)
 		if err != nil {
 			results.Errorf(err, "failed to fetch GCP assets")
 			allResults = append(allResults, results...)
 			continue
+		} else {
+			allResults = append(allResults, assetResults...)
 		}
 
-		allResults = append(allResults, results...)
+		iamPolicyResults, err := gcp.FetchIAMPolicies(gcpCtx, gcpConfig)
+		if err != nil {
+			results.Errorf(err, "failed to fetch GCP IAM policies for project %s", gcpConfig.Project)
+			allResults = append(allResults, results...)
+		} else {
+			allResults = append(allResults, iamPolicyResults...)
+		}
 	}
+
 	return allResults
 }
