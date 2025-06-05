@@ -18,6 +18,14 @@ type GCP struct {
 
 	// Exclude is a list of GCP asset types to exclude from scraping.
 	Exclude []string `json:"exclude,omitempty"`
+
+	AuditLogs GCPAuditLogs `json:"auditLogs,omitempty"`
+}
+
+type GCPAuditLogs struct {
+	IncludeTypes []string `json:"includeTypes,omitempty"`
+	ExcludeTypes []string `json:"excludeTypes,omitempty"`
+	Duration     string   `json:"duration,omitempty"`
 }
 
 func (gcp GCP) Includes(resource string) bool {
