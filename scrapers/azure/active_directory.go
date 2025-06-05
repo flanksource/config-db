@@ -21,6 +21,7 @@ import (
 const (
 	IncludeAuthMethods = "authMethods"
 	IncludeAppRoles    = "appRoles"
+	IncludeEntra       = "entra"
 )
 
 const (
@@ -28,6 +29,10 @@ const (
 )
 
 func (azure *Scraper) scrapeEntra() (v1.ScrapeResults, error) {
+	if !azure.config.Includes(IncludeEntra) {
+		return nil, nil
+	}
+
 	if azure.config.Entra == nil {
 		azure.config.Entra = &v1.Entra{}
 	}
@@ -370,7 +375,7 @@ func (azure Scraper) userToScrapeResult(user msgraphModels.Userable, selector ty
 		DeletedAt: user.GetDeletedDateTime(),
 	}
 
-	if selector.Matches(externalUser) {
+	if !selector.Matches(externalUser) {
 		return v1.ScrapeResult{}, nil
 	}
 
@@ -443,7 +448,7 @@ func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable, selector
 		externalGroup.GroupType = gt[0]
 	}
 
-	if selector.Matches(externalGroup) {
+	if !selector.Matches(externalGroup) {
 		return v1.ScrapeResult{}, nil
 	}
 
