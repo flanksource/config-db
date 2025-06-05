@@ -2,8 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
     "affinity": {
-      "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Affinity",
-      "required": []
+      "description": "Affinity rules for pod scheduling",
+      "required": [],
+      "title": "affinity"
     },
     "clickhouse": {
       "properties": {
@@ -77,11 +78,63 @@
           "title": "properties"
         },
         "resources": {
-          "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements",
-          "required": []
+          "properties": {
+            "limits": {
+              "properties": {
+                "cpu": {
+                  "default": "1",
+                  "required": [],
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "4Gi",
+                  "required": [],
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "title": "limits",
+              "type": "object"
+            },
+            "requests": {
+              "properties": {
+                "cpu": {
+                  "default": "100m",
+                  "required": [],
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "2Gi",
+                  "required": [],
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "title": "requests",
+              "type": "object"
+            }
+          },
+          "required": [
+            "limits",
+            "requests"
+          ],
+          "title": "resources",
+          "type": "object"
         }
       },
-      "required": [],
+      "required": [
+        "resources"
+      ],
       "title": "clickhouse"
     },
     "configAnalysisRetentionDays": {
@@ -221,7 +274,6 @@
     "extraEnvFrom": {
       "additionalProperties": true,
       "items": {
-        "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.EnvFromSource",
         "required": []
       },
       "required": [],
@@ -232,8 +284,8 @@
       "additionalProperties": true,
       "properties": {
         "affinity": {
-          "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Affinity",
-          "required": []
+          "required": [],
+          "title": "affinity"
         },
         "db": {
           "additionalProperties": true,
@@ -282,7 +334,6 @@
         "imagePullSecrets": {
           "description": "Global image pull secrets",
           "items": {
-            "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.LocalObjectReference",
             "required": []
           },
           "required": [],
@@ -359,7 +410,6 @@
         },
         "tolerations": {
           "items": {
-            "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Toleration",
             "required": []
           },
           "required": [],
@@ -403,7 +453,6 @@
     "imagePullSecrets": {
       "description": "Image pull secrets for the main application image",
       "items": {
-        "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.LocalObjectReference",
         "required": []
       },
       "required": [],
@@ -440,7 +489,6 @@
         "tls": {
           "description": "TLS configuration for the ingress",
           "items": {
-            "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.networking.v1.IngressTLS",
             "required": []
           },
           "required": [],
@@ -471,9 +519,10 @@
       "title": "nameOverride"
     },
     "nodeSelector": {
-      "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.NodeSelectorRequirement",
       "additionalProperties": true,
+      "description": "Node selector for pod assignment",
       "required": [],
+      "title": "nodeSelector",
       "type": "object"
     },
     "otel": {
@@ -502,9 +551,17 @@
       "title": "otel"
     },
     "podSecurityContext": {
-      "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.PodSecurityContext",
       "additionalProperties": true,
-      "required": []
+      "properties": {
+        "fsGroup": {
+          "default": 1000,
+          "required": [],
+          "title": "fsGroup",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "title": "podSecurityContext"
     },
     "properties": {
       "additionalProperties": true,
@@ -520,9 +577,58 @@
       "type": "integer"
     },
     "resources": {
-      "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements",
       "additionalProperties": false,
-      "required": []
+      "properties": {
+        "limits": {
+          "properties": {
+            "cpu": {
+              "default": "500m",
+              "required": [],
+              "title": "cpu",
+              "type": "string"
+            },
+            "memory": {
+              "default": "4Gi",
+              "required": [],
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory",
+            "cpu"
+          ],
+          "title": "limits",
+          "type": "object"
+        },
+        "requests": {
+          "properties": {
+            "cpu": {
+              "default": "200m",
+              "required": [],
+              "title": "cpu",
+              "type": "string"
+            },
+            "memory": {
+              "default": "1Gi",
+              "required": [],
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cpu",
+            "memory"
+          ],
+          "title": "requests",
+          "type": "object"
+        }
+      },
+      "required": [
+        "requests",
+        "limits"
+      ],
+      "title": "resources"
     },
     "scrapeRuleConfigMaps": {
       "description": "a list of configmaps to load scrape rules from, the configmap should have a single entry called \"config.yaml\"",
@@ -535,8 +641,8 @@
       "type": "array"
     },
     "securityContext": {
-      "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext",
-      "required": []
+      "required": [],
+      "title": "securityContext"
     },
     "serviceAccount": {
       "additionalProperties": false,
@@ -632,7 +738,6 @@
     "tolerations": {
       "description": "Tolerations for pod scheduling",
       "items": {
-        "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Toleration",
         "required": []
       },
       "required": [],
@@ -674,7 +779,6 @@
     "volumeMounts": {
       "description": "Additional volumeMounts on the output Deployment definition.",
       "items": {
-        "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.VolumeMount",
         "required": []
       },
       "required": [],
@@ -684,7 +788,6 @@
     "volumes": {
       "description": "Additional volumes on the output Deployment definition.",
       "items": {
-        "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Volume",
         "required": []
       },
       "required": [],
