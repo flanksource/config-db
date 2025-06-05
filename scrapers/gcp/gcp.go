@@ -9,7 +9,10 @@ import (
 	"cloud.google.com/go/asset/apiv1/assetpb"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	uuidV5 "github.com/gofrs/uuid/v5"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
@@ -120,6 +123,26 @@ var defaultIgnoreList = []string{
 	"serviceusage.googleapis.com/Service",
 }
 
+func generateConsistentID(input string) uuid.UUID {
+	gen := uuidV5.NewV5(uuidV5.NamespaceOID, input)
+	return uuid.UUID(gen)
+}
+
+func parseGCPMember(member string) (userType, name, email string, found bool) {
+	if strings.HasPrefix(member, "user:") {
+		email = strings.TrimPrefix(member, "user:")
+		return "User", email, email, true
+	} else if strings.HasPrefix(member, "serviceAccount:") {
+		email = strings.TrimPrefix(member, "serviceAccount:")
+		return "ServiceAccount", email, email, true
+	} else if strings.HasPrefix(member, "group:") {
+		name = strings.TrimPrefix(member, "group:")
+		return "Group", name, name, true
+	}
+
+	return "", member, "", false
+}
+
 func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
 	var results v1.ScrapeResults
 
@@ -207,52 +230,118 @@ func (gcp Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeRe
 	}
 	defer assetClient.Close()
 
+	// Track unique roles and users to avoid duplicates
+	uniqueRoles := make(map[string]models.ExternalRole)
+	uniqueUsers := make(map[string]models.ExternalUser)
+	var configAccesses []v1.ExternalConfigAccess
+
 	it := assetClient.ListAssets(ctx, req)
 	for {
-		assetItem, err := it.Next()
+		asset, err := it.Next()
 		if err == iterator.Done {
 			break
-		}
-		if err != nil {
+		} else if err != nil {
 			return nil, fmt.Errorf("error listing IAM policies: %w", err)
 		}
 
-		fmt.Printf("\n\nIAM Policy: %+v\n", assetItem.Name)
-		if assetItem.IamPolicy == nil {
+		if asset.IamPolicy == nil {
 			continue
 		}
 
-		for _, binding := range assetItem.IamPolicy.Bindings {
-			fmt.Printf("Binding Role: %+v\n", binding.Role)
-			for _, member := range binding.Members {
-				fmt.Printf("Member: %+v\n", member)
-				// Extract a more user-friendly name if member is like "user:email@example.com"
-				memberName := member
-				if strings.HasPrefix(member, "user:") {
-					memberName = strings.TrimPrefix(member, "user:")
-				} else if strings.HasPrefix(member, "serviceAccount:") {
-					memberName = strings.TrimPrefix(member, "serviceAccount:")
-				} else if strings.HasPrefix(member, "group:") {
-					memberName = strings.TrimPrefix(member, "group:")
+		// Extract resource ID from asset name (e.g., "//compute.googleapis.com/projects/project-id/zones/us-central1-a/instances/instance-name")
+		resourceID := asset.Name
+		if resourceID == "" {
+			continue
+		}
+
+		for _, binding := range asset.IamPolicy.Bindings {
+			// bind.Role could be
+			// global: roles/cloudasset.owner
+			// custom: projects/aditya-461913/roles/mycustomroleaditya (project scoped)
+			roleID := generateConsistentID(binding.Role)
+			if _, exists := uniqueRoles[binding.Role]; !exists {
+				role := models.ExternalRole{
+					ID:        roleID,
+					Name:      binding.Role,
+					AccountID: config.Project,
+					ScraperID: ctx.ScrapeConfig().GetPersistedID(),
+					RoleType:  lo.Ternary(strings.HasPrefix(binding.Role, "roles/"), "Global", "Custom"),
 				}
 
-				bindingID := fmt.Sprintf("projects/%s/%s/%s", config.Project, member, binding.Role)
+				if strings.HasPrefix(binding.Role, "roles/") {
+					role.RoleType = "Global"
+				} else {
+					role.RoleType = "Custom"
 
-				results = append(results, v1.ScrapeResult{
-					BaseScraper: config.BaseScraper,
-					ID:          bindingID,
-					Name:        memberName, // Use the extracted member name
-					Config: map[string]string{
-						"member": member,
-						"role":   binding.Role,
-					},
-					ConfigClass: "IAMPrincipalBinding",
-					Type:        "GCP::IAMPrincipalBinding",
-					Tags:        []v1.Tag{{Name: "project", Value: config.Project}},
-				})
+					// FIXME: Only custom roles should be tied to an account and scraper
+				}
+
+				uniqueRoles[binding.Role] = role
+			}
+
+			for _, member := range binding.Members {
+				userType, name, email, found := parseGCPMember(member)
+				if !found {
+					continue
+				}
+
+				switch userType {
+				case "User":
+					userID := generateConsistentID(email)
+					if _, exists := uniqueUsers[member]; !exists {
+						externalUser := models.ExternalUser{
+							ID:        userID,
+							Name:      name,
+							ScraperID: lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()),
+							AccountID: config.Project,
+							CreatedAt: time.Now(), // We don't have this information
+							UserType:  userType,
+						}
+						if email != "" {
+							externalUser.Email = &email
+						}
+						uniqueUsers[member] = externalUser
+					}
+
+					configAccessID := generateConsistentID(fmt.Sprintf("%s:%s:%s", resourceID, member, binding.Role))
+					configAccess := models.ConfigAccess{
+						ID:             configAccessID.String(),
+						ExternalUserID: &userID,
+						ExternalRoleID: &roleID,
+						ScraperID:      ctx.ScrapeConfig().GetPersistedID(),
+					}
+
+					configClass := parseGCPConfigClass(asset.AssetType)
+					configType := fmt.Sprintf("GCP::%s", configClass)
+
+					configAccesses = append(configAccesses, v1.ExternalConfigAccess{
+						ConfigAccess: configAccess,
+						ConfigExternalID: v1.ExternalID{
+							ExternalID: resourceID,
+							ConfigType: configType,
+						},
+					})
+				}
 			}
 		}
 	}
+
+	var externalRoles []models.ExternalRole
+	for _, role := range uniqueRoles {
+		externalRoles = append(externalRoles, role)
+	}
+
+	var externalUsers []models.ExternalUser
+	for _, user := range uniqueUsers {
+		externalUsers = append(externalUsers, user)
+	}
+
+	results = append(results, v1.ScrapeResult{
+		BaseScraper:   config.BaseScraper,
+		ExternalRoles: externalRoles,
+		ExternalUsers: externalUsers,
+		ConfigAccess:  configAccesses,
+	})
 
 	return results, nil
 }
