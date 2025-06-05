@@ -16,6 +16,13 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
+// Always ignore these as we can't link them to any config item.
+var defaultExcludeAuditLogResourceTypes = []string{
+	"api",
+	"audited_resource",
+	"service_account",
+}
+
 var auditLogsLastTimestampPerScraper = sync.Map{}
 
 func auditLogFilter(ctx *GCPContext, beginTime time.Time, auditLogs v1.GCPAuditLogs) (string, error) {
@@ -29,14 +36,12 @@ func auditLogFilter(ctx *GCPContext, beginTime time.Time, auditLogs v1.GCPAuditL
 		))
 	}
 
-	if len(auditLogs.ExcludeTypes) > 0 {
-		quotedExcludeTypes := lo.Map(auditLogs.ExcludeTypes, func(t string, _ int) string {
-			return fmt.Sprintf(`"%s"`, t)
-		})
-		filters = append(filters, fmt.Sprintf(`NOT resource.type = (%s)`,
-			strings.Join(quotedExcludeTypes, " OR "),
-		))
-	}
+	quotedExcludeTypes := lo.Map(append(auditLogs.ExcludeTypes, defaultExcludeAuditLogResourceTypes...), func(t string, _ int) string {
+		return fmt.Sprintf(`"%s"`, t)
+	})
+	filters = append(filters, fmt.Sprintf(`NOT resource.type = (%s)`,
+		strings.Join(quotedExcludeTypes, " OR "),
+	))
 
 	if lastTimestamp, ok := auditLogsLastTimestampPerScraper.Load(ctx.ScrapeConfig().GetPersistedID()); ok {
 		startTime := lastTimestamp.(time.Time)
@@ -83,7 +88,11 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 	}
 	defer adminClient.Close()
 
-	var configAccessLogs []v1.ExternalConfigAccessLog
+	var (
+		configAccessLogs []v1.ExternalConfigAccessLog
+		configAccesses   []v1.ExternalConfigAccess
+	)
+
 	var unhandledResourceTypes = set.New[string]()
 
 	filter, err := auditLogFilter(ctx, beginTime, config.AuditLogs)
@@ -121,21 +130,30 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			resourceID.ExternalID = fmt.Sprintf("//storage.googleapis.com/%s", entry.Resource.Labels["bucket_name"])
 			resourceID.ConfigType = "GCP::Storage::Bucket"
 
-		case "k8s_cluster", "k8s_container":
-			resourceID.ExternalID = fmt.Sprintf("//container.googleapis.com/%s", entry.Resource.Labels["cluster_name"])
+		case "k8s_cluster", "k8s_container", "gke_cluster":
+			resourceID.ExternalID = fmt.Sprintf("//container.googleapis.com/projects/%s/locations/%s/clusters/%s",
+				entry.Resource.Labels["project_id"],
+				entry.Resource.Labels["location"],
+				entry.Resource.Labels["cluster_name"],
+			)
 			resourceID.ConfigType = "GCP::Container::Cluster"
 
 		case "project":
 			resourceID.ExternalID = fmt.Sprintf("//cloudresourcemanager.googleapis.com/%s", entry.Resource.Labels["project_id"])
-			resourceID.ConfigType = "GCP::Cloudresourcemanager::Project"
+			resourceID.ConfigType = "GCP::Compute::Project"
 
 		case "gce_instance":
+			if entry.Resource.Labels["instance_id"] == "" {
+				continue // e.g. when method=v1.compute.instances.list
+			}
+
 			resourceID.ExternalID = fmt.Sprintf("//compute.googleapis.com/%s", auditLog.ResourceName)
 			resourceID.ConfigType = "GCP::Compute::Instance"
 
 		default:
 			// NOTE: every resource type must be manually handled here.
-			// because we need to form the external ID for the resource.
+			//
+			// Because we need to form the external ID for the resource.
 			// Example: An audit log for GCS bucket contains ResourceName: projects/_/buckets/lastline-artifacts
 			// whereas the external ID that we save is //storage.googleapis.com/lastline-artifacts
 			unhandledResourceTypes.Add(entry.Resource.Type)
@@ -148,14 +166,22 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			continue
 		}
 
-		accessLog := models.ConfigAccessLog{
-			ExternalUserID: generateConsistentID(principalEmail),
-			ScraperID:      *ctx.ScrapeConfig().GetPersistedID(),
-			CreatedAt:      entry.Timestamp,
-		}
-
 		configAccessLogs = append(configAccessLogs, v1.ExternalConfigAccessLog{
-			ConfigAccessLog:  accessLog,
+			ConfigAccessLog: models.ConfigAccessLog{
+				ExternalUserID: generateConsistentID(principalEmail),
+				ScraperID:      *ctx.ScrapeConfig().GetPersistedID(),
+				CreatedAt:      entry.Timestamp,
+			},
+			ConfigExternalID: resourceID,
+		})
+
+		configAccesses = append(configAccesses, v1.ExternalConfigAccess{
+			ConfigAccess: models.ConfigAccess{
+				ID:             generateConsistentID(principalEmail + resourceID.String()).String(), // FIXME:
+				ExternalUserID: lo.ToPtr(generateConsistentID(principalEmail)),
+				ScraperID:      ctx.ScrapeConfig().GetPersistedID(),
+				CreatedAt:      entry.Timestamp,
+			},
 			ConfigExternalID: resourceID,
 		})
 	}
@@ -164,14 +190,11 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		ctx.Warnf("gcp audit logs: unhandled resource types: %v", unhandledResourceTypes.ToSlice())
 	}
 
-	if len(configAccessLogs) > 0 {
-		return v1.ScrapeResults{{
-			BaseScraper:      config.BaseScraper,
-			ConfigAccessLogs: configAccessLogs,
-		}}, nil
-	}
-
 	auditLogsLastTimestampPerScraper.Store(ctx.ScrapeConfig().GetPersistedID(), beginTime)
 
-	return nil, nil
+	return v1.ScrapeResults{{
+		BaseScraper:      config.BaseScraper,
+		ConfigAccessLogs: configAccessLogs,
+		ConfigAccess:     configAccesses,
+	}}, nil
 }

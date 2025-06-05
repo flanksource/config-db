@@ -1,0 +1,17 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: gcp-flanksource
+  namespace: mc
+spec:
+  gcp:
+    - project: workload-prod-eu-02
+      connection: connection://mc/gcloud-flanksource
+      include:
+        - storage.googleapis.com/Bucket
+      auditLogs:
+        duration: 2m
+        excludeTypes:
+          - k8s_cluster
+          - k8s_container
+          - cloudsql_databaase
