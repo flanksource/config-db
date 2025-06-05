@@ -611,7 +611,22 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	for _, accessLog := range extractResult.configAccessLogs {
-		if err := ctx.DB().Save(&accessLog).Error; err != nil {
+		if accessLog.ConfigID == uuid.Nil && accessLog.ConfigExternalID.ExternalID != "" {
+			config, err := ctx.TempCache().FindExternalID(ctx, accessLog.ConfigExternalID)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find config for access log: %w", err)
+			} else if config == "" {
+				ctx.Logger.V(2).Infof("access log doesn't have an associated config (type=%s external_id=%s)",
+					accessLog.ConfigExternalID.ConfigType,
+					accessLog.ConfigExternalID.ExternalID,
+				)
+				continue
+			}
+
+			accessLog.ConfigID = uuid.MustParse(config)
+		}
+
+		if err := ctx.DB().Save(&accessLog.ConfigAccessLog).Error; err != nil {
 			return summary, fmt.Errorf("failed to save access log: %w", err)
 		}
 	}
@@ -1043,7 +1058,7 @@ type extractResult struct {
 
 	externalRoles    []dutyModels.ExternalRole
 	configAccesses   []v1.ExternalConfigAccess
-	configAccessLogs []dutyModels.ConfigAccessLog
+	configAccessLogs []v1.ExternalConfigAccessLog
 
 	changeSummary v1.ChangeSummaryByType
 }
@@ -1084,7 +1099,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 		}
 
 		if len(result.ConfigAccessLogs) > 0 {
-			extractResult.configAccessLogs = append(extractResult.configAccessLogs, lo.Map(result.ConfigAccessLogs, func(accessLog dutyModels.ConfigAccessLog, _ int) dutyModels.ConfigAccessLog {
+			extractResult.configAccessLogs = append(extractResult.configAccessLogs, lo.Map(result.ConfigAccessLogs, func(accessLog v1.ExternalConfigAccessLog, _ int) v1.ExternalConfigAccessLog {
 				accessLog.ScraperID = lo.FromPtr(ctx.ScrapeConfig().GetPersistedID())
 				return accessLog
 			})...)

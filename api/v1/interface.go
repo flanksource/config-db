@@ -649,10 +649,16 @@ type ScrapeResult struct {
 	ExternalGroups     []models.ExternalGroup     `json:"-"`
 	ExternalUserGroups []models.ExternalUserGroup `json:"-"`
 	ConfigAccess       []ExternalConfigAccess     `json:"-"`
-	ConfigAccessLogs   []models.ConfigAccessLog   `json:"-"`
+	ConfigAccessLogs   []ExternalConfigAccessLog  `json:"-"`
 
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
+}
+
+// +kubebuilder:object:generate=false
+type ExternalConfigAccessLog struct {
+	models.ConfigAccessLog
+	ConfigExternalID ExternalID
 }
 
 // +kubebuilder:object:generate=false
