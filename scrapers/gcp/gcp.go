@@ -161,7 +161,11 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 	if err != nil {
 		return nil, fmt.Errorf("error creating asset client: %w", err)
 	}
-	defer assetClient.Close()
+	defer func() {
+		if err := assetClient.Close(); err != nil {
+			ctx.Warnf("gcp assets: failed to close asset client: %v", err)
+		}
+	}()
 
 	baseTags := []v1.Tag{{Name: "project", Value: config.Project}}
 	ignoreList := append(defaultIgnoreList, config.Exclude...)
@@ -230,7 +234,11 @@ func (gcp Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeRe
 	if err != nil {
 		return nil, fmt.Errorf("error creating asset client for IAM policies: %w", err)
 	}
-	defer assetClient.Close()
+	defer func() {
+		if err := assetClient.Close(); err != nil {
+			ctx.Warnf("gcp iam policies: failed to close asset client: %v", err)
+		}
+	}()
 
 	// Track unique roles and users to avoid duplicates
 	uniqueRoles := make(map[uuid.UUID]models.ExternalRole)

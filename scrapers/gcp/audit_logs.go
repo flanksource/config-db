@@ -86,7 +86,11 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logging admin client: %w", err)
 	}
-	defer adminClient.Close()
+	defer func() {
+		if err := adminClient.Close(); err != nil {
+			ctx.Warnf("gcp audit logs: failed to close logging admin client: %v", err)
+		}
+	}()
 
 	var (
 		configAccessLogs []v1.ExternalConfigAccessLog
