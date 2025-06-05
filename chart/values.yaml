@@ -2,24 +2,53 @@
 # Default values for config-db.
 # Declare variables to be passed into your templates.
 # yaml-language-server: $schema=./values.schema.json
+
+# @schema
+# required: false
+# additionalProperties: true
+# @schema
 global:
+  # @schema
+  # required: false
+  # @schema
   otel:
+    # @schema
+    # required: false
+    # @schema
+    # -- OpenTelemetry gRPC collector endpoint in host:port format
     collector: ""
+    # @schema
+    # required: false
+    # @schema
+    # -- labels in "a=b,c=d" format
     labels: ""
 
+  # @schema
+  # required: false
+  # @schema
   serviceMonitor:
+    # @schema
+    # required: false
+    # @schema
+    # -- Set to true to enable prometheus service monitor globally
     enabled: false
     # @schema
     # additionalProperties: true
     # @schema
     labels: {}
 
+  # @schema
+  # required: false
+  # @schema
   serviceAccount:
     # @schema
     # additionalProperties: true
     # @schema
     annotations: {}
-    # Note unlike other globals, the global serviceAccount.name overrides the local value
+    # @schema
+    # required: false
+    # @schema
+    # -- Note unlike other globals, the global serviceAccount.name overrides the local value
     name: ""
 
   # @schema
@@ -27,15 +56,37 @@ global:
   # @schema
   nodeSelector: {}
 
+  # @schema
+  # required: false
+  # type: array
+  # items:
+  #   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Toleration
+  # @schema
   tolerations: []
 
   # @schema
-  # additionalProperties: true
+  # required: false
+  # $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Affinity
   # @schema
   affinity: {}
 
+  # @schema
+  # required: false
+  # @schema
+  # -- Global image registry to use for all images
   imageRegistry: docker.io
+  # @schema
+  # required: false
+  # @schema
+  # -- Global image prefix to use for all images
   imagePrefix: flanksource
+  # @schema
+  # required: false
+  # type: array
+  # items:
+  #   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.LocalObjectReference
+  # @schema
+  # -- Global image pull secrets
   imagePullSecrets: []
 
   # @schema
@@ -47,38 +98,112 @@ global:
   # additionalProperties: true
   # @schema
   db:
+    # @schema
+    # required: false
+    # @schema
     connectionPooler:
+      # @schema
+      # required: false
+      # @schema
       enabled: false
+      # @schema
+      # required: false
+      # additionalProperties: true
+      # @schema
       secretKeyRef:
+        # @schema
+        # required: true
+        # @schema
         name: mission-control-connection-pooler
+        # @schema
+        # required: true
+        # @schema
         key: DB_URL
 
+# @schema
+# required: false
+# type: integer
+# default: 1
+# @schema
+# -- Number of replicas for the deployment
 replicas: 1
 
-# Use this only if you want to replace the default that is .Chart.Name as the name of all the objects.
+# @schema
+# required: false
+# @schema
+# -- Use this only if you want to replace the default that is .Chart.Name as the name of all the objects.
 nameOverride: ""
 
-# Set to true if you want to disable the postgrest service
+# @schema
+# required: false
+# type: boolean
+# @schema
+# -- Set to true if you want to disable the postgrest service
 disablePostgrest: false
 
+# @schema
+# required: false
+# @schema
+# -- Image registry for the main application image. Overrides global.imageRegistry if set.
 imageRegistry: ''
 image:
+  # @schema
+  # required: false
+  # @schema
+  # -- Name of the main application image
   name: "{{.Values.global.imagePrefix}}/config-db"
+  # @schema
+  # required: false
+  # enum:
+  # - Always
+  # - IfNotPresent
+  # - Never
+  # @schema
+  # -- Image pull policy
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
+  # @schema
+  # required: false
+  # @schema
+  # -- Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
+# @schema
+# required: false
+# type: integer
+# @schema
+# -- Retention days for config changes
 configChangeRetentionDays: 60
+# @schema
+# required: false
+# type: integer
+# @schema
+# -- Retention days for config analysis
 configAnalysisRetentionDays: 60
 
+# @schema
+# required: false
+# @schema
 serviceMonitor:
+  # @schema
+  # required: false
+  # @schema
+  # -- Set to true to enable prometheus service monitor for this service
   enabled: false
   # @schema
   # additionalProperties: true
   # @schema
   labels: {}
 
+# @schema
+# required: false
+# @schema
+# -- Log level for the application (e.g., info, debug, error)
 logLevel: ""
+# @schema
+# required: false
+# type: boolean
+# @schema
+# -- Enable JSON formatted logs
 jsonLogs: true
 
 # command line arguments to config-db
@@ -95,6 +220,9 @@ env: {}
 
 # @schema
 # additionalProperties: true
+# type: array
+# items:
+#   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.EnvFromSource
 # @schema
 extraEnvFrom: []
 
@@ -106,6 +234,7 @@ properties: {}
 
 # @schema
 # additionalProperties: false
+# $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements
 # @schema
 resources:
   requests:
@@ -115,15 +244,43 @@ resources:
     memory: 4Gi
     cpu: 500m
 
-# a list of configmaps to load scrape rules from, the configmap should have a single entry called "config.yaml"
+# @schema
+# required: false
+# type: array
+# items:
+#   type: string
+# @schema
+# -- a list of configmaps to load scrape rules from, the configmap should have a single entry called "config.yaml"
 scrapeRuleConfigMaps:
   - config-db-rules
 
+# @schema
+# required: false
+# @schema
 clickhouse:
+  # @schema
+  # required: false
+  # type: boolean
+  # @schema
+  # -- Enable ClickHouse for analytics
   enabled: false
+  # @schema
+  # required: false
+  # @schema
   image:
+    # @schema
+    # required: false
+    # @schema
+    # -- ClickHouse image name
     name: clickhouse/clickhouse-server
+    # @schema
+    # required: false
+    # @schema
+    # -- ClickHouse image tag
     tag: '25.4'
+  # @schema
+  # $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements
+  # @schema
   resources:
     limits:
       cpu: "1"
@@ -136,6 +293,7 @@ clickhouse:
   # @schema
   # additionalProperties: true
   # @schema
+  # -- ClickHouse server properties
   properties:
     max_connections: '4'
     mark_cache_size: '67108864'
@@ -147,35 +305,69 @@ clickhouse:
 # additionalProperties: false
 # @schema
 otel:
-  # OpenTelemetry gRPC collector endpoint in host:port format
+  # @schema
+  # required: false
+  # @schema
+  # -- OpenTelemetry gRPC collector endpoint in host:port format
   collector: ""
+  # @schema
+  # required: false
+  # @schema
+  # -- OpenTelemetry service name
   serviceName: config-db
-  # labels in "a=b,c=d" format
+  # @schema
+  # required: false
+  # @schema
+  # -- labels in "a=b,c=d" format
   labels: ""
 
 # @schema
 # additionalProperties: false
 # @schema
 db:
+  # @schema
+  # required: false
+  # type: boolean
+  # @schema
+  # -- Run database migrations on startup
   runMigrations: true
   # @schema
   # additionalProperties: false
   # @schema
   embedded:
-    # If the database is embedded, setting this to true will persist the contents of the database
-    # through a persistent volume
+    # @schema
+    # required: false
+    # type: boolean
+    # @schema
+    # -- If the database is embedded, setting this to true will persist the contents of the database through a persistent volume
     persist: true
+    # @schema
+    # required: false
+    # @schema
+    # -- Storage class for the embedded database persistent volume
     storageClass: ""
+    # @schema
+    # required: false
+    # @schema
+    # -- Storage size for the embedded database persistent volume
     storage: 20Gi
   # @schema
   # additionalProperties: false
   # @schema
   external:
-    # Setting enabled to true will use an external postgres DB.
+    # @schema
+    # required: false
+    # type: boolean
+    # @schema
+    # -- Setting enabled to true will use an external postgres DB.
     # You can either use the embedded db or an external db.
     # If both is enabled, then embedded db will take precedence.
     enabled: false
-    # Setting create:true will create
+    # @schema
+    # required: false
+    # type: boolean
+    # @schema
+    # -- Setting create:true will create
     #   - a postgres stateful set
     #   - the secret &
     #   - the service to expose the postgres stateful set.
@@ -190,17 +382,36 @@ db:
     # additionalProperties: false
     # @schema
     secretKeyRef:
-      # The name of the secret to look for.
+      # @schema
+      # required: true
+      # @schema
+      # -- The name of the secret to look for.
       name: config-db-postgresql
-      # This is the key that we look for in the secret.
+      # @schema
+      # required: true
+      # @schema
+      # -- This is the key that we look for in the secret.
       key: DB_URL
+    # @schema
+    # required: false
+    # @schema
+    # -- Storage class for the external database persistent volume (if create=true)
     storageClass: ""
+    # @schema
+    # required: false
+    # @schema
+    # -- Storage size for the external database persistent volume (if create=true)
     storage: 20Gi
 
 # @schema
 # additionalProperties: false
 # @schema
 ingress:
+  # @schema
+  # required: false
+  # type: boolean
+  # @schema
+  # -- Enable ingress for the application
   enabled: false
 
   # @schema
@@ -210,7 +421,18 @@ ingress:
     {}
     #  kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
+  # @schema
+  # required: false
+  # @schema
+  # -- Hostname for the ingress
   host: config-db.local
+  # @schema
+  # required: false
+  # type: array
+  # items:
+  #   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.networking.v1.IngressTLS
+  # @schema
+  # -- TLS configuration for the ingress
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:
@@ -220,7 +442,17 @@ ingress:
 # additionalProperties: false
 # @schema
 serviceAccount:
+  # @schema
+  # required: false
+  # type: boolean
+  # default: true
+  # @schema
+  # -- Create a new service account
   create: true
+  # @schema
+  # required: false
+  # @schema
+  # -- Name of the service account to use or create
   name: config-db-sa
 
   # @schema
@@ -232,24 +464,76 @@ serviceAccount:
   # additionalProperties: false
   # @schema
   rbac:
-    # Whether to create cluster-wide or namespaced roles
+    # @schema
+    # required: false
+    # type: boolean
+    # default: true
+    # @schema
+    # -- Whether to create cluster-wide or namespaced roles
     clusterRole: true
 
-    # for secret management with valueFrom
+    # @schema
+    # required: false
+    # type: boolean
+    # default: true
+    # @schema
+    # -- for secret management with valueFrom
     tokenRequest: true
+    # @schema
+    # required: false
+    # type: boolean
+    # default: true
+    # @schema
+    # -- for secret management with valueFrom
     secrets: true
+    # @schema
+    # required: false
+    # type: boolean
+    # default: true
+    # @schema
+    # -- for secret management with valueFrom
     configmaps: true
 
-    # for use with kubernetes resource lookups
+    # @schema
+    # required: false
+    # type: boolean
+    # default: true
+    # @schema
+    # -- for use with kubernetes resource lookups
     readAll: true
 
-    # for kubernetesFile lookups
+    # @schema
+    # required: false
+    # type: boolean
+    # default: true
+    # @schema
+    # -- for kubernetesFile lookups
     exec: true
 
+# @schema
+# required: false
+# @schema
 upstream:
+  # @schema
+  # required: false
+  # type: boolean
+  # @schema
+  # -- Enable upstream configuration
   enabled: false
+  # @schema
+  # required: false
+  # @schema
   secretKeyRef:
-    name: config-db-upstream # Must contain: AGENT_NAME, UPSTREAM_USER, UPSTREAM_PASSWORD & UPSTREAM_HOST
+    # @schema
+    # required: false
+    # @schema
+    # -- Name of the secret containing upstream credentials. Must contain: AGENT_NAME, UPSTREAM_USER, UPSTREAM_PASSWORD & UPSTREAM_HOST
+    name: config-db-upstream
+  # @schema
+  # required: false
+  # type: integer
+  # @schema
+  # -- Page size for upstream communication
   pageSize: 500
 
 # Extra values to be applied to the pod spec
@@ -259,25 +543,43 @@ upstream:
 extra: {}
 
 # @schema
-# skipProperties: true
-# additionalProperties: true
+# skipProperties: true # Assuming this means it's a well-defined K8s object, but let's ensure it's clear for schema
+# additionalProperties: true # This seems contradictory if it's a standard K8s object unless used for extensions.
+# $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.PodSecurityContext
 # @schema
 podSecurityContext:
+  # @schema
+  # required: false
+  # type: integer
+  # @schema
   fsGroup: 1000
 
 # @schema
-# additionalProperties: true
+# required: false
+# $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext
 # @schema
 securityContext: {}
 
-# Additional volumes on the output Deployment definition.
+# @schema
+# required: false
+# type: array
+# items:
+#   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Volume
+# @schema
+# -- Additional volumes on the output Deployment definition.
 volumes: []
 # - name: foo
 #   secret:
 #     secretName: mysecret
 #     optional: false
 
-# Additional volumeMounts on the output Deployment definition.
+# @schema
+# required: false
+# type: array
+# items:
+#   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.VolumeMount
+# @schema
+# -- Additional volumeMounts on the output Deployment definition.
 volumeMounts: []
 # - name: foo
 #   mountPath: "/etc/foo"
@@ -285,14 +587,33 @@ volumeMounts: []
 
 # @schema
 # additionalProperties: true
+# $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.NodeSelectorRequirement # This is more complex than just additionalProperties: true
+# type: object # Explicitly object
 # @schema
+# -- Node selector for pod assignment
 nodeSelector: {}
 
+# @schema
+# required: false
+# type: array
+# items:
+#   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Toleration
+# @schema
+# -- Tolerations for pod scheduling
 tolerations: []
 
 # @schema
-# additionalProperties: true
+# required: false
+# $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Affinity
 # @schema
+# -- Affinity rules for pod scheduling
 affinity: {}
 
+# @schema
+# required: false
+# type: array
+# items:
+#   $ref: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.LocalObjectReference
+# @schema
+# -- Image pull secrets for the main application image
 imagePullSecrets: []

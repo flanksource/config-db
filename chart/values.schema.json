@@ -1,46 +1,40 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "additionalProperties": false,
   "properties": {
     "affinity": {
-      "additionalProperties": true,
-      "required": [],
-      "title": "affinity"
+      "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Affinity",
+      "required": []
     },
     "clickhouse": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
+          "description": "Enable ClickHouse for analytics",
           "required": [],
           "title": "enabled",
           "type": "boolean"
         },
         "image": {
-          "additionalProperties": false,
           "properties": {
             "name": {
               "default": "clickhouse/clickhouse-server",
+              "description": "ClickHouse image name",
               "required": [],
-              "title": "name",
-              "type": "string"
+              "title": "name"
             },
             "tag": {
               "default": "25.4",
+              "description": "ClickHouse image tag",
               "required": [],
-              "title": "tag",
-              "type": "string"
+              "title": "tag"
             }
           },
-          "required": [
-            "name",
-            "tag"
-          ],
-          "title": "image",
-          "type": "object"
+          "required": [],
+          "title": "image"
         },
         "properties": {
           "additionalProperties": true,
+          "description": "ClickHouse server properties",
           "properties": {
             "keep_alive_timeout": {
               "default": "300",
@@ -83,79 +77,23 @@
           "title": "properties"
         },
         "resources": {
-          "additionalProperties": false,
-          "properties": {
-            "limits": {
-              "additionalProperties": false,
-              "properties": {
-                "cpu": {
-                  "default": "1",
-                  "required": [],
-                  "title": "cpu",
-                  "type": "string"
-                },
-                "memory": {
-                  "default": "4Gi",
-                  "required": [],
-                  "title": "memory",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "cpu",
-                "memory"
-              ],
-              "title": "limits",
-              "type": "object"
-            },
-            "requests": {
-              "additionalProperties": false,
-              "properties": {
-                "cpu": {
-                  "default": "100m",
-                  "required": [],
-                  "title": "cpu",
-                  "type": "string"
-                },
-                "memory": {
-                  "default": "2Gi",
-                  "required": [],
-                  "title": "memory",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "cpu",
-                "memory"
-              ],
-              "title": "requests",
-              "type": "object"
-            }
-          },
-          "required": [
-            "limits",
-            "requests"
-          ],
-          "title": "resources",
-          "type": "object"
+          "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements",
+          "required": []
         }
       },
-      "required": [
-        "enabled",
-        "image",
-        "resources"
-      ],
-      "title": "clickhouse",
-      "type": "object"
+      "required": [],
+      "title": "clickhouse"
     },
     "configAnalysisRetentionDays": {
       "default": 60,
+      "description": "Retention days for config analysis",
       "required": [],
       "title": "configAnalysisRetentionDays",
       "type": "integer"
     },
     "configChangeRetentionDays": {
       "default": 60,
+      "description": "Retention days for config changes",
       "required": [],
       "title": "configChangeRetentionDays",
       "type": "integer"
@@ -168,29 +106,25 @@
           "properties": {
             "persist": {
               "default": true,
-              "description": "If the database is embedded, setting this to true will persist the contents of the database\nthrough a persistent volume",
+              "description": "If the database is embedded, setting this to true will persist the contents of the database through a persistent volume",
               "required": [],
               "title": "persist",
               "type": "boolean"
             },
             "storage": {
               "default": "20Gi",
+              "description": "Storage size for the embedded database persistent volume",
               "required": [],
-              "title": "storage",
-              "type": "string"
+              "title": "storage"
             },
             "storageClass": {
               "default": "",
+              "description": "Storage class for the embedded database persistent volume",
               "required": [],
-              "title": "storageClass",
-              "type": "string"
+              "title": "storageClass"
             }
           },
-          "required": [
-            "persist",
-            "storageClass",
-            "storage"
-          ],
+          "required": [],
           "title": "embedded"
         },
         "external": {
@@ -217,15 +151,13 @@
                   "default": "DB_URL",
                   "description": "This is the key that we look for in the secret.",
                   "required": [],
-                  "title": "key",
-                  "type": "string"
+                  "title": "key"
                 },
                 "name": {
                   "default": "config-db-postgresql",
                   "description": "The name of the secret to look for.",
                   "required": [],
-                  "title": "name",
-                  "type": "string"
+                  "title": "name"
                 }
               },
               "required": [
@@ -236,35 +168,29 @@
             },
             "storage": {
               "default": "20Gi",
+              "description": "Storage size for the external database persistent volume (if create=true)",
               "required": [],
-              "title": "storage",
-              "type": "string"
+              "title": "storage"
             },
             "storageClass": {
               "default": "",
+              "description": "Storage class for the external database persistent volume (if create=true)",
               "required": [],
-              "title": "storageClass",
-              "type": "string"
+              "title": "storageClass"
             }
           },
-          "required": [
-            "enabled",
-            "create",
-            "storageClass",
-            "storage"
-          ],
+          "required": [],
           "title": "external"
         },
         "runMigrations": {
           "default": true,
+          "description": "Run database migrations on startup",
           "required": [],
           "title": "runMigrations",
           "type": "boolean"
         }
       },
-      "required": [
-        "runMigrations"
-      ],
+      "required": [],
       "title": "db"
     },
     "disablePostgrest": {
@@ -295,77 +221,68 @@
     "extraEnvFrom": {
       "additionalProperties": true,
       "items": {
+        "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.EnvFromSource",
         "required": []
       },
       "required": [],
-      "title": "extraEnvFrom"
+      "title": "extraEnvFrom",
+      "type": "array"
     },
     "global": {
-      "additionalProperties": false,
-      "description": "yaml-language-server: $schema=values.schema.json\nDefault values for config-db.\nDeclare variables to be passed into your templates.\nyaml-language-server: $schema=./values.schema.json",
+      "additionalProperties": true,
       "properties": {
         "affinity": {
-          "additionalProperties": true,
-          "required": [],
-          "title": "affinity"
+          "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Affinity",
+          "required": []
         },
         "db": {
           "additionalProperties": true,
           "properties": {
             "connectionPooler": {
-              "additionalProperties": false,
               "properties": {
                 "enabled": {
-                  "default": false,
+                  "default": "false",
                   "required": [],
-                  "title": "enabled",
-                  "type": "boolean"
+                  "title": "enabled"
                 },
                 "secretKeyRef": {
-                  "additionalProperties": false,
+                  "additionalProperties": true,
                   "properties": {
                     "key": {
                       "default": "DB_URL",
                       "required": [],
-                      "title": "key",
-                      "type": "string"
+                      "title": "key"
                     },
                     "name": {
                       "default": "mission-control-connection-pooler",
                       "required": [],
-                      "title": "name",
-                      "type": "string"
+                      "title": "name"
                     }
                   },
                   "required": [
                     "name",
                     "key"
                   ],
-                  "title": "secretKeyRef",
-                  "type": "object"
+                  "title": "secretKeyRef"
                 }
               },
-              "required": [
-                "enabled",
-                "secretKeyRef"
-              ],
-              "title": "connectionPooler",
-              "type": "object"
+              "required": [],
+              "title": "connectionPooler"
             }
           },
-          "required": [
-            "connectionPooler"
-          ],
+          "required": [],
           "title": "db"
         },
         "imagePrefix": {
           "default": "flanksource",
+          "description": "Global image prefix to use for all images",
           "required": [],
-          "title": "imagePrefix",
-          "type": "string"
+          "title": "imagePrefix"
         },
         "imagePullSecrets": {
+          "description": "Global image pull secrets",
           "items": {
+            "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.LocalObjectReference",
             "required": []
           },
           "required": [],
@@ -374,9 +291,9 @@
         },
         "imageRegistry": {
           "default": "docker.io",
+          "description": "Global image registry to use for all images",
           "required": [],
-          "title": "imageRegistry",
-          "type": "string"
+          "title": "imageRegistry"
         },
         "labels": {
           "additionalProperties": true,
@@ -389,30 +306,24 @@
           "title": "nodeSelector"
         },
         "otel": {
-          "additionalProperties": false,
           "properties": {
             "collector": {
               "default": "",
+              "description": "OpenTelemetry gRPC collector endpoint in host:port format",
               "required": [],
-              "title": "collector",
-              "type": "string"
+              "title": "collector"
             },
             "labels": {
               "default": "",
+              "description": "labels in \"a=b,c=d\" format",
               "required": [],
-              "title": "labels",
-              "type": "string"
+              "title": "labels"
             }
           },
-          "required": [
-            "collector",
-            "labels"
-          ],
-          "title": "otel",
-          "type": "object"
+          "required": [],
+          "title": "otel"
         },
         "serviceAccount": {
-          "additionalProperties": false,
           "properties": {
             "annotations": {
               "additionalProperties": true,
@@ -423,24 +334,19 @@
               "default": "",
               "description": "Note unlike other globals, the global serviceAccount.name overrides the local value",
               "required": [],
-              "title": "name",
-              "type": "string"
+              "title": "name"
             }
           },
-          "required": [
-            "name"
-          ],
-          "title": "serviceAccount",
-          "type": "object"
+          "required": [],
+          "title": "serviceAccount"
         },
         "serviceMonitor": {
-          "additionalProperties": false,
           "properties": {
             "enabled": {
-              "default": false,
+              "default": "false",
+              "description": "Set to true to enable prometheus service monitor globally",
               "required": [],
-              "title": "enabled",
-              "type": "boolean"
+              "title": "enabled"
             },
             "labels": {
               "additionalProperties": true,
@@ -448,14 +354,12 @@
               "title": "labels"
             }
           },
-          "required": [
-            "enabled"
-          ],
-          "title": "serviceMonitor",
-          "type": "object"
+          "required": [],
+          "title": "serviceMonitor"
         },
         "tolerations": {
           "items": {
+            "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Toleration",
             "required": []
           },
           "required": [],
@@ -463,51 +367,43 @@
           "type": "array"
         }
       },
-      "required": [
-        "otel",
-        "serviceMonitor",
-        "serviceAccount",
-        "tolerations",
-        "imageRegistry",
-        "imagePrefix",
-        "imagePullSecrets"
-      ],
-      "title": "global",
-      "type": "object"
+      "required": [],
+      "title": "global"
     },
     "image": {
-      "additionalProperties": false,
       "properties": {
         "name": {
           "default": "{{.Values.global.imagePrefix}}/config-db",
+          "description": "Name of the main application image",
           "required": [],
-          "title": "name",
-          "type": "string"
+          "title": "name"
         },
         "pullPolicy": {
           "default": "IfNotPresent",
+          "description": "Image pull policy",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ],
           "required": [],
-          "title": "pullPolicy",
-          "type": "string"
+          "title": "pullPolicy"
         },
         "tag": {
           "default": "latest",
           "description": "Overrides the image tag whose default is the chart appVersion.",
           "required": [],
-          "title": "tag",
-          "type": "string"
+          "title": "tag"
         }
       },
-      "required": [
-        "name",
-        "pullPolicy",
-        "tag"
-      ],
+      "required": [],
       "title": "image",
       "type": "object"
     },
     "imagePullSecrets": {
+      "description": "Image pull secrets for the main application image",
       "items": {
+        "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.LocalObjectReference",
         "required": []
       },
       "required": [],
@@ -516,9 +412,9 @@
     },
     "imageRegistry": {
       "default": "",
+      "description": "Image registry for the main application image. Overrides global.imageRegistry if set.",
       "required": [],
-      "title": "imageRegistry",
-      "type": "string"
+      "title": "imageRegistry"
     },
     "ingress": {
       "additionalProperties": false,
@@ -530,19 +426,21 @@
         },
         "enabled": {
           "default": false,
+          "description": "Enable ingress for the application",
           "required": [],
           "title": "enabled",
           "type": "boolean"
         },
         "host": {
           "default": "config-db.local",
-          "description": " kubernetes.io/ingress.class: nginx\nkubernetes.io/tls-acme: \"true\"",
+          "description": " kubernetes.io/ingress.class: nginx\nkubernetes.io/tls-acme: \"true\"\nHostname for the ingress",
           "required": [],
-          "title": "host",
-          "type": "string"
+          "title": "host"
         },
         "tls": {
+          "description": "TLS configuration for the ingress",
           "items": {
+            "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.networking.v1.IngressTLS",
             "required": []
           },
           "required": [],
@@ -550,36 +448,33 @@
           "type": "array"
         }
       },
-      "required": [
-        "enabled",
-        "host",
-        "tls"
-      ],
+      "required": [],
       "title": "ingress"
     },
     "jsonLogs": {
       "default": true,
+      "description": "Enable JSON formatted logs",
       "required": [],
       "title": "jsonLogs",
       "type": "boolean"
     },
     "logLevel": {
       "default": "",
+      "description": "Log level for the application (e.g., info, debug, error)",
       "required": [],
-      "title": "logLevel",
-      "type": "string"
+      "title": "logLevel"
     },
     "nameOverride": {
       "default": "",
       "description": "Use this only if you want to replace the default that is .Chart.Name as the name of all the objects.",
       "required": [],
-      "title": "nameOverride",
-      "type": "string"
+      "title": "nameOverride"
     },
     "nodeSelector": {
+      "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.NodeSelectorRequirement",
       "additionalProperties": true,
       "required": [],
-      "title": "nodeSelector"
+      "type": "object"
     },
     "otel": {
       "additionalProperties": false,
@@ -588,44 +483,28 @@
           "default": "",
           "description": "OpenTelemetry gRPC collector endpoint in host:port format",
           "required": [],
-          "title": "collector",
-          "type": "string"
+          "title": "collector"
         },
         "labels": {
           "default": "",
           "description": "labels in \"a=b,c=d\" format",
           "required": [],
-          "title": "labels",
-          "type": "string"
+          "title": "labels"
         },
         "serviceName": {
           "default": "config-db",
+          "description": "OpenTelemetry service name",
           "required": [],
-          "title": "serviceName",
-          "type": "string"
+          "title": "serviceName"
         }
       },
-      "required": [
-        "collector",
-        "serviceName",
-        "labels"
-      ],
+      "required": [],
       "title": "otel"
     },
     "podSecurityContext": {
+      "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.PodSecurityContext",
       "additionalProperties": true,
-      "properties": {
-        "fsGroup": {
-          "default": 1000,
-          "required": [],
-          "title": "fsGroup",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "fsGroup"
-      ],
-      "title": "podSecurityContext"
+      "required": []
     },
     "properties": {
       "additionalProperties": true,
@@ -635,85 +514,29 @@
     },
     "replicas": {
       "default": 1,
+      "description": "Number of replicas for the deployment",
       "required": [],
       "title": "replicas",
       "type": "integer"
     },
     "resources": {
+      "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements",
       "additionalProperties": false,
-      "properties": {
-        "limits": {
-          "additionalProperties": false,
-          "properties": {
-            "cpu": {
-              "default": "500m",
-              "required": [],
-              "title": "cpu",
-              "type": "string"
-            },
-            "memory": {
-              "default": "4Gi",
-              "required": [],
-              "title": "memory",
-              "type": "string"
-            }
-          },
-          "required": [
-            "memory",
-            "cpu"
-          ],
-          "title": "limits",
-          "type": "object"
-        },
-        "requests": {
-          "additionalProperties": false,
-          "properties": {
-            "cpu": {
-              "default": "200m",
-              "required": [],
-              "title": "cpu",
-              "type": "string"
-            },
-            "memory": {
-              "default": "1Gi",
-              "required": [],
-              "title": "memory",
-              "type": "string"
-            }
-          },
-          "required": [
-            "cpu",
-            "memory"
-          ],
-          "title": "requests",
-          "type": "object"
-        }
-      },
-      "required": [
-        "requests",
-        "limits"
-      ],
-      "title": "resources"
+      "required": []
     },
     "scrapeRuleConfigMaps": {
       "description": "a list of configmaps to load scrape rules from, the configmap should have a single entry called \"config.yaml\"",
       "items": {
-        "anyOf": [
-          {
-            "required": [],
-            "type": "string"
-          }
-        ],
-        "required": []
+        "required": [],
+        "type": "string"
       },
       "required": [],
       "title": "scrapeRuleConfigMaps",
       "type": "array"
     },
     "securityContext": {
-      "additionalProperties": true,
-      "required": [],
-      "title": "securityContext"
+      "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext",
+      "required": []
     },
     "serviceAccount": {
       "additionalProperties": false,
@@ -725,15 +548,16 @@
         },
         "create": {
           "default": true,
+          "description": "Create a new service account",
           "required": [],
           "title": "create",
           "type": "boolean"
         },
         "name": {
           "default": "config-db-sa",
+          "description": "Name of the service account to use or create",
           "required": [],
-          "title": "name",
-          "type": "string"
+          "title": "name"
         },
         "rbac": {
           "additionalProperties": false,
@@ -747,6 +571,7 @@
             },
             "configmaps": {
               "default": true,
+              "description": "for secret management with valueFrom",
               "required": [],
               "title": "configmaps",
               "type": "boolean"
@@ -767,6 +592,7 @@
             },
             "secrets": {
               "default": true,
+              "description": "for secret management with valueFrom",
               "required": [],
               "title": "secrets",
               "type": "boolean"
@@ -779,31 +605,20 @@
               "type": "boolean"
             }
           },
-          "required": [
-            "clusterRole",
-            "tokenRequest",
-            "secrets",
-            "configmaps",
-            "readAll",
-            "exec"
-          ],
+          "required": [],
           "title": "rbac"
         }
       },
-      "required": [
-        "create",
-        "name"
-      ],
+      "required": [],
       "title": "serviceAccount"
     },
     "serviceMonitor": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
-          "default": false,
+          "default": "false",
+          "description": "Set to true to enable prometheus service monitor for this service",
           "required": [],
-          "title": "enabled",
-          "type": "boolean"
+          "title": "enabled"
         },
         "labels": {
           "additionalProperties": true,
@@ -811,14 +626,13 @@
           "title": "labels"
         }
       },
-      "required": [
-        "enabled"
-      ],
-      "title": "serviceMonitor",
-      "type": "object"
+      "required": [],
+      "title": "serviceMonitor"
     },
     "tolerations": {
+      "description": "Tolerations for pod scheduling",
       "items": {
+        "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Toleration",
         "required": []
       },
       "required": [],
@@ -826,48 +640,41 @@
       "type": "array"
     },
     "upstream": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
+          "description": "Enable upstream configuration",
           "required": [],
           "title": "enabled",
           "type": "boolean"
         },
         "pageSize": {
           "default": 500,
+          "description": "Page size for upstream communication",
           "required": [],
           "title": "pageSize",
           "type": "integer"
         },
         "secretKeyRef": {
-          "additionalProperties": false,
           "properties": {
             "name": {
               "default": "config-db-upstream",
+              "description": "Name of the secret containing upstream credentials. Must contain: AGENT_NAME, UPSTREAM_USER, UPSTREAM_PASSWORD \u0026 UPSTREAM_HOST",
               "required": [],
-              "title": "name",
-              "type": "string"
+              "title": "name"
             }
           },
-          "required": [
-            "name"
-          ],
-          "title": "secretKeyRef",
-          "type": "object"
+          "required": [],
+          "title": "secretKeyRef"
         }
       },
-      "required": [
-        "enabled",
-        "secretKeyRef",
-        "pageSize"
-      ],
-      "title": "upstream",
-      "type": "object"
+      "required": [],
+      "title": "upstream"
     },
     "volumeMounts": {
       "description": "Additional volumeMounts on the output Deployment definition.",
       "items": {
+        "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.VolumeMount",
         "required": []
       },
       "required": [],
@@ -877,6 +684,7 @@
     "volumes": {
       "description": "Additional volumes on the output Deployment definition.",
       "items": {
+        "$ref": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.30.0/_definitions.json#/definitions/io.k8s.api.core.v1.Volume",
         "required": []
       },
       "required": [],
@@ -885,24 +693,7 @@
     }
   },
   "required": [
-    "global",
-    "replicas",
-    "nameOverride",
-    "disablePostgrest",
-    "imageRegistry",
-    "image",
-    "configChangeRetentionDays",
-    "configAnalysisRetentionDays",
-    "serviceMonitor",
-    "logLevel",
-    "jsonLogs",
-    "scrapeRuleConfigMaps",
-    "clickhouse",
-    "upstream",
-    "volumes",
-    "volumeMounts",
-    "tolerations",
-    "imagePullSecrets"
+    "image"
   ],
   "type": "object"
 }
