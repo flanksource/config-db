@@ -203,6 +203,12 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			continue
 		}
 
+		if !strings.Contains(principalEmail, "@") {
+			// Principal email can sometime contain non-emails: e.g. kubelet-bootstrap
+			// These are not IAM principals, so we skip them.
+			continue
+		}
+
 		configAccessLogs = append(configAccessLogs, v1.ExternalConfigAccessLog{
 			ConfigAccessLog: models.ConfigAccessLog{
 				ExternalUserID: generateConsistentID(principalEmail),
