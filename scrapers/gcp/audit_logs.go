@@ -30,6 +30,17 @@ const defaultAuditLogMaxDuration = 7 * 24 * time.Hour
 var auditLogsLastTimestampPerScraper = sync.Map{}
 
 func auditLogFilter(ctx *GCPContext, beginTime time.Time, project string, auditLogs v1.GCPAuditLogs) (string, error) {
+	// If the scraper isn't running for the first time,
+	// then we discard the maxDuration configuration
+	// and resume from the last saved audit log.
+	var lastSavedAuditLog models.ConfigAccess
+	if err := ctx.DB().Where("scraper_id = ? ", ctx.ScrapeConfig().GetPersistedID().String()).
+		Order("created_at DESC").
+		Limit(1).
+		Find(&lastSavedAuditLog).Error; err != nil {
+		return "", fmt.Errorf("failed to get last saved audit log: %w", err)
+	}
+
 	filters := []string{
 		fmt.Sprintf(`logName="projects/%s/logs/cloudaudit.googleapis.com%%2Factivity"`, project),
 	}
@@ -57,6 +68,8 @@ func auditLogFilter(ctx *GCPContext, beginTime time.Time, project string, auditL
 			startTime.Format(time.RFC3339),
 			endTime.Format(time.RFC3339),
 		))
+	} else if !lastSavedAuditLog.CreatedAt.IsZero() {
+		filters = append(filters, fmt.Sprintf(`timestamp>="%s"`, lastSavedAuditLog.CreatedAt.Format(time.RFC3339)))
 	} else if auditLogs.MaxDuration != "" {
 		duration, err := time.ParseDuration(auditLogs.MaxDuration)
 		if err != nil {
