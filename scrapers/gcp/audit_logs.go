@@ -80,6 +80,10 @@ func auditLogFilter(ctx *GCPContext, beginTime time.Time, auditLogs v1.GCPAuditL
 }
 
 func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
+	if !config.AuditLogs.Enabled {
+		return v1.ScrapeResults{}, nil
+	}
+
 	beginTime := time.Now()
 
 	adminClient, err := logadmin.NewClient(ctx, config.Project, ctx.ClientOpts...)

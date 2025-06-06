@@ -9,8 +9,10 @@ spec:
       connection: connection://mc/gcloud-flanksource
       include:
         - storage.googleapis.com/Bucket
+        - container.googleapis.com/Cluster
       auditLogs:
-        duration: 2m
+        enabled: true
+        duration: 1h
         excludeTypes:
           - k8s_cluster
           - k8s_container
