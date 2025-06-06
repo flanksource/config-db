@@ -12,7 +12,7 @@ spec:
         - container.googleapis.com/Cluster
       auditLogs:
         enabled: true
-        duration: 1h
+        maxDuration: 30d
         excludeTypes:
           - k8s_cluster
           - k8s_container
