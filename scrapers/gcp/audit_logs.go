@@ -130,7 +130,7 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 
 	ctx.Logger.V(2).Infof("fetching audit logs with filter: %s", filter)
 
-	it := adminClient.Entries(ctx, logadmin.Filter(filter))
+	it := adminClient.Entries(ctx, logadmin.Filter(filter), logadmin.PageSize(1000))
 	for {
 		start := time.Now()
 		entry, err := it.Next()
