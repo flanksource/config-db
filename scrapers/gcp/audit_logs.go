@@ -43,6 +43,10 @@ func auditLogFilter(ctx *GCPContext, beginTime time.Time, project string, auditL
 
 	filters := []string{
 		fmt.Sprintf(`logName="projects/%s/logs/cloudaudit.googleapis.com%%2Factivity"`, project),
+
+		// exclude k8s cluster audit logs from kubernetes service account
+		// because there are hundreds and thousands of these and we can't link them to any IAM Principal.
+		`(NOT (protoPayload.authenticationInfo.principalEmail:"system:" AND resource.type = "k8s_cluster"))`,
 	}
 
 	if len(auditLogs.IncludeTypes) > 0 {
