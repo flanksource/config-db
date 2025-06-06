@@ -23,6 +23,8 @@ var defaultExcludeAuditLogResourceTypes = []string{
 	"service_account",
 }
 
+var histBuckets = []float64{1, 10, 100, 1000, 5000, 10000}
+
 const defaultAuditLogMaxDuration = 7 * 24 * time.Hour
 
 var auditLogsLastTimestampPerScraper = sync.Map{}
@@ -117,12 +119,17 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 
 	it := adminClient.Entries(ctx, logadmin.Filter(filter))
 	for {
+		start := time.Now()
 		entry, err := it.Next()
 		if err == iterator.Done {
 			break
 		} else if err != nil {
 			return nil, fmt.Errorf("failed to list access log entries: %w", err)
 		}
+		ctx.Histogram("gcp_audit_log_entry_duration", histBuckets,
+			"scraper_id", ctx.ScrapeConfig().GetPersistedID().String(),
+			"project", config.Project,
+		).Record(time.Duration(time.Since(start).Milliseconds()))
 
 		if entry.Payload == nil {
 			continue
