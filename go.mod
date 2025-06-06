@@ -6,11 +6,7 @@ toolchain go1.24.3
 
 require (
 	cloud.google.com/go/asset v1.20.4
-	cloud.google.com/go/container v1.42.2
 	cloud.google.com/go/logging v1.13.0
-	cloud.google.com/go/memcache v1.11.3
-	cloud.google.com/go/pubsub v1.48.0
-	cloud.google.com/go/redis v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/advisor/armadvisor v1.1.0
@@ -61,6 +57,7 @@ require (
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.11
 	github.com/gobwas/glob v0.2.3
+	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
 	github.com/google/uuid v1.6.0
 	github.com/grafana/pyroscope-go v1.2.0
@@ -305,9 +302,8 @@ require (
 
 require (
 	cloud.google.com/go v0.120.0 // indirect
-	cloud.google.com/go/compute v1.34.0
-	cloud.google.com/go/iam v1.4.2
-	cloud.google.com/go/storage v1.51.0
+	cloud.google.com/go/iam v1.4.2 // indirect
+	cloud.google.com/go/storage v1.51.0 // indirect
 	github.com/DATA-DOG/go-sqlmock v1.5.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/aws/aws-sdk-go v1.55.6 // indirect
@@ -404,9 +400,9 @@ require (
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/api v0.228.0
-	google.golang.org/genproto v0.0.0-20250324211829-b45e905df463 // indirect
+	google.golang.org/genproto v0.0.0-20250324211829-b45e905df463
 	google.golang.org/grpc v1.71.0
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.6
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/api v0.32.2

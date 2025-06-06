@@ -279,7 +279,9 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 				ca.ExternalRoleID = assignment.GetAppRoleId()
 			}
 
-			result.ConfigAccess = append(result.ConfigAccess, ca)
+			result.ConfigAccess = append(result.ConfigAccess, v1.ExternalConfigAccess{
+				ConfigAccess: ca,
+			})
 
 		case "Group":
 			ca := models.ConfigAccess{
@@ -294,7 +296,9 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 				ca.ExternalRoleID = assignment.GetAppRoleId()
 			}
 
-			result.ConfigAccess = append(result.ConfigAccess, ca)
+			result.ConfigAccess = append(result.ConfigAccess, v1.ExternalConfigAccess{
+				ConfigAccess: ca,
+			})
 
 		default:
 			logger.Warnf("unknown principal type %s for app role assignment %s", principalType, assignmentID)

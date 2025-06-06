@@ -53,7 +53,7 @@ const configItemsBulkInsertSize = 200
 var ParentCache = cache.New(time.Hour*24, time.Hour*24)
 
 func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
-	var deletedAt interface{}
+	var deletedAt any
 	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {
 		deletedAt = change.CreatedAt
 	} else {
@@ -122,7 +122,7 @@ func mapEqual(a, b map[string]any) bool {
 
 func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.ScrapeResult, ci, existing *models.ConfigItem) (bool, []*models.ConfigChange, error) {
 	ci.ID = existing.ID
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	changes := make([]*models.ConfigChange, 0)
 
 	isDeleted := existing.DeletedAt == nil && ci.DeletedAt != nil
@@ -590,13 +590,45 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	for _, configAccess := range extractResult.configAccesses {
-		if err := ctx.DB().Save(&configAccess).Error; err != nil {
+		if configAccess.ConfigID == uuid.Nil && configAccess.ConfigExternalID.ExternalID != "" {
+			config, err := ctx.TempCache().FindExternalID(ctx, configAccess.ConfigExternalID)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find config for config access: %w", err)
+			} else if config == "" {
+				ctx.Logger.V(2).Infof("config access doesn't have an associated config (type=%s external_id=%s)",
+					configAccess.ConfigExternalID.ConfigType,
+					configAccess.ConfigExternalID.ExternalID,
+				)
+				continue
+			}
+
+			configAccess.ConfigID = uuid.MustParse(config)
+		}
+
+		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
+			Save(&configAccess.ConfigAccess).Error; err != nil {
 			return summary, fmt.Errorf("failed to save config access: %w", err)
 		}
 	}
 
 	for _, accessLog := range extractResult.configAccessLogs {
-		if err := ctx.DB().Save(&accessLog).Error; err != nil {
+		if accessLog.ConfigID == uuid.Nil && accessLog.ConfigExternalID.ExternalID != "" {
+			config, err := ctx.TempCache().FindExternalID(ctx, accessLog.ConfigExternalID)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find config for access log: %w", err)
+			} else if config == "" {
+				ctx.Logger.V(2).Infof("access log doesn't have an associated config (type=%s external_id=%s)",
+					accessLog.ConfigExternalID.ConfigType,
+					accessLog.ConfigExternalID.ExternalID,
+				)
+				continue
+			}
+
+			accessLog.ConfigID = uuid.MustParse(config)
+		}
+
+		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
+			Save(&accessLog.ConfigAccessLog).Error; err != nil {
 			return summary, fmt.Errorf("failed to save access log: %w", err)
 		}
 	}
@@ -1027,8 +1059,8 @@ type extractResult struct {
 	externalUserGroups []dutyModels.ExternalUserGroup
 
 	externalRoles    []dutyModels.ExternalRole
-	configAccesses   []dutyModels.ConfigAccess
-	configAccessLogs []dutyModels.ConfigAccessLog
+	configAccesses   []v1.ExternalConfigAccess
+	configAccessLogs []v1.ExternalConfigAccessLog
 
 	changeSummary v1.ChangeSummaryByType
 }
@@ -1069,7 +1101,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 		}
 
 		if len(result.ConfigAccessLogs) > 0 {
-			extractResult.configAccessLogs = append(extractResult.configAccessLogs, lo.Map(result.ConfigAccessLogs, func(accessLog dutyModels.ConfigAccessLog, _ int) dutyModels.ConfigAccessLog {
+			extractResult.configAccessLogs = append(extractResult.configAccessLogs, lo.Map(result.ConfigAccessLogs, func(accessLog v1.ExternalConfigAccessLog, _ int) v1.ExternalConfigAccessLog {
 				accessLog.ScraperID = lo.FromPtr(ctx.ScrapeConfig().GetPersistedID())
 				return accessLog
 			})...)

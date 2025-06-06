@@ -2676,6 +2676,24 @@ spec:
               gcp:
                 items:
                   properties:
+                    auditLogs:
+                      properties:
+                        enabled:
+                          type: boolean
+                        excludeTypes:
+                          items:
+                            type: string
+                          type: array
+                        includeTypes:
+                          items:
+                            type: string
+                          type: array
+                        maxDuration:
+                          description: |-
+                            The lookback period for audit logs.
+                            Default: 7d
+                          type: string
+                      type: object
                     class:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.
@@ -2748,6 +2766,8 @@ spec:
                     endpoint:
                       type: string
                     exclude:
+                      description: Exclude is a list of GCP asset types to exclude
+                        from scraping.
                       items:
                         type: string
                       type: array
@@ -2764,6 +2784,10 @@ spec:
                         the ID for the resource.
                       type: string
                     include:
+                      description: |-
+                        Include is a list of GCP asset types to scrape.
+                        Reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types
+                        Example: storage.googleapis.com/Bucket
                       items:
                         type: string
                       type: array
