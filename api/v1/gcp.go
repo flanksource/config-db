@@ -23,6 +23,7 @@ type GCP struct {
 }
 
 type GCPAuditLogs struct {
+	Enabled      bool     `json:"enabled,omitempty"`
 	IncludeTypes []string `json:"includeTypes,omitempty"`
 	ExcludeTypes []string `json:"excludeTypes,omitempty"`
 	Duration     string   `json:"duration,omitempty"`

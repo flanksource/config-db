@@ -1022,6 +1022,9 @@
     },
     "GCPAuditLogs": {
       "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
         "includeTypes": {
           "items": {
             "type": "string"

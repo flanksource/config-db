@@ -2680,6 +2680,8 @@ spec:
                       properties:
                         duration:
                           type: string
+                        enabled:
+                          type: boolean
                         excludeTypes:
                           items:
                             type: string
