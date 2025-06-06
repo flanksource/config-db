@@ -2678,8 +2678,6 @@ spec:
                   properties:
                     auditLogs:
                       properties:
-                        duration:
-                          type: string
                         enabled:
                           type: boolean
                         excludeTypes:
@@ -2690,6 +2688,11 @@ spec:
                           items:
                             type: string
                           type: array
+                        maxDuration:
+                          description: |-
+                            The lookback period for audit logs.
+                            Default: 7d
+                          type: string
                       type: object
                     class:
                       description: A static value or JSONPath expression to use as

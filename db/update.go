@@ -53,7 +53,7 @@ const configItemsBulkInsertSize = 200
 var ParentCache = cache.New(time.Hour*24, time.Hour*24)
 
 func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
-	var deletedAt interface{}
+	var deletedAt any
 	if change.CreatedAt != nil && !change.CreatedAt.IsZero() {
 		deletedAt = change.CreatedAt
 	} else {
@@ -122,7 +122,7 @@ func mapEqual(a, b map[string]any) bool {
 
 func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.ScrapeResult, ci, existing *models.ConfigItem) (bool, []*models.ConfigChange, error) {
 	ci.ID = existing.ID
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	changes := make([]*models.ConfigChange, 0)
 
 	isDeleted := existing.DeletedAt == nil && ci.DeletedAt != nil
@@ -627,7 +627,8 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			accessLog.ConfigID = uuid.MustParse(config)
 		}
 
-		if err := ctx.DB().Save(&accessLog.ConfigAccessLog).Error; err != nil {
+		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
+			Save(&accessLog.ConfigAccessLog).Error; err != nil {
 			return summary, fmt.Errorf("failed to save access log: %w", err)
 		}
 	}
