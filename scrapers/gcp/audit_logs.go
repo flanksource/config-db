@@ -43,7 +43,7 @@ func auditLogFilter(ctx *GCPContext, beginTime time.Time, auditLogs v1.GCPAuditL
 		strings.Join(quotedExcludeTypes, " OR "),
 	))
 
-	if lastTimestamp, ok := auditLogsLastTimestampPerScraper.Load(ctx.ScrapeConfig().GetPersistedID()); ok {
+	if lastTimestamp, ok := auditLogsLastTimestampPerScraper.Load(lo.FromPtr(ctx.ScrapeConfig().GetPersistedID())); ok {
 		startTime := lastTimestamp.(time.Time)
 		endTime := beginTime
 		filters = append(filters, fmt.Sprintf(`timestamp>="%s" AND timestamp<="%s"`,
@@ -104,6 +104,8 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		return nil, fmt.Errorf("failed to create audit log filter: %w", err)
 	}
 
+	ctx.Logger.V(2).Infof("fetching audit logs with filter: %s", filter)
+
 	it := adminClient.Entries(ctx, logadmin.Filter(filter))
 	for {
 		entry, err := it.Next()
@@ -121,6 +123,8 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		if !ok {
 			// Cloudsql_database has payload of type string
 			// e.g. "2025-06-05 15:57:58.017 UTC [110445]: [1-1] db=,user= LOG:  automatic analyze of table \"org_2nc9weutlwyjbmjuazzbtgeoadw.public.job_history\"\nI/O timings: read: 0.000 ms, write: 0.000 ms\navg read rate: 0.000 MB/s, avg write rate: 5.580 MB/s\nbuffer usage: 640 hits, 0 misses, 5 dirtied\nsystem usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s"
+
+			// Or gce_instance may also have type of structpb.Struct
 			continue
 		}
 
@@ -194,7 +198,7 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		ctx.Warnf("gcp audit logs: unhandled resource types: %v", unhandledResourceTypes.ToSlice())
 	}
 
-	auditLogsLastTimestampPerScraper.Store(ctx.ScrapeConfig().GetPersistedID(), beginTime)
+	auditLogsLastTimestampPerScraper.Store(lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()), beginTime)
 
 	return v1.ScrapeResults{{
 		BaseScraper:      config.BaseScraper,
