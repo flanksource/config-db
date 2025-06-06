@@ -43,7 +43,10 @@ type GCPAuditLogs struct {
 	Enabled      bool     `json:"enabled,omitempty"`
 	IncludeTypes []string `json:"includeTypes,omitempty"`
 	ExcludeTypes []string `json:"excludeTypes,omitempty"`
-	Duration     string   `json:"duration,omitempty"`
+
+	// The lookback period for audit logs.
+	// Default: 7d
+	MaxDuration string `json:"maxDuration,omitempty"`
 }
 
 func (gcp GCP) Includes(resource string) bool {

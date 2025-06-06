@@ -23,10 +23,15 @@ var defaultExcludeAuditLogResourceTypes = []string{
 	"service_account",
 }
 
+const defaultAuditLogMaxDuration = 7 * 24 * time.Hour
+
 var auditLogsLastTimestampPerScraper = sync.Map{}
 
-func auditLogFilter(ctx *GCPContext, beginTime time.Time, auditLogs v1.GCPAuditLogs) (string, error) {
-	var filters []string
+func auditLogFilter(ctx *GCPContext, beginTime time.Time, project string, auditLogs v1.GCPAuditLogs) (string, error) {
+	filters := []string{
+		fmt.Sprintf(`logName="projects/%s/logs/cloudaudit.googleapis.com%%2Factivity"`, project),
+	}
+
 	if len(auditLogs.IncludeTypes) > 0 {
 		quotedIncludeTypes := lo.Map(auditLogs.IncludeTypes, func(t string, _ int) string {
 			return fmt.Sprintf(`"%s"`, t)
@@ -50,8 +55,8 @@ func auditLogFilter(ctx *GCPContext, beginTime time.Time, auditLogs v1.GCPAuditL
 			startTime.Format(time.RFC3339),
 			endTime.Format(time.RFC3339),
 		))
-	} else if auditLogs.Duration != "" {
-		duration, err := time.ParseDuration(auditLogs.Duration)
+	} else if auditLogs.MaxDuration != "" {
+		duration, err := time.ParseDuration(auditLogs.MaxDuration)
 		if err != nil {
 			return "", fmt.Errorf("failed to parse audit logs duration: %w", err)
 		}
@@ -65,9 +70,9 @@ func auditLogFilter(ctx *GCPContext, beginTime time.Time, auditLogs v1.GCPAuditL
 
 		filters = append(filters, opt)
 	} else {
-		duration := 24 * time.Hour
-		startTime := beginTime.Add(-duration)
+		startTime := beginTime.Add(-defaultAuditLogMaxDuration)
 		endTime := beginTime
+
 		opt := fmt.Sprintf(`timestamp>="%s" AND timestamp<="%s"`,
 			startTime.Format(time.RFC3339),
 			endTime.Format(time.RFC3339),
@@ -103,7 +108,7 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 
 	var unhandledResourceTypes = set.New[string]()
 
-	filter, err := auditLogFilter(ctx, beginTime, config.AuditLogs)
+	filter, err := auditLogFilter(ctx, beginTime, config.Project, config.AuditLogs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create audit log filter: %w", err)
 	}
@@ -125,10 +130,6 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 
 		auditLog, ok := entry.Payload.(*audit.AuditLog)
 		if !ok {
-			// Cloudsql_database has payload of type string
-			// e.g. "2025-06-05 15:57:58.017 UTC [110445]: [1-1] db=,user= LOG:  automatic analyze of table \"org_2nc9weutlwyjbmjuazzbtgeoadw.public.job_history\"\nI/O timings: read: 0.000 ms, write: 0.000 ms\navg read rate: 0.000 MB/s, avg write rate: 5.580 MB/s\nbuffer usage: 640 hits, 0 misses, 5 dirtied\nsystem usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s"
-
-			// Or gce_instance may also have type of structpb.Struct
 			continue
 		}
 
