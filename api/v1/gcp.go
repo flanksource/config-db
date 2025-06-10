@@ -15,6 +15,12 @@ const (
 	CloudSQLInstance  = "GCP::CloudSQL"
 	IAMRole           = "GCP::IAMRole"
 	IAMServiceAccount = "GCP::ServiceAccount"
+
+	GCPInstance   = "GCP::Compute::Instance"
+	GCPSubnet     = "GCP::Compute::Subnetwork"
+	GCPNetwork    = "GCP::Compute::Network"
+	GCPDisk       = "GCP::Compute::Disk"
+	GCPGKECluster = "GCP::Container::Cluster"
 )
 
 type GCP struct {

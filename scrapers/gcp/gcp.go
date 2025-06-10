@@ -2,11 +2,13 @@ package gcp
 
 import (
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
 	asset "cloud.google.com/go/asset/apiv1"
 	"cloud.google.com/go/asset/apiv1/assetpb"
+	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/types"
@@ -62,6 +64,8 @@ type ResourceData struct {
 	Zone      string
 	Labels    map[string]string
 	URL       string
+	Aliases   []string
+	Raw       *structpb.Struct
 }
 
 func getRegionFromZone(zone string) string {
@@ -88,16 +92,29 @@ func parseResourceData(data *structpb.Struct) ResourceData {
 	createdAt, _ := time.Parse("2006-01-02T15:04:05.000-07:00", createdAtRaw)
 
 	zone := data.Fields["location"].GetStringValue()
+	if zone == "" {
+		// https://www.googleapis.com/compute/v1/projects/<project-name>/zones/europe-west1-c
+		zone = path.Base(data.Fields["zone"].GetStringValue())
+	}
 	region := getRegionFromZone(zone)
+	if region == "" {
+		region = path.Base(data.Fields["region"].GetStringValue())
+	}
+
+	id := data.Fields["id"].GetStringValue()
+	name := data.Fields["name"].GetStringValue()
+	selfLink := data.Fields["selfLink"].GetStringValue()
 
 	return ResourceData{
-		ID:        data.Fields["id"].GetStringValue(),
-		Name:      data.Fields["name"].GetStringValue(),
+		ID:        id,
+		Name:      name,
 		CreatedAt: createdAt,
 		Labels:    labels,
-		Zone:      data.Fields["location"].GetStringValue(),
-		URL:       data.Fields["selfLink"].GetStringValue(),
+		Zone:      zone,
+		URL:       selfLink,
 		Region:    region,
+		Aliases:   []string{selfLink, name},
+		Raw:       data,
 	}
 }
 
@@ -171,6 +188,7 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			BaseScraper: config.BaseScraper,
 			ID:          lo.CoalesceOrEmpty(rd.ID, rd.Name),
 			Name:        rd.Name,
+			Aliases:     rd.Aliases,
 			Config:      asset.Resource.Data,
 			ConfigClass: configClass,
 			Type:        configType,
@@ -210,4 +228,71 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		allResults = append(allResults, results...)
 	}
 	return allResults
+}
+
+func RelationshipResolver(assetType string, rd ResourceData) []v1.RelationshipResult {
+	switch assetType {
+	case v1.GCPInstance:
+		return resolveGCPInstanceRelationships(rd)
+	case v1.GCPSubnet:
+		return resolveGCPSubnetRelationships(rd)
+	case v1.GKECluster:
+		return resolveGCPGKEClusterRelationships(rd)
+	}
+	return nil
+}
+
+func resolveGCPInstanceRelationships(rd ResourceData) (r []v1.RelationshipResult) {
+	data := rd.Raw
+	b, _ := data.MarshalJSON()
+	p, _ := gabs.ParseJSON(b)
+	selfExternalID := v1.ExternalID{ExternalID: data.Fields["selfLink"].GetStringValue(), ConfigType: v1.GCPInstance}
+	for _, ni := range p.Search("networkInterfaces").Children() {
+		subnet := fmt.Sprint(ni.Path("subnetwork").Data())
+		r = append(r, v1.RelationshipResult{
+			ConfigExternalID:  v1.ExternalID{ExternalID: subnet, ConfigType: v1.GCPSubnet},
+			RelatedExternalID: selfExternalID,
+			Relationship:      "InstanceSubnet",
+		})
+	}
+
+	for _, disk := range p.Search("disks").Children() {
+		diskLink := fmt.Sprint(disk.Path("source").Data())
+		r = append(r, v1.RelationshipResult{
+			ConfigExternalID:  selfExternalID,
+			RelatedExternalID: v1.ExternalID{ExternalID: diskLink, ConfigType: v1.GCPDisk},
+			Relationship:      "InstanceDisk",
+		})
+	}
+
+	if cluster, exists := rd.Labels["goog-k8s-cluster-name"]; exists {
+		r = append(r, v1.RelationshipResult{
+			ConfigExternalID:  v1.ExternalID{ExternalID: cluster, ConfigType: v1.GCPGKECluster},
+			RelatedExternalID: selfExternalID,
+			Relationship:      "GKEInstance",
+		})
+	}
+	return r
+}
+
+func resolveGCPSubnetRelationships(rd ResourceData) (r []v1.RelationshipResult) {
+	selfExternalID := v1.ExternalID{ExternalID: rd.URL, ConfigType: v1.GCPSubnet}
+	if network := rd.Raw.Fields["network"].GetStringValue(); network != "" {
+		r = append(r, v1.RelationshipResult{
+			ConfigExternalID:  v1.ExternalID{ExternalID: network, ConfigType: v1.GCPNetwork},
+			RelatedExternalID: selfExternalID,
+		})
+	}
+	return r
+}
+
+func resolveGCPGKEClusterRelationships(rd ResourceData) (r []v1.RelationshipResult) {
+	selfExternalID := v1.ExternalID{ExternalID: rd.URL, ConfigType: v1.GCPGKECluster}
+	if network := rd.Raw.Fields["network"].GetStringValue(); network != "" {
+		r = append(r, v1.RelationshipResult{
+			ConfigExternalID:  v1.ExternalID{ExternalID: network, ConfigType: v1.GCPNetwork},
+			RelatedExternalID: selfExternalID,
+		})
+	}
+	return r
 }
