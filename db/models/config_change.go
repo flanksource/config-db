@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 type ConfigChangeUpdate struct {
@@ -18,8 +19,10 @@ type ConfigChangeUpdate struct {
 
 // ConfigChange represents the config change database table
 type ConfigChange struct {
-	ExternalID        string     `gorm:"-"`
-	ConfigType        string     `gorm:"-"`
+	ExternalID string `gorm:"-"`
+	ConfigType string `gorm:"-"`
+	ScraperID  string `gorm:"-"`
+
 	Fingerprint       *string    `gorm:"column:fingerprint" json:"fingerprint"`
 	ExternalChangeID  *string    `gorm:"column:external_change_id;default:null" json:"external_change_id"`
 	ID                string     `gorm:"primaryKey;unique_index;not null;column:id" json:"id"`
@@ -42,6 +45,7 @@ func (c ConfigChange) GetExternalID() v1.ExternalID {
 	return v1.ExternalID{
 		ExternalID: c.ExternalID,
 		ConfigType: c.ConfigType,
+		ScraperID:  c.ScraperID,
 	}
 }
 
@@ -54,6 +58,7 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 		ID:         uuid.NewString(),
 		ExternalID: change.ExternalID,
 		ConfigType: change.ConfigType,
+		ScraperID:  change.ScraperID,
 		ChangeType: change.ChangeType,
 		Source:     change.Source,
 		Diff:       change.Diff,

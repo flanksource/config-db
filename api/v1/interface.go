@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
@@ -16,6 +15,8 @@ import (
 	"github.com/ohler55/ojg/oj"
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/fields"
+
+	"github.com/flanksource/config-db/utils"
 )
 
 const maxTagsCount = 5
@@ -76,8 +77,14 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 
 // +kubebuilder:object:generate=false
 type ChangeResult struct {
-	ExternalID       string         `json:"external_id"`
-	ConfigType       string         `json:"config_type"`
+	ExternalID string `json:"external_id"`
+	ConfigType string `json:"config_type"`
+
+	// Scraper id of the config for external config lookup.
+	// If left empty, the scraper id is the requester's scraper id.
+	// Use `all` to disregard scraper id (useful when changes come from different scraper).
+	ScraperID string `json:"scraper_id"`
+
 	ExternalChangeID string         `json:"external_change_id"`
 	Action           ChangeAction   `json:"action"`
 	ChangeType       string         `json:"change_type"`
