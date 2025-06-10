@@ -9,14 +9,15 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
+	"github.com/flanksource/duty/models"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers/analysis"
 	"github.com/flanksource/config-db/scrapers/processors"
 	"github.com/flanksource/config-db/utils"
-	"github.com/flanksource/duty/models"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type contextKey string
@@ -200,12 +201,18 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 			allAccessLogs = append(allAccessLogs, accessLogs...)
 
 			for _, cr := range changeRes {
-				cr.ExternalID = scraped[i].ID
-				cr.ConfigType = scraped[i].Type
+				if cr.ExternalID == "" {
+					cr.ExternalID = scraped[i].ID
+				}
+
+				if cr.ConfigType == "" {
+					cr.ConfigType = scraped[i].Type
+				}
 
 				if cr.ExternalID == "" && cr.ConfigType == "" {
 					continue
 				}
+
 				scraped[i].Changes = append(scraped[i].Changes, cr)
 			}
 
