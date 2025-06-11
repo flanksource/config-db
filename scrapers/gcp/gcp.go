@@ -9,14 +9,15 @@ import (
 	asset "cloud.google.com/go/asset/apiv1"
 	"cloud.google.com/go/asset/apiv1/assetpb"
 	"github.com/Jeffail/gabs/v2"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/types"
 	"github.com/samber/lo"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 type GCPContext struct {
@@ -225,8 +226,15 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 
+		if backupResults, err := gcp.scrapeCloudSQLBackupsForAllInstances(gcpCtx, gcpConfig, results); err != nil {
+			results.Errorf(err, "failed to scrape Cloud SQL backups")
+		} else {
+			results = append(results, backupResults...)
+		}
+
 		allResults = append(allResults, results...)
 	}
+
 	return allResults
 }
 

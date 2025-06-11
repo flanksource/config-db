@@ -12,7 +12,7 @@ const (
 	RedisInstance     = "GCP::Redis"
 	MemcacheInstance  = "GCP::MemCache"
 	PubSubTopic       = "GCP::PubSub"
-	CloudSQLInstance  = "GCP::CloudSQL"
+	CloudSQLInstance  = "GCP::Sqladmin::Instance"
 	IAMRole           = "GCP::IAMRole"
 	IAMServiceAccount = "GCP::ServiceAccount"
 
