@@ -36,7 +36,7 @@ func startTrivyServer(ctx context.Context, port string) error {
 
 	// Wait for server to be ready (or fail)
 	if err := waitForServerReadyOrFail(trivyServerCmd, port); err != nil {
-		stopTrivyServer(trivyServerCmd)
+		_ = stopTrivyServer(trivyServerCmd)
 		return fmt.Errorf("trivy server failed to start: %w", err)
 	}
 
@@ -56,10 +56,10 @@ func stopTrivyServer(trivyServerCmd *exec.Cmd) error {
 
 func isPortInUse(port string) bool {
 	conn, err := net.DialTimeout("tcp", "localhost:"+port, 1*time.Second)
-	defer conn.Close() //nolint:errcheck
 	if err != nil {
 		return false
 	}
+	_ = conn.Close()
 	return true
 }
 
