@@ -12,7 +12,7 @@ import (
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -44,18 +44,18 @@ func createTestServer(ctx dutyContext.Context) *httptest.Server {
 }
 
 func waitForService(url, healthPath string, timeout time.Duration) {
-	Eventually(func() error {
+	gomega.Eventually(func() error {
 		resp, err := http.Get(url + healthPath)
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != 200 {
 			return fmt.Errorf("service not ready, status: %d", resp.StatusCode)
 		}
 		return nil
-	}, timeout, time.Second).Should(Succeed())
+	}, timeout, time.Second).Should(gomega.Succeed())
 }
 
 func loadScrapeConfig(fixturePath string) (*v1.ScrapeConfig, error) {
@@ -63,7 +63,7 @@ func loadScrapeConfig(fixturePath string) (*v1.ScrapeConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	Expect(configs).To(HaveLen(1))
+	gomega.Expect(configs).To(gomega.HaveLen(1))
 	return &configs[0], nil
 }
 
@@ -113,32 +113,32 @@ func createDummyScraperAndConfig(ctx dutyContext.Context, scraperName, configID,
 func triggerScraper(serverURL string, scraperID uuid.UUID) {
 	runURL := fmt.Sprintf("%s/run/%s", serverURL, scraperID)
 	resp, err := http.Post(runURL, "application/json", nil)
-	Expect(err).NotTo(HaveOccurred())
-	defer resp.Body.Close()
-	Expect(resp.StatusCode).To(Equal(200))
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	defer func() { _ = resp.Body.Close() }()
+	gomega.Expect(resp.StatusCode).To(gomega.Equal(200))
 }
 
 func verifyJobHistory(ctx dutyContext.Context, scraperID uuid.UUID, timeout time.Duration) {
-	Eventually(func(g Gomega) {
+	gomega.Eventually(func(g gomega.Gomega) {
 		var jobHistories []models.JobHistory
 		err := ctx.DB().Where("resource_id = ?", scraperID.String()).
 			Order("created_at DESC").
 			Find(&jobHistories).Error
-		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(jobHistories).To(HaveLen(1))
-		g.Expect(jobHistories[0].Status).To(Equal(models.StatusSuccess))
-	}, timeout, 1*time.Second).Should(Succeed())
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(jobHistories).To(gomega.HaveLen(1))
+		g.Expect(jobHistories[0].Status).To(gomega.Equal(models.StatusSuccess))
+	}, timeout, 1*time.Second).Should(gomega.Succeed())
 }
 
 func verifyConfigChanges(ctx dutyContext.Context, configItemID string, expectedCount int) {
 	var configChanges []dbmodels.ConfigChange
 	err := ctx.DB().Where("config_id = ?", configItemID).Find(&configChanges).Error
-	Expect(err).NotTo(HaveOccurred())
-	Expect(configChanges).To(HaveLen(expectedCount))
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	gomega.Expect(configChanges).To(gomega.HaveLen(expectedCount))
 
 	for _, change := range configChanges {
-		Expect(change.ChangeType).To(Equal("ConfigReload"))
-		Expect(change.Summary).To(ContainSubstring("changed from"))
+		gomega.Expect(change.ChangeType).To(gomega.Equal("ConfigReload"))
+		gomega.Expect(change.Summary).To(gomega.ContainSubstring("changed from"))
 	}
 }
 
@@ -210,7 +210,7 @@ func injectTestLogsToLoki(lokiURL string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("failed to push logs, status code: %d", resp.StatusCode)
@@ -255,7 +255,7 @@ func injectTestLogsToOpenSearch(opensearchURL string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	for i, msg := range messages {
 		doc := map[string]any{
@@ -282,7 +282,7 @@ func injectTestLogsToOpenSearch(opensearchURL string) error {
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return fmt.Errorf("failed to index document, status code: %d", resp.StatusCode)
@@ -294,7 +294,7 @@ func injectTestLogsToOpenSearch(opensearchURL string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	return nil
 }
