@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/flanksource/config-db/api/v1/terraform",
-  "$ref": "#/$defs/Terraform",
+  "$id": "https://github.com/flanksource/config-db/api/v1/logs",
+  "$ref": "#/$defs/Logs",
   "$defs": {
     "ChangeMapping": {
       "properties": {
@@ -153,7 +153,55 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "GCSConnection": {
+    "FieldMappingConfig": {
+      "properties": {
+        "id": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "message": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timestamp": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "host": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "severity": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ignore": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GCPCloudLoggingConfig": {
       "properties": {
         "connection": {
           "type": "string"
@@ -170,7 +218,16 @@
         "project": {
           "type": "string"
         },
-        "bucket": {
+        "start": {
+          "type": "string"
+        },
+        "end": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "string"
+        },
+        "filter": {
           "type": "string"
         }
       },
@@ -222,166 +279,7 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "Lookup": {
-      "properties": {
-        "expr": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "Mask": {
-      "properties": {
-        "selector": {
-          "type": "string"
-        },
-        "jsonpath": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "MaskList": {
-      "items": {
-        "$ref": "#/$defs/Mask"
-      },
-      "type": "array"
-    },
-    "RelationshipConfig": {
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/Lookup"
-        },
-        "external_id": {
-          "$ref": "#/$defs/Lookup"
-        },
-        "name": {
-          "$ref": "#/$defs/Lookup"
-        },
-        "namespace": {
-          "$ref": "#/$defs/Lookup"
-        },
-        "type": {
-          "$ref": "#/$defs/Lookup"
-        },
-        "agent": {
-          "$ref": "#/$defs/Lookup"
-        },
-        "scope": {
-          "$ref": "#/$defs/Lookup"
-        },
-        "labels": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "expr": {
-          "type": "string"
-        },
-        "filter": {
-          "type": "string"
-        },
-        "parent": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "S3Connection": {
-      "properties": {
-        "connection": {
-          "type": "string"
-        },
-        "accessKey": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "secretKey": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "sessionToken": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "assumeRole": {
-          "type": "string"
-        },
-        "region": {
-          "type": "string"
-        },
-        "endpoint": {
-          "type": "string"
-        },
-        "skipTLSVerify": {
-          "type": "boolean"
-        },
-        "bucket": {
-          "type": "string"
-        },
-        "objectPath": {
-          "type": "string"
-        },
-        "usePathStyle": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "SecretKeySelector": {
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "key": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "key"
-      ]
-    },
-    "Tag": {
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        },
-        "jsonpath": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name"
-      ]
-    },
-    "Tags": {
-      "items": {
-        "$ref": "#/$defs/Tag"
-      },
-      "type": "array"
-    },
-    "Terraform": {
+    "Logs": {
       "properties": {
         "id": {
           "type": "string"
@@ -440,31 +338,212 @@
           },
           "type": "array"
         },
-        "state": {
-          "$ref": "#/$defs/TerraformStateSource"
+        "loki": {
+          "$ref": "#/$defs/LokiConfig"
+        },
+        "gcpCloudLogging": {
+          "$ref": "#/$defs/GCPCloudLoggingConfig"
+        },
+        "openSearch": {
+          "$ref": "#/$defs/OpenSearchConfig"
+        },
+        "fieldMapping": {
+          "$ref": "#/$defs/FieldMappingConfig"
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name",
-        "state"
-      ]
+      "type": "object"
     },
-    "TerraformStateSource": {
+    "LokiConfig": {
       "properties": {
-        "s3": {
-          "$ref": "#/$defs/S3Connection"
+        "connection": {
+          "type": "string"
         },
-        "gcs": {
-          "$ref": "#/$defs/GCSConnection"
+        "url": {
+          "type": "string"
         },
-        "local": {
+        "username": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "password": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "start": {
+          "type": "string"
+        },
+        "end": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "since": {
+          "type": "string"
+        },
+        "step": {
+          "type": "string"
+        },
+        "interval": {
+          "type": "string"
+        },
+        "direction": {
           "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "Lookup": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Mask": {
+      "properties": {
+        "selector": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MaskList": {
+      "items": {
+        "$ref": "#/$defs/Mask"
+      },
+      "type": "array"
+    },
+    "OpenSearchConfig": {
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "username": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "password": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "index": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "address",
+        "index",
+        "query"
+      ]
+    },
+    "RelationshipConfig": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "external_id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "name": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "type": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "agent": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "scope": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "parent": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SecretKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "Tag": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "Tags": {
+      "items": {
+        "$ref": "#/$defs/Tag"
+      },
+      "type": "array"
     },
     "Transform": {
       "properties": {
