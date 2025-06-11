@@ -17,13 +17,6 @@ import (
 	"github.com/flanksource/commons/text"
 	"github.com/flanksource/commons/timer"
 	cUtils "github.com/flanksource/commons/utils"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
-	pkgChanges "github.com/flanksource/config-db/changes"
-	"github.com/flanksource/config-db/db/models"
-	"github.com/flanksource/config-db/db/ulid"
-	"github.com/flanksource/config-db/scrapers/changes"
-	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty"
 	dutyContext "github.com/flanksource/duty/context"
 	dutydb "github.com/flanksource/duty/db"
@@ -39,6 +32,15 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/set"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	pkgChanges "github.com/flanksource/config-db/changes"
+	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/config-db/db/ulid"
+	"github.com/flanksource/config-db/scrapers/changes"
+	"github.com/flanksource/config-db/utils"
 )
 
 const configItemsBulkInsertSize = 200
@@ -427,6 +429,30 @@ func UpdateAnalysisStatusBefore(ctx api.ScrapeContext, before time.Time, scraper
 		Error
 }
 
+// validateExistingUsers checks which external user IDs exist in the database
+// Returns a set of existing user IDs for efficient lookup
+func validateExistingUsers(ctx api.ScrapeContext, userIDs []string) (map[uuid.UUID]bool, error) {
+	if len(userIDs) == 0 {
+		return make(map[uuid.UUID]bool), nil
+	}
+
+	var existingUsers []dutyModels.ExternalUser
+	if err := ctx.DB().Select("id").
+		Where("id IN (?)", userIDs).
+		Where("scraper_id = ?", ctx.ScrapeConfig().GetPersistedID().String()).
+		Where("deleted_at IS NULL").
+		Find(&existingUsers).Error; err != nil {
+		return nil, fmt.Errorf("failed to validate existing users: %w", err)
+	}
+
+	existingUserIDs := make(map[uuid.UUID]bool, len(existingUsers))
+	for _, user := range existingUsers {
+		existingUserIDs[user.ID] = true
+	}
+
+	return existingUserIDs, nil
+}
+
 // SaveResults creates or update a configuration with config changes
 func SaveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSummary, error) {
 	return saveResults(ctx, results)
@@ -589,7 +615,33 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
+	// Collect all unique user IDs from config access and access logs for batch validation
+	userIDSet := set.New[string]()
+
 	for _, configAccess := range extractResult.configAccesses {
+		if configAccess.ExternalUserID != nil {
+			userIDSet.Insert(configAccess.ExternalUserID.String())
+		}
+	}
+
+	for _, accessLog := range extractResult.configAccessLogs {
+		if accessLog.ExternalUserID != uuid.Nil {
+			userIDSet.Insert(accessLog.ExternalUserID.String())
+		}
+	}
+
+	existingUserIDs, err := validateExistingUsers(ctx, userIDSet.UnsortedList())
+	if err != nil {
+		return summary, fmt.Errorf("failed to validate existing users: %w", err)
+	}
+
+	// Filter and save config access records for existing users only
+	for _, configAccess := range extractResult.configAccesses {
+		if configAccess.ExternalUserID != nil && !existingUserIDs[*configAccess.ExternalUserID] {
+			ctx.Logger.V(3).Infof("skipping config access for non-existent user: %s", *configAccess.ExternalUserID)
+			continue
+		}
+
 		if configAccess.ConfigID == uuid.Nil && configAccess.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, configAccess.ConfigExternalID)
 			if err != nil {
@@ -612,6 +664,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	for _, accessLog := range extractResult.configAccessLogs {
+		if accessLog.ExternalUserID != uuid.Nil && !existingUserIDs[accessLog.ExternalUserID] {
+			ctx.Logger.V(3).Infof("skipping access log for non-existent user: %s", accessLog.ExternalUserID)
+			continue
+		}
+
 		if accessLog.ConfigID == uuid.Nil && accessLog.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, accessLog.ConfigExternalID)
 			if err != nil {

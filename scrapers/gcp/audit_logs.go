@@ -100,24 +100,25 @@ func auditLogFilter(ctx *GCPContext, beginTime time.Time, project string, auditL
 		filters = append(filters, opt)
 	}
 
-	var externalUsers []models.ExternalUser
-	if err := ctx.DB().Select("email").Where("email IS NOT NULL").
-		Where("deleted_at IS NULL").
-		Where("scraper_id = ?", ctx.ScrapeConfig().GetPersistedID().String()).Find(&externalUsers).Error; err != nil {
-		return "", fmt.Errorf("failed to get external users: %w", err)
-	}
+	// FIXME:
+	// var externalUsers []models.ExternalUser
+	// if err := ctx.DB().Select("email").Where("email IS NOT NULL").
+	// 	Where("deleted_at IS NULL").
+	// 	Where("scraper_id = ?", ctx.ScrapeConfig().GetPersistedID().String()).Find(&externalUsers).Error; err != nil {
+	// 	return "", fmt.Errorf("failed to get external users: %w", err)
+	// }
 
-	if len(externalUsers) > 0 {
-		// Audit logs can have entries for non-IAM principals.
-		// Example: Kubernetes service accounts.
-		//
-		// We only want to fetch audit logs for the external users that we have saved in the database.
-		filters = append(filters, fmt.Sprintf(`protoPayload.authenticationInfo.principalEmail = (%s)`,
-			strings.Join(lo.Map(externalUsers, func(e models.ExternalUser, _ int) string {
-				return fmt.Sprintf("%q", lo.FromPtr(e.Email))
-			}), " OR "),
-		))
-	}
+	// if len(externalUsers) > 0 {
+	// 	// Audit logs can have entries for non-IAM principals.
+	// 	// Example: Kubernetes service accounts.
+	// 	//
+	// 	// We only want to fetch audit logs for the external users that we have saved in the database.
+	// 	filters = append(filters, fmt.Sprintf(`protoPayload.authenticationInfo.principalEmail = (%s)`,
+	// 		strings.Join(lo.Map(externalUsers, func(e models.ExternalUser, _ int) string {
+	// 			return fmt.Sprintf("%q", lo.FromPtr(e.Email))
+	// 		}), " OR "),
+	// 	))
+	// }
 
 	return strings.Join(filters, " AND "), nil
 }
