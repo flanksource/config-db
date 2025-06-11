@@ -8,6 +8,7 @@ import (
 
 	asset "cloud.google.com/go/asset/apiv1"
 	"cloud.google.com/go/asset/apiv1/assetpb"
+	"cloud.google.com/go/logging/logadmin"
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"google.golang.org/genproto/googleapis/cloud/audit"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/flanksource/config-db/api"
@@ -214,13 +216,13 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			BaseScraper: config.BaseScraper,
 			ID:          lo.CoalesceOrEmpty(rd.ID, rd.Name),
 			Name:        rd.Name,
-			Aliases:     rd.Aliases,
 			Config:      asset.Resource.Data,
 			ConfigClass: configClass,
 			Type:        configType,
 			CreatedAt:   lo.ToPtr(rd.CreatedAt),
 			Labels:      rd.Labels,
 			Tags:        tags,
+			Aliases:     append(rd.Aliases, asset.Name),
 			Properties:  []*types.Property{getLink(rd)},
 		}
 
@@ -234,6 +236,77 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 	return results, nil
 }
 
+func (gcp Scraper) FetchAccessLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
+	var results v1.ScrapeResults
+
+	adminClient, err := logadmin.NewClient(ctx, config.Project, ctx.ClientOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logging admin client: %w", err)
+	}
+	defer adminClient.Close()
+
+	it := adminClient.Entries(ctx, logadmin.Filter(`resource.type="gcs_bucket"`))
+
+	var configAccessLogs []v1.ExternalConfigAccessLog
+
+	for {
+		entry, err := it.Next()
+		if err == iterator.Done {
+			break
+		} else if err != nil {
+			return nil, fmt.Errorf("failed to list access log entries: %w", err)
+		}
+
+		if entry.Payload == nil {
+			continue
+		}
+
+		auditLog, ok := entry.Payload.(*audit.AuditLog)
+		if !ok {
+			continue
+		}
+
+		var userEmail string
+		if authInfo := auditLog.AuthenticationInfo; authInfo != nil && authInfo.PrincipalEmail != "" {
+			userEmail = auditLog.AuthenticationInfo.PrincipalEmail
+		}
+
+		var resourceID v1.ExternalID
+		switch entry.Resource.Type {
+		case "gcs_bucket":
+			resourceID.ExternalID = fmt.Sprintf("//storage.googleapis.com/%s", entry.Resource.Labels["bucket_name"])
+			resourceID.ConfigType = "GCP::Storage::Bucket"
+		default:
+			continue
+		}
+
+		if userEmail == "" || resourceID.IsEmpty() {
+			continue
+		}
+
+		accessLog := models.ConfigAccessLog{
+			ExternalUserID: generateConsistentID(userEmail),
+			ScraperID:      *ctx.ScrapeConfig().GetPersistedID(),
+			CreatedAt:      entry.Timestamp,
+		}
+
+		configAccessLogs = append(configAccessLogs, v1.ExternalConfigAccessLog{
+			ConfigAccessLog:  accessLog,
+			ConfigExternalID: resourceID,
+		})
+	}
+
+	if len(configAccessLogs) > 0 {
+		results = append(results, v1.ScrapeResult{
+			BaseScraper:      config.BaseScraper,
+			ConfigAccessLogs: configAccessLogs,
+		})
+	}
+
+	return results, nil
+}
+
+// FetchIAMPolicies scrapes external users and roles.
 func (gcp Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
 	var results v1.ScrapeResults
 
@@ -249,8 +322,8 @@ func (gcp Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeRe
 	defer assetClient.Close()
 
 	// Track unique roles and users to avoid duplicates
-	uniqueRoles := make(map[string]models.ExternalRole)
-	uniqueUsers := make(map[string]models.ExternalUser)
+	uniqueRoles := make(map[uuid.UUID]models.ExternalRole)
+	uniqueUsers := make(map[uuid.UUID]models.ExternalUser)
 	var configAccesses []v1.ExternalConfigAccess
 
 	it := assetClient.ListAssets(ctx, req)
@@ -277,7 +350,7 @@ func (gcp Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeRe
 			// global: roles/cloudasset.owner
 			// custom: projects/aditya-461913/roles/mycustomroleaditya (project scoped)
 			roleID := generateConsistentID(binding.Role)
-			if _, exists := uniqueRoles[binding.Role]; !exists {
+			if _, exists := uniqueRoles[roleID]; !exists {
 				role := models.ExternalRole{
 					ID:        roleID,
 					Name:      binding.Role,
@@ -294,7 +367,7 @@ func (gcp Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeRe
 					// FIXME: Only custom roles should be tied to an account and scraper
 				}
 
-				uniqueRoles[binding.Role] = role
+				uniqueRoles[roleID] = role
 			}
 
 			for _, member := range binding.Members {
@@ -303,42 +376,20 @@ func (gcp Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeRe
 					continue
 				}
 
-				switch userType {
-				case "User":
-					userID := generateConsistentID(email)
-					if _, exists := uniqueUsers[member]; !exists {
-						externalUser := models.ExternalUser{
-							ID:        userID,
-							Name:      name,
-							ScraperID: lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()),
-							AccountID: config.Project,
-							CreatedAt: time.Now(), // We don't have this information
-							UserType:  userType,
-						}
-						if email != "" {
-							externalUser.Email = &email
-						}
-						uniqueUsers[member] = externalUser
+				userID := generateConsistentID(email)
+				if _, exists := uniqueUsers[userID]; !exists {
+					externalUser := models.ExternalUser{
+						ID:        userID,
+						Name:      name,
+						ScraperID: lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()),
+						AccountID: config.Project,
+						CreatedAt: time.Now(), // We don't have this information
+						UserType:  userType,
 					}
-
-					configAccessID := generateConsistentID(fmt.Sprintf("%s:%s:%s", resourceID, member, binding.Role))
-					configAccess := models.ConfigAccess{
-						ID:             configAccessID.String(),
-						ExternalUserID: &userID,
-						ExternalRoleID: &roleID,
-						ScraperID:      ctx.ScrapeConfig().GetPersistedID(),
+					if email != "" {
+						externalUser.Email = &email
 					}
-
-					configClass := parseGCPConfigClass(asset.AssetType)
-					configType := fmt.Sprintf("GCP::%s", configClass)
-
-					configAccesses = append(configAccesses, v1.ExternalConfigAccess{
-						ConfigAccess: configAccess,
-						ConfigExternalID: v1.ExternalID{
-							ExternalID: resourceID,
-							ConfigType: configType,
-						},
-					})
+					uniqueUsers[userID] = externalUser
 				}
 			}
 		}
@@ -402,6 +453,14 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			allResults = append(allResults, results...)
 		} else {
 			allResults = append(allResults, iamPolicyResults...)
+		}
+
+		accessLogResults, err := gcp.FetchAccessLogs(gcpCtx, gcpConfig)
+		if err != nil {
+			results.Errorf(err, "failed to fetch GCP access logs for project %s", gcpConfig.Project)
+			allResults = append(allResults, results...)
+		} else {
+			allResults = append(allResults, accessLogResults...)
 		}
 	}
 
