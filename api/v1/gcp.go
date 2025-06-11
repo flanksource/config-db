@@ -26,9 +26,27 @@ const (
 type GCP struct {
 	BaseScraper              `json:",inline"`
 	connection.GCPConnection `json:",inline"`
-	Project                  string   `json:"project"`
-	Include                  []string `json:"include,omitempty"`
-	Exclude                  []string `json:"exclude,omitempty"`
+	Project                  string `json:"project"`
+
+	// Include is a list of GCP asset types to scrape.
+	// Reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types
+	// Example: storage.googleapis.com/Bucket
+	Include []string `json:"include,omitempty"`
+
+	// Exclude is a list of GCP asset types to exclude from scraping.
+	Exclude []string `json:"exclude,omitempty"`
+
+	AuditLogs GCPAuditLogs `json:"auditLogs,omitempty"`
+}
+
+type GCPAuditLogs struct {
+	Enabled      bool     `json:"enabled,omitempty"`
+	IncludeTypes []string `json:"includeTypes,omitempty"`
+	ExcludeTypes []string `json:"excludeTypes,omitempty"`
+
+	// The lookback period for audit logs.
+	// Default: 7d
+	MaxDuration string `json:"maxDuration,omitempty"`
 }
 
 func (gcp GCP) Includes(resource string) bool {
