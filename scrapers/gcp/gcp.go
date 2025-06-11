@@ -9,7 +9,10 @@ import (
 	asset "cloud.google.com/go/asset/apiv1"
 	"cloud.google.com/go/asset/apiv1/assetpb"
 	"github.com/Jeffail/gabs/v2"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	uuidV5 "github.com/gofrs/uuid/v5"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
@@ -178,6 +181,26 @@ var defaultIgnoreList = []string{
 	"serviceusage.googleapis.com/Service",
 }
 
+func generateConsistentID(input string) uuid.UUID {
+	gen := uuidV5.NewV5(uuidV5.NamespaceOID, input)
+	return uuid.UUID(gen)
+}
+
+func parseGCPMember(member string) (userType, name, email string, found bool) {
+	if strings.HasPrefix(member, "user:") {
+		email = strings.TrimPrefix(member, "user:")
+		return "User", email, email, true
+	} else if strings.HasPrefix(member, "serviceAccount:") {
+		email = strings.TrimPrefix(member, "serviceAccount:")
+		return "ServiceAccount", email, email, true
+	} else if strings.HasPrefix(member, "group:") {
+		name = strings.TrimPrefix(member, "group:")
+		return "Group", name, name, true
+	}
+
+	return "", member, "", false
+}
+
 func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
 	var results v1.ScrapeResults
 
@@ -187,14 +210,20 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		AssetTypes:  []string{".*.googleapis.com.*"},
 	}
 
-	if len(config.Include) > 0 {
-		req.AssetTypes = config.Include
+	if assetTypes := config.GetAssetTypes(); len(assetTypes) > 0 {
+		req.AssetTypes = assetTypes
 	}
 
 	assetClient, err := asset.NewClient(ctx, ctx.ClientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating asset client: %w", err)
 	}
+	defer func() {
+		if err := assetClient.Close(); err != nil {
+			ctx.Warnf("gcp assets: failed to close asset client: %v", err)
+		}
+	}()
+
 	baseTags := []v1.Tag{{Name: "project", Value: config.Project}}
 	ignoreList := append(defaultIgnoreList, config.Exclude...)
 
@@ -228,20 +257,139 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			tags = append(tags, v1.Tag{Name: "zone", Value: rd.Zone})
 		}
 
-		results = append(results, v1.ScrapeResult{
+		res := v1.ScrapeResult{
 			BaseScraper: config.BaseScraper,
 			ID:          lo.CoalesceOrEmpty(rd.ID, rd.Name),
 			Name:        rd.Name,
-			Aliases:     rd.Aliases,
 			Config:      asset.Resource.Data,
 			ConfigClass: configClass,
 			Type:        configType,
 			CreatedAt:   lo.ToPtr(rd.CreatedAt),
 			Labels:      rd.Labels,
 			Tags:        tags,
+			Aliases:     append(rd.Aliases, asset.Name),
 			Properties:  []*types.Property{getLink(rd)},
-		})
+		}
+
+		if rd.ID != "" {
+			res.Aliases = append(res.Aliases, rd.ID)
+		}
+
+		results = append(results, res)
 	}
+
+	return results, nil
+}
+
+// FetchIAMPolicies scrapes external users and roles.
+func (gcp Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
+	var results v1.ScrapeResults
+
+	req := &assetpb.ListAssetsRequest{
+		Parent:      fmt.Sprintf("projects/%s", config.Project),
+		ContentType: assetpb.ContentType_IAM_POLICY,
+	}
+
+	assetClient, err := asset.NewClient(ctx, ctx.ClientOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("error creating asset client for IAM policies: %w", err)
+	}
+	defer func() {
+		if err := assetClient.Close(); err != nil {
+			ctx.Warnf("gcp iam policies: failed to close asset client: %v", err)
+		}
+	}()
+
+	// Track unique roles and users to avoid duplicates
+	uniqueRoles := make(map[uuid.UUID]models.ExternalRole)
+	uniqueUsers := make(map[uuid.UUID]models.ExternalUser)
+	var configAccesses []v1.ExternalConfigAccess
+
+	it := assetClient.ListAssets(ctx, req)
+	for {
+		asset, err := it.Next()
+		if err == iterator.Done {
+			break
+		} else if err != nil {
+			return nil, fmt.Errorf("error listing IAM policies: %w", err)
+		}
+
+		if asset.IamPolicy == nil {
+			continue
+		}
+
+		// Extract resource ID from asset name (e.g., "//compute.googleapis.com/projects/project-id/zones/us-central1-a/instances/instance-name")
+		resourceID := asset.Name
+		if resourceID == "" {
+			continue
+		}
+
+		for _, binding := range asset.IamPolicy.Bindings {
+			// bind.Role could be
+			// global: roles/cloudasset.owner
+			// custom: projects/aditya-461913/roles/mycustomroleaditya (project scoped)
+			roleID := generateConsistentID(binding.Role)
+			if _, exists := uniqueRoles[roleID]; !exists {
+				role := models.ExternalRole{
+					ID:        roleID,
+					Name:      binding.Role,
+					AccountID: config.Project,
+					ScraperID: ctx.ScrapeConfig().GetPersistedID(),
+					RoleType:  lo.Ternary(strings.HasPrefix(binding.Role, "roles/"), "Global", "Custom"),
+				}
+
+				if strings.HasPrefix(binding.Role, "roles/") {
+					role.RoleType = "Global"
+				} else {
+					role.RoleType = "Custom"
+
+					// FIXME: Only custom roles should be tied to an account and scraper
+				}
+
+				uniqueRoles[roleID] = role
+			}
+
+			for _, member := range binding.Members {
+				userType, name, email, found := parseGCPMember(member)
+				if !found {
+					continue
+				}
+
+				userID := generateConsistentID(email)
+				if _, exists := uniqueUsers[userID]; !exists {
+					externalUser := models.ExternalUser{
+						ID:        userID,
+						Name:      name,
+						ScraperID: lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()),
+						AccountID: config.Project,
+						CreatedAt: time.Now(), // We don't have this information
+						UserType:  userType,
+					}
+					if email != "" {
+						externalUser.Email = &email
+					}
+					uniqueUsers[userID] = externalUser
+				}
+			}
+		}
+	}
+
+	var externalRoles []models.ExternalRole
+	for _, role := range uniqueRoles {
+		externalRoles = append(externalRoles, role)
+	}
+
+	var externalUsers []models.ExternalUser
+	for _, user := range uniqueUsers {
+		externalUsers = append(externalUsers, user)
+	}
+
+	results = append(results, v1.ScrapeResult{
+		BaseScraper:   config.BaseScraper,
+		ExternalRoles: externalRoles,
+		ExternalUsers: externalUsers,
+		ConfigAccess:  configAccesses,
+	})
 
 	return results, nil
 }
@@ -255,6 +403,7 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 	for _, gcpConfig := range ctx.ScrapeConfig().Spec.GCP {
 		results := v1.ScrapeResults{}
+
 		gcpCtx, err := NewGCPContext(ctx, gcpConfig)
 		if err != nil {
 			results.Errorf(err, "failed to create GCP context")
@@ -262,20 +411,43 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 
-		results, err = gcp.FetchAllAssets(gcpCtx, gcpConfig)
-		if err != nil {
-			results.Errorf(err, "failed to fetch GCP assets")
-			allResults = append(allResults, results...)
-			continue
+		if len(gcpConfig.GetAssetTypes()) > 0 || len(gcpConfig.Include) == 0 {
+			assetResults, err := gcp.FetchAllAssets(gcpCtx, gcpConfig)
+			if err != nil {
+				results.Errorf(err, "failed to fetch GCP assets")
+				allResults = append(allResults, results...)
+				continue
+			} else {
+				allResults = append(allResults, assetResults...)
+			}
+
+			if backupResults, err := gcp.scrapeCloudSQLBackupsForAllInstances(gcpCtx, gcpConfig, results); err != nil {
+				results.Errorf(err, "failed to scrape Cloud SQL backups")
+			} else {
+				results = append(results, backupResults...)
+			}
 		}
 
-		if backupResults, err := gcp.scrapeCloudSQLBackupsForAllInstances(gcpCtx, gcpConfig, results); err != nil {
-			results.Errorf(err, "failed to scrape Cloud SQL backups")
-		} else {
-			results = append(results, backupResults...)
+		if gcpConfig.Includes(v1.IncludeIAMPolicy) {
+			iamPolicyResults, err := gcp.FetchIAMPolicies(gcpCtx, gcpConfig)
+			if err != nil {
+				results.Errorf(err, "failed to fetch GCP IAM policies for project %s", gcpConfig.Project)
+				allResults = append(allResults, results...)
+			} else {
+				allResults = append(allResults, iamPolicyResults...)
+			}
 		}
 
-		allResults = append(allResults, results...)
+		// Audit logs must be enabled explicitly.
+		if gcpConfig.Includes(v1.IncludeAuditLogs) && len(gcpConfig.Include) > 0 {
+			accessLogResults, err := gcp.FetchAuditLogs(gcpCtx, gcpConfig)
+			if err != nil {
+				results.Errorf(err, "failed to fetch GCP access logs for project %s", gcpConfig.Project)
+				allResults = append(allResults, results...)
+			} else {
+				allResults = append(allResults, accessLogResults...)
+			}
+		}
 	}
 
 	return allResults

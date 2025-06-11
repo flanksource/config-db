@@ -1,8 +1,17 @@
 apiVersion: configs.flanksource.com/v1
 kind: ScrapeConfig
 metadata:
-  name: gcp-scraper
-  namespace: default
+  name: gcp-full-scraper
+  namespace: mc
 spec:
   gcp:
-    - project: flanksource-sandbox
+    - project: full-scraper-project
+      connection: connection://mc/gcloud-flanksource 
+      include:
+        - Assets
+        - IAMPolicy
+        - storage.googleapis.com/Bucket
+        - compute.googleapis.com/Instance
+        - container.googleapis.com/Cluster
+      auditLogs:
+        maxDuration: 30d

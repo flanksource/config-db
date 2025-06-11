@@ -1009,6 +1009,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "auditLogs": {
+          "$ref": "#/$defs/GCPAuditLogs"
         }
       },
       "additionalProperties": false,
@@ -1016,6 +1019,27 @@
       "required": [
         "project"
       ]
+    },
+    "GCPAuditLogs": {
+      "properties": {
+        "includeTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "excludeTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "maxDuration": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "GCSConnection": {
       "properties": {

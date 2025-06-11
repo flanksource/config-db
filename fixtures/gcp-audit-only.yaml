@@ -1,0 +1,13 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: gcp-audit-only
+  namespace: mc
+spec:
+  gcp:
+    - project: audit-only-project
+      connection: connection://mc/gcloud-flanksource
+      include:
+        - AuditLogs
+      auditLogs:
+        maxDuration: 7d
