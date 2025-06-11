@@ -52,7 +52,7 @@ require (
 	github.com/fjl/memsize v0.0.2
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.39.0
-	github.com/flanksource/duty v1.0.953
+	github.com/flanksource/duty v1.0.954
 	github.com/flanksource/is-healthy v1.0.74
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.11
