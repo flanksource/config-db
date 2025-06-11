@@ -1,0 +1,32 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: opensearch
+  uid: a49e46cd-7008-4bfc-a82d-9c930a84531f
+  namespace: default
+spec:
+  full: true
+  logs:
+    - id: app-config-changes
+      type: logs
+      opensearch:
+        address: http://localhost:9200
+        index: app-logs
+        query: '{"bool":{"must":[{"match":{"job":"app"}},{"regexp":{"message":".*Configuration reloaded:.*changed from.*to.*"}}]}}'
+        size: 50
+        from: 24h
+      transform:
+        expr: |
+          dyn(config.logs).map(line, {
+            "changes": [
+              {
+                "external_change_id": line.hash,
+                "change_type": "ConfigReload",
+                "external_id": "fdee1b15-4579-499e-adc5-2817735ec3f6",
+                "config_type": "Database::PostgreSQL",
+                "created_at": line.firstObserved,
+                "summary": line.message,
+                "scraper_id": "all"
+              }
+            ]
+          }).toJSON()

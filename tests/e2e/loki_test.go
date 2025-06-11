@@ -85,7 +85,7 @@ var _ = ginkgo.Describe("Logs Scraper - Loki", ginkgo.Ordered, func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "postgres-scraper",
 				Namespace: "default",
-				UID:       "postgres-scraper-123",
+				UID:       "59f5ef3a-9399-45c5-92e3-43100869b5d7",
 			},
 			Spec: v1.ScraperSpec{
 				SQL: []v1.SQL{

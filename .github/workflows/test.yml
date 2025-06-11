@@ -40,6 +40,24 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      opensearch:
+        image: opensearchproject/opensearch:2.11.1
+        ports:
+          - 9200:9200
+          - 9600:9600
+        env:
+          discovery.type: single-node
+          plugins.security.disabled: true
+          bootstrap.memory_lock: true
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+        options: >-
+          --health-cmd "curl -f http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 30s
+          --ulimit memlock=-1:-1
+          --ulimit nofile=65536:65536
     steps:
       - name: Install Go
         uses: buildjet/setup-go@v5
@@ -63,6 +81,7 @@ jobs:
         env:
           DUTY_DB_DISABLE_RLS: 'true'
           LOKI_URL: http://localhost:3100
+          OPENSEARCH_URL: http://localhost:9200
 
   test-prod:
     runs-on: ubuntu-latest
