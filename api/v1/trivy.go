@@ -30,6 +30,7 @@ func (t Trivy) GetK8sArgs() []string {
 	var args []string
 	args = append(args, "k8s")
 	args = append(args, "--format", "json") // hardcoded here. don't allow users this option.
+	args = append(args, "--server", "TODO")
 	args = append(args, t.getCommonArgs()...)
 	args = append(args, t.Kubernetes.getArgs()...)
 	args = append(args, "all")

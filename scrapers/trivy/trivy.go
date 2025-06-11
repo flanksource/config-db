@@ -34,6 +34,11 @@ func (t Scanner) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
 	for i, config := range ctx.ScrapeConfig().Spec.Trivy {
+		if err := startTrivyServer(ctx, DefaultPort); err != nil {
+			var result = v1.NewScrapeResult(config.BaseScraper)
+			results = append(results, result.Errorf("failed to install trivy: %w", err))
+		}
+
 		if config.IsEmpty() {
 			ctx.Logger.V(3).Infof("Trivy config [%d] is empty. Skipping ...", i+1)
 			continue
