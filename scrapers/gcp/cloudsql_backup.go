@@ -35,7 +35,6 @@ func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config 
 				instanceSelfLink = result.ID
 			}
 
-			ctx.Logger.V(3).Infof("Found Cloud SQL instance: %s (type: %s)", instanceName, result.Type)
 			instances = append(instances, instanceInfo{name: instanceName, selfLink: instanceSelfLink})
 		}
 	}
@@ -51,7 +50,6 @@ func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config 
 
 	var allChanges []v1.ChangeResult
 
-	// Scrape backup runs for each instance
 	for _, instance := range instances {
 		if backupChanges, err := gcp.scrapeBackupRuns(ctx, config, sqlService, instance.name, instance.selfLink); err != nil {
 			ctx.Logger.Errorf("failed to scrape backup runs for instance %s: %v", instance.name, err)
@@ -60,7 +58,6 @@ func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config 
 		}
 	}
 
-	// Scrape operations once for the entire project
 	if operationChanges, err := gcp.scrapeOperations(ctx, config, sqlService, instances); err != nil {
 		ctx.Logger.Errorf("failed to scrape operations for project %s: %v", config.Project, err)
 	} else {
@@ -86,14 +83,18 @@ type instanceInfo struct {
 func (gcp Scraper) scrapeBackupRuns(ctx *GCPContext, config v1.GCP, service *sqladmin.Service, instanceName string, instanceSelfLink string) ([]v1.ChangeResult, error) {
 	ctx.Logger.V(3).Infof("scraping backup runs for Cloud SQL instance %s", instanceName)
 
+	var allBackupRuns []*sqladmin.BackupRun
 	backupRunsCall := service.BackupRuns.List(config.Project, instanceName)
-	backupRunsResp, err := backupRunsCall.Do()
+	err := backupRunsCall.Pages(ctx, func(page *sqladmin.BackupRunsListResponse) error {
+		allBackupRuns = append(allBackupRuns, page.Items...)
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list backup runs for instance %s: %w", instanceName, err)
 	}
 
 	var changes []v1.ChangeResult
-	for _, backupRun := range backupRunsResp.Items {
+	for _, backupRun := range allBackupRuns {
 		startTime, err := time.Parse(time.RFC3339, backupRun.StartTime)
 		if err != nil {
 			ctx.Logger.V(2).Infof("failed to parse backup run start time for instance %s, backup ID %d: %v", instanceName, backupRun.Id, err)
@@ -108,15 +109,13 @@ func (gcp Scraper) scrapeBackupRuns(ctx *GCPContext, config v1.GCP, service *sql
 			ExternalID:       instanceSelfLink,
 			ExternalChangeID: fmt.Sprintf("%d", backupRun.Id),
 			ChangeType:       changeType,
-			Source:           "GCP Cloud SQL",
-			Summary:          fmt.Sprintf("Cloud SQL backup %s for instance %s", strings.ToLower(backupRun.Status), instanceName),
+			Source:           "SQLAdmin",
+			Summary:          fmt.Sprintf("%s %s", lo.PascalCase(backupRun.Type), lo.PascalCase(backupRun.BackupKind)), // eg: Automated Snapshot
 			CreatedAt:        &startTime,
 			Severity:         severity,
 			Details: map[string]any{
 				"backupRun": backupRun,
-				"status":    backupRun.Status,
-				"instance":  instanceName,
-				"type":      backupRun.Type,
+				"status":    lo.PascalCase(backupRun.Status),
 			},
 		}
 
@@ -138,49 +137,49 @@ func (gcp Scraper) scrapeOperations(ctx *GCPContext, config v1.GCP, service *sql
 	var changes []v1.ChangeResult
 
 	operationsCall := service.Operations.List(config.Project)
-	operationsResp, err := operationsCall.Do()
+	err := operationsCall.Pages(ctx, func(operationsResp *sqladmin.OperationsListResponse) error {
+		for _, operation := range operationsResp.Items {
+			if operation.OperationType != "IMPORT" && operation.OperationType != "EXPORT" {
+				continue
+			}
+
+			instanceSelfLink, exists := instanceMap[operation.TargetId]
+			if !exists {
+				continue
+			}
+
+			startTime, err := time.Parse(time.RFC3339, operation.StartTime)
+			if err != nil {
+				ctx.Logger.V(2).Infof("failed to parse operation start time for instance %s, operation %s: %v", operation.TargetId, operation.Name, err)
+				continue
+			}
+
+			changeType := fmt.Sprintf("%s%s", lo.PascalCase(operation.OperationType), lo.PascalCase(operation.Status))
+			severity := mapCloudSQLOperationSeverity(operation.Status)
+
+			changeResult := v1.ChangeResult{
+				ConfigType:       v1.CloudSQLInstance,
+				ExternalID:       instanceSelfLink,
+				ExternalChangeID: operation.Name,
+				ChangeType:       changeType,
+				Source:           "GCP Cloud SQL",
+				Summary:          fmt.Sprintf("Cloud SQL %s %s for instance %s", strings.ToLower(operation.OperationType), strings.ToLower(operation.Status), operation.TargetId),
+				CreatedAt:        &startTime,
+				Severity:         severity,
+				Details: map[string]any{
+					"operation": operation,
+					"status":    operation.Status,
+					"instance":  operation.TargetId,
+					"type":      operation.OperationType,
+				},
+			}
+
+			changes = append(changes, changeResult)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list operations: %w", err)
-	}
-
-	for _, operation := range operationsResp.Items {
-		if operation.OperationType != "IMPORT" && operation.OperationType != "EXPORT" {
-			continue
-		}
-
-		// Check if this operation belongs to one of our instances
-		instanceSelfLink, exists := instanceMap[operation.TargetId]
-		if !exists {
-			continue
-		}
-
-		startTime, err := time.Parse(time.RFC3339, operation.StartTime)
-		if err != nil {
-			ctx.Logger.V(2).Infof("failed to parse operation start time for instance %s, operation %s: %v", operation.TargetId, operation.Name, err)
-			continue
-		}
-
-		changeType := fmt.Sprintf("%s%s", lo.PascalCase(operation.OperationType), lo.PascalCase(operation.Status))
-		severity := mapCloudSQLOperationSeverity(operation.Status)
-
-		changeResult := v1.ChangeResult{
-			ConfigType:       v1.CloudSQLInstance,
-			ExternalID:       instanceSelfLink,
-			ExternalChangeID: operation.Name,
-			ChangeType:       changeType,
-			Source:           "GCP Cloud SQL",
-			Summary:          fmt.Sprintf("Cloud SQL %s %s for instance %s", strings.ToLower(operation.OperationType), strings.ToLower(operation.Status), operation.TargetId),
-			CreatedAt:        &startTime,
-			Severity:         severity,
-			Details: map[string]any{
-				"operation": operation,
-				"status":    operation.Status,
-				"instance":  operation.TargetId,
-				"type":      operation.OperationType,
-			},
-		}
-
-		changes = append(changes, changeResult)
 	}
 
 	return changes, nil
@@ -189,9 +188,7 @@ func (gcp Scraper) scrapeOperations(ctx *GCPContext, config v1.GCP, service *sql
 // mapCloudSQLOperationSeverity maps Cloud SQL operation status to severity levels
 func mapCloudSQLOperationSeverity(status string) string {
 	switch strings.ToUpper(status) {
-	case "PENDING", "RUNNING":
-		return string(models.SeverityInfo)
-	case "DONE", "SUCCESSFUL":
+	case "PENDING", "RUNNING", "DONE", "SUCCESSFUL":
 		return string(models.SeverityInfo)
 	case "FAILED", "ERROR":
 		return string(models.SeverityHigh)
