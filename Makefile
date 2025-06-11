@@ -78,12 +78,14 @@ gotest: ginkgo
 
 .PHONY: gotest-prod
 gotest-prod:
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -tags rustdiffgen ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		go test -tags rustdiffgen ./... -coverprofile cover.out -skip "TestE2E"
 
 .PHONY: gotest-load
 gotest-load:
 	make -C fixtures/load k6
-	LOAD_TEST=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./tests -coverprofile cover.out
+	LOAD_TEST=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		go test -v ./tests -coverprofile cover.out -skip "TestE2E"
 
 .PHONY: env
 env: envtest ## Run tests.

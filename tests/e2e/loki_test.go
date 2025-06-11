@@ -17,6 +17,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -32,6 +33,7 @@ var _ = ginkgo.Describe("Logs Scraper - Loki", ginkgo.Ordered, func() {
 		scrapeConfig          *v1.ScrapeConfig
 		configScraper         models.ConfigScraper
 		postgresConfigScraper models.ConfigScraper
+		configItem            dbmodels.ConfigItem
 	)
 
 	ginkgo.BeforeAll(func() {
@@ -53,17 +55,17 @@ var _ = ginkgo.Describe("Logs Scraper - Loki", ginkgo.Ordered, func() {
 
 		Eventually(func() error {
 			resp, err := http.Get(lokiURL + "/ready")
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
+			Expect(err).To(BeNil())
+			defer func() {
+				Expect(resp.Body.Close()).To(Not(HaveOccurred()))
+			}()
 
 			if resp.StatusCode != 200 {
 				return fmt.Errorf("loki not ready, status: %d", resp.StatusCode)
 			}
 
 			return nil
-		}, 30*time.Second, 2*time.Second).Should(Succeed())
+		}, 30*time.Second, time.Second).Should(Succeed())
 
 		fixturePath := filepath.Join("testdata", "loki.yaml")
 		configs, err := v1.ParseConfigs(fixturePath)
@@ -85,7 +87,7 @@ var _ = ginkgo.Describe("Logs Scraper - Loki", ginkgo.Ordered, func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "postgres-scraper",
 				Namespace: "default",
-				UID:       "postgres-scraper-123",
+				UID:       types.UID(uuid.New().String()),
 			},
 			Spec: v1.ScraperSpec{
 				SQL: []v1.SQL{
@@ -102,8 +104,8 @@ var _ = ginkgo.Describe("Logs Scraper - Loki", ginkgo.Ordered, func() {
 		postgresConfigScraper, err = db.PersistScrapeConfigFromFile(DefaultContext, postgresSpec)
 		Expect(err).NotTo(HaveOccurred())
 
-		configItemID, _ := uuid.Parse("fdee1b15-4579-499e-adc5-2817735ec3f6")
-		configItem := &dbmodels.ConfigItem{
+		configItemID := uuid.MustParse("fdee1b15-4579-499e-adc5-2817735ec3f6")
+		configItem = dbmodels.ConfigItem{
 			ID:         configItemID.String(),
 			ExternalID: []string{configItemID.String(), "postgres-0"},
 			Type:       "Database::PostgreSQL",
@@ -113,7 +115,7 @@ var _ = ginkgo.Describe("Logs Scraper - Loki", ginkgo.Ordered, func() {
 		}
 
 		scraperCtx := api.NewScrapeContext(DefaultContext)
-		err = db.CreateConfigItem(scraperCtx, configItem)
+		err = db.CreateConfigItem(scraperCtx, &configItem)
 		Expect(err).NotTo(HaveOccurred())
 
 		err = injectTestLogs(lokiURL)
@@ -131,8 +133,10 @@ var _ = ginkgo.Describe("Logs Scraper - Loki", ginkgo.Ordered, func() {
 	ginkgo.It("should trigger logs scraper via /run endpoint", func() {
 		runURL := fmt.Sprintf("%s/run/%s", server.URL, configScraper.ID)
 		resp, err := http.Post(runURL, "application/json", nil)
-		Expect(err).NotTo(HaveOccurred())
-		defer resp.Body.Close()
+		Expect(err).To(BeNil())
+		defer func() {
+			Expect(resp.Body.Close()).To(Not(HaveOccurred()))
+		}()
 
 		Expect(resp.StatusCode).To(Equal(200))
 
@@ -217,10 +221,10 @@ func injectTestLogs(lokiURL string) error {
 		"application/json",
 		bytes.NewBuffer(jsonData),
 	)
-	if err != nil {
-		return fmt.Errorf("failed to push logs to loki: %w", err)
-	}
-	defer resp.Body.Close()
+	Expect(err).To(BeNil())
+	defer func() {
+		Expect(resp.Body.Close()).To(Not(HaveOccurred()))
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("failed to push logs, status code: %d", resp.StatusCode)
