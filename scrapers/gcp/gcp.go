@@ -8,7 +8,6 @@ import (
 
 	asset "cloud.google.com/go/asset/apiv1"
 	"cloud.google.com/go/asset/apiv1/assetpb"
-	"cloud.google.com/go/logging/logadmin"
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
@@ -18,7 +17,6 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"google.golang.org/genproto/googleapis/cloud/audit"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/flanksource/config-db/api"
@@ -236,76 +234,6 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 	return results, nil
 }
 
-func (gcp Scraper) FetchAccessLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
-	var results v1.ScrapeResults
-
-	adminClient, err := logadmin.NewClient(ctx, config.Project, ctx.ClientOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create logging admin client: %w", err)
-	}
-	defer adminClient.Close()
-
-	it := adminClient.Entries(ctx, logadmin.Filter(`resource.type="gcs_bucket"`))
-
-	var configAccessLogs []v1.ExternalConfigAccessLog
-
-	for {
-		entry, err := it.Next()
-		if err == iterator.Done {
-			break
-		} else if err != nil {
-			return nil, fmt.Errorf("failed to list access log entries: %w", err)
-		}
-
-		if entry.Payload == nil {
-			continue
-		}
-
-		auditLog, ok := entry.Payload.(*audit.AuditLog)
-		if !ok {
-			continue
-		}
-
-		var userEmail string
-		if authInfo := auditLog.AuthenticationInfo; authInfo != nil && authInfo.PrincipalEmail != "" {
-			userEmail = auditLog.AuthenticationInfo.PrincipalEmail
-		}
-
-		var resourceID v1.ExternalID
-		switch entry.Resource.Type {
-		case "gcs_bucket":
-			resourceID.ExternalID = fmt.Sprintf("//storage.googleapis.com/%s", entry.Resource.Labels["bucket_name"])
-			resourceID.ConfigType = "GCP::Storage::Bucket"
-		default:
-			continue
-		}
-
-		if userEmail == "" || resourceID.IsEmpty() {
-			continue
-		}
-
-		accessLog := models.ConfigAccessLog{
-			ExternalUserID: generateConsistentID(userEmail),
-			ScraperID:      *ctx.ScrapeConfig().GetPersistedID(),
-			CreatedAt:      entry.Timestamp,
-		}
-
-		configAccessLogs = append(configAccessLogs, v1.ExternalConfigAccessLog{
-			ConfigAccessLog:  accessLog,
-			ConfigExternalID: resourceID,
-		})
-	}
-
-	if len(configAccessLogs) > 0 {
-		results = append(results, v1.ScrapeResult{
-			BaseScraper:      config.BaseScraper,
-			ConfigAccessLogs: configAccessLogs,
-		})
-	}
-
-	return results, nil
-}
-
 // FetchIAMPolicies scrapes external users and roles.
 func (gcp Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
 	var results v1.ScrapeResults
@@ -455,7 +383,7 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			allResults = append(allResults, iamPolicyResults...)
 		}
 
-		accessLogResults, err := gcp.FetchAccessLogs(gcpCtx, gcpConfig)
+		accessLogResults, err := gcp.FetchAuditLogs(gcpCtx, gcpConfig)
 		if err != nil {
 			results.Errorf(err, "failed to fetch GCP access logs for project %s", gcpConfig.Project)
 			allResults = append(allResults, results...)

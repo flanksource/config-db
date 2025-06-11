@@ -2676,6 +2676,19 @@ spec:
               gcp:
                 items:
                   properties:
+                    auditLogs:
+                      properties:
+                        duration:
+                          type: string
+                        excludeTypes:
+                          items:
+                            type: string
+                          type: array
+                        includeTypes:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     class:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.
