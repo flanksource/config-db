@@ -431,9 +431,9 @@ func UpdateAnalysisStatusBefore(ctx api.ScrapeContext, before time.Time, scraper
 
 // validateExistingUsers checks which external user IDs exist in the database
 // Returns a set of existing user IDs for efficient lookup
-func validateExistingUsers(ctx api.ScrapeContext, userIDs []string) (map[uuid.UUID]bool, error) {
+func validateExistingUsers(ctx api.ScrapeContext, userIDs []string) (map[uuid.UUID]struct{}, error) {
 	if len(userIDs) == 0 {
-		return make(map[uuid.UUID]bool), nil
+		return make(map[uuid.UUID]struct{}), nil
 	}
 
 	var existingUsers []dutyModels.ExternalUser
@@ -445,9 +445,9 @@ func validateExistingUsers(ctx api.ScrapeContext, userIDs []string) (map[uuid.UU
 		return nil, fmt.Errorf("failed to validate existing users: %w", err)
 	}
 
-	existingUserIDs := make(map[uuid.UUID]bool, len(existingUsers))
+	existingUserIDs := make(map[uuid.UUID]struct{}, len(existingUsers))
 	for _, user := range existingUsers {
-		existingUserIDs[user.ID] = true
+		existingUserIDs[user.ID] = struct{}{}
 	}
 
 	return existingUserIDs, nil
@@ -637,7 +637,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	// Filter and save config access records for existing users only
 	for _, configAccess := range extractResult.configAccesses {
-		if configAccess.ExternalUserID != nil && !existingUserIDs[*configAccess.ExternalUserID] {
+		if configAccess.ExternalUserID == nil {
+			continue
+		}
+
+		if _, ok := existingUserIDs[*configAccess.ExternalUserID]; !ok {
 			ctx.Logger.V(3).Infof("skipping config access for non-existent user: %s", *configAccess.ExternalUserID)
 			continue
 		}
@@ -664,7 +668,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	for _, accessLog := range extractResult.configAccessLogs {
-		if accessLog.ExternalUserID != uuid.Nil && !existingUserIDs[accessLog.ExternalUserID] {
+		if _, ok := existingUserIDs[accessLog.ExternalUserID]; !ok {
 			ctx.Logger.V(3).Infof("skipping access log for non-existent user: %s", accessLog.ExternalUserID)
 			continue
 		}

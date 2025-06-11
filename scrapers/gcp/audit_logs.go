@@ -33,7 +33,7 @@ func auditLogFilter(ctx *GCPContext, beginTime time.Time, project string, auditL
 	// If the scraper isn't running for the first time,
 	// then we discard the maxDuration configuration
 	// and resume from the last saved audit log.
-	var lastSavedAuditLog models.ConfigAccess
+	var lastSavedAuditLog models.ConfigAccessLog
 	if err := ctx.DB().Where("scraper_id = ? ", ctx.ScrapeConfig().GetPersistedID().String()).
 		Order("created_at DESC").
 		Limit(1).

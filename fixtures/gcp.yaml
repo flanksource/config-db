@@ -16,4 +16,4 @@ spec:
         excludeTypes:
           - k8s_cluster
           - k8s_container
-          - cloudsql_databaase
+          - cloudsql_database
