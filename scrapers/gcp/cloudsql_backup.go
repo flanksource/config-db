@@ -15,7 +15,7 @@ import (
 
 // scrapeCloudSQLBackupsForAllInstances finds Cloud SQL instances in the results and scrapes their backups
 func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config v1.GCP, results v1.ScrapeResults) (v1.ScrapeResults, error) {
-	var allBackupResults v1.ScrapeResults
+	var instances []instanceInfo
 	for _, result := range results {
 		if strings.Contains(result.Type, v1.CloudSQLInstance) {
 			instanceName := result.Name
@@ -36,51 +36,50 @@ func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config 
 			}
 
 			ctx.Logger.V(3).Infof("Found Cloud SQL instance: %s (type: %s)", instanceName, result.Type)
-
-			backupResults, err := gcp.scrapeCloudSQLBackups(ctx, config, instanceName, instanceSelfLink)
-			if err != nil {
-				return nil, fmt.Errorf("failed to scrape backups for Cloud SQL instance %s: %v", instanceName, err)
-			}
-
-			allBackupResults = append(allBackupResults, backupResults...)
+			instances = append(instances, instanceInfo{name: instanceName, selfLink: instanceSelfLink})
 		}
 	}
 
-	return allBackupResults, nil
-}
-
-// scrapeCloudSQLBackups scrapes Cloud SQL backup operations for a specific instance
-func (gcp Scraper) scrapeCloudSQLBackups(ctx *GCPContext, config v1.GCP, instanceName string, instanceSelfLink string) (v1.ScrapeResults, error) {
-	var results v1.ScrapeResults
-
-	ctx.Logger.V(2).Infof("scraping Cloud SQL backups for instance %s", instanceName)
+	if len(instances) == 0 {
+		return nil, nil
+	}
 
 	sqlService, err := sqladmin.NewService(ctx, ctx.ClientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SQL admin service: %w", err)
 	}
 
-	var changes []v1.ChangeResult
+	var allChanges []v1.ChangeResult
 
-	if backupChanges, err := gcp.scrapeBackupRuns(ctx, config, sqlService, instanceName, instanceSelfLink); err != nil {
-		ctx.Logger.Errorf("failed to scrape backup runs for instance %s: %v", instanceName, err)
-	} else {
-		changes = append(changes, backupChanges...)
+	// Scrape backup runs for each instance
+	for _, instance := range instances {
+		if backupChanges, err := gcp.scrapeBackupRuns(ctx, config, sqlService, instance.name, instance.selfLink); err != nil {
+			ctx.Logger.Errorf("failed to scrape backup runs for instance %s: %v", instance.name, err)
+		} else {
+			allChanges = append(allChanges, backupChanges...)
+		}
 	}
 
-	if operationChanges, err := gcp.scrapeOperations(ctx, config, sqlService, instanceName, instanceSelfLink); err != nil {
-		ctx.Logger.Errorf("failed to scrape operations for instance %s: %v", instanceName, err)
+	// Scrape operations once for the entire project
+	if operationChanges, err := gcp.scrapeOperations(ctx, config, sqlService, instances); err != nil {
+		ctx.Logger.Errorf("failed to scrape operations for project %s: %v", config.Project, err)
 	} else {
-		changes = append(changes, operationChanges...)
+		allChanges = append(allChanges, operationChanges...)
 	}
 
-	if len(changes) > 0 {
+	var scrapeResults v1.ScrapeResults
+	if len(allChanges) > 0 {
 		result := v1.NewScrapeResult(config.BaseScraper)
-		result.Changes = changes
-		results = append(results, *result)
+		result.Changes = allChanges
+		scrapeResults = append(scrapeResults, *result)
 	}
 
-	return results, nil
+	return scrapeResults, nil
+}
+
+type instanceInfo struct {
+	name     string
+	selfLink string
 }
 
 // scrapeBackupRuns scrapes Cloud SQL backup runs for a specific instance
@@ -97,6 +96,7 @@ func (gcp Scraper) scrapeBackupRuns(ctx *GCPContext, config v1.GCP, service *sql
 	for _, backupRun := range backupRunsResp.Items {
 		startTime, err := time.Parse(time.RFC3339, backupRun.StartTime)
 		if err != nil {
+			ctx.Logger.V(2).Infof("failed to parse backup run start time for instance %s, backup ID %d: %v", instanceName, backupRun.Id, err)
 			continue
 		}
 
@@ -126,9 +126,14 @@ func (gcp Scraper) scrapeBackupRuns(ctx *GCPContext, config v1.GCP, service *sql
 	return changes, nil
 }
 
-// scrapeOperations scrapes Cloud SQL import/export operations for a specific instance
-func (gcp Scraper) scrapeOperations(ctx *GCPContext, config v1.GCP, service *sqladmin.Service, instanceName string, instanceSelfLink string) ([]v1.ChangeResult, error) {
-	ctx.Logger.V(3).Infof("scraping operations for Cloud SQL instance %s", instanceName)
+// scrapeOperations scrapes Cloud SQL import/export operations for all instances
+func (gcp Scraper) scrapeOperations(ctx *GCPContext, config v1.GCP, service *sqladmin.Service, instances []instanceInfo) ([]v1.ChangeResult, error) {
+	ctx.Logger.V(3).Infof("scraping operations for project %s", config.Project)
+
+	instanceMap := make(map[string]string) // instanceName -> selfLink
+	for _, instance := range instances {
+		instanceMap[instance.name] = instance.selfLink
+	}
 
 	var changes []v1.ChangeResult
 
@@ -143,13 +148,15 @@ func (gcp Scraper) scrapeOperations(ctx *GCPContext, config v1.GCP, service *sql
 			continue
 		}
 
-		if operation.TargetId != instanceName {
+		// Check if this operation belongs to one of our instances
+		instanceSelfLink, exists := instanceMap[operation.TargetId]
+		if !exists {
 			continue
 		}
 
-		// Only include operations within the lookback period
 		startTime, err := time.Parse(time.RFC3339, operation.StartTime)
 		if err != nil {
+			ctx.Logger.V(2).Infof("failed to parse operation start time for instance %s, operation %s: %v", operation.TargetId, operation.Name, err)
 			continue
 		}
 
@@ -162,13 +169,13 @@ func (gcp Scraper) scrapeOperations(ctx *GCPContext, config v1.GCP, service *sql
 			ExternalChangeID: operation.Name,
 			ChangeType:       changeType,
 			Source:           "GCP Cloud SQL",
-			Summary:          fmt.Sprintf("Cloud SQL %s %s for instance %s", strings.ToLower(operation.OperationType), strings.ToLower(operation.Status), instanceName),
+			Summary:          fmt.Sprintf("Cloud SQL %s %s for instance %s", strings.ToLower(operation.OperationType), strings.ToLower(operation.Status), operation.TargetId),
 			CreatedAt:        &startTime,
 			Severity:         severity,
 			Details: map[string]any{
 				"operation": operation,
 				"status":    operation.Status,
-				"instance":  instanceName,
+				"instance":  operation.TargetId,
 				"type":      operation.OperationType,
 			},
 		}
