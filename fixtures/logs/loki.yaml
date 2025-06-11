@@ -1,0 +1,29 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: app-config-changes
+  namespace: mc
+spec:
+  full: true
+  logs:
+    - id: None
+      type: None
+      loki:
+        url: http://localhost:3100
+        query: '{job="app"} |~ "Configuration reloaded:.*changed from.*to"'
+        limit: '50'
+        start: 24h
+      transform:
+        expr: |
+          dyn(config.logs).map(line, {
+            "changes": [
+              {
+                "external_change_id": line.hash,
+                "change_type": "ConfigReload",
+                "external_id": "fdee1b15-4579-499e-adc5-2817735ec3f6",
+                "config_type": "Azure::AppRegistration",
+                "created_at": line.firstObserved,
+                "scraper_id": "all"
+              }
+            ]
+          }).toJSON()
