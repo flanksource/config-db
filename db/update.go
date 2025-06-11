@@ -590,7 +590,22 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	for _, configAccess := range extractResult.configAccesses {
-		if err := ctx.DB().Save(&configAccess).Error; err != nil {
+		if configAccess.ConfigID == uuid.Nil && configAccess.ConfigExternalID.ExternalID != "" {
+			config, err := ctx.TempCache().FindExternalID(ctx, configAccess.ConfigExternalID)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find config for config access: %w", err)
+			} else if config == "" {
+				ctx.Logger.V(2).Infof("config access doesn't have an associated config (type=%s external_id=%s)",
+					configAccess.ConfigExternalID.ConfigType,
+					configAccess.ConfigExternalID.ExternalID,
+				)
+				continue
+			}
+
+			configAccess.ConfigID = uuid.MustParse(config)
+		}
+
+		if err := ctx.DB().Save(&configAccess.ConfigAccess).Error; err != nil {
 			return summary, fmt.Errorf("failed to save config access: %w", err)
 		}
 	}
@@ -1027,7 +1042,7 @@ type extractResult struct {
 	externalUserGroups []dutyModels.ExternalUserGroup
 
 	externalRoles    []dutyModels.ExternalRole
-	configAccesses   []dutyModels.ConfigAccess
+	configAccesses   []v1.ExternalConfigAccess
 	configAccessLogs []dutyModels.ConfigAccessLog
 
 	changeSummary v1.ChangeSummaryByType

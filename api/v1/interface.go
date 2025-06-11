@@ -655,11 +655,17 @@ type ScrapeResult struct {
 	ExternalUsers      []models.ExternalUser      `json:"-"`
 	ExternalGroups     []models.ExternalGroup     `json:"-"`
 	ExternalUserGroups []models.ExternalUserGroup `json:"-"`
-	ConfigAccess       []models.ConfigAccess      `json:"-"`
+	ConfigAccess       []ExternalConfigAccess     `json:"-"`
 	ConfigAccessLogs   []models.ConfigAccessLog   `json:"-"`
 
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
+}
+
+// +kubebuilder:object:generate=false
+type ExternalConfigAccess struct {
+	models.ConfigAccess
+	ConfigExternalID ExternalID
 }
 
 var _ types.ResourceSelectable = (*ScrapeResult)(nil)

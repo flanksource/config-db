@@ -57,6 +57,7 @@ require (
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.11
 	github.com/gobwas/glob v0.2.3
+	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
 	github.com/google/uuid v1.6.0
 	github.com/grafana/pyroscope-go v1.2.0
