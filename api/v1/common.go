@@ -227,7 +227,7 @@ type CustomScraperBase struct {
 type BaseScraper struct {
 	CustomScraperBase `yaml:",inline" json:",inline"`
 
-	Transform Transform `json:"transform,omitempty"`
+	Transform Transform `json:"transform"`
 
 	// Labels for each config item.
 	Labels JSONStringMap `json:"labels,omitempty"`
