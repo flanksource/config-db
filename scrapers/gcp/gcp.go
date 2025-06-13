@@ -30,15 +30,29 @@ type Scraper struct {
 
 func NewGCPContext(ctx api.ScrapeContext, gcpConfig v1.GCP) (*GCPContext, error) {
 	var opts []option.ClientOption
+	var creds string
 	if gcpConfig.ConnectionName != "" {
 		if err := gcpConfig.GCPConnection.HydrateConnection(ctx); err != nil {
-			return nil, fmt.Errorf("%w", err)
+			return nil, fmt.Errorf("error hydrating gcp connection: %w", err)
 		}
-		c, err := google.CredentialsFromJSON(ctx, []byte(gcpConfig.GCPConnection.Credentials.ValueStatic))
+		creds = gcpConfig.GCPConnection.Credentials.ValueStatic
+	}
+
+	if gcpConfig.GCPConnection.Credentials != nil {
+		var err error
+		creds, err = ctx.GetEnvValueFromCache(*gcpConfig.GCPConnection.Credentials, ctx.Namespace())
 		if err != nil {
-			return nil, fmt.Errorf("%w", err)
+			return nil, fmt.Errorf("error fetching credentials from k8s: %w", err)
+		}
+	}
+
+	if creds != "" {
+		c, err := google.CredentialsFromJSON(ctx, []byte(creds), "https://www.googleapis.com/auth/cloud-platform")
+		if err != nil {
+			return nil, fmt.Errorf("error getting credentials from json: %w", err)
 		}
 		opts = append(opts, option.WithCredentials(c))
+
 	}
 
 	return &GCPContext{
