@@ -1,0 +1,58 @@
+{
+  "acl": [],
+  "autoclass": {},
+  "billing": {},
+  "cors": [],
+  "customPlacementConfig": {},
+  "defaultObjectAcl": [],
+  "encryption": {},
+  "etag": "CAI=",
+  "iamConfiguration": {
+    "bucketPolicyOnly": {
+      "enabled": true,
+      "lockedTime": "2025-06-22T06:19:43.113Z"
+    },
+    "publicAccessPrevention": "inherited",
+    "uniformBucketLevelAccess": {
+      "enabled": true,
+      "lockedTime": "2025-06-22T06:19:43.113Z"
+    }
+  },
+  "id": "lastline-artifacts",
+  "ipFilter": {
+    "vpcNetworkSources": [],
+    "publicNetworkSource": {}
+  },
+  "kind": "storage#bucket",
+  "labels": {
+    "managed-by-cnrm": "true"
+  },
+  "lifecycle": {
+    "rule": []
+  },
+  "location": "EUROPE-WEST1",
+  "locationType": "region",
+  "logging": {},
+  "metageneration": 2,
+  "name": "lastline-artifacts",
+  "objectRetention": {},
+  "owner": {},
+  "projectNumber": 37170934282,
+  "retentionPolicy": {},
+  "selfLink": "https://www.googleapis.com/storage/v1/b/lastline-artifacts",
+  "softDeletePolicy": {
+    "effectiveTime": "2025-03-24T06:19:43.000Z",
+    "retentionDurationSeconds": 604800
+  },
+  "storageClass": "STANDARD",
+  "timeCreated": "2025-03-24T06:19:43.113Z",
+  "updated": "2025-03-24T19:07:22.331Z",
+  "versioning": {
+    "enabled": true
+  },
+  "website": {},
+  "expectation": {
+    "zone": "",
+    "region": "europe-west1"
+  }
+}
