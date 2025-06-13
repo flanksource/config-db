@@ -28,7 +28,7 @@ func startTrivyServer(ctx context.Context, port string) error {
 		return nil
 	}
 
-	trivyServerCmd := exec.CommandContext(ctx, "trivy", "server", "--listen", "127.0.0.0:"+port)
+	trivyServerCmd := exec.CommandContext(ctx, trivyBinPath, "server", "--listen", "127.0.0.0:"+port)
 
 	if err := trivyServerCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start trivy server: %w", err)
