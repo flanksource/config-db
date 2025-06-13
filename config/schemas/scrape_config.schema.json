@@ -1009,6 +1009,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "auditLogs": {
+          "$ref": "#/$defs/GCPAuditLogs"
         }
       },
       "additionalProperties": false,
@@ -1016,6 +1019,30 @@
       "required": [
         "project"
       ]
+    },
+    "GCPAuditLogs": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "includeTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "excludeTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "maxDuration": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "GCSConnection": {
       "properties": {
@@ -1030,6 +1057,9 @@
         },
         "skipTLSVerify": {
           "type": "boolean"
+        },
+        "project": {
+          "type": "string"
         },
         "bucket": {
           "type": "string"
@@ -1051,6 +1081,9 @@
         },
         "skipTLSVerify": {
           "type": "boolean"
+        },
+        "project": {
+          "type": "string"
         },
         "projectID": {
           "type": "string"
