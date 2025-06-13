@@ -91,6 +91,18 @@ func getRegionFromZone(zone string) string {
 	return strings.Join(parts[:2], "-")
 }
 
+func getFieldValue(data *structpb.Struct, keys []string) string {
+	for _, field := range keys {
+		if value, ok := data.Fields[field]; ok {
+			if strValue := value.GetStringValue(); strValue != "" {
+				return strValue
+			}
+		}
+	}
+
+	return ""
+}
+
 func parseResourceData(data *structpb.Struct) ResourceData {
 	labels := make(map[string]string)
 	if labelsField, exists := data.Fields["labels"]; exists {
@@ -103,14 +115,16 @@ func parseResourceData(data *structpb.Struct) ResourceData {
 		}
 	}
 
-	createdAtRaw := data.Fields["creationTimestamp"].GetStringValue()
-	createdAt, _ := time.Parse("2006-01-02T15:04:05.000-07:00", createdAtRaw)
+	createdAtRaw := getFieldValue(data, []string{"creationTimestamp", "createTime"})
+	createdAt, _ := time.Parse(time.RFC3339, createdAtRaw)
 
-	zone := data.Fields["location"].GetStringValue()
+	zone := getFieldValue(data, []string{"location", "gceZone"})
 	if zone == "" {
-		if z, ok := data.Fields["zone"]; ok {
-			// https://www.googleapis.com/compute/v1/projects/<project-name>/zones/europe-west1-c
-			zone = path.Base(z.GetStringValue())
+		zone = getFieldValue(data, []string{"zone"})
+		// For fields that may contain a full path, extract just the base name
+		// e.g. https://www.googleapis.com/compute/v1/projects/<project-name>/zones/europe-west1-c
+		if strings.Contains(zone, "/zones/") {
+			zone = path.Base(zone)
 		}
 	}
 
@@ -118,6 +132,13 @@ func parseResourceData(data *structpb.Struct) ResourceData {
 	if region == "" {
 		if r, ok := data.Fields["region"]; ok {
 			region = path.Base(r.GetStringValue())
+		}
+	}
+
+	if data.Fields["kind"].GetStringValue() == "storage#bucket" {
+		if locationType := getFieldValue(data, []string{"locationType"}); locationType != "" {
+			region = getFieldValue(data, []string{"location"})
+			zone = ""
 		}
 	}
 
