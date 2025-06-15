@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	trivyBinPath = ".bin"
+	trivyBinPath = ".bin/trivy"
 )
 
 type Scanner struct {
@@ -45,7 +45,11 @@ func (t Scanner) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			results = append(results, result.Errorf("failed to install trivy: %w", err))
 			continue
 		}
-		trivyBinPath := fmt.Sprintf("%s/trivy", trivyBinPath)
+
+		if err := startTrivyServer(ctx, DefaultPort); err != nil {
+			var result = v1.NewScrapeResult(config.BaseScraper)
+			results = append(results, result.Errorf("failed to install trivy: %w", err))
+		}
 
 		if config.Kubernetes != nil {
 			var result = v1.NewScrapeResult(config.BaseScraper)
