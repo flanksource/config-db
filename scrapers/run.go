@@ -190,7 +190,7 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 
 	// In full mode, we extract changes & access logs from the config.
 	if spec.Full {
-		allAccessLogs := []models.ConfigAccessLog{}
+		allAccessLogs := []v1.ExternalConfigAccessLog{}
 		for i := range scraped {
 			extractedConfig, changeRes, accessLogs, err := extractConfigChangesFromConfig(scraped[i].Config)
 			if err != nil {
@@ -198,7 +198,11 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 				continue
 			}
 
-			allAccessLogs = append(allAccessLogs, accessLogs...)
+			for _, accessLog := range accessLogs {
+				allAccessLogs = append(allAccessLogs, v1.ExternalConfigAccessLog{
+					ConfigAccessLog: accessLog,
+				})
+			}
 
 			for _, cr := range changeRes {
 				if cr.ExternalID == "" {
