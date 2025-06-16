@@ -93,7 +93,11 @@ func (s LogsScraper) scrapeGCPCloudLogging(ctx api.ScrapeContext, config v1.Logs
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GCP cloud logging client: %w", err)
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			ctx.Errorf("failed to close GCP cloud logging client: %v", err)
+		}
+	}()
 
 	response, err := client.Search(ctx.DutyContext(), config.GCPCloudLogging.Request)
 	if err != nil {

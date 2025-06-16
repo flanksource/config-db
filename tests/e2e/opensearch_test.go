@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -57,7 +58,11 @@ var _ = ginkgo.Describe("Logs Scraper - OpenSearch", ginkgo.Ordered, func() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					logger.Errorf("failed to close response body: %v", err)
+				}
+			}()
 
 			if resp.StatusCode != 200 {
 				return fmt.Errorf("opensearch not ready, status: %d", resp.StatusCode)
@@ -133,7 +138,11 @@ var _ = ginkgo.Describe("Logs Scraper - OpenSearch", ginkgo.Ordered, func() {
 		runURL := fmt.Sprintf("%s/run/%s", server.URL, configScraper.ID)
 		resp, err := http.Post(runURL, "application/json", nil)
 		Expect(err).NotTo(HaveOccurred())
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				logger.Errorf("failed to close response body: %v", err)
+			}
+		}()
 
 		Expect(resp.StatusCode).To(Equal(200))
 
@@ -194,7 +203,11 @@ func injectTestLogsToOpenSearch(opensearchURL string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create index: %w", err)
 	}
-	resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Errorf("failed to close response body: %v", err)
+		}
+	}()
 
 	// Inject test documents
 	docs := []map[string]any{
@@ -238,7 +251,11 @@ func injectTestLogsToOpenSearch(opensearchURL string) error {
 		if err != nil {
 			return fmt.Errorf("failed to index document: %w", err)
 		}
-		resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				logger.Errorf("failed to close response body: %v", err)
+			}
+		}()
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return fmt.Errorf("failed to index document, status code: %d", resp.StatusCode)
@@ -251,7 +268,11 @@ func injectTestLogsToOpenSearch(opensearchURL string) error {
 	if err != nil {
 		return fmt.Errorf("failed to refresh index: %w", err)
 	}
-	resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Errorf("failed to close response body: %v", err)
+		}
+	}()
 
 	return nil
 }

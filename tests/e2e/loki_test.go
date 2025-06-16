@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -56,7 +57,11 @@ var _ = ginkgo.Describe("Logs Scraper - Loki", ginkgo.Ordered, func() {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					logger.Errorf("failed to close response body: %v", err)
+				}
+			}()
 
 			if resp.StatusCode != 200 {
 				return fmt.Errorf("loki not ready, status: %d", resp.StatusCode)
@@ -132,7 +137,11 @@ var _ = ginkgo.Describe("Logs Scraper - Loki", ginkgo.Ordered, func() {
 		runURL := fmt.Sprintf("%s/run/%s", server.URL, configScraper.ID)
 		resp, err := http.Post(runURL, "application/json", nil)
 		Expect(err).NotTo(HaveOccurred())
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				logger.Errorf("failed to close response body: %v", err)
+			}
+		}()
 
 		Expect(resp.StatusCode).To(Equal(200))
 
@@ -220,7 +229,11 @@ func injectTestLogs(lokiURL string) error {
 	if err != nil {
 		return fmt.Errorf("failed to push logs to loki: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Errorf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("failed to push logs, status code: %d", resp.StatusCode)
