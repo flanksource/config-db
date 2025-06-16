@@ -12,7 +12,7 @@ spec:
       opensearch:
         address: http://localhost:9200
         index: app-logs
-        query: '{"bool":{"must":[{"match":{"job":"app"}},{"regexp":{"message":".*Configuration reloaded:.*changed from.*to.*"}}]}}'
+        query: '{"query":{"match":{"job":"app"}}}'
         size: 50
         from: 24h
       transform:

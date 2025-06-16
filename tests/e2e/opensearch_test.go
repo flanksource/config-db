@@ -108,7 +108,7 @@ var _ = ginkgo.Describe("Logs Scraper - OpenSearch", ginkgo.Ordered, func() {
 		postgresConfigScraper, err = db.PersistScrapeConfigFromFile(DefaultContext, postgresSpec)
 		Expect(err).NotTo(HaveOccurred())
 
-		configItemID := uuid.New()
+		configItemID := uuid.MustParse("fdee1b15-4579-499e-adc5-2817735ec3f6")
 		configItem = dbmodels.ConfigItem{
 			ID:         configItemID.String(),
 			ExternalID: []string{configItemID.String(), "postgres-0"},
