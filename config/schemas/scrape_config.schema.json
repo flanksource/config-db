@@ -1031,6 +1031,9 @@
         "skipTLSVerify": {
           "type": "boolean"
         },
+        "project": {
+          "type": "string"
+        },
         "bucket": {
           "type": "string"
         }
@@ -1051,6 +1054,9 @@
         },
         "skipTLSVerify": {
           "type": "boolean"
+        },
+        "project": {
+          "type": "string"
         },
         "projectID": {
           "type": "string"

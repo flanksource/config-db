@@ -1,0 +1,127 @@
+{
+  "availableMaintenanceVersions": ["POSTGRES_16_9.R20250302.00_31"],
+  "backendType": "SECOND_GEN",
+  "connectionName": "workload-prod-eu-02:europe-west1:workload-prod-eu-02",
+  "createTime": "2024-11-15T15:44:33.021Z",
+  "databaseInstalledVersion": "POSTGRES_16_8",
+  "databaseVersion": "POSTGRES_16",
+  "failoverReplica": {
+    "available": true
+  },
+  "gceZone": "europe-west1-b",
+  "includeReplicasForMajorVersionUpgrade": false,
+  "instanceType": "CLOUD_SQL_INSTANCE",
+  "ipAddresses": [
+    {
+      "type": "PRIVATE",
+      "ipAddress": "10.84.208.2"
+    }
+  ],
+  "kind": "sql#instance",
+  "maintenanceVersion": "POSTGRES_16_8.R20250302.00_04",
+  "name": "workload-prod-eu-02",
+  "project": "workload-prod-eu-02",
+  "region": "europe-west1",
+  "replicationCluster": {
+    "psaWriteEndpoint": "1w0ez67jg4h2n.1ruqcjm2c96n9.global.sql-psa.goog."
+  },
+  "satisfiesPzi": false,
+  "secondaryGceZone": "europe-west1-c",
+  "selfLink": "https://sqladmin.googleapis.com/sql/v1beta4/projects/workload-prod-eu-02/instances/workload-prod-eu-02",
+  "serverCaCert": {
+    "kind": "sql#sslCert",
+    "instance": "workload-prod-eu-02",
+    "commonName": "C=US,O=Google\\, Inc,CN=Google Cloud SQL Server CA,dnQualifier=5e8dfb8c-b174-4cfe-a9f2-d1a1abc185de",
+    "createTime": "2024-11-15T15:47:46.469Z",
+    "expirationTime": "2034-11-13T15:48:46.469Z",
+    "sha1Fingerprint": "f7f8962d3a3b40d4d0de22f88cb670ce72d13586",
+    "certSerialNumber": "0"
+  },
+  "serviceAccountEmailAddress": "p37170934282-vyge5p@gcp-sa-cloud-sql.iam.gserviceaccount.com",
+  "settings": {
+    "kind": "sql#settings",
+    "tier": "db-perf-optimized-N-4",
+    "edition": "ENTERPRISE_PLUS",
+    "userLabels": {
+      "managed-by-cnrm": "true"
+    },
+    "pricingPlan": "PER_USE",
+    "dataDiskType": "PD_SSD",
+    "databaseFlags": [
+      {
+        "name": "cloudsql.pg_shadow_select_role",
+        "value": "cloudsqlsuperuser"
+      },
+      {
+        "name": "cloudsql.pg_authid_select_role",
+        "value": "cloudsqlsuperuser"
+      },
+      {
+        "name": "cloudsql.enable_index_advisor",
+        "value": "on"
+      },
+      {
+        "name": "max_connections",
+        "value": "700"
+      }
+    ],
+    "dataDiskSizeGb": "500",
+    "insightsConfig": {
+      "queryStringLength": 1024,
+      "queryPlansPerMinute": 5,
+      "queryInsightsEnabled": true,
+      "recordApplicationTags": true
+    },
+    "dataCacheConfig": {
+      "dataCacheEnabled": true
+    },
+    "ipConfiguration": {
+      "sslMode": "ALLOW_UNENCRYPTED_AND_ENCRYPTED",
+      "requireSsl": false,
+      "ipv4Enabled": false,
+      "serverCaMode": "GOOGLE_MANAGED_INTERNAL_CA",
+      "privateNetwork": "projects/flanksource-prod/global/networks/flanksource-workload",
+      "allocatedIpRange": "flanksource-workload-ip-range",
+      "enablePrivatePathForGoogleCloudServices": false
+    },
+    "replicationType": "SYNCHRONOUS",
+    "settingsVersion": "199",
+    "activationPolicy": "ALWAYS",
+    "availabilityType": "REGIONAL",
+    "maintenanceWindow": {
+      "day": 7,
+      "hour": 3,
+      "kind": "sql#maintenanceWindow"
+    },
+    "storageAutoResize": true,
+    "locationPreference": {
+      "kind": "sql#locationPreference",
+      "zone": "europe-west1-b"
+    },
+    "backupConfiguration": {
+      "kind": "sql#backupConfiguration",
+      "enabled": true,
+      "location": "eu",
+      "startTime": "02:00",
+      "backupTier": "STANDARD",
+      "backupRetentionSettings": {
+        "retentionUnit": "COUNT",
+        "retainedBackups": 15
+      },
+      "pointInTimeRecoveryEnabled": false,
+      "transactionLogRetentionDays": 14,
+      "transactionalLogStorageState": "TRANSACTIONAL_LOG_STORAGE_STATE_UNSPECIFIED",
+      "replicationLogArchivingEnabled": false
+    },
+    "connectorEnforcement": "NOT_REQUIRED",
+    "storageAutoResizeLimit": "0",
+    "replicationLagMaxSeconds": 31536000,
+    "deletionProtectionEnabled": true
+  },
+  "sqlNetworkArchitecture": "NEW_NETWORK_ARCHITECTURE",
+  "state": "RUNNABLE",
+  "expectation": {
+    "zone": "europe-west1-b",
+    "region": "europe-west1"
+  }
+}

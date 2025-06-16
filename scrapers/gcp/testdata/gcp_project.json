@@ -1,0 +1,16 @@
+{
+  "cloudArmorTier": "CA_STANDARD",
+  "creationTimestamp": "2021-08-26T05:10:09.832-07:00",
+  "defaultNetworkTier": "PREMIUM",
+  "defaultServiceAccount": "365415247865-compute@developer.gserviceaccount.com",
+  "id": "3830637903806609998",
+  "kind": "compute#project",
+  "name": "flanksource-sandbox",
+  "selfLink": "https://www.googleapis.com/compute/v1/projects/flanksource-sandbox",
+  "vmDnsSetting": "ZONAL_ONLY",
+  "xpnProjectStatus": "HOST",
+  "expectation": {
+    "zone": "",
+    "region": ""
+  }
+}

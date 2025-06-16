@@ -4417,6 +4417,8 @@ spec:
                               type: object
                             endpoint:
                               type: string
+                            project:
+                              type: string
                             projectID:
                               type: string
                             skipTLSVerify:
@@ -4719,6 +4721,8 @@ spec:
                               type: object
                           type: object
                         endpoint:
+                          type: string
+                        project:
                           type: string
                         projectID:
                           type: string
@@ -6884,6 +6888,8 @@ spec:
                                   type: object
                               type: object
                             endpoint:
+                              type: string
+                            project:
                               type: string
                             skipTLSVerify:
                               description: Skip TLS verify

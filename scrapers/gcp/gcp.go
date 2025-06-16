@@ -91,6 +91,18 @@ func getRegionFromZone(zone string) string {
 	return strings.Join(parts[:2], "-")
 }
 
+func getFieldValue(data *structpb.Struct, keys []string) string {
+	for _, field := range keys {
+		if value, ok := data.Fields[field]; ok {
+			if strValue := value.GetStringValue(); strValue != "" {
+				return strValue
+			}
+		}
+	}
+
+	return ""
+}
+
 func parseResourceData(data *structpb.Struct) ResourceData {
 	labels := make(map[string]string)
 	if labelsField, exists := data.Fields["labels"]; exists {
@@ -103,17 +115,31 @@ func parseResourceData(data *structpb.Struct) ResourceData {
 		}
 	}
 
-	createdAtRaw := data.Fields["creationTimestamp"].GetStringValue()
-	createdAt, _ := time.Parse("2006-01-02T15:04:05.000-07:00", createdAtRaw)
+	createdAtRaw := getFieldValue(data, []string{"creationTimestamp", "createTime"})
+	createdAt, _ := time.Parse(time.RFC3339, createdAtRaw)
 
-	zone := data.Fields["location"].GetStringValue()
+	zone := getFieldValue(data, []string{"location", "gceZone"})
 	if zone == "" {
-		// https://www.googleapis.com/compute/v1/projects/<project-name>/zones/europe-west1-c
-		zone = path.Base(data.Fields["zone"].GetStringValue())
+		zone = getFieldValue(data, []string{"zone"})
+		// For fields that may contain a full path, extract just the base name
+		// e.g. https://www.googleapis.com/compute/v1/projects/<project-name>/zones/europe-west1-c
+		if strings.Contains(zone, "/zones/") {
+			zone = path.Base(zone)
+		}
 	}
+
 	region := getRegionFromZone(zone)
 	if region == "" {
-		region = path.Base(data.Fields["region"].GetStringValue())
+		if r, ok := data.Fields["region"]; ok {
+			region = path.Base(r.GetStringValue())
+		}
+	}
+
+	if data.Fields["kind"].GetStringValue() == "storage#bucket" {
+		if locationType := getFieldValue(data, []string{"locationType"}); locationType != "" {
+			region = getFieldValue(data, []string{"location"})
+			zone = ""
+		}
 	}
 
 	id := data.Fields["id"].GetStringValue()
@@ -125,9 +151,9 @@ func parseResourceData(data *structpb.Struct) ResourceData {
 		Name:      name,
 		CreatedAt: createdAt,
 		Labels:    labels,
-		Zone:      zone,
 		URL:       selfLink,
-		Region:    region,
+		Zone:      strings.ToLower(zone),
+		Region:    strings.ToLower(region),
 		Aliases:   []string{selfLink, name},
 		Raw:       data,
 	}
@@ -192,11 +218,14 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		configType := fmt.Sprintf("GCP::%s", configClass)
 
 		tags := baseTags
-		if rd.Region != "" {
-			tags = append(tags,
-				v1.Tag{Name: "region", Value: rd.Region},
-				v1.Tag{Name: "zone", Value: rd.Zone},
-			)
+
+		region := rd.Region
+		if region != "" {
+			tags = append(tags, v1.Tag{Name: "region", Value: region})
+		}
+
+		if rd.Zone != "" {
+			tags = append(tags, v1.Tag{Name: "zone", Value: rd.Zone})
 		}
 
 		results = append(results, v1.ScrapeResult{
