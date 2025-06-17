@@ -405,7 +405,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 				return results, fmt.Errorf("failed to parse json (format=%s,%s): %v", input.BaseScraper.Format, input.Source, err)
 			}
 		default:
-			opts := oj.Options{OmitNil: true, Sort: true, UseTags: true, FloatFormat: "%g"}
+			opts := oj.Options{OmitNil: input.OmitNil(), Sort: true, UseTags: true, FloatFormat: "%g"}
 			err = json.Unmarshal([]byte(oj.JSON(v, &opts)), &parsedConfig)
 			if err != nil {
 				return results, fmt.Errorf("failed to parse json format=%s,%s): %v", input.Format, input.Source, err)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/samber/lo"
 	"github.com/xo/dburl"
 
 	//drivers
@@ -73,6 +74,8 @@ func (s SqlScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper: config.BaseScraper,
 				Config:      item,
+				// Do not omit nil in SQL Scraper to retain structure
+				OmitNilFields: lo.ToPtr(false),
 			})
 		}
 

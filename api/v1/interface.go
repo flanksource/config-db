@@ -660,6 +660,10 @@ type ScrapeResult struct {
 
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
+
+	// OmitNilFields lets post-processor know whether to omit nil fields
+	// inside config or not. Default is true
+	OmitNilFields *bool `json:"-"`
 }
 
 var _ types.ResourceSelectable = (*ScrapeResult)(nil)
@@ -678,6 +682,14 @@ func (s ScrapeResult) GetName() string {
 
 func (s ScrapeResult) GetType() string {
 	return s.Type
+}
+
+func (s ScrapeResult) OmitNil() bool {
+	// If unset, always omit nil
+	if s.OmitNilFields == nil {
+		return true
+	}
+	return lo.FromPtr(s.OmitNilFields)
 }
 
 // SetHealthIfEmpty sets the health, status & readiness of the scrape result
