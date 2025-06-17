@@ -72,8 +72,9 @@ test-load:
 	$(MAKE) gotest-load
 
 .PHONY: gotest
-gotest:
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+gotest: ginkgo
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out ./...
 
 .PHONY: gotest-prod
 gotest-prod:
@@ -86,8 +87,24 @@ gotest-load:
 
 .PHONY: env
 env: envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out
 
+.PHONY: ginkgo
+ginkgo:
+	go install github.com/onsi/ginkgo/v2/ginkgo
+	
+.PHONY: test-e2e
+test-e2e: ginkgo
+	cd tests/e2e && docker-compose up -d && \
+	echo 'Running tests' && \
+	(ginkgo -v; TEST_EXIT_CODE=$$?; docker-compose down; exit $$TEST_EXIT_CODE)
+
+.PHONY: e2e-services
+e2e-services: ## Run e2e test services in foreground with automatic cleanup on exit
+	cd tests/e2e && \
+	trap 'docker-compose down -v && docker-compose rm -f' EXIT INT TERM && \
+	docker-compose up --remove-orphans
 
 fmt:
 	go fmt ./...
@@ -156,10 +173,6 @@ dev:
 .PHONY: watch
 watch:
 	watchexec -c make build install
-
-.PHONY: test-e2e
-test-e2e: bin
-	./test/e2e.sh
 
 .bin/upx: .bin
 	wget -nv -O upx.tar.xz https://github.com/upx/upx/releases/download/v3.96/upx-3.96-$(ARCH)_$(OS).tar.xz
