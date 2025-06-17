@@ -2677,22 +2677,44 @@ spec:
                 items:
                   properties:
                     auditLogs:
+                      description: AuditLogs query the BigQuery dataset for audit
+                        logs.
                       properties:
-                        enabled:
-                          type: boolean
-                        excludeTypes:
-                          items:
-                            type: string
-                          type: array
-                        includeTypes:
-                          items:
-                            type: string
-                          type: array
-                        maxDuration:
+                        dataset:
                           description: |-
-                            The lookback period for audit logs.
-                            Default: 7d
+                            BigQuery dataset to query audit logs from
+                            Example: "default._AllLogs"
                           type: string
+                        methods:
+                          description: Filter methods matching these patterns
+                          items:
+                            description: MatchExpression uses MatchItems
+                            type: string
+                          type: array
+                        permissions:
+                          description: Filter permissions matching these patterns
+                          items:
+                            description: MatchExpression uses MatchItems
+                            type: string
+                          type: array
+                        principalEmails:
+                          description: Filter principal emails matching these patterns
+                          items:
+                            description: MatchExpression uses MatchItems
+                            type: string
+                          type: array
+                        serviceNames:
+                          description: Filter service names matching these patterns
+                          items:
+                            description: MatchExpression uses MatchItems
+                            type: string
+                          type: array
+                        userAgents:
+                          description: Filter user agents matching these patterns
+                          items:
+                            description: MatchExpression uses MatchItems
+                            type: string
+                          type: array
                       type: object
                     class:
                       description: A static value or JSONPath expression to use as

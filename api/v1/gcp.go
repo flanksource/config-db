@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/flanksource/duty/connection"
+	"github.com/flanksource/duty/types"
 )
 
 const (
@@ -36,17 +37,29 @@ type GCP struct {
 	// Exclude is a list of GCP asset types to exclude from scraping.
 	Exclude []string `json:"exclude,omitempty"`
 
+	// AuditLogs query the BigQuery dataset for audit logs.
 	AuditLogs GCPAuditLogs `json:"auditLogs,omitempty"`
 }
 
 type GCPAuditLogs struct {
-	Enabled      bool     `json:"enabled,omitempty"`
-	IncludeTypes []string `json:"includeTypes,omitempty"`
-	ExcludeTypes []string `json:"excludeTypes,omitempty"`
+	// BigQuery dataset to query audit logs from
+	// Example: "default._AllLogs"
+	Dataset string `json:"dataset,omitempty"`
 
-	// The lookback period for audit logs.
-	// Default: 7d
-	MaxDuration string `json:"maxDuration,omitempty"`
+	// Filter user agents matching these patterns
+	UserAgents types.MatchExpressions `json:"userAgents,omitempty"`
+
+	// Filter principal emails matching these patterns
+	PrincipalEmails types.MatchExpressions `json:"principalEmails,omitempty"`
+
+	// Filter permissions matching these patterns
+	Permissions types.MatchExpressions `json:"permissions,omitempty"`
+
+	// Filter service names matching these patterns
+	ServiceNames types.MatchExpressions `json:"serviceNames,omitempty"`
+
+	// Filter methods matching these patterns
+	Methods types.MatchExpressions `json:"methods,omitempty"`
 }
 
 func (gcp GCP) Includes(resource string) bool {

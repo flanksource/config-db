@@ -251,23 +251,23 @@
     },
     "GCPAuditLogs": {
       "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "includeTypes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "excludeTypes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "maxDuration": {
+        "dataset": {
           "type": "string"
+        },
+        "userAgents": {
+          "$ref": "#/$defs/MatchExpressions"
+        },
+        "principalEmails": {
+          "$ref": "#/$defs/MatchExpressions"
+        },
+        "permissions": {
+          "$ref": "#/$defs/MatchExpressions"
+        },
+        "serviceNames": {
+          "$ref": "#/$defs/MatchExpressions"
+        },
+        "methods": {
+          "$ref": "#/$defs/MatchExpressions"
         }
       },
       "additionalProperties": false,
@@ -351,6 +351,12 @@
     "MaskList": {
       "items": {
         "$ref": "#/$defs/Mask"
+      },
+      "type": "array"
+    },
+    "MatchExpressions": {
+      "items": {
+        "type": "string"
       },
       "type": "array"
     },

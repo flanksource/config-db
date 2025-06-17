@@ -11,9 +11,6 @@ spec:
         - storage.googleapis.com/Bucket
         - container.googleapis.com/Cluster
       auditLogs:
-        enabled: true
-        maxDuration: 30d
-        excludeTypes:
-          - k8s_cluster
-          - k8s_container
-          - cloudsql_database
+        dataset: default._AllLogs
+        excludeMethods:
+          - io.k8s.*

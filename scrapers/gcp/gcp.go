@@ -187,14 +187,14 @@ func generateConsistentID(input string) uuid.UUID {
 }
 
 func parseGCPMember(member string) (userType, name, email string, found bool) {
-	if strings.HasPrefix(member, "user:") {
-		email = strings.TrimPrefix(member, "user:")
+	if after, ok := strings.CutPrefix(member, "user:"); ok {
+		email = after
 		return "User", email, email, true
-	} else if strings.HasPrefix(member, "serviceAccount:") {
-		email = strings.TrimPrefix(member, "serviceAccount:")
+	} else if after, ok := strings.CutPrefix(member, "serviceAccount:"); ok {
+		email = after
 		return "ServiceAccount", email, email, true
-	} else if strings.HasPrefix(member, "group:") {
-		name = strings.TrimPrefix(member, "group:")
+	} else if after, ok := strings.CutPrefix(member, "group:"); ok {
+		name = after
 		return "Group", name, name, true
 	}
 
