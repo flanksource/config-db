@@ -1,0 +1,8 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: gcp-scraper
+  namespace: default
+spec:
+  gcp:
+    - project: flanksource-sandbox
