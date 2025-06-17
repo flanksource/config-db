@@ -1,0 +1,46 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: app-config-changes
+  namespace: mc
+spec:
+  full: true
+  logs:
+    - id: None
+      type: None
+      loki:
+        url: http://localhost:3100
+        query: '{job="app"} |~ "Configuration reloaded:.*changed from.*to"'
+        limit: '50'
+        start: 24h
+      transform:
+        expr: |
+          dyn(config.logs).map(line, {
+            "changes": [
+              {
+                "external_change_id": line.hash,
+                "change_type": "ConfigReload",
+                "external_id": "fdee1b15-4579-499e-adc5-2817735ec3f6",
+                "config_type": "Azure::AppRegistration",
+                "created_at": line.firstObserved,
+                "scraper_id": "all"
+              }
+            ]
+          }).toJSON()
+
+# curl -X POST http://localhost:3100/loki/api/v1/push \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "streams": [
+#       {
+#         "stream": {
+#           "job": "app"
+#         },
+#         "values": [
+#           ["'$(date +%s%N)'", "Configuration reloaded: database.max_connections changed from 100 to 200"],
+#           ["'$(date +%s%N)'", "Configuration reloaded: server.timeout changed from 30s to 60s"],
+#           ["'$(date +%s%N)'", "Configuration reloaded: cache.size changed from 1GB to 2GB"]
+#         ]
+#       }
+#     ]
+#   }'

@@ -11,9 +11,6 @@ import (
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
@@ -24,6 +21,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	kyaml "sigs.k8s.io/yaml"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 )
 
 type Mask struct {
@@ -430,7 +431,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			ctx.Logger.V(3).Infof("Applying script transformation")
 			transformed, err := RunScript(ctx, input, input.BaseScraper.Transform.Script)
 			if err != nil {
-				return results, fmt.Errorf("failed to run script: %v", err)
+				return results, fmt.Errorf("failed to run transform script: %v", err)
 			}
 
 			ongoingInput = transformed
