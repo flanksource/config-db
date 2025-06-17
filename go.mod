@@ -52,7 +52,7 @@ require (
 	github.com/fjl/memsize v0.0.2
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.39.0
-	github.com/flanksource/duty v1.0.958
+	github.com/flanksource/duty v1.0.959
 	github.com/flanksource/is-healthy v1.0.76
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.11
@@ -258,7 +258,7 @@ require (
 	github.com/tidwall/gjson v1.17.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/tidwall/sjson v1.0.4 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/timberio/go-datemath v0.1.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
@@ -302,10 +302,10 @@ require (
 	gorm.io/plugin/dbresolver v1.5.3 // indirect
 	gorm.io/plugin/prometheus v0.1.0 // indirect
 	layeh.com/gopher-json v0.0.0-20201124131017-552bb3c4c3bf // indirect
-	modernc.org/libc v1.22.2 // indirect
+	modernc.org/libc v1.22.4 // indirect
 	modernc.org/mathutil v1.5.0 // indirect
 	modernc.org/memory v1.5.0 // indirect
-	modernc.org/sqlite v1.20.3 // indirect
+	modernc.org/sqlite v1.21.2 // indirect
 	sigs.k8s.io/gateway-api v1.1.0 // indirect
 )
 
