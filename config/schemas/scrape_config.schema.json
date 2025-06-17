@@ -392,6 +392,30 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "BigQueryConfig": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "credentials": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "CNRMConnection": {
       "properties": {
         "gke": {
@@ -835,6 +859,54 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "FieldMappingConfig": {
+      "properties": {
+        "id": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "message": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timestamp": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "host": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "severity": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ignore": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "FieldsV1": {
       "properties": {},
       "additionalProperties": false,
@@ -1016,6 +1088,39 @@
       "required": [
         "project"
       ]
+    },
+    "GCPCloudLoggingConfig": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "credentials": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": "string"
+        },
+        "start": {
+          "type": "string"
+        },
+        "end": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "GCSConnection": {
       "properties": {
@@ -1649,6 +1754,126 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "Logs": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "health": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "loki": {
+          "$ref": "#/$defs/LokiConfig"
+        },
+        "gcpCloudLogging": {
+          "$ref": "#/$defs/GCPCloudLoggingConfig"
+        },
+        "openSearch": {
+          "$ref": "#/$defs/OpenSearchConfig"
+        },
+        "bigQuery": {
+          "$ref": "#/$defs/BigQueryConfig"
+        },
+        "fieldMapping": {
+          "$ref": "#/$defs/FieldMappingConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "LokiConfig": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "username": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "password": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "start": {
+          "type": "string"
+        },
+        "end": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "since": {
+          "type": "string"
+        },
+        "step": {
+          "type": "string"
+        },
+        "interval": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Lookup": {
       "properties": {
         "expr": {
@@ -1810,6 +2035,35 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "OpenSearchConfig": {
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "username": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "password": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "index": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "address",
+        "index",
+        "query"
+      ]
     },
     "OwnerReference": {
       "properties": {
@@ -2180,6 +2434,12 @@
         "clickhouse": {
           "items": {
             "$ref": "#/$defs/Clickhouse"
+          },
+          "type": "array"
+        },
+        "logs": {
+          "items": {
+            "$ref": "#/$defs/Logs"
           },
           "type": "array"
         },

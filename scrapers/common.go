@@ -6,6 +6,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/clickhouse"
 	"github.com/flanksource/config-db/scrapers/gcp"
 	"github.com/flanksource/config-db/scrapers/http"
+	"github.com/flanksource/config-db/scrapers/logs"
 	"github.com/flanksource/config-db/scrapers/slack"
 	"github.com/flanksource/config-db/scrapers/terraform"
 	"github.com/flanksource/config-db/scrapers/trivy"
@@ -32,6 +33,7 @@ var All = []api.Scraper{
 	github.GithubActionsScraper{},
 	clickhouse.ClickhouseScraper{},
 	gcp.Scraper{},
+	logs.LogsScraper{},
 	slack.Scraper{},
 	sql.SqlScraper{},
 	trivy.Scanner{},

@@ -22,6 +22,7 @@ var AllScraperConfigs = map[string]any{
 	"http":           HTTP{},
 	"kubernetes":     Kubernetes{},
 	"kubernetesfile": KubernetesFile{},
+	"logs":           Logs{},
 	"slack":          Slack{},
 	"sql":            SQL{},
 	"terraform":      Terraform{},
@@ -65,6 +66,7 @@ type ScraperSpec struct {
 	Terraform      []Terraform      `json:"terraform,omitempty" yaml:"trivy,omitempty"`
 	HTTP           []HTTP           `json:"http,omitempty"`
 	Clickhouse     []Clickhouse     `json:"clickhouse,omitempty"`
+	Logs           []Logs           `json:"logs,omitempty"`
 
 	// CRDSync when set to true, will create (or update) the corresponding database record
 	// for a config item of the following types
@@ -130,6 +132,10 @@ func (c ScraperSpec) ApplyPlugin(plugins []ScrapePluginSpec) ScraperSpec {
 
 	for i := range spec.HTTP {
 		spec.HTTP[i].BaseScraper = spec.HTTP[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.Logs {
+		spec.Logs[i].BaseScraper = spec.Logs[i].BaseScraper.ApplyPlugins(plugins...)
 	}
 
 	return *spec

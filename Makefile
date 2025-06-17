@@ -32,9 +32,11 @@ gen-schemas:
 	go mod edit -module=github.com/flanksource/config-db/hack/generate-schemas && \
 	go mod edit -require=github.com/flanksource/config-db@v1.0.0 && \
 	go mod edit -replace=github.com/flanksource/config-db=../../ && \
+	if grep -v "^//" ../../go.mod | grep -q "replace.*github.com/flanksource/duty.*=>"; then \
+		go mod edit -replace=github.com/flanksource/duty=../../../duty; \
+	fi && \
 	go mod tidy && \
 	go run ./main.go
-
 
 docker:
 	docker build . -f build/Dockerfile -t ${IMG}
@@ -70,22 +72,39 @@ test-load:
 	$(MAKE) gotest-load
 
 .PHONY: gotest
-gotest:
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+gotest: ginkgo
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out ./...
 
 .PHONY: gotest-prod
 gotest-prod:
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -tags rustdiffgen ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -tags rustdiffgen -skip ^TestE2E$$ ./... -coverprofile cover.out
 
 .PHONY: gotest-load
 gotest-load:
 	make -C fixtures/load k6
-	LOAD_TEST=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./tests -coverprofile cover.out
+	LOAD_TEST=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./tests -skip ^TestE2E$$ -coverprofile cover.out
 
 .PHONY: env
 env: envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out
 
+.PHONY: ginkgo
+ginkgo:
+	go install github.com/onsi/ginkgo/v2/ginkgo
+	
+.PHONY: test-e2e
+test-e2e: ginkgo
+	cd tests/e2e && docker-compose up -d && \
+	echo 'Running tests' && \
+	(ginkgo -v; TEST_EXIT_CODE=$$?; docker-compose down; exit $$TEST_EXIT_CODE)
+
+.PHONY: e2e-services
+e2e-services: ## Run e2e test services in foreground with automatic cleanup on exit
+	cd tests/e2e && \
+	trap 'docker-compose down -v && docker-compose rm -f' EXIT INT TERM && \
+	docker-compose up --remove-orphans
 
 fmt:
 	go fmt ./...
@@ -154,10 +173,6 @@ dev:
 .PHONY: watch
 watch:
 	watchexec -c make build install
-
-.PHONY: test-e2e
-test-e2e: bin
-	./test/e2e.sh
 
 .bin/upx: .bin
 	wget -nv -O upx.tar.xz https://github.com/upx/upx/releases/download/v3.96/upx-3.96-$(ARCH)_$(OS).tar.xz
