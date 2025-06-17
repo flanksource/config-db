@@ -1,14 +1,14 @@
 package gcp
 
 import (
-	"context"
 	"fmt"
-	"log"
 
 	securitycenter "cloud.google.com/go/securitycenter/apiv1"
 	"cloud.google.com/go/securitycenter/apiv1/securitycenterpb"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
+	"github.com/samber/lo"
 	"google.golang.org/api/iterator"
 )
 
@@ -44,33 +44,36 @@ func mapState(finding *securitycenterpb.Finding) string {
 	return models.AnalysisStatusOpen
 }
 
-/*
-func parseFinding(finding securitycenterpb.ListFindingsResponse_ListFindingsResult) v1.AnalysisResult {
+func parseFinding(finding *securitycenterpb.ListFindingsResponse_ListFindingsResult) *v1.AnalysisResult {
 	analysis := v1.AnalysisResult{
-		Analyzer:   analyzer,
-		ConfigType: configType,
-		ExternalID: id,
-		Status:     mapState(finding.Finding),
-		Severity:   mapSeverity(finding.Finding.Severity),
-		Messages:   []string{finding.Finding.Description},
-		Source:     "GCP Security Center",
+		Analyzer:     finding.Finding.SourceProperties["ScannerName"].GetStringValue(),
+		ConfigType:   fmt.Sprintf("GCP::%s", parseGCPConfigClass(finding.Resource.Type)),
+		ExternalID:   finding.Resource.Name,
+		Status:       mapState(finding.Finding),
+		Severity:     mapSeverity(finding.Finding.Severity),
+		Messages:     []string{finding.Finding.Description},
+		AnalysisType: models.AnalysisTypeSecurity,
+		Source:       "GCP Security Center",
+		// TODO: How to do Summary
+		Summary:       finding.Finding.Description,
+		FirstObserved: lo.ToPtr(finding.Finding.CreateTime.AsTime()),
+		// TODO: How to do LastObserved
+		LastObserved: lo.ToPtr(finding.Finding.EventTime.AsTime()),
 	}
-	analysis.Status = models.AnalysisStatusOpen
-	analysis.AnalysisType = mapCategoryToAnalysisType(*check.Category)
-	analysis.Message(deref(check.Description))
-	analysis.Source = "AWS Trusted Advisor"
 
-	if _analysis, err := utils.ToJSONMap(metadata); err != nil {
+	if _analysis, err := utils.ToJSONMap(finding); err != nil {
 		analysis.Analysis = _analysis
 	}
+
+	return &analysis
 }
-*/
 
 func (gcp Scraper) ListFindings(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
+	var results v1.ScrapeResults
 
-	client, err := securitycenter.NewClient(ctx)
+	client, err := securitycenter.NewClient(ctx, ctx.ClientOpts...)
 	if err != nil {
-		log.Fatalf("Failed to create Security Command Center client: %v", err)
+		return nil, fmt.Errorf("error creating security center client: %w", err)
 	}
 	defer client.Close()
 
@@ -79,7 +82,6 @@ func (gcp Scraper) ListFindings(ctx *GCPContext, config v1.GCP) (v1.ScrapeResult
 	}
 
 	it := client.ListFindings(ctx, req)
-	count := 0
 
 	for {
 		finding, err := it.Next()
@@ -87,93 +89,13 @@ func (gcp Scraper) ListFindings(ctx *GCPContext, config v1.GCP) (v1.ScrapeResult
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("error iterating findings: %v", err)
+			return nil, fmt.Errorf("error listing findings: %w", err)
 		}
 
-		count++
-		printFinding(finding, count)
+		results = append(results, v1.ScrapeResult{
+			AnalysisResult: parseFinding(finding),
+		})
 	}
 
-	fmt.Printf("\nTotal findings/insights found: %d\n", count)
-	return nil, nil
-}
-
-func printFinding(finding *securitycenterpb.ListFindingsResponse_ListFindingsResult, index int) {
-	f := finding.GetFinding()
-
-	fmt.Printf("=== Finding #%d ===\n", index)
-	fmt.Printf("Name: %s\n", f.GetName())
-	fmt.Printf("Category: %s\n", f.GetCategory())
-	fmt.Printf("State: %s\n", f.GetState())
-	fmt.Printf("Severity: %s\n", f.GetSeverity())
-	fmt.Printf("Resource Name: %s\n", f.GetResourceName())
-	fmt.Printf("Create Time: %s\n", f.GetCreateTime().AsTime())
-	fmt.Printf("Event Time: %s\n", f.GetEventTime().AsTime())
-
-	if f.GetDescription() != "" {
-		fmt.Printf("Description: %s\n", f.GetDescription())
-	}
-
-	// Print source properties if available
-	if len(f.GetSourceProperties()) > 0 {
-		fmt.Println("Source Properties:")
-		for key, value := range f.GetSourceProperties() {
-			fmt.Printf("  %s: %v\n", key, value)
-		}
-	}
-
-	// Print security marks if available
-	if f.GetSecurityMarks() != nil && len(f.GetSecurityMarks().GetMarks()) > 0 {
-		fmt.Println("Security Marks:")
-		for key, value := range f.GetSecurityMarks().GetMarks() {
-			fmt.Printf("  %s: %s\n", key, value)
-		}
-	}
-
-	fmt.Println()
-}
-
-// Alternative function to list insights with more filtering options
-func listInsightsWithFilters(ctx context.Context, client *securitycenter.Client, parent string) error {
-	fmt.Printf("Listing filtered insights for: %s\n\n", parent)
-
-	// Example filters you can use:
-	filters := []string{
-		"state=\"ACTIVE\"",
-		"severity=\"HIGH\" OR severity=\"CRITICAL\"",
-		"category=\"SUSPICIOUS_ACTIVITY\"",
-		"resource.type=\"gce_instance\"",
-		// Combine multiple conditions
-		"state=\"ACTIVE\" AND (severity=\"HIGH\" OR severity=\"CRITICAL\")",
-	}
-
-	for i, filter := range filters {
-		fmt.Printf("--- Filter %d: %s ---\n", i+1, filter)
-
-		req := &securitycenterpb.ListFindingsRequest{
-			Parent: parent,
-			Filter: filter,
-		}
-
-		it := client.ListFindings(ctx, req)
-		count := 0
-
-		for {
-			finding, err := it.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				return fmt.Errorf("error iterating findings with filter '%s': %v", filter, err)
-			}
-
-			count++
-			f := finding.GetFinding()
-			fmt.Printf("%d. %s - %s (%s)\n", count, f.GetCategory(), f.GetResourceName(), f.GetSeverity())
-		}
-
-		fmt.Printf("Total findings for this filter: %d\n\n", count)
-	}
-
-	return nil
+	return results, nil
 }

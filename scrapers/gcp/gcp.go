@@ -232,7 +232,7 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			BaseScraper: config.BaseScraper,
 			ID:          lo.CoalesceOrEmpty(rd.ID, rd.Name),
 			Name:        rd.Name,
-			Aliases:     rd.Aliases,
+			Aliases:     append(rd.Aliases, asset.Name),
 			Config:      asset.Resource.Data,
 			ConfigClass: configClass,
 			Type:        configType,
