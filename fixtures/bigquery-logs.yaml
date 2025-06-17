@@ -1,0 +1,48 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: github-commits-logs
+  namespace: mc
+spec:
+  full: true
+  schedule: '@every 1h'
+  logs:
+    - name: golang-github-commits
+      id: None
+      type: None
+      transform:
+        expr: |
+          dyn(config.logs).map(line, {
+            "changes": [
+              {
+                "external_change_id": line.id,
+                "change_type": "Commit",
+                "external_id": "github://golang/go",
+                "config_type": "GitHub::Repository",
+                "created_at": line.firstObserved,
+                "summary": line.message,
+                "scraper_id": "all"
+              }
+            ]
+          }).toJSON()
+      bigQuery:
+        project: workload-prod-eu-02
+        query: |
+          SELECT
+            FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', TIMESTAMP_SECONDS(committer.date.seconds)) as timestamp,
+            CASE 
+              WHEN REGEXP_CONTAINS(LOWER(message), r'fix|bug|error') THEN 'high'
+              WHEN REGEXP_CONTAINS(LOWER(message), r'feat|add|new') THEN 'medium'
+              ELSE 'info'
+            END as severity,
+            message,
+            commit
+          FROM `bigquery-public-data.github_repos.commits`
+          Where 'golang/go' IN UNNEST(repo_name)
+          ORDER BY committer.date.seconds DESC
+          LIMIT 100
+      fieldMapping:
+        timestamp: ['timestamp']
+        severity: ['severity']
+        message: ['message']
+        id: ['commit']

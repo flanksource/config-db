@@ -3,6 +3,30 @@
   "$id": "https://github.com/flanksource/config-db/api/v1/logs",
   "$ref": "#/$defs/Logs",
   "$defs": {
+    "BigQueryConfig": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "credentials": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "ChangeMapping": {
       "properties": {
         "filter": {
@@ -346,6 +370,9 @@
         },
         "openSearch": {
           "$ref": "#/$defs/OpenSearchConfig"
+        },
+        "bigQuery": {
+          "$ref": "#/$defs/BigQueryConfig"
         },
         "fieldMapping": {
           "$ref": "#/$defs/FieldMappingConfig"

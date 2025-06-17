@@ -5615,6 +5615,69 @@ spec:
               logs:
                 items:
                   properties:
+                    bigQuery:
+                      description: BigQuery specifies the BigQuery configuration for
+                        log scraping
+                      properties:
+                        connection:
+                          description: ConnectionName of the connection. It'll be
+                            used to populate the endpoint and credentials.
+                          type: string
+                        credentials:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                helmRef:
+                                  properties:
+                                    key:
+                                      description: Key is a JSONPath expression used
+                                        to fetch the key from the merged JSON.
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                secretKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                serviceAccount:
+                                  description: ServiceAccount specifies the service
+                                    account whose token should be fetched
+                                  type: string
+                              type: object
+                          type: object
+                        endpoint:
+                          type: string
+                        project:
+                          type: string
+                        query:
+                          description: Query is the raw SQL query to execute against
+                            the BigQuery table.
+                          type: string
+                        skipTLSVerify:
+                          description: Skip TLS verify
+                          type: boolean
+                      type: object
                     class:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.

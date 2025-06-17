@@ -392,6 +392,30 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "BigQueryConfig": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "credentials": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "CNRMConnection": {
       "properties": {
         "gke": {
@@ -1797,6 +1821,9 @@
         },
         "openSearch": {
           "$ref": "#/$defs/OpenSearchConfig"
+        },
+        "bigQuery": {
+          "$ref": "#/$defs/BigQueryConfig"
         },
         "fieldMapping": {
           "$ref": "#/$defs/FieldMappingConfig"

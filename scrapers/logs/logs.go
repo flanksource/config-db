@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/flanksource/duty/logs"
+	"github.com/flanksource/duty/logs/bigquery"
 	"github.com/flanksource/duty/logs/gcpcloudlogging"
 	"github.com/flanksource/duty/logs/loki"
 	"github.com/flanksource/duty/logs/opensearch"
@@ -57,6 +58,16 @@ func (s LogsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					SetError(fmt.Errorf("failed to scrape OpenSearch logs: %w", err)))
 			} else {
 				results = append(results, osResults...)
+			}
+		}
+
+		if config.BigQuery != nil {
+			bqResults, err := s.scrapeBigQuery(ctx, config)
+			if err != nil {
+				results = append(results, v1.NewScrapeResult(config.BaseScraper).
+					SetError(fmt.Errorf("failed to scrape BigQuery logs: %w", err)))
+			} else {
+				results = append(results, bqResults...)
 			}
 		}
 	}
@@ -126,6 +137,32 @@ func (s LogsScraper) scrapeOpenSearch(ctx api.ScrapeContext, config v1.Logs) (v1
 	response, err := client.Search(ctx.DutyContext(), config.OpenSearch.Request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search logs in OpenSearch: %w", err)
+	}
+
+	var results v1.ScrapeResults
+	results = append(results, v1.ScrapeResult{
+		BaseScraper: config.BaseScraper,
+		Config:      LogResult(*response),
+	})
+
+	return results, nil
+}
+
+func (s LogsScraper) scrapeBigQuery(ctx api.ScrapeContext, config v1.Logs) (v1.ScrapeResults, error) {
+	if config.BigQuery == nil {
+		return nil, nil
+	}
+
+	searcher := bigquery.New(config.BigQuery.GCPConnection, config.FieldMapping)
+	defer func() {
+		if err := searcher.Close(); err != nil {
+			ctx.Errorf("failed to close BigQuery searcher: %v", err)
+		}
+	}()
+
+	response, err := searcher.Search(ctx.DutyContext(), config.BigQuery.Request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search logs in BigQuery: %w", err)
 	}
 
 	var results v1.ScrapeResults
