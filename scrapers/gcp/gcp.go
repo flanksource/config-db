@@ -261,13 +261,13 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			BaseScraper: config.BaseScraper,
 			ID:          lo.CoalesceOrEmpty(rd.ID, rd.Name),
 			Name:        rd.Name,
+			Aliases:     append(rd.Aliases, asset.Name),
 			Config:      asset.Resource.Data,
 			ConfigClass: configClass,
 			Type:        configType,
 			CreatedAt:   lo.ToPtr(rd.CreatedAt),
 			Labels:      rd.Labels,
 			Tags:        tags,
-			Aliases:     append(rd.Aliases, asset.Name),
 			Properties:  []*types.Property{getLink(rd)},
 		}
 
