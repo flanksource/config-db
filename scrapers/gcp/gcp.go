@@ -254,28 +254,32 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	allResults := v1.ScrapeResults{}
 
 	for _, gcpConfig := range ctx.ScrapeConfig().Spec.GCP {
-		results := v1.ScrapeResults{}
 		gcpCtx, err := NewGCPContext(ctx, gcpConfig)
 		if err != nil {
-			results.Errorf(err, "failed to create GCP context")
-			allResults = append(allResults, results...)
+			allResults = append(allResults, v1.ScrapeResultErrorf(err, "failed to create GCP context"))
 			continue
 		}
 
-		results, err = gcp.FetchAllAssets(gcpCtx, gcpConfig)
+		results, err := gcp.FetchAllAssets(gcpCtx, gcpConfig)
 		if err != nil {
-			results.Errorf(err, "failed to fetch GCP assets")
+			allResults = append(allResults, v1.ScrapeResultErrorf(err, "failed to fetch GCP assets"))
+		} else {
 			allResults = append(allResults, results...)
-			continue
 		}
 
 		if backupResults, err := gcp.scrapeCloudSQLBackupsForAllInstances(gcpCtx, gcpConfig, results); err != nil {
-			results.Errorf(err, "failed to scrape Cloud SQL backups")
+			allResults = append(allResults, v1.ScrapeResultErrorf(err, "failed to scrape Cloud SQL backups"))
 		} else {
-			results = append(results, backupResults...)
+			allResults = append(allResults, backupResults...)
 		}
 
-		allResults = append(allResults, results...)
+		if !gcpConfig.Excludes("security_center") {
+			if analysisResults, err := gcp.ListFindings(gcpCtx, gcpConfig); err != nil {
+				allResults = append(allResults, v1.ScrapeResultErrorf(err, "failed to scrape GCP Security Center findings"))
+			} else {
+				allResults = append(allResults, analysisResults...)
+			}
+		}
 	}
 
 	return allResults

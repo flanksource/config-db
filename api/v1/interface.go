@@ -454,10 +454,16 @@ func (s *ScrapeResults) Analysis(analyzer string, configType string, id string) 
 	return &result
 }
 
-func (s *ScrapeResults) Errorf(e error, msg string, args ...interface{}) ScrapeResults {
+func (s *ScrapeResults) Errorf(e error, msg string, args ...any) ScrapeResults {
 	logger.Errorf("%s: %v", fmt.Sprintf(msg, args...), e)
 	*s = append(*s, ScrapeResult{Error: e})
 	return *s
+}
+
+func ScrapeResultErrorf(e error, msg string, args ...any) ScrapeResult {
+	errMsg := fmt.Sprintf(msg, args...)
+	logger.Errorf("%s: %v", errMsg, e)
+	return ScrapeResult{Error: fmt.Errorf("%s: %w", errMsg, e)}
 }
 
 type Tag struct {
