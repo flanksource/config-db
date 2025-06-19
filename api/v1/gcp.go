@@ -46,6 +46,10 @@ type GCPAuditLogs struct {
 	// Example: "default._AllLogs"
 	Dataset string `json:"dataset,omitempty"`
 
+	// Time range to query audit logs (defaults to last 7 days if not specified)
+	// Examples: "24h", "7d", "30d"
+	Since string `json:"since,omitempty"`
+
 	// Filter user agents matching these patterns
 	UserAgents types.MatchExpressions `json:"userAgents,omitempty"`
 

@@ -12,5 +12,6 @@ spec:
         - container.googleapis.com/Cluster
       auditLogs:
         dataset: default._AllLogs
+        since: 30d
         excludeMethods:
           - io.k8s.*

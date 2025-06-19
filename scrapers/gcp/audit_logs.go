@@ -6,13 +6,17 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigquery"
+	"github.com/flanksource/commons/duration"
 	"github.com/flanksource/duty/models"
 	"github.com/samber/lo"
 	"google.golang.org/api/iterator"
 	"k8s.io/utils/set"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 )
+
+const auditLogDefaultTimeRange = time.Hour * 24 * 30 // 30 days
 
 type BigQueryRow struct {
 	Email          string    `bigquery:"email"`
@@ -31,6 +35,16 @@ func buildAuditLogQuery(auditLogs v1.GCPAuditLogs) (string, []bigquery.QueryPara
 	var cteArgs []any
 	var outerArgs []any
 
+	timeRange := auditLogDefaultTimeRange
+	if auditLogs.Since != "" {
+		dur, err := duration.ParseDuration(auditLogs.Since)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid time range '%s': %w", auditLogs.Since, err)
+		}
+		timeRange = time.Duration(dur)
+	}
+
+	cteConditions = append(cteConditions, fmt.Sprintf("timestamp >= '%s'", utils.Now().Add(-timeRange).Format(time.DateOnly)))
 	cteConditions = append(cteConditions, "ARRAY_LENGTH(proto_payload.audit_log.authorization_info) > 0")
 
 	if len(auditLogs.UserAgents) > 0 {
