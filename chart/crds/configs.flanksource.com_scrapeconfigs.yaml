@@ -2709,6 +2709,11 @@ spec:
                             description: MatchExpression uses MatchItems
                             type: string
                           type: array
+                        since:
+                          description: |-
+                            Time range to query audit logs (defaults to last 7 days if not specified)
+                            Examples: "24h", "7d", "30d"
+                          type: string
                         userAgents:
                           description: Filter user agents matching these patterns
                           items:

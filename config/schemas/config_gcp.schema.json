@@ -254,6 +254,9 @@
         "dataset": {
           "type": "string"
         },
+        "since": {
+          "type": "string"
+        },
         "userAgents": {
           "$ref": "#/$defs/MatchExpressions"
         },
