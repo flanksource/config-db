@@ -308,6 +308,8 @@ github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy86
 github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0cBrbBpGY/8hQs=
 github.com/Masterminds/semver/v3 v3.3.1 h1:QtNSWtVZ3nBfk8mAOu/B6v7FMJ+NHTIgUPi7rj+4nv4=
 github.com/Masterminds/semver/v3 v3.3.1/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
+github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
+github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.5.2/go.mod h1:WpS1mjBmmwHBEWmogvA2mj8546UReBk4v8QkMxJ6pZY=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
@@ -571,8 +573,8 @@ github.com/flanksource/artifacts v1.0.14 h1:Vv70bccsae0MwGaf/uSPp34J5V1/PyKfct9z
 github.com/flanksource/artifacts v1.0.14/go.mod h1:qHVCnQu5k50aWNJ5UhpcAKEl7pAzqUrFFKGSm147G70=
 github.com/flanksource/commons v1.39.0 h1:pTqadK4I1SWbl3SUN4Yuh5HSxWvTLJ07jkp71LiHwmM=
 github.com/flanksource/commons v1.39.0/go.mod h1:u14gMIiatT3pwmlwhSB3ZfNN9B/D062jofGv0WjBwFM=
-github.com/flanksource/duty v1.0.961 h1:A6E88Q5YJm9pp1k5DilnTxquzQl5rhpxS4hKpBB65pY=
-github.com/flanksource/duty v1.0.961/go.mod h1:4wYJ1/dWQSvlVlG/z8X5JMnMiECTBo2B0JKPSl3KSZU=
+github.com/flanksource/duty v1.0.962 h1:7Dj2eMVktCaDAKGkJrHuDBHmmebVNhdl7cwMKMRy2DE=
+github.com/flanksource/duty v1.0.962/go.mod h1:Yssfqf+D+gf2wogD1fqsO3+lHvDLmvk4tuQmCVWPmMI=
 github.com/flanksource/gomplate/v3 v3.24.58 h1:4FNysw90fT9zrw84TQ/qj/CFND79IfCZT2QxnA80XtY=
 github.com/flanksource/gomplate/v3 v3.24.58/go.mod h1:hGEObNtnOQs8rNUX8sM8aJTAhnt4ehjyOw1MvDhl6AU=
 github.com/flanksource/is-healthy v1.0.76 h1:EpEtBMJqi8vzpm+yvNA0ocNWUozyTiLp4nfO3MCSTUg=
@@ -987,6 +989,10 @@ github.com/labstack/echo/v4 v4.12.0 h1:IKpw49IMryVB2p1a4dzwlhP1O2Tf2E0Ir/450lH+k
 github.com/labstack/echo/v4 v4.12.0/go.mod h1:UP9Cr2DJXbOK3Kr9ONYzNowSh7HP0aG0ShAyycHSJvM=
 github.com/labstack/gommon v0.4.2 h1:F8qTUNXgG1+6WQmqoUWnz8WiEU60mXVVw0P4ht1WRA0=
 github.com/labstack/gommon v0.4.2/go.mod h1:QlUFxVM+SNXhDL/Z7YhocGIBYOiwB0mXm1+1bAPHPyU=
+github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 h1:SOEGU9fKiNWd/HOJuq6+3iTQz8KNCLtVX6idSoTLdUw=
+github.com/lann/builder v0.0.0-20180802200727-47ae307949d0/go.mod h1:dXGbAdH5GtBTC4WfIxhKZfyBF/HBFgRZSWwZ9g/He9o=
+github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 h1:P6pPBnrTSX3DEVR4fDembhRWSsG5rVo6hYhAB/ADZrk=
+github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0/go.mod h1:vmVJ0l/dxyfGW6FmdpVm2joNMFikkuWg0EoCKLGUMNw=
 github.com/liamylian/jsontime/v2 v2.0.0 h1:3if2kDW/boymUdO+4Qj/m4uaXMBSF6np9KEgg90cwH0=
 github.com/liamylian/jsontime/v2 v2.0.0/go.mod h1:UHp1oAPqCBfspokvGmaGe0IAl2IgOpgOgDaKPcvcGGY=
 github.com/lib/pq v1.0.0/go.mod h1:5WUZQaWbwv1U+lTReE5YruASi9Al49XbQIvNi/34Woo=

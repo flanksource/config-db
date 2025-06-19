@@ -52,7 +52,7 @@ require (
 	github.com/fjl/memsize v0.0.2
 	github.com/flanksource/artifacts v1.0.14
 	github.com/flanksource/commons v1.39.0
-	github.com/flanksource/duty v1.0.961
+	github.com/flanksource/duty v1.0.962
 	github.com/flanksource/is-healthy v1.0.76
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.11
@@ -123,6 +123,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.51.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0 // indirect
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
+	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.0.0 // indirect
 	github.com/RaveNoX/go-jsonmerge v1.0.0 // indirect
@@ -220,6 +221,8 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
+	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
+	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/liamylian/jsontime/v2 v2.0.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/lmittmann/tint v1.0.5 // indirect
