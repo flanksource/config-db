@@ -59,7 +59,7 @@ func parseFinding(finding *securitycenterpb.ListFindingsResponse_ListFindingsRes
 		LastObserved:  lo.ToPtr(finding.Finding.EventTime.AsTime()),
 	}
 
-	if _analysis, err := utils.ToJSONMap(finding); err != nil {
+	if _analysis, err := utils.ToJSONMap(finding); err == nil {
 		analysis.Analysis = _analysis
 	}
 
