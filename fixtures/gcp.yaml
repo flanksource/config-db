@@ -1,8 +1,17 @@
 apiVersion: configs.flanksource.com/v1
 kind: ScrapeConfig
 metadata:
-  name: gcp-scraper
-  namespace: default
+  name: gcp-flanksource
+  namespace: mc
 spec:
   gcp:
-    - project: flanksource-sandbox
+    - project: workload-prod-eu-02
+      connection: connection://mc/gcloud-flanksource
+      include:
+        - storage.googleapis.com/Bucket
+        - container.googleapis.com/Cluster
+      auditLogs:
+        dataset: default._AllLogs
+        since: 30d
+        excludeMethods:
+          - io.k8s.*

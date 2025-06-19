@@ -1081,6 +1081,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "auditLogs": {
+          "$ref": "#/$defs/GCPAuditLogs"
         }
       },
       "additionalProperties": false,
@@ -1088,6 +1091,30 @@
       "required": [
         "project"
       ]
+    },
+    "GCPAuditLogs": {
+      "properties": {
+        "dataset": {
+          "type": "string"
+        },
+        "userAgents": {
+          "$ref": "#/$defs/MatchExpressions"
+        },
+        "principalEmails": {
+          "$ref": "#/$defs/MatchExpressions"
+        },
+        "permissions": {
+          "$ref": "#/$defs/MatchExpressions"
+        },
+        "serviceNames": {
+          "$ref": "#/$defs/MatchExpressions"
+        },
+        "methods": {
+          "$ref": "#/$defs/MatchExpressions"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "GCPCloudLoggingConfig": {
       "properties": {

@@ -655,8 +655,8 @@ type ScrapeResult struct {
 	ExternalUsers      []models.ExternalUser      `json:"-"`
 	ExternalGroups     []models.ExternalGroup     `json:"-"`
 	ExternalUserGroups []models.ExternalUserGroup `json:"-"`
-	ConfigAccess       []models.ConfigAccess      `json:"-"`
-	ConfigAccessLogs   []models.ConfigAccessLog   `json:"-"`
+	ConfigAccess       []ExternalConfigAccess     `json:"-"`
+	ConfigAccessLogs   []ExternalConfigAccessLog  `json:"-"`
 
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
@@ -664,6 +664,18 @@ type ScrapeResult struct {
 	// OmitNilFields lets post-processor know whether to omit nil fields
 	// inside config or not. Default is true
 	OmitNilFields *bool `json:"-"`
+}
+
+// +kubebuilder:object:generate=false
+type ExternalConfigAccessLog struct {
+	models.ConfigAccessLog
+	ConfigExternalID ExternalID
+}
+
+// +kubebuilder:object:generate=false
+type ExternalConfigAccess struct {
+	models.ConfigAccess
+	ConfigExternalID ExternalID
 }
 
 var _ types.ResourceSelectable = (*ScrapeResult)(nil)

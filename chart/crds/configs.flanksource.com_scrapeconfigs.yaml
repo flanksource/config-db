@@ -2676,6 +2676,46 @@ spec:
               gcp:
                 items:
                   properties:
+                    auditLogs:
+                      description: AuditLogs query the BigQuery dataset for audit
+                        logs.
+                      properties:
+                        dataset:
+                          description: |-
+                            BigQuery dataset to query audit logs from
+                            Example: "default._AllLogs"
+                          type: string
+                        methods:
+                          description: Filter methods matching these patterns
+                          items:
+                            description: MatchExpression uses MatchItems
+                            type: string
+                          type: array
+                        permissions:
+                          description: Filter permissions matching these patterns
+                          items:
+                            description: MatchExpression uses MatchItems
+                            type: string
+                          type: array
+                        principalEmails:
+                          description: Filter principal emails matching these patterns
+                          items:
+                            description: MatchExpression uses MatchItems
+                            type: string
+                          type: array
+                        serviceNames:
+                          description: Filter service names matching these patterns
+                          items:
+                            description: MatchExpression uses MatchItems
+                            type: string
+                          type: array
+                        userAgents:
+                          description: Filter user agents matching these patterns
+                          items:
+                            description: MatchExpression uses MatchItems
+                            type: string
+                          type: array
+                      type: object
                     class:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.
@@ -2748,6 +2788,8 @@ spec:
                     endpoint:
                       type: string
                     exclude:
+                      description: Exclude is a list of GCP asset types to exclude
+                        from scraping.
                       items:
                         type: string
                       type: array
@@ -2764,6 +2806,10 @@ spec:
                         the ID for the resource.
                       type: string
                     include:
+                      description: |-
+                        Include is a list of GCP asset types to scrape.
+                        Reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types
+                        Example: storage.googleapis.com/Bucket
                       items:
                         type: string
                       type: array
