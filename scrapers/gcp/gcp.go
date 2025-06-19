@@ -210,8 +210,8 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		AssetTypes:  []string{".*.googleapis.com.*"},
 	}
 
-	if len(config.Include) > 0 {
-		req.AssetTypes = config.Include
+	if assetTypes := config.GetAssetTypes(); len(assetTypes) > 0 {
+		req.AssetTypes = assetTypes
 	}
 
 	assetClient, err := asset.NewClient(ctx, ctx.ClientOpts...)
@@ -402,44 +402,45 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	allResults := v1.ScrapeResults{}
 
 	for _, gcpConfig := range ctx.ScrapeConfig().Spec.GCP {
-		results := v1.ScrapeResults{}
-
 		gcpCtx, err := NewGCPContext(ctx, gcpConfig)
 		if err != nil {
-			results.Errorf(err, "failed to create GCP context")
-			allResults = append(allResults, results...)
+			allResults.Errorf(err, "failed to create GCP context")
 			continue
 		}
 
-		assetResults, err := gcp.FetchAllAssets(gcpCtx, gcpConfig)
-		if err != nil {
-			results.Errorf(err, "failed to fetch GCP assets")
-			allResults = append(allResults, results...)
-			continue
-		} else {
-			allResults = append(allResults, assetResults...)
+		if len(gcpConfig.GetAssetTypes()) > 0 || len(gcpConfig.Include) == 0 {
+			assetResults, err := gcp.FetchAllAssets(gcpCtx, gcpConfig)
+			if err != nil {
+				allResults.Errorf(err, "failed to fetch GCP assets")
+				continue
+			} else {
+				allResults = append(allResults, assetResults...)
+			}
+
+			if backupResults, err := gcp.scrapeCloudSQLBackupsForAllInstances(gcpCtx, gcpConfig, assetResults); err != nil {
+				allResults.Errorf(err, "failed to scrape Cloud SQL backups")
+			} else {
+				allResults = append(allResults, backupResults...)
+			}
 		}
 
-		if backupResults, err := gcp.scrapeCloudSQLBackupsForAllInstances(gcpCtx, gcpConfig, results); err != nil {
-			results.Errorf(err, "failed to scrape Cloud SQL backups")
-		} else {
-			results = append(results, backupResults...)
+		if gcpConfig.Includes(v1.IncludeIAMPolicy) {
+			iamPolicyResults, err := gcp.FetchIAMPolicies(gcpCtx, gcpConfig)
+			if err != nil {
+				allResults.Errorf(err, "failed to fetch GCP IAM policies for project %s", gcpConfig.Project)
+			} else {
+				allResults = append(allResults, iamPolicyResults...)
+			}
 		}
 
-		iamPolicyResults, err := gcp.FetchIAMPolicies(gcpCtx, gcpConfig)
-		if err != nil {
-			results.Errorf(err, "failed to fetch GCP IAM policies for project %s", gcpConfig.Project)
-			allResults = append(allResults, results...)
-		} else {
-			allResults = append(allResults, iamPolicyResults...)
-		}
-
-		accessLogResults, err := gcp.FetchAuditLogs(gcpCtx, gcpConfig)
-		if err != nil {
-			results.Errorf(err, "failed to fetch GCP access logs for project %s", gcpConfig.Project)
-			allResults = append(allResults, results...)
-		} else {
-			allResults = append(allResults, accessLogResults...)
+		// Audit logs must be enabled explicitly.
+		if gcpConfig.Includes(v1.IncludeAuditLogs) && len(gcpConfig.Include) > 0 {
+			accessLogResults, err := gcp.FetchAuditLogs(gcpCtx, gcpConfig)
+			if err != nil {
+				allResults.Errorf(err, "failed to fetch GCP access logs for project %s", gcpConfig.Project)
+			} else {
+				allResults = append(allResults, accessLogResults...)
+			}
 		}
 	}
 

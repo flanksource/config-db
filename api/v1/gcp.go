@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/flanksource/duty/connection"
@@ -22,6 +23,16 @@ const (
 	GCPNetwork    = "GCP::Compute::Network"
 	GCPDisk       = "GCP::Compute::Disk"
 	GCPGKECluster = "GCP::Container::Cluster"
+)
+
+const (
+	// Feature flags for GCP scraper
+	IncludeIAMPolicy = "IAMPolicy"
+	IncludeAuditLogs = "AuditLogs"
+)
+
+var (
+	AllIncludes = []string{IncludeIAMPolicy, IncludeAuditLogs}
 )
 
 type GCP struct {
@@ -88,4 +99,16 @@ func (gcp GCP) Excludes(resource string) bool {
 		}
 	}
 	return false
+}
+
+// GetAssetTypes returns the asset types to scrape from Include field.
+func (gcp GCP) GetAssetTypes() []string {
+	var assetTypes []string
+	for _, include := range gcp.Include {
+		if !slices.Contains(AllIncludes, include) {
+			assetTypes = append(assetTypes, include)
+		}
+	}
+
+	return assetTypes
 }
