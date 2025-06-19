@@ -442,6 +442,14 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				allResults = append(allResults, accessLogResults...)
 			}
 		}
+
+		if !gcpConfig.Excludes("security_center") {
+			if analysisResults, err := gcp.ListFindings(gcpCtx, gcpConfig); err != nil {
+				allResults.Errorf(err, "failed to scrape GCP Security Center findings")
+			} else {
+				allResults = append(allResults, analysisResults...)
+			}
+		}
 	}
 
 	return allResults

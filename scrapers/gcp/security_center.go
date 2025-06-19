@@ -46,19 +46,17 @@ func mapState(finding *securitycenterpb.Finding) string {
 
 func parseFinding(finding *securitycenterpb.ListFindingsResponse_ListFindingsResult) *v1.AnalysisResult {
 	analysis := v1.AnalysisResult{
-		Analyzer:     finding.Finding.SourceProperties["ScannerName"].GetStringValue(),
-		ConfigType:   fmt.Sprintf("GCP::%s", parseGCPConfigClass(finding.Resource.Type)),
-		ExternalID:   finding.Resource.Name,
-		Status:       mapState(finding.Finding),
-		Severity:     mapSeverity(finding.Finding.Severity),
-		Messages:     []string{finding.Finding.Description},
-		AnalysisType: models.AnalysisTypeSecurity,
-		Source:       "GCP Security Center",
-		// TODO: How to do Summary
-		Summary:       finding.Finding.Description,
+		Analyzer:      finding.Finding.SourceProperties["ScannerName"].GetStringValue(),
+		ConfigType:    fmt.Sprintf("GCP::%s", parseGCPConfigClass(finding.Resource.Type)),
+		ExternalID:    finding.Resource.Name,
+		Status:        mapState(finding.Finding),
+		Severity:      mapSeverity(finding.Finding.Severity),
+		Messages:      []string{finding.Finding.Description, finding.Finding.Category},
+		AnalysisType:  models.AnalysisTypeSecurity,
+		Source:        "GCP Security Center",
+		Summary:       lo.CoalesceOrEmpty(finding.Finding.Description, finding.Finding.Category),
 		FirstObserved: lo.ToPtr(finding.Finding.CreateTime.AsTime()),
-		// TODO: How to do LastObserved
-		LastObserved: lo.ToPtr(finding.Finding.EventTime.AsTime()),
+		LastObserved:  lo.ToPtr(finding.Finding.EventTime.AsTime()),
 	}
 
 	if _analysis, err := utils.ToJSONMap(finding); err != nil {
@@ -70,7 +68,6 @@ func parseFinding(finding *securitycenterpb.ListFindingsResponse_ListFindingsRes
 
 func (gcp Scraper) ListFindings(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
 	var results v1.ScrapeResults
-
 	client, err := securitycenter.NewClient(ctx, ctx.ClientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating security center client: %w", err)
@@ -78,7 +75,7 @@ func (gcp Scraper) ListFindings(ctx *GCPContext, config v1.GCP) (v1.ScrapeResult
 	defer client.Close()
 
 	req := &securitycenterpb.ListFindingsRequest{
-		Parent: fmt.Sprintf("projects/%s", config.Project),
+		Parent: fmt.Sprintf("projects/%s/sources/-", config.Project),
 	}
 
 	it := client.ListFindings(ctx, req)
