@@ -72,7 +72,11 @@ func (gcp Scraper) ListFindings(ctx *GCPContext, config v1.GCP) (v1.ScrapeResult
 	if err != nil {
 		return nil, fmt.Errorf("error creating security center client: %w", err)
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			ctx.Warnf("gcp assets: failed to close security center client: %v", err)
+		}
+	}()
 
 	req := &securitycenterpb.ListFindingsRequest{
 		Parent: fmt.Sprintf("projects/%s/sources/-", config.Project),
