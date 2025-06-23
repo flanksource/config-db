@@ -443,7 +443,7 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 		}
 
-		if !gcpConfig.Excludes("security_center") {
+		if !gcpConfig.Excludes(v1.ExcludeSecurityCenter) {
 			if analysisResults, err := gcp.ListFindings(gcpCtx, gcpConfig); err != nil {
 				allResults.Errorf(err, "failed to scrape GCP Security Center findings")
 			} else {
