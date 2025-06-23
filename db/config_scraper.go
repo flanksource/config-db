@@ -30,6 +30,7 @@ func FindScraper(ctx context.Context, id string) (*models.ConfigScraper, error) 
 func DeleteScrapeConfig(ctx context.Context, id string) error {
 	if err := ctx.DB().Table("config_scrapers").
 		Where("id = ?", id).
+		Where("deleted_at IS NULL").
 		Update("deleted_at", time.Now()).
 		Error; err != nil {
 		return err
@@ -59,7 +60,9 @@ func DeleteScrapeConfig(ctx context.Context, id string) error {
 	if err := ctx.DB().Exec(fmt.Sprintf(`
         UPDATE config_items
         SET deleted_at = NOW()
-        WHERE id NOT IN (%s) AND scraper_id = ?
+        WHERE id NOT IN (%s)
+			AND scraper_id = ?
+			AND deleted_at IS NULL
     `, selectQuery), id).Error; err != nil {
 		return err
 	}
