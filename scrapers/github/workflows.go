@@ -5,12 +5,13 @@ import (
 	"math"
 
 	"github.com/flanksource/commons/collections"
+
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 )
 
-const WorkflowRun = "GitHubActions::WorkflowRun"
+const ConfigTypeWorkflow = "GitHubAction::Workflow"
 
 type GithubActionsScraper struct {
 }
@@ -39,6 +40,7 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			if !collections.MatchItems(workflow.Name, config.Workflows...) {
 				continue
 			}
+
 			runs, err := getNewWorkflowRuns(client, workflow)
 			if err != nil {
 				results.Errorf(err, "failed to get workflow runs for %s", workflow.GetID())
@@ -47,7 +49,7 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{
 				ConfigClass: "Deployment",
 				Config:      workflow,
-				Type:        WorkflowRun,
+				Type:        ConfigTypeWorkflow,
 				ID:          workflow.GetID(),
 				Name:        workflow.Name,
 				Changes:     runs,
@@ -66,16 +68,8 @@ func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.Ch
 
 	var allRuns []v1.ChangeResult
 	for _, run := range runs.Value {
-		allRuns = append(allRuns, v1.ChangeResult{
-			ChangeType:       "GithubAction",
-			CreatedAt:        &run.CreatedAt,
-			Severity:         fmt.Sprint(run.Conclusion),
-			ExternalID:       workflow.GetID(),
-			ConfigType:       WorkflowRun,
-			Source:           run.Event,
-			Details:          v1.NewJSON(run),
-			ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.Name, workflow.ID, run.ID),
-		})
+		changeResult := runToChangeResult(run, workflow)
+		allRuns = append(allRuns, changeResult)
 	}
 
 	// Get total runs from DB for that workflow
@@ -90,18 +84,33 @@ func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.Ch
 		if err != nil {
 			return nil, err
 		}
+
 		for _, run := range runs.Value {
-			allRuns = append(allRuns, v1.ChangeResult{
-				ChangeType:       "GithubWorkflowRun",
-				CreatedAt:        &run.CreatedAt,
-				Severity:         run.Conclusion.(string),
-				ExternalID:       workflow.GetID(),
-				ConfigType:       WorkflowRun,
-				Source:           run.Event,
-				Details:          v1.NewJSON(run),
-				ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.Name, workflow.ID, run.ID),
-			})
+			changeResult := runToChangeResult(run, workflow)
+			allRuns = append(allRuns, changeResult)
 		}
 	}
+
 	return allRuns, nil
+}
+
+func runToChangeResult(run Run, workflow Workflow) v1.ChangeResult {
+	summary := run.Status
+	if run.Status == "completed" {
+		duration := run.UpdatedAt.Sub(run.CreatedAt)
+		run.DurationSeconds = int(duration.Seconds())
+		summary = fmt.Sprintf("completed in %s", duration.String())
+	}
+
+	return v1.ChangeResult{
+		ChangeType:       "GitHubActionRun",
+		CreatedAt:        &run.CreatedAt,
+		Severity:         run.Conclusion,
+		ExternalID:       workflow.GetID(),
+		ConfigType:       ConfigTypeWorkflow,
+		Summary:          summary,
+		Source:           run.TriggeringActor.Login,
+		Details:          v1.NewJSON(run),
+		ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.Name, workflow.ID, run.ID),
+	}
 }
