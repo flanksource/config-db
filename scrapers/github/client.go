@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-resty/resty/v2"
+
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/go-resty/resty/v2"
 )
 
 // Workflow represents a gitHub actions workflow object.
@@ -37,33 +38,41 @@ type Workflows struct {
 // Run is a gitHub actions workflow runs for a repository.
 // see https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#list-workflow-runs-for-a-repository
 type Run struct {
-	ID                  int       `json:"id"`
-	Name                string    `json:"name"`
-	NodeID              string    `json:"node_id"`
-	CheckSuiteID        int       `json:"check_suite_id"`
-	CheckSuiteNodeID    string    `json:"check_suite_node_id"`
-	HeadBranch          string    `json:"head_branch"`
-	HeadSHA             string    `json:"head_sha"`
-	Path                string    `json:"path"`
-	RunNumber           int       `json:"run_number"`
-	Event               string    `json:"event"`
-	DisplayTitle        string    `json:"display_title"`
-	Status              string    `json:"status"`
-	Conclusion          any       `json:"conclusion"`
-	WorkflowID          int       `json:"workflow_id"`
-	URL                 string    `json:"url"`
-	HtmlURL             string    `json:"html_url"`
-	PullRequests        any       `json:"pull_requests"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
-	Actor               any       `json:"actor"`
-	RunAttempt          int       `json:"run_attempt"`
-	ReferencedWorkflows any       `json:"referenced_workflows"`
-	RunStartedAt        time.Time `json:"run_started_at"`
-	TriggeringActor     any       `json:"triggering_actor"`
-	HeadCommit          any       `json:"head_commit"`
-	Repository          any       `json:"repository"`
-	HeadRepository      any       `json:"head_repository"`
+	ID                  int             `json:"id"`
+	Name                string          `json:"name"`
+	NodeID              string          `json:"node_id"`
+	CheckSuiteID        int             `json:"check_suite_id"`
+	CheckSuiteNodeID    string          `json:"check_suite_node_id"`
+	HeadBranch          string          `json:"head_branch"`
+	HeadSHA             string          `json:"head_sha"`
+	Path                string          `json:"path"`
+	RunNumber           int             `json:"run_number"`
+	Event               string          `json:"event"`
+	DisplayTitle        string          `json:"display_title"`
+	Status              string          `json:"status"`
+	Conclusion          string          `json:"conclusion"`
+	WorkflowID          int             `json:"workflow_id"`
+	URL                 string          `json:"url"`
+	HtmlURL             string          `json:"html_url"`
+	PullRequests        any             `json:"pull_requests"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+	Actor               any             `json:"actor"`
+	RunAttempt          int             `json:"run_attempt"`
+	ReferencedWorkflows any             `json:"referenced_workflows"`
+	RunStartedAt        time.Time       `json:"run_started_at"`
+	TriggeringActor     TriggeringActor `json:"triggering_actor"`
+	HeadCommit          any             `json:"head_commit"`
+	Repository          any             `json:"repository"`
+	HeadRepository      any             `json:"head_repository"`
+
+	// Duration of the run
+	// Note: This is not returned by the API, but we calculate it here.
+	DurationSeconds int `json:"duration"`
+}
+
+type TriggeringActor struct {
+	Login string `json:"login"`
 }
 
 type Runs struct {
