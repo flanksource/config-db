@@ -208,6 +208,7 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		Parent:      fmt.Sprintf("projects/%s", config.Project),
 		ContentType: assetpb.ContentType_RESOURCE,
 		AssetTypes:  []string{".*.googleapis.com.*"},
+		PageSize:    1000,
 	}
 
 	if assetTypes := config.GetAssetTypes(); len(assetTypes) > 0 {

@@ -166,6 +166,8 @@ type ExternalID struct {
 	// If left empty, the scraper id is the requester's scraper id.
 	// Use `all` to disregard scraper id.
 	ScraperID string
+
+	Labels map[string]string
 }
 
 func (e ExternalID) GetKubernetesUID() string {
@@ -184,12 +186,15 @@ func (e ExternalID) GetKubernetesUID() string {
 }
 
 func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
-	query := db.Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("? = ANY(external_id)", e.ExternalID)
+	query := db.Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("? = ANY(external_id)", strings.ToLower(e.ExternalID))
 	if e.ConfigType != "" {
 		query = query.Where("type = ?", e.ConfigType)
 	}
 	if e.ScraperID != "all" && e.ScraperID != "" && !slices.Contains(ScraperLessTypes, e.ConfigType) {
 		query = query.Where("scraper_id = ?", e.ScraperID)
+	}
+	for k, v := range e.Labels {
+		query = query.Where("labels ->> ? = ?", k, v)
 	}
 	return query
 }

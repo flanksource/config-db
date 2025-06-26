@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -125,8 +126,12 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		})
 	}
 
+	// Lowercase all external ids for easy matching
+	externalIDs := append([]string{result.ID}, result.Aliases...)
+	externalIDs = lo.Map(externalIDs, func(s string, _ int) string { return strings.ToLower(s) })
+
 	ci := &models.ConfigItem{
-		ExternalID:      append([]string{result.ID}, result.Aliases...),
+		ExternalID:      externalIDs,
 		ID:              utils.Deref(result.ConfigID),
 		ConfigClass:     result.ConfigClass,
 		Type:            result.Type,

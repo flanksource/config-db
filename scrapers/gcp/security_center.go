@@ -2,10 +2,12 @@ package gcp
 
 import (
 	"fmt"
+	"strings"
 
 	securitycenter "cloud.google.com/go/securitycenter/apiv1"
 	"cloud.google.com/go/securitycenter/apiv1/securitycenterpb"
 	v1 "github.com/flanksource/config-db/api/v1"
+	k8sScraper "github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 	"github.com/samber/lo"
@@ -44,11 +46,40 @@ func mapState(finding *securitycenterpb.Finding) string {
 	return models.AnalysisStatusOpen
 }
 
+// affectedResource can be in format of
+// - //k8s.io/core/v1/namespaces/kube-system/secrets/container-watcher-token (namespace-scoped)
+// - //k8s.io/rbac.authorization.k8s.io/v1/clusterroles/crossplane:aggregate-to-admin (cluster-scoped)
+// We need to translate this into our kubernetes alias function which we use for matching external id to
+// resources scraped via the kubernetes scraper
+func mapK8sResourceFromGCP(affectedResource string) string {
+	prefix := "//k8s.io/"
+	if !strings.HasPrefix(affectedResource, prefix) {
+		return ""
+	}
+	path := strings.TrimPrefix(affectedResource, prefix)
+
+	parts := strings.Split(path, "/")
+	switch len(parts) {
+	case 6:
+		// Namespaced resource: {apiGroup}/{apiVersion}/namespaces/{namespace}/{resourceType}/{name}
+		kind := pluralToKind(parts[4])
+		ns := parts[3]
+		name := parts[5]
+		return k8sScraper.KubernetesAlias(kind, ns, name)
+	case 4:
+		// Cluster-scoped resource: {apiGroup}/{apiVersion}/{resourceType}/{name}
+		kind := pluralToKind(parts[2])
+		ns := ""
+		name := parts[3]
+		return k8sScraper.KubernetesAlias(kind, ns, name)
+	default:
+		return ""
+	}
+}
+
 func parseFinding(finding *securitycenterpb.ListFindingsResponse_ListFindingsResult) *v1.AnalysisResult {
 	analysis := v1.AnalysisResult{
 		Analyzer:      finding.Finding.SourceProperties["ScannerName"].GetStringValue(),
-		ConfigType:    fmt.Sprintf("GCP::%s", parseGCPConfigClass(finding.Resource.Type)),
-		ExternalID:    finding.Resource.Name,
 		Status:        mapState(finding.Finding),
 		Severity:      mapSeverity(finding.Finding.Severity),
 		Messages:      []string{finding.Finding.Description, finding.Finding.Category},
@@ -62,6 +93,26 @@ func parseFinding(finding *securitycenterpb.ListFindingsResponse_ListFindingsRes
 	if _analysis, err := utils.ToJSONMap(finding); err == nil {
 		analysis.Analysis = _analysis
 	}
+
+	if ar := finding.Finding.SourceProperties["affectedResources"].GetListValue(); ar != nil {
+		for _, v := range ar.Values {
+			if resourceName := v.GetStructValue().Fields["gcpResourceName"].GetStringValue(); resourceName != "" {
+				labels := make(map[string]string)
+				if finding.Resource.Type == "google.container.Cluster" {
+					labels["cluster"] = finding.Resource.DisplayName
+				}
+				if k8sAlias := mapK8sResourceFromGCP(resourceName); k8sAlias != "" {
+					analysis.ExternalConfigs = append(analysis.ExternalConfigs, v1.ExternalID{
+						ExternalID: k8sAlias,
+						ScraperID:  "all",
+						Labels:     labels,
+					})
+				}
+			}
+		}
+	}
+
+	analysis.ExternalConfigs = append(analysis.ExternalConfigs, v1.ExternalID{ExternalID: finding.Resource.Name})
 
 	return &analysis
 }
@@ -79,7 +130,8 @@ func (gcp Scraper) ListFindings(ctx *GCPContext, config v1.GCP) (v1.ScrapeResult
 	}()
 
 	req := &securitycenterpb.ListFindingsRequest{
-		Parent: fmt.Sprintf("projects/%s/sources/-", config.Project),
+		Parent:   fmt.Sprintf("projects/%s/sources/-", config.Project),
+		PageSize: 1000,
 	}
 
 	it := client.ListFindings(ctx, req)

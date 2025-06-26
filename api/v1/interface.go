@@ -41,27 +41,24 @@ func IsMoreSevere(s1, s2 models.Severity) bool {
 // AnalysisResult ...
 // +kubebuilder:object:generate=false
 type AnalysisResult struct {
-	ExternalID    string
-	ConfigType    string
-	Summary       string              // Summary of the analysis
-	Analysis      map[string]any      // Detailed metadata of the analysis
-	AnalysisType  models.AnalysisType // Type of analysis, e.g. availability, compliance, cost, security, performance.
-	Severity      models.Severity     // Severity of the analysis, e.g. critical, high, medium, low, info
-	Source        string              // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
-	Analyzer      string              // Very brief description of the analysis
-	Messages      []string            // A detailed paragraphs of the analysis
-	Status        string
-	FirstObserved *time.Time
-	LastObserved  *time.Time
-	Error         error
+	Summary         string              // Summary of the analysis
+	Analysis        map[string]any      // Detailed metadata of the analysis
+	AnalysisType    models.AnalysisType // Type of analysis, e.g. availability, compliance, cost, security, performance.
+	Severity        models.Severity     // Severity of the analysis, e.g. critical, high, medium, low, info
+	Source          string              // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
+	Analyzer        string              // Very brief description of the analysis
+	Messages        []string            // A detailed paragraphs of the analysis
+	Status          string
+	FirstObserved   *time.Time
+	LastObserved    *time.Time
+	Error           error
+	ExternalConfigs []ExternalID
 }
 
 // ToConfigAnalysis converts this analysis result to a config analysis
 // db model.
 func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 	return models.ConfigAnalysis{
-		ExternalID:    t.ExternalID,
-		ConfigType:    t.ConfigType,
 		Analyzer:      t.Analyzer,
 		Message:       strings.Join(t.Messages, "<br><br>"),
 		Severity:      t.Severity,
@@ -444,9 +441,8 @@ func (s *ScrapeResults) AddChange(base BaseScraper, change ChangeResult) *Scrape
 
 func (s *ScrapeResults) Analysis(analyzer string, configType string, id string) *AnalysisResult {
 	result := AnalysisResult{
-		Analyzer:   analyzer,
-		ConfigType: configType,
-		ExternalID: id,
+		Analyzer:        analyzer,
+		ExternalConfigs: []ExternalID{{ConfigType: configType, ExternalID: id}},
 	}
 	*s = append(*s, ScrapeResult{
 		AnalysisResult: &result,

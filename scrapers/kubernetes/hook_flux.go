@@ -29,7 +29,7 @@ func (flux flux) ParentLookupHook(ctx *KubernetesContext, obj *unstructured.Unst
 			Type: ConfigTypePrefix + "HelmRelease",
 			ExternalID: lo.CoalesceOrEmpty(
 				ctx.GetID(helmNamespace, "HelmRelease", helmName),
-				alias("HelmRelease", helmNamespace, helmName)),
+				KubernetesAlias("HelmRelease", helmNamespace, helmName)),
 		}}
 	}
 
@@ -41,7 +41,7 @@ func (flux flux) ParentLookupHook(ctx *KubernetesContext, obj *unstructured.Unst
 			Type: ConfigTypePrefix + "Kustomization",
 			ExternalID: lo.CoalesceOrEmpty(
 				ctx.GetID(kustomizeNamespace, "Kustomization", kustomizeName),
-				alias("Kustomization", kustomizeNamespace, kustomizeName)),
+				KubernetesAlias("Kustomization", kustomizeNamespace, kustomizeName)),
 		}}
 	}
 

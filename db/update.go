@@ -391,19 +391,27 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 var OrphanCache = cache.New(60*time.Minute, 10*time.Minute)
 
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
-	analysis := result.AnalysisResult.ToConfigAnalysis()
-	ciID, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: analysis.ConfigType, ExternalID: analysis.ExternalID})
-	if err != nil {
-		return err
-	} else if ciID == nil {
-		if ctx.PropertyOn(false, "log.missing") {
-			ctx.Debugf("unable to find config item for analysis: (source=%s, configType=%s, externalID=%s, analysis: %+v)", analysis.Source, analysis.ConfigType, analysis.ExternalID, analysis)
+	var ci *models.ConfigItem
+	var err error
+	for _, extID := range result.AnalysisResult.ExternalConfigs {
+		ci, err = ctx.TempCache().Find(ctx, extID)
+		if err != nil {
+			return err
 		}
+		if ci != nil {
+			break
+		}
+	}
 
+	if ci == nil {
+		if ctx.PropertyOn(false, "log.missing") {
+			ctx.Debugf("unable to find config item for analysis: (source=%s, externalID=%v, analysis: %+v)", result.AnalysisResult.Source, result.AnalysisResult.ExternalConfigs, result.AnalysisResult)
+		}
 		return nil
 	}
 
-	analysis.ConfigID = uuid.MustParse(ciID.ID)
+	analysis := result.AnalysisResult.ToConfigAnalysis()
+	analysis.ConfigID = uuid.MustParse(ci.ID)
 	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
 	analysis.ScraperID = ctx.ScrapeConfig().GetPersistedID()
 	if analysis.Status == "" {
