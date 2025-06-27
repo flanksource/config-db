@@ -7,7 +7,6 @@ toolchain go1.24.3
 require (
 	cloud.google.com/go/asset v1.21.0
 	cloud.google.com/go/bigquery v1.67.0
-	cloud.google.com/go/logging v1.13.0
 	cloud.google.com/go/securitycenter v1.36.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
@@ -53,8 +52,8 @@ require (
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/fjl/memsize v0.0.2
 	github.com/flanksource/artifacts v1.0.14
-	github.com/flanksource/commons v1.39.0
-	github.com/flanksource/duty v1.0.965
+	github.com/flanksource/commons v1.40.0
+	github.com/flanksource/duty v1.0.966
 	github.com/flanksource/is-healthy v1.0.76
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.11
@@ -419,7 +418,7 @@ require (
 	golang.org/x/sync v0.14.0
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/text v0.25.0
 	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/api v0.236.0
 	google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 // indirect
