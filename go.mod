@@ -7,6 +7,8 @@ toolchain go1.24.3
 require (
 	cloud.google.com/go/asset v1.21.0
 	cloud.google.com/go/bigquery v1.67.0
+	cloud.google.com/go/logging v1.13.0
+	cloud.google.com/go/securitycenter v1.36.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/advisor/armadvisor v1.1.0

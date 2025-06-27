@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,7 +32,7 @@ func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.Config
 	tx := ctx.DB().
 		Select("id", "config_class", "type", "config", "created_at", "updated_at", "deleted_at").
 		Limit(1).
-		Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{extID})
+		Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{strings.ToLower(extID)})
 	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
@@ -79,7 +80,7 @@ func QueryConfigItems(ctx api.ScrapeContext, request v1.QueryRequest) (*v1.Query
 	}
 
 	response := v1.QueryResult{
-		Results: make([]map[string]interface{}, 0),
+		Results: make([]map[string]any, 0),
 	}
 
 	rows, err := results.Rows()
@@ -125,8 +126,12 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		})
 	}
 
+	// Lowercase all external ids for easy matching
+	externalIDs := append([]string{result.ID}, result.Aliases...)
+	externalIDs = lo.Map(externalIDs, func(s string, _ int) string { return strings.ToLower(s) })
+
 	ci := &models.ConfigItem{
-		ExternalID:      append([]string{result.ID}, result.Aliases...),
+		ExternalID:      externalIDs,
 		ID:              utils.Deref(result.ConfigID),
 		ConfigClass:     result.ConfigClass,
 		Type:            result.Type,

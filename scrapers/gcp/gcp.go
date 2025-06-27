@@ -208,6 +208,7 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		Parent:      fmt.Sprintf("projects/%s", config.Project),
 		ContentType: assetpb.ContentType_RESOURCE,
 		AssetTypes:  []string{".*.googleapis.com.*"},
+		PageSize:    1000,
 	}
 
 	if assetTypes := config.GetAssetTypes(); len(assetTypes) > 0 {
@@ -261,13 +262,13 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			BaseScraper: config.BaseScraper,
 			ID:          lo.CoalesceOrEmpty(rd.ID, rd.Name),
 			Name:        rd.Name,
+			Aliases:     append(rd.Aliases, asset.Name),
 			Config:      asset.Resource.Data,
 			ConfigClass: configClass,
 			Type:        configType,
 			CreatedAt:   lo.ToPtr(rd.CreatedAt),
 			Labels:      rd.Labels,
 			Tags:        tags,
-			Aliases:     append(rd.Aliases, asset.Name),
 			Properties:  []*types.Property{getLink(rd)},
 		}
 
@@ -440,6 +441,14 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				allResults.Errorf(err, "failed to fetch GCP access logs for project %s", gcpConfig.Project)
 			} else {
 				allResults = append(allResults, accessLogResults...)
+			}
+		}
+
+		if !gcpConfig.Excludes(v1.ExcludeSecurityCenter) {
+			if analysisResults, err := gcp.ListFindings(gcpCtx, gcpConfig); err != nil {
+				allResults.Errorf(err, "failed to scrape GCP Security Center findings")
+			} else {
+				allResults = append(allResults, analysisResults...)
 			}
 		}
 	}

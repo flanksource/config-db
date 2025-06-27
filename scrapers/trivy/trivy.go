@@ -77,10 +77,12 @@ func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
 				analysis := &v1.AnalysisResult{
 					AnalysisType: models.AnalysisTypeSecurity,
 					Analyzer:     pkg,
-					ConfigType:   fmt.Sprintf("Kubernetes::%s", resource.Kind),
-					ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
-					Source:       "Trivy",
-					Summary:      pkg,
+					ExternalConfigs: []v1.ExternalID{{
+						ConfigType: fmt.Sprintf("Kubernetes::%s", resource.Kind),
+						ExternalID: fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
+					}},
+					Source:  "Trivy",
+					Summary: pkg,
 				}
 
 				analysis.Analysis = make(map[string]any)
@@ -125,8 +127,10 @@ func getAnalysis(trivyResponse TrivyResponse) v1.ScrapeResults {
 
 				results.Add(v1.ScrapeResult{
 					AnalysisResult: &v1.AnalysisResult{
-						ConfigType:   fmt.Sprintf("Kubernetes::%s", resource.Kind),
-						ExternalID:   fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
+						ExternalConfigs: []v1.ExternalID{{
+							ConfigType: fmt.Sprintf("Kubernetes::%s", resource.Kind),
+							ExternalID: fmt.Sprintf("Kubernetes/%s/%s/%s", resource.Kind, resource.Namespace, resource.Name),
+						}},
 						Analysis:     misconfigurationJSON,
 						AnalysisType: models.AnalysisTypeSecurity,
 						Analyzer:     misconfiguration.Title,

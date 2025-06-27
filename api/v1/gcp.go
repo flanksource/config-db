@@ -29,6 +29,8 @@ const (
 	// Feature flags for GCP scraper
 	IncludeIAMPolicy = "IAMPolicy"
 	IncludeAuditLogs = "AuditLogs"
+
+	ExcludeSecurityCenter = "SecurityCenter"
 )
 
 var (

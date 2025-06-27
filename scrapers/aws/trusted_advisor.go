@@ -149,7 +149,7 @@ func (aws Scraper) trustedAdvisor(ctx *AWSContext, config v1.AWS, results *v1.Sc
 			analysis.Message(deref(check.Description))
 			analysis.Source = "AWS Trusted Advisor"
 
-			if _analysis, err := utils.ToJSONMap(metadata); err != nil {
+			if _analysis, err := utils.ToJSONMap(metadata); err == nil {
 				analysis.Analysis = _analysis
 			}
 		}

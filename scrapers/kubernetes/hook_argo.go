@@ -34,7 +34,7 @@ func (argo argo) ChildLookupHook(ctx *KubernetesContext, obj *unstructured.Unstr
 			for _, resource := range ars {
 				children = append([]v1.ConfigExternalKey{{
 					Type:       ConfigTypePrefix + resource.Kind,
-					ExternalID: alias(resource.Kind, resource.Namespace, resource.Name),
+					ExternalID: KubernetesAlias(resource.Kind, resource.Namespace, resource.Name),
 				}}, children...)
 			}
 		}
