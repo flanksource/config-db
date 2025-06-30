@@ -3,15 +3,23 @@ package github
 import (
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/samber/lo"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 )
 
-const ConfigTypeWorkflow = "GitHubAction::Workflow"
+const (
+	ConfigTypeWorkflow = "GitHubAction::Workflow"
+
+	// Number of concurrent requests to the GitHub API per repository
+	DefaultConcurrency = 10
+)
 
 type GithubActionsScraper struct {
 }
@@ -46,6 +54,7 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				results.Errorf(err, "failed to get workflow runs for %s", workflow.GetID())
 				continue
 			}
+
 			results = append(results, v1.ScrapeResult{
 				ConfigClass: "Deployment",
 				Config:      workflow,
@@ -53,42 +62,61 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				ID:          workflow.GetID(),
 				Name:        workflow.Name,
 				Changes:     runs,
+				Tags:        v1.Tags{{Name: "repository", Value: config.Repository}},
 				Aliases:     []string{fmt.Sprintf("%s/%d", workflow.Name, workflow.ID)},
 			})
 		}
 	}
+
 	return results
 }
 
 func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.ChangeResult, error) {
-	runs, err := client.GetWorkflowRuns(workflow.ID, 1)
-	if err != nil {
-		return nil, err
-	}
-
-	var allRuns []v1.ChangeResult
-	for _, run := range runs.Value {
-		changeResult := runToChangeResult(run, workflow)
-		allRuns = append(allRuns, changeResult)
-	}
-
-	// Get total runs from DB for that workflow
 	totalRunsInDB, err := db.GetWorkflowRunCount(client.ScrapeContext, workflow.GetID())
 	if err != nil {
 		return nil, err
 	}
-	delta := runs.Count - totalRunsInDB
-	pagesToFetch := int(math.Ceil(float64(delta) / 100))
-	for page := 2; page <= pagesToFetch; page += 1 {
-		runs, err := client.GetWorkflowRuns(workflow.ID, page)
-		if err != nil {
-			return nil, err
-		}
 
-		for _, run := range runs.Value {
-			changeResult := runToChangeResult(run, workflow)
-			allRuns = append(allRuns, changeResult)
-		}
+	// Get first page to determine total count
+	firstPage, err := client.GetWorkflowRuns(workflow.ID, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	delta := firstPage.Count - totalRunsInDB
+	pagesToFetch := int(math.Ceil(float64(delta) / 100))
+	if pagesToFetch == 0 {
+		return []v1.ChangeResult{}, nil
+	}
+
+	var g errgroup.Group
+	g.SetLimit(client.ScrapeContext.Properties().Int("github.workflows.concurrency", DefaultConcurrency))
+
+	var mu sync.Mutex
+	var allRuns []v1.ChangeResult
+	for page := range pagesToFetch {
+		g.Go(func() error {
+			client.ScrapeContext.Debugf("fetching workflow runs for page (repo: %s, workflow: %s, page: %d)", workflow.GetID(), workflow.Name, page)
+			pageRuns, err := client.GetWorkflowRuns(workflow.ID, page)
+			if err != nil {
+				return fmt.Errorf("failed to get workflow runs for page %d: %w", page, err)
+			}
+
+			var pageResults []v1.ChangeResult
+			for _, run := range pageRuns.Value {
+				changeResult := runToChangeResult(run, workflow)
+				pageResults = append(pageResults, changeResult)
+			}
+
+			mu.Lock()
+			allRuns = append(allRuns, pageResults...)
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	return allRuns, nil
@@ -102,8 +130,9 @@ func runToChangeResult(run Run, workflow Workflow) v1.ChangeResult {
 		summary = fmt.Sprintf("completed in %s", duration.String())
 	}
 
+	changeType := fmt.Sprintf("GitHubActionRun%s", lo.PascalCase(run.Conclusion))
 	return v1.ChangeResult{
-		ChangeType:       "GitHubActionRun",
+		ChangeType:       changeType,
 		CreatedAt:        &run.CreatedAt,
 		Severity:         run.Conclusion,
 		ExternalID:       workflow.GetID(),
