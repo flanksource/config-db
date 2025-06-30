@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 
@@ -55,23 +56,32 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				continue
 			}
 
-			results = append(results, v1.ScrapeResult{
+			changeResults, latestCompletedRun := processRuns(workflow, runs)
+
+			result := v1.ScrapeResult{
 				ConfigClass: "Deployment",
 				Config:      workflow,
 				Type:        ConfigTypeWorkflow,
 				ID:          workflow.GetID(),
 				Name:        workflow.Name,
-				Changes:     runs,
+				Changes:     changeResults,
 				Tags:        v1.Tags{{Name: "repository", Value: config.Repository}},
 				Aliases:     []string{fmt.Sprintf("%s/%d", workflow.Name, workflow.ID)},
-			})
+			}
+
+			// The latest completed run determines the health of the workflow
+			if latestCompletedRun.ID != 0 {
+				result = result.WithHealthStatus(getHealthFromConclusion(latestCompletedRun))
+			}
+
+			results = append(results, result)
 		}
 	}
 
 	return results
 }
 
-func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.ChangeResult, error) {
+func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]Run, error) {
 	totalRunsInDB, err := db.GetWorkflowRunCount(client.ScrapeContext, workflow.GetID())
 	if err != nil {
 		return nil, err
@@ -86,30 +96,29 @@ func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.Ch
 	delta := firstPage.Count - totalRunsInDB
 	pagesToFetch := int(math.Ceil(float64(delta) / 100))
 	if pagesToFetch == 0 {
-		return []v1.ChangeResult{}, nil
+		return firstPage.Value, nil
 	}
 
 	var g errgroup.Group
 	g.SetLimit(client.ScrapeContext.Properties().Int("github.workflows.concurrency", DefaultConcurrency))
 
 	var mu sync.Mutex
-	var allRuns []v1.ChangeResult
+	var allRuns []Run
 	for page := range pagesToFetch {
-		g.Go(func() error {
-			client.ScrapeContext.Debugf("fetching workflow runs for page (repo: %s, workflow: %s, page: %d)", workflow.GetID(), workflow.Name, page)
-			pageRuns, err := client.GetWorkflowRuns(workflow.ID, page)
-			if err != nil {
-				return fmt.Errorf("failed to get workflow runs for page %d: %w", page, err)
-			}
+		pageNumber := page + 1
+		if pageNumber == 1 {
+			continue // Skip first page, it's already fetched
+		}
 
-			var pageResults []v1.ChangeResult
-			for _, run := range pageRuns.Value {
-				changeResult := runToChangeResult(run, workflow)
-				pageResults = append(pageResults, changeResult)
+		g.Go(func() error {
+			client.ScrapeContext.Debugf("fetching workflow runs for page (workflow: %s, page: %d)", workflow.GetID(), pageNumber)
+			pageRuns, err := client.GetWorkflowRuns(workflow.ID, pageNumber)
+			if err != nil {
+				return fmt.Errorf("failed to get workflow runs for page %d: %w", pageNumber, err)
 			}
 
 			mu.Lock()
-			allRuns = append(allRuns, pageResults...)
+			allRuns = append(allRuns, pageRuns.Value...)
 			mu.Unlock()
 			return nil
 		})
@@ -142,4 +151,40 @@ func runToChangeResult(run Run, workflow Workflow) v1.ChangeResult {
 		Details:          v1.NewJSON(run),
 		ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.Name, workflow.ID, run.ID),
 	}
+}
+
+func getHealthFromConclusion(latestCompletedRun Run) health.HealthStatus {
+	healthStatus := health.HealthStatus{
+		Health: health.HealthUnknown,
+		Ready:  true,
+		Status: health.HealthStatusCode(latestCompletedRun.Status),
+	}
+
+	switch latestCompletedRun.Conclusion {
+	case "success":
+		healthStatus.Health = health.HealthHealthy
+	case "failure":
+		healthStatus.Health = health.HealthUnhealthy
+		healthStatus.Status = health.HealthStatusCode(fmt.Sprintf("%s: %s", latestCompletedRun.Conclusion, latestCompletedRun.DisplayTitle))
+	case "timed_out":
+		healthStatus.Health = health.HealthWarning
+	default:
+		healthStatus.Health = health.HealthUnknown
+	}
+
+	return healthStatus
+}
+
+// processRuns transforms runs to change results and returns the latest run that ran to completion
+func processRuns(workflow Workflow, runs []Run) ([]v1.ChangeResult, Run) {
+	changeResults := make([]v1.ChangeResult, 0, len(runs))
+	var latestCompletedRun Run
+	for _, run := range runs {
+		changeResults = append(changeResults, runToChangeResult(run, workflow))
+		if run.Status == "completed" && run.RunNumber > latestCompletedRun.RunNumber {
+			latestCompletedRun = run
+		}
+	}
+
+	return changeResults, latestCompletedRun
 }
