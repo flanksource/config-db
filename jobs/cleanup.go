@@ -115,7 +115,7 @@ var CleanupConfigItems = &job.Job{
 		if err := ctx.DB().Raw("SELECT COUNT(*) FROM config_items").Scan(&newCount).Error; err != nil {
 			return fmt.Errorf("failed to count config items: %w", db.ErrorDetails(err))
 		}
-		ctx.History.SuccessCount = int(newCount - prevCount)
+		ctx.History.SuccessCount = int(prevCount - newCount)
 		return nil
 	},
 }
