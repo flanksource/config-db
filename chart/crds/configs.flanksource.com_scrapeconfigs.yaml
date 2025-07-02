@@ -3148,6 +3148,14 @@ spec:
               githubActions:
                 items:
                   properties:
+                    actor:
+                      description: Returns workflow runs associated with a branch.
+                        Use the name of the branch of the push.
+                      type: string
+                    branch:
+                      description: Returns workflow runs associated with a branch.
+                        Use the name of the branch of the push.
+                      type: string
                     class:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.
@@ -3163,6 +3171,12 @@ spec:
                       items:
                         type: string
                       type: array
+                    created:
+                      description: |-
+                        Returns workflow runs created within the given date-time range.
+                        For more information on the syntax, see "Understanding the search syntax."
+                        Docs: https://docs.github.com/en/search-github/getting-started-with-searching-on-github/understanding-the-search-syntax#query-for-dates
+                      type: string
                     deleteFields:
                       description: |-
                         DeleteFields is a JSONPath expression used to identify the deleted time of the config.
@@ -3557,9 +3571,7 @@ spec:
                       type: array
                   required:
                   - owner
-                  - personalAccessToken
                   - repository
-                  - workflows
                   type: object
                 type: array
               http:
