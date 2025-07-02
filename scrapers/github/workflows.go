@@ -96,7 +96,7 @@ func getNewWorkflowRuns(ctx api.ScrapeContext, client *GitHubActionsClient, work
 	}
 
 	var g errgroup.Group
-	g.SetLimit(client.ScrapeContext.Properties().Int("github.workflows.concurrency", DefaultConcurrency))
+	g.SetLimit(client.ScrapeContext.Properties().Int("scrapers.githubactions.concurrency", DefaultConcurrency))
 
 	var mu sync.Mutex
 	var allRuns = firstPage.WorkflowRuns
@@ -128,7 +128,7 @@ func getNewWorkflowRuns(ctx api.ScrapeContext, client *GitHubActionsClient, work
 }
 
 func runToChangeResult(run *github.WorkflowRun, workflow *github.Workflow) v1.ChangeResult {
-	summary := fmt.Sprintf("branch: %s; status: %s", run.GetHeadBranch(), run.GetStatus())
+	summary := fmt.Sprintf("%s (branch: %s)", run.GetDisplayTitle(), run.GetHeadBranch())
 
 	if run.GetStatus() == "completed" {
 		duration := run.GetUpdatedAt().Sub(run.GetCreatedAt().Time)

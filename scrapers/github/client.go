@@ -12,6 +12,8 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
+const defaultWorkflowRunMaxAge = 7 * 24 * time.Hour
+
 type GitHubActionsClient struct {
 	*github.Client
 	api.ScrapeContext
@@ -56,13 +58,18 @@ func (gh *GitHubActionsClient) GetWorkflows(ctx context.Context) ([]*github.Work
 }
 
 func (gh *GitHubActionsClient) GetWorkflowRuns(ctx context.Context, config v1.GitHubActions, id, page int) (*github.WorkflowRuns, error) {
+	duration := gh.ScrapeContext.Properties().Duration("scrapers.githubactions.maxAge", defaultWorkflowRunMaxAge)
+	createdAfter := time.Now().Add(-duration)
+	createdFilter := fmt.Sprintf(">=%s", createdAfter.Format("2006-01-02"))
+
 	opts := &github.ListWorkflowRunsOptions{
 		Status:  config.Status,
 		Actor:   config.Actor,
 		Branch:  config.Branch,
-		Created: config.Created,
+		Created: createdFilter,
 		ListOptions: github.ListOptions{
-			Page: page,
+			Page:    page,
+			PerPage: 100,
 		},
 	}
 

@@ -2,6 +2,8 @@ package v1
 
 import "github.com/flanksource/duty/types"
 
+// GitHubActions scraper scrapes the workflow and its runs based on the given filter.
+// By default, it fetches the last 7 days of workflow runs (Configurable via property: scrapers.githubactions.maxAge)
 type GitHubActions struct {
 	BaseScraper         `json:",inline" yaml:",inline"`
 	Owner               string       `yaml:"owner" json:"owner"`
@@ -16,14 +18,10 @@ type GitHubActions struct {
 	// For example, a conclusion can be success or a status can be in_progress.
 	Status string `yaml:"status,omitempty" json:"status,omitempty"`
 
-	// Returns workflow runs associated with a branch. Use the name of the branch of the push.
+	// Returns someone's workflow runs.
+	// Use the login for the user who created the push associated with the check suite or workflow run.
 	Actor string `yaml:"actor,omitempty" json:"actor,omitempty"`
 
 	// Returns workflow runs associated with a branch. Use the name of the branch of the push.
 	Branch string `yaml:"branch,omitempty" json:"branch,omitempty"`
-
-	// Returns workflow runs created within the given date-time range.
-	// For more information on the syntax, see "Understanding the search syntax."
-	// Docs: https://docs.github.com/en/search-github/getting-started-with-searching-on-github/understanding-the-search-syntax#query-for-dates
-	Created string `yaml:"created,omitempty" json:"created,omitempty"`
 }

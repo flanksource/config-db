@@ -235,9 +235,6 @@
         },
         "branch": {
           "type": "string"
-        },
-        "created": {
-          "type": "string"
         }
       },
       "additionalProperties": false,

@@ -3147,10 +3147,14 @@ spec:
                 type: array
               githubActions:
                 items:
+                  description: |-
+                    GitHubActions scraper scrapes the workflow and its runs based on the given filter.
+                    By default, it fetches the last 7 days of workflow runs (Configurable via property: scrapers.githubactions.maxAge)
                   properties:
                     actor:
-                      description: Returns workflow runs associated with a branch.
-                        Use the name of the branch of the push.
+                      description: |-
+                        Returns someone's workflow runs.
+                        Use the login for the user who created the push associated with the check suite or workflow run.
                       type: string
                     branch:
                       description: Returns workflow runs associated with a branch.
@@ -3171,12 +3175,6 @@ spec:
                       items:
                         type: string
                       type: array
-                    created:
-                      description: |-
-                        Returns workflow runs created within the given date-time range.
-                        For more information on the syntax, see "Understanding the search syntax."
-                        Docs: https://docs.github.com/en/search-github/getting-started-with-searching-on-github/understanding-the-search-syntax#query-for-dates
-                      type: string
                     deleteFields:
                       description: |-
                         DeleteFields is a JSONPath expression used to identify the deleted time of the config.
