@@ -3147,7 +3147,19 @@ spec:
                 type: array
               githubActions:
                 items:
+                  description: |-
+                    GitHubActions scraper scrapes the workflow and its runs based on the given filter.
+                    By default, it fetches the last 7 days of workflow runs (Configurable via property: scrapers.githubactions.maxAge)
                   properties:
+                    actor:
+                      description: |-
+                        Returns someone's workflow runs.
+                        Use the login for the user who created the push associated with the check suite or workflow run.
+                      type: string
+                    branch:
+                      description: Returns workflow runs associated with a branch.
+                        Use the name of the branch of the push.
+                      type: string
                     class:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.
@@ -3557,9 +3569,7 @@ spec:
                       type: array
                   required:
                   - owner
-                  - personalAccessToken
                   - repository
-                  - workflows
                   type: object
                 type: array
               http:

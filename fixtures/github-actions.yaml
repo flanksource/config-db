@@ -6,5 +6,5 @@ spec:
   githubActions:
     - owner: flanksource
       repository: config-db
-      personalAccessToken:
-        value: <pat>
+      connection: connection://default/github-pat
+      branch: main

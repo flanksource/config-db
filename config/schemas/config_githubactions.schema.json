@@ -221,23 +221,27 @@
         "personalAccessToken": {
           "$ref": "#/$defs/EnvVar"
         },
-        "connection": {
-          "type": "string"
-        },
         "workflows": {
           "items": {
             "type": "string"
           },
           "type": "array"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "owner",
-        "repository",
-        "personalAccessToken",
-        "workflows"
+        "repository"
       ]
     },
     "HelmRefKeySelector": {

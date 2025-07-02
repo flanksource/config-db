@@ -3,15 +3,24 @@ package github
 import (
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/is-healthy/pkg/health"
+	"github.com/google/go-github/v73/github"
+	"github.com/samber/lo"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
 )
 
-const ConfigTypeWorkflow = "GitHubAction::Workflow"
+const (
+	ConfigTypeWorkflow = "GitHubAction::Workflow"
+
+	// Number of concurrent requests to the GitHub API per repository
+	DefaultConcurrency = 10
+)
 
 type GithubActionsScraper struct {
 }
@@ -30,87 +39,155 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 
-		workflows, err := client.GetWorkflows()
+		workflows, err := client.GetWorkflows(ctx)
 		if err != nil {
 			results.Errorf(err, "failed to get projects for %s", config.Repository)
 			continue
 		}
 
 		for _, workflow := range workflows {
-			if !collections.MatchItems(workflow.Name, config.Workflows...) {
+			if !collections.MatchItems(workflow.GetName(), config.Workflows...) {
 				continue
 			}
 
-			runs, err := getNewWorkflowRuns(client, workflow)
+			runs, err := getNewWorkflowRuns(ctx, client, workflow, config)
 			if err != nil {
-				results.Errorf(err, "failed to get workflow runs for %s", workflow.GetID())
+				results.Errorf(err, "failed to get workflow runs for %s", workflow.GetName())
 				continue
 			}
-			results = append(results, v1.ScrapeResult{
+
+			changeResults, latestCompletedRun := processRuns(workflow, runs)
+
+			result := v1.ScrapeResult{
 				ConfigClass: "Deployment",
 				Config:      workflow,
 				Type:        ConfigTypeWorkflow,
-				ID:          workflow.GetID(),
-				Name:        workflow.Name,
-				Changes:     runs,
-				Aliases:     []string{fmt.Sprintf("%s/%d", workflow.Name, workflow.ID)},
-			})
+				ID:          fmt.Sprintf("%d/%s", workflow.GetID(), workflow.GetName()),
+				Name:        workflow.GetName(),
+				Changes:     changeResults,
+				Tags:        v1.Tags{{Name: "repository", Value: config.Repository}},
+				Aliases:     []string{fmt.Sprintf("%s/%d", workflow.GetName(), workflow.GetID())},
+			}
+
+			// The latest completed run determines the health of the workflow
+			if latestCompletedRun.GetID() != 0 {
+				result = result.WithHealthStatus(getHealthFromConclusion(latestCompletedRun))
+			}
+
+			results = append(results, result)
 		}
 	}
+
 	return results
 }
 
-func getNewWorkflowRuns(client *GitHubActionsClient, workflow Workflow) ([]v1.ChangeResult, error) {
-	runs, err := client.GetWorkflowRuns(workflow.ID, 1)
+func getNewWorkflowRuns(ctx api.ScrapeContext, client *GitHubActionsClient, workflow *github.Workflow, config v1.GitHubActions) ([]*github.WorkflowRun, error) {
+	workflowID := fmt.Sprintf("%d/%s", workflow.GetID(), workflow.GetName())
+
+	// Get first page to determine total count
+	firstPage, err := client.GetWorkflowRuns(ctx, config, int(workflow.GetID()), 1)
 	if err != nil {
 		return nil, err
 	}
 
-	var allRuns []v1.ChangeResult
-	for _, run := range runs.Value {
-		changeResult := runToChangeResult(run, workflow)
-		allRuns = append(allRuns, changeResult)
+	pagesToFetch := int(math.Ceil(float64(firstPage.GetTotalCount()) / 100))
+	if pagesToFetch == 0 {
+		return firstPage.WorkflowRuns, nil
 	}
 
-	// Get total runs from DB for that workflow
-	totalRunsInDB, err := db.GetWorkflowRunCount(client.ScrapeContext, workflow.GetID())
-	if err != nil {
+	var g errgroup.Group
+	g.SetLimit(client.ScrapeContext.Properties().Int("scrapers.githubactions.concurrency", DefaultConcurrency))
+
+	var mu sync.Mutex
+	var allRuns = firstPage.WorkflowRuns
+	for page := range pagesToFetch {
+		pageNumber := page + 1
+		if pageNumber == 1 {
+			continue // Skip first page, it's already fetched
+		}
+
+		g.Go(func() error {
+			client.ScrapeContext.Debugf("fetching workflow runs for page (workflow: %s, page: %d)", workflowID, pageNumber)
+			pageRuns, err := client.GetWorkflowRuns(ctx, config, int(workflow.GetID()), pageNumber)
+			if err != nil {
+				return fmt.Errorf("failed to get workflow runs for page %d: %w", pageNumber, err)
+			}
+
+			mu.Lock()
+			allRuns = append(allRuns, pageRuns.WorkflowRuns...)
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
 		return nil, err
-	}
-	delta := runs.Count - totalRunsInDB
-	pagesToFetch := int(math.Ceil(float64(delta) / 100))
-	for page := 2; page <= pagesToFetch; page += 1 {
-		runs, err := client.GetWorkflowRuns(workflow.ID, page)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, run := range runs.Value {
-			changeResult := runToChangeResult(run, workflow)
-			allRuns = append(allRuns, changeResult)
-		}
 	}
 
 	return allRuns, nil
 }
 
-func runToChangeResult(run Run, workflow Workflow) v1.ChangeResult {
-	summary := run.Status
-	if run.Status == "completed" {
-		duration := run.UpdatedAt.Sub(run.CreatedAt)
-		run.DurationSeconds = int(duration.Seconds())
-		summary = fmt.Sprintf("completed in %s", duration.String())
+func runToChangeResult(run *github.WorkflowRun, workflow *github.Workflow) v1.ChangeResult {
+	summary := fmt.Sprintf("%s (branch: %s)", run.GetDisplayTitle(), run.GetHeadBranch())
+
+	if run.GetStatus() == "completed" {
+		duration := run.GetUpdatedAt().Sub(run.GetCreatedAt().Time)
+		summary = fmt.Sprintf("%s; duration: %s", summary, duration.String())
+	}
+
+	changeType := fmt.Sprintf("GitHubActionRun%s", lo.PascalCase(run.GetConclusion()))
+	createdAt := run.GetCreatedAt().Time
+
+	evaluatedRun := EvaluatedRun{
+		WorkflowRun: run,
+		Duration:    run.GetUpdatedAt().Sub(run.GetCreatedAt().Time),
 	}
 
 	return v1.ChangeResult{
-		ChangeType:       "GitHubActionRun",
-		CreatedAt:        &run.CreatedAt,
-		Severity:         run.Conclusion,
-		ExternalID:       workflow.GetID(),
+		ChangeType:       changeType,
+		CreatedAt:        &createdAt,
+		Severity:         run.GetConclusion(),
+		ExternalID:       fmt.Sprintf("%d/%s", workflow.GetID(), workflow.GetName()),
 		ConfigType:       ConfigTypeWorkflow,
 		Summary:          summary,
-		Source:           run.TriggeringActor.Login,
-		Details:          v1.NewJSON(run),
-		ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.Name, workflow.ID, run.ID),
+		Source:           run.GetTriggeringActor().GetLogin(),
+		Details:          v1.NewJSON(evaluatedRun),
+		ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.GetName(), workflow.GetID(), run.GetID()),
 	}
+}
+
+func getHealthFromConclusion(latestCompletedRun *github.WorkflowRun) health.HealthStatus {
+	healthStatus := health.HealthStatus{
+		Health: health.HealthUnknown,
+		Ready:  true,
+		Status: health.HealthStatusCode(latestCompletedRun.GetStatus()),
+	}
+
+	switch latestCompletedRun.GetConclusion() {
+	case "success":
+		healthStatus.Health = health.HealthHealthy
+	case "failure":
+		healthStatus.Health = health.HealthUnhealthy
+		healthStatus.Status = health.HealthStatusCode(fmt.Sprintf("%s: %s", latestCompletedRun.GetConclusion(), latestCompletedRun.GetDisplayTitle()))
+	case "timed_out":
+		healthStatus.Health = health.HealthWarning
+	default:
+		healthStatus.Health = health.HealthUnknown
+	}
+
+	return healthStatus
+}
+
+// processRuns transforms runs to change results and returns the latest run that ran to completion
+func processRuns(workflow *github.Workflow, runs []*github.WorkflowRun) ([]v1.ChangeResult, *github.WorkflowRun) {
+	changeResults := make([]v1.ChangeResult, 0, len(runs))
+	var latestCompletedRun *github.WorkflowRun
+	for _, run := range runs {
+		changeResults = append(changeResults, runToChangeResult(run, workflow))
+		if run.GetStatus() == "completed" && (latestCompletedRun == nil || run.GetRunNumber() > latestCompletedRun.GetRunNumber()) {
+			latestCompletedRun = run
+		}
+	}
+
+	return changeResults, latestCompletedRun
 }

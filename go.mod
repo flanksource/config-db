@@ -60,6 +60,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
+	github.com/google/go-github/v73 v73.0.0
 	github.com/google/uuid v1.6.0
 	github.com/grafana/pyroscope-go v1.2.0
 	github.com/hashicorp/go-getter v1.7.5
@@ -140,11 +141,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.12 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.65 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kms v1.38.1 // indirect
-	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.8.1 // indirect
-	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/casbin/casbin/v2 v2.103.0 // indirect
 	github.com/casbin/gorm-adapter/v3 v3.32.0 // indirect
 	github.com/casbin/govaluate v1.3.0 // indirect
@@ -194,6 +193,7 @@ require (
 	github.com/google/cel-go v0.22.1 // indirect
 	github.com/google/flatbuffers v23.5.26+incompatible // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gops v0.3.28 // indirect
 	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
@@ -204,7 +204,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.21.0 // indirect
 	github.com/henvic/httpretty v0.1.4 // indirect
 	github.com/hirochachacha/go-smb2 v1.1.0 // indirect
-	github.com/invopop/jsonschema v0.12.0 // indirect
 	github.com/itchyny/gojq v0.12.17 // indirect
 	github.com/itchyny/timefmt-go v0.1.6 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
@@ -276,12 +275,8 @@ require (
 	github.com/vadimi/go-http-ntlm v1.0.3 // indirect
 	github.com/vadimi/go-http-ntlm/v2 v2.5.0 // indirect
 	github.com/vadimi/go-ntlm v1.2.1 // indirect
-	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
-	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
-	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
