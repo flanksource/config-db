@@ -3,6 +3,8 @@ package github
 import (
 	"fmt"
 	"math"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/flanksource/commons/collections"
@@ -215,7 +217,7 @@ func workflowProperties(workflow *github.Workflow) []*types.Property {
 
 	if workflow.GetHTMLURL() != "" {
 		workflowURLProperty := &types.Property{
-			Name: "URL",
+			Name: "Source",
 			Type: "url",
 			Text: workflow.GetHTMLURL(),
 			Links: []types.Link{
@@ -226,7 +228,39 @@ func workflowProperties(workflow *github.Workflow) []*types.Property {
 			},
 		}
 		properties = append(properties, workflowURLProperty)
+
+		workflowURL, _ := getWorkflowURL(workflow.GetHTMLURL())
+		properties = append(properties, &types.Property{
+			Name: "URL",
+			Type: "url",
+			Text: workflowURL,
+			Links: []types.Link{
+				{
+					URL:  workflowURL,
+					Type: "url",
+				},
+			},
+		})
 	}
 
 	return properties
+}
+
+// Transforms the source URL to the workflow URL
+func getWorkflowURL(htmlURL string) (string, error) {
+	parsed, err := url.Parse(htmlURL)
+	if err != nil {
+		return htmlURL, err
+	}
+
+	segments := strings.Split(parsed.EscapedPath(), "/")
+	owner := segments[1]
+	repo := segments[2]
+	workflowPath := segments[len(segments)-1]
+	path, err := url.JoinPath(owner, repo, "actions", "workflows", workflowPath)
+	if err != nil {
+		return htmlURL, err
+	}
+
+	return fmt.Sprintf("https://github.com/%s", path), nil
 }
