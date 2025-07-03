@@ -143,10 +143,7 @@ func runToChangeResult(run *github.WorkflowRun, workflow *github.Workflow) v1.Ch
 	changeType := fmt.Sprintf("GitHubActionRun%s", lo.PascalCase(run.GetConclusion()))
 	createdAt := run.GetCreatedAt().Time
 
-	evaluatedRun := EvaluatedRun{
-		WorkflowRun: run,
-		Duration:    run.GetUpdatedAt().Sub(run.GetCreatedAt().Time),
-	}
+	evaluatedRun := createEvaluatedRun(run)
 
 	return v1.ChangeResult{
 		ChangeType:       changeType,
@@ -158,6 +155,72 @@ func runToChangeResult(run *github.WorkflowRun, workflow *github.Workflow) v1.Ch
 		Source:           run.GetTriggeringActor().GetLogin(),
 		Details:          v1.NewJSON(evaluatedRun),
 		ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.GetName(), workflow.GetID(), run.GetID()),
+	}
+}
+
+func sanitizeRepository(repo *github.Repository) *github.Repository {
+	if repo == nil {
+		return nil
+	}
+
+	return &github.Repository{
+		ID:              repo.ID,
+		NodeID:          repo.NodeID,
+		Name:            repo.Name,
+		FullName:        repo.FullName,
+		Description:     repo.Description,
+		Homepage:        repo.Homepage,
+		DefaultBranch:   repo.DefaultBranch,
+		CreatedAt:       repo.CreatedAt,
+		PushedAt:        repo.PushedAt,
+		UpdatedAt:       repo.UpdatedAt,
+		Language:        repo.Language,
+		Fork:            repo.Fork,
+		ForksCount:      repo.ForksCount,
+		OpenIssuesCount: repo.OpenIssuesCount,
+		StargazersCount: repo.StargazersCount,
+		WatchersCount:   repo.WatchersCount,
+		Size:            repo.Size,
+		Private:         repo.Private,
+		Archived:        repo.Archived,
+		Disabled:        repo.Disabled,
+		Topics:          repo.Topics,
+		Owner:           sanitizeActor(repo.Owner),
+	}
+}
+
+func sanitizeActor(user *github.User) *github.User {
+	if user == nil {
+		return nil
+	}
+
+	return &github.User{
+		ID:        user.ID,
+		NodeID:    user.NodeID,
+		Login:     user.Login,
+		Type:      user.Type,
+		SiteAdmin: user.SiteAdmin,
+		Name:      user.Name,
+		Company:   user.Company,
+		Blog:      user.Blog,
+		Location:  user.Location,
+		Email:     user.Email,
+		Bio:       user.Bio,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+}
+
+func createEvaluatedRun(run *github.WorkflowRun) EvaluatedRun {
+	// Sanitize the nested objects to remove dummy URLs
+	run.Repository = sanitizeRepository(run.Repository)
+	run.HeadRepository = sanitizeRepository(run.HeadRepository)
+	run.Actor = sanitizeActor(run.Actor)
+	run.TriggeringActor = sanitizeActor(run.TriggeringActor)
+
+	return EvaluatedRun{
+		WorkflowRun: run,
+		Duration:    run.GetUpdatedAt().Sub(run.GetCreatedAt().Time),
 	}
 }
 
