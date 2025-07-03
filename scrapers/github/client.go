@@ -90,7 +90,28 @@ func (gh *GitHubActionsClient) GetAllWorkflowRuns(ctx context.Context) ([]*githu
 	return runs.WorkflowRuns, nil
 }
 
-type EvaluatedRun struct {
-	*github.WorkflowRun `json:",inline"`
-	Duration            time.Duration `json:"duration"`
+// GetWorkflowRunAnnotations fetches annotations for a specific workflow run
+func (gh *GitHubActionsClient) GetWorkflowRunAnnotations(ctx context.Context, runID int64) ([]*github.CheckRunAnnotation, error) {
+	jobs, _, err := gh.Client.Actions.ListWorkflowJobs(ctx, gh.owner, gh.repository, runID, &github.ListWorkflowJobsOptions{
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow jobs: %w", err)
+	}
+
+	var allAnnotations []*github.CheckRunAnnotation
+	for _, job := range jobs.Jobs {
+		if job.GetConclusion() == "failure" {
+			annotations, _, err := gh.Client.Checks.ListCheckRunAnnotations(ctx, gh.owner, gh.repository, job.GetID(), nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get annotations for job %d: %w", job.GetID(), err)
+			}
+
+			allAnnotations = append(allAnnotations, annotations...)
+		}
+	}
+
+	return allAnnotations, nil
 }
