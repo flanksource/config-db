@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/google/go-github/v73/github"
 	"github.com/samber/lo"
@@ -63,10 +64,12 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				Config:      workflow,
 				Type:        ConfigTypeWorkflow,
 				ID:          fmt.Sprintf("%d/%s", workflow.GetID(), workflow.GetName()),
-				Name:        workflow.GetName(),
+				Name:        fmt.Sprintf("%s/%s", config.Repository, workflow.GetName()),
 				Changes:     changeResults,
-				Tags:        v1.Tags{{Name: "repository", Value: config.Repository}},
+				Tags:        v1.Tags{{Name: "org", Value: config.Owner}},
 				Aliases:     []string{fmt.Sprintf("%s/%d", workflow.GetName(), workflow.GetID())},
+				CreatedAt:   lo.ToPtr(workflow.GetCreatedAt().Time),
+				Properties:  workflowProperties(workflow),
 			}
 
 			// The latest completed run determines the health of the workflow
@@ -190,4 +193,40 @@ func processRuns(workflow *github.Workflow, runs []*github.WorkflowRun) ([]v1.Ch
 	}
 
 	return changeResults, latestCompletedRun
+}
+
+func workflowProperties(workflow *github.Workflow) []*types.Property {
+	properties := []*types.Property{}
+	if workflow.GetBadgeURL() != "" {
+		badgeProperty := &types.Property{
+			Name: "Badge",
+			Type: "badge",
+			Text: workflow.GetBadgeURL(),
+			Links: []types.Link{
+				{
+					URL:  workflow.GetBadgeURL(),
+					Type: "badge",
+				},
+			},
+		}
+
+		properties = append(properties, badgeProperty)
+	}
+
+	if workflow.GetHTMLURL() != "" {
+		workflowURLProperty := &types.Property{
+			Name: "URL",
+			Type: "url",
+			Text: workflow.GetHTMLURL(),
+			Links: []types.Link{
+				{
+					URL:  workflow.GetHTMLURL(),
+					Type: "url",
+				},
+			},
+		}
+		properties = append(properties, workflowURLProperty)
+	}
+
+	return properties
 }
