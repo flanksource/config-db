@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/go-github/v73/github"
@@ -19,6 +20,10 @@ type GitHubActionsClient struct {
 	api.ScrapeContext
 	owner      string
 	repository string
+
+	// Rate limit tracking
+	rateLimitMu   sync.RWMutex
+	rateLimitInfo github.Rate
 }
 
 func NewGitHubActionsClient(ctx api.ScrapeContext, gha v1.GitHubActions) (*GitHubActionsClient, error) {
@@ -48,12 +53,33 @@ func NewGitHubActionsClient(ctx api.ScrapeContext, gha v1.GitHubActions) (*GitHu
 	}, nil
 }
 
+// updateRateLimit updates the rate limit information from the API response
+func (gh *GitHubActionsClient) updateRateLimit(resp *github.Response) {
+	if resp == nil || resp.Rate.Limit == 0 {
+		return
+	}
+
+	gh.rateLimitMu.Lock()
+	defer gh.rateLimitMu.Unlock()
+
+	gh.rateLimitInfo = resp.Rate
+}
+
+// GetRateLimitInfo returns the current rate limit information
+func (gh *GitHubActionsClient) GetRateLimitInfo() github.Rate {
+	gh.rateLimitMu.RLock()
+	defer gh.rateLimitMu.RUnlock()
+
+	return gh.rateLimitInfo
+}
+
 func (gh *GitHubActionsClient) GetWorkflows(ctx context.Context) ([]*github.Workflow, error) {
-	workflows, _, err := gh.Client.Actions.ListWorkflows(ctx, gh.owner, gh.repository, nil)
+	workflows, resp, err := gh.Client.Actions.ListWorkflows(ctx, gh.owner, gh.repository, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflows: %w", err)
 	}
 
+	gh.updateRateLimit(resp)
 	return workflows.Workflows, nil
 }
 
@@ -73,26 +99,28 @@ func (gh *GitHubActionsClient) GetWorkflowRuns(ctx context.Context, config v1.Gi
 		},
 	}
 
-	runs, _, err := gh.Client.Actions.ListWorkflowRunsByID(ctx, gh.owner, gh.repository, int64(id), opts)
+	runs, resp, err := gh.Client.Actions.ListWorkflowRunsByID(ctx, gh.owner, gh.repository, int64(id), opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow runs: %w", err)
 	}
 
+	gh.updateRateLimit(resp)
 	return runs, nil
 }
 
 func (gh *GitHubActionsClient) GetAllWorkflowRuns(ctx context.Context) ([]*github.WorkflowRun, error) {
-	runs, _, err := gh.Client.Actions.ListRepositoryWorkflowRuns(ctx, gh.owner, gh.repository, nil)
+	runs, resp, err := gh.Client.Actions.ListRepositoryWorkflowRuns(ctx, gh.owner, gh.repository, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all workflow runs: %w", err)
 	}
 
+	gh.updateRateLimit(resp)
 	return runs.WorkflowRuns, nil
 }
 
 // GetWorkflowRunAnnotations fetches annotations for a specific workflow run
 func (gh *GitHubActionsClient) GetWorkflowRunAnnotations(ctx context.Context, runID int64) ([]*github.CheckRunAnnotation, error) {
-	jobs, _, err := gh.Client.Actions.ListWorkflowJobs(ctx, gh.owner, gh.repository, runID, &github.ListWorkflowJobsOptions{
+	jobs, resp, err := gh.Client.Actions.ListWorkflowJobs(ctx, gh.owner, gh.repository, runID, &github.ListWorkflowJobsOptions{
 		ListOptions: github.ListOptions{
 			PerPage: 100,
 		},
@@ -101,14 +129,17 @@ func (gh *GitHubActionsClient) GetWorkflowRunAnnotations(ctx context.Context, ru
 		return nil, fmt.Errorf("failed to get workflow jobs: %w", err)
 	}
 
+	gh.updateRateLimit(resp)
+
 	var allAnnotations []*github.CheckRunAnnotation
 	for _, job := range jobs.Jobs {
 		if job.GetConclusion() == "failure" {
-			annotations, _, err := gh.Client.Checks.ListCheckRunAnnotations(ctx, gh.owner, gh.repository, job.GetID(), nil)
+			annotations, resp, err := gh.Client.Checks.ListCheckRunAnnotations(ctx, gh.owner, gh.repository, job.GetID(), nil)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get annotations for job %d: %w", job.GetID(), err)
 			}
 
+			gh.updateRateLimit(resp)
 			allAnnotations = append(allAnnotations, annotations...)
 		}
 	}
