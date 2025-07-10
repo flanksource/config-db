@@ -3,9 +3,13 @@ package github
 import (
 	"fmt"
 	"math"
+	"net/url"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/google/go-github/v73/github"
 	"github.com/samber/lo"
@@ -56,26 +60,45 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				continue
 			}
 
-			changeResults, latestCompletedRun := processRuns(workflow, runs)
+			changeResults, latestCompletedRun, err := processRuns(ctx, client, workflow, runs)
+			if err != nil {
+				results.Errorf(err, "failed to process runs with annotations for %s", workflow.GetName())
+				continue
+			}
 
 			result := v1.ScrapeResult{
 				ConfigClass: "Deployment",
 				Config:      workflow,
 				Type:        ConfigTypeWorkflow,
 				ID:          fmt.Sprintf("%d/%s", workflow.GetID(), workflow.GetName()),
-				Name:        workflow.GetName(),
+				Name:        fmt.Sprintf("%s/%s", config.Repository, workflow.GetName()),
 				Changes:     changeResults,
-				Tags:        v1.Tags{{Name: "repository", Value: config.Repository}},
+				Tags:        v1.Tags{{Name: "org", Value: config.Owner}},
 				Aliases:     []string{fmt.Sprintf("%s/%d", workflow.GetName(), workflow.GetID())},
+				CreatedAt:   lo.ToPtr(workflow.GetCreatedAt().Time),
+				Properties:  workflowProperties(workflow),
 			}
 
 			// The latest completed run determines the health of the workflow
-			if latestCompletedRun.GetID() != 0 {
+			if latestCompletedRun != nil && latestCompletedRun.GetID() != 0 {
 				result = result.WithHealthStatus(getHealthFromConclusion(latestCompletedRun))
 			}
 
 			results = append(results, result)
 		}
+
+		rateLimitInfo, _, err := client.Client.RateLimit.Get(ctx)
+		if err != nil {
+			results.Errorf(err, "failed to get rate limit info for %s", config.Repository)
+			continue
+		}
+
+		ctx.Logger.V(2).Infof("github rate limit: limit=%d, remaining=%d, used=%d, reset=%s",
+			rateLimitInfo.Core.Limit,
+			rateLimitInfo.Core.Remaining,
+			rateLimitInfo.Core.Used,
+			rateLimitInfo.Core.Reset.Format(time.RFC3339),
+		)
 	}
 
 	return results
@@ -127,21 +150,9 @@ func getNewWorkflowRuns(ctx api.ScrapeContext, client *GitHubActionsClient, work
 	return allRuns, nil
 }
 
-func runToChangeResult(run *github.WorkflowRun, workflow *github.Workflow) v1.ChangeResult {
-	summary := fmt.Sprintf("%s (branch: %s)", run.GetDisplayTitle(), run.GetHeadBranch())
-
-	if run.GetStatus() == "completed" {
-		duration := run.GetUpdatedAt().Sub(run.GetCreatedAt().Time)
-		summary = fmt.Sprintf("%s; duration: %s", summary, duration.String())
-	}
-
+func runToChangeResult(workflow *github.Workflow, run Run) v1.ChangeResult {
 	changeType := fmt.Sprintf("GitHubActionRun%s", lo.PascalCase(run.GetConclusion()))
 	createdAt := run.GetCreatedAt().Time
-
-	evaluatedRun := EvaluatedRun{
-		WorkflowRun: run,
-		Duration:    run.GetUpdatedAt().Sub(run.GetCreatedAt().Time),
-	}
 
 	return v1.ChangeResult{
 		ChangeType:       changeType,
@@ -149,18 +160,112 @@ func runToChangeResult(run *github.WorkflowRun, workflow *github.Workflow) v1.Ch
 		Severity:         run.GetConclusion(),
 		ExternalID:       fmt.Sprintf("%d/%s", workflow.GetID(), workflow.GetName()),
 		ConfigType:       ConfigTypeWorkflow,
-		Summary:          summary,
+		Summary:          run.Summary(),
 		Source:           run.GetTriggeringActor().GetLogin(),
-		Details:          v1.NewJSON(evaluatedRun),
+		Details:          v1.NewJSON(run),
 		ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.GetName(), workflow.GetID(), run.GetID()),
 	}
 }
 
-func getHealthFromConclusion(latestCompletedRun *github.WorkflowRun) health.HealthStatus {
+func sanitizeRepository(repo *github.Repository) *github.Repository {
+	if repo == nil {
+		return nil
+	}
+
+	return &github.Repository{
+		ID:              repo.ID,
+		NodeID:          repo.NodeID,
+		Name:            repo.Name,
+		FullName:        repo.FullName,
+		Description:     repo.Description,
+		Homepage:        repo.Homepage,
+		DefaultBranch:   repo.DefaultBranch,
+		CreatedAt:       repo.CreatedAt,
+		PushedAt:        repo.PushedAt,
+		UpdatedAt:       repo.UpdatedAt,
+		Language:        repo.Language,
+		Fork:            repo.Fork,
+		ForksCount:      repo.ForksCount,
+		OpenIssuesCount: repo.OpenIssuesCount,
+		StargazersCount: repo.StargazersCount,
+		WatchersCount:   repo.WatchersCount,
+		Size:            repo.Size,
+		Private:         repo.Private,
+		Archived:        repo.Archived,
+		Disabled:        repo.Disabled,
+		Topics:          repo.Topics,
+		Owner:           sanitizeActor(repo.Owner),
+	}
+}
+
+func sanitizeActor(user *github.User) *github.User {
+	if user == nil {
+		return nil
+	}
+
+	return &github.User{
+		ID:        user.ID,
+		NodeID:    user.NodeID,
+		Login:     user.Login,
+		Type:      user.Type,
+		SiteAdmin: user.SiteAdmin,
+		Name:      user.Name,
+		Company:   user.Company,
+		Blog:      user.Blog,
+		Location:  user.Location,
+		Email:     user.Email,
+		Bio:       user.Bio,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+}
+
+// Run is a wrapper around github.WorkflowRun that adds duration and annotations
+// and removes placeholder URLs.
+type Run struct {
+	*github.WorkflowRun `json:",inline"`
+	Duration            time.Duration                `json:"duration"`
+	Annotations         []*github.CheckRunAnnotation `json:"annotations,omitempty"`
+}
+
+func (run Run) Summary() string {
+	summary := fmt.Sprintf("%s (branch: %s)", run.GetDisplayTitle(), run.GetHeadBranch())
+
+	if run.GetStatus() == "completed" {
+		duration := run.GetUpdatedAt().Sub(run.GetCreatedAt().Time)
+		summary = fmt.Sprintf("%s; duration: %s", summary, duration.String())
+	}
+
+	if len(run.Annotations) > 0 {
+		annotationMsg := lo.Map(run.Annotations, func(annotation *github.CheckRunAnnotation, _ int) string {
+			return fmt.Sprintf("%s: %s", annotation.GetAnnotationLevel(), annotation.GetMessage())
+		})
+
+		summary = strings.Join(annotationMsg, "; ")
+	}
+
+	return summary
+}
+
+func newRun(run *github.WorkflowRun, annotations ...*github.CheckRunAnnotation) Run {
+	// Sanitize the nested objects to remove dummy URLs
+	run.Repository = sanitizeRepository(run.Repository)
+	run.HeadRepository = sanitizeRepository(run.HeadRepository)
+	run.Actor = sanitizeActor(run.Actor)
+	run.TriggeringActor = sanitizeActor(run.TriggeringActor)
+
+	return Run{
+		WorkflowRun: run,
+		Annotations: annotations,
+		Duration:    run.GetUpdatedAt().Sub(run.GetCreatedAt().Time),
+	}
+}
+
+func getHealthFromConclusion(latestCompletedRun *Run) health.HealthStatus {
 	healthStatus := health.HealthStatus{
 		Health: health.HealthUnknown,
 		Ready:  true,
-		Status: health.HealthStatusCode(latestCompletedRun.GetStatus()),
+		Status: health.HealthStatusCode(lo.PascalCase(latestCompletedRun.GetConclusion())),
 	}
 
 	switch latestCompletedRun.GetConclusion() {
@@ -168,7 +273,7 @@ func getHealthFromConclusion(latestCompletedRun *github.WorkflowRun) health.Heal
 		healthStatus.Health = health.HealthHealthy
 	case "failure":
 		healthStatus.Health = health.HealthUnhealthy
-		healthStatus.Status = health.HealthStatusCode(fmt.Sprintf("%s: %s", latestCompletedRun.GetConclusion(), latestCompletedRun.GetDisplayTitle()))
+		healthStatus.Message = latestCompletedRun.Summary()
 	case "timed_out":
 		healthStatus.Health = health.HealthWarning
 	default:
@@ -178,16 +283,99 @@ func getHealthFromConclusion(latestCompletedRun *github.WorkflowRun) health.Heal
 	return healthStatus
 }
 
-// processRuns transforms runs to change results and returns the latest run that ran to completion
-func processRuns(workflow *github.Workflow, runs []*github.WorkflowRun) ([]v1.ChangeResult, *github.WorkflowRun) {
+// processRuns transforms runs to change results with annotations for failed runs
+func processRuns(ctx api.ScrapeContext, client *GitHubActionsClient, workflow *github.Workflow, runs []*github.WorkflowRun) ([]v1.ChangeResult, *Run, error) {
 	changeResults := make([]v1.ChangeResult, 0, len(runs))
-	var latestCompletedRun *github.WorkflowRun
+	var latestCompletedRun *Run
 	for _, run := range runs {
-		changeResults = append(changeResults, runToChangeResult(run, workflow))
+		var annotations []*github.CheckRunAnnotation
+
+		// For failed runs, try to get annotations for more details
+		if run.GetConclusion() == "failure" {
+			var err error
+			annotations, err = client.GetWorkflowRunAnnotations(ctx, run.GetID())
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get annotations for run %d: %w", run.GetID(), err)
+			}
+		}
+
+		evaluatedRun := newRun(run, annotations...)
+		changeResult := runToChangeResult(workflow, evaluatedRun)
+		changeResults = append(changeResults, changeResult)
 		if run.GetStatus() == "completed" && (latestCompletedRun == nil || run.GetRunNumber() > latestCompletedRun.GetRunNumber()) {
-			latestCompletedRun = run
+			latestCompletedRun = &evaluatedRun
 		}
 	}
 
-	return changeResults, latestCompletedRun
+	return changeResults, latestCompletedRun, nil
+}
+
+func workflowProperties(workflow *github.Workflow) []*types.Property {
+	properties := []*types.Property{}
+	if workflow.GetBadgeURL() != "" {
+		badgeProperty := &types.Property{
+			Name: "Badge",
+			Type: "badge",
+			Text: workflow.GetBadgeURL(),
+			Links: []types.Link{
+				{
+					URL:  workflow.GetBadgeURL(),
+					Type: "badge",
+				},
+			},
+		}
+
+		properties = append(properties, badgeProperty)
+	}
+
+	if workflow.GetHTMLURL() != "" {
+		workflowURLProperty := &types.Property{
+			Name: "Source",
+			Type: "url",
+			Text: workflow.GetHTMLURL(),
+			Links: []types.Link{
+				{
+					URL:  workflow.GetHTMLURL(),
+					Type: "url",
+				},
+			},
+		}
+		properties = append(properties, workflowURLProperty)
+
+		workflowURL, err := getWorkflowURL(workflow.GetHTMLURL())
+		if err == nil {
+			properties = append(properties, &types.Property{
+				Name: "URL",
+				Type: "url",
+				Text: workflowURL,
+				Links: []types.Link{
+					{
+						URL:  workflowURL,
+						Type: "url",
+					},
+				},
+			})
+		}
+	}
+
+	return properties
+}
+
+// Transforms the source URL to the workflow URL
+func getWorkflowURL(htmlURL string) (string, error) {
+	parsed, err := url.Parse(htmlURL)
+	if err != nil {
+		return htmlURL, err
+	}
+
+	segments := strings.Split(parsed.EscapedPath(), "/")
+	owner := segments[1]
+	repo := segments[2]
+	workflowPath := segments[len(segments)-1]
+	joinedPath, err := url.JoinPath(owner, repo, "actions", "workflows", workflowPath)
+	if err != nil {
+		return htmlURL, err
+	}
+
+	return fmt.Sprintf("https://github.com/%s", joinedPath), nil
 }
