@@ -87,9 +87,18 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			results = append(results, result)
 		}
 
-		// Capture rate limit information from the last API calls
-		rateLimitInfo := client.GetRateLimitInfo()
-		ctx.Logger.V(2).Infof("github rate limit: limit=%d, remaining=%d, used=%d, reset=%s", rateLimitInfo.Limit, rateLimitInfo.Remaining, rateLimitInfo.Used, rateLimitInfo.Reset.Format(time.RFC3339))
+		rateLimitInfo, _, err := client.Client.RateLimit.Get(ctx)
+		if err != nil {
+			results.Errorf(err, "failed to get rate limit info for %s", config.Repository)
+			continue
+		}
+
+		ctx.Logger.V(2).Infof("github rate limit: limit=%d, remaining=%d, used=%d, reset=%s",
+			rateLimitInfo.Core.Limit,
+			rateLimitInfo.Core.Remaining,
+			rateLimitInfo.Core.Used,
+			rateLimitInfo.Core.Reset.Format(time.RFC3339),
+		)
 	}
 
 	return results
