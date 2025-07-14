@@ -11,6 +11,7 @@ import (
 	pubsubscraper "github.com/flanksource/config-db/scrapers/pubsub"
 	"github.com/flanksource/duty/job"
 	dutypubsub "github.com/flanksource/duty/pubsub"
+	"github.com/samber/lo"
 )
 
 func consumePubSubJobKey(id string) string {
@@ -41,7 +42,6 @@ func ConsumePubSubJobFunc(sc api.ScrapeContext, config v1.PubSub) *job.Job {
 
 			sc := sc.WithScrapeConfig(sc.ScrapeConfig(), plugins...).AsIncrementalScrape()
 
-			var results v1.ScrapeResults
 			queueConfig := config.QueueConfig
 
 			subscription, err := dutypubsub.Subscribe(jobCtx.Context, queueConfig)
@@ -53,6 +53,7 @@ func ConsumePubSubJobFunc(sc api.ScrapeContext, config v1.PubSub) *job.Job {
 			messageCh := make(chan string, 1000)
 			var wg sync.WaitGroup
 			wg.Add(1)
+			var results v1.ScrapeResults
 			go func() {
 				defer wg.Done()
 				for msg := range messageCh {
@@ -63,9 +64,10 @@ func ConsumePubSubJobFunc(sc api.ScrapeContext, config v1.PubSub) *job.Job {
 				}
 			}()
 
-			maxMessages := 2000
+			maxMessages := lo.CoalesceOrEmpty(config.MaxMessages, 2000)
 			if err := pubsubscraper.ListenToSubscription(jobCtx.Context, subscription, messageCh, 10*time.Second, maxMessages); err != nil {
-				return fmt.Errorf("", err)
+				// Only log error but continue with consume so that acked messages are not lost
+				jobCtx.Errorf("error while receiving from pubsub[%s]: %v", queueConfig.GetQueue(), err)
 			}
 
 			wg.Wait()
@@ -78,18 +80,23 @@ func consumePubSubResults(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, resu
 	cc := api.NewScrapeContext(ctx.Context).WithScrapeConfig(&scrapeConfig).WithJobHistory(ctx.History).AsIncrementalScrape()
 	cc.Context = cc.Context.WithoutName().WithName(fmt.Sprintf("watch[%s/%s]", cc.GetNamespace(), cc.GetName()))
 
-	if summary, err := db.SaveResults(cc, results); err != nil {
+	var processedResults v1.ScrapeResults
+	for _, r := range results {
+		scraped := processScrapeResult(cc, r)
+		for i := range scraped {
+			if scraped[i].Error != nil {
+				ctx.History.AddError(scraped[i].Error.Error())
+			} else {
+				ctx.History.SuccessCount++
+				processedResults = append(processedResults, scraped[i])
+			}
+		}
+	}
+
+	if summary, err := db.SaveResults(cc, processedResults); err != nil {
 		return fmt.Errorf("failed to save %d results: %w", len(results), err)
 	} else {
 		ctx.History.AddDetails("scrape_summary", summary)
-	}
-
-	for i := range results {
-		if results[i].Error != nil {
-			ctx.History.AddError(results[i].Error.Error())
-		} else {
-			ctx.History.SuccessCount++
-		}
 	}
 	return nil
 }

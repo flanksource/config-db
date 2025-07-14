@@ -1,0 +1,13 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: pubsub-check
+spec:
+  pubsub:
+  - pubsub:
+      project_id: flanksource-sandbox
+      subscription: incident-alerts-sub
+    type: PubItem
+    id: $.msg_id
+    transform:
+      expr: "[config].toJSON()"

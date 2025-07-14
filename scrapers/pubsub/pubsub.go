@@ -1,6 +1,8 @@
 package pubsub
 
 import (
+	gocontext "context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,23 +11,19 @@ import (
 )
 
 func ListenToSubscription(ctx context.Context, subscription *gocloudpubsub.Subscription, messageCh chan string, timeout time.Duration, maxMessages int) error {
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
 	defer func() { close(messageCh) }()
 
 	var count int
 	for {
-		msg, err := subscription.Receive(ctx)
+		rctx, cancel := ctx.WithDeadline(time.Now().Add(timeout))
+		msg, err := subscription.Receive(rctx)
+		cancel()
 		if err != nil {
+			if errors.Is(err, gocontext.DeadlineExceeded) {
+				return nil
+			}
 			return fmt.Errorf("error receiving message: %w", err)
 		}
-
-		// Reset the timer since we received a message
-		if !timer.Stop() {
-			<-timer.C
-		}
-		timer.Reset(timeout)
 
 		count++
 
@@ -36,8 +34,6 @@ func ListenToSubscription(ctx context.Context, subscription *gocloudpubsub.Subsc
 			if count >= maxMessages {
 				return nil
 			}
-		case <-timer.C:
-			return nil
 		case <-ctx.Done():
 			return ctx.Err()
 		}
