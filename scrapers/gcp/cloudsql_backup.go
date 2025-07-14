@@ -50,21 +50,21 @@ func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config 
 
 	var allChanges []v1.ChangeResult
 
+	var scrapeResults v1.ScrapeResults
 	for _, instance := range instances {
 		if backupChanges, err := gcp.scrapeBackupRuns(ctx, config, sqlService, instance.name, instance.selfLink); err != nil {
-			ctx.Logger.Errorf("failed to scrape backup runs for instance %s: %v", instance.name, err)
+			scrapeResults.Errorf(err, "failed to scrape backup runs for instance %s", instance.name)
 		} else {
 			allChanges = append(allChanges, backupChanges...)
 		}
 	}
 
 	if operationChanges, err := gcp.scrapeOperations(ctx, config, sqlService, instances); err != nil {
-		ctx.Logger.Errorf("failed to scrape operations for project %s: %v", config.Project, err)
+		scrapeResults.Errorf(err, "failed to scrape operations for project %s", config.Project)
 	} else {
 		allChanges = append(allChanges, operationChanges...)
 	}
 
-	var scrapeResults v1.ScrapeResults
 	if len(allChanges) > 0 {
 		result := v1.NewScrapeResult(config.BaseScraper)
 		result.Changes = allChanges
