@@ -18,13 +18,14 @@ func mergeDNSRecordSetsIntoManagedZone(results v1.ScrapeResults) v1.ScrapeResult
 	var allResults v1.ScrapeResults
 	mzNameToDNSName := make(map[string]string)
 	for _, r := range results {
-		if r.Type == v1.GCPManagedZone {
+		switch r.Type {
+		case v1.GCPManagedZone:
 			managedZones = append(managedZones, r)
 			dnsName := r.GCPStructPB.Fields["dnsName"].GetStringValue()
 			mzNameToDNSName[dnsName] = r.Name
-		} else if r.Type == v1.GCPResourceRecordSet {
+		case v1.GCPResourceRecordSet:
 			dnsRecordSets = append(dnsRecordSets, r)
-		} else {
+		default:
 			allResults = append(allResults, r)
 		}
 	}

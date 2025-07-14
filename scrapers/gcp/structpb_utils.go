@@ -8,9 +8,9 @@ import (
 )
 
 // Recursively applies f to all string values in the Struct
-func applyFuncToAllStructPBStrings(s *structpb.Struct, f func(string) string, fieldNames ...string) error {
+func applyFuncToAllStructPBStrings(s *structpb.Struct, f func(string) string, fieldNames ...string) {
 	if s == nil {
-		return nil
+		return
 	}
 
 	for key, val := range s.Fields {
@@ -18,26 +18,18 @@ func applyFuncToAllStructPBStrings(s *structpb.Struct, f func(string) string, fi
 
 		case *structpb.Value_StringValue:
 			// Transform the string value
-			//logger.Infof("APPLYING TRANSFORM FOR FIELD %s", key)
-			if len(fieldNames) > 0 && slices.Contains(fieldNames, key) {
-				s.Fields[key] = structpb.NewStringValue(f(kind.StringValue))
-			} else if len(fieldNames) == 0 {
+			if (len(fieldNames) > 0 && slices.Contains(fieldNames, key)) || len(fieldNames) == 0 {
 				s.Fields[key] = structpb.NewStringValue(f(kind.StringValue))
 			}
 
 		case *structpb.Value_StructValue:
 			// Recurse into nested Struct
-			if err := applyFuncToAllStructPBStrings(kind.StructValue, f, fieldNames...); err != nil {
-				return err
-			}
+			applyFuncToAllStructPBStrings(kind.StructValue, f, fieldNames...)
 
 		case *structpb.Value_ListValue:
 			// Recurse into list
-
 			if (len(fieldNames) > 0 && slices.Contains(fieldNames, key)) || len(fieldNames) == 0 {
-				if err := applyFuncToList(kind.ListValue, f, fieldNames...); err != nil {
-					return err
-				}
+				applyFuncToList(kind.ListValue, f, fieldNames...)
 			}
 
 		// Other types (number, bool, null): do nothing
@@ -45,33 +37,22 @@ func applyFuncToAllStructPBStrings(s *structpb.Struct, f func(string) string, fi
 			continue
 		}
 	}
-
-	return nil
 }
 
 // Helper: recursively applies f to strings inside a ListValue
-func applyFuncToList(list *structpb.ListValue, f func(string) string, fieldNames ...string) error {
+func applyFuncToList(list *structpb.ListValue, f func(string) string, fieldNames ...string) {
 	for i, val := range list.Values {
 		switch kind := val.Kind.(type) {
-
 		case *structpb.Value_StringValue:
 			list.Values[i] = structpb.NewStringValue(f(kind.StringValue))
-
 		case *structpb.Value_StructValue:
-			if err := applyFuncToAllStructPBStrings(kind.StructValue, f, fieldNames...); err != nil {
-				return err
-			}
-
+			applyFuncToAllStructPBStrings(kind.StructValue, f, fieldNames...)
 		case *structpb.Value_ListValue:
-			if err := applyFuncToList(kind.ListValue, f, fieldNames...); err != nil {
-				return err
-			}
-
+			applyFuncToList(kind.ListValue, f, fieldNames...)
 		default:
 			continue
 		}
 	}
-	return nil
 }
 
 // removeFields recursively removes specified field names from a structpb.Struct
