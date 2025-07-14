@@ -330,6 +330,6 @@ func DeleteScrapeJob(id string) {
 	if j, ok := scrapeJobs.Load(consumePubSubJobKey(id)); ok {
 		existingJob := j.(*job.Job)
 		existingJob.Unschedule()
-		scrapeJobs.Delete(consumeKubernetesWatchJobKey(id))
+		scrapeJobs.Delete(consumePubSubJobKey(id))
 	}
 }
