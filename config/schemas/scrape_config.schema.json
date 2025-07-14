@@ -1434,6 +1434,29 @@
       },
       "type": "object"
     },
+    "KafkaConfig": {
+      "properties": {
+        "brokers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "topic": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "brokers",
+        "topic",
+        "group"
+      ]
+    },
     "Kubernetes": {
       "properties": {
         "id": {
@@ -1977,6 +2000,36 @@
       },
       "type": "array"
     },
+    "MemoryConfig": {
+      "properties": {
+        "queue": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "queue"
+      ]
+    },
+    "NATSConfig": {
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "subject"
+      ]
+    },
     "OAuth": {
       "properties": {
         "clientID": {
@@ -2143,6 +2196,149 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "PubSub": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "health": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "sqs": {
+          "$ref": "#/$defs/SQSConfig"
+        },
+        "pubsub": {
+          "$ref": "#/$defs/PubSubConfig"
+        },
+        "rabbitmq": {
+          "$ref": "#/$defs/RabbitConfig"
+        },
+        "memory": {
+          "$ref": "#/$defs/MemoryConfig"
+        },
+        "kafka": {
+          "$ref": "#/$defs/KafkaConfig"
+        },
+        "nats": {
+          "$ref": "#/$defs/NATSConfig"
+        },
+        "maxMessages": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "PubSubConfig": {
+      "properties": {
+        "project_id": {
+          "type": "string"
+        },
+        "subscription": {
+          "type": "string"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "credentials": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "project_id",
+        "subscription"
+      ]
+    },
+    "RabbitConfig": {
+      "properties": {
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "host",
+        "port",
+        "username",
+        "password",
+        "queue"
+      ]
     },
     "RelationshipConfig": {
       "properties": {
@@ -2346,6 +2542,49 @@
         "query"
       ]
     },
+    "SQSConfig": {
+      "properties": {
+        "queue": {
+          "type": "string"
+        },
+        "raw": {
+          "type": "boolean"
+        },
+        "waitTime": {
+          "type": "integer"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "accessKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "secretKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "sessionToken": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "assumeRole": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "queue",
+        "raw"
+      ]
+    },
     "ScrapeConfig": {
       "properties": {
         "kind": {
@@ -2474,6 +2713,12 @@
         "logs": {
           "items": {
             "$ref": "#/$defs/Logs"
+          },
+          "type": "array"
+        },
+        "pubsub": {
+          "items": {
+            "$ref": "#/$defs/PubSub"
           },
           "type": "array"
         },

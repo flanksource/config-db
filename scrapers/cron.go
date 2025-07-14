@@ -127,6 +127,7 @@ func SyncScrapeConfigs(sc context.Context) {
 			for _, m := range scraperConfigsDB {
 				existing = append(existing, m.ID.String())
 				existing = append(existing, consumeKubernetesWatchJobKey(m.ID.String()))
+				existing = append(existing, consumePubSubJobKey(m.ID.String()))
 			}
 
 			scrapeJobs.Range(func(_key, value any) bool {
@@ -301,6 +302,13 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 		scrapeJobs.Store(consumeKubernetesWatchJobKey(sc.ScraperID()), watchConsumerJob)
 	}
 
+	for _, config := range sc.ScrapeConfig().Spec.PubSub {
+		pubsubJob := ConsumePubSubJobFunc(sc, config)
+		if err := pubsubJob.AddToScheduler(scrapeJobScheduler); err != nil {
+			return fmt.Errorf("failed to schedule pubsub job: %v", err)
+		}
+		scrapeJobs.Store(consumePubSubJobKey(sc.ScraperID()), pubsubJob)
+	}
 	return nil
 }
 
@@ -317,5 +325,11 @@ func DeleteScrapeJob(id string) {
 		existingJob := j.(*job.Job)
 		existingJob.Unschedule()
 		scrapeJobs.Delete(consumeKubernetesWatchJobKey(id))
+	}
+
+	if j, ok := scrapeJobs.Load(consumePubSubJobKey(id)); ok {
+		existingJob := j.(*job.Job)
+		existingJob.Unschedule()
+		scrapeJobs.Delete(consumePubSubJobKey(id))
 	}
 }
