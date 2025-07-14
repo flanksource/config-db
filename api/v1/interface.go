@@ -14,6 +14,7 @@ import (
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
 	"github.com/samber/lo"
+	"google.golang.org/protobuf/types/known/structpb"
 	"k8s.io/apimachinery/pkg/fields"
 
 	"github.com/flanksource/config-db/utils"
@@ -661,6 +662,9 @@ type ScrapeResult struct {
 	// OmitNilFields lets post-processor know whether to omit nil fields
 	// inside config or not. Default is true
 	OmitNilFields *bool `json:"-"`
+
+	// Only for GCP Scraper
+	GCPStructPB *structpb.Struct `json:"-"`
 }
 
 // +kubebuilder:object:generate=false

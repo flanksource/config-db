@@ -3,6 +3,7 @@ package gcp
 import (
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,8 +29,7 @@ type GCPContext struct {
 	ClientOpts []option.ClientOption
 }
 
-type Scraper struct {
-}
+type Scraper struct{}
 
 func NewGCPContext(ctx api.ScrapeContext, gcpConfig v1.GCP) (*GCPContext, error) {
 	var opts []option.ClientOption
@@ -62,16 +62,6 @@ func NewGCPContext(ctx api.ScrapeContext, gcpConfig v1.GCP) (*GCPContext, error)
 		ScrapeContext: ctx,
 		ClientOpts:    opts,
 	}, nil
-}
-
-func parseGCPConfigClass(assetType string) string {
-	parts := strings.Split(assetType, ".googleapis.com/")
-	if len(parts) != 2 {
-		return "GCP::" + assetType
-	}
-
-	// compute.googleapis.com/InstanceSettings => Compute::InstanceSettings
-	return fmt.Sprintf("%s::%s", lo.PascalCase(parts[0]), lo.PascalCase(parts[1]))
 }
 
 type ResourceData struct {
@@ -179,6 +169,7 @@ func getLink(rd ResourceData) *types.Property {
 var defaultIgnoreList = []string{
 	"compute.googleapis.com/InstanceSettings",
 	"serviceusage.googleapis.com/Service",
+	"cloudkms.googleapis.com/CryptoKeyVersion",
 }
 
 func generateConsistentID(input string) uuid.UUID {
@@ -199,6 +190,55 @@ func parseGCPMember(member string) (userType, name, email string, found bool) {
 	}
 
 	return "", member, "", false
+}
+
+var unwantedFields = []string{
+	"shieldedInstanceInitialState",
+}
+
+func stripUnwantedFields(results v1.ScrapeResults) v1.ScrapeResults {
+	for i := range results {
+		if results[i].GCPStructPB != nil {
+			removeFields(results[i].GCPStructPB, unwantedFields...)
+			results[i].Config = results[i].GCPStructPB
+		}
+	}
+	return results
+}
+
+func cleanLinks(results v1.ScrapeResults) v1.ScrapeResults {
+	for i := range results {
+		if results[i].GCPStructPB != nil {
+			applyFuncToAllStructPBStrings(results[i].GCPStructPB, func(s string) string {
+				return strings.ReplaceAll(s, "https://www.googleapis.com/compute/v1/", "")
+			})
+			results[i].Config = results[i].GCPStructPB
+		}
+	}
+	return results
+}
+
+var typesToRemove = []string{
+	v1.GCPBackup,
+	v1.GCPBackupRun,
+}
+
+func removeTypes(results v1.ScrapeResults) v1.ScrapeResults {
+	var newResults v1.ScrapeResults
+	for _, r := range results {
+		if !slices.Contains(typesToRemove, r.Type) {
+			newResults = append(newResults, r)
+		}
+	}
+	return newResults
+}
+
+func processResults(results v1.ScrapeResults) v1.ScrapeResults {
+	results = mergeDNSRecordSetsIntoManagedZone(results)
+	results = stripUnwantedFields(results)
+	results = cleanLinks(results)
+	results = removeTypes(results)
+	return results
 }
 
 func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
@@ -258,18 +298,22 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			tags = append(tags, v1.Tag{Name: "zone", Value: rd.Zone})
 		}
 
+		relationships := RelationshipResolver(configType, rd)
+
 		res := v1.ScrapeResult{
-			BaseScraper: config.BaseScraper,
-			ID:          lo.CoalesceOrEmpty(rd.ID, rd.Name),
-			Name:        rd.Name,
-			Aliases:     append(rd.Aliases, asset.Name),
-			Config:      asset.Resource.Data,
-			ConfigClass: configClass,
-			Type:        configType,
-			CreatedAt:   lo.ToPtr(rd.CreatedAt),
-			Labels:      rd.Labels,
-			Tags:        tags,
-			Properties:  []*types.Property{getLink(rd)},
+			BaseScraper:         config.BaseScraper,
+			ID:                  lo.CoalesceOrEmpty(rd.ID, rd.Name),
+			Name:                rd.Name,
+			Aliases:             append(rd.Aliases, asset.Name),
+			Config:              asset.Resource.Data,
+			GCPStructPB:         asset.Resource.Data,
+			ConfigClass:         configClass,
+			Type:                configType,
+			CreatedAt:           lo.ToPtr(rd.CreatedAt),
+			Labels:              rd.Labels,
+			Tags:                tags,
+			Properties:          []*types.Property{getLink(rd)},
+			RelationshipResults: relationships,
 		}
 
 		if rd.ID != "" {
@@ -453,7 +497,7 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 	}
 
-	return allResults
+	return processResults(allResults)
 }
 
 func RelationshipResolver(assetType string, rd ResourceData) []v1.RelationshipResult {
@@ -462,7 +506,7 @@ func RelationshipResolver(assetType string, rd ResourceData) []v1.RelationshipRe
 		return resolveGCPInstanceRelationships(rd)
 	case v1.GCPSubnet:
 		return resolveGCPSubnetRelationships(rd)
-	case v1.GKECluster:
+	case v1.GCPGKECluster:
 		return resolveGCPGKEClusterRelationships(rd)
 	}
 	return nil
@@ -476,7 +520,7 @@ func resolveGCPInstanceRelationships(rd ResourceData) (r []v1.RelationshipResult
 	for _, ni := range p.Search("networkInterfaces").Children() {
 		subnet := fmt.Sprint(ni.Path("subnetwork").Data())
 		r = append(r, v1.RelationshipResult{
-			ConfigExternalID:  v1.ExternalID{ExternalID: subnet, ConfigType: v1.GCPSubnet},
+			ConfigExternalID:  v1.ExternalID{ExternalID: subnet, ConfigType: v1.GCPSubnet, ScraperID: "all"},
 			RelatedExternalID: selfExternalID,
 			Relationship:      "InstanceSubnet",
 		})
@@ -516,7 +560,7 @@ func resolveGCPGKEClusterRelationships(rd ResourceData) (r []v1.RelationshipResu
 	selfExternalID := v1.ExternalID{ExternalID: rd.URL, ConfigType: v1.GCPGKECluster}
 	if network := rd.Raw.Fields["network"].GetStringValue(); network != "" {
 		r = append(r, v1.RelationshipResult{
-			ConfigExternalID:  v1.ExternalID{ExternalID: network, ConfigType: v1.GCPNetwork},
+			ConfigExternalID:  v1.ExternalID{ExternalID: network, ConfigType: v1.GCPNetwork, ScraperID: "all"},
 			RelatedExternalID: selfExternalID,
 		})
 	}
