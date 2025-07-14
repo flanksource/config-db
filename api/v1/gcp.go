@@ -10,19 +10,24 @@ import (
 
 const (
 	GCSBucket         = "GCP::Bucket"
-	GKECluster        = "GCP::GKECluster"
 	RedisInstance     = "GCP::Redis"
 	MemcacheInstance  = "GCP::MemCache"
 	PubSubTopic       = "GCP::PubSub"
-	CloudSQLInstance  = "GCP::Sqladmin::Instance"
+	CloudSQLInstance  = "GCP::SQLInstance"
 	IAMRole           = "GCP::IAMRole"
 	IAMServiceAccount = "GCP::ServiceAccount"
 
-	GCPInstance   = "GCP::Compute::Instance"
-	GCPSubnet     = "GCP::Compute::Subnetwork"
-	GCPNetwork    = "GCP::Compute::Network"
-	GCPDisk       = "GCP::Compute::Disk"
-	GCPGKECluster = "GCP::Container::Cluster"
+	GCPInstance   = "GCP::Instance"
+	GCPSubnet     = "GCP::Subnetwork"
+	GCPNetwork    = "GCP::Network"
+	GCPDisk       = "GCP::Disk"
+	GCPGKECluster = "GCP::GKECluster"
+
+	GCPManagedZone       = "GCP::ManagedZone"
+	GCPResourceRecordSet = "GCP::ResourceRecordSet"
+
+	GCPBackup    = "GCP::Backup"
+	GCPBackupRun = "GCP::BackupRun"
 )
 
 const (

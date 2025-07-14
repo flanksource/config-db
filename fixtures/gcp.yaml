@@ -6,12 +6,14 @@ metadata:
 spec:
   gcp:
     - project: workload-prod-eu-02
-      connection: connection://mc/gcloud-flanksource
-      include:
-        - storage.googleapis.com/Bucket
-        - container.googleapis.com/Cluster
-      auditLogs:
-        dataset: default._AllLogs
-        since: 30d
-        excludeMethods:
-          - io.k8s.*
+      exclude:
+        - SecurityCenter
+      #connection: connection://mc/gcloud-flanksource
+      #include:
+        #- storage.googleapis.com/Bucket
+        #- container.googleapis.com/Cluster
+      #auditLogs:
+        #dataset: default._AllLogs
+        #since: 30d
+        #excludeMethods:
+          #- io.k8s.*

@@ -17,7 +17,7 @@ import (
 func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config v1.GCP, results v1.ScrapeResults) (v1.ScrapeResults, error) {
 	var instances []instanceInfo
 	for _, result := range results {
-		if strings.Contains(result.Type, v1.CloudSQLInstance) {
+		if result.Type == v1.CloudSQLInstance {
 			instanceName := result.Name
 			instanceSelfLink := ""
 
