@@ -52,7 +52,7 @@ func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config 
 
 	var scrapeResults v1.ScrapeResults
 	for _, instance := range instances {
-		if backupChanges, err := gcp.scrapeBackupRuns(ctx, config, sqlService, instance.name, instance.selfLink); err != nil {
+		if backupChanges, err := gcp.scrapeBackupRuns(ctx, results, instance.name, instance.selfLink); err != nil {
 			scrapeResults.Errorf(err, "failed to scrape backup runs for instance %s", instance.name)
 		} else {
 			allChanges = append(allChanges, backupChanges...)
@@ -80,42 +80,44 @@ type instanceInfo struct {
 }
 
 // scrapeBackupRuns scrapes Cloud SQL backup runs for a specific instance
-func (gcp Scraper) scrapeBackupRuns(ctx *GCPContext, config v1.GCP, service *sqladmin.Service, instanceName string, instanceSelfLink string) ([]v1.ChangeResult, error) {
+func (gcp Scraper) scrapeBackupRuns(ctx *GCPContext, results v1.ScrapeResults, instanceName string, instanceSelfLink string) ([]v1.ChangeResult, error) {
 	ctx.Logger.V(3).Infof("scraping backup runs for Cloud SQL instance %s", instanceName)
 
-	var allBackupRuns []*sqladmin.BackupRun
-	backupRunsCall := service.BackupRuns.List(config.Project, instanceName)
-	err := backupRunsCall.Pages(ctx, func(page *sqladmin.BackupRunsListResponse) error {
-		allBackupRuns = append(allBackupRuns, page.Items...)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list backup runs for instance %s: %w", instanceName, err)
+	var allBackupRuns []*structpb.Struct
+
+	for _, r := range results {
+		if r.Type == v1.GCPBackupRun {
+			allBackupRuns = append(allBackupRuns, r.GCPStructPB)
+		}
 	}
 
 	var changes []v1.ChangeResult
 	for _, backupRun := range allBackupRuns {
-		startTime, err := time.Parse(time.RFC3339, backupRun.StartTime)
+		runID := backupRun.Fields["id"].GetStringValue()
+		status := backupRun.Fields["status"].GetStringValue()
+		runType := backupRun.Fields["type"].GetStringValue()
+		runKind := backupRun.Fields["backupKind"].GetStringValue()
+		startTime, err := time.Parse(time.RFC3339, backupRun.Fields["startTime"].GetStringValue())
 		if err != nil {
-			ctx.Logger.V(2).Infof("failed to parse backup run start time for instance %s, backup ID %d: %v", instanceName, backupRun.Id, err)
+			ctx.Logger.V(2).Infof("failed to parse backup run start time for instance %s, backup ID %s: %v", instanceName, runID, err)
 			continue
 		}
 
-		changeType := fmt.Sprintf("Backup%s", lo.PascalCase(backupRun.Status))
-		severity := mapCloudSQLOperationSeverity(backupRun.Status)
+		changeType := fmt.Sprintf("Backup%s", lo.PascalCase(status))
+		severity := mapCloudSQLOperationSeverity(status)
 
 		changeResult := v1.ChangeResult{
 			ConfigType:       v1.CloudSQLInstance,
 			ExternalID:       instanceSelfLink,
-			ExternalChangeID: fmt.Sprintf("%d", backupRun.Id),
+			ExternalChangeID: runID,
 			ChangeType:       changeType,
 			Source:           "SQLAdmin",
-			Summary:          fmt.Sprintf("%s %s", lo.PascalCase(backupRun.Type), lo.PascalCase(backupRun.BackupKind)), // eg: Automated Snapshot
+			Summary:          fmt.Sprintf("%s %s", lo.PascalCase(runType), lo.PascalCase(runKind)), // eg: Automated Snapshot
 			CreatedAt:        &startTime,
 			Severity:         severity,
 			Details: map[string]any{
 				"backupRun": backupRun,
-				"status":    lo.PascalCase(backupRun.Status),
+				"status":    lo.PascalCase(status),
 			},
 		}
 
