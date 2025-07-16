@@ -15,7 +15,6 @@ func getFieldValue(data *structpb.Struct, keys []string) string {
 			}
 		}
 	}
-
 	return ""
 }
 
