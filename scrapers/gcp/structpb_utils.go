@@ -7,6 +7,17 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+func getFieldValue(data *structpb.Struct, keys []string) string {
+	for _, field := range keys {
+		if value, ok := data.Fields[field]; ok {
+			if strValue := value.GetStringValue(); strValue != "" {
+				return strValue
+			}
+		}
+	}
+	return ""
+}
+
 // Recursively applies f to all string values in the Struct
 func applyFuncToAllStructPBStrings(s *structpb.Struct, f func(string) string, fieldNames ...string) {
 	if s == nil {

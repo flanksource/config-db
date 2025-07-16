@@ -155,7 +155,7 @@ var typeOverrides = map[string]string{
 	"vmwareengine.googleapis.com/PrivateConnection":  "VMwareEngine::PrivateConnection",
 
 	// Project resources (3 total)
-	"compute.googleapis.com/Project":              "Compute::Project",
+	"compute.googleapis.com/Project":              "Project",
 	"cloudresourcemanager.googleapis.com/Project": "ResourceManager::Project",
 
 	// Repository resources (3 total)

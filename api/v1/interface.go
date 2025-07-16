@@ -585,6 +585,7 @@ func (t Tags) Eval(labels map[string]string, config string) (Tags, error) {
 type ConfigExternalKey struct {
 	ExternalID string
 	Type       string
+	ScraperID  string
 }
 
 type DirectedRelationship struct {

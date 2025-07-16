@@ -28,6 +28,8 @@ const (
 
 	GCPBackup    = "GCP::Backup"
 	GCPBackupRun = "GCP::BackupRun"
+
+	GCPProject = "GCP::Project"
 )
 
 const (

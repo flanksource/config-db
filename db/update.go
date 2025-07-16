@@ -1321,7 +1321,7 @@ func setConfigProbableParents(ctx api.ScrapeContext, parentTypeToConfigMap map[c
 				continue
 			}
 
-			if foundParent, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: parent.Type, ExternalID: parent.ExternalID}); err != nil {
+			if foundParent, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: parent.Type, ExternalID: parent.ExternalID, ScraperID: parent.ScraperID}); err != nil {
 				return err
 			} else if foundParent != nil {
 				// Ignore self parent reference
@@ -1359,7 +1359,7 @@ func setParentForChildren(ctx api.ScrapeContext, allConfigs models.ConfigItems) 
 				continue
 			}
 
-			found, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: child.Type, ExternalID: child.ExternalID})
+			found, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: child.Type, ExternalID: child.ExternalID, ScraperID: child.ScraperID})
 			if err != nil {
 				return err
 			} else if found == nil {
