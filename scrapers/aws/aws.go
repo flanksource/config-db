@@ -1364,12 +1364,6 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			// })
 
 			relationships = append(relationships, v1.RelationshipResult{
-				ConfigExternalID:  selfExternalID,
-				RelatedExternalID: v1.ExternalID{ExternalID: "Kubernetes/Node//" + *i.PrivateDnsName, ConfigType: "Kubernetes::Node", ScraperID: "all"},
-				Relationship:      "InstanceKuberenetesNode",
-			})
-
-			relationships = append(relationships, v1.RelationshipResult{
 				ConfigExternalID:  v1.ExternalID{ExternalID: lo.FromPtr(i.SubnetId), ConfigType: v1.AWSEC2Subnet},
 				RelatedExternalID: selfExternalID,
 				Relationship:      "SubnetInstance",
@@ -1384,7 +1378,8 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			labels["subnet"] = instance.SubnetID
 
 			tags := v1.Tags{}
-			tags.Append("zone", ctx.Subnets[instance.SubnetID].Zone)
+			zone := ctx.Subnets[instance.SubnetID].Zone
+			tags.Append("zone", zone)
 			tags.Append("zone-id", ctx.Subnets[instance.SubnetID].ZoneID)
 			tags.Append("region", ctx.Subnets[instance.SubnetID].Region)
 
@@ -1398,7 +1393,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				Config:              instance,
 				ConfigClass:         "VirtualMachine",
 				Name:                lo.CoalesceOrEmpty(instance.GetHostname(), instance.InstanceID),
-				Aliases:             []string{"AmazonEC2/" + instance.InstanceID},
+				Aliases:             []string{"AmazonEC2/" + instance.InstanceID, fmt.Sprintf("aws:///%s/%s", zone, instance.InstanceID)},
 				ID:                  instance.InstanceID,
 				Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: instance.VpcID}},
 				RelationshipResults: relationships,
