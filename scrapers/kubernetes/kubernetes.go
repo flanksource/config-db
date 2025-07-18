@@ -309,6 +309,23 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 				))
 			}
 
+		case "Node":
+			providerID := getString(obj, "spec", "providerID")
+			var nodeRelConfigType string
+			if strings.HasPrefix(providerID, "aws://") {
+				nodeRelConfigType = v1.AWSEC2Instance
+			} else if strings.HasPrefix(providerID, "gce://") {
+				nodeRelConfigType = v1.GCPInstance
+			}
+
+			if nodeRelConfigType != "" {
+				relationships = append(relationships, v1.RelationshipResult{
+					ConfigExternalID: v1.ExternalID{ConfigType: nodeRelConfigType, ExternalID: providerID, ScraperID: "all"},
+					RelatedConfigID:  string(obj.GetUID()),
+					Relationship:     "InstanceKuberenetesNode",
+				})
+			}
+
 		case "Service":
 			var svc coreV1.Service
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &svc); err != nil {

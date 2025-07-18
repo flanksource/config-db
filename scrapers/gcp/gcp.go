@@ -95,7 +95,7 @@ func parseResourceData(data *structpb.Struct) ResourceData {
 		}
 	}
 
-	createdAtRaw := getFieldValue(data, []string{"creationTimestamp", "createTime"})
+	createdAtRaw := getFieldValue(data, []string{"creationTimestamp", "createTime", "timeCreated"})
 	createdAt, _ := time.Parse(time.RFC3339, createdAtRaw)
 
 	zone := getFieldValue(data, []string{"location", "gceZone"})
@@ -205,11 +205,22 @@ func removeTypes(results v1.ScrapeResults) v1.ScrapeResults {
 	return newResults
 }
 
+func addExtraAliases(results v1.ScrapeResults) v1.ScrapeResults {
+	for i := range results {
+		if results[i].Type == v1.GCPInstance {
+			tags := results[i].Tags.AsMap()
+			results[i].Aliases = append(results[i].Aliases, fmt.Sprintf("gce://%s/%s/%s", tags["project"], tags["zone"], results[i].Name))
+		}
+	}
+	return results
+}
+
 func processResults(results v1.ScrapeResults) v1.ScrapeResults {
 	results = mergeDNSRecordSetsIntoManagedZone(results)
 	results = stripUnwantedFields(results)
 	results = cleanLinks(results)
 	results = removeTypes(results)
+	results = addExtraAliases(results)
 	return results
 }
 
@@ -413,13 +424,6 @@ func resolveGCPInstanceRelationships(rd ResourceData) (r relationshipResults) {
 			RelatedExternalID: selfExternalID,
 			Relationship:      "GKEInstance",
 		})
-
-		r.Relationships = append(r.Relationships, v1.RelationshipResult{
-			ConfigExternalID:  selfExternalID,
-			RelatedExternalID: v1.ExternalID{ExternalID: "Kubernetes/Node//" + rd.Name, ConfigType: "Kubernetes::Node", ScraperID: "all"},
-			Relationship:      "InstanceKuberenetesNode",
-		})
-
 	}
 	return r
 }
