@@ -242,7 +242,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		var (
 			relationships v1.RelationshipResults
 			labels        = make(map[string]string)
-			aliases       = []string{KubernetesAlias(obj.GetKind(), obj.GetNamespace(), obj.GetName())}
+			aliases       = []string{KubernetesAlias(ctx.ClusterName(), obj.GetKind(), obj.GetNamespace(), obj.GetName())}
 		)
 
 		if obj.GetLabels() != nil {
@@ -280,7 +280,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 						if address.TargetRef.Kind != "Service" {
 							relationships = append(relationships, v1.RelationshipResult{
 								ConfigExternalID: v1.ExternalID{
-									ExternalID: KubernetesAlias("Service", obj.GetNamespace(), obj.GetName()),
+									ExternalID: KubernetesAlias(ctx.ClusterName(), "Service", obj.GetNamespace(), obj.GetName()),
 									ConfigType: ConfigTypePrefix + "Service",
 								},
 								RelatedConfigID: string(address.TargetRef.UID),
@@ -298,7 +298,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 
 			if nodeName != "" {
 				nodeID := ctx.GetID("", "Node", nodeName)
-				nodeExternalID := lo.CoalesceOrEmpty(nodeID, KubernetesAlias("Node", "", nodeName))
+				nodeExternalID := lo.CoalesceOrEmpty(nodeID, KubernetesAlias(ctx.ClusterName(), "Node", "", nodeName))
 
 				relationships = append(relationships, v1.RelationshipResult{
 					RelatedConfigID: string(obj.GetUID()),
@@ -311,20 +311,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 
 		case "Node":
 			providerID := getString(obj, "spec", "providerID")
-			var nodeRelConfigType string
-			if strings.HasPrefix(providerID, "aws://") {
-				nodeRelConfigType = v1.AWSEC2Instance
-			} else if strings.HasPrefix(providerID, "gce://") {
-				nodeRelConfigType = v1.GCPInstance
-			}
-
-			if nodeRelConfigType != "" {
-				relationships = append(relationships, v1.RelationshipResult{
-					ConfigExternalID: v1.ExternalID{ConfigType: nodeRelConfigType, ExternalID: providerID, ScraperID: "all"},
-					RelatedConfigID:  string(obj.GetUID()),
-					Relationship:     "InstanceKuberenetesNode",
-				})
-			}
+			aliases = append(aliases, providerID)
 
 		case "Service":
 			var svc coreV1.Service
@@ -393,7 +380,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 							Relationship: "IngressService",
 							RelatedExternalID: v1.ExternalID{
 								ConfigType: ConfigTypePrefix + "Service",
-								ExternalID: KubernetesAlias("Service", obj.GetNamespace(), service),
+								ExternalID: KubernetesAlias(ctx.ClusterName(), "Service", obj.GetNamespace(), service),
 							},
 						})
 					}
@@ -408,7 +395,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			}.WithConfig(
 				ctx.GetID("", "Namespace", obj.GetNamespace()),
 				v1.ExternalID{
-					ExternalID: KubernetesAlias("Namespace", "", obj.GetNamespace()),
+					ExternalID: KubernetesAlias(ctx.ClusterName(), "Namespace", "", obj.GetNamespace()),
 					ConfigType: ConfigTypePrefix + "Namespace",
 				},
 			))
@@ -549,7 +536,7 @@ func getKubernetesParent(ctx *KubernetesContext, obj *unstructured.Unstructured)
 		if parentExternalID == "" {
 			// An incremental scraper may not have the Namespace object.
 			// We can instead use the alias as the external id.
-			parentExternalID = KubernetesAlias("Namespace", "", obj.GetNamespace())
+			parentExternalID = KubernetesAlias(ctx.ClusterName(), "Namespace", "", obj.GetNamespace())
 		}
 
 		allParents = append([]v1.ConfigExternalKey{{
@@ -583,7 +570,7 @@ func getKubernetesParent(ctx *KubernetesContext, obj *unstructured.Unstructured)
 	if obj.GetKind() == "Endpoints" {
 		allParents = append([]v1.ConfigExternalKey{{
 			Type:       ConfigTypePrefix + "Service",
-			ExternalID: KubernetesAlias("Service", obj.GetNamespace(), obj.GetName()),
+			ExternalID: KubernetesAlias(ctx.ClusterName(), "Service", obj.GetNamespace(), obj.GetName()),
 		}}, allParents...)
 	}
 
@@ -594,8 +581,8 @@ func lbServiceAlias(hostOrIP string) string {
 	return fmt.Sprintf("Kubernetes/LoadBalancerService/%s", hostOrIP)
 }
 
-func KubernetesAlias(kind, namespace, name string) string {
-	return strings.Join([]string{"Kubernetes", kind, namespace, name}, "/")
+func KubernetesAlias(cluster, kind, namespace, name string) string {
+	return strings.Join([]string{"Kubernetes", cluster, kind, namespace, name}, "/")
 }
 
 func extractDeployNameFromReplicaSet(rs string) string {

@@ -18,8 +18,13 @@ type ChildLookupHook interface {
 	ChildLookupHook(ctx *KubernetesContext, obj *unstructured.Unstructured) []v1.ConfigExternalKey
 }
 
+type AliasLookupHook interface {
+	AliasLookupHook(ctx *KubernetesContext, obj *unstructured.Unstructured) []string
+}
+
 var childlookupHooks []ChildLookupHook
 var parentlookupHooks []ParentLookupHook
+var aliaslookupHooks []AliasLookupHook
 var onObjectHooks []OnObject
 
 func OnObjectHooks(ctx *KubernetesContext, obj *unstructured.Unstructured) (bool, map[string]string, error) {
@@ -42,9 +47,7 @@ func OnObjectHooks(ctx *KubernetesContext, obj *unstructured.Unstructured) (bool
 func ParentLookupHooks(ctx *KubernetesContext, obj *unstructured.Unstructured) []v1.ConfigExternalKey {
 	parents := []v1.ConfigExternalKey{}
 	for _, hook := range parentlookupHooks {
-
 		parents = append(hook.ParentLookupHook(ctx, obj), parents...)
-
 	}
 	return parents
 }
@@ -52,9 +55,15 @@ func ParentLookupHooks(ctx *KubernetesContext, obj *unstructured.Unstructured) [
 func ChildLookupHooks(ctx *KubernetesContext, obj *unstructured.Unstructured) []v1.ConfigExternalKey {
 	children := []v1.ConfigExternalKey{}
 	for _, hook := range childlookupHooks {
-
 		children = append(hook.ChildLookupHook(ctx, obj), children...)
-
 	}
 	return children
+}
+
+func AliasLookupHooks(ctx *KubernetesContext, obj *unstructured.Unstructured) []string {
+	var alias []string
+	for _, hook := range aliaslookupHooks {
+		alias = append(hook.AliasLookupHook(ctx, obj), alias...)
+	}
+	return alias
 }
