@@ -94,3 +94,7 @@ func (ctx *KubernetesContext) FindInvolvedConfigID(event v1.KubernetesEvent) (uu
 	}
 	return ids[0], nil
 }
+
+func (ctx *KubernetesContext) ClusterName() string {
+	return ctx.cluster.Name
+}

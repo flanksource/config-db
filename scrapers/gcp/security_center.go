@@ -51,7 +51,7 @@ func mapState(finding *securitycenterpb.Finding) string {
 // - //k8s.io/rbac.authorization.k8s.io/v1/clusterroles/crossplane:aggregate-to-admin (cluster-scoped)
 // We need to translate this into our kubernetes alias function which we use for matching external id to
 // resources scraped via the kubernetes scraper
-func mapK8sResourceFromGCP(affectedResource string) string {
+func mapK8sResourceFromGCP(clusterName, affectedResource string) string {
 	prefix := "//k8s.io/"
 	if !strings.HasPrefix(affectedResource, prefix) {
 		return ""
@@ -65,13 +65,13 @@ func mapK8sResourceFromGCP(affectedResource string) string {
 		kind := pluralToKind(parts[4])
 		ns := parts[3]
 		name := parts[5]
-		return k8sScraper.KubernetesAlias(kind, ns, name)
+		return k8sScraper.KubernetesAlias(clusterName, kind, ns, name)
 	case 4:
 		// Cluster-scoped resource: {apiGroup}/{apiVersion}/{resourceType}/{name}
 		kind := pluralToKind(parts[2])
 		ns := ""
 		name := parts[3]
-		return k8sScraper.KubernetesAlias(kind, ns, name)
+		return k8sScraper.KubernetesAlias(clusterName, kind, ns, name)
 	default:
 		return ""
 	}
@@ -101,7 +101,7 @@ func parseFinding(finding *securitycenterpb.ListFindingsResponse_ListFindingsRes
 				if finding.Resource.Type == "google.container.Cluster" {
 					labels["cluster"] = finding.Resource.DisplayName
 				}
-				if k8sAlias := mapK8sResourceFromGCP(resourceName); k8sAlias != "" {
+				if k8sAlias := mapK8sResourceFromGCP(finding.Resource.DisplayName, resourceName); k8sAlias != "" {
 					analysis.ExternalConfigs = append(analysis.ExternalConfigs, v1.ExternalID{
 						ExternalID: k8sAlias,
 						ScraperID:  "all",
