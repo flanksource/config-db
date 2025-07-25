@@ -126,9 +126,11 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		})
 	}
 
-	// Lowercase all external ids for easy matching
+	// Lowercase + unique  all external ids for easy matching
 	externalIDs := append([]string{result.ID}, result.Aliases...)
+	externalIDs = lo.Uniq(externalIDs)
 	externalIDs = lo.Map(externalIDs, func(s string, _ int) string { return strings.ToLower(s) })
+	externalIDs = lo.Filter(externalIDs, func(s string, _ int) bool { return s != "" })
 
 	ci := &models.ConfigItem{
 		ExternalID:      externalIDs,
