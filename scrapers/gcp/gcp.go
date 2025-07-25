@@ -21,6 +21,7 @@ import (
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils"
 )
 
 type GCPContext struct {
@@ -125,6 +126,7 @@ func parseResourceData(data *structpb.Struct) ResourceData {
 	id := data.Fields["id"].GetStringValue()
 	name := data.Fields["name"].GetStringValue()
 	selfLink := data.Fields["selfLink"].GetStringValue()
+	selfLink2 := strings.TrimPrefix(selfLink, "https://www.googleapis.com/compute/v1/") // Certain references are without this prefix
 
 	return ResourceData{
 		ID:        id,
@@ -134,7 +136,7 @@ func parseResourceData(data *structpb.Struct) ResourceData {
 		URL:       selfLink,
 		Zone:      strings.ToLower(zone),
 		Region:    strings.ToLower(region),
-		Aliases:   []string{selfLink, name},
+		Aliases:   []string{selfLink, selfLink2},
 		Raw:       data,
 	}
 }
@@ -418,12 +420,14 @@ func resolveGCPInstanceRelationships(rd ResourceData) (r relationshipResults) {
 		})
 	}
 
-	if cluster, exists := rd.Labels["goog-k8s-cluster-name"]; exists {
-		r.Relationships = append(r.Relationships, v1.RelationshipResult{
-			ConfigExternalID:  v1.ExternalID{ExternalID: cluster, ConfigType: v1.GCPGKECluster},
-			RelatedExternalID: selfExternalID,
-			Relationship:      "GKEInstance",
-		})
+	if clusterIDBase32, exists := rd.Labels["goog-gke-cluster-id-base32"]; exists {
+		if clusterID, _ := utils.Base32ToString(clusterIDBase32); clusterID != "" {
+			r.Relationships = append(r.Relationships, v1.RelationshipResult{
+				ConfigExternalID:  v1.ExternalID{ExternalID: clusterID, ConfigType: v1.GCPGKECluster},
+				RelatedExternalID: selfExternalID,
+				Relationship:      "GKEInstance",
+			})
+		}
 	}
 	return r
 }

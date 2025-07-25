@@ -74,6 +74,22 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 			return results.Errorf(err, "clusterName missing from kubernetes configuration")
 		}
 
+		if scraperID := ctx.ScraperID(); scraperID != "" {
+			// (ClusterName, ScraperID) should always be unique
+			var scraperIDs []string
+			if err := ctx.DB().Model(&models.ConfigItem{}).Select("scraper_id").
+				Where("name = ? AND type = 'Kubernetes::Cluster' AND deleted_at IS NULL", config.ClusterName).
+				Find(&scraperIDs).Error; err != nil {
+				return results.Errorf(err, "error querying db for scraper_id with cluster name: %s", config.ClusterName)
+			}
+			if len(scraperIDs) > 1 {
+				return results.Errorf(err, "multiple scraper_ids[%s] found with cluster name: %s", strings.Join(scraperIDs, ","), config.ClusterName)
+			}
+			if len(scraperIDs) == 1 && lo.FirstOrEmpty(scraperIDs) != scraperID {
+				return results.Errorf(err, "scraper_id[%s] already exists with cluster name: %s", strings.Join(scraperIDs, ","), config.ClusterName)
+			}
+		}
+
 		objs, err := scrape(ctx, config)
 		if err != nil {
 			return results.Errorf(err, "error running ketall")
