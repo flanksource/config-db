@@ -8167,6 +8167,8 @@ spec:
                   - query
                   type: object
                 type: array
+              system:
+                type: boolean
               terraform:
                 items:
                   properties:
