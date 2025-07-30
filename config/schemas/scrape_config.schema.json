@@ -2722,6 +2722,9 @@
           },
           "type": "array"
         },
+        "system": {
+          "type": "boolean"
+        },
         "crdSync": {
           "type": "boolean"
         },

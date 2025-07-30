@@ -68,6 +68,7 @@ type ScraperSpec struct {
 	Clickhouse     []Clickhouse     `json:"clickhouse,omitempty"`
 	Logs           []Logs           `json:"logs,omitempty"`
 	PubSub         []PubSub         `json:"pubsub,omitempty"`
+	System         bool             `json:"system,omitempty"`
 
 	// CRDSync when set to true, will create (or update) the corresponding database record
 	// for a config item of the following types

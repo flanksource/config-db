@@ -8,6 +8,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/http"
 	"github.com/flanksource/config-db/scrapers/logs"
 	"github.com/flanksource/config-db/scrapers/slack"
+	"github.com/flanksource/config-db/scrapers/system"
 	"github.com/flanksource/config-db/scrapers/terraform"
 	"github.com/flanksource/config-db/scrapers/trivy"
 	"github.com/flanksource/duty/types"
@@ -39,6 +40,7 @@ var All = []api.Scraper{
 	trivy.Scanner{},
 	http.Scraper{},
 	terraform.Scraper{},
+	system.Scraper{},
 }
 
 func GetAuthValues(ctx api.ScrapeContext, auth *v1.Authentication) (*v1.Authentication, error) {
