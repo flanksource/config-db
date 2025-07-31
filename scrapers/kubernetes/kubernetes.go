@@ -78,7 +78,7 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 			// (ClusterName, ScraperID) should always be unique
 			var scraperIDs []string
 			if err := ctx.DB().Model(&models.ConfigItem{}).Select("scraper_id").
-				Where("name = ? AND type = 'Kubernetes::Cluster' AND deleted_at IS NULL", config.ClusterName).
+				Where("name = ? AND type = 'Kubernetes::Cluster' AND deleted_at IS NULL AND scraper_id IS NOT NULL", config.ClusterName).
 				Find(&scraperIDs).Error; err != nil {
 				return results.Errorf(err, "error querying db for scraper_id with cluster name: %s", config.ClusterName)
 			}
