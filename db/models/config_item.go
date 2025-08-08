@@ -46,6 +46,9 @@ type ConfigItem struct {
 	Parents         []v1.ConfigExternalKey `gorm:"-" json:"parents,omitempty"`
 	Children        []v1.ConfigExternalKey `gorm:"-" json:"children,omitempty"`
 	ProbableParents []string               `gorm:"-" json:"-"`
+
+	// For storing struct as map[string]any
+	_map map[string]any `json:"-"`
 }
 
 func (ci ConfigItem) Label() string {
@@ -82,4 +85,43 @@ func (cis ConfigItems) GetByID(id string) *ConfigItem {
 		}
 	}
 	return nil
+}
+
+func (ci *ConfigItem) AsMap() map[string]any {
+	if ci._map != nil {
+		return ci._map
+	}
+	ci._map = map[string]any{
+		"id":                ci.ID,
+		"scraper_id":        lo.FromPtr(ci.ScraperID),
+		"config_class":      ci.ConfigClass,
+		"external_id":       ci.ExternalID,
+		"type":              ci.Type,
+		"status":            lo.FromPtr(ci.Status),
+		"ready":             ci.Ready,
+		"health":            lo.FromPtr(ci.Health),
+		"name":              lo.FromPtr(ci.Name),
+		"description":       lo.FromPtr(ci.Description),
+		"config":            lo.FromPtr(ci.Config),
+		"source":            lo.FromPtr(ci.Source),
+		"parent_id":         lo.FromPtr(ci.ParentID),
+		"path":              ci.Path,
+		"cost_per_minute":   ci.CostPerMinute,
+		"cost_total_1d":     ci.CostTotal1d,
+		"cost_total_7d":     ci.CostTotal7d,
+		"cost_total_30d":    ci.CostTotal30d,
+		"labels":            lo.FromPtr(ci.Labels),
+		"tags":              ci.Tags,
+		"properties":        lo.FromPtr(ci.Properties),
+		"created_at":        ci.CreatedAt,
+		"updated_at":        lo.FromPtr(ci.UpdatedAt),
+		"deleted_at":        lo.FromPtr(ci.DeletedAt),
+		"last_scraped_time": lo.FromPtr(ci.LastScrapedTime),
+		"delete_reason":     ci.DeleteReason,
+	}
+	return ci._map
+}
+
+func (ci *ConfigItem) FlushMap() {
+	ci._map = nil
 }
