@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/samber/lo"
+
+	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 // ConfigItem represents the config item database table
@@ -42,6 +43,8 @@ type ConfigItem struct {
 	DeletedAt       *time.Time            `gorm:"column:deleted_at" json:"deleted_at"`
 	LastScrapedTime *time.Time            `gorm:"column:last_scraped_time" json:"last_scraped_time"`
 	DeleteReason    v1.ConfigDeleteReason `gorm:"column:delete_reason" json:"delete_reason"`
+	Locations       pq.StringArray        `gorm:"column:locations;type:[]text" json:"locations,omitempty"`
+	Aliases         pq.StringArray        `gorm:"column:aliases;type:[]text" json:"aliases,omitempty"`
 
 	Parents         []v1.ConfigExternalKey `gorm:"-" json:"parents,omitempty"`
 	Children        []v1.ConfigExternalKey `gorm:"-" json:"children,omitempty"`

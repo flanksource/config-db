@@ -51,6 +51,8 @@ type Transform struct {
 	Script       v1.Script
 	Masks        []Mask
 	Relationship []v1.RelationshipConfig
+	Locations    []v1.ScrapePluginLocation
+	Aliases      []v1.ScrapePluginLocation
 }
 
 func (t *Transform) String() string {
@@ -202,6 +204,8 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 
 	extract.Transform.Script = config.Transform.Script
 	extract.Transform.Relationship = config.Transform.Relationship
+	extract.Transform.Locations = config.Transform.Locations
+	extract.Transform.Aliases = config.Transform.Aliases
 
 	for _, mask := range config.Transform.Masks {
 		if mask.Selector == "" {
@@ -501,7 +505,65 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		}
 	}
 
+	for i, result := range results {
+		env := result.AsMap()
+
+		if val, err := extractLocation(ctx, env, e.Transform.Locations); err != nil {
+			return results, fmt.Errorf("failed to extract aliases: %w", err)
+		} else {
+			results[i].Locations = val
+		}
+
+		if val, err := extractLocation(ctx, env, e.Transform.Aliases); err != nil {
+			return results, fmt.Errorf("failed to extract aliases: %w", err)
+		} else {
+			results[i].Aliases = val
+		}
+	}
+
 	return results, nil
+}
+
+func extractLocation(ctx api.ScrapeContext, env map[string]any, locations []v1.ScrapePluginLocation) ([]string, error) {
+	var output []string
+	for _, location := range locations {
+		configType, _ := env["config_type"].(string)
+		if location.Type != "" && !location.Type.Match(configType) {
+			continue
+		}
+
+		if location.Filter != "" {
+			filterOutput, err := ctx.RunTemplateBool(gomplate.Template{Expression: string(location.Filter)}, env)
+			if err != nil {
+				return nil, fmt.Errorf("failed to evaluate location filter: %w", err)
+			}
+
+			if !filterOutput {
+				continue
+			}
+		}
+
+		if len(location.Values) > 0 {
+			templater := gomplate.StructTemplater{
+				Values:         env,
+				ValueFunctions: true,
+				DelimSets: []gomplate.Delims{
+					{Left: "{{", Right: "}}"},
+					{Left: "$(", Right: ")"},
+				},
+			}
+
+			if err := templater.Walk(&location); err != nil {
+				return nil, fmt.Errorf("failed to template location values: %w", err)
+			}
+
+			for _, value := range location.Values {
+				output = append(output, string(value))
+			}
+		}
+	}
+
+	return output, nil
 }
 
 func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, error) {

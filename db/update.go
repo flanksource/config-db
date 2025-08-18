@@ -206,6 +206,12 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 		updates["created_at"] = ci.CreatedAt
 	}
 
+	if !slices.Equal(ci.Locations, existing.Locations) {
+		updates["locations"] = ci.Locations
+	}
+	if !slices.Equal(ci.Aliases, existing.Aliases) {
+		updates["aliases"] = ci.Aliases
+	}
 	// Order of externalID matters
 	if !slices.Equal(ci.ExternalID, existing.ExternalID) {
 		updates["external_id"] = ci.ExternalID

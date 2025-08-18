@@ -10,9 +10,6 @@ import (
 	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/utils"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/context"
 	dutydb "github.com/flanksource/duty/db"
@@ -24,6 +21,10 @@ import (
 	"github.com/ohler55/ojg/oj"
 	"github.com/samber/lo"
 	"gorm.io/gorm/clause"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db/models"
 )
 
 // GetConfigItem returns a single config item result
@@ -141,6 +142,8 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Source:          &result.Source,
 		Labels:          &result.Labels,
 		Properties:      &result.Properties,
+		Locations:       result.Locations,
+		Aliases:         result.Aliases,
 		Config:          &dataStr,
 		Ready:           result.Ready,
 		LastScrapedTime: result.LastScrapedTime,
