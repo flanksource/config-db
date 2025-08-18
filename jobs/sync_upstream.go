@@ -9,12 +9,13 @@ import (
 	"github.com/flanksource/commons/http"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/utils"
-	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/job"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/upstream"
 	"gorm.io/gorm/clause"
+
+	"github.com/flanksource/config-db/api"
 )
 
 var ReconcilePageSize int
@@ -36,8 +37,10 @@ var ReconcileConfigs = &job.Job{
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = job.ResourceTypeUpstream
 		ctx.History.ResourceID = api.UpstreamConfig.Host
+
 		client := upstream.NewUpstreamClient(api.UpstreamConfig)
 		summary := upstream.ReconcileSome(ctx.Context, client, ReconcilePageSize, tablesToReconcile...)
+
 		ctx.History.AddDetails("summary", summary)
 		ctx.History.SuccessCount, ctx.History.ErrorCount = summary.GetSuccessFailure()
 		if summary.Error() != nil {
