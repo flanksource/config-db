@@ -147,10 +147,14 @@ type Transform struct {
 	// Relationship allows you to form relationships between config items using selectors.
 	Relationship []RelationshipConfig `json:"relationship,omitempty"`
 	Change       TransformChange      `json:"changes,omitempty"`
+
+	Locations []ScrapePluginLocation `json:"locations,omitempty"`
+	Aliases   []ScrapePluginLocation `json:"aliases,omitempty"`
 }
 
 func (t Transform) IsEmpty() bool {
-	return t.Script.IsEmpty() && t.Change.IsEmpty() && len(t.Exclude) == 0 && t.Masks.IsEmpty() && len(t.Relationship) == 0
+	return t.Script.IsEmpty() && t.Change.IsEmpty() && len(t.Exclude) == 0 && t.Masks.IsEmpty() && len(t.Relationship) == 0 &&
+		len(t.Locations) == 0 && len(t.Aliases) == 0
 }
 
 func (t Transform) String() string {
@@ -172,6 +176,15 @@ func (t Transform) String() string {
 	}
 
 	s += fmt.Sprintf(" relationships=%d", len(t.Relationship))
+
+	if len(t.Locations) > 0 {
+		s += fmt.Sprintf(" locations=%s", t.Locations)
+	}
+
+	if len(t.Aliases) > 0 {
+		s += fmt.Sprintf(" aliases=%s", t.Aliases)
+	}
+
 	return s
 }
 
@@ -245,6 +258,9 @@ func (base BaseScraper) ApplyPlugins(plugins ...ScrapePluginSpec) BaseScraper {
 	for _, p := range plugins {
 		base.Transform.Change.Exclude = append(base.Transform.Change.Exclude, p.Change.Exclude...)
 		base.Transform.Change.Mapping = append(base.Transform.Change.Mapping, p.Change.Mapping...)
+
+		base.Transform.Locations = append(base.Transform.Locations, p.Locations...)
+		base.Transform.Aliases = append(base.Transform.Aliases, p.Aliases...)
 
 		base.Transform.Relationship = append(base.Transform.Relationship, p.Relationship...)
 		base.Properties = append(base.Properties, p.Properties...)

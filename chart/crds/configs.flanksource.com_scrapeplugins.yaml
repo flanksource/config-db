@@ -38,6 +38,30 @@ spec:
             type: object
           spec:
             properties:
+              aliases:
+                items:
+                  properties:
+                    filter:
+                      description: |-
+                        A Cel expression, when provided, must return true for this filter to apply.
+
+
+                        Receives the config item as the cel env variable.
+                      type: string
+                    type:
+                      description: |-
+                        Types on which this plugin should run.
+                        Supports match expression
+                        Example: AWS::*, Kubernetes::Namespace
+                      type: string
+                    values:
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - type
+                  type: object
+                type: array
               changes:
                 properties:
                   exclude:
@@ -74,6 +98,30 @@ spec:
                       type: object
                     type: array
                 type: object
+              locations:
+                items:
+                  properties:
+                    filter:
+                      description: |-
+                        A Cel expression, when provided, must return true for this filter to apply.
+
+
+                        Receives the config item as the cel env variable.
+                      type: string
+                    type:
+                      description: |-
+                        Types on which this plugin should run.
+                        Supports match expression
+                        Example: AWS::*, Kubernetes::Namespace
+                      type: string
+                    values:
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - type
+                  type: object
+                type: array
               properties:
                 description: |-
                   Properties are custom templatable properties for the scraped config items

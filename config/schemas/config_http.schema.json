@@ -414,6 +414,27 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "ScrapePluginLocation": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
     "SecretKeySelector": {
       "properties": {
         "name": {
@@ -508,6 +529,18 @@
         },
         "changes": {
           "$ref": "#/$defs/TransformChange"
+        },
+        "locations": {
+          "items": {
+            "$ref": "#/$defs/ScrapePluginLocation"
+          },
+          "type": "array"
+        },
+        "aliases": {
+          "items": {
+            "$ref": "#/$defs/ScrapePluginLocation"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,

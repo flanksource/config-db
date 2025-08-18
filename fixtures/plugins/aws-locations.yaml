@@ -1,0 +1,16 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapePlugin
+metadata:
+  name: aws-locations
+  namespace: mc
+spec:
+  locations:
+    - type: AWS::*
+      filter: >
+        config_type == "AWS::EC2::Instance"
+      values:
+        - vpc://{{.tags.vpc}}
+        - network://{{tags.region}}/{{.tags.zone}}/{{.tags.vpc}}/{{tags.subnet}}
+    - type: AWS::EC2::VPC
+      values:
+        - vpc://{{.id}}
