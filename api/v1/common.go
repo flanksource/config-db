@@ -455,10 +455,6 @@ type LocationOrAlias struct {
 
 	Values []string `json:"values,omitempty" template:"true"`
 
-	WithParent *WithParent `json:"withParent,omitempty"`
-}
-
-type WithParent struct {
-	Type string `json:"type"`
-	Soft bool   `json:"soft,omitempty"`
+	// The type of the parent to be used
+	WithParent string `json:"withParent,omitempty"`
 }

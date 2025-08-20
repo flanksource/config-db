@@ -5,77 +5,75 @@ metadata:
   namespace: mc
 spec:
   aliases:
+    - type: Kubernetes::Cluster
+      values:
+        - cluster://kubernetes/{{.name}}
+
     - type: Kubernetes::Namespace
       values:
         - namespace://kubernetes/{{tags.cluster}}/{{.name}}
+
     - type: Kubernetes::Deployment
       values:
         - deployment://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.name}}
+
     - type: Kubernetes::StatefulSet
       values:
         - statefulset://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.name}}
+
     - type: Kubernetes::DaemonSet
       values:
         - daemonset://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.name}}
+
     - type: Kubernetes::Job
       values:
         - job://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.name}}
+
     - type: Kubernetes::HelmRelease
       values:
         - helm://{{tags.cluster}}/{{tags.namespace}}/{{.name}}
+
     - type: Kubernetes::Node
+      filter: labels.apiVersion == "v1"
       values:
         - node://kubernetes/{{tags.cluster}}/{{.name}}
-    - type: Kubernetes::Pod
-      filter: has(labels.daemonset)
-      values:
-        - pod://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.daemonset}}/{{.name}}
-    - type: Kubernetes::Pod
-      filter: has(labels.job)
-      values:
-        - pod://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.job}}/{{.name}}
-    - type: Kubernetes::Pod
-      filter: has(labels.statefulset)
-      values:
-        - pod://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.statefulset}}/{{.name}}
-    - type: Kubernetes::Pod
-      filter: has(labels.deployment)
-      values:
-        - pod://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.deployment}}/{{.name}}
+
   locations:
     - type: Kubernetes::*
       values:
         - cluster://kubernetes/{{.tags.cluster}}
+
     - type: Kubernetes::*
       filter: has(labels.node)
       values:
         - node://kubernetes/{{.tags.cluster}}/{{.labels.node}}
+
     - type: Kubernetes::*
       filter: has(tags.namespace)
       values:
         - namespace://kubernetes/{{tags.cluster}}/{{.tags.namespace}}
+
     - type: 'Kubernetes::*'
       filter: has(labels.deployment)
       values:
-        - deployment://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.deployment}}/{{.name}}
-    - type: Kubernetes::Pod
+        - deployment://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.deployment}}
+
+    - type: Kubernetes::*
       filter: has(labels.statefulset)
       values:
-        - statefulset://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.statefulset}}/{{.name}}
-    - type: Kubernetes::Pod
+        - statefulset://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.statefulset}}
+
+    - type: Kubernetes::*
       filter: has(labels.daemonset)
       values:
-        - daemonset://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.daemonset}}/{{.name}}
-    - type: Kubernetes::DaemonSet
-      values:
-        - daemonset://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.name}}
-    - type: Kubernetes::Pod
+        - daemonset://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.daemonset}}
+
+    - type: Kubernetes::*
       filter: has(labels.job)
       values:
-        - job://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.job}}/{{.name}}
+        - job://kubernetes/{{tags.cluster}}/{{.tags.namespace}}/{{.labels.job}}
+
     - type: Kubernetes::*
-      withParent:
-        type: Kubernetes::HelmRelease
-        soft: false
+      withParent: Kubernetes::HelmRelease
       values:
-        - helm://{{tags.cluster}}/{{.parent.namespace}}/{{.parent.name}}
+        - helm://{{tags.cluster}}/{{.parent.tags.namespace}}/{{.parent.name}}

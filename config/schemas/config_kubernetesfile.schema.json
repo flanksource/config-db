@@ -294,7 +294,7 @@
           "type": "array"
         },
         "withParent": {
-          "$ref": "#/$defs/WithParent"
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -524,21 +524,6 @@
       },
       "additionalProperties": false,
       "type": "object"
-    },
-    "WithParent": {
-      "properties": {
-        "type": {
-          "type": "string"
-        },
-        "soft": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "type"
-      ]
     }
   }
 }

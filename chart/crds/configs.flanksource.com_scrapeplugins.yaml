@@ -59,14 +59,8 @@ spec:
                         type: string
                       type: array
                     withParent:
-                      properties:
-                        soft:
-                          type: boolean
-                        type:
-                          type: string
-                      required:
-                      - type
-                      type: object
+                      description: The type of the parent to be used
+                      type: string
                   required:
                   - type
                   type: object
@@ -128,14 +122,8 @@ spec:
                         type: string
                       type: array
                     withParent:
-                      properties:
-                        soft:
-                          type: boolean
-                        type:
-                          type: string
-                      required:
-                      - type
-                      type: object
+                      description: The type of the parent to be used
+                      type: string
                   required:
                   - type
                   type: object
