@@ -13,8 +13,10 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
+	"github.com/google/uuid"
 	"github.com/magiconair/properties"
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
@@ -540,6 +542,17 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 
 			if !filterOutput {
 				continue
+			}
+		}
+
+		if l.WithParent != "" {
+			if id, ok := env["id"].(string); ok {
+				if uuuu, err := uuid.Parse(id); err == nil {
+					configs := query.TraverseConfig(ctx.DutyContext(), uuuu.String(), l.WithParent, string(query.Incoming))
+					if len(configs) > 0 {
+						env["parent"] = configs[0].AsMap()
+					}
+				}
 			}
 		}
 
