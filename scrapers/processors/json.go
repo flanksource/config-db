@@ -511,7 +511,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		env := result.AsMap()
 
 		if val, err := extractLocation(ctx, env, e.Transform.Locations); err != nil {
-			return results, fmt.Errorf("failed to extract aliases: %w", err)
+			return results, fmt.Errorf("failed to extract locations: %w", err)
 		} else {
 			results[i].Locations = val
 		}

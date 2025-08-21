@@ -1314,13 +1314,6 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	return extractResult, nil
 }
 
-func saveConfigLocations(ctx api.ScrapeContext, configLocations []dutyModels.ConfigLocation) error {
-	return ctx.DB().Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "id"}, {Name: "location"}},
-		DoNothing: true,
-	}).Create(&configLocations).Error
-}
-
 func setConfigProbableParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
 	for _, ci := range allConfigs {
 		if len(ci.Parents) == 0 {
