@@ -148,8 +148,8 @@ type Transform struct {
 	Relationship []RelationshipConfig `json:"relationship,omitempty"`
 	Change       TransformChange      `json:"changes,omitempty"`
 
-	Locations []ScrapePluginLocation `json:"locations,omitempty"`
-	Aliases   []ScrapePluginLocation `json:"aliases,omitempty"`
+	Locations []LocationOrAlias `json:"locations,omitempty"`
+	Aliases   []LocationOrAlias `json:"aliases,omitempty"`
 }
 
 func (t Transform) IsEmpty() bool {
@@ -178,11 +178,11 @@ func (t Transform) String() string {
 	s += fmt.Sprintf(" relationships=%d", len(t.Relationship))
 
 	if len(t.Locations) > 0 {
-		s += fmt.Sprintf(" locations=%s", t.Locations)
+		s += fmt.Sprintf(" locations=%d", len(t.Locations))
 	}
 
 	if len(t.Aliases) > 0 {
-		s += fmt.Sprintf(" aliases=%s", t.Aliases)
+		s += fmt.Sprintf(" aliases=%d", len(t.Aliases))
 	}
 
 	return s
@@ -440,4 +440,25 @@ type ChangeExtractionRule struct {
 	// Config is a list of selectors to attach the change to.
 	// +kubebuilder:validation:MinItems=1
 	Config []types.EnvVarResourceSelector `yaml:"config" json:"config"`
+}
+
+type LocationOrAlias struct {
+	// Types on which this plugin should run.
+	// Supports match expression
+	// Example: AWS::*, Kubernetes::Namespace
+	Type types.MatchExpression `json:"type"`
+
+	// A Cel expression, when provided, must return true for this filter to apply.
+	//
+	// Receives the config item as the cel env variable.
+	Filter types.CelExpression `json:"filter,omitempty"`
+
+	Values []string `json:"values,omitempty" template:"true"`
+
+	WithParent *WithParent `json:"withParent,omitempty"`
+}
+
+type WithParent struct {
+	Type string `json:"type"`
+	Soft bool   `json:"soft,omitempty"`
 }

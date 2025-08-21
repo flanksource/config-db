@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/flanksource/duty/models"
-	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -37,23 +36,9 @@ type ScrapePluginSpec struct {
 	// grouped by the config type.
 	Properties []ConfigProperties `json:"properties,omitempty" template:"true"`
 
-	Locations []ScrapePluginLocation `json:"locations,omitempty"`
+	Locations []LocationOrAlias `json:"locations,omitempty"`
 
-	Aliases []ScrapePluginLocation `json:"aliases,omitempty"`
-}
-
-type ScrapePluginLocation struct {
-	// Types on which this plugin should run.
-	// Supports match expression
-	// Example: AWS::*, Kubernetes::Namespace
-	Type types.MatchExpression `json:"type"`
-
-	// A Cel expression, when provided, must return true for this filter to apply.
-	//
-	// Receives the config item as the cel env variable.
-	Filter types.CelExpression `json:"filter,omitempty"`
-
-	Values []string `json:"values,omitempty" template:"true"`
+	Aliases []LocationOrAlias `json:"aliases,omitempty"`
 }
 
 func (t ScrapePlugin) ToModel() (*models.ScrapePlugin, error) {

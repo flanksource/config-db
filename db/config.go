@@ -142,8 +142,6 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Source:          &result.Source,
 		Labels:          &result.Labels,
 		Properties:      &result.Properties,
-		Locations:       result.Locations,
-		Aliases:         result.Aliases,
 		Config:          &dataStr,
 		Ready:           result.Ready,
 		LastScrapedTime: result.LastScrapedTime,

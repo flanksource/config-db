@@ -206,12 +206,6 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 		updates["created_at"] = ci.CreatedAt
 	}
 
-	if !slices.Equal(ci.Locations, existing.Locations) {
-		updates["locations"] = ci.Locations
-	}
-	if !slices.Equal(ci.Aliases, existing.Aliases) {
-		updates["aliases"] = ci.Aliases
-	}
 	// Order of externalID matters
 	if !slices.Equal(ci.ExternalID, existing.ExternalID) {
 		updates["external_id"] = ci.ExternalID
@@ -610,6 +604,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	for _, config := range extractResult.newConfigs {
 		summary.AddInserted(config.Type)
 		ctx.TempCache().Insert(*config)
+	}
+
+	if len(extractResult.locations) > 0 {
+		uniqueLocations := lo.Uniq(extractResult.locations)
+		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}, {Name: "location"}}, DoNothing: true}).
+			CreateInBatches(&uniqueLocations, 200).Error; err != nil {
+			return summary, fmt.Errorf("failed to save config locations: %w", err)
+		}
 	}
 
 	for _, externalUser := range extractResult.externalUsers {
@@ -1129,6 +1131,7 @@ type extractResult struct {
 	configsToUpdate []*updateConfigArgs
 	newChanges      []*models.ConfigChange
 	changesToUpdate []*models.ConfigChange
+	locations       []dutyModels.ConfigLocation
 
 	externalUsers      []dutyModels.ExternalUser
 	externalGroups     []dutyModels.ExternalGroup
@@ -1235,6 +1238,13 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 					})
 				}
 			}
+
+			for _, l := range result.Locations {
+				extractResult.locations = append(extractResult.locations, dutyModels.ConfigLocation{
+					ID:       uuid.MustParse(ci.ID), // NOTE: NewConfigItemFromResult generates a valid UUID so we can use MustParse
+					Location: l,
+				})
+			}
 		}
 
 		if toCreate, toUpdate, changeSummary, err := extractChanges(ctx, &result, ci); err != nil {
@@ -1302,6 +1312,13 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	})
 
 	return extractResult, nil
+}
+
+func saveConfigLocations(ctx api.ScrapeContext, configLocations []dutyModels.ConfigLocation) error {
+	return ctx.DB().Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}, {Name: "location"}},
+		DoNothing: true,
+	}).Create(&configLocations).Error
 }
 
 func setConfigProbableParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {

@@ -1811,6 +1811,30 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "LocationOrAlias": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "withParent": {
+          "$ref": "#/$defs/WithParent"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
     "Logs": {
       "properties": {
         "id": {
@@ -2618,27 +2642,6 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "ScrapePluginLocation": {
-      "properties": {
-        "type": {
-          "type": "string"
-        },
-        "filter": {
-          "type": "string"
-        },
-        "values": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "type"
-      ]
-    },
     "ScraperSpec": {
       "properties": {
         "logLevel": {
@@ -3097,13 +3100,13 @@
         },
         "locations": {
           "items": {
-            "$ref": "#/$defs/ScrapePluginLocation"
+            "$ref": "#/$defs/LocationOrAlias"
           },
           "type": "array"
         },
         "aliases": {
           "items": {
-            "$ref": "#/$defs/ScrapePluginLocation"
+            "$ref": "#/$defs/LocationOrAlias"
           },
           "type": "array"
         }
@@ -3287,6 +3290,21 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "WithParent": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "soft": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
     }
   }
 }

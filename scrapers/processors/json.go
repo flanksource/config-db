@@ -51,8 +51,8 @@ type Transform struct {
 	Script       v1.Script
 	Masks        []Mask
 	Relationship []v1.RelationshipConfig
-	Locations    []v1.ScrapePluginLocation
-	Aliases      []v1.ScrapePluginLocation
+	Locations    []v1.LocationOrAlias
+	Aliases      []v1.LocationOrAlias
 }
 
 func (t *Transform) String() string {
@@ -524,16 +524,16 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 	return results, nil
 }
 
-func extractLocation(ctx api.ScrapeContext, env map[string]any, locations []v1.ScrapePluginLocation) ([]string, error) {
+func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias []v1.LocationOrAlias) ([]string, error) {
 	var output []string
-	for _, location := range locations {
+	for _, l := range locationOrAlias {
 		configType, _ := env["config_type"].(string)
-		if location.Type != "" && !location.Type.Match(configType) {
+		if l.Type != "" && !l.Type.Match(configType) {
 			continue
 		}
 
-		if location.Filter != "" {
-			filterOutput, err := ctx.RunTemplateBool(gomplate.Template{Expression: string(location.Filter)}, env)
+		if l.Filter != "" {
+			filterOutput, err := ctx.RunTemplateBool(gomplate.Template{Expression: string(l.Filter)}, env)
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate location filter: %w", err)
 			}
@@ -543,7 +543,7 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locations []v1.S
 			}
 		}
 
-		if len(location.Values) > 0 {
+		if len(l.Values) > 0 {
 			templater := gomplate.StructTemplater{
 				Values:         env,
 				ValueFunctions: true,
@@ -553,11 +553,11 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locations []v1.S
 				},
 			}
 
-			if err := templater.Walk(&location); err != nil {
+			if err := templater.Walk(&l); err != nil {
 				return nil, fmt.Errorf("failed to template location values: %w", err)
 			}
 
-			for _, value := range location.Values {
+			for _, value := range l.Values {
 				output = append(output, string(value))
 			}
 		}

@@ -25,3 +25,4 @@ external/diffgen/target
 
 # For AI agents
 TODO.md
+.envrc
