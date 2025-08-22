@@ -537,7 +537,7 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 		if l.Filter != "" {
 			filterOutput, err := ctx.RunTemplateBool(gomplate.Template{Expression: string(l.Filter)}, env)
 			if err != nil {
-				return nil, fmt.Errorf("failed to evaluate location filter: %w", err)
+				return nil, fmt.Errorf("failed to evaluate location/alias filter: %w", err)
 			}
 
 			if !filterOutput {
@@ -567,7 +567,7 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 			}
 
 			if err := templater.Walk(&l); err != nil {
-				return nil, fmt.Errorf("failed to template location values: %w", err)
+				return nil, fmt.Errorf("failed to template location/alias values for type:%s, filter:%s: %w", l.Type, l.Filter, err)
 			}
 
 			for _, value := range l.Values {

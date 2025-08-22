@@ -27,7 +27,7 @@ spec:
 
     - type: AWS::EC2::Subnet
       values:
-        - subnet://aws/{{.tags.account}}/{{.tags.region}}/{{.tags.zone}}/{{.name}}
+        - subnet://aws/{{.tags.account}}/{{.tags.region}}/{{.labels.network}}/{{.name}}
 
     - type: AWS::EC2::Instance
       values:
@@ -52,12 +52,6 @@ spec:
       filter: has(tags.zone) && has(tags.region)
       values:
         - zone://aws/{{.tags.region}}/{{.tags.zone}}
-
-    - type: AWS::*
-      filter: >
-        "zone-id" in tags
-      values:
-        - zoneid://aws/{{.tags.region}}/{{.tags["zone-id"]}}
 
     - type: AWS::*
       filter: has(labels.network) # labels.network is the vpc name
