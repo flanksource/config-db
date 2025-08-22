@@ -621,6 +621,7 @@ type ScrapeResult struct {
 	Aliases             []string            `json:"aliases,omitempty"`
 	Source              string              `json:"source,omitempty"`
 	Config              any                 `json:"config,omitempty"`
+	Locations           []string            `json:"locations,omitempty"`
 	Format              string              `json:"format,omitempty"`
 	Icon                string              `json:"icon,omitempty"`
 	Labels              JSONStringMap       `json:"labels,omitempty"`

@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,22 +13,31 @@ import (
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/is-healthy/pkg/health"
+	"github.com/flanksource/is-healthy/pkg/lua"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	coreV1 "k8s.io/api/core/v1"
 	netV1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/is-healthy/pkg/health"
-	"github.com/flanksource/is-healthy/pkg/lua"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const ConfigTypePrefix = "Kubernetes::"
+
+const (
+	KindPod         = "Pod"
+	KindReplicaSet  = "ReplicaSet"
+	KindStatefulSet = "StatefulSet"
+	KindDeployment  = "Deployment"
+	KindDaemonSet   = "DaemonSet"
+	KindJob         = "Job"
+)
 
 var ResourceIDMapPerCluster PerClusterResourceIDMap
 
@@ -279,9 +289,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		} else if skip {
 			continue
 		} else {
-			for k, v := range _labels {
-				labels[k] = v
-			}
+			maps.Copy(labels, _labels)
 		}
 
 		if obj.GetKind() == "Endpoints" {
@@ -309,12 +317,14 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		}
 
 		switch obj.GetKind() {
-		case "Pod":
+		case KindPod:
 			nodeName := getString(obj, "spec", "nodeName")
 
 			if nodeName != "" {
 				nodeID := ctx.GetID("", "Node", nodeName)
 				nodeExternalID := lo.CoalesceOrEmpty(nodeID, KubernetesAlias(ctx.ClusterName(), "Node", "", nodeName))
+
+				labels["node"] = nodeName
 
 				relationships = append(relationships, v1.RelationshipResult{
 					RelatedConfigID: string(obj.GetUID()),
@@ -423,6 +433,19 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 				RelatedConfigID: string(obj.GetUID()),
 				Relationship:    ownerRef.Kind + obj.GetKind(),
 			})
+
+			switch ownerRef.Kind {
+			case KindReplicaSet:
+				labels["deployment"] = extractDeployNameFromReplicaSet(ownerRef.Name)
+			case KindDeployment:
+				labels["deployment"] = ownerRef.Name
+			case KindStatefulSet:
+				labels["statefulset"] = ownerRef.Name
+			case KindDaemonSet:
+				labels["daemonset"] = ownerRef.Name
+			case KindJob:
+				labels["job"] = ownerRef.Name
+			}
 		}
 
 		for _, f := range ctx.config.Relationships {
@@ -475,7 +498,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		var deletedAt *time.Time
 		var deleteReason v1.ConfigDeleteReason
 		// Evicted Pods must be considered deleted
-		if obj.GetKind() == "Pod" {
+		if obj.GetKind() == KindPod {
 			if objStatus, ok := obj.Object["status"].(map[string]any); ok {
 				if val, ok := objStatus["reason"].(string); ok && val == "Evicted" {
 					// Use time.Now() as default and try to parse the evict time
@@ -566,7 +589,7 @@ func getKubernetesParent(ctx *KubernetesContext, obj *unstructured.Unstructured)
 
 		// If ReplicaSet is excluded then we want the pod's direct parent to
 		// be its Deployment
-		if obj.GetKind() == "Pod" && lo.Contains(ctx.config.Exclusions.Kinds, "ReplicaSet") && ref.Kind == "ReplicaSet" {
+		if obj.GetKind() == KindPod && lo.Contains(ctx.config.Exclusions.Kinds, "ReplicaSet") && ref.Kind == "ReplicaSet" {
 			deployName := extractDeployNameFromReplicaSet(ref.Name)
 			parentExternalID := ctx.GetID(obj.GetNamespace(), "Deployment", deployName)
 			allParents = append([]v1.ConfigExternalKey{{

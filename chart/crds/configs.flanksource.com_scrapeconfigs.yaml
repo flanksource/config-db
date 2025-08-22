@@ -319,6 +319,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -390,6 +417,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -1087,6 +1141,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -1158,6 +1239,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -1501,6 +1609,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -1572,6 +1707,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -2079,6 +2241,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -2150,6 +2339,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -2458,6 +2674,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -2529,6 +2772,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -2934,6 +3204,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -3005,6 +3302,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -3356,6 +3680,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -3427,6 +3778,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -4153,6 +4531,33 @@ spec:
                       type: object
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -4224,6 +4629,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -5014,6 +5446,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -5085,6 +5544,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -5460,6 +5946,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -5531,6 +6044,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -6224,6 +6764,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -6295,6 +6862,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -6855,6 +7449,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -6926,6 +7547,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -7493,6 +8141,33 @@ spec:
                       type: object
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -7564,6 +8239,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -7955,6 +8657,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -8026,6 +8755,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -8539,6 +9295,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -8610,6 +9393,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields
@@ -8936,6 +9746,33 @@ spec:
                       type: string
                     transform:
                       properties:
+                        aliases:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         changes:
                           properties:
                             exclude:
@@ -9007,6 +9844,33 @@ spec:
                           type: string
                         jsonpath:
                           type: string
+                        locations:
+                          items:
+                            properties:
+                              filter:
+                                description: |-
+                                  A Cel expression, when provided, must return true for this filter to apply.
+
+
+                                  Receives the config item as the cel env variable.
+                                type: string
+                              type:
+                                description: |-
+                                  Types on which this plugin should run.
+                                  Supports match expression
+                                  Example: AWS::*, Kubernetes::Namespace
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                              withParent:
+                                description: The type of the parent to be used
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
                         mask:
                           description: |-
                             Masks consist of configurations to replace sensitive fields

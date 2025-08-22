@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/samber/lo"
+
+	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 // ConfigItem represents the config item database table

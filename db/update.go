@@ -606,6 +606,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		ctx.TempCache().Insert(*config)
 	}
 
+	if len(extractResult.locations) > 0 {
+		uniqueLocations := lo.Uniq(extractResult.locations)
+		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}, {Name: "location"}}, DoNothing: true}).
+			CreateInBatches(&uniqueLocations, 200).Error; err != nil {
+			return summary, fmt.Errorf("failed to save config locations: %w", err)
+		}
+	}
+
 	for _, externalUser := range extractResult.externalUsers {
 		if err := ctx.DB().Save(&externalUser).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external user: %w", err)
@@ -1123,6 +1131,7 @@ type extractResult struct {
 	configsToUpdate []*updateConfigArgs
 	newChanges      []*models.ConfigChange
 	changesToUpdate []*models.ConfigChange
+	locations       []dutyModels.ConfigLocation
 
 	externalUsers      []dutyModels.ExternalUser
 	externalGroups     []dutyModels.ExternalGroup
@@ -1228,6 +1237,13 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 						New:      ci,
 					})
 				}
+			}
+
+			for _, l := range result.Locations {
+				extractResult.locations = append(extractResult.locations, dutyModels.ConfigLocation{
+					ID:       uuid.MustParse(ci.ID), // NOTE: NewConfigItemFromResult generates a valid UUID so we can use MustParse
+					Location: l,
+				})
 			}
 		}
 

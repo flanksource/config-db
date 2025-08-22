@@ -147,10 +147,14 @@ type Transform struct {
 	// Relationship allows you to form relationships between config items using selectors.
 	Relationship []RelationshipConfig `json:"relationship,omitempty"`
 	Change       TransformChange      `json:"changes,omitempty"`
+
+	Locations []LocationOrAlias `json:"locations,omitempty"`
+	Aliases   []LocationOrAlias `json:"aliases,omitempty"`
 }
 
 func (t Transform) IsEmpty() bool {
-	return t.Script.IsEmpty() && t.Change.IsEmpty() && len(t.Exclude) == 0 && t.Masks.IsEmpty() && len(t.Relationship) == 0
+	return t.Script.IsEmpty() && t.Change.IsEmpty() && len(t.Exclude) == 0 && t.Masks.IsEmpty() && len(t.Relationship) == 0 &&
+		len(t.Locations) == 0 && len(t.Aliases) == 0
 }
 
 func (t Transform) String() string {
@@ -172,6 +176,15 @@ func (t Transform) String() string {
 	}
 
 	s += fmt.Sprintf(" relationships=%d", len(t.Relationship))
+
+	if len(t.Locations) > 0 {
+		s += fmt.Sprintf(" locations=%d", len(t.Locations))
+	}
+
+	if len(t.Aliases) > 0 {
+		s += fmt.Sprintf(" aliases=%d", len(t.Aliases))
+	}
+
 	return s
 }
 
@@ -245,6 +258,9 @@ func (base BaseScraper) ApplyPlugins(plugins ...ScrapePluginSpec) BaseScraper {
 	for _, p := range plugins {
 		base.Transform.Change.Exclude = append(base.Transform.Change.Exclude, p.Change.Exclude...)
 		base.Transform.Change.Mapping = append(base.Transform.Change.Mapping, p.Change.Mapping...)
+
+		base.Transform.Locations = append(base.Transform.Locations, p.Locations...)
+		base.Transform.Aliases = append(base.Transform.Aliases, p.Aliases...)
 
 		base.Transform.Relationship = append(base.Transform.Relationship, p.Relationship...)
 		base.Properties = append(base.Properties, p.Properties...)
@@ -424,4 +440,21 @@ type ChangeExtractionRule struct {
 	// Config is a list of selectors to attach the change to.
 	// +kubebuilder:validation:MinItems=1
 	Config []types.EnvVarResourceSelector `yaml:"config" json:"config"`
+}
+
+type LocationOrAlias struct {
+	// Types on which this plugin should run.
+	// Supports match expression
+	// Example: AWS::*, Kubernetes::Namespace
+	Type types.MatchExpression `json:"type"`
+
+	// A Cel expression, when provided, must return true for this filter to apply.
+	//
+	// Receives the config item as the cel env variable.
+	Filter types.CelExpression `json:"filter,omitempty"`
+
+	Values []string `json:"values,omitempty" template:"true"`
+
+	// The type of the parent to be used
+	WithParent string `json:"withParent,omitempty"`
 }

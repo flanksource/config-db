@@ -1,0 +1,59 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapePlugin
+metadata:
+  name: aws-locations
+  namespace: mc
+spec:
+  aliases:
+    - type: AWS::::Account
+      values:
+        - account://aws/{{.tags.account}}
+
+    - type: AWS::AvailabilityZone
+      values:
+        - zone://aws/{{.tags.region}}/{{.name}}
+
+    - type: AWS::AvailabilityZoneID
+      values:
+        - zoneid://aws/{{.tags.region}}/{{.name}}
+
+    - type: AWS::Region
+      values:
+        - region://aws/{{.name}}
+
+    - type: AWS::EC2::VPC
+      values:
+        - vpc://aws/{{.tags.account}}/{{.tags.region}}/{{.name}}
+
+    - type: AWS::EC2::Subnet
+      values:
+        - subnet://aws/{{.tags.account}}/{{.tags.region}}/{{.labels.network}}/{{.name}}
+
+    - type: AWS::EC2::Instance
+      values:
+        - ec2instance://aws/{{.config.instance_id}}
+
+    - type: AWS::EKS::Cluster
+      values:
+        - eks://aws/{{.tags.account}}/{{.tags.region}}/{{.name}}
+
+  locations:
+    - type: AWS::*
+      filter: has(tags.account)
+      values:
+        - account://aws/{{.tags.account}}
+
+    - type: AWS::*
+      filter: has(tags.region)
+      values:
+        - region://aws/{{.tags.region}}
+
+    - type: AWS::*
+      filter: has(tags.zone) && has(tags.region)
+      values:
+        - zone://aws/{{.tags.region}}/{{.tags.zone}}
+
+    - type: AWS::*
+      filter: has(labels.network) # labels.network is the vpc name
+      values:
+        - vpc://aws/{{.tags.account}}/{{.tags.region}}/{{.labels.network}}

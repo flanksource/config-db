@@ -219,6 +219,30 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "LocationOrAlias": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "withParent": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
     "Lookup": {
       "properties": {
         "expr": {
@@ -355,6 +379,18 @@
         },
         "changes": {
           "$ref": "#/$defs/TransformChange"
+        },
+        "locations": {
+          "items": {
+            "$ref": "#/$defs/LocationOrAlias"
+          },
+          "type": "array"
+        },
+        "aliases": {
+          "items": {
+            "$ref": "#/$defs/LocationOrAlias"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,

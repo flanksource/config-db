@@ -35,6 +35,10 @@ type ScrapePluginSpec struct {
 	// Properties are custom templatable properties for the scraped config items
 	// grouped by the config type.
 	Properties []ConfigProperties `json:"properties,omitempty" template:"true"`
+
+	Locations []LocationOrAlias `json:"locations,omitempty"`
+
+	Aliases []LocationOrAlias `json:"aliases,omitempty"`
 }
 
 func (t ScrapePlugin) ToModel() (*models.ScrapePlugin, error) {
