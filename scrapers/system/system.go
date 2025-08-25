@@ -7,6 +7,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 type Scraper struct{}
@@ -41,5 +42,41 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		})
 	}
 
+	jobHistories, err := gorm.G[models.JobHistory](ctx.DB()).Table("job_history_latest_status").Find(ctx)
+	if err != nil {
+		return results.Errorf(err, "error querying job history")
+	}
+
+	for _, jh := range jobHistories {
+		health := models.HealthHealthy
+		switch models.JobStatus(jh.Status) {
+		case models.StatusStale, models.StatusWarning:
+			health = models.HealthWarning
+		case models.StatusFailed:
+			health = models.HealthUnhealthy
+		case models.StatusSkipped:
+			health = models.HealthUnknown
+		}
+
+		id := jh.ResourceType
+		if jh.ResourceID != "" {
+			id += "/" + jh.ResourceID
+		}
+		results = append(results, v1.ScrapeResult{
+			ID:          id,
+			Name:        id,
+			ConfigClass: "Job",
+			Type:        "MissionControl::Job",
+			Status:      jh.Status,
+			Health:      health,
+			Config: map[string]any{
+				"success_count": jh.SuccessCount,
+				"error_count":   jh.ErrorCount,
+				"details":       jh.Details,
+				"errors":        jh.Errors,
+				"duration_ms":   jh.DurationMillis,
+			},
+		})
+	}
 	return results
 }
