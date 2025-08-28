@@ -1,6 +1,7 @@
 package system
 
 import (
+	"strings"
 	"time"
 
 	"github.com/flanksource/config-db/api"
@@ -67,7 +68,7 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			Name:        id,
 			ConfigClass: "Job",
 			Type:        "MissionControl::Job",
-			Status:      jh.Status,
+			Status:      strings.ToTitle(jh.Status),
 			Health:      health,
 			Config: map[string]any{
 				"success_count": jh.SuccessCount,
