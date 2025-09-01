@@ -1,7 +1,6 @@
 package system
 
 import (
-	"strings"
 	"time"
 
 	"github.com/flanksource/config-db/api"
@@ -59,16 +58,17 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			health = models.HealthUnknown
 		}
 
-		id := jh.ResourceType
+		id := jh.Name
 		if jh.ResourceID != "" {
 			id += "/" + jh.ResourceID
 		}
+
 		results = append(results, v1.ScrapeResult{
 			ID:          id,
 			Name:        id,
 			ConfigClass: "Job",
 			Type:        "MissionControl::Job",
-			Status:      strings.ToTitle(jh.Status),
+			Status:      lo.Capitalize(jh.Status),
 			Health:      health,
 			Config: map[string]any{
 				"success_count": jh.SuccessCount,
@@ -76,6 +76,7 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				"details":       jh.Details,
 				"errors":        jh.Errors,
 				"duration_ms":   jh.DurationMillis,
+				"resource_type": jh.ResourceType,
 			},
 		})
 	}
