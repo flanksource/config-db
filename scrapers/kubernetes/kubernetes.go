@@ -517,6 +517,8 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 
 		parents := getKubernetesParent(ctx, obj)
 		children := ChildLookupHooks(ctx, obj)
+		allAliases := append(aliases, AliasLookupHooks(ctx, obj)...)
+		props := PropertyLookupHooks(ctx, obj)
 		results = append(results, v1.ScrapeResult{
 			BaseScraper:         ctx.config.BaseScraper,
 			Name:                obj.GetName(),
@@ -534,10 +536,11 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			ID:                  string(obj.GetUID()),
 			Labels:              stripLabels(labels, "-hash"),
 			Tags:                tags,
-			Aliases:             aliases,
+			Aliases:             allAliases,
 			Parents:             parents,
 			Children:            children,
 			RelationshipResults: relationships,
+			Properties:          props,
 		})
 	}
 

@@ -4,6 +4,9 @@ import (
 	"strings"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/query"
+	"github.com/flanksource/duty/types"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -20,6 +23,7 @@ func isKustomizationObject(obj *unstructured.Unstructured) bool {
 func init() {
 	parentlookupHooks = append(parentlookupHooks, flux{})
 	aliaslookupHooks = append(aliaslookupHooks, flux{})
+	propertyLookupHooks = append(propertyLookupHooks, flux{})
 }
 
 func (f flux) AliasLookupHook(ctx *KubernetesContext, obj *unstructured.Unstructured) []string {
@@ -68,4 +72,39 @@ func (flux flux) ParentLookupHook(ctx *KubernetesContext, obj *unstructured.Unst
 	}
 
 	return nil
+}
+
+func (f flux) PropertyLookupHook(ctx *KubernetesContext, obj *unstructured.Unstructured) types.Properties {
+	kustomizeName := obj.GetLabels()["kustomize.toolkit.fluxcd.io/name"]
+	kustomizeNamespace := obj.GetLabels()["kustomize.toolkit.fluxcd.io/namespace"]
+	if kustomizeName == "" || kustomizeNamespace == "" {
+		return nil
+	}
+
+	id, err := uuid.Parse(string(obj.GetUID()))
+	if err != nil {
+		return nil
+	}
+	s, err := query.GetGitOpsSource(ctx.Context, id)
+	if err != nil {
+		return nil
+	}
+
+	return types.Properties{
+		{
+			Name:  "git_url",
+			Label: "Git URL",
+			Text:  s.Git.URL,
+		},
+		{
+			Name:  "git_file",
+			Label: "Git File",
+			Text:  s.Git.File,
+		},
+		{
+			Name:  "git_source",
+			Label: "Git Source",
+			Text:  s.Git.Link,
+		},
+	}
 }

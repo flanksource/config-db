@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -22,10 +23,15 @@ type AliasLookupHook interface {
 	AliasLookupHook(ctx *KubernetesContext, obj *unstructured.Unstructured) []string
 }
 
+type PropertyLookupHook interface {
+	PropertyLookupHook(ctx *KubernetesContext, obj *unstructured.Unstructured) types.Properties
+}
+
 var childlookupHooks []ChildLookupHook
 var parentlookupHooks []ParentLookupHook
 var aliaslookupHooks []AliasLookupHook
 var onObjectHooks []OnObject
+var propertyLookupHooks []PropertyLookupHook
 
 func OnObjectHooks(ctx *KubernetesContext, obj *unstructured.Unstructured) (bool, map[string]string, error) {
 	labels := make(map[string]string)
@@ -66,4 +72,12 @@ func AliasLookupHooks(ctx *KubernetesContext, obj *unstructured.Unstructured) []
 		alias = append(hook.AliasLookupHook(ctx, obj), alias...)
 	}
 	return alias
+}
+
+func PropertyLookupHooks(ctx *KubernetesContext, obj *unstructured.Unstructured) types.Properties {
+	var props types.Properties
+	for _, hook := range propertyLookupHooks {
+		props = append(props, hook.PropertyLookupHook(ctx, obj)...)
+	}
+	return props
 }
