@@ -519,7 +519,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		if val, err := extractLocation(ctx, env, e.Transform.Aliases); err != nil {
 			return results, fmt.Errorf("failed to extract aliases: %w", err)
 		} else {
-			results[i].Aliases = val
+			results[i].Aliases = append(results[i].Aliases, val...)
 		}
 	}
 
