@@ -42,7 +42,10 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		})
 	}
 
-	jobHistories, err := gorm.G[models.JobHistory](ctx.DB()).Table("job_history_latest_status").Find(ctx)
+	jobHistories, err := gorm.G[models.JobHistory](ctx.DB()).
+		Table("job_history_latest_status").
+		Where("created_at > NOW() - INTERVAL '2 days'").
+		Find(ctx)
 	if err != nil {
 		return results.Errorf(err, "error querying job history")
 	}
