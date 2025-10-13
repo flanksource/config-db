@@ -1,6 +1,7 @@
 package system
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/flanksource/config-db/api"
@@ -66,6 +67,19 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			id += "/" + jh.ResourceID
 		}
 
+		errors := jh.Errors
+		if v, ok := jh.Details["errors"]; ok {
+			if vStringSlice, ok := v.([]string); ok {
+				errors = append(errors, vStringSlice...)
+			} else {
+				errors = append(errors, fmt.Sprint(v))
+			}
+		}
+		config := map[string]any{
+			"error_count":   jh.ErrorCount,
+			"errors":        errors,
+			"resource_type": jh.ResourceType,
+		}
 		results = append(results, v1.ScrapeResult{
 			ID:          id,
 			Name:        id,
@@ -73,14 +87,7 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			Type:        "MissionControl::Job",
 			Status:      lo.Capitalize(jh.Status),
 			Health:      health,
-			Config: map[string]any{
-				"success_count": jh.SuccessCount,
-				"error_count":   jh.ErrorCount,
-				"details":       jh.Details,
-				"errors":        jh.Errors,
-				"duration_ms":   jh.DurationMillis,
-				"resource_type": jh.ResourceType,
-			},
+			Config:      config,
 		})
 	}
 	return results
