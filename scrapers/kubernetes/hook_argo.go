@@ -7,6 +7,7 @@ import (
 	"github.com/Jeffail/gabs/v2"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/types"
+	cmap "github.com/orcaman/concurrent-map/v2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -39,7 +40,7 @@ func (argo argo) ChildLookupHook(ctx *KubernetesContext, obj *unstructured.Unstr
 					ExternalID: extID,
 				}}, children...)
 
-				childExternalIDToAppID[extID] = string(obj.GetUID())
+				childExternalIDToAppID.Set(extID, string(obj.GetUID()))
 			}
 		}
 	}
@@ -47,8 +48,8 @@ func (argo argo) ChildLookupHook(ctx *KubernetesContext, obj *unstructured.Unstr
 	return children
 }
 
-var childExternalIDToAppID = make(map[string]string) // argo child external id -> argo app id
-var appIDToRepo = make(map[string]string)            // argo app id -> repo
+var childExternalIDToAppID = cmap.New[string]() // argo child external id -> argo app id (string -> string)
+var appIDToRepo = cmap.New[string]()            // argo app id -> repo (string -> string)
 
 func (a argo) PropertyLookupHook(ctx *KubernetesContext, obj *unstructured.Unstructured) types.Properties {
 	if strings.HasPrefix(obj.GetAPIVersion(), "argoproj.io") && obj.GetKind() == "Application" {
@@ -57,7 +58,7 @@ func (a argo) PropertyLookupHook(ctx *KubernetesContext, obj *unstructured.Unstr
 			return nil
 		}
 
-		appIDToRepo[string(obj.GetUID())] = repoURL
+		appIDToRepo.Set(string(obj.GetUID()), repoURL)
 		return types.Properties{
 			{
 				Name:  "git_url",
@@ -68,13 +69,15 @@ func (a argo) PropertyLookupHook(ctx *KubernetesContext, obj *unstructured.Unstr
 	}
 
 	extID := KubernetesAlias(ctx.ClusterName(), obj.GetKind(), obj.GetNamespace(), obj.GetName())
-	if repo := appIDToRepo[childExternalIDToAppID[extID]]; repo != "" {
-		return types.Properties{
-			{
-				Name:  "git_url",
-				Label: "Git URL",
-				Text:  repo,
-			},
+	if appID, ok := childExternalIDToAppID.Get(extID); ok {
+		if repo, ok := appIDToRepo.Get(appID); ok && repo != "" {
+			return types.Properties{
+				{
+					Name:  "git_url",
+					Label: "Git URL",
+					Text:  repo,
+				},
+			}
 		}
 	}
 	return nil
