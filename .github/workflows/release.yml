@@ -114,19 +114,19 @@ jobs:
           git fetch --prune --unshallow
           echo "RELEASE_VERSION=$(git describe --abbrev=0 --tags | sed -e 's/^v//')" >> $GITHUB_ENV
       - name: Update chart version
-        uses: mikefarah/yq@dd648994340a5d03225d97abf19c9bf1086c3f07 # v4.45.1
+        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
         with:
           cmd: yq -i e '.version = "${{ env.RELEASE_VERSION }}"' chart/Chart.yaml
       - name: Update app version
-        uses: mikefarah/yq@dd648994340a5d03225d97abf19c9bf1086c3f07 # v4.45.1
+        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
         with:
           cmd: yq -i e '.appVersion = "${{ env.RELEASE_VERSION }}"' chart/values.yaml
       - name: Update image tags
-        uses: mikefarah/yq@dd648994340a5d03225d97abf19c9bf1086c3f07 # v4.45.1
+        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
         with:
           cmd: yq -i e '.image.tag = "v${{ env.RELEASE_VERSION }}"' chart/values.yaml
       - name: Set up Helm
-        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3.5
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: v3.8.0
       - name: Package Helm chart
@@ -160,11 +160,11 @@ jobs:
           token: ${{ secrets.FLANKBOT }}
           path: ./incident-commander-chart
       - name: Update config-db version in chart/Chart.yaml
-        uses: mikefarah/yq@dd648994340a5d03225d97abf19c9bf1086c3f07 # v4.45.1
+        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
         with:
           cmd: yq eval-all -i '(.dependencies[] | select(.name == "config-db")) ref $d | $d.version = "${{ needs.semantic-release.outputs.release-version }}"' incident-commander-chart/chart/Chart.yaml
       - name: Update config-db version in agent-chart/Chart.yaml
-        uses: mikefarah/yq@dd648994340a5d03225d97abf19c9bf1086c3f07 # v4.45.1
+        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
         with:
           cmd: yq eval-all -i '(.dependencies[] | select(.name == "config-db")) ref $d | $d.version = "${{ needs.semantic-release.outputs.release-version }}"' incident-commander-chart/agent-chart/Chart.yaml
       - name: Push changes to chart repo
