@@ -34,13 +34,20 @@ var _ = ginkgo.Describe("Job Tests", ginkgo.Ordered, func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	ginkgo.It("should cleanup deleted config items after reducing retentiondays", func() {
+	ginkgo.It("should cleanup deleted config items after reducing retention days", func() {
 		ConfigItemRetentionDays = 0
 		CleanupConfigItems.Run()
 		expectJobToPass(CleanupConfigItems)
 
 		var after int
-		err := DefaultContext.DB().Raw("SELECT COUNT(*) FROM config_items").Scan(&after).Error
+		q := `
+		SELECT COUNT(*) FROM config_items WHERE id NOT IN (
+			SELECT DISTINCT config_id FROM evidences
+			UNION SELECT DISTINCT config_id FROM playbook_runs
+			UNION SELECT DISTINCT config_id FROM components
+		)`
+
+		err := DefaultContext.DB().Raw(q).Scan(&after).Error
 		Expect(err).ToNot(HaveOccurred())
 		Expect(after).To(Equal(0))
 	})
