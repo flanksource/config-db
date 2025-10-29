@@ -6,6 +6,9 @@ on:
         required: true
 
 name: Build Debug
+
+permissions:
+  contents: read
 jobs:
   docker:
     runs-on: ubuntu-latest
