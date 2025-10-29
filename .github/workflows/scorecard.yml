@@ -56,17 +56,6 @@ jobs:
           #     of the value entered here.
           publish_results: true
 
-      # Filter out accepted vulnerabilities from SARIF before upload
-      - name: "Filter accepted vulnerabilities"
-        if: always()
-        run: |
-          # Remove GO-2022-0635 and GO-2022-0646 from SARIF results
-          # These are documented accepted risks (see SECURITY.md and .osv-scanner.toml)
-          if [ -f results.sarif ]; then
-            jq 'del(.runs[].results[] | select(.ruleId == "GO-2022-0635" or .ruleId == "GO-2022-0646"))' results.sarif > filtered-results.sarif
-            mv filtered-results.sarif results.sarif
-          fi
-
       # Upload the results as artifacts (optional). Commenting out will disable uploads of run results in SARIF
       # format to the repository Actions tab.
       - name: "Upload artifact"
