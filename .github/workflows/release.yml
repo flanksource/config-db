@@ -119,7 +119,7 @@ jobs:
       - name: Update image tags
         run: ./yq -i e '.image.tag = "v${{ env.RELEASE_VERSION }}"' chart/values.yaml
       - name: Set up Helm
-        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3.5
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: v3.8.0
       - name: Package Helm chart

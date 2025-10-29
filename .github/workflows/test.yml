@@ -117,7 +117,7 @@ jobs:
         uses: container-tools/kind-action@v2
 
       - name: Install Helm
-        uses: azure/setup-helm@v3.5
+        uses: azure/setup-helm@v4
 
       - name: Verify cluster is ready
         run: |
