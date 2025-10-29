@@ -26,6 +26,13 @@ func DeleteScrapePlugin(ctx context.Context, id string) error {
 	return ctx.DB().Model(&models.ScrapePlugin{}).Where("id = ?", id).Update("deleted_at", duty.Now()).Error
 }
 
+func DeleteStaleScrapePlugin(ctx context.Context, newer *v1.ScrapePlugin) error {
+	return ctx.DB().Model(&models.ScrapePlugin{}).
+		Where("name = ? AND namespace = ?", newer.Name, newer.Namespace).
+		Where("deleted_at IS NULL").
+		Update("deleted_at", duty.Now()).Error
+}
+
 var cachedPlugin = gocache.New(time.Hour, time.Hour)
 
 func LoadAllPlugins(ctx context.Context) ([]v1.ScrapePluginSpec, error) {

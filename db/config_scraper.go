@@ -8,6 +8,7 @@ import (
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
@@ -67,6 +68,13 @@ func DeleteScrapeConfig(ctx context.Context, id string) error {
 		return err
 	}
 	return nil
+}
+
+func DeleteStalePlaybook(ctx context.Context, newer *v1.ScrapeConfig) error {
+	return ctx.DB().Model(&models.ConfigScraper{}).
+		Where("name = ? AND namespace = ?", newer.Name, newer.Namespace).
+		Where("deleted_at IS NULL").
+		Update("deleted_at", duty.Now()).Error
 }
 
 func PersistScrapeConfigFromCRD(ctx context.Context, scrapeConfig *v1.ScrapeConfig) (models.ConfigScraper, bool, error) {

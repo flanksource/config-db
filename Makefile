@@ -93,7 +93,7 @@ env: envtest ## Run tests.
 .PHONY: ginkgo
 ginkgo:
 	go install github.com/onsi/ginkgo/v2/ginkgo
-	
+
 .PHONY: test-e2e
 test-e2e: ginkgo
 	cd tests/e2e && docker-compose up -d && \
@@ -194,7 +194,7 @@ MODERNIZE ?= $(LOCALBIN)/modernize
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_TOOLS_VERSION ?= v0.14.0
+CONTROLLER_TOOLS_VERSION ?= v0.19.0
 GOLANGCI_LINT_VERSION ?= v2.1.6
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
