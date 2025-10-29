@@ -1,0 +1,22 @@
+# Trivy Ignore File
+# This file contains vulnerability IDs that are accepted risks or false positives
+# Each entry should have a comment explaining why it's ignored
+
+# AWS SDK Go v1 - S3 Crypto Vulnerabilities
+# Status: Accepted Risk (Not Exploitable)
+# Reason: These vulnerabilities exist in the S3 crypto functions of AWS SDK v1,
+#         but our codebase does not call these vulnerable functions.
+#         Verified with govulncheck on 2025-10-29.
+# References:
+#   - https://pkg.go.dev/vuln/GO-2022-0635
+#   - https://pkg.go.dev/vuln/GO-2022-0646
+# Module: github.com/aws/aws-sdk-go (indirect dependency)
+# Dependencies pulling it in: flanksource/artifacts, flanksource/duty,
+#                            opensearch-project/opensearch-go/v2,
+#                            uber/athenadriver, gocloud.dev
+# Mitigation: Using AWS SDK v2 for direct AWS integrations
+# Review Date: 2025-10-29
+# Next Review: When indirect dependencies are updated
+
+GO-2022-0635
+GO-2022-0646
