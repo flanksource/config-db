@@ -11,12 +11,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Install Go
-        uses: buildjet/setup-go@v5
+        uses: buildjet/setup-go@555ce355a95ff01018ffcf8fbbd9c44654db8374 # v5
         with:
           go-version: 1.25.x
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: buildjet/cache@v4
+      - uses: buildjet/cache@3e70d19e31d6a8030aeddf6ed8dbe601f94d09f4 # v4
         with:
           path: |
             ~/go/pkg/mod
@@ -60,12 +60,12 @@ jobs:
           --ulimit nofile=65536:65536
     steps:
       - name: Install Go
-        uses: buildjet/setup-go@v5
+        uses: buildjet/setup-go@555ce355a95ff01018ffcf8fbbd9c44654db8374 # v5
         with:
           go-version: 1.25.x
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: buildjet/cache@v4
+      - uses: buildjet/cache@3e70d19e31d6a8030aeddf6ed8dbe601f94d09f4 # v4
         with:
           path: |
             ~/go/pkg/mod
@@ -88,14 +88,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Install Go
-        uses: buildjet/setup-go@v5
+        uses: buildjet/setup-go@555ce355a95ff01018ffcf8fbbd9c44654db8374 # v5
         with:
           go-version: 1.25.x
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: buildjet/cache@v4
+      - uses: buildjet/cache@3e70d19e31d6a8030aeddf6ed8dbe601f94d09f4 # v4
         with:
           path: |
             ~/go/pkg/mod
@@ -111,13 +111,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Kubernetes KinD Cluster
-        uses: container-tools/kind-action@v2
+        uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2
 
       - name: Install Helm
-        uses: azure/setup-helm@v3.5
+        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3.5
 
       - name: Verify cluster is ready
         run: |
@@ -127,7 +127,7 @@ jobs:
           kubectl get pods -A
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           file: ./build/Dockerfile
@@ -167,14 +167,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Install Go
-        uses: buildjet/setup-go@v5
+        uses: buildjet/setup-go@555ce355a95ff01018ffcf8fbbd9c44654db8374 # v5
         with:
           go-version: 1.25.x
       - name: Setup kubernetes cluster
-        uses: container-tools/kind-action@v2
+        uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: buildjet/cache@v4
+      - uses: buildjet/cache@3e70d19e31d6a8030aeddf6ed8dbe601f94d09f4 # v4
         with:
           path: |
             ~/go/pkg/mod

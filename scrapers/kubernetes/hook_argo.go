@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/Jeffail/gabs/v2"
+	"github.com/flanksource/commons/collections/syncmap"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/types"
-	cmap "github.com/orcaman/concurrent-map/v2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -40,7 +40,7 @@ func (argo argo) ChildLookupHook(ctx *KubernetesContext, obj *unstructured.Unstr
 					ExternalID: extID,
 				}}, children...)
 
-				childExternalIDToAppID.Set(extID, string(obj.GetUID()))
+				childExternalIDToAppID.Store(extID, string(obj.GetUID()))
 			}
 		}
 	}
@@ -48,8 +48,8 @@ func (argo argo) ChildLookupHook(ctx *KubernetesContext, obj *unstructured.Unstr
 	return children
 }
 
-var childExternalIDToAppID = cmap.New[string]() // argo child external id -> argo app id (string -> string)
-var appIDToRepo = cmap.New[string]()            // argo app id -> repo (string -> string)
+var childExternalIDToAppID syncmap.SyncMap[string, string] // argo child external id -> argo app id (string -> string)
+var appIDToRepo syncmap.SyncMap[string, string]            // argo app id -> repo (string -> string)
 
 func (a argo) PropertyLookupHook(ctx *KubernetesContext, obj *unstructured.Unstructured) types.Properties {
 	if strings.HasPrefix(obj.GetAPIVersion(), "argoproj.io") && obj.GetKind() == "Application" {
@@ -58,7 +58,7 @@ func (a argo) PropertyLookupHook(ctx *KubernetesContext, obj *unstructured.Unstr
 			return nil
 		}
 
-		appIDToRepo.Set(string(obj.GetUID()), repoURL)
+		appIDToRepo.Store(string(obj.GetUID()), repoURL)
 		return types.Properties{
 			{
 				Name:  "git_url",
@@ -69,8 +69,8 @@ func (a argo) PropertyLookupHook(ctx *KubernetesContext, obj *unstructured.Unstr
 	}
 
 	extID := KubernetesAlias(ctx.ClusterName(), obj.GetKind(), obj.GetNamespace(), obj.GetName())
-	if appID, ok := childExternalIDToAppID.Get(extID); ok {
-		if repo, ok := appIDToRepo.Get(appID); ok && repo != "" {
+	if appID, ok := childExternalIDToAppID.Load(extID); ok {
+		if repo, ok := appIDToRepo.Load(appID); ok && repo != "" {
 			return types.Properties{
 				{
 					Name:  "git_url",

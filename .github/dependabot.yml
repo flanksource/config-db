@@ -5,17 +5,15 @@ updates:
     schedule:
       interval: 'daily'
     groups:
-      # Group all updates together into a single PR
-      all-dependencies:
+      go-dependencies:
         patterns:
-          - "*"  # Wildcard matches all dependencies
+          - "*"
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: daily
     groups:
-      # Group all updates together into a single PR
-      all-dependencies:
+      github-action-dependencies:
         patterns:
-          - "*"  # Wildcard matches all dependencies
+          - "*"

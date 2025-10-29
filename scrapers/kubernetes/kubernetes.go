@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	coreV1 "k8s.io/api/core/v1"
+	discoveryV1 "k8s.io/api/discovery/v1"
 	netV1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -292,25 +293,29 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			maps.Copy(labels, _labels)
 		}
 
-		if obj.GetKind() == "Endpoints" {
-			var endpoint coreV1.Endpoints
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &endpoint); err != nil {
-				return results.Errorf(err, "failed to unmarshal endpoint (%s/%s)", obj.GetUID(), obj.GetName())
+		if obj.GetKind() == "EndpointSlice" {
+			var endpointSlice discoveryV1.EndpointSlice
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &endpointSlice); err != nil {
+				return results.Errorf(err, "failed to unmarshal endpoint slice (%s/%s)", obj.GetUID(), obj.GetName())
 			}
 
-			for _, subset := range endpoint.Subsets {
-				for _, address := range subset.Addresses {
-					if address.TargetRef != nil {
-						if address.TargetRef.Kind != "Service" {
-							relationships = append(relationships, v1.RelationshipResult{
-								ConfigExternalID: v1.ExternalID{
-									ExternalID: KubernetesAlias(ctx.ClusterName(), "Service", obj.GetNamespace(), obj.GetName()),
-									ConfigType: ConfigTypePrefix + "Service",
-								},
-								RelatedConfigID: string(address.TargetRef.UID),
-								Relationship:    fmt.Sprintf("Service%s", address.TargetRef.Kind),
-							})
+			for _, endpoint := range endpointSlice.Endpoints {
+				if endpoint.TargetRef != nil {
+					if endpoint.TargetRef.Kind != "Service" {
+						// Get the service name from the kubernetes.io/service-name label
+						serviceName := obj.GetName()
+						if svcName, ok := endpointSlice.Labels["kubernetes.io/service-name"]; ok {
+							serviceName = svcName
 						}
+
+						relationships = append(relationships, v1.RelationshipResult{
+							ConfigExternalID: v1.ExternalID{
+								ExternalID: KubernetesAlias(ctx.ClusterName(), "Service", obj.GetNamespace(), serviceName),
+								ConfigType: ConfigTypePrefix + "Service",
+							},
+							RelatedConfigID: string(endpoint.TargetRef.UID),
+							Relationship:    fmt.Sprintf("Service%s", endpoint.TargetRef.Kind),
+						})
 					}
 				}
 			}
@@ -609,10 +614,16 @@ func getKubernetesParent(ctx *KubernetesContext, obj *unstructured.Unstructured)
 
 	allParents = append(ParentLookupHooks(ctx, obj), allParents...)
 
-	if obj.GetKind() == "Endpoints" {
+	if obj.GetKind() == "EndpointSlice" {
+		// EndpointSlices are linked to their Service via the kubernetes.io/service-name label
+		serviceName := obj.GetName()
+		if svcName, ok := obj.GetLabels()["kubernetes.io/service-name"]; ok {
+			serviceName = svcName
+		}
+
 		allParents = append([]v1.ConfigExternalKey{{
 			Type:       ConfigTypePrefix + "Service",
-			ExternalID: KubernetesAlias(ctx.ClusterName(), "Service", obj.GetNamespace(), obj.GetName()),
+			ExternalID: KubernetesAlias(ctx.ClusterName(), "Service", obj.GetNamespace(), serviceName),
 		}}, allParents...)
 	}
 
