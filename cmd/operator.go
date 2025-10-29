@@ -102,6 +102,7 @@ func launchKopper(ctx dutyContext.Context) error {
 	if _, err := kopper.SetupReconciler(ctx, mgr,
 		db.PersistScrapePluginFromCRD,
 		db.DeleteScrapePlugin,
+		db.DeleteStaleScrapePlugin,
 		"scrapePlugins.config.flanksource.com",
 	); err != nil {
 		return fmt.Errorf("unable to setup reconciler for scrape plugins: %w", err)
@@ -110,6 +111,7 @@ func launchKopper(ctx dutyContext.Context) error {
 	v1.ScrapeConfigReconciler, err = kopper.SetupReconciler(ctx, mgr,
 		PersistScrapeConfigFromCRD,
 		db.DeleteScrapeConfig,
+		nil,
 		"scrapeConfig.config.flanksource.com",
 	)
 	if err != nil {
