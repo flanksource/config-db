@@ -51,13 +51,13 @@ require (
 	github.com/fjl/memsize v0.0.2
 	github.com/flanksource/artifacts v1.0.18
 	github.com/flanksource/commons v1.43.0
-	github.com/flanksource/duty v1.0.1075
+	github.com/flanksource/duty v1.0.1076
 	github.com/flanksource/is-healthy v1.0.79
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.13
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid/v5 v5.3.2
-	github.com/gomarkdown/markdown v0.0.0-20230322041520-c84983bdbf2a
+	github.com/gomarkdown/markdown v0.0.0-20240729212818-a2a9c4f76ef5
 	github.com/google/go-github/v73 v73.0.0
 	github.com/google/uuid v1.6.0
 	github.com/grafana/pyroscope-go v1.2.7
@@ -72,7 +72,6 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
-	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/robfig/cron/v3 v3.0.1
@@ -260,6 +259,7 @@ require (
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0 // indirect
+	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
 	github.com/paulmach/orb v0.11.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
