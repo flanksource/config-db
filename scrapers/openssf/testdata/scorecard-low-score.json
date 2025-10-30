@@ -1,0 +1,170 @@
+{
+  "date": "2025-10-30T10:20:53Z",
+  "repo": {
+    "name": "github.com/example/vulnerable-project",
+    "commit": "ghi345jkl678901"
+  },
+  "scorecard": {
+    "version": "v5.0.0",
+    "commit": "def456ghi789012"
+  },
+  "score": 2.8,
+  "checks": [
+    {
+      "name": "Binary-Artifacts",
+      "score": 0,
+      "reason": "binaries present in source code",
+      "details": [
+        "Warn: binary detected: bin/compiled-app"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#binary-artifacts",
+        "short": "Determines if the project has generated executable (binary) artifacts in the source repository."
+      }
+    },
+    {
+      "name": "Branch-Protection",
+      "score": 0,
+      "reason": "branch protection not enabled on default branch",
+      "details": [
+        "Warn: branch protection not enabled for branch 'main'"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#branch-protection",
+        "short": "Determines if the default and release branches are protected with branch protection rules."
+      }
+    },
+    {
+      "name": "CI-Tests",
+      "score": 0,
+      "reason": "no CI tests detected",
+      "details": [
+        "Warn: no CI tests found"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#ci-tests",
+        "short": "Determines if the project runs tests before pull requests are merged."
+      }
+    },
+    {
+      "name": "Code-Review",
+      "score": 0,
+      "reason": "0 out of 15 PRs approved before merge",
+      "details": [
+        "Warn: no code review process detected"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#code-review",
+        "short": "Determines if the project requires code review before pull requests are merged."
+      }
+    },
+    {
+      "name": "Dangerous-Workflow",
+      "score": 0,
+      "reason": "dangerous workflow patterns detected",
+      "details": [
+        "Warn: untrusted code checkout detected: .github/workflows/ci.yml:12"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#dangerous-workflow",
+        "short": "Determines if the project's GitHub Action workflows avoid dangerous patterns."
+      }
+    },
+    {
+      "name": "Dependency-Update-Tool",
+      "score": 0,
+      "reason": "no update tool detected",
+      "details": [
+        "Warn: no dependency update tool configured"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#dependency-update-tool",
+        "short": "Determines if the project uses a dependency update tool."
+      }
+    },
+    {
+      "name": "License",
+      "score": 10,
+      "reason": "license file detected",
+      "details": [
+        "Info: found LICENSE file: LICENSE"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#license",
+        "short": "Determines if the project has defined a license."
+      }
+    },
+    {
+      "name": "Maintained",
+      "score": 0,
+      "reason": "0 commit(s) found in the last 90 days",
+      "details": [
+        "Warn: repo appears unmaintained"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#maintained",
+        "short": "Determines if the project is actively maintained."
+      }
+    },
+    {
+      "name": "Pinned-Dependencies",
+      "score": 0,
+      "reason": "dependencies not pinned",
+      "details": [
+        "Warn: no dependencies pinned by hash"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#pinned-dependencies",
+        "short": "Determines if the project has declared and pinned its dependencies."
+      }
+    },
+    {
+      "name": "SAST",
+      "score": 0,
+      "reason": "no SAST tool detected",
+      "details": [
+        "Warn: no static analysis tools found"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#sast",
+        "short": "Determines if the project uses static code analysis."
+      }
+    },
+    {
+      "name": "Security-Policy",
+      "score": 0,
+      "reason": "no security policy found",
+      "details": [
+        "Warn: no security policy detected"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#security-policy",
+        "short": "Determines if the project has published a security policy."
+      }
+    },
+    {
+      "name": "Token-Permissions",
+      "score": 0,
+      "reason": "detected GitHub workflow tokens with excessive permissions",
+      "details": [
+        "Warn: workflow has write permissions: .github/workflows/deploy.yml"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions",
+        "short": "Determines if the project's workflows follow the principle of least privilege."
+      }
+    },
+    {
+      "name": "Vulnerabilities",
+      "score": 10,
+      "reason": "no known vulnerabilities detected",
+      "details": [
+        "Info: 0 existing vulnerabilities detected"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#vulnerabilities",
+        "short": "Determines if the project has open, known unfixed vulnerabilities."
+      }
+    }
+  ]
+}

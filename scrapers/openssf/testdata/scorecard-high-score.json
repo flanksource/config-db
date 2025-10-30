@@ -1,0 +1,247 @@
+{
+  "date": "2025-10-30T10:20:53Z",
+  "repo": {
+    "name": "github.com/flanksource/mission-control",
+    "commit": "abc123def456789"
+  },
+  "scorecard": {
+    "version": "v5.0.0",
+    "commit": "def456ghi789012"
+  },
+  "score": 8.2,
+  "checks": [
+    {
+      "name": "Binary-Artifacts",
+      "score": 10,
+      "reason": "no binaries found in the repo",
+      "details": [
+        "Info: no binaries found in repo"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#binary-artifacts",
+        "short": "Determines if the project has generated executable (binary) artifacts in the source repository."
+      }
+    },
+    {
+      "name": "Branch-Protection",
+      "score": 8,
+      "reason": "branch protection is enabled on the default branch",
+      "details": [
+        "Info: 'force pushes' disabled on branch 'main'",
+        "Info: 'allow deletion' disabled on branch 'main'",
+        "Info: status checks are required before merging on branch 'main'",
+        "Warn: number of required reviewers is only 1 on branch 'main'"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#branch-protection",
+        "short": "Determines if the default and release branches are protected with branch protection rules."
+      }
+    },
+    {
+      "name": "CI-Tests",
+      "score": 10,
+      "reason": "30 out of 30 merged PRs checked by a CI test",
+      "details": [
+        "Info: found GitHub workflow: .github/workflows/test.yml"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#ci-tests",
+        "short": "Determines if the project runs tests before pull requests are merged."
+      }
+    },
+    {
+      "name": "CII-Best-Practices",
+      "score": 0,
+      "reason": "no badge detected",
+      "details": [
+        "Warn: no CII Best Practices badge found"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#cii-best-practices",
+        "short": "Determines if the project has a CII Best Practices Badge."
+      }
+    },
+    {
+      "name": "Code-Review",
+      "score": 10,
+      "reason": "all commits are reviewed before merging",
+      "details": [
+        "Info: 26 out of 26 PRs approved before merge"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#code-review",
+        "short": "Determines if the project requires code review before pull requests are merged."
+      }
+    },
+    {
+      "name": "Contributors",
+      "score": 10,
+      "reason": "project has 15 contributing companies or organizations",
+      "details": [
+        "Info: contributors from 15+ organizations"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#contributors",
+        "short": "Determines if the project has a set of contributors from multiple organizations."
+      }
+    },
+    {
+      "name": "Dangerous-Workflow",
+      "score": 10,
+      "reason": "no dangerous workflow patterns detected",
+      "details": [
+        "Info: all workflows analyzed"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#dangerous-workflow",
+        "short": "Determines if the project's GitHub Action workflows avoid dangerous patterns."
+      }
+    },
+    {
+      "name": "Dependency-Update-Tool",
+      "score": 10,
+      "reason": "update tool detected",
+      "details": [
+        "Info: Dependabot detected: .github/dependabot.yml"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#dependency-update-tool",
+        "short": "Determines if the project uses a dependency update tool."
+      }
+    },
+    {
+      "name": "Fuzzing",
+      "score": 0,
+      "reason": "project is not fuzzed",
+      "details": [
+        "Warn: no fuzzing tool detected"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#fuzzing",
+        "short": "Determines if the project uses fuzzing."
+      }
+    },
+    {
+      "name": "License",
+      "score": 10,
+      "reason": "license file detected",
+      "details": [
+        "Info: found LICENSE file: LICENSE"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#license",
+        "short": "Determines if the project has defined a license."
+      }
+    },
+    {
+      "name": "Maintained",
+      "score": 10,
+      "reason": "30 commit(s) found in the last 90 days",
+      "details": [
+        "Info: repo actively maintained"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#maintained",
+        "short": "Determines if the project is actively maintained."
+      }
+    },
+    {
+      "name": "Packaging",
+      "score": 10,
+      "reason": "publishing workflow detected",
+      "details": [
+        "Info: GitHub publishing workflow used: .github/workflows/release.yml"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#packaging",
+        "short": "Determines if the project is published as a package."
+      }
+    },
+    {
+      "name": "Pinned-Dependencies",
+      "score": 7,
+      "reason": "dependency not pinned by hash detected",
+      "details": [
+        "Warn: GitHub-owned GitHubAction not pinned by hash: .github/workflows/test.yml:15",
+        "Info: Docker dependencies pinned by hash",
+        "Info: npm dependencies pinned"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#pinned-dependencies",
+        "short": "Determines if the project has declared and pinned its dependencies."
+      }
+    },
+    {
+      "name": "SAST",
+      "score": 10,
+      "reason": "SAST tool detected",
+      "details": [
+        "Info: CodeQL detected: .github/workflows/codeql.yml"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#sast",
+        "short": "Determines if the project uses static code analysis."
+      }
+    },
+    {
+      "name": "Security-Policy",
+      "score": 10,
+      "reason": "security policy file detected",
+      "details": [
+        "Info: found SECURITY.md"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#security-policy",
+        "short": "Determines if the project has published a security policy."
+      }
+    },
+    {
+      "name": "Signed-Releases",
+      "score": 0,
+      "reason": "no releases found",
+      "details": [
+        "Warn: no GitHub releases found"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#signed-releases",
+        "short": "Determines if the project cryptographically signs releases."
+      }
+    },
+    {
+      "name": "Token-Permissions",
+      "score": 10,
+      "reason": "tokens are read-only in GitHub workflows",
+      "details": [
+        "Info: all tokens have read permissions"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions",
+        "short": "Determines if the project's workflows follow the principle of least privilege."
+      }
+    },
+    {
+      "name": "Vulnerabilities",
+      "score": 10,
+      "reason": "no known vulnerabilities detected",
+      "details": [
+        "Info: 0 existing vulnerabilities detected"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#vulnerabilities",
+        "short": "Determines if the project has open, known unfixed vulnerabilities."
+      }
+    },
+    {
+      "name": "Webhooks",
+      "score": 10,
+      "reason": "no insecure webhooks detected",
+      "details": [
+        "Info: all webhooks use secrets"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#webhooks",
+        "short": "Determines if the project has configured its webhooks with a secret."
+      }
+    }
+  ]
+}

@@ -1,0 +1,145 @@
+{
+  "date": "2025-10-30T10:20:53Z",
+  "repo": {
+    "name": "github.com/flanksource/config-db",
+    "commit": "def789abc012345"
+  },
+  "scorecard": {
+    "version": "v5.0.0",
+    "commit": "def456ghi789012"
+  },
+  "score": 5.4,
+  "checks": [
+    {
+      "name": "Binary-Artifacts",
+      "score": 10,
+      "reason": "no binaries found in the repo",
+      "details": ["Info: no binaries found in repo"],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#binary-artifacts",
+        "short": "Determines if the project has generated executable (binary) artifacts in the source repository."
+      }
+    },
+    {
+      "name": "Branch-Protection",
+      "score": 3,
+      "reason": "branch protection is partially enabled",
+      "details": [
+        "Warn: 'force pushes' enabled on branch 'main'",
+        "Warn: no status checks required before merging on branch 'main'"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#branch-protection",
+        "short": "Determines if the default and release branches are protected with branch protection rules."
+      }
+    },
+    {
+      "name": "Code-Review",
+      "score": 2,
+      "reason": "only 8 out of 26 PRs were approved before merge",
+      "details": [
+        "Warn: PR #123 not approved before merge",
+        "Warn: PR #124 not approved before merge"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#code-review",
+        "short": "Determines if the project requires code review before pull requests are merged."
+      }
+    },
+    {
+      "name": "Dangerous-Workflow",
+      "score": 10,
+      "reason": "no dangerous workflow patterns detected",
+      "details": ["Info: all workflows analyzed"],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#dangerous-workflow",
+        "short": "Determines if the project's GitHub Action workflows avoid dangerous patterns."
+      }
+    },
+    {
+      "name": "Dependency-Update-Tool",
+      "score": 0,
+      "reason": "no update tool detected",
+      "details": ["Warn: no Dependabot or Renovate detected"],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#dependency-update-tool",
+        "short": "Determines if the project uses a dependency update tool."
+      }
+    },
+    {
+      "name": "License",
+      "score": 10,
+      "reason": "license file detected",
+      "details": ["Info: found LICENSE file: LICENSE"],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#license",
+        "short": "Determines if the project has defined a license."
+      }
+    },
+    {
+      "name": "Maintained",
+      "score": 10,
+      "reason": "15 commit(s) found in the last 90 days",
+      "details": ["Info: repo actively maintained"],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#maintained",
+        "short": "Determines if the project is actively maintained."
+      }
+    },
+    {
+      "name": "Pinned-Dependencies",
+      "score": 2,
+      "reason": "dependencies not pinned by hash",
+      "details": [
+        "Warn: GitHub Actions not pinned by hash",
+        "Warn: Docker images not pinned by digest"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#pinned-dependencies",
+        "short": "Determines if the project has declared and pinned its dependencies."
+      }
+    },
+    {
+      "name": "SAST",
+      "score": 0,
+      "reason": "no SAST tool detected",
+      "details": ["Warn: no SAST tool detected"],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#sast",
+        "short": "Determines if the project uses static code analysis."
+      }
+    },
+    {
+      "name": "Security-Policy",
+      "score": 0,
+      "reason": "no security policy found",
+      "details": ["Warn: no SECURITY.md found"],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#security-policy",
+        "short": "Determines if the project has published a security policy."
+      }
+    },
+    {
+      "name": "Token-Permissions",
+      "score": 0,
+      "reason": "tokens have write permissions",
+      "details": [
+        "Warn: workflow has write permissions: .github/workflows/deploy.yml"
+      ],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions",
+        "short": "Determines if the project's workflows follow the principle of least privilege."
+      }
+    },
+    {
+      "name": "Vulnerabilities",
+      "score": 10,
+      "reason": "no known vulnerabilities detected",
+      "details": ["Info: 0 existing vulnerabilities detected"],
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#vulnerabilities",
+        "short": "Determines if the project has open, known unfixed vulnerabilities."
+      }
+    }
+  ]
+}
