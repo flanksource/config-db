@@ -25,4 +25,6 @@ external/diffgen/target
 
 # For AI agents
 TODO.md
-.envrc
+.db/
+db/
+.DS_Store

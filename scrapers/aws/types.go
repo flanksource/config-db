@@ -560,7 +560,7 @@ type Instance struct {
 	// [EC2-VPC] The ID of the VPC in which the instance is running.
 	VpcID string `json:"vpc_id,omitempty"`
 
-	TrsutedAdvisorChecks []TrustedAdvisorCheck `json:"trusted_advisor_checks,omitempty"`
+	TrustedAdvisorChecks []TrustedAdvisorCheck `json:"trusted_advisor_checks,omitempty"`
 }
 
 // TrustedAdvisorCheck ...
