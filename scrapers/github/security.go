@@ -7,7 +7,6 @@ import (
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/google/go-github/v73/github"
@@ -244,9 +243,10 @@ func createRepositoryProperties(repo *github.Repository, alerts *allAlerts) []*t
 	return properties
 }
 
-// FIXME: createConfigInsights creates ConfigInsight records for each alert
-func createConfigInsights(ctx api.ScrapeContext, configID string, alerts *allAlerts) ([]models.ConfigInsight, error) {
+// createConfigInsights creates ConfigInsight records for each alert
+// FIXME: Implement full ConfigInsight creation with all alert details
+func createConfigInsights(ctx api.ScrapeContext, configID string, alerts *allAlerts) error {
 	// This will be implemented to create individual ConfigInsight records
 	// for each alert type with proper mapping
-	return nil, nil
+	return nil
 }

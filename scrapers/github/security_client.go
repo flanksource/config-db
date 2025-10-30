@@ -122,10 +122,6 @@ func (c *GitHubSecurityClient) GetSecretScanningAlerts(ctx context.Context, opts
 func (c *GitHubSecurityClient) GetSecurityAdvisories(ctx context.Context, opts AlertListOptions) ([]*github.SecurityAdvisory, *github.Response, error) {
 	reqOpts := &github.ListRepositorySecurityAdvisoriesOptions{
 		State: opts.State,
-		ListOptions: github.ListOptions{
-			Page:    opts.Page,
-			PerPage: opts.PerPage,
-		},
 	}
 
 	advisories, resp, err := c.Client.SecurityAdvisories.ListRepositorySecurityAdvisories(ctx, c.owner, c.repo, reqOpts)
