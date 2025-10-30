@@ -3,6 +3,8 @@ package openssf
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -12,7 +14,11 @@ import (
 
 const (
 	ConfigTypeOpenSSFScorecardRepo = "OpenSSF::Scorecard::Repository"
+	ScorecardCacheTTL              = 24 * time.Hour
 )
+
+// LastScorecardScrapeTime tracks the last assessment date for each repository to avoid redundant API calls
+var LastScorecardScrapeTime = sync.Map{}
 
 // OpenSSFScorecardScraper implements OpenSSF Scorecard scraping
 type OpenSSFScorecardScraper struct{}
@@ -25,38 +31,72 @@ func (o OpenSSFScorecardScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults 
 	results := v1.ScrapeResults{}
 
 	for _, config := range ctx.ScrapeConfig().Spec.OpenSSFScorecard {
+		ctx.Logger.V(2).Infof("scraping OpenSSF Scorecard for %d repositories", len(config.Repositories))
 		client := NewScorecardClient(ctx)
 
 		for _, repoConfig := range config.Repositories {
+			repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
+			ctx.Logger.V(2).Infof("fetching scorecard for repository: %s", repoFullName)
+
+			if shouldSkip, reason := shouldSkipScorecardFetch(ctx, repoFullName); shouldSkip {
+				ctx.Debugf("skipping %s: %s", repoFullName, reason)
+				continue
+			}
+
 			result, err := scrapeRepository(ctx, client, config, repoConfig)
 			if err != nil {
-				results.Errorf(err, "failed to scrape repository %s/%s", repoConfig.Owner, repoConfig.Repo)
+				results.Errorf(err, "failed to scrape repository %s", repoFullName)
 				continue
 			}
 
 			if config.MinScore != nil && result.Config != nil {
 				if scorecard, ok := result.Config.(*ScorecardResponse); ok {
 					if scorecard.Score < *config.MinScore {
-						ctx.Debugf("skipping %s/%s: score %.1f below minimum %.1f",
-							repoConfig.Owner, repoConfig.Repo, scorecard.Score, *config.MinScore)
+						ctx.Debugf("skipping %s: score %.1f below minimum %.1f",
+							repoFullName, scorecard.Score, *config.MinScore)
 						continue
 					}
 				}
 			}
 
 			results = append(results, result)
+			ctx.Logger.V(2).Infof("successfully scraped %s: score %.1f/10", repoFullName, result.Config.(*ScorecardResponse).Score)
 		}
 	}
 
 	return results
 }
 
+func shouldSkipScorecardFetch(ctx api.ScrapeContext, repoFullName string) (bool, string) {
+	if lastScrape, ok := LastScorecardScrapeTime.Load(repoFullName); ok {
+		lastTime := lastScrape.(time.Time)
+		timeSinceLastScrape := time.Since(lastTime)
+		if timeSinceLastScrape < ScorecardCacheTTL {
+			return true, fmt.Sprintf("last scraped %v ago (cache TTL: %v)", timeSinceLastScrape, ScorecardCacheTTL)
+		}
+		ctx.Logger.V(3).Infof("cache expired for %s (last scraped %v ago)", repoFullName, timeSinceLastScrape)
+	}
+	return false, ""
+}
+
 func scrapeRepository(ctx api.ScrapeContext, client *ScorecardClient, config v1.OpenSSFScorecard, repoConfig v1.OpenSSFRepository) (v1.ScrapeResult, error) {
 	repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
 
+	ctx.Tracef("fetching scorecard data from API for %s", repoFullName)
 	scorecard, err := client.GetRepositoryScorecard(ctx, repoConfig.Owner, repoConfig.Repo)
 	if err != nil {
 		return v1.ScrapeResult{}, fmt.Errorf("failed to get scorecard: %w", err)
+	}
+
+	LastScorecardScrapeTime.Store(repoFullName, time.Now())
+	ctx.Logger.V(3).Infof("stored last scorecard scrape time for %s: %v", repoFullName, scorecard.Date)
+
+	ctx.Debugf("scorecard results for %s: overall score=%.1f, checks=%d", repoFullName, scorecard.Score, len(scorecard.Checks))
+
+	for _, check := range scorecard.Checks {
+		compliance := GetComplianceMappings(check.Name)
+		ctx.Tracef("check %s: score=%d/10, SOC2=%v, NIST=%v, CIS=%v",
+			check.Name, check.Score, len(compliance.SOC2), len(compliance.NISTSSDF), len(compliance.CIS))
 	}
 
 	healthStatus := calculateHealthStatus(scorecard)

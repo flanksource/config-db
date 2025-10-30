@@ -1,8 +1,8 @@
 package github
 
 import (
-	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/flanksource/config-db/api"
@@ -16,6 +16,9 @@ const (
 	ConfigTypeGitHubSecurityRepo = "GitHub::Repository::Security"
 )
 
+// LastAlertScrapeTime tracks the last scrape time for each repository to enable incremental scraping
+var LastAlertScrapeTime = sync.Map{}
+
 // GithubSecurityScraper implements security alert scraping for GitHub repositories
 type GithubSecurityScraper struct{}
 
@@ -27,15 +30,20 @@ func (gh GithubSecurityScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
 	for _, config := range ctx.ScrapeConfig().Spec.GitHubSecurity {
+		ctx.Logger.V(2).Infof("scraping GitHub security for %d repositories", len(config.Repositories))
+
 		for _, repoConfig := range config.Repositories {
+			repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
+			ctx.Logger.V(2).Infof("scraping security alerts for repository: %s", repoFullName)
+
 			client, err := NewGitHubSecurityClient(ctx, config, repoConfig.Owner, repoConfig.Repo)
 			if err != nil {
-				results.Errorf(err, "failed to create GitHub security client for %s/%s", repoConfig.Owner, repoConfig.Repo)
+				results.Errorf(err, "failed to create GitHub security client for %s", repoFullName)
 				continue
 			}
 
 			if shouldPause, duration, err := client.ShouldPauseForRateLimit(ctx); err != nil {
-				results.Errorf(err, "failed to check rate limit for %s/%s", repoConfig.Owner, repoConfig.Repo)
+				results.Errorf(err, "failed to check rate limit for %s", repoFullName)
 				continue
 			} else if shouldPause {
 				ctx.Warnf("pausing for %v due to rate limit", duration)
@@ -44,11 +52,14 @@ func (gh GithubSecurityScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 			result, err := scrapeRepository(ctx, client, config, repoConfig)
 			if err != nil {
-				results.Errorf(err, "failed to scrape repository %s/%s", repoConfig.Owner, repoConfig.Repo)
+				results.Errorf(err, "failed to scrape repository %s", repoFullName)
 				continue
 			}
 
 			results = append(results, result)
+			ctx.Logger.V(2).Infof("successfully scraped %s: %d total alerts", repoFullName,
+				result.Properties.Find("Critical Alerts").Text+result.Properties.Find("High Alerts").Text+
+				result.Properties.Find("Medium Alerts").Text+result.Properties.Find("Low Alerts").Text)
 		}
 	}
 
@@ -56,19 +67,22 @@ func (gh GithubSecurityScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 }
 
 func scrapeRepository(ctx api.ScrapeContext, client *GitHubSecurityClient, config v1.GitHubSecurity, repoConfig v1.GitHubSecurityRepository) (v1.ScrapeResult, error) {
-	// FIXME: Implement full repository scraping
 	repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
 
-	// Fetch repository metadata
+	ctx.Tracef("fetching repository metadata for %s", repoFullName)
 	repo, _, err := client.Client.Repositories.Get(ctx, repoConfig.Owner, repoConfig.Repo)
 	if err != nil {
 		return v1.ScrapeResult{}, fmt.Errorf("failed to get repository metadata: %w", err)
 	}
 
-	// Fetch alerts
-	alerts, err := fetchAllAlerts(ctx, client, config)
+	alerts, maxAlertTime, err := fetchAllAlerts(ctx, client, config, repoFullName)
 	if err != nil {
 		return v1.ScrapeResult{}, fmt.Errorf("failed to fetch alerts: %w", err)
+	}
+
+	if !maxAlertTime.IsZero() {
+		LastAlertScrapeTime.Store(repoFullName, maxAlertTime)
+		ctx.Logger.V(3).Infof("stored last alert time for %s: %v", repoFullName, maxAlertTime)
 	}
 
 	// Calculate health status
@@ -112,8 +126,9 @@ type allAlerts struct {
 	counts         alertCounts
 }
 
-func fetchAllAlerts(ctx context.Context, client *GitHubSecurityClient, config v1.GitHubSecurity) (*allAlerts, error) {
+func fetchAllAlerts(ctx api.ScrapeContext, client *GitHubSecurityClient, config v1.GitHubSecurity, repoFullName string) (*allAlerts, time.Time, error) {
 	alerts := &allAlerts{}
+	var maxAlertTime time.Time
 
 	filters := config.Filters
 	stateFilter := "open"
@@ -127,36 +142,66 @@ func fetchAllAlerts(ctx context.Context, client *GitHubSecurityClient, config v1
 		PerPage: 100,
 	}
 
-	// Fetch Dependabot alerts
+	lastScrapeKey := repoFullName
+	if lastTime, ok := LastAlertScrapeTime.Load(lastScrapeKey); ok {
+		since := lastTime.(time.Time)
+		opts.CreatedAt = since.Format(time.RFC3339)
+		ctx.Logger.V(3).Infof("fetching alerts for %s since %v (incremental scrape)", repoFullName, since)
+	} else {
+		ctx.Logger.V(3).Infof("fetching all alerts for %s (full scrape)", repoFullName)
+	}
+
+	ctx.Debugf("fetching Dependabot alerts for %s", repoFullName)
 	dependabotAlerts, _, err := client.GetDependabotAlerts(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Dependabot alerts: %w", err)
+		return nil, maxAlertTime, fmt.Errorf("failed to get Dependabot alerts: %w", err)
 	}
 	alerts.dependabot = dependabotAlerts
+	ctx.Debugf("fetched %d Dependabot alerts", len(dependabotAlerts))
 
-	// Fetch code scanning alerts
+	ctx.Debugf("fetching code scanning alerts for %s", repoFullName)
 	codeScanAlerts, _, err := client.GetCodeScanningAlerts(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get code scanning alerts: %w", err)
+		return nil, maxAlertTime, fmt.Errorf("failed to get code scanning alerts: %w", err)
 	}
 	alerts.codeScanning = codeScanAlerts
+	ctx.Debugf("fetched %d code scanning alerts", len(codeScanAlerts))
 
-	// Fetch secret scanning alerts
+	ctx.Debugf("fetching secret scanning alerts for %s", repoFullName)
 	secretAlerts, _, err := client.GetSecretScanningAlerts(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get secret scanning alerts: %w", err)
+		return nil, maxAlertTime, fmt.Errorf("failed to get secret scanning alerts: %w", err)
 	}
 	alerts.secretScanning = secretAlerts
+	ctx.Debugf("fetched %d secret scanning alerts", len(secretAlerts))
 
-	// Count alerts by severity
 	for _, alert := range dependabotAlerts {
 		countAlertSeverity(&alerts.counts, alert.SecurityAdvisory.GetSeverity())
-	}
-	for _, alert := range codeScanAlerts {
-		countAlertSeverity(&alerts.counts, alert.Rule.GetSeverity())
+		ctx.Tracef("Dependabot alert #%d: %s (severity: %s)", alert.GetNumber(), alert.SecurityAdvisory.GetSummary(), alert.SecurityAdvisory.GetSeverity())
+		if alert.UpdatedAt != nil && alert.UpdatedAt.After(maxAlertTime) {
+			maxAlertTime = alert.UpdatedAt.Time
+		}
 	}
 
-	return alerts, nil
+	for _, alert := range codeScanAlerts {
+		countAlertSeverity(&alerts.counts, alert.Rule.GetSeverity())
+		ctx.Tracef("Code scanning alert #%d: %s (severity: %s)", alert.GetNumber(), alert.Rule.GetName(), alert.Rule.GetSeverity())
+		if alert.UpdatedAt != nil && alert.UpdatedAt.After(maxAlertTime) {
+			maxAlertTime = alert.UpdatedAt.Time
+		}
+	}
+
+	for _, alert := range secretAlerts {
+		ctx.Tracef("Secret scanning alert #%d: %s", alert.GetNumber(), alert.GetSecretType())
+		if alert.UpdatedAt != nil && alert.UpdatedAt.After(maxAlertTime) {
+			maxAlertTime = alert.UpdatedAt.Time
+		}
+	}
+
+	ctx.Logger.V(3).Infof("fetched total alerts for %s: dependabot=%d, code-scan=%d, secrets=%d",
+		repoFullName, len(dependabotAlerts), len(codeScanAlerts), len(secretAlerts))
+
+	return alerts, maxAlertTime, nil
 }
 
 func countAlertSeverity(counts *alertCounts, severity string) {

@@ -148,6 +148,9 @@ func (c *GitHubSecurityClient) ShouldPauseForRateLimit(ctx context.Context) (boo
 		return false, 0, err
 	}
 
+	c.ScrapeContext.Logger.V(3).Infof("GitHub rate limit: remaining=%d, limit=%d, reset=%s",
+		rateLimits.Core.Remaining, rateLimits.Core.Limit, rateLimits.Core.Reset.Format(time.RFC3339))
+
 	const threshold = 100
 	if rateLimits.Core.Remaining < threshold {
 		resetTime := rateLimits.Core.Reset.Time

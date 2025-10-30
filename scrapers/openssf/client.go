@@ -72,23 +72,30 @@ type Documentation struct {
 // GetRepositoryScorecard fetches the scorecard data for a repository
 func (c *ScorecardClient) GetRepositoryScorecard(ctx context.Context, owner, repo string) (*ScorecardResponse, error) {
 	url := fmt.Sprintf("%s/projects/github.com/%s/%s", OpenSSFScorecardAPIBase, owner, repo)
+	repoFullName := fmt.Sprintf("%s/%s", owner, repo)
+
+	c.ctx.Tracef("making API request to %s", url)
 
 	var lastErr error
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			backoff := time.Duration(attempt*attempt) * time.Second
-			c.ctx.Debugf("retrying request (attempt %d/%d) after %v", attempt+1, maxRetries, backoff)
+			c.ctx.Logger.V(3).Infof("retrying scorecard request for %s (attempt %d/%d) after %v",
+				repoFullName, attempt+1, maxRetries, backoff)
 			time.Sleep(backoff)
 		}
 
 		scorecard, err := c.fetchScorecard(ctx, url)
 		if err == nil {
+			c.ctx.Tracef("successfully fetched scorecard for %s: score=%.1f", repoFullName, scorecard.Score)
 			return scorecard, nil
 		}
 
 		lastErr = err
+		c.ctx.Tracef("attempt %d failed for %s: %v", attempt+1, repoFullName, err)
 
 		if !c.isRetryable(err) {
+			c.ctx.Debugf("error not retryable for %s: %v", repoFullName, err)
 			return nil, err
 		}
 	}
