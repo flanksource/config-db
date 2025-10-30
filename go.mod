@@ -56,7 +56,7 @@ require (
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.13
 	github.com/gobwas/glob v0.2.3
-	github.com/gofrs/uuid/v5 v5.3.2
+	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/gomarkdown/markdown v0.0.0-20240729212818-a2a9c4f76ef5
 	github.com/google/go-github/v73 v73.0.0
 	github.com/google/uuid v1.6.0
