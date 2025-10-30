@@ -58,8 +58,10 @@ type ScraperSpec struct {
 	Kubernetes     []Kubernetes     `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
 	KubernetesFile []KubernetesFile `json:"kubernetesFile,omitempty" yaml:"kubernetesFile,omitempty"`
 	AzureDevops    []AzureDevops    `json:"azureDevops,omitempty" yaml:"azureDevops,omitempty"`
-	GithubActions  []GitHubActions  `json:"githubActions,omitempty" yaml:"githubActions,omitempty"`
-	Azure          []Azure          `json:"azure,omitempty" yaml:"azure,omitempty"`
+	GithubActions   []GitHubActions   `json:"githubActions,omitempty" yaml:"githubActions,omitempty"`
+	GitHubSecurity  []GitHubSecurity  `json:"githubSecurity,omitempty" yaml:"githubSecurity,omitempty"`
+	OpenSSFScorecard []OpenSSFScorecard `json:"openssfScorecard,omitempty" yaml:"openssfScorecard,omitempty"`
+	Azure           []Azure           `json:"azure,omitempty" yaml:"azure,omitempty"`
 	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
 	Slack          []Slack          `json:"slack,omitempty" yaml:"slack,omitempty"`
 	Trivy          []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
