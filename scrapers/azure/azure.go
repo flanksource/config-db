@@ -25,9 +25,6 @@ import (
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
-	graphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
-	"github.com/microsoftgraph/msgraph-sdk-go/applications"
-	msgraphModels "github.com/microsoftgraph/msgraph-sdk-go/models"
 
 	"github.com/samber/lo"
 
@@ -187,8 +184,7 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		results = append(results, azure.fetchSubscriptions()...)
 		results = append(results, azure.fetchStorageAccounts()...)
 		results = append(results, azure.fetchAppServices()...)
-		results = append(results, azure.fetchDNS()...)
-		results = append(results, azure.fetchAppRegistrations()...)
+		results = append(results, azure.fetchAppRegistrations(azure.config.Entra.AppRegistrations)...)
 		results = append(results, azure.fetchPrivateDNSZones()...)
 		results = append(results, azure.fetchTrafficManagerProfiles()...)
 		results = append(results, azure.fetchNetworkSecurityGroups()...)
@@ -891,83 +887,6 @@ func (azure Scraper) getGraphClient() (*msgraphsdkgo.GraphServiceClient, error) 
 
 	return msgraphsdkgo.NewGraphServiceClientWithCredentials(graphCred, []string{"https://graph.microsoft.com/.default"})
 
-}
-
-// fetchAppRegistrations gets Azure App Registrations in a tenant.
-func (azure Scraper) fetchAppRegistrations() v1.ScrapeResults {
-	azure.ctx.Logger.V(3).Infof("fetching app registrations for tenant %s", azure.config.TenantID)
-
-	var results v1.ScrapeResults
-
-	if !azure.config.Includes("appRegistrations") {
-		return results
-	}
-
-	graphClient, err := azure.getGraphClient()
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create graph client: %w", err)})
-	}
-
-	// Get apps with pagination
-	apps, err := graphClient.Applications().Get(azure.ctx, nil)
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch app registrations: %w", err)})
-	}
-
-	// Process the first page
-	for _, app := range apps.GetValue() {
-		results = append(results, azure.appToScrapeResult(app.(*msgraphModels.Application)))
-	}
-
-	// Process additional pages if they exist
-	pageIterator, err := graphcore.NewPageIterator[*msgraphModels.Application](apps, graphClient.GetAdapter(), applications.CreateDeltaGetResponseFromDiscriminatorValue)
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create page iterator: %w", err)})
-	}
-
-	err = pageIterator.Iterate(azure.ctx, func(app *msgraphModels.Application) bool {
-		results = append(results, azure.appToScrapeResult(app))
-
-		return true
-	})
-
-	if err != nil {
-		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to iterate through pages: %w", err)})
-	}
-
-	return results
-}
-
-func (azure Scraper) appToScrapeResult(app *msgraphModels.Application) v1.ScrapeResult {
-	appID := *app.GetId()
-	displayName := *app.GetDisplayName()
-
-	return v1.ScrapeResult{
-		BaseScraper: azure.config.BaseScraper,
-		ID:          fmt.Sprintf("/tenants/%s/applications/%s", azure.config.TenantID, appID),
-		Name:        displayName,
-		Config:      app,
-		ConfigClass: "AppRegistration",
-		Type:        ConfigTypePrefix + "AppRegistration",
-		Properties: []*types.Property{
-			{
-				Name: "URL",
-				Icon: ConfigTypePrefix + "AppRegistration",
-				Links: []types.Link{
-					{
-						Text: types.Text{Label: "Console"},
-						URL:  fmt.Sprintf("https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/Overview/appId/%s", *app.GetAppId()),
-					},
-				},
-			},
-		},
-		Tags: []v1.Tag{
-			{
-				Name:  "appId",
-				Value: *app.GetAppId(),
-			},
-		},
-	}
 }
 
 // fetchPrivateDNSZones gets Azure app services in a subscription.
