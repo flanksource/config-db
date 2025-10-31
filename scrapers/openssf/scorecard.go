@@ -8,6 +8,7 @@ import (
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
 )
@@ -43,24 +44,27 @@ func (o OpenSSFScorecardScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults 
 				continue
 			}
 
-			result, err := scrapeRepository(ctx, client, config, repoConfig)
+			scorecard, err := client.GetRepositoryScorecard(ctx, repoConfig.Owner, repoConfig.Repo)
 			if err != nil {
 				results.Errorf(err, "failed to scrape repository %s", repoFullName)
 				continue
 			}
 
-			if config.MinScore != nil && result.Config != nil {
-				if scorecard, ok := result.Config.(*ScorecardResponse); ok {
-					if scorecard.Score < *config.MinScore {
-						ctx.Debugf("skipping %s: score %.1f below minimum %.1f",
-							repoFullName, scorecard.Score, *config.MinScore)
-						continue
-					}
-				}
+			if config.MinScore != nil && scorecard.Score < *config.MinScore {
+				ctx.Debugf("skipping %s: score %.1f below minimum %.1f",
+					repoFullName, scorecard.Score, *config.MinScore)
+				continue
 			}
 
+			LastScorecardScrapeTime.Store(repoFullName, time.Now())
+			ctx.Logger.V(3).Infof("stored last scorecard scrape time for %s: %v", repoFullName, scorecard.Date)
+
+			result := createRepositoryConfig(ctx, repoConfig, scorecard)
 			results = append(results, result)
-			ctx.Logger.V(2).Infof("successfully scraped %s: score %.1f/10", repoFullName, result.Config.(*ScorecardResponse).Score)
+
+			createCheckAnalyses(ctx, &results, repoConfig, scorecard)
+
+			ctx.Logger.V(2).Infof("successfully scraped %s: score %.1f/10, %d checks", repoFullName, scorecard.Score, len(scorecard.Checks))
 		}
 	}
 
@@ -79,25 +83,10 @@ func shouldSkipScorecardFetch(ctx api.ScrapeContext, repoFullName string) (bool,
 	return false, ""
 }
 
-func scrapeRepository(ctx api.ScrapeContext, client *ScorecardClient, config v1.OpenSSFScorecard, repoConfig v1.OpenSSFRepository) (v1.ScrapeResult, error) {
+func createRepositoryConfig(ctx api.ScrapeContext, repoConfig v1.OpenSSFRepository, scorecard *ScorecardResponse) v1.ScrapeResult {
 	repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
 
-	ctx.Tracef("fetching scorecard data from API for %s", repoFullName)
-	scorecard, err := client.GetRepositoryScorecard(ctx, repoConfig.Owner, repoConfig.Repo)
-	if err != nil {
-		return v1.ScrapeResult{}, fmt.Errorf("failed to get scorecard: %w", err)
-	}
-
-	LastScorecardScrapeTime.Store(repoFullName, time.Now())
-	ctx.Logger.V(3).Infof("stored last scorecard scrape time for %s: %v", repoFullName, scorecard.Date)
-
 	ctx.Debugf("scorecard results for %s: overall score=%.1f, checks=%d", repoFullName, scorecard.Score, len(scorecard.Checks))
-
-	for _, check := range scorecard.Checks {
-		compliance := GetComplianceMappings(check.Name)
-		ctx.Tracef("check %s: score=%d/10, SOC2=%v, NIST=%v, CIS=%v",
-			check.Name, check.Score, len(compliance.SOC2), len(compliance.NISTSSDF), len(compliance.CIS))
-	}
 
 	healthStatus := calculateHealthStatus(scorecard)
 	properties := createRepositoryProperties(repoConfig.Owner, repoConfig.Repo, scorecard)
@@ -120,7 +109,65 @@ func scrapeRepository(ctx api.ScrapeContext, client *ScorecardClient, config v1.
 
 	result = result.WithHealthStatus(healthStatus)
 
-	return result, nil
+	return result
+}
+
+func createCheckAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, repoConfig v1.OpenSSFRepository, scorecard *ScorecardResponse) {
+	repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
+	configID := fmt.Sprintf("openssf-scorecard/%s", repoFullName)
+
+	ctx.Debugf("creating analysis records for %d checks in %s", len(scorecard.Checks), repoFullName)
+
+	for _, check := range scorecard.Checks {
+		compliance := GetComplianceMappings(check.Name)
+		ctx.Tracef("check %s: score=%d/10, SOC2=%d, NIST=%d, CIS=%d",
+			check.Name, check.Score, len(compliance.SOC2), len(compliance.NISTSSDF), len(compliance.CIS))
+
+		analysis := results.Analysis(
+			check.Name,
+			ConfigTypeOpenSSFScorecardRepo,
+			configID,
+		)
+
+		analysis.AnalysisType = models.AnalysisTypeSecurity
+		analysis.Severity = mapCheckScoreToSeverity(check.Score)
+		analysis.Source = "OpenSSF Scorecard"
+		analysis.Summary = check.Reason
+		analysis.FirstObserved = &scorecard.Date
+		analysis.LastObserved = &scorecard.Date
+
+		if check.Score < 10 {
+			analysis.Status = "failing"
+		} else {
+			analysis.Status = "passing"
+		}
+
+		for _, detail := range check.Details {
+			analysis.Message(detail)
+		}
+
+		analysis.Analysis = map[string]any{
+			"check_name":  check.Name,
+			"score":       check.Score,
+			"max_score":   10,
+			"reason":      check.Reason,
+			"details":     check.Details,
+			"documentation": map[string]string{
+				"url":   check.Documentation.URL,
+				"short": check.Documentation.Short,
+			},
+			"compliance": map[string][]string{
+				"SOC 2":      compliance.SOC2,
+				"NIST SSDF":  compliance.NISTSSDF,
+				"CIS Controls": compliance.CIS,
+			},
+		}
+
+		ctx.Tracef("created analysis for check %s (severity: %s, status: %s)",
+			check.Name, analysis.Severity, analysis.Status)
+	}
+
+	ctx.Debugf("created %d analysis records for %s", len(scorecard.Checks), repoFullName)
 }
 
 func calculateHealthStatus(scorecard *ScorecardResponse) health.HealthStatus {
@@ -228,13 +275,13 @@ func scorecardCheckNameToKebab(name string) string {
 	return strings.ToLower(strings.ReplaceAll(name, "-", "-"))
 }
 
-func mapCheckScoreToSeverity(score int) string {
+func mapCheckScoreToSeverity(score int) models.Severity {
 	if score <= 3 {
-		return "critical"
+		return models.SeverityCritical
 	} else if score <= 6 {
-		return "high"
+		return models.SeverityHigh
 	} else if score <= 9 {
-		return "medium"
+		return models.SeverityMedium
 	}
-	return "low"
+	return models.SeverityLow
 }
