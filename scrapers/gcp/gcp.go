@@ -84,7 +84,8 @@ func getRegionFromZone(zone string) string {
 	return strings.Join(parts[:2], "-")
 }
 
-func parseResourceData(data *structpb.Struct) ResourceData {
+func parseResourceData(asset *assetpb.Asset) ResourceData {
+	data := asset.Resource.Data
 	labels := make(map[string]string)
 	if labelsField, exists := data.Fields["labels"]; exists {
 		if labelsStruct := labelsField.GetStructValue(); labelsStruct != nil {
@@ -124,13 +125,12 @@ func parseResourceData(data *structpb.Struct) ResourceData {
 	}
 
 	id := data.Fields["id"].GetStringValue()
-	name := data.Fields["name"].GetStringValue()
 	selfLink := data.Fields["selfLink"].GetStringValue()
 	selfLink2 := strings.TrimPrefix(selfLink, "https://www.googleapis.com/compute/v1/") // Certain references are without this prefix
 
 	return ResourceData{
 		ID:        id,
-		Name:      name,
+		Name:      getName(asset),
 		CreatedAt: createdAt,
 		Labels:    labels,
 		URL:       selfLink,
@@ -139,6 +139,20 @@ func parseResourceData(data *structpb.Struct) ResourceData {
 		Aliases:   []string{selfLink, selfLink2},
 		Raw:       data,
 	}
+}
+
+func getName(asset *assetpb.Asset) string {
+	name := asset.Resource.Data.Fields["name"].GetStringValue()
+	if name != "" {
+		return name
+	}
+	if asset.AssetType == "servicenetworking.googleapis.com/Connection" {
+		network := asset.Resource.Data.Fields["network"].GetStringValue()
+		peering := asset.Resource.Data.Fields["peering"].GetStringValue()
+		service := asset.Resource.Data.Fields["service"].GetStringValue()
+		name, _ = utils.Hash(network + peering + service)
+	}
+	return name
 }
 
 func getLink(rd ResourceData) *types.Property {
@@ -267,7 +281,7 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			continue
 		}
 
-		rd := parseResourceData(asset.Resource.Data)
+		rd := parseResourceData(asset)
 
 		configClass := parseGCPConfigClass(asset.AssetType)
 		configType := fmt.Sprintf("GCP::%s", configClass)

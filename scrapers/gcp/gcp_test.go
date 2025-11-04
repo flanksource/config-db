@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"cloud.google.com/go/asset/apiv1/assetpb"
 	"github.com/onsi/gomega"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -47,7 +48,12 @@ func TestParseResourceData(t *testing.T) {
 			data, err := structpb.NewStruct(resourceData)
 			g.Expect(err).To(gomega.BeNil())
 
-			result := parseResourceData(data)
+			asset := &assetpb.Asset{
+				Resource: &assetpb.Resource{
+					Data: data,
+				},
+			}
+			result := parseResourceData(asset)
 
 			g.Expect(result.Zone).To(gomega.Equal(fixture.Expectation.Zone), "zone mismatch")
 			g.Expect(result.Region).To(gomega.Equal(fixture.Expectation.Region), "region mismatch")
