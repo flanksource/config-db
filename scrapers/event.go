@@ -32,7 +32,7 @@ const (
 // incremental scraping for the specified config item.
 func StartEventListener(ctx context.Context) {
 	notifyChan := make(chan string)
-	go pg.Listen(ctx, eventQueueUpdateChannel, notifyChan)
+	go pg.Listen(ctx, eventQueueUpdateChannel, notifyChan) //nolint:errcheck
 
 	consumer := postq.AsyncEventConsumer{
 		WatchEvents: []string{event},
