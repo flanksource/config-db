@@ -93,11 +93,13 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 				Find(&scraperIDs).Error; err != nil {
 				return results.Errorf(err, "error querying db for scraper_id with cluster name: %s", config.ClusterName)
 			}
+
 			if len(scraperIDs) > 1 {
-				return results.Errorf(err, "multiple scraper_ids[%s] found with cluster name: %s", strings.Join(scraperIDs, ","), config.ClusterName)
+				return results.Errorf(fmt.Errorf("multiple scraper_ids[%s] found with cluster name: %s", strings.Join(scraperIDs, ","), config.ClusterName), "")
 			}
+
 			if len(scraperIDs) == 1 && lo.FirstOrEmpty(scraperIDs) != scraperID {
-				return results.Errorf(err, "scraper_id[%s] already exists with cluster name: %s", strings.Join(scraperIDs, ","), config.ClusterName)
+				return results.Errorf(fmt.Errorf("scraper_id[%s] already exists with cluster name: %s", strings.Join(scraperIDs, ","), config.ClusterName), "")
 			}
 		}
 
