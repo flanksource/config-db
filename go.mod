@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/asset v1.22.0
 	cloud.google.com/go/bigquery v1.72.0
 	cloud.google.com/go/securitycenter v1.38.1
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/advisor/armadvisor v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice v1.0.0
@@ -24,11 +24,11 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.40.3
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/aws/aws-sdk-go-v2 v1.39.6
-	github.com/aws/aws-sdk-go-v2/service/backup v1.49.4
+	github.com/aws/aws-sdk-go-v2/service/backup v1.50.0
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.68.3
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.53.11
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.59.2
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.262.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.263.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.51.2
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.67.2
 	github.com/aws/aws-sdk-go-v2/service/efs v1.41.2
@@ -43,7 +43,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.0
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.3
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.13
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.66.4
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.39.1
 	github.com/aws/aws-sdk-go-v2/service/support v1.31.10
 	github.com/aws/smithy-go v1.23.2
@@ -66,7 +66,7 @@ require (
 	github.com/labstack/echo-contrib v0.17.4
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/lib/pq v1.10.9
-	github.com/microsoftgraph/msgraph-sdk-go v1.88.0
+	github.com/microsoftgraph/msgraph-sdk-go v1.89.0
 	github.com/microsoftgraph/msgraph-sdk-go-core v1.4.0
 	github.com/ohler55/ojg v1.26.11
 	github.com/oklog/ulid/v2 v2.1.1
