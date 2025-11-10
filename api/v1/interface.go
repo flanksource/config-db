@@ -634,7 +634,6 @@ type ScrapeResult struct {
 	Ignore              []string            `json:"-"`
 	Action              string              `json:",omitempty"`
 	Properties          types.Properties    `json:"properties,omitempty"`
-	LastScrapedTime     *time.Time          `json:"last_scraped_time"`
 
 	// ScraperLess when true indicates that this config item
 	// does not belong to any scraper. Example: AWS region & availability zone.
@@ -745,29 +744,28 @@ func (s *ScrapeResult) AsMap() map[string]any {
 		return s._map
 	}
 	s._map = map[string]any{
-		"id":                s.ID,
-		"created_at":        s.CreatedAt,
-		"deleted_at":        s.DeletedAt,
-		"delete_reason":     s.DeleteReason,
-		"last_modified":     s.LastModified,
-		"config_class":      s.ConfigClass,
-		"config_type":       s.Type,
-		"status":            s.Status,
-		"health":            s.Health,
-		"ready":             s.Ready,
-		"name":              s.Name,
-		"description":       s.Description,
-		"aliases":           s.Aliases,
-		"source":            s.Source,
-		"config":            s.Config, // TODO Change
-		"format":            s.Format,
-		"icon":              s.Icon,
-		"labels":            s.Labels,
-		"tags":              s.Tags.AsMap(),
-		"action":            s.Action,
-		"properties":        s.Properties.AsMap(),
-		"last_scraped_time": s.LastScrapedTime,
-		"scraper_less":      s.ScraperLess,
+		"id":            s.ID,
+		"created_at":    s.CreatedAt,
+		"deleted_at":    s.DeletedAt,
+		"delete_reason": s.DeleteReason,
+		"last_modified": s.LastModified,
+		"config_class":  s.ConfigClass,
+		"config_type":   s.Type,
+		"status":        s.Status,
+		"health":        s.Health,
+		"ready":         s.Ready,
+		"name":          s.Name,
+		"description":   s.Description,
+		"aliases":       s.Aliases,
+		"source":        s.Source,
+		"config":        s.Config, // TODO Change
+		"format":        s.Format,
+		"icon":          s.Icon,
+		"labels":        s.Labels,
+		"tags":          s.Tags.AsMap(),
+		"action":        s.Action,
+		"properties":    s.Properties.AsMap(),
+		"scraper_less":  s.ScraperLess,
 	}
 	return s._map
 }
