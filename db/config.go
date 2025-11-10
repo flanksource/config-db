@@ -134,21 +134,20 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 	externalIDs = lo.Filter(externalIDs, func(s string, _ int) bool { return s != "" })
 
 	ci := &models.ConfigItem{
-		ExternalID:      externalIDs,
-		ID:              utils.Deref(result.ConfigID),
-		ConfigClass:     result.ConfigClass,
-		Type:            result.Type,
-		Name:            &result.Name,
-		Source:          &result.Source,
-		Labels:          &result.Labels,
-		Properties:      &result.Properties,
-		Config:          &dataStr,
-		Ready:           result.Ready,
-		LastScrapedTime: result.LastScrapedTime,
-		Parents:         result.Parents,
-		Health:          lo.ToPtr(dutyModels.HealthUnknown),
-		Children:        result.Children,
-		ScraperID:       ctx.ScrapeConfig().GetPersistedID(),
+		ExternalID:  externalIDs,
+		ID:          utils.Deref(result.ConfigID),
+		ConfigClass: result.ConfigClass,
+		Type:        result.Type,
+		Name:        &result.Name,
+		Source:      &result.Source,
+		Labels:      &result.Labels,
+		Properties:  &result.Properties,
+		Config:      &dataStr,
+		Ready:       result.Ready,
+		Parents:     result.Parents,
+		Health:      lo.ToPtr(dutyModels.HealthUnknown),
+		Children:    result.Children,
+		ScraperID:   ctx.ScrapeConfig().GetPersistedID(),
 	}
 
 	if result.ScraperLess || slices.Contains(v1.ScraperLessTypes, ci.Type) {

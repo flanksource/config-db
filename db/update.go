@@ -232,7 +232,6 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 		return false, changes, nil
 	}
 
-	updates["last_scraped_time"] = gorm.Expr("NOW()")
 	if err := ctx.DutyContext().DB().Model(ci).Updates(updates).Error; err != nil {
 		return false, nil, errors.Wrapf(dutydb.ErrorDetails(err), "unable to update config item: %s", ci)
 	}
@@ -586,7 +585,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		return summary, fmt.Errorf("unable to get current db time: %w", err)
 	}
 
-	extractResult, err := extractConfigsAndChangesFromResults(ctx, startTime, results)
+	extractResult, err := extractConfigsAndChangesFromResults(ctx, results)
 	if err != nil {
 		return summary, fmt.Errorf("failed to extract configs & changes from results: %w", err)
 	}
@@ -717,9 +716,10 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
-	// nonUpdatedConfigs are existing configs that were not updated in this scrape.
+	// updatedConfigIDs are configs that were not new in this scrape.
 	// We keep track of them so that we can update their last scraped time.
-	var nonUpdatedConfigs []string
+	// For new configs, we update scrape time based on trigger
+	var updatedConfigIDs []string
 
 	// TODO: Try this in batches as well
 	for _, updateArg := range extractResult.configsToUpdate {
@@ -733,15 +733,15 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			ctx.TempCache().Insert(*updateArg.New)
 		} else {
 			summary.AddUnchanged(updateArg.Existing.Type)
-			nonUpdatedConfigs = append(nonUpdatedConfigs, updateArg.Existing.ID)
 		}
 
 		if len(diffChanges) != 0 {
 			extractResult.newChanges = append(extractResult.newChanges, diffChanges...)
 		}
+		updatedConfigIDs = append(updatedConfigIDs, updateArg.Existing.ID)
 	}
 
-	if err := updateLastScrapedTime(ctx, nonUpdatedConfigs); err != nil {
+	if err := updateLastScrapedTime(ctx, updatedConfigIDs); err != nil {
 		return summary, fmt.Errorf("failed to update last scraped time: %w", err)
 	}
 
@@ -903,6 +903,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 var lastScrapedTimeMutex sync.Map
 
 func updateLastScrapedTime(ctx api.ScrapeContext, ids []string) error {
+	ids = lo.Uniq(ids)
 	if len(ids) == 0 {
 		return nil
 	}
@@ -916,16 +917,14 @@ func updateLastScrapedTime(ctx api.ScrapeContext, ids []string) error {
 		defer mu.Unlock()
 	}
 
-	for i := 0; i < len(ids); i = i + 5000 {
-		end := i + 5000
-		if end > len(ids) {
-			end = len(ids)
-		}
+	batchSize := 5000
+	batches := lo.Chunk(ids, batchSize)
 
+	for _, batch := range batches {
 		if err := ctx.DB().
-			Model(&models.ConfigItem{}).
-			Where("id in (?)", ids[i:end]).
-			Update("last_scraped_time", gorm.Expr("NOW()")).Error; err != nil {
+			Model(&dutyModels.ConfigItemLastScrapedTime{}).
+			Where("config_id in (?)", batch).
+			Update("last_scraped_time", duty.Now()).Error; err != nil {
 			return err
 		}
 	}
@@ -1150,7 +1149,7 @@ func NewExtractResult() *extractResult {
 	}
 }
 
-func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime time.Time, results []v1.ScrapeResult) (*extractResult, error) {
+func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (*extractResult, error) {
 	var (
 		extractResult         = NewExtractResult()
 		allConfigs            = make([]*models.ConfigItem, 0, len(results))
@@ -1158,8 +1157,6 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, scrapeStartTime 
 	)
 
 	for _, result := range results {
-		result.LastScrapedTime = &scrapeStartTime
-
 		var ci *models.ConfigItem
 		var err error
 
