@@ -107,7 +107,7 @@ var CleanupConfigItems = &job.Job{
 			return fmt.Errorf("failed to count config items: %w", db.ErrorDetails(err))
 		}
 
-		if err := ctx.DB().Exec("SELECT delete_old_config_items(?)", days).Error; err != nil {
+		if err := ctx.DB().Exec("CALL delete_old_config_items(?)", days).Error; err != nil {
 			return fmt.Errorf("failed to delete config items: %w", db.ErrorDetails(err))
 		}
 
