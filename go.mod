@@ -6,8 +6,8 @@ require (
 	cloud.google.com/go/asset v1.22.0
 	cloud.google.com/go/bigquery v1.72.0
 	cloud.google.com/go/securitycenter v1.38.1
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/advisor/armadvisor v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
@@ -24,28 +24,28 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.40.3
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/aws/aws-sdk-go-v2 v1.39.6
-	github.com/aws/aws-sdk-go-v2/service/backup v1.49.4
-	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.68.3
-	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.53.11
-	github.com/aws/aws-sdk-go-v2/service/configservice v1.59.2
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.262.0
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.51.2
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.67.2
-	github.com/aws/aws-sdk-go-v2/service/efs v1.41.2
-	github.com/aws/aws-sdk-go-v2/service/eks v1.74.7
-	github.com/aws/aws-sdk-go-v2/service/elasticache v1.51.1
-	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.33.11
-	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.51.5
-	github.com/aws/aws-sdk-go-v2/service/iam v1.49.2
-	github.com/aws/aws-sdk-go-v2/service/lambda v1.81.1
-	github.com/aws/aws-sdk-go-v2/service/rds v1.108.7
-	github.com/aws/aws-sdk-go-v2/service/route53 v1.59.3
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.0
-	github.com/aws/aws-sdk-go-v2/service/sns v1.39.3
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.13
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.66.4
-	github.com/aws/aws-sdk-go-v2/service/sts v1.39.1
-	github.com/aws/aws-sdk-go-v2/service/support v1.31.10
+	github.com/aws/aws-sdk-go-v2/service/backup v1.51.1
+	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.68.4
+	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.53.12
+	github.com/aws/aws-sdk-go-v2/service/configservice v1.59.3
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.266.0
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.51.3
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.67.3
+	github.com/aws/aws-sdk-go-v2/service/efs v1.41.3
+	github.com/aws/aws-sdk-go-v2/service/eks v1.74.8
+	github.com/aws/aws-sdk-go-v2/service/elasticache v1.51.2
+	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.33.12
+	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.51.6
+	github.com/aws/aws-sdk-go-v2/service/iam v1.50.1
+	github.com/aws/aws-sdk-go-v2/service/lambda v1.81.2
+	github.com/aws/aws-sdk-go-v2/service/rds v1.108.8
+	github.com/aws/aws-sdk-go-v2/service/route53 v1.59.4
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.1
+	github.com/aws/aws-sdk-go-v2/service/sns v1.39.4
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.14
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.1
+	github.com/aws/aws-sdk-go-v2/service/sts v1.40.1
+	github.com/aws/aws-sdk-go-v2/service/support v1.31.11
 	github.com/aws/smithy-go v1.23.2
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fjl/memsize v0.0.2
@@ -66,9 +66,9 @@ require (
 	github.com/labstack/echo-contrib v0.17.4
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/lib/pq v1.10.9
-	github.com/microsoftgraph/msgraph-sdk-go v1.88.0
+	github.com/microsoftgraph/msgraph-sdk-go v1.89.0
 	github.com/microsoftgraph/msgraph-sdk-go-core v1.4.0
-	github.com/ohler55/ojg v1.26.11
+	github.com/ohler55/ojg v1.27.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
@@ -121,7 +121,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys v0.10.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.5.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/ClickHouse/ch-go v0.68.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.30.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.54.0 // indirect
@@ -342,7 +342,7 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251022142026-3a174f9686a8 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251029180050-ab9386a59fda // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251103181224-f26f9409b101 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
@@ -396,7 +396,7 @@ require (
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.7.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/gosimple/slug v1.15.0 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
@@ -447,13 +447,13 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
-	golang.org/x/oauth2 v0.32.0
-	golang.org/x/sync v0.17.0
+	golang.org/x/oauth2 v0.33.0
+	golang.org/x/sync v0.18.0
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/term v0.36.0 // indirect
-	golang.org/x/text v0.30.0
+	golang.org/x/text v0.31.0
 	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/api v0.255.0
+	google.golang.org/api v0.256.0
 	google.golang.org/genproto v0.0.0-20251022142026-3a174f9686a8 // indirect
 	google.golang.org/grpc v1.76.0
 	google.golang.org/protobuf v1.36.10
