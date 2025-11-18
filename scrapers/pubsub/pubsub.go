@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	gocontext "context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -10,7 +11,7 @@ import (
 	gocloudpubsub "gocloud.dev/pubsub"
 )
 
-func ListenToSubscription(ctx context.Context, subscription *gocloudpubsub.Subscription, messageCh chan string, timeout time.Duration, maxMessages int) error {
+func ListenToSubscription(ctx context.Context, subscription *gocloudpubsub.Subscription, messageCh chan PubSubMessage, timeout time.Duration, maxMessages int) error {
 	defer func() { close(messageCh) }()
 
 	var count int
@@ -29,7 +30,7 @@ func ListenToSubscription(ctx context.Context, subscription *gocloudpubsub.Subsc
 
 		// Send message to channel
 		select {
-		case messageCh <- string(msg.Body):
+		case messageCh <- processMessageBody(msg.Body, msg.Metadata):
 			msg.Ack()
 			if count >= maxMessages {
 				return nil
@@ -38,4 +39,23 @@ func ListenToSubscription(ctx context.Context, subscription *gocloudpubsub.Subsc
 			return ctx.Err()
 		}
 	}
+}
+
+type PubSubMessage struct {
+	Message  any
+	Metadata map[string]string
+}
+
+func processMessageBody(msgBody []byte, metadata map[string]string) PubSubMessage {
+	p := PubSubMessage{
+		Message:  string(msgBody),
+		Metadata: metadata,
+	}
+
+	// See if json
+	var m map[string]any
+	if err := json.Unmarshal(msgBody, &m); err == nil && m != nil {
+		p.Message = m
+	}
+	return p
 }
