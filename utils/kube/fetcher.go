@@ -67,9 +67,9 @@ func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*
 			// We suspect if this happens we might be on the wrong k8s context
 			// so we list all CRDs in job history error
 			if strings.Contains(err.Error(), "no matches for") {
-				crdList, err := listAllCRDs(ctx)
-				if err != nil {
-					ctx.JobHistory().AddErrorf("error listing existing crds: %v", err)
+				crdList, err2 := listAllCRDs(ctx)
+				if err2 != nil {
+					ctx.JobHistory().AddErrorf("error listing existing crds: %v", err2)
 				} else {
 					ctx.JobHistory().AddErrorf("failed to create dynamic client %s: %v, existing crds: %s", gvk, err, strings.Join(crdList, ","))
 				}
