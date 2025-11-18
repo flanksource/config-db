@@ -50,7 +50,7 @@ func ConsumePubSubJobFunc(sc api.ScrapeContext, config v1.PubSub) *job.Job {
 			}
 			defer subscription.Shutdown(jobCtx.Context) //nolint:errcheck
 
-			messageCh := make(chan string, 1000)
+			messageCh := make(chan pubsubscraper.PubSubMessage, 1000)
 			var wg sync.WaitGroup
 			wg.Add(1)
 			var results v1.ScrapeResults
