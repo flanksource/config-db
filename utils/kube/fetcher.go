@@ -74,7 +74,9 @@ func FetchInvolvedObjects(ctx api.ScrapeContext, iObjs []v1.InvolvedObject) ([]*
 					ctx.JobHistory().AddErrorf("failed to create dynamic client %s: %v, existing crds: %s", gvk, err, strings.Join(crdList, ","))
 				}
 			}
-			return nil, fmt.Errorf("failed to create dynamic client for %s: %w", gvk, err)
+
+			// Skip this client and continue with others
+			continue
 		}
 
 		eg.Go(func() error {
