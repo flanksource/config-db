@@ -15,7 +15,7 @@ jobs:
       release-version: ${{ steps.semantic.outputs.release-version }}
       new-release-published: ${{ steps.semantic.outputs.new-release-published }}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: codfish/semantic-release-action@6c65402abb31a48c3f7396d7d099da015be67c2b # v4.0.1
         id: semantic
         env:
@@ -29,7 +29,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: "16"
@@ -67,10 +67,10 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Publish to DockerHub Registry
-        uses: elgohr/Publish-Docker-Github-Action@1d95820b6952cab6e48a2454ff6ca9804bf65f31 # v5
+        uses: elgohr/Publish-Docker-Github-Action@15cc35eb4da44fc6b93b817f1e1a5f01b5456e50 # v5
         with:
           name: flanksource/config-db
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -107,22 +107,22 @@ jobs:
     needs: [semantic-release, docker]
     if: needs.semantic-release.outputs.new-release-published == 'true'
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - name: Set version
         # Always use git tags as semantic release can fail due to rate limit
         run: |
           git fetch --prune --unshallow
           echo "RELEASE_VERSION=$(git describe --abbrev=0 --tags | sed -e 's/^v//')" >> $GITHUB_ENV
       - name: Update chart version
-        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
+        uses: mikefarah/yq@796317b885ae219215caa36e9bdacc87c9962c15 # v4.45.1
         with:
           cmd: yq -i e '.version = "${{ env.RELEASE_VERSION }}"' chart/Chart.yaml
       - name: Update app version
-        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
+        uses: mikefarah/yq@796317b885ae219215caa36e9bdacc87c9962c15 # v4.45.1
         with:
           cmd: yq -i e '.appVersion = "${{ env.RELEASE_VERSION }}"' chart/values.yaml
       - name: Update image tags
-        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
+        uses: mikefarah/yq@796317b885ae219215caa36e9bdacc87c9962c15 # v4.45.1
         with:
           cmd: yq -i e '.image.tag = "v${{ env.RELEASE_VERSION }}"' chart/values.yaml
       - name: Set up Helm
@@ -133,7 +133,7 @@ jobs:
         run: |
           helm package ./chart
       - name: Clone charts repo
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           repository: "${{ github.repository_owner }}/charts"
           path: charts
@@ -154,17 +154,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: [helm, semantic-release]
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           repository: "${{ github.repository_owner }}/incident-commander-chart"
           token: ${{ secrets.FLANKBOT }}
           path: ./incident-commander-chart
       - name: Update config-db version in chart/Chart.yaml
-        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
+        uses: mikefarah/yq@796317b885ae219215caa36e9bdacc87c9962c15 # v4.45.1
         with:
           cmd: yq eval-all -i '(.dependencies[] | select(.name == "config-db")) ref $d | $d.version = "${{ needs.semantic-release.outputs.release-version }}"' incident-commander-chart/chart/Chart.yaml
       - name: Update config-db version in agent-chart/Chart.yaml
-        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
+        uses: mikefarah/yq@796317b885ae219215caa36e9bdacc87c9962c15 # v4.45.1
         with:
           cmd: yq eval-all -i '(.dependencies[] | select(.name == "config-db")) ref $d | $d.version = "${{ needs.semantic-release.outputs.release-version }}"' incident-commander-chart/agent-chart/Chart.yaml
       - name: Push changes to chart repo
