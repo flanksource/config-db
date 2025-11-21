@@ -55,7 +55,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			sc := sc.WithScrapeConfig(sc.ScrapeConfig(), plugins...).AsIncrementalScrape()
 
 			// Use temp cache if it already exists for scraper
-			if tc, exists := TempCacheStore[sc.ScraperID()]; exists {
+			if tc, exists := TempCacheStore.Load(sc.ScraperID()); exists {
 				sc = sc.WithTempCache(tc)
 			}
 

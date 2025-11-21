@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flanksource/commons/collections/syncmap"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/duty/models"
@@ -27,7 +28,7 @@ const (
 )
 
 // Cache store to be used by watch jobs
-var TempCacheStore = make(map[string]*api.TempCache)
+var TempCacheStore syncmap.SyncMap[string, *api.TempCache]
 
 type ScrapeOutput struct {
 	Total   int // all configs & changes
@@ -37,10 +38,10 @@ type ScrapeOutput struct {
 func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 	var timer = timer.NewMemoryTimer()
 	ctx, err := ctx.InitTempCache()
-	TempCacheStore[ctx.ScraperID()] = ctx.TempCache()
 	if err != nil {
 		return nil, err
 	}
+	TempCacheStore.Store(ctx.ScraperID(), ctx.TempCache())
 
 	ctx = ctx.WithValue(contextKeyScrapeStart, time.Now())
 	ctx.Context = ctx.
