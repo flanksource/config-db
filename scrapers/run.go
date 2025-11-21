@@ -38,10 +38,10 @@ type ScrapeOutput struct {
 func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 	var timer = timer.NewMemoryTimer()
 	ctx, err := ctx.InitTempCache()
-	TempCacheStore.Store(ctx.ScraperID(), ctx.TempCache())
 	if err != nil {
 		return nil, err
 	}
+	TempCacheStore.Store(ctx.ScraperID(), ctx.TempCache())
 
 	ctx = ctx.WithValue(contextKeyScrapeStart, time.Now())
 	ctx.Context = ctx.
