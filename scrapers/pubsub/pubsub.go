@@ -42,8 +42,8 @@ func ListenToSubscription(ctx context.Context, subscription *gocloudpubsub.Subsc
 }
 
 type PubSubMessage struct {
-	Message  any
-	Metadata map[string]string
+	Message  any               `json:"message"`
+	Metadata map[string]string `json:"metadata"`
 }
 
 func processMessageBody(msgBody []byte, metadata map[string]string) PubSubMessage {
