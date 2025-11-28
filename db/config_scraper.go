@@ -60,11 +60,13 @@ func DeleteScrapeConfig(ctx context.Context, id string) error {
 	// Soft delete remaining config_items
 	if err := ctx.DB().Exec(fmt.Sprintf(`
         UPDATE config_items
-        SET deleted_at = NOW()
+        SET
+			deleted_at = NOW(),
+			delete_reason = ?
         WHERE id NOT IN (%s)
 			AND scraper_id = ?
 			AND deleted_at IS NULL
-    `, selectQuery), id).Error; err != nil {
+    `, selectQuery), v1.DeleteReasonScraperDeleted, id).Error; err != nil {
 		return err
 	}
 	return nil
@@ -109,8 +111,19 @@ func PersistScrapeConfigFromCRD(ctx context.Context, scrapeConfig *v1.ScrapeConf
 		Spec:      spec,
 		Source:    models.SourceCRD,
 	}
-	tx := ctx.DB().Save(&configScraper)
-	return configScraper, changed, tx.Error
+	if err := ctx.DB().Save(&configScraper).Error; err != nil {
+		return models.ConfigScraper{}, changed, err
+	}
+
+	if configScraper.DeletedAt != nil {
+		if err := ctx.DB().Model(&models.ConfigScraper{}).
+			Where("id = ?", configScraper.ID).
+			Update("deleted_at", gorm.Expr("NULL")).Error; err != nil {
+			return models.ConfigScraper{}, changed, fmt.Errorf("error reseting deleted_at for scraper[%s]: %w", configScraper.ID, err)
+		}
+	}
+
+	return configScraper, changed, nil
 }
 
 func GetScrapeConfigsOfAgent(ctx context.Context, agentID uuid.UUID) ([]models.ConfigScraper, error) {
