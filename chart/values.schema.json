@@ -1,21 +1,24 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
   "properties": {
     "affinity": {
+      "additionalProperties": false,
       "description": "Affinity rules for pod scheduling",
       "required": [],
       "title": "affinity"
     },
     "clickhouse": {
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
           "description": "Enable ClickHouse for analytics",
-          "required": [],
           "title": "enabled",
           "type": "boolean"
         },
         "image": {
+          "additionalProperties": false,
           "properties": {
             "name": {
               "default": "clickhouse/clickhouse-server",
@@ -39,31 +42,26 @@
           "properties": {
             "keep_alive_timeout": {
               "default": "300",
-              "required": [],
               "title": "keep_alive_timeout",
               "type": "string"
             },
             "mark_cache_size": {
               "default": "67108864",
-              "required": [],
               "title": "mark_cache_size",
               "type": "string"
             },
             "max_concurrent_queries": {
               "default": "10",
-              "required": [],
               "title": "max_concurrent_queries",
               "type": "string"
             },
             "max_connections": {
               "default": "4",
-              "required": [],
               "title": "max_connections",
               "type": "string"
             },
             "uncompressed_cache_size": {
               "default": "134217728",
-              "required": [],
               "title": "uncompressed_cache_size",
               "type": "string"
             }
@@ -78,18 +76,18 @@
           "title": "properties"
         },
         "resources": {
+          "additionalProperties": false,
           "properties": {
             "limits": {
+              "additionalProperties": false,
               "properties": {
                 "cpu": {
                   "default": "1",
-                  "required": [],
                   "title": "cpu",
                   "type": "string"
                 },
                 "memory": {
                   "default": "4Gi",
-                  "required": [],
                   "title": "memory",
                   "type": "string"
                 }
@@ -102,16 +100,15 @@
               "type": "object"
             },
             "requests": {
+              "additionalProperties": false,
               "properties": {
                 "cpu": {
                   "default": "100m",
-                  "required": [],
                   "title": "cpu",
                   "type": "string"
                 },
                 "memory": {
                   "default": "2Gi",
-                  "required": [],
                   "title": "memory",
                   "type": "string"
                 }
@@ -140,14 +137,12 @@
     "configAnalysisRetentionDays": {
       "default": 60,
       "description": "Retention days for config analysis",
-      "required": [],
       "title": "configAnalysisRetentionDays",
       "type": "integer"
     },
     "configChangeRetentionDays": {
       "default": 60,
       "description": "Retention days for config changes",
-      "required": [],
       "title": "configChangeRetentionDays",
       "type": "integer"
     },
@@ -160,7 +155,6 @@
             "persist": {
               "default": true,
               "description": "If the database is embedded, setting this to true will persist the contents of the database through a persistent volume",
-              "required": [],
               "title": "persist",
               "type": "boolean"
             },
@@ -186,14 +180,12 @@
             "create": {
               "default": false,
               "description": "Setting create:true will create\n  - a postgres stateful set\n  - the secret \u0026\n  - the service to expose the postgres stateful set.\nBy default, the generated secret will use 'postgres' as the username and a randomly generated password.\nIf you need to set a custom username and password, you can populate a secret named 'postgres-connection' before install\nwith POSTGRES_USER and POSTGRES_PASSWORD\n\nIf create:false, a preexisting secret containing the URI to an existing postgres database must be provided\nThe URI must be in the format 'postgresql://\"$user\":\"$password\"@\"$host\"/\"$database\"'",
-              "required": [],
               "title": "create",
               "type": "boolean"
             },
             "enabled": {
               "default": false,
               "description": "Setting enabled to true will use an external postgres DB.\nYou can either use the embedded db or an external db.\nIf both is enabled, then embedded db will take precedence.",
-              "required": [],
               "title": "enabled",
               "type": "boolean"
             },
@@ -238,7 +230,6 @@
         "runMigrations": {
           "default": true,
           "description": "Run database migrations on startup",
-          "required": [],
           "title": "runMigrations",
           "type": "boolean"
         }
@@ -249,7 +240,6 @@
     "disablePostgrest": {
       "default": false,
       "description": "Set to true if you want to disable the postgrest service",
-      "required": [],
       "title": "disablePostgrest",
       "type": "boolean"
     },
@@ -276,7 +266,6 @@
       "items": {
         "required": []
       },
-      "required": [],
       "title": "extraEnvFrom",
       "type": "array"
     },
@@ -284,6 +273,7 @@
       "additionalProperties": true,
       "properties": {
         "affinity": {
+          "additionalProperties": false,
           "required": [],
           "title": "affinity"
         },
@@ -291,6 +281,7 @@
           "additionalProperties": true,
           "properties": {
             "connectionPooler": {
+              "additionalProperties": false,
               "properties": {
                 "enabled": {
                   "default": "false",
@@ -336,7 +327,6 @@
           "items": {
             "required": []
           },
-          "required": [],
           "title": "imagePullSecrets",
           "type": "array"
         },
@@ -357,6 +347,7 @@
           "title": "nodeSelector"
         },
         "otel": {
+          "additionalProperties": false,
           "properties": {
             "collector": {
               "default": "",
@@ -375,6 +366,7 @@
           "title": "otel"
         },
         "serviceAccount": {
+          "additionalProperties": false,
           "properties": {
             "annotations": {
               "additionalProperties": true,
@@ -392,6 +384,7 @@
           "title": "serviceAccount"
         },
         "serviceMonitor": {
+          "additionalProperties": false,
           "properties": {
             "enabled": {
               "default": "false",
@@ -412,7 +405,6 @@
           "items": {
             "required": []
           },
-          "required": [],
           "title": "tolerations",
           "type": "array"
         }
@@ -421,6 +413,7 @@
       "title": "global"
     },
     "image": {
+      "additionalProperties": false,
       "properties": {
         "name": {
           "default": "{{.Values.global.imagePrefix}}/config-db",
@@ -455,7 +448,6 @@
       "items": {
         "required": []
       },
-      "required": [],
       "title": "imagePullSecrets",
       "type": "array"
     },
@@ -476,7 +468,6 @@
         "enabled": {
           "default": false,
           "description": "Enable ingress for the application",
-          "required": [],
           "title": "enabled",
           "type": "boolean"
         },
@@ -491,7 +482,6 @@
           "items": {
             "required": []
           },
-          "required": [],
           "title": "tls",
           "type": "array"
         }
@@ -502,7 +492,6 @@
     "jsonLogs": {
       "default": true,
       "description": "Enable JSON formatted logs",
-      "required": [],
       "title": "jsonLogs",
       "type": "boolean"
     },
@@ -550,12 +539,45 @@
       "required": [],
       "title": "otel"
     },
+    "plugins": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "locations": {
+          "additionalProperties": false,
+          "properties": {
+            "aws": {
+              "default": true,
+              "description": "Enable AWS locations plugin",
+              "title": "aws",
+              "type": "boolean"
+            },
+            "kubernetes": {
+              "default": true,
+              "description": "Enable kubernetes locations plugin",
+              "title": "kubernetes",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "locations",
+          "type": "object"
+        }
+      },
+      "required": [
+        "locations"
+      ],
+      "title": "plugins"
+    },
     "podSecurityContext": {
       "additionalProperties": true,
       "properties": {
         "fsGroup": {
           "default": 1000,
-          "required": [],
           "title": "fsGroup",
           "type": "integer"
         }
@@ -572,7 +594,6 @@
     "replicas": {
       "default": 1,
       "description": "Number of replicas for the deployment",
-      "required": [],
       "title": "replicas",
       "type": "integer"
     },
@@ -580,16 +601,15 @@
       "additionalProperties": false,
       "properties": {
         "limits": {
+          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "500m",
-              "required": [],
               "title": "cpu",
               "type": "string"
             },
             "memory": {
               "default": "4Gi",
-              "required": [],
               "title": "memory",
               "type": "string"
             }
@@ -602,16 +622,15 @@
           "type": "object"
         },
         "requests": {
+          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "200m",
-              "required": [],
               "title": "cpu",
               "type": "string"
             },
             "memory": {
               "default": "1Gi",
-              "required": [],
               "title": "memory",
               "type": "string"
             }
@@ -633,14 +652,13 @@
     "scrapeRuleConfigMaps": {
       "description": "a list of configmaps to load scrape rules from, the configmap should have a single entry called \"config.yaml\"",
       "items": {
-        "required": [],
         "type": "string"
       },
-      "required": [],
       "title": "scrapeRuleConfigMaps",
       "type": "array"
     },
     "securityContext": {
+      "additionalProperties": false,
       "required": [],
       "title": "securityContext"
     },
@@ -655,7 +673,6 @@
         "create": {
           "default": true,
           "description": "Create a new service account",
-          "required": [],
           "title": "create",
           "type": "boolean"
         },
@@ -671,42 +688,36 @@
             "clusterRole": {
               "default": true,
               "description": "Whether to create cluster-wide or namespaced roles",
-              "required": [],
               "title": "clusterRole",
               "type": "boolean"
             },
             "configmaps": {
               "default": true,
               "description": "for secret management with valueFrom",
-              "required": [],
               "title": "configmaps",
               "type": "boolean"
             },
             "exec": {
               "default": true,
               "description": "for kubernetesFile lookups",
-              "required": [],
               "title": "exec",
               "type": "boolean"
             },
             "readAll": {
               "default": true,
               "description": "for use with kubernetes resource lookups",
-              "required": [],
               "title": "readAll",
               "type": "boolean"
             },
             "secrets": {
               "default": true,
               "description": "for secret management with valueFrom",
-              "required": [],
               "title": "secrets",
               "type": "boolean"
             },
             "tokenRequest": {
               "default": true,
               "description": "for secret management with valueFrom",
-              "required": [],
               "title": "tokenRequest",
               "type": "boolean"
             }
@@ -719,6 +730,7 @@
       "title": "serviceAccount"
     },
     "serviceMonitor": {
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": "false",
@@ -740,27 +752,26 @@
       "items": {
         "required": []
       },
-      "required": [],
       "title": "tolerations",
       "type": "array"
     },
     "upstream": {
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
           "description": "Enable upstream configuration",
-          "required": [],
           "title": "enabled",
           "type": "boolean"
         },
         "pageSize": {
           "default": 500,
           "description": "Page size for upstream communication",
-          "required": [],
           "title": "pageSize",
           "type": "integer"
         },
         "secretKeyRef": {
+          "additionalProperties": false,
           "properties": {
             "name": {
               "default": "config-db-upstream",
@@ -781,7 +792,6 @@
       "items": {
         "required": []
       },
-      "required": [],
       "title": "volumeMounts",
       "type": "array"
     },
@@ -790,7 +800,6 @@
       "items": {
         "required": []
       },
-      "required": [],
       "title": "volumes",
       "type": "array"
     }
