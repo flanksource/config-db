@@ -133,8 +133,6 @@ jobs:
           file: ./build/Dockerfile
           push: true
           tags: localhost:5000/flanksource/config-db:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Package helm chart
         run: |
