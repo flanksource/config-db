@@ -920,11 +920,21 @@ func updateLastScrapedTime(ctx api.ScrapeContext, ids []string) error {
 	batchSize := 5000
 	batches := lo.Chunk(ids, batchSize)
 
+	scrapeTime := time.Now()
 	for _, batch := range batches {
+		rows := lo.Map(batch, func(id string, _ int) dutyModels.ConfigItemLastScrapedTime {
+			return dutyModels.ConfigItemLastScrapedTime{
+				ConfigID:        uuid.MustParse(id),
+				LastScrapedTime: &scrapeTime,
+			}
+		})
+
 		if err := ctx.DB().
-			Model(&dutyModels.ConfigItemLastScrapedTime{}).
-			Where("config_id in (?)", batch).
-			Update("last_scraped_time", duty.Now()).Error; err != nil {
+			Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "config_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"last_scraped_time"}),
+			}).
+			Create(&rows).Error; err != nil {
 			return err
 		}
 	}

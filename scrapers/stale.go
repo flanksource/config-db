@@ -46,16 +46,20 @@ func DeleteStaleConfigItems(ctx context.Context, staleTimeout string, scraperID 
 		SET
 			deleted_at = NOW(),
 			delete_reason = ?
-		FROM config_items_last_scraped_time
+		FROM config_items ci
+		LEFT JOIN config_items_last_scraped_time lst ON lst.config_id = ci.id
 		WHERE
-			config_items_last_scraped_time.config_id = config_items.id AND
-			((NOW() - config_items_last_scraped_time.last_scraped_time) > INTERVAL '1 SECOND' * ?) AND
+			config_items.id = ci.id AND
 			config_items.deleted_at IS NULL AND
-			config_items.scraper_id = ?
+			config_items.scraper_id = ? AND
+			(
+				((NOW() - lst.last_scraped_time) > INTERVAL '1 SECOND' * ?) OR
+				(lst.config_id IS NULL AND (NOW() - ci.created_at) > INTERVAL '1 SECOND' * ?)
+			)
 		RETURNING config_items.type`
 
 	var deletedConfigs []models.ConfigItem
-	result := ctx.DB().Raw(deleteQuery, v1.DeletedReasonStale, staleDuration.Seconds(), scraperID).Scan(&deletedConfigs)
+	result := ctx.DB().Raw(deleteQuery, v1.DeletedReasonStale, scraperID, staleDuration.Seconds(), staleDuration.Seconds()).Scan(&deletedConfigs)
 	if err := result.Error; err != nil {
 		return 0, fmt.Errorf("failed to delete stale config items: %w", err)
 	}
