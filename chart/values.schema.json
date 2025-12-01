@@ -1,15 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "additionalProperties": false,
   "properties": {
     "affinity": {
-      "additionalProperties": false,
       "description": "Affinity rules for pod scheduling",
       "required": [],
       "title": "affinity"
     },
     "clickhouse": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
@@ -18,7 +15,6 @@
           "type": "boolean"
         },
         "image": {
-          "additionalProperties": false,
           "properties": {
             "name": {
               "default": "clickhouse/clickhouse-server",
@@ -76,10 +72,8 @@
           "title": "properties"
         },
         "resources": {
-          "additionalProperties": false,
           "properties": {
             "limits": {
-              "additionalProperties": false,
               "properties": {
                 "cpu": {
                   "default": "1",
@@ -100,7 +94,6 @@
               "type": "object"
             },
             "requests": {
-              "additionalProperties": false,
               "properties": {
                 "cpu": {
                   "default": "100m",
@@ -273,7 +266,6 @@
       "additionalProperties": true,
       "properties": {
         "affinity": {
-          "additionalProperties": false,
           "required": [],
           "title": "affinity"
         },
@@ -281,7 +273,6 @@
           "additionalProperties": true,
           "properties": {
             "connectionPooler": {
-              "additionalProperties": false,
               "properties": {
                 "enabled": {
                   "default": "false",
@@ -347,7 +338,6 @@
           "title": "nodeSelector"
         },
         "otel": {
-          "additionalProperties": false,
           "properties": {
             "collector": {
               "default": "",
@@ -366,7 +356,6 @@
           "title": "otel"
         },
         "serviceAccount": {
-          "additionalProperties": false,
           "properties": {
             "annotations": {
               "additionalProperties": true,
@@ -384,7 +373,6 @@
           "title": "serviceAccount"
         },
         "serviceMonitor": {
-          "additionalProperties": false,
           "properties": {
             "enabled": {
               "default": "false",
@@ -413,7 +401,6 @@
       "title": "global"
     },
     "image": {
-      "additionalProperties": false,
       "properties": {
         "name": {
           "default": "{{.Values.global.imagePrefix}}/config-db",
@@ -540,7 +527,6 @@
       "title": "otel"
     },
     "plugins": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": true,
@@ -548,7 +534,6 @@
           "type": "boolean"
         },
         "locations": {
-          "additionalProperties": false,
           "properties": {
             "aws": {
               "default": true,
@@ -601,7 +586,6 @@
       "additionalProperties": false,
       "properties": {
         "limits": {
-          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "500m",
@@ -622,7 +606,6 @@
           "type": "object"
         },
         "requests": {
-          "additionalProperties": false,
           "properties": {
             "cpu": {
               "default": "200m",
@@ -658,7 +641,6 @@
       "type": "array"
     },
     "securityContext": {
-      "additionalProperties": false,
       "required": [],
       "title": "securityContext"
     },
@@ -730,7 +712,6 @@
       "title": "serviceAccount"
     },
     "serviceMonitor": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": "false",
@@ -756,7 +737,6 @@
       "type": "array"
     },
     "upstream": {
-      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": false,
@@ -771,7 +751,6 @@
           "type": "integer"
         },
         "secretKeyRef": {
-          "additionalProperties": false,
           "properties": {
             "name": {
               "default": "config-db-upstream",
