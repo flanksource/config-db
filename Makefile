@@ -226,7 +226,7 @@ helm-schema:
 	GOBIN=$(LOCALBIN) go install github.com/dadav/helm-schema/cmd/helm-schema@latest
 
 values.schema.json: helm-schema
-	cd chart && ../.bin/helm-schema -r -f values.yaml && cd -
+	cd chart && ../.bin/helm-schema -r -k additionalProperties  -f values.yaml && cd -
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.
