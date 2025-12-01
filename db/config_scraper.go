@@ -116,7 +116,7 @@ func PersistScrapeConfigFromCRD(ctx context.Context, scrapeConfig *v1.ScrapeConf
 	}
 
 	if existing.DeletedAt != nil {
-		if err := ctx.DB().Debug().Model(&models.ConfigScraper{}).
+		if err := ctx.DB().Model(&models.ConfigScraper{}).
 			Where("id = ?", configScraper.ID).
 			Update("deleted_at", gorm.Expr("NULL")).Error; err != nil {
 			return models.ConfigScraper{}, changed, fmt.Errorf("error reseting deleted_at for scraper[%s]: %w", configScraper.ID, err)
