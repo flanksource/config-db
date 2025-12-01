@@ -232,4 +232,6 @@ var (
 	DeletedReasonFromDeleteField ConfigDeleteReason = "FROM_DELETE_FIELD"
 
 	DeleteReasonEvent ConfigDeleteReason = "FROM_EVENT"
+
+	DeleteReasonScraperDeleted ConfigDeleteReason = "SCRAPER_DELETED"
 )

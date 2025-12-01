@@ -26,6 +26,7 @@ var (
 	ConfigAnalysisRetentionDays int
 	ConfigChangeRetentionDays   int
 	ConfigItemRetentionDays     int
+	ConfigScraperRetentionDays  = 30
 )
 
 var cleanupJobs = []*job.Job{
@@ -177,10 +178,17 @@ var CleanupConfigScrapers = &job.Job{
 
 		for _, id := range deletedIDs {
 			if err := cdb.DeleteScrapeConfig(ctx.Context, id); err != nil {
-				ctx.History.AddErrorf("error deleting scrape config[%s]: %v", id, err)
+				ctx.History.AddErrorf("error soft deleting scrape config[%s]: %v", id, err)
 			} else {
 				ctx.History.SuccessCount += 1
 			}
+		}
+
+		// Hard delete old config scrapers
+		retention := ctx.Properties().Duration("config_scraper.retention.period", (time.Hour * 24 * time.Duration(ConfigScraperRetentionDays)))
+		days := int64(retention.Hours() / 24)
+		if err := ctx.DB().Exec(`DELETE FROM config_scrapers WHERE (NOW() - deleted_at ) > INTERVAL '1 day' * ?`, days).Error; err != nil {
+			ctx.History.AddErrorf("error hard deleting config_scrapers: %v", err)
 		}
 
 		return nil
