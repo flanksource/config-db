@@ -39,12 +39,17 @@ type Pipeline struct {
 	Name               string              `json:"name"`
 	Folder             string              `json:"folder"`
 	Variables          map[string]Variable `json:"variables,omitempty"`
-	TemplateParameters map[string]string   `json:"templateParameters,omitempty"`
+	TemplateParameters map[string]any      `json:"templateParameters,omitempty"`
 	Runs               []v1.ChangeResult   `json:"-"`
 }
 
 func (p Pipeline) GetLabels() map[string]string {
-	var labels = p.TemplateParameters
+	var labels = map[string]string{}
+
+	for k, v := range p.TemplateParameters {
+		labels[k] = fmt.Sprintf("%v", v)
+
+	}
 	for k, v := range p.Variables {
 		labels[k] = v.Value
 	}
@@ -80,7 +85,7 @@ type Variable struct {
 type Run struct {
 	Links              map[string]Link     `json:"_links,omitempty"`
 	Variables          map[string]Variable `json:"variables,omitempty"`
-	TemplateParameters map[string]string   `json:"templateParameters,omitempty"`
+	TemplateParameters map[string]any      `json:"templateParameters,omitempty"`
 	State              string              `json:"state"`
 	Result             string              `json:"result"`
 	CreatedDate        time.Time           `json:"createdDate"`
@@ -93,7 +98,10 @@ type Run struct {
 }
 
 func (r Run) GetTags() map[string]string {
-	var tags = r.TemplateParameters
+	var tags = map[string]string{}
+	for k, v := range r.TemplateParameters {
+		tags[k] = fmt.Sprintf("%v", v)
+	}
 	for k, v := range r.Variables {
 		tags[k] = v.Value
 	}
