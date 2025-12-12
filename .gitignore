@@ -28,3 +28,5 @@ TODO.md
 .db/
 db/
 .DS_Store
+out/
+bin/

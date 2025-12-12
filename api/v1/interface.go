@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flanksource/clicky"
+	"github.com/flanksource/clicky/api"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
@@ -42,18 +44,18 @@ func IsMoreSevere(s1, s2 models.Severity) bool {
 // AnalysisResult ...
 // +kubebuilder:object:generate=false
 type AnalysisResult struct {
-	Summary         string              // Summary of the analysis
-	Analysis        map[string]any      // Detailed metadata of the analysis
-	AnalysisType    models.AnalysisType // Type of analysis, e.g. availability, compliance, cost, security, performance.
-	Severity        models.Severity     // Severity of the analysis, e.g. critical, high, medium, low, info
-	Source          string              // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
-	Analyzer        string              // Very brief description of the analysis
-	Messages        []string            // A detailed paragraphs of the analysis
-	Status          string
-	FirstObserved   *time.Time
-	LastObserved    *time.Time
-	Error           error
-	ExternalConfigs []ExternalID
+	Summary         string              `json:"summary,omitempty"`       // Summary of the analysis
+	Analysis        map[string]any      `json:"analysis,omitempty"`      // Detailed metadata of the analysis
+	AnalysisType    models.AnalysisType `json:"analysis_type,omitempty"` // Type of analysis, e.g. availability, compliance, cost, security, performance.
+	Severity        models.Severity     `json:"severity,omitempty"`      // Severity of the analysis, e.g. critical, high, medium, low, info
+	Source          string              `json:"source,omitempty"`        // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
+	Analyzer        string              `json:"analyzer,omitempty"`      // Very brief description of the analysis
+	Messages        []string            `json:"messages,omitempty"`      // A detailed paragraphs of the analysis
+	Status          string              `json:"status,omitempty"`
+	FirstObserved   *time.Time          `json:"first_observed,omitempty" pretty:"format=date"`
+	LastObserved    *time.Time          `json:"last_observed,omitempty" pretty:"format=date"`
+	Error           error               `json:"error,omitempty"`
+	ExternalConfigs []ExternalID        `json:"external_configs,omitempty"`
 }
 
 // ToConfigAnalysis converts this analysis result to a config analysis
@@ -75,33 +77,33 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 
 // +kubebuilder:object:generate=false
 type ChangeResult struct {
-	ExternalID string `json:"external_id"`
-	ConfigType string `json:"config_type"`
+	ExternalID string `json:"external_id,omitempty"`
+	ConfigType string `json:"config_type,omitempty"`
 
 	// Scraper id of the config for external config lookup.
 	// If left empty, the scraper id is the requester's scraper id.
 	// Use `all` to disregard scraper id (useful when changes come from different scraper).
-	ScraperID string `json:"scraper_id"`
+	ScraperID string `json:"scraper_id,omitempty"`
 
-	ExternalChangeID string         `json:"external_change_id"`
-	Action           ChangeAction   `json:"action"`
-	ChangeType       string         `json:"change_type"`
-	Patches          string         `json:"patches"`
-	Summary          string         `json:"summary"`
-	Severity         string         `json:"severity"`
-	Source           string         `json:"source"`
-	CreatedBy        *string        `json:"created_by"`
-	CreatedAt        *time.Time     `json:"created_at"`
-	Details          map[string]any `json:"details"`
+	ExternalChangeID string         `json:"external_change_id,omitempty"`
+	Action           ChangeAction   `json:"action,omitempty"`
+	ChangeType       string         `json:"change_type,omitempty"`
+	Patches          string         `json:"patches,omitempty"`
+	Summary          string         `json:"summary,omitempty"`
+	Severity         string         `json:"severity,omitempty"`
+	Source           string         `json:"source,omitempty"`
+	CreatedBy        *string        `json:"created_by,omitempty"`
+	CreatedAt        *time.Time     `json:"created_at,omitempty" pretty:"format=date"`
+	Details          map[string]any `json:"details,omitempty"`
 	Diff             *string        `json:"diff,omitempty"`
 
 	ConfigID string `json:"configID,omitempty"`
 
 	// UpdateExisting indicates whether to update an existing change
-	UpdateExisting bool `json:"update_existing"`
+	UpdateExisting bool `json:"update_existing,omitempty"`
 
 	// For storing struct as map[string]any
-	_map map[string]any `json:"-"`
+	_map map[string]any `json:"-,omitempty"`
 }
 
 func (r *ChangeResult) AsMap() map[string]any {
@@ -593,10 +595,62 @@ type DirectedRelationship struct {
 	Parent   bool
 }
 
+// +kubebuilder:object:generate=false
+type FullScrapeResults struct {
+	Configs            []api.PrettyRow             `json:"configs,omitempty"`
+	Analysis           []models.ConfigAnalysis     `json:"analysis,omitempty"`
+	Changes            []models.ConfigChange       `json:"changes,omitempty"`
+	Relationships      []models.ConfigRelationship `json:"relationships,omitempty"`
+	ExternalRoles      []models.ExternalRole       `json:"external_roles,omitempty"`
+	ExternalUsers      []models.ExternalUser       `json:"external_users,omitempty"`
+	ExternalGroups     []models.ExternalGroup      `json:"external_groups,omitempty"`
+	ExternalUserGroups []models.ExternalUserGroup  `json:"external_user_groups,omitempty"`
+	ConfigAccess       []ExternalConfigAccess      `json:"config_access,omitempty"`
+	ConfigAccessLogs   []ExternalConfigAccessLog   `json:"config_access_logs,omitempty"`
+}
+
+func MergeScrapeResults(results ...ScrapeResults) FullScrapeResults {
+	full := FullScrapeResults{}
+	for _, res := range results {
+		for _, r := range res {
+			if r.Error != nil {
+				continue
+			}
+
+			if r.AnalysisResult != nil {
+				full.Analysis = append(full.Analysis, r.AnalysisResult.ToConfigAnalysis())
+			}
+
+			for _, change := range r.Changes {
+				configChange := models.ConfigChange{
+					ChangeType: change.ChangeType,
+					Severity:   models.Severity(change.Severity),
+					Source:     change.Source,
+					Summary:    change.Summary,
+					CreatedAt:  change.CreatedAt,
+				}
+				full.Changes = append(full.Changes, configChange)
+			}
+
+			if !r.IsMetadataOnly() {
+				full.Configs = append(full.Configs, r)
+			}
+
+			full.ExternalRoles = append(full.ExternalRoles, r.ExternalRoles...)
+			full.ExternalUsers = append(full.ExternalUsers, r.ExternalUsers...)
+			full.ExternalGroups = append(full.ExternalGroups, r.ExternalGroups...)
+			full.ExternalUserGroups = append(full.ExternalUserGroups, r.ExternalUserGroups...)
+			full.ConfigAccess = append(full.ConfigAccess, r.ConfigAccess...)
+			full.ConfigAccessLogs = append(full.ConfigAccessLogs, r.ConfigAccessLogs...)
+		}
+	}
+	return full
+}
+
 // ScrapeResult ...
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
-	types.NoOpResourceSelectable
+	types.NoOpResourceSelectable `pretty:"hide"`
 
 	// ID is the id of the config at it's origin (i.e. the external id)
 	// Eg: For Azure, it's the azure resource id and for kuberetenes it's the object UID.
@@ -608,19 +662,19 @@ type ScrapeResult struct {
 	ConfigID *string `json:"-"`
 
 	CreatedAt           *time.Time          `json:"created_at,omitempty"`
-	DeletedAt           *time.Time          `json:"deleted_at,omitempty"`
-	DeleteReason        ConfigDeleteReason  `json:"delete_reason,omitempty"`
+	DeletedAt           *time.Time          `json:"deleted_at,omitempty" pretty:"hide"`
+	DeleteReason        ConfigDeleteReason  `json:"delete_reason,omitempty" pretty:"hide"`
 	LastModified        time.Time           `json:"last_modified,omitempty"`
-	ConfigClass         string              `json:"config_class,omitempty"`
+	ConfigClass         string              `json:"config_class,omitempty" pretty:"hide"`
 	Type                string              `json:"config_type,omitempty"`
 	Status              string              `json:"status,omitempty"` // status extracted from the config itself
 	Health              models.Health       `json:"health,omitempty"`
-	Ready               bool                `json:"ready,omitempty"`
+	Ready               bool                `json:"ready,omitempty" pretty:"hide"`
 	Name                string              `json:"name,omitempty"`
 	Description         string              `json:"description,omitempty"`
-	Aliases             []string            `json:"aliases,omitempty"`
-	Source              string              `json:"source,omitempty"`
-	Config              any                 `json:"config,omitempty"`
+	Aliases             []string            `json:"aliases,omitempty" pretty:"hide"`
+	Source              string              `json:"source,omitempty" pretty:"hide"`
+	Config              any                 `json:"config,omitempty" pretty:"hide"`
 	Locations           []string            `json:"locations,omitempty"`
 	Format              string              `json:"format,omitempty"`
 	Icon                string              `json:"icon,omitempty"`
@@ -666,6 +720,103 @@ type ScrapeResult struct {
 
 	// Only for GCP Scraper
 	GCPStructPB *structpb.Struct `json:"-"`
+}
+
+func (s ScrapeResult) Debug() api.Text {
+	t := clicky.Text("")
+
+	t = t.Append("ID: ", "text-muted").Append(s.ID)
+	t = t.Append(" Name: ", "text-muted").Append(s.Name)
+	t = t.Append(" Type: ", "text-muted").Append(s.Type)
+	t = t.Append(" Status: ", "text-muted").Append(s.Status)
+	if s.Health != "" && s.Health != models.HealthUnknown {
+		t = t.Append(" Health: ", "text-muted").Append(string(s.Health))
+	}
+	if s.Source != "" {
+		t = t.NewLine().Append("Source: ", "text-muted").Append(s.Source)
+	}
+	if s.ScraperLess {
+		t = t.NewLine().Append("Scraper Less: ", "text-muted").Append("true")
+	}
+	if s.Icon != "" {
+		t = t.NewLine().Append("Icon: ", "text-muted").Append(s.Icon)
+	}
+
+	if s.Error != nil {
+		t = t.Append(" Error: ", "text-red-500").Append(s.Error.Error())
+	}
+	if s.Aliases != nil && len(s.Aliases) > 0 {
+		t = t.Append(" Aliases: ", "text-muted").Append(strings.Join(s.Aliases, ", "))
+	}
+	if s.Description != "" {
+		t = t.NewLine().Append("Description: ", "text-muted").Append(s.Description)
+	}
+
+	if s.Locations != nil && len(s.Locations) > 0 {
+		t = t.NewLine().Append("Locations: ", "text-muted").Append(strings.Join(s.Locations, ", "))
+	}
+
+	if s.Labels != nil && len(s.Labels) > 0 {
+		t = t.NewLine().Append("Labels: ", "text-muted").Append(clicky.Map(s.Labels))
+	}
+	if s.Tags != nil && len(s.Tags) > 0 {
+		t = t.NewLine().Append("Tags: ", "text-muted").Append(clicky.Map(s.Tags.AsMap()))
+	}
+	if s.Properties != nil && len(s.Properties) > 0 {
+		t = t.NewLine().Append("Properties: ", "text-muted").Append(clicky.Map(s.Properties.AsMap()))
+	}
+
+	if s.Changes != nil && len(s.Changes) > 0 {
+		t = t.NewLine().Append("Changes: ", "text-muted")
+		for _, change := range s.Changes {
+			t = t.NewLine().Append(fmt.Sprintf(" - %s: %s", change.ChangeType, change.Summary))
+		}
+	}
+
+	switch v := s.Config.(type) {
+	case string:
+		if s.Format == "json" || s.Format == "" {
+			t = t.NewLine().Append(clicky.CodeBlock("json", v)).NewLine()
+		} else {
+			t = t.NewLine().Append(clicky.CodeBlock(s.Format, v)).NewLine()
+		}
+	case map[string]any:
+		t = t.NewLine().Append(clicky.Map(v), "max-w-[100ch]").NewLine()
+	case map[string]string:
+		t = t.NewLine().Append(clicky.Map(v), "max-w-[100ch]").NewLine()
+	default:
+		t = t.NewLine().Append(fmt.Sprintf("%v", v)).NewLine()
+	}
+
+	return t
+}
+
+func (s ScrapeResult) PrettyRow(options interface{}) map[string]api.Text {
+	row := make(map[string]api.Text)
+	row["ID"] = clicky.Text(s.ID)
+	row["Name"] = clicky.Text(s.Name)
+	row["Type"] = clicky.Text(s.Type)
+	row["Health"] = clicky.Text(string(s.Health))
+	row["Status"] = clicky.Text(s.Status)
+	if s.Error != nil {
+		row["Error"] = clicky.Text(s.Error.Error())
+	} else {
+		row["Error"] = clicky.Text("")
+	}
+	clicky.MustPrint([]map[string]api.Text{row}, clicky.FormatOptions{JSON: true})
+	clicky.MustPrint([]map[string]api.Text{row}, clicky.FormatOptions{Pretty: true})
+
+	return row
+}
+
+func (s ScrapeResult) IsMetadataOnly() bool {
+	return s.Config == nil
+}
+
+func (s ScrapeResult) Pretty() api.Text {
+	t := clicky.Text("")
+
+	return t
 }
 
 // +kubebuilder:object:generate=false

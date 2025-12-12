@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/clicky"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/samber/lo"
@@ -59,7 +59,7 @@ func (s SqlScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		defer db.Close() // nolint:errcheck
 
 		if ctx.IsDebug() {
-			ctx.Logger.Infof("SQL query:\n%s", config.Query)
+			ctx.Logger.Infof(clicky.CodeBlock("sql", config.Query).ANSI())
 		}
 
 		rows, err := QuerySQL(db, config.Query)
@@ -69,7 +69,8 @@ func (s SqlScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 
 		if ctx.IsDebug() {
-			ctx.Logger.Infof("SQL response: %d rows\n%s", rows.Count, logger.Pretty(rows))
+			d, _ := clicky.Format(rows)
+			ctx.Logger.Infof("SQL response: %d rows\n%s", rows.Count, d)
 		}
 
 		for _, _row := range rows.Rows {
