@@ -1,0 +1,20 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-git-checkout
+spec:
+  schedule: "@every 15m"
+  exec:
+    - name: run-script-from-repo
+      type: Custom::Config
+      id: $.id
+      script: |
+        #!/bin/bash
+        # This script is executed in the context of the checked out repository
+        # The working directory is set to the cloned repo
+        ./scripts/generate-config.sh
+      checkout:
+        url: https://github.com/myorg/infrastructure-configs
+        branch: main
+        # Optional: use connection for private repos
+        # connection: connection://github/myorg

@@ -1,0 +1,31 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-simple
+spec:
+  schedule: "@every 5m"
+  exec:
+    - name: list-ec2-instances
+      type: AWS::EC2::Instance
+      id: $.id
+      script: |
+        #!/bin/bash
+        # Simple inline bash script that outputs JSON array
+        cat <<'EOF'
+        [
+          {
+            "id": "i-1234567890abcdef0",
+            "name": "web-server-1",
+            "instanceType": "t3.medium",
+            "state": "running",
+            "privateIp": "10.0.1.100"
+          },
+          {
+            "id": "i-0987654321fedcba0",
+            "name": "db-server-1",
+            "instanceType": "r5.large",
+            "state": "running",
+            "privateIp": "10.0.2.50"
+          }
+        ]
+        EOF

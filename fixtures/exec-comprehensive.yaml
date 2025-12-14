@@ -1,0 +1,99 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-comprehensive
+spec:
+  schedule: "@every 15m"
+  exec:
+    # Example 1: AWS inventory with connections
+    - name: aws-ec2-inventory
+      type: AWS::EC2::Instance
+      id: $.InstanceId
+      name: $.Tags[?(@.Key=="Name")].Value | [0]
+      class: $.InstanceType
+      script: |
+        #!/bin/bash
+        aws ec2 describe-instances \
+          --filters "Name=instance-state-name,Values=running" \
+          --query 'Reservations[].Instances[]' \
+          --output json
+      connections:
+        aws:
+          connection: connection://aws/production
+      transform:
+        exclude:
+          - jsonpath: $.NetworkInterfaces
+          - jsonpath: $.SecurityGroups
+
+    # Example 2: Kubernetes resources with Python
+    - name: k8s-deployments-python
+      type: Kubernetes::Deployment
+      id: $.metadata.uid
+      name: $.metadata.name
+      script: |
+        #!/usr/bin/env python3
+        import json
+        import subprocess
+
+        result = subprocess.run(
+            ['kubectl', 'get', 'deployments', '-A', '-o', 'json'],
+            capture_output=True, text=True
+        )
+
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            print(json.dumps(data.get('items', []), indent=2))
+      connections:
+        kubernetes:
+          connection: connection://kubernetes/prod-cluster
+
+    # Example 3: Git checkout with custom script
+    - name: infrastructure-configs
+      type: Custom::Config
+      id: $.id
+      name: $.name
+      script: |
+        #!/bin/bash
+        # Script runs in the cloned repository directory
+        # Generate configs from Terraform/scripts in the repo
+        ./scripts/export-infrastructure.sh --format json
+      checkout:
+        url: https://github.com/myorg/infra-configs
+        branch: main
+
+    # Example 4: Custom monitoring data with env vars
+    - name: monitoring-metrics
+      type: Custom::Metric
+      id: $.id
+      name: $.name
+      script: |
+        #!/usr/bin/env node
+        // Access environment variables
+        const endpoint = process.env.METRICS_ENDPOINT;
+        const apiKey = process.env.API_KEY;
+
+        // Mock data - in real usage, fetch from metrics API
+        const metrics = [{
+          id: "cpu-usage",
+          name: "CPU Usage",
+          value: 45.2,
+          threshold: 80
+        }];
+
+        console.log(JSON.stringify(metrics, null, 2));
+      env:
+        - name: METRICS_ENDPOINT
+          value: https://metrics.example.com/api
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: metrics-secret
+              key: api-key
+      transform:
+        relationship:
+          - filter: value > threshold * 0.9
+            expr: |
+              [{
+                "type": "Alert::Warning",
+                "name": config.name + " approaching threshold"
+              }].toJSON()
