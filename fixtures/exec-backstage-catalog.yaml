@@ -1,0 +1,201 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-backstage-catalog
+  namespace: default
+spec:
+  schedule: "@every 1h"
+  exec:
+    - name: backstage-catalog-scraper
+      type: $.type
+      id: $.id
+      name: $.name
+      description: $.metadata.description
+
+      script: |
+        #!/usr/bin/env python3
+        import json
+        import yaml
+        from pathlib import Path
+        import sys
+
+        # Target kinds to scrape
+        TARGET_KINDS = ['Component', 'API', 'System', 'Domain']
+
+        entities = []
+        catalog_path = Path('packages/catalog-model/examples')
+
+        # Check if catalog path exists
+        if not catalog_path.exists():
+            print(f"Error: Catalog path {catalog_path} does not exist", file=sys.stderr)
+            sys.exit(1)
+
+        # Recursively find all YAML files
+        for yaml_file in catalog_path.rglob('*.yaml'):
+            try:
+                with open(yaml_file, 'r') as f:
+                    # Handle multi-document YAML files
+                    docs = list(yaml.safe_load_all(f))
+
+                for data in docs:
+                    # Skip if not a valid Backstage entity
+                    if not isinstance(data, dict) or 'kind' not in data or 'metadata' not in data:
+                        continue
+
+                    kind = data.get('kind', '')
+
+                    # Filter by target kinds
+                    if kind not in TARGET_KINDS:
+                        continue
+
+                    # Extract metadata and spec
+                    metadata = data.get('metadata', {})
+                    spec = data.get('spec', {})
+
+                    # Build tags list from multiple sources
+                    tags = []
+
+                    # Add metadata.tags
+                    if 'tags' in metadata and isinstance(metadata['tags'], list):
+                        tags.extend(metadata['tags'])
+
+                    # Add lifecycle as tag
+                    if 'lifecycle' in spec:
+                        tags.append(f"lifecycle:{spec['lifecycle']}")
+
+                    # Add type as tag
+                    if 'type' in spec:
+                        tags.append(f"type:{spec['type']}")
+
+                    # Add labels as tags (key:value format)
+                    if 'labels' in metadata and isinstance(metadata['labels'], dict):
+                        for key, value in metadata['labels'].items():
+                            tags.append(f"{key}:{value}")
+
+                    # Build entity object
+                    entity = {
+                        'id': metadata.get('name', ''),
+                        'type': f"Backstage::{kind}",
+                        'name': metadata.get('name', ''),
+                        'metadata': metadata,
+                        'spec': spec,
+                        'tags': tags,
+                        'source_file': str(yaml_file.relative_to(catalog_path))
+                    }
+
+                    entities.append(entity)
+
+            except Exception as e:
+                # Log error but continue processing other files
+                print(f"Error parsing {yaml_file}: {e}", file=sys.stderr)
+                continue
+
+        # Output JSON array
+        print(json.dumps(entities, indent=2))
+
+      checkout:
+        url: https://github.com/backstage/backstage
+        branch: master
+        depth: 1
+
+      tags:
+        - name: lifecycle
+          jsonpath: $.spec.lifecycle
+        - name: type
+          jsonpath: $.spec.type
+        - name: domain
+          jsonpath: $.spec.domain
+        - name: owner
+          jsonpath: $.spec.owner
+
+      properties:
+        - name: type
+          filter: config_type startsWith 'Backstage::'
+          jsonpath: $.spec.type
+        - name: lifecycle
+          filter: config_type startsWith 'Backstage::'
+          jsonpath: $.spec.lifecycle
+        - name: source_file
+          filter: config_type startsWith 'Backstage::'
+          jsonpath: $.source_file
+
+      transform:
+        exclude:
+          - jsonpath: $.tags
+          - jsonpath: $.source_file
+
+        relationship:
+          # Component/API/System/Domain -> Owner (Team)
+          - filter: has(config.spec.owner)
+            expr: |
+              [{
+                "type": "Backstage::Team",
+                "name": config.spec.owner
+              }].toJSON()
+
+          # Component/System -> Domain
+          - filter: (config_type == 'Backstage::Component' || config_type == 'Backstage::System') && has(config.spec.domain)
+            expr: |
+              [{
+                "type": "Backstage::Domain",
+                "name": config.spec.domain
+              }].toJSON()
+
+          # Component -> System (belongs to)
+          - filter: config_type == 'Backstage::Component' && has(config.spec.system)
+            expr: |
+              [{
+                "type": "Backstage::System",
+                "name": config.spec.system
+              }].toJSON()
+
+          # Component -> Dependencies (dependsOn)
+          - filter: config_type == 'Backstage::Component' && has(config.spec.dependsOn)
+            expr: |
+              config.spec.dependsOn.map(dep, {
+                "type": dep.startsWith("component:") ? "Backstage::Component" :
+                        dep.startsWith("resource:") ? "Backstage::Resource" :
+                        dep.startsWith("api:") ? "Backstage::API" :
+                        "Backstage::Component",
+                "name": dep.contains(":") ? dep.split(":")[1] : dep
+              }).toJSON()
+
+          # Component -> APIs consumed (consumesApis / apiConsumedBy)
+          - filter: config_type == 'Backstage::Component' && has(config.spec.consumesApis)
+            expr: |
+              config.spec.consumesApis.map(api, {
+                "type": "Backstage::API",
+                "name": api.contains(":") ? api.split(":")[1] : api
+              }).toJSON()
+
+          # API -> Owner
+          - filter: config_type == 'Backstage::API' && has(config.spec.owner)
+            expr: |
+              [{
+                "type": "Backstage::Team",
+                "name": config.spec.owner
+              }].toJSON()
+
+          # System -> Owner
+          - filter: config_type == 'Backstage::System' && has(config.spec.owner)
+            expr: |
+              [{
+                "type": "Backstage::Team",
+                "name": config.spec.owner
+              }].toJSON()
+
+          # System -> Domain
+          - filter: config_type == 'Backstage::System' && has(config.spec.domain)
+            expr: |
+              [{
+                "type": "Backstage::Domain",
+                "name": config.spec.domain
+              }].toJSON()
+
+          # Domain -> Owner
+          - filter: config_type == 'Backstage::Domain' && has(config.spec.owner)
+            expr: |
+              [{
+                "type": "Backstage::Team",
+                "name": config.spec.owner
+              }].toJSON()
