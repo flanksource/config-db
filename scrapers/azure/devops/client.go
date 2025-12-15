@@ -2,8 +2,6 @@ package devops
 
 import (
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -58,19 +56,7 @@ func (p Pipeline) GetLabels() map[string]string {
 
 // GetID returns a repeatable ID for a pipeline with variables / parameters
 func (p Pipeline) GetID() string {
-
-	s := p.Name
-
-	if len(p.TemplateParameters) > 0 {
-		s += "/"
-		params := []string{}
-		for k, v := range p.TemplateParameters {
-			params = append(params, fmt.Sprintf("%s=%s", k, v))
-		}
-		sort.Strings(params)
-		s += fmt.Sprintf("/%s", strings.Join(params, " "))
-	}
-	return s
+	return p.URL
 }
 
 type Pipelines struct {
