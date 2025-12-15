@@ -30,3 +30,5 @@ TODO.md
 bin/
 out/
 ._DS_Store
+
+exec-checkout/
