@@ -5,14 +5,46 @@ metadata:
 spec:
   schedule: '@every 15m'
   exec:
-    - type: Postgres::Database
-      id: $.name
+    - type: $.type
+      id: $.id
       name: $.name
       script: |
         #!/bin/bash
-        chmod +x ./gen_configs.sh
-        ./gen_configs.sh
+        # This inline script runs in the git checkout directory
+        # Verify go.mod exists and has the expected module path on the first line
+        if [ ! -f go.mod ]; then
+          echo "Error: Not in repository root" >&2
+          exit 1
+        fi
+
+        if ! head -n 1 go.mod | grep -q '^module github.com/flanksource/postq'; then
+          echo "Error: Unexpected module path in go.mod" >&2
+          exit 1
+        fi
+
+        # Output test config items as JSON
+        cat << 'EOF'
+        [
+          {
+            "id": "config-1",
+            "type": "Custom::Config",
+            "name": "Test Config 1",
+            "config": {
+              "key": "value1",
+              "source": "git-checkout-test"
+            }
+          },
+          {
+            "id": "config-2",
+            "type": "Custom::Config",
+            "name": "Test Config 2",
+            "config": {
+              "key": "value2",
+              "source": "git-checkout-test"
+            }
+          }
+        ]
+        EOF
       checkout:
-        url: https://flanksource@dev.azure.com/flanksource/Demo1/_git/TEST1
+        url: https://github.com/flanksource/postq
         branch: main
-        connection: connection://mc/flanksource-azure-devops

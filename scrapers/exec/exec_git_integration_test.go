@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/flanksource/config-db/api"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/flanksource/config-db/api"
 )
 
 var _ = ginkgo.Describe("Exec Scraper - Git Checkout Integration", ginkgo.Ordered, func() {
