@@ -32,4 +32,4 @@ spec:
             sys.exit(1)
       connections:
         kubernetes:
-          connection: connection://kubernetes/production-cluster
+          connection: connection://mc/homelab-kubernetes
