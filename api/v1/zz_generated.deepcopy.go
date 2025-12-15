@@ -645,7 +645,11 @@ func (in *Entra) DeepCopy() *Entra {
 func (in *Exec) DeepCopyInto(out *Exec) {
 	*out = *in
 	in.BaseScraper.DeepCopyInto(&out.BaseScraper)
-	in.Connections.DeepCopyInto(&out.Connections)
+	if in.Connections != nil {
+		in, out := &in.Connections, &out.Connections
+		*out = new(connection.ExecConnections)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Checkout != nil {
 		in, out := &in.Checkout, &out.Checkout
 		*out = new(connection.GitConnection)

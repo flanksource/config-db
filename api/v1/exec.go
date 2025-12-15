@@ -9,11 +9,11 @@ import (
 type Exec struct {
 	BaseScraper `json:",inline"`
 
-	// Script can be inline script or path to script file
+	// Script is an inline script to run
 	Script string `json:"script" yaml:"script" template:"true"`
 
 	// Connections for AWS/GCP/Azure/K8s credential injection
-	Connections connection.ExecConnections `json:"connections,omitempty" yaml:"connections,omitempty" template:"true"`
+	Connections *connection.ExecConnections `json:"connections,omitempty" yaml:"connections,omitempty" template:"true"`
 
 	// Git repository to checkout before running script
 	Checkout *connection.GitConnection `json:"checkout,omitempty" yaml:"checkout,omitempty"`

@@ -3498,7 +3498,7 @@ spec:
                         type: object
                       type: array
                     script:
-                      description: Script can be inline script or path to script file
+                      description: Script is an inline script to run
                       type: string
                     status:
                       description: A static value or JSONPath expression to use as

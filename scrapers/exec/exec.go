@@ -3,10 +3,11 @@ package exec
 import (
 	"encoding/json"
 
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/shell"
 	"sigs.k8s.io/yaml"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 type ExecScraper struct{}
@@ -21,10 +22,13 @@ func (e ExecScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	for _, config := range ctx.ScrapeConfig().Spec.Exec {
 		execConfig := shell.Exec{
 			Script:      config.Script,
-			Connections: config.Connections,
 			Checkout:    config.Checkout,
 			EnvVars:     config.Env,
 			Artifacts:   config.Artifacts,
+		}
+
+		if config.Connections != nil {
+			execConfig.Connections = *config.Connections
 		}
 
 		execDetails, err := shell.Run(ctx.DutyContext(), execConfig)
