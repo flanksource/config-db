@@ -8,8 +8,7 @@ metadata:
 spec:
   schedule: "@every 1h"
   exec:
-    - name: backstage-catalog-scraper
-      type: $.type
+    - type: $.type
       id: $.id
       name: $.name
       description: $.metadata.description

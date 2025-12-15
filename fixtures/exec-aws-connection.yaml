@@ -5,8 +5,7 @@ metadata:
 spec:
   schedule: "@every 10m"
   exec:
-    - name: list-ec2-with-aws-cli
-      type: AWS::EC2::Instance
+    - type: AWS::EC2::Instance
       id: $.InstanceId
       name: $.Tags[?(@.Key=="Name")].Value | [0]
       script: |

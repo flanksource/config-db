@@ -2,12 +2,10 @@ apiVersion: configs.flanksource.com/v1
 kind: ScrapeConfig
 metadata:
   name: exec-git-checkout-test
-  namespace: default
 spec:
-  schedule: "@every 15m"
+  schedule: '@every 15m'
   exec:
-    - name: run-inline-script-from-repo
-      type: $.type
+    - type: $.type
       id: $.id
       name: $.name
       script: |
@@ -43,5 +41,5 @@ spec:
         ]
         EOF
       checkout:
-        url: https://github.com/placeholder/will-be-replaced
+        url: https://flanksource@dev.azure.com/flanksource/Demo1/_git/infrastructure
         branch: main

@@ -5,8 +5,7 @@ metadata:
 spec:
   schedule: "@every 10m"
   exec:
-    - name: cluster-info-yaml
-      type: Kubernetes::Cluster
+    - type: Kubernetes::Cluster
       id: $.metadata.name
       name: $.metadata.name
       script: |

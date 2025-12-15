@@ -5,8 +5,7 @@ metadata:
 spec:
   schedule: "@every 5m"
   exec:
-    - name: custom-inventory-with-env
-      type: $.type
+    - type: $.type
       id: $.id
       name: $.name
       script: |

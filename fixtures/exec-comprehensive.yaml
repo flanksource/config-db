@@ -6,8 +6,7 @@ spec:
   schedule: "@every 15m"
   exec:
     # Example 1: AWS inventory with connections
-    - name: aws-ec2-inventory
-      type: AWS::EC2::Instance
+    - type: AWS::EC2::Instance
       id: $.InstanceId
       name: $.Tags[?(@.Key=="Name")].Value | [0]
       class: $.InstanceType
@@ -26,8 +25,7 @@ spec:
           - jsonpath: $.SecurityGroups
 
     # Example 2: Kubernetes resources with Python
-    - name: k8s-deployments-python
-      type: Kubernetes::Deployment
+    - type: Kubernetes::Deployment
       id: $.metadata.uid
       name: $.metadata.name
       script: |
@@ -48,8 +46,7 @@ spec:
           connection: connection://kubernetes/prod-cluster
 
     # Example 3: Git checkout with custom script
-    - name: infrastructure-configs
-      type: Custom::Config
+    - type: Custom::Config
       id: $.id
       name: $.name
       script: |
@@ -62,8 +59,7 @@ spec:
         branch: main
 
     # Example 4: Custom monitoring data with env vars
-    - name: monitoring-metrics
-      type: Custom::Metric
+    - type: Custom::Metric
       id: $.id
       name: $.name
       script: |
