@@ -3,7 +3,7 @@ kind: ScrapeConfig
 metadata:
   name: exec-python
 spec:
-  schedule: "@every 5m"
+  schedule: '@every 5m'
   exec:
     - type: Kubernetes::Node
       id: $.metadata.name
@@ -12,6 +12,7 @@ spec:
         #!/usr/bin/env python3
         # Python script with shebang detection
         # KUBECONFIG env var is automatically set from connections.kubernetes
+        import sys
         import json
         import subprocess
 
