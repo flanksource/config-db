@@ -10,10 +10,6 @@ import (
 
 	commonsCtx "github.com/flanksource/commons/context"
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/jobs"
-	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty"
 	dutyAPI "github.com/flanksource/duty/api"
 	dutyContext "github.com/flanksource/duty/context"
@@ -21,7 +17,6 @@ import (
 	"github.com/flanksource/duty/postgrest"
 	"github.com/flanksource/duty/postq/pg"
 	"github.com/flanksource/duty/shutdown"
-
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -30,7 +25,11 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel"
 
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/jobs"
 	"github.com/flanksource/config-db/scrapers"
+	"github.com/flanksource/config-db/utils"
 )
 
 // Serve ...
@@ -104,6 +103,8 @@ func serve(ctx dutyContext.Context) {
 	if logger.IsTraceEnabled() {
 		echoLogConfig := middleware.DefaultLoggerConfig
 		echoLogConfig.Skipper = telemetryURLSkipper
+
+		//nolint:staticcheck // SA1019 ignore.
 		e.Use(middleware.LoggerWithConfig(echoLogConfig))
 	}
 

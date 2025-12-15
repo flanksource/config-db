@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/flanksource/config-db/api"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/flanksource/config-db/api"
 )
 
 var _ = ginkgo.Describe("Exec Scraper - Backstage Catalog Integration", ginkgo.Ordered, func() {
@@ -100,7 +101,7 @@ var _ = ginkgo.Describe("Exec Scraper - Backstage Catalog Integration", ginkgo.O
 
 			configStr := result.Config.(string)
 			var config map[string]any
-			json.Unmarshal([]byte(configStr), &config)
+			Expect(json.Unmarshal([]byte(configStr), &config)).To(BeNil())
 
 			if config["type"] == "Backstage::Component" {
 				spec := config["spec"].(map[string]any)
@@ -137,7 +138,7 @@ var _ = ginkgo.Describe("Exec Scraper - Backstage Catalog Integration", ginkgo.O
 
 			configStr := result.Config.(string)
 			var config map[string]any
-			json.Unmarshal([]byte(configStr), &config)
+			Expect(json.Unmarshal([]byte(configStr), &config)).To(BeNil())
 
 			if config["type"] == "Backstage::Component" {
 				spec := config["spec"].(map[string]any)
@@ -176,7 +177,7 @@ var _ = ginkgo.Describe("Exec Scraper - Backstage Catalog Integration", ginkgo.O
 
 			configStr := result.Config.(string)
 			var config map[string]any
-			json.Unmarshal([]byte(configStr), &config)
+			Expect(json.Unmarshal([]byte(configStr), &config)).To(BeNil())
 
 			if tags, hasTags := config["tags"].([]any); hasTags && len(tags) > 0 {
 				entityWithTags = config
