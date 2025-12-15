@@ -5,8 +5,7 @@ metadata:
 spec:
   schedule: "@every 10m"
   exec:
-    - name: list-databases-nodejs
-      type: AWS::RDS::DBInstance
+    - type: AWS::RDS::DBInstance
       id: $.DBInstanceIdentifier
       name: $.DBInstanceIdentifier
       script: |

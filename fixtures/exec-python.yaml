@@ -5,8 +5,7 @@ metadata:
 spec:
   schedule: "@every 5m"
   exec:
-    - name: kubernetes-nodes-python
-      type: Kubernetes::Node
+    - type: Kubernetes::Node
       id: $.metadata.name
       name: $.metadata.name
       script: |
