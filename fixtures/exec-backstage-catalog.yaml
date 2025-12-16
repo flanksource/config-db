@@ -2,11 +2,10 @@ apiVersion: configs.flanksource.com/v1
 kind: ScrapeConfig
 metadata:
   name: exec-backstage-catalog
-  namespace: default
   annotations:
-    trace: "true"
+    trace: 'true'
 spec:
-  schedule: "@every 1h"
+  schedule: '@every 1h'
   exec:
     - type: $.type
       id: $.id
@@ -96,7 +95,8 @@ spec:
 
       checkout:
         url: https://github.com/backstage/backstage
-        depth: 1
+        branch: master
+        # depth: 1 # https://github.com/flanksource/duty/issues/1688
 
       tags:
         - name: lifecycle
@@ -108,16 +108,16 @@ spec:
         - name: owner
           jsonpath: $.spec.owner
 
-      properties:
-        - name: type
-          filter: config_type startsWith 'Backstage::'
-          jsonpath: $.spec.type
-        - name: lifecycle
-          filter: config_type startsWith 'Backstage::'
-          jsonpath: $.spec.lifecycle
-        - name: source_file
-          filter: config_type startsWith 'Backstage::'
-          jsonpath: $.source_file
+      # properties:
+      #   - name: type
+      #     filter: config_type startsWith 'Backstage::'
+      #     jsonpath: $.spec.type
+      #   - name: lifecycle
+      #     filter: config_type startsWith 'Backstage::'
+      #     jsonpath: $.spec.lifecycle
+      #   - name: source_file
+      #     filter: config_type startsWith 'Backstage::'
+      #     jsonpath: $.source_file
 
       transform:
         exclude:

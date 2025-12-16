@@ -25,6 +25,8 @@ jobs:
           key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
           restore-keys: |
             cache-
+      - name: Install pyyaml for backstage test
+        run: pip3 install pyyaml
       - name: Test
         run: make test
 
@@ -104,6 +106,8 @@ jobs:
           key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
           restore-keys: |
             cache-
+      - name: Install pyyaml for backstage test
+        run: pip3 install pyyaml
       - name: Test
         run: make test-prod
 
