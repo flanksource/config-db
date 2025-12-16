@@ -3,7 +3,6 @@ package exec
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,13 +14,6 @@ var _ = ginkgo.Describe("Exec Scraper - Git Checkout Integration", ginkgo.Ordere
 	ginkgo.It("should checkout git repository and execute script", func() {
 		// Load fixture from fixtures directory
 		scrapeConfig := getConfigSpec("exec-git-checkout-test")
-
-		// Get absolute path to config-db repository for git checkout
-		repoPath, err := os.Getwd()
-		Expect(err).NotTo(HaveOccurred())
-
-		// Update checkout URL to use local repository via file:// protocol
-		scrapeConfig.Spec.Exec[0].Checkout.URL = fmt.Sprintf("file://%s", repoPath)
 
 		// Create context using DefaultContext from suite
 		scraperCtx := api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
@@ -43,7 +35,7 @@ var _ = ginkgo.Describe("Exec Scraper - Git Checkout Integration", ginkgo.Ordere
 		configStr, ok := results[0].Config.(string)
 		Expect(ok).To(BeTrue(), "Config should be a string")
 		var config1 map[string]any
-		err = json.Unmarshal([]byte(configStr), &config1)
+		err := json.Unmarshal([]byte(configStr), &config1)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(config1["id"]).To(Equal("config-1"))
 		Expect(config1["type"]).To(Equal("Custom::Config"))
