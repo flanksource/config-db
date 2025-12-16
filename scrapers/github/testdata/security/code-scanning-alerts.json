@@ -1,0 +1,98 @@
+[
+  {
+    "number": 10,
+    "state": "open",
+    "created_at": "2024-02-15T14:30:22Z",
+    "updated_at": "2024-02-15T14:30:22Z",
+    "url": "https://api.github.com/repos/flanksource/mission-control/code-scanning/alerts/10",
+    "html_url": "https://github.com/flanksource/mission-control/security/code-scanning/10",
+    "instances_url": "https://api.github.com/repos/flanksource/mission-control/code-scanning/alerts/10/instances",
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "analysis_key": ".github/workflows/codeql.yml:analyze",
+      "environment": "{}",
+      "category": ".github/workflows/codeql.yml:analyze",
+      "state": "open",
+      "commit_sha": "abc123def456",
+      "message": {
+        "text": "This SQL query depends on a user-provided value."
+      },
+      "location": {
+        "path": "src/database/queries.ts",
+        "start_line": 42,
+        "end_line": 42,
+        "start_column": 15,
+        "end_column": 48
+      },
+      "classifications": []
+    },
+    "rule": {
+      "id": "js/sql-injection",
+      "severity": "high",
+      "description": "Database query built from user-controlled sources",
+      "name": "sql-injection",
+      "tags": [
+        "security",
+        "external/cwe/cwe-089"
+      ],
+      "security_severity_level": "high"
+    },
+    "tool": {
+      "name": "CodeQL",
+      "version": "2.15.3"
+    },
+    "dismissed_at": null,
+    "dismissed_by": null,
+    "dismissed_reason": null,
+    "dismissed_comment": null,
+    "fixed_at": null
+  },
+  {
+    "number": 11,
+    "state": "open",
+    "created_at": "2024-03-01T09:20:15Z",
+    "updated_at": "2024-03-01T09:20:15Z",
+    "url": "https://api.github.com/repos/flanksource/mission-control/code-scanning/alerts/11",
+    "html_url": "https://github.com/flanksource/mission-control/security/code-scanning/11",
+    "instances_url": "https://api.github.com/repos/flanksource/mission-control/code-scanning/alerts/11/instances",
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "analysis_key": ".github/workflows/codeql.yml:analyze",
+      "environment": "{}",
+      "category": ".github/workflows/codeql.yml:analyze",
+      "state": "open",
+      "commit_sha": "def789ghi012",
+      "message": {
+        "text": "This path depends on a user-provided value."
+      },
+      "location": {
+        "path": "src/api/upload.ts",
+        "start_line": 28,
+        "end_line": 28,
+        "start_column": 22,
+        "end_column": 41
+      },
+      "classifications": []
+    },
+    "rule": {
+      "id": "js/path-injection",
+      "severity": "medium",
+      "description": "Unvalidated user input in file path",
+      "name": "path-injection",
+      "tags": [
+        "security",
+        "external/cwe/cwe-022"
+      ],
+      "security_severity_level": "medium"
+    },
+    "tool": {
+      "name": "CodeQL",
+      "version": "2.15.3"
+    },
+    "dismissed_at": null,
+    "dismissed_by": null,
+    "dismissed_reason": null,
+    "dismissed_comment": null,
+    "fixed_at": null
+  }
+]

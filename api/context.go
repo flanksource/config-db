@@ -161,3 +161,7 @@ func (ctx ScrapeContext) Namespace() string {
 func (ctx ScrapeContext) IsTrace() bool {
 	return ctx.scrapeConfig.Spec.IsTrace()
 }
+
+func (ctx ScrapeContext) IsDebug() bool {
+	return ctx.scrapeConfig.Spec.IsDebug()
+}

@@ -6,11 +6,14 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/flanksource/clicky"
+	"github.com/flanksource/clicky/api"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
+	"github.com/samber/lo"
 )
 
 // List of types which should not have scraper_id
@@ -61,6 +64,34 @@ func (s Script) String() string {
 		return "js: " + s.Javascript
 	}
 	return ""
+}
+
+func (s Script) PrettyShort() api.Text {
+	t := clicky.Text("")
+	if s.GoTemplate != "" {
+		t = t.Append("go: ", "text-green-600").Append(clicky.CodeBlock("go", lo.Ellipsis(s.GoTemplate, 200)))
+	} else if s.JSONPath != "" {
+		t = t.Append("jsonpath: ", "text-blue-600").Append(clicky.CodeBlock("jsonpath", lo.Ellipsis(s.JSONPath, 200)))
+	} else if s.Expression != "" {
+		t = t.Append("expr: ", "text-yellow-600").Append(clicky.CodeBlock("cel", lo.Ellipsis(s.Expression, 200)))
+	} else if s.Javascript != "" {
+		t = t.Append("js: ", "text-purple-600").Append(clicky.CodeBlock("javascript", lo.Ellipsis(s.Javascript, 200)))
+	}
+	return t
+}
+
+func (s Script) Pretty() api.Text {
+	t := clicky.Text("")
+	if s.GoTemplate != "" {
+		t = t.Append("go: ", "text-green-600").Append(clicky.CodeBlock("go", s.GoTemplate))
+	} else if s.JSONPath != "" {
+		t = t.Append("jsonpath: ", "text-blue-600").Append(clicky.CodeBlock("jsonpath", s.JSONPath))
+	} else if s.Expression != "" {
+		t = t.Append("expr: ", "text-yellow-600").Append(clicky.CodeBlock("cel", s.Expression))
+	} else if s.Javascript != "" {
+		t = t.Append("js: ", "text-purple-600").Append(clicky.CodeBlock("javascript", s.Javascript))
+	}
+	return t
 }
 
 type Mask struct {
@@ -361,6 +392,28 @@ func (aws AWSConnection) ToDutyAWSConnection(region string) *connection.AWSConne
 	}
 }
 
+// GCPConnection ...
+type GCPConnection struct {
+	Endpoint    string        `yaml:"endpoint" json:"endpoint,omitempty"`
+	Credentials *types.EnvVar `yaml:"credentials" json:"credentials,omitempty"`
+}
+
+func (gcp GCPConnection) GetModel() *models.Connection {
+	return &models.Connection{
+		URL:         gcp.Endpoint,
+		Certificate: gcp.Credentials.String(),
+	}
+}
+
+type AzureConnection struct {
+	ConnectionName string       `yaml:"connection,omitempty" json:"connection,omitempty"`
+	SubscriptionID string       `yaml:"subscriptionID" json:"subscriptionID"`
+	Organisation   string       `yaml:"organisation" json:"organisation"`
+	ClientID       types.EnvVar `yaml:"clientID,omitempty" json:"clientID,omitempty"`
+	ClientSecret   types.EnvVar `yaml:"clientSecret,omitempty" json:"clientSecret,omitempty"`
+	TenantID       string       `yaml:"tenantID,omitempty" json:"tenantID,omitempty"`
+}
+
 type Connection struct {
 	// Connection is either the name of the connection to lookup
 	// or the connection string itself.
@@ -387,6 +440,15 @@ func (c Connection) GetConnection() string {
 
 func (c Connection) GetEndpoint() string {
 	return sanitizeEndpoints(c.Connection)
+}
+
+func (c Connection) Pretty() api.Text {
+	t := clicky.Text("")
+	if c.Connection != "" {
+		clicky.RedactSecretValues()
+		t = t.Append(sanitizeEndpoints(c.Connection))
+	}
+	return t
 }
 
 // Obfuscate passwords of the form ' password=xxxxx ' from connectionString since
