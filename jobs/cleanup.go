@@ -172,7 +172,10 @@ var CleanupConfigScrapers = &job.Job{
 		ctx.History.ResourceType = JobResourceType
 
 		var deletedIDs []string
-		if err := ctx.DB().Model(&models.ConfigScraper{}).Select("id").Where("deleted_at IS NOT NULL").Find(&deletedIDs).Error; err != nil {
+		if err := ctx.DB().Model(&models.ConfigScraper{}).Select("id").
+			Where("deleted_at IS NOT NULL").
+			Where("id NOT IN (SELECT DISTINCT scraper_id FROM config_items WHERE scraper_id IS NOT NULL)").
+			Find(&deletedIDs).Error; err != nil {
 			return fmt.Errorf("error fetching deleted config_scraper ids: %w", db.ErrorDetails(err))
 		}
 
