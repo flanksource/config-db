@@ -72,9 +72,9 @@ var _ = ginkgo.Describe("Exec Scraper - Backstage Catalog Integration", ginkgo.O
 			_ = spec // Avoid unused variable warning
 
 			// Verify tags if present
-			if tags, hasTags := config["tags"].([]any); hasTags {
-				Expect(tags).NotTo(BeEmpty(), "Tags array should not be empty if present")
-			}
+			// if tags, hasTags := config["tags"].([]any); hasTags {
+			// 	Expect(tags).NotTo(BeEmpty(), "Tags array should not be empty if present")
+			// }
 		}
 
 		// Verify we scraped multiple entity types

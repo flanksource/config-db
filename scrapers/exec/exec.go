@@ -21,10 +21,10 @@ func (e ExecScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 	for _, config := range ctx.ScrapeConfig().Spec.Exec {
 		execConfig := shell.Exec{
-			Script:      config.Script,
-			Checkout:    config.Checkout,
-			EnvVars:     config.Env,
-			Artifacts:   config.Artifacts,
+			Script:    config.Script,
+			Checkout:  config.Checkout,
+			EnvVars:   config.Env,
+			Artifacts: config.Artifacts,
 		}
 
 		if config.Connections != nil {
@@ -34,7 +34,12 @@ func (e ExecScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		execDetails, err := shell.Run(ctx.DutyContext(), execConfig)
 		if err != nil {
 			result := v1.NewScrapeResult(config.BaseScraper)
-			results = append(results, result.Errorf("failed to execute script: %v", err))
+			if execDetails != nil && execDetails.Stderr != "" {
+				results = append(results, result.Errorf("failed to execute script: (%s) %v", execDetails.Stderr, err))
+			} else {
+				results = append(results, result.Errorf("failed to execute script: %v", err))
+			}
+
 			continue
 		}
 
