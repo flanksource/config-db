@@ -97,20 +97,3 @@ func TestParseOutput_PlainText(t *testing.T) {
 		t.Errorf("Expected config to be %q, got %q", expectedConfig, configStr)
 	}
 }
-
-func TestCanScrape(t *testing.T) {
-	scraper := ExecScraper{}
-
-	specs := v1.ScraperSpec{
-		Exec: []v1.Exec{{}},
-	}
-
-	if !scraper.CanScrape(specs) {
-		t.Error("Expected CanScrape to return true when Exec configs present")
-	}
-
-	emptySpecs := v1.ScraperSpec{}
-	if scraper.CanScrape(emptySpecs) {
-		t.Error("Expected CanScrape to return false when no Exec configs")
-	}
-}

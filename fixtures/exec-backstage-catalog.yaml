@@ -3,6 +3,8 @@ kind: ScrapeConfig
 metadata:
   name: exec-backstage-catalog
   namespace: default
+  annotations:
+    trace: "true"
 spec:
   schedule: "@every 1h"
   exec:
@@ -95,7 +97,6 @@ spec:
 
       checkout:
         url: https://github.com/backstage/backstage
-        branch: master
         depth: 1
 
       tags:
