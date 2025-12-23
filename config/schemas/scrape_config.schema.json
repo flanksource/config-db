@@ -111,6 +111,36 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "AWSConnection": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "accessKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "secretKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "sessionToken": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "assumeRole": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "AWSS3": {
       "properties": {
         "connection": {
@@ -146,6 +176,18 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "Artifact": {
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path"
+      ]
     },
     "Authentication": {
       "properties": {
@@ -291,6 +333,24 @@
       "required": [
         "collection"
       ]
+    },
+    "AzureConnection": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "clientID": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "clientSecret": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "tenantID": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "AzureDevops": {
       "properties": {
@@ -859,6 +919,120 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "Exec": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "health": {
+          "type": "string"
+        },
+        "timestampFormat": {
+          "type": "string"
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap"
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array"
+        },
+        "script": {
+          "type": "string"
+        },
+        "connections": {
+          "$ref": "#/$defs/ExecConnections"
+        },
+        "checkout": {
+          "$ref": "#/$defs/GitConnection"
+        },
+        "env": {
+          "items": {
+            "$ref": "#/$defs/EnvVar"
+          },
+          "type": "array"
+        },
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "script"
+      ]
+    },
+    "ExecConnections": {
+      "properties": {
+        "fromConfigItem": {
+          "type": "string"
+        },
+        "eksPodIdentity": {
+          "type": "boolean"
+        },
+        "serviceAccount": {
+          "type": "boolean"
+        },
+        "kubernetes": {
+          "$ref": "#/$defs/KubernetesConnection"
+        },
+        "aws": {
+          "$ref": "#/$defs/AWSConnection"
+        },
+        "gcp": {
+          "$ref": "#/$defs/GCPConnection"
+        },
+        "azure": {
+          "$ref": "#/$defs/AzureConnection"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "FieldMappingConfig": {
       "properties": {
         "id": {
@@ -1152,6 +1326,27 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "GCPConnection": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "credentials": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "skipTLSVerify": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "GCSConnection": {
       "properties": {
         "connection": {
@@ -1210,6 +1405,36 @@
         "zone",
         "cluster"
       ]
+    },
+    "GitConnection": {
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "connection": {
+          "type": "string"
+        },
+        "username": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "password": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "certificate": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "type": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "GitHubActions": {
       "properties": {
@@ -1582,6 +1807,27 @@
       "required": [
         "clusterName"
       ]
+    },
+    "KubernetesConnection": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "kubeconfig": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "eks": {
+          "$ref": "#/$defs/EKSConnection"
+        },
+        "gke": {
+          "$ref": "#/$defs/GKEConnection"
+        },
+        "cnrm": {
+          "$ref": "#/$defs/CNRMConnection"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "KubernetesEventConfig": {
       "properties": {
@@ -2743,6 +2989,12 @@
         "pubsub": {
           "items": {
             "$ref": "#/$defs/PubSub"
+          },
+          "type": "array"
+        },
+        "exec": {
+          "items": {
+            "$ref": "#/$defs/Exec"
           },
           "type": "array"
         },

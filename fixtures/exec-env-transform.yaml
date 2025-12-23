@@ -1,0 +1,55 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-env-transform
+spec:
+  schedule: "@every 5m"
+  exec:
+    - type: $.type
+      id: $.id
+      name: $.name
+      script: |
+        #!/bin/bash
+        # Script using custom environment variables
+        # Environment variables from 'env' field are automatically injected
+
+        REGION=${AWS_REGION:-us-east-1}
+        ENVIRONMENT=${ENVIRONMENT:-production}
+
+        cat <<EOF
+        [
+          {
+            "id": "resource-1",
+            "type": "Custom::Resource",
+            "name": "api-server",
+            "region": "$REGION",
+            "environment": "$ENVIRONMENT",
+            "status": "healthy"
+          },
+          {
+            "id": "resource-2",
+            "type": "Custom::Resource",
+            "name": "worker-queue",
+            "region": "$REGION",
+            "environment": "$ENVIRONMENT",
+            "status": "healthy"
+          }
+        ]
+        EOF
+      env:
+        - name: AWS_REGION
+          value: us-west-2
+        - name: ENVIRONMENT
+          value: staging
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-credentials
+              key: key
+      transform:
+        exclude:
+          - jsonpath: $.status
+        relationship:
+          - filter: type == 'Custom::Resource'
+            expr: |
+              [{"type": "Custom::Service", "name": config.name + "-service"}].toJSON()

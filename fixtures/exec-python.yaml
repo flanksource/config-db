@@ -1,0 +1,35 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-python
+spec:
+  schedule: '@every 5m'
+  exec:
+    - type: Kubernetes::Node
+      id: $.metadata.name
+      name: $.metadata.name
+      script: |
+        #!/usr/bin/env python3
+        # Python script with shebang detection
+        # KUBECONFIG env var is automatically set from connections.kubernetes
+        import sys
+        import json
+        import subprocess
+
+        # Run kubectl to get nodes
+        result = subprocess.run(
+            ['kubectl', 'get', 'nodes', '-o', 'json'],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode == 0:
+            nodes_data = json.loads(result.stdout)
+            # Output the items array
+            print(json.dumps(nodes_data.get('items', []), indent=2))
+        else:
+            print(json.dumps([]), file=sys.stderr)
+            sys.exit(1)
+      connections:
+        kubernetes:
+          connection: connection://mc/homelab-kubernetes

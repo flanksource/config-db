@@ -1,0 +1,18 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-git-checkout-test
+spec:
+  schedule: '@every 15m'
+  exec:
+    - type: Postgres::Database
+      id: $.name
+      name: $.name
+      script: |
+        #!/bin/bash
+        chmod +x ./gen_configs.sh
+        ./gen_configs.sh
+      checkout:
+        url: https://flanksource@dev.azure.com/flanksource/Demo1/_git/TEST1
+        branch: main
+        connection: connection://mc/flanksource-azure-devops

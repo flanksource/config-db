@@ -1,0 +1,50 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-git-checkout-test
+spec:
+  schedule: '@every 15m'
+  exec:
+    - type: $.type
+      id: $.id
+      name: $.name
+      script: |
+        #!/bin/bash
+        # This inline script runs in the git checkout directory
+        # Verify go.mod exists and has the expected module path on the first line
+        if [ ! -f go.mod ]; then
+          echo "Error: Not in repository root" >&2
+          exit 1
+        fi
+
+        if ! head -n 1 go.mod | grep -q '^module github.com/flanksource/postq'; then
+          echo "Error: Unexpected module path in go.mod" >&2
+          exit 1
+        fi
+
+        # Output test config items as JSON
+        cat << 'EOF'
+        [
+          {
+            "id": "config-1",
+            "type": "Custom::Config",
+            "name": "Test Config 1",
+            "config": {
+              "key": "value1",
+              "source": "git-checkout-test"
+            }
+          },
+          {
+            "id": "config-2",
+            "type": "Custom::Config",
+            "name": "Test Config 2",
+            "config": {
+              "key": "value2",
+              "source": "git-checkout-test"
+            }
+          }
+        ]
+        EOF
+      checkout:
+        url: https://github.com/flanksource/postq
+        branch: main

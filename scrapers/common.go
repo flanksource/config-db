@@ -4,6 +4,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/scrapers/azure"
 	"github.com/flanksource/config-db/scrapers/clickhouse"
+	"github.com/flanksource/config-db/scrapers/exec"
 	"github.com/flanksource/config-db/scrapers/gcp"
 	"github.com/flanksource/config-db/scrapers/http"
 	"github.com/flanksource/config-db/scrapers/logs"
@@ -27,6 +28,7 @@ var All = []api.Scraper{
 	azure.Scraper{},
 	aws.Scraper{},
 	aws.CostScraper{},
+	exec.ExecScraper{},
 	file.FileScraper{},
 	kubernetes.KubernetesScraper{},
 	kubernetes.KubernetesFileScraper{},

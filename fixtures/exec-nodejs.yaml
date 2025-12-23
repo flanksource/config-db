@@ -1,0 +1,37 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-nodejs
+spec:
+  schedule: "@every 10m"
+  exec:
+    - type: AWS::RDS::DBInstance
+      id: $.DBInstanceIdentifier
+      name: $.DBInstanceIdentifier
+      script: |
+        #!/usr/bin/env node
+
+        const databases = [
+          {
+            DBInstanceIdentifier: "production-postgres",
+            DBInstanceClass: "db.r5.large",
+            Engine: "postgres",
+            EngineVersion: "14.7",
+            DBInstanceStatus: "available",
+            AllocatedStorage: 100,
+            MultiAZ: true
+          },
+          {
+            DBInstanceIdentifier: "analytics-postgres",
+            DBInstanceClass: "db.r5.2xlarge",
+            Engine: "postgres",
+            EngineVersion: "14.7",
+            DBInstanceStatus: "available",
+            AllocatedStorage: 500,
+            MultiAZ: false
+          }
+        ];
+
+        // Output as JSON array
+        console.log(JSON.stringify(databases, null, 2));
+      

@@ -16,6 +16,7 @@ var AllScraperConfigs = map[string]any{
 	"aws":            AWS{},
 	"azure":          Azure{},
 	"azuredevops":    AzureDevops{},
+	"exec":           Exec{},
 	"file":           File{},
 	"gcp":            GCP{},
 	"githubactions":  GitHubActions{},
@@ -68,6 +69,7 @@ type ScraperSpec struct {
 	Clickhouse     []Clickhouse     `json:"clickhouse,omitempty"`
 	Logs           []Logs           `json:"logs,omitempty"`
 	PubSub         []PubSub         `json:"pubsub,omitempty"`
+	Exec           []Exec           `json:"exec,omitempty" yaml:"exec,omitempty"`
 	System         bool             `json:"system,omitempty"`
 
 	// CRDSync when set to true, will create (or update) the corresponding database record
@@ -138,6 +140,10 @@ func (c ScraperSpec) ApplyPlugin(plugins []ScrapePluginSpec) ScraperSpec {
 
 	for i := range spec.Logs {
 		spec.Logs[i].BaseScraper = spec.Logs[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.Exec {
+		spec.Exec[i].BaseScraper = spec.Exec[i].BaseScraper.ApplyPlugins(plugins...)
 	}
 
 	return *spec

@@ -1,0 +1,24 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-aws-connection
+spec:
+  schedule: "@every 10m"
+  exec:
+    - type: AWS::EC2::Instance
+      id: $.InstanceId
+      name: $.Tags[?(@.Key=="Name")].Value | [0]
+      script: |
+        #!/bin/bash
+        # Use AWS CLI with injected credentials
+        # The connections.aws automatically injects AWS credentials
+        aws ec2 describe-instances \
+          --region us-east-1 \
+          --output json \
+          --query 'Reservations[].Instances[]' | \
+        jq 'map(select(.State.Name == "running"))'
+      connections:
+        aws:
+          connection: connection://aws/production
+          # Credentials from this connection are automatically injected as:
+          # AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, etc.

@@ -1,0 +1,20 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-git-checkout
+spec:
+  schedule: '@every 15m'
+  exec:
+    - name: $.reg_no
+      type: Custom::Config
+      id: $.reg_no
+      script: |
+        #!/bin/bash
+        # This script is executed in the context of the checked out repository
+        # The working directory is set to the cloned repo
+        cat fixtures/data/car.json
+      checkout:
+        url: https://github.com/flanksource/config-db
+        branch: main
+        # Optional: use connection for private repos
+        # connection: connection://github/myorg

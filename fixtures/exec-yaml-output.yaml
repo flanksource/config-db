@@ -1,0 +1,33 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: exec-yaml-output
+spec:
+  schedule: "@every 10m"
+  exec:
+    - type: Kubernetes::Cluster
+      id: $.metadata.name
+      name: $.metadata.name
+      script: |
+        #!/bin/bash
+        # Script that outputs YAML (will be converted to JSON automatically)
+        cat <<'EOF'
+        metadata:
+          name: production-cluster
+          region: us-east-1
+          version: "1.28"
+        status:
+          state: ACTIVE
+          endpoint: https://ABC123.gr7.us-east-1.eks.amazonaws.com
+          nodeCount: 5
+          created: "2024-01-15T10:30:00Z"
+        spec:
+          networking:
+            serviceIPv4CIDR: 172.20.0.0/16
+            clusterVPC: vpc-0123456789abcdef0
+          addons:
+            - name: vpc-cni
+              version: v1.12.0
+            - name: coredns
+              version: v1.10.1
+        EOF

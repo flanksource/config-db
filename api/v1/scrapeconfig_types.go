@@ -111,6 +111,9 @@ func (t *ScrapeConfig) Type() string {
 	if len(t.Spec.HTTP) != 0 {
 		return "http"
 	}
+	if len(t.Spec.Exec) != 0 {
+		return "exec"
+	}
 	return ""
 }
 
