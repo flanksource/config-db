@@ -49,22 +49,24 @@ func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*mode
 		key := changeFingeprintCacheKey(change.ConfigID, *change.Fingerprint)
 		if existingChangeID, ok := ChangeCacheByFingerprint.Get(key); !ok {
 			ChangeCacheByFingerprint.Set(key, change.ID, window)
-			fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: 0}
+			fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: 0, FirstInBatch: true}
 		} else {
 			change.ID = existingChangeID.(string)
 			ChangeCacheByFingerprint.Set(key, change.ID, window) // Refresh the cache expiry
 
 			if existing, ok := fingerprinted[change.ID]; ok {
-				fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: existing.CountIncrement + 1}
+				// Preserve the original change, just increment the count
+				fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: existing.Change, CountIncrement: existing.CountIncrement + 1, FirstInBatch: existing.FirstInBatch}
 			} else {
-				fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: 1}
+				fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: 1, FirstInBatch: false}
 			}
 		}
 	}
 
 	var deduped []models.ConfigChangeUpdate
 	for _, v := range fingerprinted {
-		if v.CountIncrement == 0 {
+		if v.FirstInBatch || v.CountIncrement == 0 {
+			// First occurrence in the batch will be inserted
 			nonDuped = append(nonDuped, v.Change)
 		} else {
 			deduped = append(deduped, v)
