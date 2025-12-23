@@ -73,7 +73,10 @@ func Fingerprint(change *models.ConfigChange) (string, error) {
 		return "", err
 	}
 
-	out := map[string]any{"__change_type": change.ChangeType}
+	out := map[string]any{
+		"__change_type":        change.ChangeType,
+		"__external_change_id": lo.FromPtr(change.ExternalChangeID),
+	}
 	for k, v := range flat {
 		out[k] = tokenizer.Tokenize(v)
 	}
