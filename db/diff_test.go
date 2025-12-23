@@ -93,19 +93,20 @@ func Test_dedupChanges(t *testing.T) {
 					{ID: uuid.NewString(), CreatedAt: time.Date(2024, 03, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "third", Count: 1},
 					{ID: uuid.NewString(), CreatedAt: time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "fourth", Count: 1},
 					{ID: "01eda583-3f5e-4c44-851f-93ac73272b92", CreatedAt: time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("xyz"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "different", Count: 1},
+					{ID: uuid.NewString(), CreatedAt: time.Date(2024, 04, 03, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("xyz"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "different two", Count: 1},
 				},
 			},
 			deduped: []models.ConfigChangeUpdate{
 				{
 					Change: &models.ConfigChange{
 						ID:          "8b9d2659-7a11-46ff-bdff-1c4e8964c437",
-						CreatedAt:   time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC),
+						CreatedAt:   time.Date(2024, 01, 02, 0, 0, 0, 0, time.UTC),
 						Fingerprint: lo.ToPtr("abc"),
 						ConfigID:    "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d",
-						Summary:     "fourth",
+						Summary:     "first",
 						Count:       1,
 					},
-					CountIncrement: 3,
+					CountIncrement: 4,
 				},
 			},
 			nonDuped: []*models.ConfigChange{
@@ -120,6 +121,10 @@ func Test_dedupChanges(t *testing.T) {
 			},
 		},
 	}
+
+	// Existing change "8b9d2659-7a11-46ff-bdff-1c4e8964c437" should count as deduped since it is set in db/cache
+	// change "01eda583-3f5e-4c44-851f-93ac73272b92" is nonDuped since it is first occurence. We do not care for duplicates in the same batch
+	ChangeCacheByFingerprint.Set(changeFingeprintCacheKey("dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", "abc"), "8b9d2659-7a11-46ff-bdff-1c4e8964c437", time.Hour)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			nonDuped, deduped := dedupChanges(tt.args.window, tt.args.changes)
