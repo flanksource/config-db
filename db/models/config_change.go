@@ -15,6 +15,7 @@ import (
 type ConfigChangeUpdate struct {
 	Change         *ConfigChange
 	CountIncrement int
+	FirstInBatch   bool // First occurrence in current batch (not found in cache)
 }
 
 // ConfigChange represents the config change database table
