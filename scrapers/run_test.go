@@ -700,3 +700,97 @@ func GetConfigItemFromID(ctx api.ScrapeContext, id string) (*models.ConfigItem, 
 	err := ctx.DB().Limit(1).Omit("config").Find(&ci, "id = ?", id).Error
 	return &ci, err
 }
+
+var _ = Describe("External users e2e test", Ordered, func() {
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+	var scraperModel dutymodels.ConfigScraper
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("file-external-users")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
+		scModel.Source = dutymodels.SourceUI
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+
+		scraperModel = scModel
+	})
+
+	AfterAll(func() {
+		// Clean up external_user_groups first (foreign key constraint)
+		err := DefaultContext.DB().Where("external_user_id IN (?)",
+			[]string{
+				"018e4c6a-1111-7000-8000-000000000001",
+				"018e4c6a-1111-7000-8000-000000000002",
+			}).Delete(&dutymodels.ExternalUserGroup{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external user groups")
+
+		// Clean up external users
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external users")
+
+		// Clean up external groups
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalGroup{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external groups")
+
+		// Clean up external roles
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external roles")
+
+		// Clean up scraper
+		err = DefaultContext.DB().Delete(&scraperModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
+	})
+
+	It("should scrape and save external users, groups, roles, and user-group mappings", func() {
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+	})
+
+	It("should have saved external users to the database", func() {
+		var users []dutymodels.ExternalUser
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&users).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(users).To(HaveLen(2))
+
+		userNames := lo.Map(users, func(u dutymodels.ExternalUser, _ int) string { return u.Name })
+		Expect(userNames).To(ContainElements("John Doe", "Service Bot"))
+	})
+
+	It("should have saved external groups to the database", func() {
+		var groups []dutymodels.ExternalGroup
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&groups).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(groups).To(HaveLen(2))
+
+		groupNames := lo.Map(groups, func(g dutymodels.ExternalGroup, _ int) string { return g.Name })
+		Expect(groupNames).To(ContainElements("Administrators", "Developers"))
+	})
+
+	It("should have saved external roles to the database", func() {
+		var roles []dutymodels.ExternalRole
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&roles).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(roles).To(HaveLen(2))
+
+		roleNames := lo.Map(roles, func(r dutymodels.ExternalRole, _ int) string { return r.Name })
+		Expect(roleNames).To(ContainElements("Admin", "Reader"))
+	})
+
+	It("should have saved external user groups to the database", func() {
+		var userGroups []dutymodels.ExternalUserGroup
+		err := DefaultContext.DB().Where("external_user_id IN (?)",
+			[]string{
+				"018e4c6a-1111-7000-8000-000000000001",
+				"018e4c6a-1111-7000-8000-000000000002",
+			}).Find(&userGroups).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(userGroups).To(HaveLen(2))
+	})
+})

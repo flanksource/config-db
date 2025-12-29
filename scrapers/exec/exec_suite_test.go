@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
 	dutycontext "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/tests/setup"
 	. "github.com/onsi/ginkgo/v2"
