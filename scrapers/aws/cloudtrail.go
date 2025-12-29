@@ -49,11 +49,14 @@ func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<-
 var LastEventTime = sync.Map{}
 
 type CloudTrailEvent struct {
+	AWSRegion          string `json:"awsRegion"`
+	RecipientAccountID string `json:"recipientAccountId"`
 	UserIdentity struct {
 		Type           string `json:"type"`
 		Arn            string `json:"arn"`
 		Username       string `json:"userName"`
 		PrincipalID    string `json:"principalId"`
+		AccountID      string `json:"accountId"`
 		InvokedBy      string `json:"invokedBy"`
 		SessionContext struct {
 			SessionIssuer struct {
@@ -62,6 +65,10 @@ type CloudTrailEvent struct {
 			} `json:"sessionIssuer"`
 		} `json:"sessionContext"`
 	} `json:"userIdentity"`
+	RequestParameters struct {
+		LogGroupName  string `json:"logGroupName"`
+		LogStreamName string `json:"logStreamName"`
+	} `json:"requestParameters"`
 	Resources []struct {
 		ARN       string `json:"ARN"`
 		AccountID string `json:"accountId"`
@@ -200,7 +207,38 @@ func cloudtrailEventToChange(event types.Event, resource types.Resource) (*v1.Ch
 		break
 	}
 
+	// CloudWatch Logs events often omit resource ARNs, so derive the log stream ARN from request parameters.
+	if change.ExternalID == "" && ptr.ToString(event.EventSource) == "logs.amazonaws.com" {
+		if arn := cloudwatchLogStreamARN(cloudtrailEvent); arn != "" {
+			change.ExternalID = arn
+			if change.ConfigType == "" || !strings.HasPrefix(change.ConfigType, "AWS::") {
+				change.ConfigType = "AWS::Logs::LogStream"
+			}
+		}
+	}
+
 	return change, nil
+}
+
+// cloudwatchLogStreamARN builds a log stream ARN from CloudTrail request parameters.
+// CloudTrail often omits ARNs for logs events, so we derive them from region/account/logGroup/logStream.
+func cloudwatchLogStreamARN(event CloudTrailEvent) string {
+	logGroup := event.RequestParameters.LogGroupName
+	logStream := event.RequestParameters.LogStreamName
+	if logGroup == "" || logStream == "" {
+		return ""
+	}
+
+	region := event.AWSRegion
+	accountID := event.RecipientAccountID
+	if accountID == "" {
+		accountID = event.UserIdentity.AccountID
+	}
+	if region == "" || accountID == "" {
+		return ""
+	}
+
+	return fmt.Sprintf("arn:aws:logs:%s:%s:log-group:%s:log-stream:%s", region, accountID, logGroup, logStream)
 }
 
 func cloudtrailEventToConfigType(resourceARN, eventSource string) string {
