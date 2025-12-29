@@ -2571,6 +2571,8 @@ spec:
                           description: |-
                             Destination is the full path to where the contents of the URL should be downloaded to.
                             If left empty, the sha256 hash of the URL will be used as the dir name.
+
+                            Deprecated: no similar functionality available. This depends on the use case
                           type: string
                         password:
                           properties:
@@ -3500,6 +3502,20 @@ spec:
                     script:
                       description: Script is an inline script to run
                       type: string
+                    setup:
+                      description: Setup dependencies
+                      properties:
+                        bun:
+                          properties:
+                            version:
+                              type: string
+                          type: object
+                        python:
+                          properties:
+                            version:
+                              type: string
+                          type: object
+                      type: object
                     status:
                       description: A static value or JSONPath expression to use as
                         the status of the config item

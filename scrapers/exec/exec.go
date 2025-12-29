@@ -25,6 +25,7 @@ func (e ExecScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			Checkout:  config.Checkout,
 			EnvVars:   config.Env,
 			Artifacts: config.Artifacts,
+			Setup:     config.Setup,
 		}
 
 		if config.Connections != nil {

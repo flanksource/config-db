@@ -998,6 +998,9 @@
             "$ref": "#/$defs/Artifact"
           },
           "type": "array"
+        },
+        "setup": {
+          "$ref": "#/$defs/ExecSetup"
         }
       },
       "additionalProperties": false,
@@ -1028,6 +1031,18 @@
         },
         "azure": {
           "$ref": "#/$defs/AzureConnection"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ExecSetup": {
+      "properties": {
+        "bun": {
+          "$ref": "#/$defs/RuntimeSetup"
+        },
+        "python": {
+          "$ref": "#/$defs/RuntimeSetup"
         }
       },
       "additionalProperties": false,
@@ -2688,6 +2703,15 @@
           "type": "array"
         },
         "staleItemAge": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RuntimeSetup": {
+      "properties": {
+        "version": {
           "type": "string"
         }
       },

@@ -11,15 +11,17 @@ spec:
       id: $.id
       name: $.name
       description: $.metadata.description
-
+      setup:
+        python:
+          version: latest
       script: |
-        #!/bin/bash
-        set -euo pipefail
+        #!/usr/bin/env python3
+        # /// script
+        # dependencies = [
+        #   "pyyaml",
+        # ]
+        # ///
 
-        SCRIPT_FILE="backstage_catalog.py"
-
-        # Write the Python script to disk so we can execute it after installing deps
-        cat > "$SCRIPT_FILE" <<'PYCODE'
         import json
         import yaml
         from pathlib import Path
@@ -98,15 +100,6 @@ spec:
 
         # Output JSON array
         print(json.dumps(entities, indent=2))
-        PYCODE
-
-        {
-          python3 -m venv .venv
-          . .venv/bin/activate
-          pip install pyyaml
-        } > /dev/null 2>&1
-
-        python3 "$SCRIPT_FILE"
 
       checkout:
         url: https://github.com/backstage/backstage
