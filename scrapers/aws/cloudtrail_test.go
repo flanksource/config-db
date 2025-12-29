@@ -12,9 +12,12 @@ import (
 
 func TestCloudTrailEventToChange(t *testing.T) {
 	tests := []struct {
-		name              string
-		eventRaw          string
-		expectedCreatedBy string
+		name               string
+		eventRaw           string
+		eventSource        string
+		expectedCreatedBy  string
+		expectedExternalID string
+		expectedConfigType string
 	}{
 		{
 			name: "Assumed Role",
@@ -134,6 +137,21 @@ userIdentity:
 `,
 			expectedCreatedBy: "arn:aws:iam::789789789789:root",
 		},
+		{
+			name: "ECR PutImage with ARN resource",
+			eventRaw: `---
+userIdentity:
+  type: IAMUser
+  userName: github-actions-ecr
+resources:
+  - accountId: "765618022540"
+    ARN: arn:aws:ecr-public::765618022540:repository/incident-commander
+`,
+			eventSource:        "ecr-public.amazonaws.com",
+			expectedCreatedBy:  "github-actions-ecr",
+			expectedExternalID: "arn:aws:ecr-public::765618022540:repository/incident-commander",
+			expectedConfigType: "AWS::ECR::Repository",
+		},
 	}
 
 	for _, tt := range tests {
@@ -150,11 +168,20 @@ userIdentity:
 			event := types.Event{
 				CloudTrailEvent: lo.ToPtr(string(eventJSON)),
 			}
+			if tt.eventSource != "" {
+				event.EventSource = lo.ToPtr(tt.eventSource)
+			}
 
 			change, err := cloudtrailEventToChange(event, types.Resource{})
 			g.Expect(err).To(gomega.Succeed())
 			g.Expect(change).To(gomega.Not(gomega.BeNil()))
 			g.Expect(*change.CreatedBy).To(gomega.Equal(tt.expectedCreatedBy))
+			if tt.expectedExternalID != "" {
+				g.Expect(change.ExternalID).To(gomega.Equal(tt.expectedExternalID))
+			}
+			if tt.expectedConfigType != "" {
+				g.Expect(change.ConfigType).To(gomega.Equal(tt.expectedConfigType))
+			}
 		})
 	}
 }
