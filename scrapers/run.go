@@ -260,6 +260,7 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 
 		if len(allExternalRoles) > 0 {
 			result := v1.NewScrapeResult(scraped[0].BaseScraper)
+			result.ExternalRoles = allExternalRoles
 			scraped = append(scraped, *result)
 		}
 
