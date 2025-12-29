@@ -23,4 +23,7 @@ type Exec struct {
 
 	// Artifacts to collect after execution
 	Artifacts []shell.Artifact `json:"artifacts,omitempty" yaml:"artifacts,omitempty" template:"true"`
+
+	// Setup dependencies
+	Setup *shell.ExecSetup `json:"setup,omitempty"`
 }
