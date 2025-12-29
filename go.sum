@@ -261,8 +261,6 @@ github.com/aws/aws-sdk-go-v2/service/backup v1.49.4 h1:v30l5443w7l8CGmKNeoeIZE1d
 github.com/aws/aws-sdk-go-v2/service/backup v1.49.4/go.mod h1:Sqiqu5Ws64P9IYY+0mQ4OafDKK1LK6sRWQqw89dZZYA=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.68.3 h1:H4jVDatTYCt6WSG7oC0dlZl8kfKHT2anADHQiQI1HVo=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.68.3/go.mod h1:llucikq1Q6I1Ps8rNV3St0bOY5RQMxYh1lpCaskyhPw=
-github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.53.11 h1:GqRfk8acdUn5kBmq6RlN98PIUAhe1uiKVEFQ8Wqg+tg=
-github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.53.11/go.mod h1:yPef5Em35Sb/89IIHAOarpsld8EuxyxuDVDlHj32LVA=
 github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.4 h1:paDKcKBWPFh/uaTEMPMXyVj5Qsz2dlHaJCi+6yg1C84=
 github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.4/go.mod h1:06x0N2mdQ+l0uv/fjo8p96812Ex8sxq24LmC8JPajmg=
 github.com/aws/aws-sdk-go-v2/service/configservice v1.59.2 h1:wLYrBB2bdNXCBHq2C4wSTUAOsbwpiOVYyK5gyPDwsbc=
