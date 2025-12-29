@@ -168,6 +168,7 @@ func (result *AnalysisResult) Message(msg string) *AnalysisResult {
 // +kubebuilder:object:generate=false
 type AnalysisResults []AnalysisResult
 
+// +kubebuilder:object:generate=false
 type ScrapeSummary map[string]ConfigTypeScrapeSummary
 
 func (summary ScrapeSummary) HasUpdates() bool {
@@ -276,12 +277,14 @@ func (t *ScrapeSummary) AddWarning(configType, warning string) {
 	(*t)[configType] = v
 }
 
+// +kubebuilder:object:generate=false
 type ChangeSummary struct {
 	Orphaned         map[string]OrphanedChanges `json:"orphaned,omitempty"`
 	Ignored          map[string]int             `json:"ignored,omitempty"`
 	ForeignKeyErrors int                        `json:"foreign_key_errors,omitempty"`
 }
 
+// +kubebuilder:object:generate=false
 type OrphanedChanges struct {
 	IDs   set.Set[string] `json:"ids,omitempty"`
 	Count int             `json:"count,omitempty"`
@@ -366,6 +369,7 @@ func orphanedCount(orphaned OrphanedChanges) int {
 	return len(orphaned.IDs.ToSlice())
 }
 
+// +kubebuilder:object:generate=false
 type ChangeSummaryByType map[string]ChangeSummary
 
 func (t *ChangeSummaryByType) Merge(typ string, b ChangeSummary) {
@@ -374,6 +378,7 @@ func (t *ChangeSummaryByType) Merge(typ string, b ChangeSummary) {
 	(*t)[typ] = v
 }
 
+// +kubebuilder:object:generate=false
 type ConfigTypeScrapeSummary struct {
 	Added     int            `json:"added,omitempty"`
 	Updated   int            `json:"updated,omitempty"`
