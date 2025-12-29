@@ -152,6 +152,23 @@ resources:
 			expectedExternalID: "arn:aws:ecr-public::765618022540:repository/incident-commander",
 			expectedConfigType: "AWS::ECR::Repository",
 		},
+		{
+			name: "CloudWatch Logs CreateLogStream from request parameters",
+			eventRaw: `---
+awsRegion: us-east-1
+recipientAccountId: "765618022540"
+userIdentity:
+  type: IAMUser
+  userName: github-actions-ecr
+requestParameters:
+  logGroupName: "/aws/ecs/containerinsights/demo-dev-cluster/performance"
+  logStreamName: "FargateTelemetry-2681"
+`,
+			eventSource:        "logs.amazonaws.com",
+			expectedCreatedBy:  "github-actions-ecr",
+			expectedExternalID: "arn:aws:logs:us-east-1:765618022540:log-group:/aws/ecs/containerinsights/demo-dev-cluster/performance:log-stream:FargateTelemetry-2681",
+			expectedConfigType: "AWS::Logs::LogStream",
+		},
 	}
 
 	for _, tt := range tests {
