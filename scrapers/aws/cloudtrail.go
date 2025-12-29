@@ -10,8 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/aws/smithy-go/ptr"
-	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/samber/lo"
+
+	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<- types.Event, config v1.AWS) error {
@@ -61,6 +62,10 @@ type CloudTrailEvent struct {
 			} `json:"sessionIssuer"`
 		} `json:"sessionContext"`
 	} `json:"userIdentity"`
+	Resources []struct {
+		ARN       string `json:"ARN"`
+		AccountID string `json:"accountId"`
+	} `json:"resources"`
 }
 
 func (t *CloudTrailEvent) FromJSON(j string) error {
@@ -184,5 +189,37 @@ func cloudtrailEventToChange(event types.Event, resource types.Resource) (*v1.Ch
 		change.ConfigType = *resource.ResourceType
 	}
 
+	for _, resource := range cloudtrailEvent.Resources {
+		if resource.ARN == "" {
+			continue
+		}
+		change.ExternalID = resource.ARN
+		if change.ConfigType == "" || !strings.HasPrefix(change.ConfigType, "AWS::") {
+			change.ConfigType = cloudtrailEventToConfigType(resource.ARN, ptr.ToString(event.EventSource))
+		}
+		break
+	}
+
 	return change, nil
+}
+
+func cloudtrailEventToConfigType(resourceARN, eventSource string) string {
+	service := ""
+	if resourceARN != "" {
+		parts := strings.SplitN(resourceARN, ":", 6)
+		if len(parts) >= 3 {
+			service = parts[2]
+		}
+	}
+
+	if service == "" && eventSource != "" {
+		service = strings.TrimSuffix(eventSource, ".amazonaws.com")
+	}
+
+	switch service {
+	case "ecr", "ecr-public":
+		return "AWS::ECR::Repository"
+	}
+
+	return ""
 }

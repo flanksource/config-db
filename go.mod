@@ -26,7 +26,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/backup v1.49.4
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.68.3
-	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.53.11
+	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.4
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.59.2
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.262.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.51.2
