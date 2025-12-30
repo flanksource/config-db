@@ -1,8 +1,20 @@
 package v1
 
 import (
+	"reflect"
+	"sort"
 	"testing"
+
+	"github.com/flanksource/commons/collections/set"
 )
+
+func newIDSet(ids ...string) set.Set[string] {
+	s := set.New[string]()
+	for _, id := range ids {
+		s.Add(id)
+	}
+	return s
+}
 
 func TestChangeSummary_Merge(t *testing.T) {
 	tests := []struct {
@@ -20,22 +32,22 @@ func TestChangeSummary_Merge(t *testing.T) {
 		{
 			name: "merge summaries with orphaned changes",
 			summary1: ChangeSummary{
-				Orphaned: map[string]int{
-					"foo": 1,
-					"bar": 2,
+				Orphaned: map[string]OrphanedChanges{
+					"foo": {Count: 1, IDs: newIDSet("foo-1")},
+					"bar": {Count: 2, IDs: newIDSet("bar-1")},
 				},
 			},
 			summary2: ChangeSummary{
-				Orphaned: map[string]int{
-					"foo": 3,
-					"baz": 4,
+				Orphaned: map[string]OrphanedChanges{
+					"foo": {Count: 3, IDs: newIDSet("foo-2")},
+					"baz": {Count: 4, IDs: newIDSet("baz-1")},
 				},
 			},
 			expected: ChangeSummary{
-				Orphaned: map[string]int{
-					"foo": 4,
-					"bar": 2,
-					"baz": 4,
+				Orphaned: map[string]OrphanedChanges{
+					"foo": {Count: 4, IDs: newIDSet("foo-1", "foo-2")},
+					"bar": {Count: 2, IDs: newIDSet("bar-1")},
+					"baz": {Count: 4, IDs: newIDSet("baz-1")},
 				},
 			},
 		},
@@ -64,9 +76,9 @@ func TestChangeSummary_Merge(t *testing.T) {
 		{
 			name: "merge summaries with both orphaned and ignored changes",
 			summary1: ChangeSummary{
-				Orphaned: map[string]int{
-					"foo": 1,
-					"bar": 2,
+				Orphaned: map[string]OrphanedChanges{
+					"foo": {Count: 1, IDs: newIDSet("foo-1")},
+					"bar": {Count: 2, IDs: newIDSet("bar-1")},
 				},
 				Ignored: map[string]int{
 					"baz": 3,
@@ -74,9 +86,9 @@ func TestChangeSummary_Merge(t *testing.T) {
 				},
 			},
 			summary2: ChangeSummary{
-				Orphaned: map[string]int{
-					"foo":  5,
-					"quux": 6,
+				Orphaned: map[string]OrphanedChanges{
+					"foo":  {Count: 5, IDs: newIDSet("foo-2")},
+					"quux": {Count: 6, IDs: newIDSet("quux-1")},
 				},
 				Ignored: map[string]int{
 					"baz":   7,
@@ -84,10 +96,10 @@ func TestChangeSummary_Merge(t *testing.T) {
 				},
 			},
 			expected: ChangeSummary{
-				Orphaned: map[string]int{
-					"foo":  6,
-					"bar":  2,
-					"quux": 6,
+				Orphaned: map[string]OrphanedChanges{
+					"foo":  {Count: 6, IDs: newIDSet("foo-1", "foo-2")},
+					"bar":  {Count: 2, IDs: newIDSet("bar-1")},
+					"quux": {Count: 6, IDs: newIDSet("quux-1")},
 				},
 				Ignored: map[string]int{
 					"baz":   10,
@@ -105,8 +117,16 @@ func TestChangeSummary_Merge(t *testing.T) {
 				t.Errorf("Expected %d orphaned changes, got %d", len(tt.expected.Orphaned), len(tt.summary1.Orphaned))
 			}
 			for k, v := range tt.expected.Orphaned {
-				if tt.summary1.Orphaned[k] != v {
-					t.Errorf("Expected %d orphaned changes for %s, got %d", v, k, tt.summary1.Orphaned[k])
+				got := tt.summary1.Orphaned[k]
+				if got.Count != v.Count {
+					t.Errorf("Expected %d orphaned changes for %s, got %d", v.Count, k, got.Count)
+				}
+				gotIDs := got.IDs.ToSlice()
+				wantIDs := v.IDs.ToSlice()
+				sort.Strings(gotIDs)
+				sort.Strings(wantIDs)
+				if !reflect.DeepEqual(gotIDs, wantIDs) {
+					t.Errorf("Expected orphaned ids %v for %s, got %v", wantIDs, k, gotIDs)
 				}
 			}
 			if len(tt.summary1.Ignored) != len(tt.expected.Ignored) {

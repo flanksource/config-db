@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flanksource/commons/collections/set"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
@@ -195,7 +196,11 @@ func (summary ConfigTypeScrapeSummary) String() string {
 		s = append(s, fmt.Sprintf("ignored=%d", lo.Sum(lo.Values(summary.Change.Ignored))))
 	}
 	if summary.Change != nil && len(summary.Change.Orphaned) > 0 {
-		s = append(s, fmt.Sprintf("orphaned=%d", lo.Sum(lo.Values(summary.Change.Orphaned))))
+		total := 0
+		for _, orphaned := range summary.Change.Orphaned {
+			total += orphanedCount(orphaned)
+		}
+		s = append(s, fmt.Sprintf("orphaned=%d", total))
 	}
 
 	return strings.Join(s, ", ")
@@ -272,20 +277,33 @@ func (t *ScrapeSummary) AddWarning(configType, warning string) {
 }
 
 type ChangeSummary struct {
-	Orphaned         map[string]int `json:"orphaned,omitempty"`
-	Ignored          map[string]int `json:"ignored,omitempty"`
-	ForeignKeyErrors int            `json:"foreign_key_errors,omitempty"`
+	Orphaned         map[string]OrphanedChanges `json:"orphaned,omitempty"`
+	Ignored          map[string]int             `json:"ignored,omitempty"`
+	ForeignKeyErrors int                        `json:"foreign_key_errors,omitempty"`
+}
+
+type OrphanedChanges struct {
+	IDs   set.Set[string] `json:"ids,omitempty"`
+	Count int             `json:"count,omitempty"`
 }
 
 func (t ChangeSummary) IsEmpty() bool {
 	return len(t.Orphaned) == 0 && len(t.Ignored) == 0
 }
 
-func (t *ChangeSummary) AddOrphaned(typ string) {
+func (t *ChangeSummary) AddOrphaned(typ, id string) {
 	if t.Orphaned == nil {
-		t.Orphaned = make(map[string]int)
+		t.Orphaned = make(map[string]OrphanedChanges)
 	}
-	t.Orphaned[typ] += 1
+	orphaned := t.Orphaned[typ]
+	orphaned.Count++
+	if id != "" {
+		if orphaned.IDs == nil {
+			orphaned.IDs = set.New[string]()
+		}
+		orphaned.IDs.Add(id)
+	}
+	t.Orphaned[typ] = orphaned
 }
 
 func (t *ChangeSummary) AddIgnored(typ string) {
@@ -298,10 +316,20 @@ func (t *ChangeSummary) AddIgnored(typ string) {
 func (t *ChangeSummary) Merge(b ChangeSummary) {
 	if b.Orphaned != nil {
 		if t.Orphaned == nil {
-			t.Orphaned = make(map[string]int)
+			t.Orphaned = make(map[string]OrphanedChanges)
 		}
 		for k, v := range b.Orphaned {
-			t.Orphaned[k] += v
+			orphaned := t.Orphaned[k]
+			orphaned.Count += orphanedCount(v)
+			if v.IDs != nil {
+				if orphaned.IDs == nil {
+					orphaned.IDs = set.New[string]()
+				}
+				for _, id := range v.IDs.ToSlice() {
+					orphaned.IDs.Add(id)
+				}
+			}
+			t.Orphaned[k] = orphaned
 		}
 	}
 
@@ -323,9 +351,19 @@ func (t *ChangeSummary) Totals() (ignored, orphaned, errors int) {
 		ignored += v
 	}
 	for _, v := range t.Orphaned {
-		orphaned += v
+		orphaned += orphanedCount(v)
 	}
 	return ignored, orphaned, t.ForeignKeyErrors
+}
+
+func orphanedCount(orphaned OrphanedChanges) int {
+	if orphaned.Count > 0 {
+		return orphaned.Count
+	}
+	if orphaned.IDs == nil {
+		return 0
+	}
+	return len(orphaned.IDs.ToSlice())
 }
 
 type ChangeSummaryByType map[string]ChangeSummary
