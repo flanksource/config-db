@@ -29,6 +29,9 @@ type ScrapePlugin struct {
 type ScrapePluginSpec struct {
 	Change TransformChange `json:"changes,omitempty"`
 
+	// Retention config for changes, types, and stale items.
+	Retention *RetentionSpec `json:"retention,omitempty"`
+
 	// Relationship allows you to form relationships between config items using selectors.
 	Relationship []RelationshipConfig `json:"relationship,omitempty"`
 
