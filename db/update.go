@@ -585,6 +585,8 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		return summary, fmt.Errorf("unable to get current db time: %w", err)
 	}
 
+	scraperID := ctx.ScrapeConfig().GetPersistedID()
+
 	extractResult, err := extractConfigsAndChangesFromResults(ctx, results)
 	if err != nil {
 		return summary, fmt.Errorf("failed to extract configs & changes from results: %w", err)
@@ -614,18 +616,21 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	for _, externalUser := range extractResult.externalUsers {
+		externalUser.ScraperID = lo.Ternary(externalUser.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalUser.ScraperID)
 		if err := ctx.DB().Save(&externalUser).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external user: %w", err)
 		}
 	}
 
 	for _, externalGroup := range extractResult.externalGroups {
+		externalGroup.ScraperID = lo.Ternary(externalGroup.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalGroup.ScraperID)
 		if err := ctx.DB().Save(&externalGroup).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external group: %w", err)
 		}
 	}
 
 	for _, externalRole := range extractResult.externalRoles {
+		externalRole.ScraperID = lo.Ternary(externalRole.ScraperID == nil, scraperID, externalRole.ScraperID)
 		if err := ctx.DB().Save(&externalRole).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external role: %w", err)
 		}
