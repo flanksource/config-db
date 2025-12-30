@@ -12,7 +12,9 @@ import (
 )
 
 var schemas = map[string]any{
-	"scrape_config": &v1.ScrapeConfig{},
+	"scrape_config":      &v1.ScrapeConfig{},
+	"scrape_plugin":      &v1.ScrapePlugin{},
+	"scrape_plugin_spec": &v1.ScrapePluginSpec{},
 }
 
 var generateSchema = &cobra.Command{
