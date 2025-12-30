@@ -24,6 +24,21 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "ChangeRetentionSpec": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "age": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "ConfigProperties": {
       "properties": {
         "label": {
@@ -192,10 +207,34 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "RetentionSpec": {
+      "properties": {
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/ChangeRetentionSpec"
+          },
+          "type": "array"
+        },
+        "types": {
+          "items": {
+            "$ref": "#/$defs/TypeRetentionSpec"
+          },
+          "type": "array"
+        },
+        "staleItemAge": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "ScrapePluginSpec": {
       "properties": {
         "changes": {
           "$ref": "#/$defs/TransformChange"
+        },
+        "retention": {
+          "$ref": "#/$defs/RetentionSpec"
         },
         "relationship": {
           "items": {
@@ -238,6 +277,24 @@
             "type": "string"
           },
           "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TypeRetentionSpec": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "createdAge": {
+          "type": "string"
+        },
+        "updatedAge": {
+          "type": "string"
+        },
+        "deletedAge": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

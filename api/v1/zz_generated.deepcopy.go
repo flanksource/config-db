@@ -1739,6 +1739,11 @@ func (in *ScrapePluginList) DeepCopyObject() runtime.Object {
 func (in *ScrapePluginSpec) DeepCopyInto(out *ScrapePluginSpec) {
 	*out = *in
 	in.Change.DeepCopyInto(&out.Change)
+	if in.Retention != nil {
+		in, out := &in.Retention, &out.Retention
+		*out = new(RetentionSpec)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Relationship != nil {
 		in, out := &in.Relationship, &out.Relationship
 		*out = make([]RelationshipConfig, len(*in))

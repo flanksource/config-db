@@ -302,6 +302,36 @@ spec:
                       type: object
                   type: object
                 type: array
+              retention:
+                description: Retention config for changes, types, and stale items.
+                properties:
+                  changes:
+                    items:
+                      properties:
+                        age:
+                          type: string
+                        count:
+                          type: integer
+                        name:
+                          type: string
+                      type: object
+                    type: array
+                  staleItemAge:
+                    type: string
+                  types:
+                    items:
+                      properties:
+                        createdAge:
+                          type: string
+                        deletedAge:
+                          type: string
+                        name:
+                          type: string
+                        updatedAge:
+                          type: string
+                      type: object
+                    type: array
+                type: object
             type: object
           status:
             description: ScrapePluginStatus defines the observed state of Plugin

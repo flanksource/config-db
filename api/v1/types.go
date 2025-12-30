@@ -49,6 +49,15 @@ type RetentionSpec struct {
 	StaleItemAge string                `json:"staleItemAge,omitempty"`
 }
 
+func (r RetentionSpec) Merge(other RetentionSpec) RetentionSpec {
+	r.Changes = append(r.Changes, other.Changes...)
+	r.Types = append(r.Types, other.Types...)
+	if r.StaleItemAge == "" && other.StaleItemAge != "" {
+		r.StaleItemAge = other.StaleItemAge
+	}
+	return r
+}
+
 // ScraperSpec defines the desired state of Config scraper
 type ScraperSpec struct {
 	LogLevel       string           `json:"logLevel,omitempty"`
@@ -85,6 +94,12 @@ type ScraperSpec struct {
 
 func (c ScraperSpec) ApplyPlugin(plugins []ScrapePluginSpec) ScraperSpec {
 	spec := c.DeepCopy()
+
+	for _, p := range plugins {
+		if p.Retention != nil {
+			spec.Retention = spec.Retention.Merge(*p.Retention)
+		}
+	}
 
 	for i := range spec.GCP {
 		spec.GCP[i].BaseScraper = spec.GCP[i].BaseScraper.ApplyPlugins(plugins...)
