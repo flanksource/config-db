@@ -21,6 +21,7 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/flanksource/commons/collections/set"
 	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/logs"
 	"github.com/flanksource/duty/shell"
@@ -352,9 +353,16 @@ func (in *ChangeSummary) DeepCopyInto(out *ChangeSummary) {
 	*out = *in
 	if in.Orphaned != nil {
 		in, out := &in.Orphaned, &out.Orphaned
-		*out = make(map[string]int, len(*in))
+		*out = make(map[string]OrphanedChanges, len(*in))
 		for key, val := range *in {
-			(*out)[key] = val
+			outVal := val
+			if val.IDs != nil {
+				outVal.IDs = set.New[string]()
+				for _, id := range val.IDs.ToSlice() {
+					outVal.IDs.Add(id)
+				}
+			}
+			(*out)[key] = outVal
 		}
 	}
 	if in.Ignored != nil {
