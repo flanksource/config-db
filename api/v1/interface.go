@@ -281,6 +281,7 @@ func (t *ScrapeSummary) AddWarning(configType, warning string) {
 type ChangeSummary struct {
 	Orphaned         map[string]OrphanedChanges `json:"orphaned,omitempty"`
 	Ignored          map[string]int             `json:"ignored,omitempty"`
+	IgnoredByAction  map[string]map[string]int  `json:"ignored_by_action,omitempty"` // action -> change_type -> count
 	ForeignKeyErrors int                        `json:"foreign_key_errors,omitempty"`
 }
 
@@ -316,6 +317,16 @@ func (t *ChangeSummary) AddIgnored(typ string) {
 	t.Ignored[typ] += 1
 }
 
+func (t *ChangeSummary) AddIgnoredByAction(action, changeType string) {
+	if t.IgnoredByAction == nil {
+		t.IgnoredByAction = make(map[string]map[string]int)
+	}
+	if t.IgnoredByAction[action] == nil {
+		t.IgnoredByAction[action] = make(map[string]int)
+	}
+	t.IgnoredByAction[action][changeType] += 1
+}
+
 func (t *ChangeSummary) Merge(b ChangeSummary) {
 	if b.Orphaned != nil {
 		if t.Orphaned == nil {
@@ -344,6 +355,20 @@ func (t *ChangeSummary) Merge(b ChangeSummary) {
 			t.Ignored[k] += v
 		}
 	}
+
+	if b.IgnoredByAction != nil {
+		if t.IgnoredByAction == nil {
+			t.IgnoredByAction = make(map[string]map[string]int)
+		}
+		for action, changeTypes := range b.IgnoredByAction {
+			if t.IgnoredByAction[action] == nil {
+				t.IgnoredByAction[action] = make(map[string]int)
+			}
+			for changeType, count := range changeTypes {
+				t.IgnoredByAction[action][changeType] += count
+			}
+		}
+	}
 }
 
 func (t *ChangeSummary) Totals() (ignored, orphaned, errors int) {
@@ -352,6 +377,11 @@ func (t *ChangeSummary) Totals() (ignored, orphaned, errors int) {
 	}
 	for _, v := range t.Ignored {
 		ignored += v
+	}
+	for _, changeTypes := range t.IgnoredByAction {
+		for _, count := range changeTypes {
+			ignored += count
+		}
 	}
 	for _, v := range t.Orphaned {
 		orphaned += orphanedCount(v)
