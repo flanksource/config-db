@@ -420,7 +420,7 @@ require (
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
-	github.com/flanksource/gomplate/v3 v3.24.62
+	github.com/flanksource/gomplate/v3 v3.24.63
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-logr/logr v1.4.3
 	github.com/go-openapi/jsonpointer v0.22.4 // indirect
