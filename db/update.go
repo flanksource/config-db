@@ -299,6 +299,16 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			continue
 		}
 
+		if exclude, err := shouldExcludeChange(ctx, result, changeResult); err != nil {
+			ctx.JobHistory().AddError(fmt.Sprintf("error running change exclusion: %v", err))
+		} else if exclude {
+			changeSummary.AddIgnored(changeResult.ChangeType)
+			if logExclusions {
+				ctx.Logger.V(3).Infof("excluded change: %v", changeResult)
+			}
+			continue
+		}
+
 		if changeResult.ConfigID != "" {
 			if _, ok := OrphanCache.Get(changeResult.ConfigID); ok {
 				changeSummary.AddOrphaned(changeResult.ChangeType, changeResult.ConfigID)
@@ -311,16 +321,6 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 				changeSummary.AddOrphaned(changeResult.ChangeType, changeResult.ExternalID)
 				continue
 			}
-		}
-
-		if exclude, err := shouldExcludeChange(ctx, result, changeResult); err != nil {
-			ctx.JobHistory().AddError(fmt.Sprintf("error running change exclusion: %v", err))
-		} else if exclude {
-			changeSummary.AddIgnored(changeResult.ChangeType)
-			if logExclusions {
-				ctx.Logger.V(3).Infof("excluded change: %v", changeResult)
-			}
-			continue
 		}
 
 		if changeResult.Action == v1.Delete {
