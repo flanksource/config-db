@@ -295,7 +295,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 
 	for _, changeResult := range result.Changes {
 		if changeResult.Action == v1.Ignore {
-			changeSummary.AddIgnored(changeResult.ChangeType)
+			changeSummary.AddIgnoredByAction(string(changeResult.Action), changeResult.ChangeType)
 			continue
 		}
 
