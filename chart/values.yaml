@@ -144,6 +144,7 @@ disablePostgrest: false
 # @schema
 # -- Image registry for the main application image. Overrides global.imageRegistry if set.
 imageRegistry: ''
+
 image:
   # @schema
   # required: false
@@ -603,3 +604,28 @@ affinity: {}
 # @schema
 # -- Image pull secrets for the main application image
 imagePullSecrets: []
+
+# @schema
+# required: false
+# @schema
+plugins:
+  # @schema
+  # required: false
+  # type: boolean
+  # @schema
+  enabled: true
+
+  locations:
+    # @schema
+    # required: false
+    # type: boolean
+    # @schema
+    # -- Enable AWS locations plugin
+    aws: true
+
+    # @schema
+    # required: false
+    # type: boolean
+    # @schema
+    # -- Enable kubernetes locations plugin
+    kubernetes: true
