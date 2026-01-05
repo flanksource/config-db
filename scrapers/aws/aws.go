@@ -1351,7 +1351,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			for _, tag := range i.Tags {
 				if *tag.Key == "aws:eks:cluster-name" {
 					relationships = append(relationships, v1.RelationshipResult{
-						ConfigExternalID:  v1.ExternalID{ExternalID: getEKSClusterArn("", lo.FromPtr(ctx.Caller.Account), lo.FromPtr(tag.Value)), ConfigType: v1.AWSEKSCluster},
+						ConfigExternalID:  v1.ExternalID{ExternalID: getEKSClusterArn(region, lo.FromPtr(ctx.Caller.Account), lo.FromPtr(tag.Value)), ConfigType: v1.AWSEKSCluster},
 						RelatedExternalID: selfExternalID,
 						Relationship:      "ClusterInstance",
 					})
