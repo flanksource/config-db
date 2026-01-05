@@ -817,6 +817,7 @@ func (aws Scraper) efs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			ConfigClass: "FileSystem",
 			Name:        getName(labels, *fs.FileSystemId),
 			ID:          *fs.FileSystemId,
+			Aliases:     []string{lo.FromPtr(fs.FileSystemArn)},
 		})
 	}
 }
