@@ -32,8 +32,14 @@ func RunNowHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to transform config scraper model", err)
 	}
 
+	done := make(chan struct{})
 	go func() {
-		ctx, cancel := context.New().WithDB(baseCtx.DB(), baseCtx.Pool()).WithTimeout(runNowTimeout)
+		defer close(done)
+
+		ctx, cancel := context.New().
+			WithDB(baseCtx.DB(), baseCtx.Pool()).
+			WithSubject(baseCtx.Subject()).
+			WithTimeout(runNowTimeout)
 		defer cancel()
 
 		scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(&configScraper)
@@ -42,5 +48,10 @@ func RunNowHandler(c echo.Context) error {
 		j.Run()
 	}()
 
-	return dutyAPI.WriteSuccess(c, nil)
+	select {
+	case <-done:
+		return dutyAPI.WriteSuccess(c, nil)
+	case <-c.Request().Context().Done():
+		return c.Request().Context().Err()
+	}
 }
