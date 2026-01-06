@@ -1299,6 +1299,10 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 	}
 }
 
+func getEKSClusterArn(region, account, clusterName string) string {
+	return fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, account, clusterName)
+}
+
 func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
 	if !config.Includes("EC2instance") {
 		return
@@ -1320,6 +1324,21 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				ConfigType: v1.AWSEC2Instance,
 			}
 
+			instance := NewInstance(i)
+			labels := instance.Tags
+			if labels == nil {
+				labels = make(map[string]string)
+			}
+			labels["network"] = instance.VpcID
+			labels["subnet"] = instance.SubnetID
+
+			tags := v1.Tags{}
+			zone := ctx.Subnets[instance.SubnetID].Zone
+			region := ctx.Subnets[instance.SubnetID].Region
+			tags.Append("zone", zone)
+			tags.Append("zone-id", ctx.Subnets[instance.SubnetID].ZoneID)
+			tags.Append("region", region)
+
 			// SecurityGroup relationships
 			for _, sg := range i.SecurityGroups {
 				relationships = append(relationships, v1.RelationshipResult{
@@ -1333,7 +1352,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			for _, tag := range i.Tags {
 				if *tag.Key == "aws:eks:cluster-name" {
 					relationships = append(relationships, v1.RelationshipResult{
-						ConfigExternalID:  v1.ExternalID{ExternalID: *tag.Value, ConfigType: v1.AWSEKSCluster},
+						ConfigExternalID:  v1.ExternalID{ExternalID: getEKSClusterArn(region, lo.FromPtr(ctx.Caller.Account), lo.FromPtr(tag.Value)), ConfigType: v1.AWSEKSCluster},
 						RelatedExternalID: selfExternalID,
 						Relationship:      "ClusterInstance",
 					})
@@ -1369,20 +1388,6 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				RelatedExternalID: selfExternalID,
 				Relationship:      "SubnetInstance",
 			})
-
-			instance := NewInstance(i)
-			labels := instance.Tags
-			if labels == nil {
-				labels = make(map[string]string)
-			}
-			labels["network"] = instance.VpcID
-			labels["subnet"] = instance.SubnetID
-
-			tags := v1.Tags{}
-			zone := ctx.Subnets[instance.SubnetID].Zone
-			tags.Append("zone", zone)
-			tags.Append("zone-id", ctx.Subnets[instance.SubnetID].ZoneID)
-			tags.Append("region", ctx.Subnets[instance.SubnetID].Region)
 
 			*results = append(*results, v1.ScrapeResult{
 				Type:                v1.AWSEC2Instance,
