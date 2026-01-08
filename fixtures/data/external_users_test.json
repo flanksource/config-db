@@ -6,13 +6,15 @@
       "name": "John Doe",
       "account_id": "org-123",
       "user_type": "human",
-      "email": "john.doe@example.com"
+      "email": "john.doe@example.com",
+      "aliases": ["john-doe", "jdoe@example.com"]
     },
     {
       "id": "018e4c6a-1111-7000-8000-000000000002",
       "name": "Service Bot",
       "account_id": "org-123",
-      "user_type": "service"
+      "user_type": "service",
+      "aliases": ["service-bot", "bot-001"]
     }
   ],
   "external_groups": [

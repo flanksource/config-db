@@ -397,6 +397,48 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 
 var OrphanCache = cache.New(60*time.Minute, 10*time.Minute)
 
+// ExternalUserCache stores alias+scraperID -> external_user_id mapping
+var ExternalUserCache = cache.New(time.Hour, 10*time.Minute)
+
+// externalUserCacheKey returns the cache key for an external user alias lookup
+func externalUserCacheKey(alias string, scraperID uuid.UUID) string {
+	return alias + "|" + scraperID.String()
+}
+
+// findExternalUserIDByAliases looks up an external user ID by aliases and scraper_id.
+// It first checks the cache, then queries the DB. Returns the ID if found, uuid.Nil otherwise.
+func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string, scraperID uuid.UUID) (uuid.UUID, error) {
+	for _, alias := range aliases {
+		cacheKey := externalUserCacheKey(alias, scraperID)
+		if cachedID, ok := ExternalUserCache.Get(cacheKey); ok {
+			return cachedID.(uuid.UUID), nil
+		}
+	}
+
+	// Query DB for any matching alias
+	for _, alias := range aliases {
+		var existingUser dutyModels.ExternalUser
+		err := ctx.DB().
+			Select("id").
+			Where("? = ANY(aliases)", alias).
+			Where("scraper_id = ?", scraperID).
+			Where("deleted_at IS NULL").
+			First(&existingUser).Error
+
+		if err == nil {
+			// Found in DB, populate cache for all aliases and return
+			for _, a := range aliases {
+				ExternalUserCache.Set(externalUserCacheKey(a, scraperID), existingUser.ID, cache.DefaultExpiration)
+			}
+			return existingUser.ID, nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return uuid.Nil, fmt.Errorf("failed to query external user by alias: %w", err)
+		}
+	}
+
+	return uuid.Nil, nil
+}
+
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	var ci *models.ConfigItem
 	var err error
@@ -624,8 +666,24 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	for _, externalUser := range extractResult.externalUsers {
 		externalUser.ScraperID = lo.Ternary(externalUser.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalUser.ScraperID)
+
+		if len(externalUser.Aliases) > 0 {
+			existingID, err := findExternalUserIDByAliases(ctx, externalUser.Aliases, externalUser.ScraperID)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find external user by aliases: %w", err)
+			}
+			if existingID != uuid.Nil {
+				externalUser.ID = existingID
+			}
+		}
+
 		if err := ctx.DB().Save(&externalUser).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external user: %w", err)
+		}
+
+		// Update cache for all aliases
+		for _, alias := range externalUser.Aliases {
+			ExternalUserCache.Set(externalUserCacheKey(alias, externalUser.ScraperID), externalUser.ID, cache.DefaultExpiration)
 		}
 	}
 
