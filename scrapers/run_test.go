@@ -756,9 +756,10 @@ var _ = Describe("External users e2e test", Ordered, func() {
 
 		// Verify aliases are saved
 		for _, user := range users {
-			if user.Name == "John Doe" {
+			switch user.Name {
+			case "John Doe":
 				Expect(user.Aliases).To(ContainElements("john-doe", "jdoe@example.com"))
-			} else if user.Name == "Service Bot" {
+			case "Service Bot":
 				Expect(user.Aliases).To(ContainElements("service-bot", "bot-001"))
 			}
 		}
