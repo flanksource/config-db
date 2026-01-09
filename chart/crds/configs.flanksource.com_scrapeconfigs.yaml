@@ -2567,6 +2567,8 @@ spec:
                           type: object
                         connection:
                           type: string
+                        depth:
+                          type: integer
                         destination:
                           description: |-
                             Destination is the full path to where the contents of the URL should be downloaded to.
@@ -7855,6 +7857,8 @@ spec:
                       properties:
                         address:
                           type: string
+                        connection:
+                          type: string
                         index:
                           type: string
                         limit:
@@ -7948,7 +7952,6 @@ spec:
                               type: object
                           type: object
                       required:
-                      - address
                       - index
                       - query
                       type: object
