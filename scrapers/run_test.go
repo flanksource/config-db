@@ -819,20 +819,20 @@ var _ = Describe("External users e2e test", Ordered, func() {
 		_, err := RunScraper(scraperCtx)
 		Expect(err).To(BeNil())
 
-		// Verify cache is populated for all aliases
-		johnDoeID, found := db.ExternalUserCache.Get("john-doe|" + scraperModel.ID.String())
+		// Verify cache is populated for all aliases (key is just the alias)
+		johnDoeID, found := db.ExternalUserCache.Get("john-doe")
 		Expect(found).To(BeTrue())
 		Expect(johnDoeID).NotTo(Equal(uuid.Nil))
 
-		jdoeID, found := db.ExternalUserCache.Get("jdoe@example.com|" + scraperModel.ID.String())
+		jdoeID, found := db.ExternalUserCache.Get("jdoe@example.com")
 		Expect(found).To(BeTrue())
 		Expect(jdoeID).To(Equal(johnDoeID)) // Same user, same ID
 
-		serviceBotID, found := db.ExternalUserCache.Get("service-bot|" + scraperModel.ID.String())
+		serviceBotID, found := db.ExternalUserCache.Get("service-bot")
 		Expect(found).To(BeTrue())
 		Expect(serviceBotID).NotTo(Equal(uuid.Nil))
 
-		bot001ID, found := db.ExternalUserCache.Get("bot-001|" + scraperModel.ID.String())
+		bot001ID, found := db.ExternalUserCache.Get("bot-001")
 		Expect(found).To(BeTrue())
 		Expect(bot001ID).To(Equal(serviceBotID)) // Same user, same ID
 	})
