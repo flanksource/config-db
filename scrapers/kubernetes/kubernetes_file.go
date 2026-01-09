@@ -5,7 +5,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/flanksource/duty/connection"
 	perrors "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	k8sv1 "k8s.io/api/core/v1"
@@ -126,12 +125,11 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 	results := v1.ScrapeResults{}
 
 	for _, config := range ctx.ScrapeConfig().Spec.KubernetesFile {
-		kc := connection.KubernetesConnection{}
-		if config.Kubeconfig != nil {
-			kc.Kubeconfig = config.Kubeconfig
-			ctx.Context = ctx.WithKubernetes(kc)
-		} else if ctx.KubernetesConnection() == nil {
-			ctx.Context = ctx.WithKubernetes(kc)
+		ctx.Context = ctx.WithKubernetes(config.KubernetesConnection)
+
+		k8s, err := ctx.Kubernetes()
+		if err != nil {
+			return results.Errorf(err, "error creating kubernetes client")
 		}
 
 		if config.Selector.Kind == "" {
@@ -141,10 +139,6 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 		ctx.Logger.V(3).Infof("Scraping pods %s => %s", config.Selector, config.Files)
 
 		var pods []pod
-		k8s, err := ctx.Kubernetes()
-		if err != nil {
-			return results.Errorf(err, "error creating kubernetes client")
-		}
 		if startsWith(config.Selector.Kind, "pod") {
 			podList, err := findPods(ctx, k8s, config.Selector)
 			if err != nil {

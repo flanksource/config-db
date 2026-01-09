@@ -2567,6 +2567,8 @@ spec:
                           type: object
                         connection:
                           type: string
+                        depth:
+                          type: integer
                         destination:
                           description: |-
                             Destination is the full path to where the contents of the URL should be downloaded to.
@@ -7023,6 +7025,88 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.
                       type: string
+                    cnrm:
+                      properties:
+                        clusterResource:
+                          type: string
+                        clusterResourceNamespace:
+                          type: string
+                        gke:
+                          properties:
+                            cluster:
+                              type: string
+                            connection:
+                              description: ConnectionName of the connection. It'll
+                                be used to populate the endpoint and credentials.
+                              type: string
+                            credentials:
+                              properties:
+                                name:
+                                  type: string
+                                value:
+                                  type: string
+                                valueFrom:
+                                  properties:
+                                    configMapKeyRef:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          type: string
+                                      required:
+                                      - key
+                                      type: object
+                                    helmRef:
+                                      properties:
+                                        key:
+                                          description: Key is a JSONPath expression
+                                            used to fetch the key from the merged
+                                            JSON.
+                                          type: string
+                                        name:
+                                          type: string
+                                      required:
+                                      - key
+                                      type: object
+                                    secretKeyRef:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          type: string
+                                      required:
+                                      - key
+                                      type: object
+                                    serviceAccount:
+                                      description: ServiceAccount specifies the service
+                                        account whose token should be fetched
+                                      type: string
+                                  type: object
+                              type: object
+                            endpoint:
+                              type: string
+                            project:
+                              type: string
+                            projectID:
+                              type: string
+                            skipTLSVerify:
+                              description: Skip TLS verify
+                              type: boolean
+                            zone:
+                              type: string
+                          required:
+                          - cluster
+                          - projectID
+                          - zone
+                          type: object
+                      required:
+                      - clusterResource
+                      - clusterResourceNamespace
+                      - gke
+                      type: object
+                    connection:
+                      description: Connection name to populate kubeconfig
+                      type: string
                     container:
                       type: string
                     createFields:
@@ -7043,6 +7127,155 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    eks:
+                      properties:
+                        accessKey:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                helmRef:
+                                  properties:
+                                    key:
+                                      description: Key is a JSONPath expression used
+                                        to fetch the key from the merged JSON.
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                secretKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                serviceAccount:
+                                  description: ServiceAccount specifies the service
+                                    account whose token should be fetched
+                                  type: string
+                              type: object
+                          type: object
+                        assumeRole:
+                          type: string
+                        cluster:
+                          type: string
+                        connection:
+                          description: ConnectionName of the connection. It'll be
+                            used to populate the endpoint, accessKey and secretKey.
+                          type: string
+                        endpoint:
+                          type: string
+                        region:
+                          type: string
+                        secretKey:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                helmRef:
+                                  properties:
+                                    key:
+                                      description: Key is a JSONPath expression used
+                                        to fetch the key from the merged JSON.
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                secretKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                serviceAccount:
+                                  description: ServiceAccount specifies the service
+                                    account whose token should be fetched
+                                  type: string
+                              type: object
+                          type: object
+                        sessionToken:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                helmRef:
+                                  properties:
+                                    key:
+                                      description: Key is a JSONPath expression used
+                                        to fetch the key from the merged JSON.
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                secretKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                serviceAccount:
+                                  description: ServiceAccount specifies the service
+                                    account whose token should be fetched
+                                  type: string
+                              type: object
+                          type: object
+                        skipTLSVerify:
+                          description: Skip TLS verify when connecting to aws
+                          type: boolean
+                      required:
+                      - cluster
+                      type: object
                     files:
                       items:
                         properties:
@@ -7058,6 +7291,73 @@ spec:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
                       type: string
+                    gke:
+                      properties:
+                        cluster:
+                          type: string
+                        connection:
+                          description: ConnectionName of the connection. It'll be
+                            used to populate the endpoint and credentials.
+                          type: string
+                        credentials:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                helmRef:
+                                  properties:
+                                    key:
+                                      description: Key is a JSONPath expression used
+                                        to fetch the key from the merged JSON.
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                secretKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                serviceAccount:
+                                  description: ServiceAccount specifies the service
+                                    account whose token should be fetched
+                                  type: string
+                              type: object
+                          type: object
+                        endpoint:
+                          type: string
+                        project:
+                          type: string
+                        projectID:
+                          type: string
+                        skipTLSVerify:
+                          description: Skip TLS verify
+                          type: boolean
+                        zone:
+                          type: string
+                      required:
+                      - cluster
+                      - projectID
+                      - zone
+                      type: object
                     health:
                       description: A static value or JSONPath expression to use as
                         the health of the config item
@@ -7855,6 +8155,8 @@ spec:
                       properties:
                         address:
                           type: string
+                        connection:
+                          type: string
                         index:
                           type: string
                         limit:
@@ -7948,7 +8250,6 @@ spec:
                               type: object
                           type: object
                       required:
-                      - address
                       - index
                       - query
                       type: object
