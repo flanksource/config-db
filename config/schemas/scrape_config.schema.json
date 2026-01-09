@@ -1972,8 +1972,20 @@
           },
           "type": "array"
         },
+        "connection": {
+          "type": "string"
+        },
         "kubeconfig": {
           "$ref": "#/$defs/EnvVar"
+        },
+        "eks": {
+          "$ref": "#/$defs/EKSConnection"
+        },
+        "gke": {
+          "$ref": "#/$defs/GKEConnection"
+        },
+        "cnrm": {
+          "$ref": "#/$defs/CNRMConnection"
         },
         "selector": {
           "$ref": "#/$defs/ResourceSelector"

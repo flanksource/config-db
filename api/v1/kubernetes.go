@@ -8,7 +8,6 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/connection"
-	"github.com/flanksource/duty/types"
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -269,11 +268,12 @@ func (t *Kubernetes) Hash() string {
 }
 
 type KubernetesFile struct {
-	BaseScraper `json:",inline"`
-	Kubeconfig  *types.EnvVar    `json:"kubeconfig,omitempty"`
-	Selector    ResourceSelector `json:"selector" yaml:"selector"`
-	Container   string           `json:"container,omitempty" yaml:"container,omitempty"`
-	Files       []PodFile        `json:"files,omitempty" yaml:"files,omitempty"`
+	BaseScraper                     `json:",inline"`
+	connection.KubernetesConnection `json:",inline"`
+
+	Selector  ResourceSelector `json:"selector" yaml:"selector"`
+	Container string           `json:"container,omitempty" yaml:"container,omitempty"`
+	Files     []PodFile        `json:"files,omitempty" yaml:"files,omitempty"`
 }
 
 type PodFile struct {
