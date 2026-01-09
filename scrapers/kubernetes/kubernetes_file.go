@@ -6,17 +6,15 @@ import (
 	"strings"
 
 	perrors "github.com/pkg/errors"
-
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/utils/kube"
-	"github.com/flanksource/duty/connection"
-
 	appsv1 "k8s.io/api/apps/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils/kube"
 )
 
 type KubernetesFileScraper struct {
@@ -127,14 +125,11 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 	results := v1.ScrapeResults{}
 
 	for _, config := range ctx.ScrapeConfig().Spec.KubernetesFile {
+		ctx.Context = ctx.WithKubernetes(config.KubernetesConnection)
 
-		if config.Kubeconfig != nil {
-			c := ctx.WithKubernetes(connection.KubernetesConnection{
-				KubeconfigConnection: connection.KubeconfigConnection{
-					Kubeconfig: config.Kubeconfig,
-				},
-			})
-			ctx.Context = c
+		k8s, err := ctx.Kubernetes()
+		if err != nil {
+			return results.Errorf(err, "error creating kubernetes client")
 		}
 
 		if config.Selector.Kind == "" {
@@ -144,10 +139,6 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 		ctx.Logger.V(3).Infof("Scraping pods %s => %s", config.Selector, config.Files)
 
 		var pods []pod
-		k8s, err := ctx.Kubernetes()
-		if err != nil {
-			return results.Errorf(err, "error creating kubernetes client")
-		}
 		if startsWith(config.Selector.Kind, "pod") {
 			podList, err := findPods(ctx, k8s, config.Selector)
 			if err != nil {
