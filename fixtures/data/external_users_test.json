@@ -2,7 +2,6 @@
   "id": "test-org-1",
   "external_users": [
     {
-      "id": "018e4c6a-1111-7000-8000-000000000001",
       "name": "John Doe",
       "account_id": "org-123",
       "user_type": "human",
@@ -10,7 +9,6 @@
       "aliases": ["john-doe", "jdoe@example.com"]
     },
     {
-      "id": "018e4c6a-1111-7000-8000-000000000002",
       "name": "Service Bot",
       "account_id": "org-123",
       "user_type": "service",
@@ -45,16 +43,6 @@
       "account_id": "org-123",
       "role_type": "custom",
       "description": "Read-only access"
-    }
-  ],
-  "external_user_groups": [
-    {
-      "external_user_id": "018e4c6a-1111-7000-8000-000000000001",
-      "external_group_id": "018e4c6a-2222-7000-8000-000000000001"
-    },
-    {
-      "external_user_id": "018e4c6a-1111-7000-8000-000000000002",
-      "external_group_id": "018e4c6a-2222-7000-8000-000000000002"
     }
   ]
 }

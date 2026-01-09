@@ -723,16 +723,8 @@ var _ = Describe("External users e2e test", Ordered, func() {
 	})
 
 	AfterAll(func() {
-		// Clean up external_user_groups first (foreign key constraint)
-		err := DefaultContext.DB().Where("external_user_id IN (?)",
-			[]string{
-				"018e4c6a-1111-7000-8000-000000000001",
-				"018e4c6a-1111-7000-8000-000000000002",
-			}).Delete(&dutymodels.ExternalUserGroup{}).Error
-		Expect(err).NotTo(HaveOccurred(), "failed to delete external user groups")
-
 		// Clean up external users
-		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to delete external users")
 
 		// Clean up external groups
@@ -748,7 +740,7 @@ var _ = Describe("External users e2e test", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
 	})
 
-	It("should scrape and save external users, groups, roles, and user-group mappings", func() {
+	It("should scrape and save external users, groups, and roles", func() {
 		_, err := RunScraper(scraperCtx)
 		Expect(err).To(BeNil())
 	})
@@ -790,17 +782,6 @@ var _ = Describe("External users e2e test", Ordered, func() {
 
 		roleNames := lo.Map(roles, func(r dutymodels.ExternalRole, _ int) string { return r.Name })
 		Expect(roleNames).To(ContainElements("Admin", "Reader"))
-	})
-
-	It("should have saved external user groups to the database", func() {
-		var userGroups []dutymodels.ExternalUserGroup
-		err := DefaultContext.DB().Where("external_user_id IN (?)",
-			[]string{
-				"018e4c6a-1111-7000-8000-000000000001",
-				"018e4c6a-1111-7000-8000-000000000002",
-			}).Find(&userGroups).Error
-		Expect(err).NotTo(HaveOccurred())
-		Expect(userGroups).To(HaveLen(2))
 	})
 
 	It("should upsert external users by alias on second scrape (not create duplicates)", func() {

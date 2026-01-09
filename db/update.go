@@ -425,15 +425,18 @@ func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string, scrape
 			Where("deleted_at IS NULL").
 			First(&existingUser).Error
 
-		if err == nil {
-			// Found in DB, populate cache for all aliases and return
-			for _, a := range aliases {
-				ExternalUserCache.Set(externalUserCacheKey(a, scraperID), existingUser.ID, cache.DefaultExpiration)
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return uuid.Nil, fmt.Errorf("failed to query external user by alias: %w", err)
 			}
-			return existingUser.ID, nil
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return uuid.Nil, fmt.Errorf("failed to query external user by alias: %w", err)
+			continue
 		}
+
+		// Found in DB, populate cache for all aliases and return
+		for _, a := range aliases {
+			ExternalUserCache.Set(externalUserCacheKey(a, scraperID), existingUser.ID, cache.DefaultExpiration)
+		}
+		return existingUser.ID, nil
 	}
 
 	return uuid.Nil, nil
