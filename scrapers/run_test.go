@@ -723,16 +723,8 @@ var _ = Describe("External users e2e test", Ordered, func() {
 	})
 
 	AfterAll(func() {
-		// Clean up external_user_groups first (foreign key constraint)
-		err := DefaultContext.DB().Where("external_user_id IN (?)",
-			[]string{
-				"018e4c6a-1111-7000-8000-000000000001",
-				"018e4c6a-1111-7000-8000-000000000002",
-			}).Delete(&dutymodels.ExternalUserGroup{}).Error
-		Expect(err).NotTo(HaveOccurred(), "failed to delete external user groups")
-
 		// Clean up external users
-		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to delete external users")
 
 		// Clean up external groups
@@ -748,12 +740,12 @@ var _ = Describe("External users e2e test", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
 	})
 
-	It("should scrape and save external users, groups, roles, and user-group mappings", func() {
+	It("should scrape and save external users, groups, and roles", func() {
 		_, err := RunScraper(scraperCtx)
 		Expect(err).To(BeNil())
 	})
 
-	It("should have saved external users to the database", func() {
+	It("should have saved external users to the database with aliases", func() {
 		var users []dutymodels.ExternalUser
 		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&users).Error
 		Expect(err).NotTo(HaveOccurred())
@@ -761,6 +753,16 @@ var _ = Describe("External users e2e test", Ordered, func() {
 
 		userNames := lo.Map(users, func(u dutymodels.ExternalUser, _ int) string { return u.Name })
 		Expect(userNames).To(ContainElements("John Doe", "Service Bot"))
+
+		// Verify aliases are saved
+		for _, user := range users {
+			switch user.Name {
+			case "John Doe":
+				Expect(user.Aliases).To(ContainElements("john-doe", "jdoe@example.com"))
+			case "Service Bot":
+				Expect(user.Aliases).To(ContainElements("service-bot", "bot-001"))
+			}
+		}
 	})
 
 	It("should have saved external groups to the database", func() {
@@ -783,14 +785,56 @@ var _ = Describe("External users e2e test", Ordered, func() {
 		Expect(roleNames).To(ContainElements("Admin", "Reader"))
 	})
 
-	It("should have saved external user groups to the database", func() {
-		var userGroups []dutymodels.ExternalUserGroup
-		err := DefaultContext.DB().Where("external_user_id IN (?)",
-			[]string{
-				"018e4c6a-1111-7000-8000-000000000001",
-				"018e4c6a-1111-7000-8000-000000000002",
-			}).Find(&userGroups).Error
+	It("should upsert external users by alias on second scrape (not create duplicates)", func() {
+		// Get existing user IDs before second scrape
+		var usersBefore []dutymodels.ExternalUser
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&usersBefore).Error
 		Expect(err).NotTo(HaveOccurred())
-		Expect(userGroups).To(HaveLen(2))
+		Expect(usersBefore).To(HaveLen(2))
+
+		userIDsBefore := lo.Map(usersBefore, func(u dutymodels.ExternalUser, _ int) uuid.UUID { return u.ID })
+
+		// Clear cache to ensure we test DB lookup path
+		db.ExternalUserCache.Flush()
+
+		// Run scraper again
+		_, err = RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify same number of users (no duplicates)
+		var usersAfter []dutymodels.ExternalUser
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&usersAfter).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(usersAfter).To(HaveLen(2))
+
+		// Verify same IDs were used (upsert, not insert)
+		userIDsAfter := lo.Map(usersAfter, func(u dutymodels.ExternalUser, _ int) uuid.UUID { return u.ID })
+		Expect(userIDsAfter).To(ConsistOf(userIDsBefore))
+	})
+
+	It("should use cache for external user lookup on subsequent scrapes", func() {
+		// Clear cache first
+		db.ExternalUserCache.Flush()
+
+		// Run scraper to populate cache
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify cache is populated for all aliases (key is just the alias)
+		johnDoeID, found := db.ExternalUserCache.Get("john-doe")
+		Expect(found).To(BeTrue())
+		Expect(johnDoeID).NotTo(Equal(uuid.Nil))
+
+		jdoeID, found := db.ExternalUserCache.Get("jdoe@example.com")
+		Expect(found).To(BeTrue())
+		Expect(jdoeID).To(Equal(johnDoeID)) // Same user, same ID
+
+		serviceBotID, found := db.ExternalUserCache.Get("service-bot")
+		Expect(found).To(BeTrue())
+		Expect(serviceBotID).NotTo(Equal(uuid.Nil))
+
+		bot001ID, found := db.ExternalUserCache.Get("bot-001")
+		Expect(found).To(BeTrue())
+		Expect(bot001ID).To(Equal(serviceBotID)) // Same user, same ID
 	})
 })

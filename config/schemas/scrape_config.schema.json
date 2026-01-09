@@ -1444,6 +1444,9 @@
         "branch": {
           "type": "string"
         },
+        "depth": {
+          "type": "integer"
+        },
         "destination": {
           "type": "string"
         }
@@ -2410,6 +2413,9 @@
     },
     "OpenSearchConfig": {
       "properties": {
+        "connection": {
+          "type": "string"
+        },
         "address": {
           "type": "string"
         },
@@ -2432,7 +2438,6 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "address",
         "index",
         "query"
       ]
