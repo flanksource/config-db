@@ -5,18 +5,17 @@ import (
 	"path"
 	"strings"
 
-	perrors "github.com/pkg/errors"
-
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/duty/connection"
-
+	perrors "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/utils/kube"
 )
 
 type KubernetesFileScraper struct {
@@ -127,14 +126,12 @@ func (kubernetes KubernetesFileScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeR
 	results := v1.ScrapeResults{}
 
 	for _, config := range ctx.ScrapeConfig().Spec.KubernetesFile {
-
+		kc := connection.KubernetesConnection{}
 		if config.Kubeconfig != nil {
-			c := ctx.WithKubernetes(connection.KubernetesConnection{
-				KubeconfigConnection: connection.KubeconfigConnection{
-					Kubeconfig: config.Kubeconfig,
-				},
-			})
-			ctx.Context = c
+			kc.Kubeconfig = config.Kubeconfig
+			ctx.Context = ctx.WithKubernetes(kc)
+		} else if ctx.KubernetesConnection() == nil {
+			ctx.Context = ctx.WithKubernetes(kc)
 		}
 
 		if config.Selector.Kind == "" {
