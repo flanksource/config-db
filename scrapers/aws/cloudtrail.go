@@ -51,7 +51,7 @@ var LastEventTime = sync.Map{}
 type CloudTrailEvent struct {
 	AWSRegion          string `json:"awsRegion"`
 	RecipientAccountID string `json:"recipientAccountId"`
-	UserIdentity struct {
+	UserIdentity       struct {
 		Type           string `json:"type"`
 		Arn            string `json:"arn"`
 		Username       string `json:"userName"`
