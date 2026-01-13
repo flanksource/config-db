@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flanksource/clicky"
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
@@ -331,10 +332,10 @@ func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.Scr
 }
 
 func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1.ScrapeResult, error) {
-	var results []v1.ScrapeResult
 	var err error
 
 	logScrapes := ctx.PropertyOn(true, "log.items")
+	var results = []v1.ScrapeResult{}
 
 	for _, input := range inputs {
 		for k, v := range input.BaseScraper.Labels {
@@ -388,7 +389,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		} else if input.Format == "yaml" {
 			contentByte, err := kyaml.YAMLToJSON([]byte(input.Config.(string)))
 			if err != nil {
-				return results, errors.Wrapf(err, "Failed parse yaml %s", input)
+				return nil, errors.Wrapf(err, "Failed parse yaml %s", input)
 			}
 			input.Config = string(contentByte)
 		} else if input.Format != "" {
@@ -408,86 +409,53 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		case string:
 			parsedConfig, err = oj.ParseString(v)
 			if err != nil {
-				return results, fmt.Errorf("failed to parse json (format=%s,%s): %v", input.BaseScraper.Format, input.Source, err)
+				s := "failed to parse json"
+				if input.Format != "" {
+					s += fmt.Sprintf(" format=%s", input.Format)
+				}
+				if input.Source != "" {
+					s += fmt.Sprintf(" source=%s", input.Source)
+				}
+				return nil, fmt.Errorf("%s: %v\n%s", s, err, v)
 			}
 		default:
 			opts := oj.Options{OmitNil: input.OmitNil(), Sort: true, UseTags: true, FloatFormat: "%g"}
 			err = json.Unmarshal([]byte(oj.JSON(v, &opts)), &parsedConfig)
 			if err != nil {
-				return results, fmt.Errorf("failed to parse json format=%s,%s): %v", input.Format, input.Source, err)
-			}
-		}
-
-		if e.Items != nil {
-			items := e.Items.Get(parsedConfig)
-			ctx.Logger.V(3).Infof("extracted %d items with %s", len(items), *e.Items)
-			for _, item := range items {
-				extracted, err := e.WithoutItems().Extract(ctx, input.Clone(item))
-				if err != nil {
-					return results, fmt.Errorf("failed to extract items: %v", err)
+				s := "failed to parse json"
+				if input.Format != "" {
+					s += fmt.Sprintf(" format=%s", input.Format)
 				}
-				results = append(results, extracted...)
-				continue
+				if input.Source != "" {
+					s += fmt.Sprintf(" source=%s", input.Source)
+				}
+				if logger.V(2).Enabled() {
+					logger.V(2).Infof(clicky.Text("").Append(input.Config).ANSI())
+				}
+				return nil, fmt.Errorf("%s: %v", s, err)
 			}
 		}
 
 		input.Config = parsedConfig
-		var ongoingInput v1.ScrapeResults = []v1.ScrapeResult{input}
-		if !input.BaseScraper.Transform.Script.IsEmpty() {
-			ctx.Logger.V(3).Infof("Applying script transformation")
-			transformed, err := RunScript(ctx, input, input.BaseScraper.Transform.Script)
-			if err != nil {
-				return results, fmt.Errorf("failed to run transform script: %v", err)
-			}
-
-			ongoingInput = transformed
+		currentResults, err := e.transform(ctx, input)
+		if err != nil {
+			return nil, err
 		}
+		currentResults, err = e.extractItems(ctx, currentResults)
 
-		for _, result := range ongoingInput {
-			for i, configProperty := range result.BaseScraper.Properties {
-				if configProperty.Filter != "" {
-					if response, err := gomplate.RunTemplate(result.AsMap(), gomplate.Template{Expression: configProperty.Filter}); err != nil {
-						result.Errorf("failed to parse filter: %v", err)
-						continue
-					} else if boolVal, err := strconv.ParseBool(response); err != nil {
-						result.Errorf("expected a boolean but property filter returned (%s)", response)
-						continue
-					} else if !boolVal {
-						continue
-					}
-				}
-
-				// clone the links so as to not mutate the original Links template
-				configProperty.Links = make([]types.Link, len(result.BaseScraper.Properties[i].Links))
-				copy(configProperty.Links, result.BaseScraper.Properties[i].Links)
-
-				templater := gomplate.StructTemplater{
-					Values:         result.AsMap(),
-					ValueFunctions: true,
-					DelimSets: []gomplate.Delims{
-						{Left: "{{", Right: "}}"},
-						{Left: "$(", Right: ")"},
-					},
-				}
-
-				if err := templater.Walk(&configProperty); err != nil {
-					result.Errorf("failed to template scraper properties: %v", err)
-					continue
-				}
-
-				result.Properties = append(result.Properties, &configProperty.Property)
-			}
-
+		for _, result := range currentResults {
+			result.Properties = e.parseProperties(ctx, &result)
 			extracted, err := e.extractAttributes(result)
 			if err != nil {
+				if ctx.IsDebug() || logger.V(2).Enabled() {
+					ctx.Infof("%s", result.Pretty().ANSI())
+				}
 				return results, fmt.Errorf("failed to extract attributes: %v", err)
 			}
 
 			if logScrapes {
 				ctx.Logger.V(2).Infof("Scraped %s", extracted)
 			}
-
-			extracted = extracted.SetHealthIfEmpty()
 
 			// Form new relationships based on the transform configs
 			if newRelationships, err := getRelationshipsFromRelationshipConfigs(ctx, extracted, e.Transform.Relationship); err != nil {
@@ -499,15 +467,108 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			results = append(results, extracted)
 		}
 
-		if !input.BaseScraper.Transform.Masks.IsEmpty() {
-			results, err = e.applyMask(results)
-			if err != nil {
-				return results, fmt.Errorf("e.applyMask(); %w", err)
+	}
+
+	return e.postProcess(ctx, results)
+}
+
+func (e Extract) parseProperties(ctx api.ScrapeContext, result *v1.ScrapeResult) types.Properties {
+	properties := types.Properties{}
+	for i, configProperty := range e.Config.Properties {
+		if configProperty.Filter != "" {
+			if response, err := gomplate.RunTemplate(result.AsMap(), gomplate.Template{Expression: configProperty.Filter}); err != nil {
+				result.Errorf("failed to parse filter: %v", err)
+				continue
+			} else if boolVal, err := strconv.ParseBool(response); err != nil {
+				result.Errorf("expected a boolean but property filter returned (%s)", response)
+				continue
+			} else if !boolVal {
+				continue
 			}
+		}
+
+		// clone the links so as to not mutate the original Links template
+		configProperty.Links = make([]types.Link, len(result.BaseScraper.Properties[i].Links))
+		copy(configProperty.Links, result.BaseScraper.Properties[i].Links)
+
+		templater := gomplate.StructTemplater{
+			Values:         result.AsMap(),
+			ValueFunctions: true,
+			DelimSets: []gomplate.Delims{
+				{Left: "{{", Right: "}}"},
+				{Left: "$(", Right: ")"},
+			},
+		}
+
+		if err := templater.Walk(&configProperty); err != nil {
+			result.Errorf("failed to template scraper properties: %v", err)
+			continue
+		}
+
+		properties = append(properties, &configProperty.Property)
+	}
+	return properties
+}
+
+func (e Extract) extractItems(ctx api.ScrapeContext, inputs []v1.ScrapeResult) ([]v1.ScrapeResult, error) {
+	if e.Items == nil {
+		return inputs, nil
+	}
+	var results = []v1.ScrapeResult{}
+	for _, input := range inputs {
+		items := e.Items.Get(input.Config)
+
+		for _, item := range items {
+			extracted, err := e.WithoutItems().Extract(ctx, input.Clone(item))
+			if err != nil {
+				return results, fmt.Errorf("failed to extract items: %v", err)
+			}
+			results = append(results, extracted...)
+		}
+	}
+	return results, nil
+}
+
+func (e Extract) transform(ctx api.ScrapeContext, input v1.ScrapeResult) ([]v1.ScrapeResult, error) {
+	if !e.Config.Transform.Script.IsEmpty() {
+		if logger.V(5).Enabled() {
+			ctx.Logger.V(5).Infof("Applying script transformation: %s", e.Config.Transform.Script.PrettyShort().ANSI())
+		}
+		transformed, err := RunScript(ctx, input, e.Config.Transform.Script)
+		if err != nil {
+			if ctx.IsDebug() || ctx.Logger.IsDebugEnabled() {
+				t := clicky.Text("")
+				t = t.Append(e.Config.Transform.Script.Pretty()).
+					NewLine().Append(input.Debug())
+				if !ctx.Logger.IsDebugEnabled() {
+					ctx.Logger.Infof(t.ANSI())
+				} else {
+					ctx.Logger.Debugf(t.ANSI())
+				}
+				return nil, fmt.Errorf("failed to run transform script: %v", err)
+			} else {
+				return nil, fmt.Errorf("failed to run transform script: %v", err)
+			}
+
+		}
+		return transformed, nil
+	}
+	return []v1.ScrapeResult{input}, nil
+}
+
+func (e Extract) postProcess(ctx api.ScrapeContext, results v1.ScrapeResults) (v1.ScrapeResults, error) {
+
+	if !e.Config.Transform.Masks.IsEmpty() {
+		results, err := e.applyMask(results)
+		if err != nil {
+			return results, fmt.Errorf("e.applyMask(); %w", err)
 		}
 	}
 
 	for i, result := range results {
+
+		results[i] = result.SetHealthIfEmpty()
+
 		env := result.AsMap()
 
 		if val, err := extractLocation(ctx, env, e.Transform.Locations); err != nil {
@@ -522,7 +583,6 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			results[i].Aliases = append(results[i].Aliases, val...)
 		}
 	}
-
 	return results, nil
 }
 
@@ -589,7 +649,15 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 	}
 
 	if input.ID == "" {
-		return input, fmt.Errorf("no id defined for: %s: %v", input, e.Config)
+		if len(input.Changes) == 0 {
+			return input, fmt.Errorf("no id defined for: %s", input.Debug().ANSI())
+		}
+		if len(lo.Filter(input.Changes, func(c v1.ChangeResult, _ int) bool {
+			return c.ExternalChangeID == ""
+		})) > 0 {
+			return input, fmt.Errorf("standalone changes must have both an `external_id` and `external_change_id`: %s: %v", input, e.Config)
+
+		}
 	}
 
 	if input.Name == "" {
