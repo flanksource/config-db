@@ -1,0 +1,33 @@
+name: Sync Claude Skill Schemas
+
+on:
+  push:
+    paths:
+      - config/schemas/config_*.schema.json
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout config-db
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Checkout claude-code-plugin
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          repository: flanksource/claude-code-plugin
+          path: claude-code-plugin
+          token: ${{ secrets.FLANKBOT }}
+
+      - name: Sync schemas
+        run: |
+          mkdir -p claude-code-plugin/skills/create-config-scraper/references/schemas
+          rsync -av --delete config/schemas/config_*.schema.json \
+            claude-code-plugin/skills/create-config-scraper/references/schemas/
+
+      - name: Push changes to claude-code-plugin
+        uses: stefanzweifel/git-auto-commit-action@28e16e81777b558cc906c8750092100bbb34c5e3 # v7.0.0
+        with:
+          commit_message: "chore: sync config scraper schemas"
+          repository: ./claude-code-plugin
