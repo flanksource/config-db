@@ -974,3 +974,101 @@ var _ = Describe("Config access with external_user_aliases test", Ordered, func(
 		Expect(bobID).NotTo(Equal(uuid.Nil))
 	})
 })
+
+var _ = Describe("Stale external entities deletion test", Ordered, func() {
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+	var scraperModel dutymodels.ConfigScraper
+	var initialUserIDs []uuid.UUID
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("file-config-access")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
+		scModel.Source = dutymodels.SourceUI
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+
+		scraperModel = scModel
+	})
+
+	AfterAll(func() {
+		// Clean up config access (including soft-deleted)
+		err := DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete config access")
+
+		// Clean up external users (including soft-deleted)
+		err = DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external users")
+
+		// Clean up config items
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&models.ConfigItem{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete config items")
+
+		// Clean up scraper
+		err = DefaultContext.DB().Delete(&scraperModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
+	})
+
+	It("should scrape and save external users initially", func() {
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		var users []dutymodels.ExternalUser
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Where("deleted_at IS NULL").Find(&users).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(users).To(HaveLen(2))
+
+		initialUserIDs = lo.Map(users, func(u dutymodels.ExternalUser, _ int) uuid.UUID { return u.ID })
+	})
+
+	It("should create an additional external user directly in DB", func() {
+		// Add a user that won't be in subsequent scrapes (simulating a stale user)
+		staleUser := dutymodels.ExternalUser{
+			Name:      "Stale User",
+			AccountID: "org-456",
+			UserType:  "human",
+			ScraperID: scraperModel.ID,
+			Aliases:   []string{"stale-user"},
+		}
+		err := DefaultContext.DB().Create(&staleUser).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify we now have 3 users
+		var users []dutymodels.ExternalUser
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Where("deleted_at IS NULL").Find(&users).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(users).To(HaveLen(3))
+	})
+
+	It("should soft delete stale external user on next scrape", func() {
+		// Clear cache to ensure fresh lookup
+		db.ExternalUserCache.Flush()
+
+		// Run scraper again - this should soft delete the stale user
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify only 2 users remain active (non-deleted)
+		var activeUsers []dutymodels.ExternalUser
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Where("deleted_at IS NULL").Find(&activeUsers).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(activeUsers).To(HaveLen(2))
+
+		// Verify the original users are still there
+		activeUserIDs := lo.Map(activeUsers, func(u dutymodels.ExternalUser, _ int) uuid.UUID { return u.ID })
+		Expect(activeUserIDs).To(ConsistOf(initialUserIDs))
+
+		// Verify the stale user was soft deleted
+		var deletedUsers []dutymodels.ExternalUser
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Where("deleted_at IS NOT NULL").Find(&deletedUsers).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(deletedUsers).To(HaveLen(1))
+		Expect(deletedUsers[0].Name).To(Equal("Stale User"))
+	})
+})
