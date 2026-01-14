@@ -32,7 +32,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/set"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -402,10 +401,10 @@ var ExternalUserCache = cache.New(time.Hour, 10*time.Minute)
 
 // findExternalUserIDByAliases looks up an external user ID by aliases
 // It first checks the cache, then queries the DB. Returns the ID if found, uuid.Nil otherwise.
-func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (uuid.UUID, error) {
+func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
 	for _, alias := range aliases {
 		if cachedID, ok := ExternalUserCache.Get(alias); ok {
-			return cachedID.(uuid.UUID), nil
+			return lo.ToPtr(cachedID.(uuid.UUID)), nil
 		}
 	}
 
@@ -420,7 +419,7 @@ func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (uuid.
 
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return uuid.Nil, fmt.Errorf("failed to query external user by alias: %w", err)
+				return nil, fmt.Errorf("failed to query external user by alias: %w", err)
 			}
 			continue
 		}
@@ -429,10 +428,10 @@ func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (uuid.
 		for _, a := range aliases {
 			ExternalUserCache.Set(a, existingUser.ID, cache.DefaultExpiration)
 		}
-		return existingUser.ID, nil
+		return lo.ToPtr(existingUser.ID), nil
 	}
 
-	return uuid.Nil, nil
+	return nil, nil
 }
 
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
@@ -484,7 +483,7 @@ func UpdateAnalysisStatusBefore(ctx api.ScrapeContext, before time.Time, scraper
 
 // validateExistingUsers checks which external user IDs exist in the database
 // Returns a set of existing user IDs for efficient lookup
-func validateExistingUsers(ctx api.ScrapeContext, userIDs []string) (map[uuid.UUID]struct{}, error) {
+func ValidateExistingUsers(ctx api.ScrapeContext, userIDs []string) (map[uuid.UUID]struct{}, error) {
 	if len(userIDs) == 0 {
 		return make(map[uuid.UUID]struct{}), nil
 	}
@@ -660,6 +659,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
+	// Track seen external entities for stale deletion
+	var seen seenExternalEntities
+
 	for _, externalUser := range extractResult.externalUsers {
 		externalUser.ScraperID = lo.Ternary(externalUser.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalUser.ScraperID)
 
@@ -668,14 +670,16 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			if err != nil {
 				return summary, fmt.Errorf("failed to find external user by aliases: %w", err)
 			}
-			if existingID != uuid.Nil {
-				externalUser.ID = existingID
+			if existingID != nil {
+				externalUser.ID = lo.FromPtr(existingID)
 			}
 		}
 
 		if err := ctx.DB().Save(&externalUser).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external user: %w", err)
 		}
+
+		seen.externalUserIDs = append(seen.externalUserIDs, externalUser.ID)
 
 		// Update cache for all aliases
 		for _, alias := range externalUser.Aliases {
@@ -688,6 +692,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if err := ctx.DB().Save(&externalGroup).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external group: %w", err)
 		}
+		seen.externalGroupIDs = append(seen.externalGroupIDs, externalGroup.ID)
 	}
 
 	for _, externalRole := range extractResult.externalRoles {
@@ -695,36 +700,20 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if err := ctx.DB().Save(&externalRole).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external role: %w", err)
 		}
-	}
-
-	// Collect all unique user IDs from config access and access logs for batch validation
-	userIDSet := set.New[string]()
-
-	for _, configAccess := range extractResult.configAccesses {
-		if configAccess.ExternalUserID != nil {
-			userIDSet.Insert(configAccess.ExternalUserID.String())
-		}
-	}
-
-	for _, accessLog := range extractResult.configAccessLogs {
-		if accessLog.ExternalUserID != uuid.Nil {
-			userIDSet.Insert(accessLog.ExternalUserID.String())
-		}
-	}
-
-	existingUserIDs, err := validateExistingUsers(ctx, userIDSet.UnsortedList())
-	if err != nil {
-		return summary, fmt.Errorf("failed to validate existing users: %w", err)
+		seen.externalRoleIDs = append(seen.externalRoleIDs, externalRole.ID)
 	}
 
 	// Filter and save config access records for existing users only
 	for _, configAccess := range extractResult.configAccesses {
-		if configAccess.ExternalUserID == nil {
-			continue
+		if configAccess.ExternalUserID == nil && len(configAccess.ExternalUserAliases) > 0 {
+			id, err := findExternalUserIDByAliases(ctx, configAccess.ExternalUserAliases)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find config for config access: %w", err)
+			}
+			configAccess.ExternalUserID = id
 		}
 
-		if _, ok := existingUserIDs[*configAccess.ExternalUserID]; !ok {
-			ctx.Logger.V(3).Infof("skipping config access for non-existent user: %s", *configAccess.ExternalUserID)
+		if configAccess.ExternalUserID == nil {
 			continue
 		}
 
@@ -743,18 +732,21 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			configAccess.ConfigID = uuid.MustParse(config)
 		}
 
+		configAccess.ScraperID = lo.Ternary(configAccess.ScraperID == nil, scraperID, configAccess.ScraperID)
+
+		// Generate ID if not provided
+		if configAccess.ID == "" {
+			configAccess.ID = ulid.MustNew().AsUUID()
+		}
+
 		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
 			Save(&configAccess.ConfigAccess).Error; err != nil {
 			return summary, fmt.Errorf("failed to save config access: %w", err)
 		}
+		seen.configAccessIDs = append(seen.configAccessIDs, configAccess.ID)
 	}
 
 	for _, accessLog := range extractResult.configAccessLogs {
-		if _, ok := existingUserIDs[accessLog.ExternalUserID]; !ok {
-			ctx.Logger.V(3).Infof("skipping access log for non-existent user: %s", accessLog.ExternalUserID)
-			continue
-		}
-
 		if accessLog.ConfigID == uuid.Nil && accessLog.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, accessLog.ConfigExternalID)
 			if err != nil {
@@ -780,6 +772,13 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if err := ctx.DB().Save(&externalUserGroup).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external user group: %w", err)
 		}
+		seen.externalUserGroupKeys = append(seen.externalUserGroupKeys,
+			fmt.Sprintf("%s:%s", externalUserGroup.ExternalUserID, externalUserGroup.ExternalGroupID))
+	}
+
+	// Delete stale external entities that were not seen in this scrape
+	if err := deleteStaleExternalEntities(ctx, seen); err != nil {
+		ctx.Logger.Warnf("failed to delete stale external entities: %v", err)
 	}
 
 	// updatedConfigIDs are configs that were not new in this scrape.
@@ -964,6 +963,88 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	return summary, nil
+}
+
+// deleteStaleExternalEntities soft deletes external entities (users, groups, roles, config access)
+// that belong to this scraper but were not seen in the current scrape.
+func deleteStaleExternalEntities(ctx api.ScrapeContext, seen seenExternalEntities) error {
+	scraperID := ctx.ScrapeConfig().GetPersistedID()
+	if scraperID == nil {
+		return nil
+	}
+
+	now := duty.Now()
+
+	// Delete stale external users
+	if len(seen.externalUserIDs) > 0 {
+		if err := ctx.DB().
+			Model(&dutyModels.ExternalUser{}).
+			Where("scraper_id = ?", *scraperID).
+			Where("deleted_at IS NULL").
+			Where("id NOT IN (?)", seen.externalUserIDs).
+			Update("deleted_at", now).Error; err != nil {
+			return fmt.Errorf("failed to delete stale external users: %w", err)
+		}
+	}
+
+	// Delete stale external groups
+	if len(seen.externalGroupIDs) > 0 {
+		if err := ctx.DB().
+			Model(&dutyModels.ExternalGroup{}).
+			Where("scraper_id = ?", *scraperID).
+			Where("deleted_at IS NULL").
+			Where("id NOT IN (?)", seen.externalGroupIDs).
+			Update("deleted_at", now).Error; err != nil {
+			return fmt.Errorf("failed to delete stale external groups: %w", err)
+		}
+	}
+
+	// Delete stale external roles
+	if len(seen.externalRoleIDs) > 0 {
+		if err := ctx.DB().
+			Model(&dutyModels.ExternalRole{}).
+			Where("scraper_id = ?", *scraperID).
+			Where("id NOT IN (?)", seen.externalRoleIDs).
+			Delete(&dutyModels.ExternalRole{}).Error; err != nil {
+			return fmt.Errorf("failed to delete stale external roles: %w", err)
+		}
+	}
+
+	// Delete stale config access
+	if len(seen.configAccessIDs) > 0 {
+		if err := ctx.DB().
+			Model(&dutyModels.ConfigAccess{}).
+			Where("scraper_id = ?", *scraperID).
+			Where("deleted_at IS NULL").
+			Where("id NOT IN (?)", seen.configAccessIDs).
+			Update("deleted_at", now).Error; err != nil {
+			return fmt.Errorf("failed to delete stale config access: %w", err)
+		}
+	}
+
+	// Delete stale external user groups
+	if len(seen.externalUserGroupKeys) > 0 {
+		// For composite key, we need to handle differently
+		if err := ctx.DB().
+			Model(&dutyModels.ExternalUserGroup{}).
+			Where("deleted_at IS NULL").
+			Where("external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)", *scraperID).
+			Where("(external_user_id::text || ':' || external_group_id::text) NOT IN (?)", seen.externalUserGroupKeys).
+			Update("deleted_at", now).Error; err != nil {
+			return fmt.Errorf("failed to delete stale external user groups: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// seenExternalEntities tracks IDs of external entities seen during a scrape
+type seenExternalEntities struct {
+	externalUserIDs       []uuid.UUID
+	externalGroupIDs      []uuid.UUID
+	externalRoleIDs       []uuid.UUID
+	configAccessIDs       []string
+	externalUserGroupKeys []string // "user_id:group_id" format
 }
 
 var lastScrapedTimeMutex sync.Map

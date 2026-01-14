@@ -189,9 +189,10 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 		return []v1.ScrapeResult{result}
 	}
 
-	// In full mode, we extract changes, access logs, external users, external groups, external user groups, and external roles from the config.
+	// In full mode, we extract changes, access logs, config access, external users, external groups, external user groups, and external roles from the config.
 	if spec.Full {
 		allAccessLogs := []v1.ExternalConfigAccessLog{}
+		allConfigAccess := []v1.ExternalConfigAccess{}
 		allExternalUsers := []models.ExternalUser{}
 		allExternalGroups := []models.ExternalGroup{}
 		allExternalUserGroups := []models.ExternalUserGroup{}
@@ -209,6 +210,7 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 				})
 			}
 
+			allConfigAccess = append(allConfigAccess, extracted.ConfigAccess...)
 			allExternalUsers = append(allExternalUsers, extracted.ExternalUsers...)
 			allExternalGroups = append(allExternalGroups, extracted.ExternalGroups...)
 			allExternalUserGroups = append(allExternalUserGroups, extracted.ExternalUserGroups...)
@@ -237,6 +239,12 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 		if len(allAccessLogs) > 0 {
 			result := v1.NewScrapeResult(scraped[0].BaseScraper)
 			result.ConfigAccessLogs = allAccessLogs
+			scraped = append(scraped, *result)
+		}
+
+		if len(allConfigAccess) > 0 {
+			result := v1.NewScrapeResult(scraped[0].BaseScraper)
+			result.ConfigAccess = allConfigAccess
 			scraped = append(scraped, *result)
 		}
 
@@ -270,12 +278,13 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 	return scraped
 }
 
-// ExtractedConfig holds the extracted config, changes, access logs, external users,
-// external groups, external user groups, and external roles from a scraped config in full mode.
+// ExtractedConfig holds the extracted config, changes, access logs, config access,
+// external users, external groups, external user groups, and external roles from a scraped config in full mode.
 type ExtractedConfig struct {
 	Config             any
 	Changes            []v1.ChangeResult
 	AccessLogs         []models.ConfigAccessLog
+	ConfigAccess       []v1.ExternalConfigAccess
 	ExternalUsers      []models.ExternalUser
 	ExternalGroups     []models.ExternalGroup
 	ExternalUserGroups []models.ExternalUserGroup
@@ -283,11 +292,11 @@ type ExtractedConfig struct {
 }
 
 // extractConfigChangesFromConfig will attempt to extract config, changes,
-// access logs, external users, external groups, external user groups, and external roles
+// access logs, config access, external users, external groups, external user groups, and external roles
 // from the scraped config.
 //
 // The scraped config is expected to have fields "config", "changes",
-// "access_logs", "external_users", "external_groups", "external_user_groups", and "external_roles".
+// "access_logs", "config_access", "external_users", "external_groups", "external_user_groups", and "external_roles".
 func extractConfigChangesFromConfig(config any) (ExtractedConfig, error) {
 	configMap, ok := config.(map[string]any)
 	if !ok {
@@ -319,6 +328,17 @@ func extractConfigChangesFromConfig(config any) (ExtractedConfig, error) {
 
 		if err := json.Unmarshal(raw, &result.AccessLogs); err != nil {
 			return ExtractedConfig{}, fmt.Errorf("failed to unmarshal access logs into []models.ConfigAccessLog: %w", err)
+		}
+	}
+
+	if configAccess, ok := configMap["config_access"]; ok {
+		raw, err := json.Marshal(configAccess)
+		if err != nil {
+			return ExtractedConfig{}, fmt.Errorf("failed to marshal config access: %w", err)
+		}
+
+		if err := json.Unmarshal(raw, &result.ConfigAccess); err != nil {
+			return ExtractedConfig{}, fmt.Errorf("failed to unmarshal config access into []v1.ExternalConfigAccess: %w", err)
 		}
 	}
 
