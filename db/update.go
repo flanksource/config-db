@@ -759,13 +759,17 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		configAccess.ScraperID = lo.Ternary(configAccess.ScraperID == nil, scraperID, configAccess.ScraperID)
+
+		// Generate ID if not provided
+		if configAccess.ID == "" {
+			configAccess.ID = ulid.MustNew().AsUUID()
+		}
+
 		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
 			Save(&configAccess.ConfigAccess).Error; err != nil {
 			return summary, fmt.Errorf("failed to save config access: %w", err)
 		}
-		if configAccess.ID != "" {
-			seen.configAccessIDs = append(seen.configAccessIDs, configAccess.ID)
-		}
+		seen.configAccessIDs = append(seen.configAccessIDs, configAccess.ID)
 	}
 
 	for _, accessLog := range extractResult.configAccessLogs {
