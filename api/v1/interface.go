@@ -751,7 +751,6 @@ type ExternalConfigAccessLog struct {
 type ExternalConfigAccess struct {
 	models.ConfigAccess
 	ConfigExternalID    ExternalID `json:"external_config_id"`
-	ExternalUserAlias   ExternalID `json:"external_user_alias"`
 	ExternalUserAliases []string   `json:"external_user_aliases"`
 }
 

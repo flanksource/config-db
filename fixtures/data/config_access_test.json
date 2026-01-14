@@ -22,6 +22,7 @@
   ],
   "config_access": [
     {
+      "id": "access-001",
       "external_config_id": {
         "config_type": "Organization",
         "external_id": "test-org-config-access"
@@ -29,6 +30,7 @@
       "external_user_aliases": ["alice-smith"]
     },
     {
+      "id": "access-002",
       "external_config_id": {
         "config_type": "Organization",
         "external_id": "test-org-config-access"
