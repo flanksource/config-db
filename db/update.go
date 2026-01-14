@@ -483,7 +483,7 @@ func UpdateAnalysisStatusBefore(ctx api.ScrapeContext, before time.Time, scraper
 
 // validateExistingUsers checks which external user IDs exist in the database
 // Returns a set of existing user IDs for efficient lookup
-func validateExistingUsers(ctx api.ScrapeContext, userIDs []string) (map[uuid.UUID]struct{}, error) {
+func ValidateExistingUsers(ctx api.ScrapeContext, userIDs []string) (map[uuid.UUID]struct{}, error) {
 	if len(userIDs) == 0 {
 		return make(map[uuid.UUID]struct{}), nil
 	}
