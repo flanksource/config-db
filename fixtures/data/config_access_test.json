@@ -1,0 +1,39 @@
+{
+  "id": "test-org-config-access",
+  "config": {
+    "name": "Test Organization",
+    "type": "organization"
+  },
+  "external_users": [
+    {
+      "name": "Alice Smith",
+      "account_id": "org-456",
+      "user_type": "human",
+      "email": "alice@example.com",
+      "aliases": ["alice-smith", "alice@example.com"]
+    },
+    {
+      "name": "Bob Jones",
+      "account_id": "org-456",
+      "user_type": "human",
+      "email": "bob@example.com",
+      "aliases": ["bob-jones", "bob@example.com"]
+    }
+  ],
+  "config_access": [
+    {
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "test-org-config-access"
+      },
+      "external_user_aliases": ["alice-smith"]
+    },
+    {
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "test-org-config-access"
+      },
+      "external_user_aliases": ["bob-jones", "bob@example.com"]
+    }
+  ]
+}

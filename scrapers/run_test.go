@@ -838,3 +838,139 @@ var _ = Describe("External users e2e test", Ordered, func() {
 		Expect(bot001ID).To(Equal(serviceBotID)) // Same user, same ID
 	})
 })
+
+var _ = Describe("Config access with external_user_aliases test", Ordered, func() {
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+	var scraperModel dutymodels.ConfigScraper
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("file-config-access")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
+		scModel.Source = dutymodels.SourceUI
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+
+		scraperModel = scModel
+	})
+
+	AfterAll(func() {
+		// Clean up config access
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete config access")
+
+		// Clean up external users
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external users")
+
+		// Clean up config items
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&models.ConfigItem{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete config items")
+
+		// Clean up scraper
+		err = DefaultContext.DB().Delete(&scraperModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
+	})
+
+	It("should scrape and save external users and config access", func() {
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+	})
+
+	It("should have saved external users to the database", func() {
+		var users []dutymodels.ExternalUser
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&users).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(users).To(HaveLen(2))
+
+		userNames := lo.Map(users, func(u dutymodels.ExternalUser, _ int) string { return u.Name })
+		Expect(userNames).To(ContainElements("Alice Smith", "Bob Jones"))
+	})
+
+	It("should have saved config access with resolved external_user_id from aliases", func() {
+		// Get the external users to find their IDs
+		var users []dutymodels.ExternalUser
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&users).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		userByName := make(map[string]dutymodels.ExternalUser)
+		for _, u := range users {
+			userByName[u.Name] = u
+		}
+
+		// Get the config access records
+		var configAccesses []dutymodels.ConfigAccess
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&configAccesses).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(configAccesses).To(HaveLen(2))
+
+		// Verify each config access has the correct external_user_id
+		accessByID := make(map[string]dutymodels.ConfigAccess)
+		for _, ca := range configAccesses {
+			accessByID[ca.ID] = ca
+		}
+
+		// access-001 should have Alice's user ID (resolved from "alice-smith" alias)
+		access001 := accessByID["access-001"]
+		Expect(access001.ExternalUserID).NotTo(BeNil())
+		Expect(*access001.ExternalUserID).To(Equal(userByName["Alice Smith"].ID))
+
+		// access-002 should have Bob's user ID (resolved from "bob-jones" or "bob@example.com" alias)
+		access002 := accessByID["access-002"]
+		Expect(access002.ExternalUserID).NotTo(BeNil())
+		Expect(*access002.ExternalUserID).To(Equal(userByName["Bob Jones"].ID))
+	})
+
+	It("should have linked config access to the config item via external_config_id", func() {
+		// Get the config item
+		var configItem models.ConfigItem
+		err := DefaultContext.DB().Where("type = ? AND scraper_id = ?", "Organization", scraperModel.ID).First(&configItem).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		// Get the config access records
+		var configAccesses []dutymodels.ConfigAccess
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&configAccesses).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify all config access records are linked to the config item
+		for _, ca := range configAccesses {
+			Expect(ca.ConfigID.String()).To(Equal(configItem.ID))
+		}
+	})
+
+	It("should resolve external_user_id from cache on second scrape", func() {
+		// Clear cache first
+		db.ExternalUserCache.Flush()
+
+		// Get initial config access count
+		var initialAccesses []dutymodels.ConfigAccess
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&initialAccesses).Error
+		Expect(err).NotTo(HaveOccurred())
+		initialCount := len(initialAccesses)
+
+		// Run scraper again
+		_, err = RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify no duplicates (upsert should work)
+		var configAccesses []dutymodels.ConfigAccess
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&configAccesses).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(len(configAccesses)).To(Equal(initialCount))
+
+		// Verify cache is populated with aliases
+		aliceID, found := db.ExternalUserCache.Get("alice-smith")
+		Expect(found).To(BeTrue())
+		Expect(aliceID).NotTo(Equal(uuid.Nil))
+
+		bobID, found := db.ExternalUserCache.Get("bob-jones")
+		Expect(found).To(BeTrue())
+		Expect(bobID).NotTo(Equal(uuid.Nil))
+	})
+})

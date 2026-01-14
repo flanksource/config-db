@@ -751,6 +751,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			configAccess.ConfigID = uuid.MustParse(config)
 		}
 
+		configAccess.ScraperID = lo.Ternary(configAccess.ScraperID == nil, scraperID, configAccess.ScraperID)
 		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
 			Save(&configAccess.ConfigAccess).Error; err != nil {
 			return summary, fmt.Errorf("failed to save config access: %w", err)

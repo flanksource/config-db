@@ -182,15 +182,15 @@ func (c ScraperSpec) IsDebug() bool {
 }
 
 type ExternalID struct {
-	ConfigType string
-	ExternalID string
+	ConfigType string `json:"config_type,omitempty"`
+	ExternalID string `json:"external_id,omitempty"`
 
 	// Scraper id of the config
 	// If left empty, the scraper id is the requester's scraper id.
 	// Use `all` to disregard scraper id.
-	ScraperID string
+	ScraperID string `json:"scraper_id,omitempty"`
 
-	Labels map[string]string
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 func (e ExternalID) GetKubernetesUID() string {
