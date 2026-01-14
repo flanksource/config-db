@@ -750,7 +750,9 @@ type ExternalConfigAccessLog struct {
 // +kubebuilder:object:generate=false
 type ExternalConfigAccess struct {
 	models.ConfigAccess
-	ConfigExternalID ExternalID
+	ConfigExternalID    ExternalID `json:"external_config_id"`
+	ExternalUserAlias   ExternalID `json:"external_user_alias"`
+	ExternalUserAliases []string   `json:"external_user_aliases"`
 }
 
 var _ types.ResourceSelectable = (*ScrapeResult)(nil)

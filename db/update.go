@@ -402,10 +402,10 @@ var ExternalUserCache = cache.New(time.Hour, 10*time.Minute)
 
 // findExternalUserIDByAliases looks up an external user ID by aliases
 // It first checks the cache, then queries the DB. Returns the ID if found, uuid.Nil otherwise.
-func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (uuid.UUID, error) {
+func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
 	for _, alias := range aliases {
 		if cachedID, ok := ExternalUserCache.Get(alias); ok {
-			return cachedID.(uuid.UUID), nil
+			return lo.ToPtr(cachedID.(uuid.UUID)), nil
 		}
 	}
 
@@ -420,7 +420,7 @@ func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (uuid.
 
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return uuid.Nil, fmt.Errorf("failed to query external user by alias: %w", err)
+				return nil, fmt.Errorf("failed to query external user by alias: %w", err)
 			}
 			continue
 		}
@@ -429,10 +429,10 @@ func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (uuid.
 		for _, a := range aliases {
 			ExternalUserCache.Set(a, existingUser.ID, cache.DefaultExpiration)
 		}
-		return existingUser.ID, nil
+		return lo.ToPtr(existingUser.ID), nil
 	}
 
-	return uuid.Nil, nil
+	return nil, nil
 }
 
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
@@ -668,8 +668,8 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			if err != nil {
 				return summary, fmt.Errorf("failed to find external user by aliases: %w", err)
 			}
-			if existingID != uuid.Nil {
-				externalUser.ID = existingID
+			if existingID != nil {
+				externalUser.ID = lo.FromPtr(existingID)
 			}
 		}
 
@@ -719,6 +719,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	// Filter and save config access records for existing users only
 	for _, configAccess := range extractResult.configAccesses {
+		if configAccess.ExternalUserID == nil && len(configAccess.ExternalUserAliases) > 0 {
+			id, err := findExternalUserIDByAliases(ctx, configAccess.ExternalUserAliases)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find config for config access: %w", err)
+			}
+			configAccess.ExternalUserID = id
+		}
+
 		if configAccess.ExternalUserID == nil {
 			continue
 		}
