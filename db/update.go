@@ -1072,7 +1072,6 @@ type seenExternalEntities struct {
 	externalRoleIDs       []uuid.UUID
 	configAccessIDs       []string
 	externalUserGroupKeys []string // "user_id:group_id" format
-	hasExternalUsers      bool
 }
 
 var lastScrapedTimeMutex sync.Map
