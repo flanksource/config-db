@@ -32,7 +32,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/set"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -704,26 +703,6 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		seen.externalRoleIDs = append(seen.externalRoleIDs, externalRole.ID)
 	}
 
-	// Collect all unique user IDs from config access and access logs for batch validation
-	userIDSet := set.New[string]()
-
-	for _, configAccess := range extractResult.configAccesses {
-		if configAccess.ExternalUserID != nil {
-			userIDSet.Insert(configAccess.ExternalUserID.String())
-		}
-	}
-
-	for _, accessLog := range extractResult.configAccessLogs {
-		if accessLog.ExternalUserID != uuid.Nil {
-			userIDSet.Insert(accessLog.ExternalUserID.String())
-		}
-	}
-
-	existingUserIDs, err := validateExistingUsers(ctx, userIDSet.UnsortedList())
-	if err != nil {
-		return summary, fmt.Errorf("failed to validate existing users: %w", err)
-	}
-
 	// Filter and save config access records for existing users only
 	for _, configAccess := range extractResult.configAccesses {
 		if configAccess.ExternalUserID == nil && len(configAccess.ExternalUserAliases) > 0 {
@@ -735,11 +714,6 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		if configAccess.ExternalUserID == nil {
-			continue
-		}
-
-		if _, ok := existingUserIDs[*configAccess.ExternalUserID]; !ok {
-			ctx.Logger.V(3).Infof("skipping config access for non-existent user: %s", *configAccess.ExternalUserID)
 			continue
 		}
 
@@ -773,11 +747,6 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	for _, accessLog := range extractResult.configAccessLogs {
-		if _, ok := existingUserIDs[accessLog.ExternalUserID]; !ok {
-			ctx.Logger.V(3).Infof("skipping access log for non-existent user: %s", accessLog.ExternalUserID)
-			continue
-		}
-
 		if accessLog.ConfigID == uuid.Nil && accessLog.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, accessLog.ConfigExternalID)
 			if err != nil {
