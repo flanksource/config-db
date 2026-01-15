@@ -17,32 +17,32 @@
   ],
   "external_groups": [
     {
-      "id": "018e4c6a-2222-7000-8000-000000000001",
       "name": "Administrators",
       "account_id": "org-123",
-      "group_type": "security"
+      "group_type": "security",
+      "aliases": ["admins-group", "administrators"]
     },
     {
-      "id": "018e4c6a-2222-7000-8000-000000000002",
       "name": "Developers",
       "account_id": "org-123",
-      "group_type": "team"
+      "group_type": "team",
+      "aliases": ["devs-group", "developers"]
     }
   ],
   "external_roles": [
     {
-      "id": "018e4c6a-3333-7000-8000-000000000001",
       "name": "Admin",
       "account_id": "org-123",
       "role_type": "builtin",
-      "description": "Full administrative access"
+      "description": "Full administrative access",
+      "aliases": ["admin-role", "administrator"]
     },
     {
-      "id": "018e4c6a-3333-7000-8000-000000000002",
       "name": "Reader",
       "account_id": "org-123",
       "role_type": "custom",
-      "description": "Read-only access"
+      "description": "Read-only access",
+      "aliases": ["reader-role", "read-only"]
     }
   ]
 }

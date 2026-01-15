@@ -13,6 +13,7 @@ import (
 	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/text"
 	"github.com/flanksource/commons/timer"
@@ -399,36 +400,80 @@ var OrphanCache = cache.New(60*time.Minute, 10*time.Minute)
 // ExternalUserCache stores alias -> external_user_id mapping
 var ExternalUserCache = cache.New(time.Hour, 10*time.Minute)
 
-// findExternalUserIDByAliases looks up an external user ID by aliases
-// It first checks the cache, then queries the DB. Returns the ID if found, uuid.Nil otherwise.
-func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
+// ExternalRoleCache stores alias -> external_role_id mapping
+var ExternalRoleCache = cache.New(time.Hour, 10*time.Minute)
+
+// ExternalGroupCache stores alias -> external_group_id mapping
+var ExternalGroupCache = cache.New(time.Hour, 10*time.Minute)
+
+// externalEntityWithID is a constraint for external entity types that have an ID field
+type externalEntityWithID interface {
+	dutyModels.ExternalUser | dutyModels.ExternalRole | dutyModels.ExternalGroup
+	TableName() string
+}
+
+// getEntityID extracts the ID from an external entity
+func getEntityID[T externalEntityWithID](entity *T) uuid.UUID {
+	switch e := any(entity).(type) {
+	case *dutyModels.ExternalUser:
+		return e.ID
+	case *dutyModels.ExternalRole:
+		return e.ID
+	case *dutyModels.ExternalGroup:
+		return e.ID
+	default:
+		return uuid.Nil
+	}
+}
+
+// getEntityCache returns the appropriate cache for an external entity type
+func getEntityCache[T externalEntityWithID]() *cache.Cache {
+	var zero T
+	switch any(zero).(type) {
+	case dutyModels.ExternalUser:
+		return ExternalUserCache
+	case dutyModels.ExternalRole:
+		return ExternalRoleCache
+	case dutyModels.ExternalGroup:
+		return ExternalGroupCache
+	default:
+		return nil
+	}
+}
+
+// findExternalEntityIDByAliases looks up an external entity ID by aliases.
+// It first checks the cache, then queries the DB. Returns the ID if found, nil otherwise.
+func findExternalEntityIDByAliases[T externalEntityWithID](ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
+	aliasCache := getEntityCache[T]()
+
 	for _, alias := range aliases {
-		if cachedID, ok := ExternalUserCache.Get(alias); ok {
+		if cachedID, ok := aliasCache.Get(alias); ok {
 			return lo.ToPtr(cachedID.(uuid.UUID)), nil
 		}
 	}
 
 	// Query DB for any matching alias
 	for _, alias := range aliases {
-		var existingUser dutyModels.ExternalUser
+		var entity T
 		err := ctx.DB().
 			Select("id").
 			Where("? = ANY(aliases)", alias).
 			Where("deleted_at IS NULL").
-			First(&existingUser).Error
+			First(&entity).Error
 
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("failed to query external user by alias: %w", err)
+				return nil, fmt.Errorf("failed to query %s by alias: %w", entity.TableName(), err)
 			}
 			continue
 		}
 
 		// Found in DB, populate cache for all aliases and return
+		id := getEntityID(&entity)
 		for _, a := range aliases {
-			ExternalUserCache.Set(a, existingUser.ID, cache.DefaultExpiration)
+			aliasCache.Set(a, id, cache.DefaultExpiration)
 		}
-		return lo.ToPtr(existingUser.ID), nil
+		return lo.ToPtr(id), nil
 	}
 
 	return nil, nil
@@ -666,16 +711,25 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		externalUser.ScraperID = lo.Ternary(externalUser.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalUser.ScraperID)
 
 		if len(externalUser.Aliases) > 0 {
-			existingID, err := findExternalUserIDByAliases(ctx, externalUser.Aliases)
+			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, externalUser.Aliases)
 			if err != nil {
 				return summary, fmt.Errorf("failed to find external user by aliases: %w", err)
 			}
 			if existingID != nil {
 				externalUser.ID = lo.FromPtr(existingID)
+			} else if externalUser.ID == uuid.Nil {
+				hid, err := hash.DeterministicUUID(externalUser.Aliases)
+				if err != nil {
+					return summary, fmt.Errorf("failed to generate id for externalUser %v: %w", externalUser, err)
+				}
+				externalUser.ID = hid
 			}
 		}
 
-		if err := ctx.DB().Save(&externalUser).Error; err != nil {
+		if err := ctx.DB().Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			UpdateAll: true,
+		}).Create(&externalUser).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external user: %w", err)
 		}
 
@@ -689,31 +743,101 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	for _, externalGroup := range extractResult.externalGroups {
 		externalGroup.ScraperID = lo.Ternary(externalGroup.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalGroup.ScraperID)
-		if err := ctx.DB().Save(&externalGroup).Error; err != nil {
+
+		if len(externalGroup.Aliases) > 0 {
+			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalGroup](ctx, externalGroup.Aliases)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find external group by aliases: %w", err)
+			}
+			if existingID != nil {
+				externalGroup.ID = lo.FromPtr(existingID)
+			} else if externalGroup.ID == uuid.Nil {
+				hid, err := hash.DeterministicUUID(externalGroup.Aliases)
+				if err != nil {
+					return summary, fmt.Errorf("failed to generate id for externalGroup %v: %w", externalGroup, err)
+				}
+				externalGroup.ID = hid
+			}
+		}
+
+		if err := ctx.DB().Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			UpdateAll: true,
+		}).Create(&externalGroup).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external group: %w", err)
 		}
+
 		seen.externalGroupIDs = append(seen.externalGroupIDs, externalGroup.ID)
+
+		// Update cache for all aliases
+		for _, alias := range externalGroup.Aliases {
+			ExternalGroupCache.Set(alias, externalGroup.ID, cache.DefaultExpiration)
+		}
 	}
 
 	for _, externalRole := range extractResult.externalRoles {
 		externalRole.ScraperID = lo.Ternary(externalRole.ScraperID == nil, scraperID, externalRole.ScraperID)
-		if err := ctx.DB().Save(&externalRole).Error; err != nil {
+
+		if len(externalRole.Aliases) > 0 {
+			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalRole](ctx, externalRole.Aliases)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find external role by aliases: %w", err)
+			}
+			if existingID != nil {
+				externalRole.ID = lo.FromPtr(existingID)
+			} else {
+				hid, err := hash.DeterministicUUID(externalRole.Aliases)
+				if err != nil {
+					return summary, fmt.Errorf("failed to generate id for externalRole %v: %w", externalRole, err)
+				}
+				externalRole.ID = hid
+			}
+		}
+
+		if err := ctx.DB().Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			UpdateAll: true,
+		}).Create(&externalRole).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external role: %w", err)
 		}
+
 		seen.externalRoleIDs = append(seen.externalRoleIDs, externalRole.ID)
+
+		// Update cache for all aliases
+		for _, alias := range externalRole.Aliases {
+			ExternalRoleCache.Set(alias, externalRole.ID, cache.DefaultExpiration)
+		}
 	}
 
 	// Filter and save config access records for existing users only
 	for _, configAccess := range extractResult.configAccesses {
 		if configAccess.ExternalUserID == nil && len(configAccess.ExternalUserAliases) > 0 {
-			id, err := findExternalUserIDByAliases(ctx, configAccess.ExternalUserAliases)
+			id, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, configAccess.ExternalUserAliases)
 			if err != nil {
-				return summary, fmt.Errorf("failed to find config for config access: %w", err)
+				return summary, fmt.Errorf("failed to find user for config access: %w", err)
 			}
 			configAccess.ExternalUserID = id
 		}
 
-		if configAccess.ExternalUserID == nil {
+		if configAccess.ExternalRoleID == nil && len(configAccess.ExternalRoleAliases) > 0 {
+			id, err := findExternalEntityIDByAliases[dutyModels.ExternalRole](ctx, configAccess.ExternalRoleAliases)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find role for config access: %w", err)
+			}
+			configAccess.ExternalRoleID = id
+		}
+
+		if configAccess.ExternalGroupID == nil && len(configAccess.ExternalGroupAliases) > 0 {
+			id, err := findExternalEntityIDByAliases[dutyModels.ExternalGroup](ctx, configAccess.ExternalGroupAliases)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find group for config access: %w", err)
+			}
+			configAccess.ExternalGroupID = id
+		}
+
+		if configAccess.ExternalUserID == nil &&
+			configAccess.ExternalRoleID == nil &&
+			configAccess.ExternalGroupID == nil {
 			continue
 		}
 
@@ -740,7 +864,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
-			Save(&configAccess.ConfigAccess).Error; err != nil {
+			Create(&configAccess.ConfigAccess).Error; err != nil {
 			return summary, fmt.Errorf("failed to save config access: %w", err)
 		}
 		seen.configAccessIDs = append(seen.configAccessIDs, configAccess.ID)

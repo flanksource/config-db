@@ -1072,3 +1072,559 @@ var _ = Describe("Stale external entities deletion test", Ordered, func() {
 		Expect(deletedUsers[0].Name).To(Equal("Stale User"))
 	})
 })
+
+var _ = Describe("External roles with aliases e2e test", Ordered, func() {
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+	var scraperModel dutymodels.ConfigScraper
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("file-external-users")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
+		scModel.Source = dutymodels.SourceUI
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+
+		scraperModel = scModel
+	})
+
+	AfterAll(func() {
+		// Clean up external roles
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external roles")
+
+		// Clean up external users
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external users")
+
+		// Clean up external groups
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalGroup{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external groups")
+
+		// Clean up scraper
+		err = DefaultContext.DB().Delete(&scraperModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
+	})
+
+	It("should scrape and save external roles with aliases", func() {
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+	})
+
+	It("should have saved external roles to the database with aliases", func() {
+		var roles []dutymodels.ExternalRole
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&roles).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(roles).To(HaveLen(2))
+
+		roleNames := lo.Map(roles, func(r dutymodels.ExternalRole, _ int) string { return r.Name })
+		Expect(roleNames).To(ContainElements("Admin", "Reader"))
+
+		// Verify aliases are saved
+		for _, role := range roles {
+			switch role.Name {
+			case "Admin":
+				Expect(role.Aliases).To(ContainElements("admin-role", "administrator"))
+			case "Reader":
+				Expect(role.Aliases).To(ContainElements("reader-role", "read-only"))
+			}
+		}
+	})
+
+	It("should upsert external roles by alias on second scrape (not create duplicates)", func() {
+		// Get existing role IDs before second scrape
+		var rolesBefore []dutymodels.ExternalRole
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&rolesBefore).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rolesBefore).To(HaveLen(2))
+
+		roleIDsBefore := lo.Map(rolesBefore, func(r dutymodels.ExternalRole, _ int) uuid.UUID { return r.ID })
+
+		// Clear cache to ensure we test DB lookup path
+		db.ExternalRoleCache.Flush()
+
+		// Run scraper again
+		_, err = RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify same number of roles (no duplicates)
+		var rolesAfter []dutymodels.ExternalRole
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&rolesAfter).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rolesAfter).To(HaveLen(2))
+
+		// Verify same IDs were used (upsert, not insert)
+		roleIDsAfter := lo.Map(rolesAfter, func(r dutymodels.ExternalRole, _ int) uuid.UUID { return r.ID })
+		Expect(roleIDsAfter).To(ConsistOf(roleIDsBefore))
+	})
+
+	It("should use cache for external role lookup on subsequent scrapes", func() {
+		// Clear cache first
+		db.ExternalRoleCache.Flush()
+
+		// Run scraper to populate cache
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify cache is populated for all aliases
+		adminID, found := db.ExternalRoleCache.Get("admin-role")
+		Expect(found).To(BeTrue())
+		Expect(adminID).NotTo(Equal(uuid.Nil))
+
+		administratorID, found := db.ExternalRoleCache.Get("administrator")
+		Expect(found).To(BeTrue())
+		Expect(administratorID).To(Equal(adminID)) // Same role, same ID
+
+		readerID, found := db.ExternalRoleCache.Get("reader-role")
+		Expect(found).To(BeTrue())
+		Expect(readerID).NotTo(Equal(uuid.Nil))
+
+		readOnlyID, found := db.ExternalRoleCache.Get("read-only")
+		Expect(found).To(BeTrue())
+		Expect(readOnlyID).To(Equal(readerID)) // Same role, same ID
+	})
+})
+
+var _ = Describe("Config access with external_role_aliases test", Ordered, func() {
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+	var scraperModel dutymodels.ConfigScraper
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("file-config-access-roles")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
+		scModel.Source = dutymodels.SourceUI
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+
+		scraperModel = scModel
+	})
+
+	AfterAll(func() {
+		// Clean up config access
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete config access")
+
+		// Clean up external groups
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalGroup{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external groups")
+
+		// Clean up external roles
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external roles")
+
+		// Clean up external users
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external users")
+
+		// Clean up config items
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&models.ConfigItem{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete config items")
+
+		// Clean up scraper
+		err = DefaultContext.DB().Delete(&scraperModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
+	})
+
+	It("should scrape and save external users, roles, groups, and config access", func() {
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+	})
+
+	It("should have saved external roles to the database", func() {
+		var roles []dutymodels.ExternalRole
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&roles).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(roles).To(HaveLen(2))
+
+		roleNames := lo.Map(roles, func(r dutymodels.ExternalRole, _ int) string { return r.Name })
+		Expect(roleNames).To(ContainElements("Editor", "Viewer"))
+	})
+
+	It("should have saved config access with resolved external_role_id from aliases", func() {
+		// Get the external roles to find their IDs
+		var roles []dutymodels.ExternalRole
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&roles).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		roleByName := make(map[string]dutymodels.ExternalRole)
+		for _, r := range roles {
+			roleByName[r.Name] = r
+		}
+
+		// Get the config access records
+		var configAccesses []dutymodels.ConfigAccess
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&configAccesses).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(configAccesses).To(HaveLen(2))
+
+		// Verify each config access has the correct external_role_id
+		accessByID := make(map[string]dutymodels.ConfigAccess)
+		for _, ca := range configAccesses {
+			accessByID[ca.ID] = ca
+		}
+
+		// role-access-001 should have Editor's role ID (resolved from "editor-role" alias)
+		access001 := accessByID["role-access-001"]
+		Expect(access001.ExternalRoleID).NotTo(BeNil())
+		Expect(*access001.ExternalRoleID).To(Equal(roleByName["Editor"].ID))
+
+		// role-access-002 should have Viewer's role ID (resolved from "viewer-role" or "view-only" alias)
+		access002 := accessByID["role-access-002"]
+		Expect(access002.ExternalRoleID).NotTo(BeNil())
+		Expect(*access002.ExternalRoleID).To(Equal(roleByName["Viewer"].ID))
+	})
+
+	It("should resolve external_role_id from cache on second scrape", func() {
+		// Clear cache first
+		db.ExternalRoleCache.Flush()
+
+		// Run scraper again
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify cache is populated with aliases
+		editorID, found := db.ExternalRoleCache.Get("editor-role")
+		Expect(found).To(BeTrue())
+		Expect(editorID).NotTo(Equal(uuid.Nil))
+
+		viewerID, found := db.ExternalRoleCache.Get("viewer-role")
+		Expect(found).To(BeTrue())
+		Expect(viewerID).NotTo(Equal(uuid.Nil))
+	})
+
+	It("should have saved external groups to the database with aliases", func() {
+		var groups []dutymodels.ExternalGroup
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&groups).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(groups).To(HaveLen(2))
+
+		groupNames := lo.Map(groups, func(g dutymodels.ExternalGroup, _ int) string { return g.Name })
+		Expect(groupNames).To(ContainElements("Editors Group", "Viewers Group"))
+	})
+
+	It("should have saved config access with resolved external_group_id from aliases", func() {
+		// Get the external groups to find their IDs
+		var groups []dutymodels.ExternalGroup
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&groups).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		groupByName := make(map[string]dutymodels.ExternalGroup)
+		for _, g := range groups {
+			groupByName[g.Name] = g
+		}
+
+		// Get the config access records
+		var configAccesses []dutymodels.ConfigAccess
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&configAccesses).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(configAccesses).To(HaveLen(2))
+
+		// Verify each config access has the correct external_group_id
+		accessByID := make(map[string]dutymodels.ConfigAccess)
+		for _, ca := range configAccesses {
+			accessByID[ca.ID] = ca
+		}
+
+		// role-access-001 should have Editors Group's ID (resolved from "editors-group" alias)
+		access001 := accessByID["role-access-001"]
+		Expect(access001.ExternalGroupID).NotTo(BeNil())
+		Expect(*access001.ExternalGroupID).To(Equal(groupByName["Editors Group"].ID))
+
+		// role-access-002 should have Viewers Group's ID (resolved from "viewers-group" or "view-team" alias)
+		access002 := accessByID["role-access-002"]
+		Expect(access002.ExternalGroupID).NotTo(BeNil())
+		Expect(*access002.ExternalGroupID).To(Equal(groupByName["Viewers Group"].ID))
+	})
+
+	It("should resolve external_group_id from cache on second scrape", func() {
+		// Clear cache first
+		db.ExternalGroupCache.Flush()
+
+		// Run scraper again
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify cache is populated with aliases
+		editorsID, found := db.ExternalGroupCache.Get("editors-group")
+		Expect(found).To(BeTrue())
+		Expect(editorsID).NotTo(Equal(uuid.Nil))
+
+		viewersID, found := db.ExternalGroupCache.Get("viewers-group")
+		Expect(found).To(BeTrue())
+		Expect(viewersID).NotTo(Equal(uuid.Nil))
+	})
+})
+
+var _ = Describe("Config access with combined user, role, and group aliases test", Ordered, func() {
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+	var scraperModel dutymodels.ConfigScraper
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("file-config-access-roles")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
+		scModel.Source = dutymodels.SourceUI
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+
+		scraperModel = scModel
+	})
+
+	AfterAll(func() {
+		// Clean up config access
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete config access")
+
+		// Clean up external groups
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalGroup{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external groups")
+
+		// Clean up external roles
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external roles")
+
+		// Clean up external users
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external users")
+
+		// Clean up config items
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&models.ConfigItem{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete config items")
+
+		// Clean up scraper
+		err = DefaultContext.DB().Delete(&scraperModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
+	})
+
+	It("should scrape and save external users, roles, groups, and config access", func() {
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+	})
+
+	It("should have saved config access with user, role, and group all resolved", func() {
+		// Get the external user
+		var users []dutymodels.ExternalUser
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&users).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(users).To(HaveLen(1))
+		user := users[0]
+		Expect(user.Name).To(Equal("Charlie Brown"))
+
+		// Get the external roles
+		var roles []dutymodels.ExternalRole
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&roles).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(roles).To(HaveLen(2))
+
+		roleByName := make(map[string]dutymodels.ExternalRole)
+		for _, r := range roles {
+			roleByName[r.Name] = r
+		}
+
+		// Get the external groups
+		var groups []dutymodels.ExternalGroup
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&groups).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(groups).To(HaveLen(2))
+
+		groupByName := make(map[string]dutymodels.ExternalGroup)
+		for _, g := range groups {
+			groupByName[g.Name] = g
+		}
+
+		// Get the config access records
+		var configAccesses []dutymodels.ConfigAccess
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&configAccesses).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(configAccesses).To(HaveLen(2))
+
+		accessByID := make(map[string]dutymodels.ConfigAccess)
+		for _, ca := range configAccesses {
+			accessByID[ca.ID] = ca
+		}
+
+		// role-access-001 should have user, role, and group all resolved
+		access001 := accessByID["role-access-001"]
+		Expect(access001.ExternalUserID).NotTo(BeNil(), "external_user_id should be resolved")
+		Expect(*access001.ExternalUserID).To(Equal(user.ID))
+		Expect(access001.ExternalRoleID).NotTo(BeNil(), "external_role_id should be resolved")
+		Expect(*access001.ExternalRoleID).To(Equal(roleByName["Editor"].ID))
+		Expect(access001.ExternalGroupID).NotTo(BeNil(), "external_group_id should be resolved")
+		Expect(*access001.ExternalGroupID).To(Equal(groupByName["Editors Group"].ID))
+
+		// role-access-002 should also have user, role, and group all resolved
+		access002 := accessByID["role-access-002"]
+		Expect(access002.ExternalUserID).NotTo(BeNil(), "external_user_id should be resolved")
+		Expect(*access002.ExternalUserID).To(Equal(user.ID)) // Same user, different alias
+		Expect(access002.ExternalRoleID).NotTo(BeNil(), "external_role_id should be resolved")
+		Expect(*access002.ExternalRoleID).To(Equal(roleByName["Viewer"].ID))
+		Expect(access002.ExternalGroupID).NotTo(BeNil(), "external_group_id should be resolved")
+		Expect(*access002.ExternalGroupID).To(Equal(groupByName["Viewers Group"].ID))
+	})
+
+	It("should correctly resolve all entity types from cache on second scrape", func() {
+		// Clear all caches
+		db.ExternalUserCache.Flush()
+		db.ExternalRoleCache.Flush()
+		db.ExternalGroupCache.Flush()
+
+		// Run scraper again
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify all caches are populated
+		userID, found := db.ExternalUserCache.Get("charlie-brown")
+		Expect(found).To(BeTrue())
+		Expect(userID).NotTo(Equal(uuid.Nil))
+
+		roleID, found := db.ExternalRoleCache.Get("editor-role")
+		Expect(found).To(BeTrue())
+		Expect(roleID).NotTo(Equal(uuid.Nil))
+
+		groupID, found := db.ExternalGroupCache.Get("editors-group")
+		Expect(found).To(BeTrue())
+		Expect(groupID).NotTo(Equal(uuid.Nil))
+
+		// Verify they are all different (no cache collision)
+		Expect(userID).NotTo(Equal(roleID))
+		Expect(userID).NotTo(Equal(groupID))
+		Expect(roleID).NotTo(Equal(groupID))
+	})
+})
+
+var _ = Describe("External groups with aliases e2e test", Ordered, func() {
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+	var scraperModel dutymodels.ConfigScraper
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("file-external-users")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
+		scModel.Source = dutymodels.SourceUI
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to create scrape config")
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+
+		scraperModel = scModel
+	})
+
+	AfterAll(func() {
+		// Clean up external groups
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalGroup{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external groups")
+
+		// Clean up external roles
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external roles")
+
+		// Clean up external users
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external users")
+
+		// Clean up scraper
+		err = DefaultContext.DB().Delete(&scraperModel).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
+	})
+
+	It("should scrape and save external groups with aliases", func() {
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+	})
+
+	It("should have saved external groups to the database with aliases", func() {
+		var groups []dutymodels.ExternalGroup
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&groups).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(groups).To(HaveLen(2))
+
+		groupNames := lo.Map(groups, func(g dutymodels.ExternalGroup, _ int) string { return g.Name })
+		Expect(groupNames).To(ContainElements("Administrators", "Developers"))
+
+		// Verify aliases are saved
+		for _, group := range groups {
+			switch group.Name {
+			case "Administrators":
+				Expect(group.Aliases).To(ContainElements("admins-group", "administrators"))
+			case "Developers":
+				Expect(group.Aliases).To(ContainElements("devs-group", "developers"))
+			}
+		}
+	})
+
+	It("should upsert external groups by alias on second scrape (not create duplicates)", func() {
+		// Get existing group IDs before second scrape
+		var groupsBefore []dutymodels.ExternalGroup
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&groupsBefore).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(groupsBefore).To(HaveLen(2))
+
+		groupIDsBefore := lo.Map(groupsBefore, func(g dutymodels.ExternalGroup, _ int) uuid.UUID { return g.ID })
+
+		// Clear cache to ensure we test DB lookup path
+		db.ExternalGroupCache.Flush()
+
+		// Run scraper again
+		_, err = RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify same number of groups (no duplicates)
+		var groupsAfter []dutymodels.ExternalGroup
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&groupsAfter).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(groupsAfter).To(HaveLen(2))
+
+		// Verify same IDs were used (upsert, not insert)
+		groupIDsAfter := lo.Map(groupsAfter, func(g dutymodels.ExternalGroup, _ int) uuid.UUID { return g.ID })
+		Expect(groupIDsAfter).To(ConsistOf(groupIDsBefore))
+	})
+
+	It("should use cache for external group lookup on subsequent scrapes", func() {
+		// Clear cache first
+		db.ExternalGroupCache.Flush()
+
+		// Run scraper to populate cache
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		// Verify cache is populated for all aliases
+		adminsID, found := db.ExternalGroupCache.Get("admins-group")
+		Expect(found).To(BeTrue())
+		Expect(adminsID).NotTo(Equal(uuid.Nil))
+
+		administratorsID, found := db.ExternalGroupCache.Get("administrators")
+		Expect(found).To(BeTrue())
+		Expect(administratorsID).To(Equal(adminsID)) // Same group, same ID
+
+		devsID, found := db.ExternalGroupCache.Get("devs-group")
+		Expect(found).To(BeTrue())
+		Expect(devsID).NotTo(Equal(uuid.Nil))
+
+		developersID, found := db.ExternalGroupCache.Get("developers")
+		Expect(found).To(BeTrue())
+		Expect(developersID).To(Equal(devsID)) // Same group, same ID
+	})
+})

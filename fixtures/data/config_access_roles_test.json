@@ -1,0 +1,68 @@
+{
+  "id": "test-org-role-access",
+  "config": {
+    "name": "Test Organization with Role Access",
+    "type": "organization"
+  },
+  "external_users": [
+    {
+      "name": "Charlie Brown",
+      "account_id": "org-789",
+      "user_type": "human",
+      "email": "charlie@example.com",
+      "aliases": ["charlie-brown", "charlie@example.com"]
+    }
+  ],
+  "external_roles": [
+    {
+      "name": "Editor",
+      "account_id": "org-789",
+      "role_type": "custom",
+      "description": "Edit access",
+      "aliases": ["editor-role", "edit-access"]
+    },
+    {
+      "name": "Viewer",
+      "account_id": "org-789",
+      "role_type": "custom",
+      "description": "View-only access",
+      "aliases": ["viewer-role", "view-only"]
+    }
+  ],
+  "external_groups": [
+    {
+      "name": "Editors Group",
+      "account_id": "org-789",
+      "group_type": "team",
+      "aliases": ["editors-group", "edit-team"]
+    },
+    {
+      "name": "Viewers Group",
+      "account_id": "org-789",
+      "group_type": "team",
+      "aliases": ["viewers-group", "view-team"]
+    }
+  ],
+  "config_access": [
+    {
+      "id": "role-access-001",
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "test-org-role-access"
+      },
+      "external_user_aliases": ["charlie-brown"],
+      "external_role_aliases": ["editor-role"],
+      "external_group_aliases": ["editors-group"]
+    },
+    {
+      "id": "role-access-002",
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "test-org-role-access"
+      },
+      "external_user_aliases": ["charlie@example.com"],
+      "external_role_aliases": ["viewer-role", "view-only"],
+      "external_group_aliases": ["viewers-group", "view-team"]
+    }
+  ]
+}
