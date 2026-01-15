@@ -110,6 +110,38 @@ func TestExtractConfigAccess(t *testing.T) {
 			},
 		},
 		{
+			name: "extracts config_access with user, role and group aliases combined",
+			input: map[string]any{
+				"config": map[string]any{
+					"name": "Test Org",
+				},
+				"config_access": []map[string]any{
+					{
+						"id": "access-005",
+						"external_config_id": map[string]any{
+							"config_type": "Organization",
+							"external_id": "test-org",
+						},
+						"external_user_aliases":  []string{"alice", "alice@example.com"},
+						"external_role_aliases":  []string{"admin", "owner"},
+						"external_group_aliases": []string{"admins", "super-users"},
+					},
+				},
+			},
+			expectError:   false,
+			expectedCount: 1,
+			expectedIDs:   []string{"access-005"},
+			expectedUserAliases: [][]string{
+				{"alice", "alice@example.com"},
+			},
+			expectedRoleAliases: [][]string{
+				{"admin", "owner"},
+			},
+			expectedGroupAliases: [][]string{
+				{"admins", "super-users"},
+			},
+		},
+		{
 			name: "extracts empty config_access",
 			input: map[string]any{
 				"config": map[string]any{
