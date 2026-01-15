@@ -13,6 +13,7 @@ import (
 	"github.com/aws/smithy-go/ptr"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/text"
 	"github.com/flanksource/commons/timer"
@@ -399,6 +400,12 @@ var OrphanCache = cache.New(60*time.Minute, 10*time.Minute)
 // ExternalUserCache stores alias -> external_user_id mapping
 var ExternalUserCache = cache.New(time.Hour, 10*time.Minute)
 
+// ExternalRoleCache stores alias -> external_role_id mapping
+var ExternalRoleCache = cache.New(time.Hour, 10*time.Minute)
+
+// ExternalGroupCache stores alias -> external_group_id mapping
+var ExternalGroupCache = cache.New(time.Hour, 10*time.Minute)
+
 // findExternalUserIDByAliases looks up an external user ID by aliases
 // It first checks the cache, then queries the DB. Returns the ID if found, uuid.Nil otherwise.
 func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
@@ -429,6 +436,76 @@ func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (*uuid
 			ExternalUserCache.Set(a, existingUser.ID, cache.DefaultExpiration)
 		}
 		return lo.ToPtr(existingUser.ID), nil
+	}
+
+	return nil, nil
+}
+
+// findExternalRoleIDByAliases looks up an external role ID by aliases
+// It first checks the cache, then queries the DB. Returns the ID if found, nil otherwise.
+func findExternalRoleIDByAliases(ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
+	for _, alias := range aliases {
+		if cachedID, ok := ExternalRoleCache.Get(alias); ok {
+			return lo.ToPtr(cachedID.(uuid.UUID)), nil
+		}
+	}
+
+	// Query DB for any matching alias
+	for _, alias := range aliases {
+		var existingRole dutyModels.ExternalRole
+		err := ctx.DB().
+			Select("id").
+			Where("? = ANY(aliases)", alias).
+			Where("deleted_at IS NULL").
+			First(&existingRole).Error
+
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, fmt.Errorf("failed to query external role by alias: %w", err)
+			}
+			continue
+		}
+
+		// Found in DB, populate cache for all aliases and return
+		for _, a := range aliases {
+			ExternalRoleCache.Set(a, existingRole.ID, cache.DefaultExpiration)
+		}
+		return lo.ToPtr(existingRole.ID), nil
+	}
+
+	return nil, nil
+}
+
+// findExternalGroupIDByAliases looks up an external group ID by aliases
+// It first checks the cache, then queries the DB. Returns the ID if found, nil otherwise.
+func findExternalGroupIDByAliases(ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
+	for _, alias := range aliases {
+		if cachedID, ok := ExternalGroupCache.Get(alias); ok {
+			return lo.ToPtr(cachedID.(uuid.UUID)), nil
+		}
+	}
+
+	// Query DB for any matching alias
+	for _, alias := range aliases {
+		var existingGroup dutyModels.ExternalGroup
+		err := ctx.DB().
+			Select("id").
+			Where("? = ANY(aliases)", alias).
+			Where("deleted_at IS NULL").
+			First(&existingGroup).Error
+
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, fmt.Errorf("failed to query external group by alias: %w", err)
+			}
+			continue
+		}
+
+		// Found in DB, populate cache for all aliases and return
+		for _, a := range aliases {
+			ExternalGroupCache.Set(a, existingGroup.ID, cache.DefaultExpiration)
+		}
+		return lo.ToPtr(existingGroup.ID), nil
 	}
 
 	return nil, nil
@@ -675,7 +752,10 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			}
 		}
 
-		if err := ctx.DB().Save(&externalUser).Error; err != nil {
+		if err := ctx.DB().Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			UpdateAll: true,
+		}).Create(&externalUser).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external user: %w", err)
 		}
 
@@ -689,18 +769,64 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	for _, externalGroup := range extractResult.externalGroups {
 		externalGroup.ScraperID = lo.Ternary(externalGroup.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalGroup.ScraperID)
-		if err := ctx.DB().Save(&externalGroup).Error; err != nil {
+
+		if len(externalGroup.Aliases) > 0 {
+			existingID, err := findExternalGroupIDByAliases(ctx, externalGroup.Aliases)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find external group by aliases: %w", err)
+			}
+			if existingID != nil {
+				externalGroup.ID = lo.FromPtr(existingID)
+			}
+		}
+
+		if err := ctx.DB().Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			UpdateAll: true,
+		}).Create(&externalGroup).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external group: %w", err)
 		}
+
 		seen.externalGroupIDs = append(seen.externalGroupIDs, externalGroup.ID)
+
+		// Update cache for all aliases
+		for _, alias := range externalGroup.Aliases {
+			ExternalGroupCache.Set(alias, externalGroup.ID, cache.DefaultExpiration)
+		}
 	}
 
 	for _, externalRole := range extractResult.externalRoles {
 		externalRole.ScraperID = lo.Ternary(externalRole.ScraperID == nil, scraperID, externalRole.ScraperID)
-		if err := ctx.DB().Save(&externalRole).Error; err != nil {
+
+		if len(externalRole.Aliases) > 0 {
+			existingID, err := findExternalRoleIDByAliases(ctx, externalRole.Aliases)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find external role by aliases: %w", err)
+			}
+			if existingID != nil {
+				externalRole.ID = lo.FromPtr(existingID)
+			} else {
+				hid, err := hash.DeterministicUUID(externalRole.Aliases)
+				if err != nil {
+					return summary, fmt.Errorf("failed to generate id for externalRole %v: %w", externalRole, err)
+				}
+				externalRole.ID = hid
+			}
+		}
+
+		if err := ctx.DB().Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			UpdateAll: true,
+		}).Create(&externalRole).Error; err != nil {
 			return summary, fmt.Errorf("failed to save external role: %w", err)
 		}
+
 		seen.externalRoleIDs = append(seen.externalRoleIDs, externalRole.ID)
+
+		// Update cache for all aliases
+		for _, alias := range externalRole.Aliases {
+			ExternalRoleCache.Set(alias, externalRole.ID, cache.DefaultExpiration)
+		}
 	}
 
 	// Filter and save config access records for existing users only
@@ -708,12 +834,30 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if configAccess.ExternalUserID == nil && len(configAccess.ExternalUserAliases) > 0 {
 			id, err := findExternalUserIDByAliases(ctx, configAccess.ExternalUserAliases)
 			if err != nil {
-				return summary, fmt.Errorf("failed to find config for config access: %w", err)
+				return summary, fmt.Errorf("failed to find user for config access: %w", err)
 			}
 			configAccess.ExternalUserID = id
 		}
 
-		if configAccess.ExternalUserID == nil {
+		if configAccess.ExternalRoleID == nil && len(configAccess.ExternalRoleAliases) > 0 {
+			id, err := findExternalRoleIDByAliases(ctx, configAccess.ExternalRoleAliases)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find role for config access: %w", err)
+			}
+			configAccess.ExternalRoleID = id
+		}
+
+		if configAccess.ExternalGroupID == nil && len(configAccess.ExternalGroupAliases) > 0 {
+			id, err := findExternalGroupIDByAliases(ctx, configAccess.ExternalGroupAliases)
+			if err != nil {
+				return summary, fmt.Errorf("failed to find group for config access: %w", err)
+			}
+			configAccess.ExternalGroupID = id
+		}
+
+		if configAccess.ExternalUserID == nil &&
+			configAccess.ExternalRoleID == nil &&
+			configAccess.ExternalGroupID == nil {
 			continue
 		}
 
@@ -740,7 +884,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
-			Save(&configAccess.ConfigAccess).Error; err != nil {
+			Create(&configAccess.ConfigAccess).Error; err != nil {
 			return summary, fmt.Errorf("failed to save config access: %w", err)
 		}
 		seen.configAccessIDs = append(seen.configAccessIDs, configAccess.ID)
