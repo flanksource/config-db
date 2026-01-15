@@ -1217,6 +1217,10 @@ var _ = Describe("Config access with external_role_aliases test", Ordered, func(
 		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{}).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to delete config access")
 
+		// Clean up external groups
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalGroup{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external groups")
+
 		// Clean up external roles
 		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to delete external roles")
@@ -1234,7 +1238,7 @@ var _ = Describe("Config access with external_role_aliases test", Ordered, func(
 		Expect(err).NotTo(HaveOccurred(), "failed to delete scrape config")
 	})
 
-	It("should scrape and save external users, roles, and config access", func() {
+	It("should scrape and save external users, roles, groups, and config access", func() {
 		_, err := RunScraper(scraperCtx)
 		Expect(err).To(BeNil())
 	})
