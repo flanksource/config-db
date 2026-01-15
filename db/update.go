@@ -406,106 +406,74 @@ var ExternalRoleCache = cache.New(time.Hour, 10*time.Minute)
 // ExternalGroupCache stores alias -> external_group_id mapping
 var ExternalGroupCache = cache.New(time.Hour, 10*time.Minute)
 
-// findExternalUserIDByAliases looks up an external user ID by aliases
-// It first checks the cache, then queries the DB. Returns the ID if found, uuid.Nil otherwise.
-func findExternalUserIDByAliases(ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
-	for _, alias := range aliases {
-		if cachedID, ok := ExternalUserCache.Get(alias); ok {
-			return lo.ToPtr(cachedID.(uuid.UUID)), nil
-		}
-	}
-
-	// Query DB for any matching alias
-	for _, alias := range aliases {
-		var existingUser dutyModels.ExternalUser
-		err := ctx.DB().
-			Select("id").
-			Where("? = ANY(aliases)", alias).
-			Where("deleted_at IS NULL").
-			First(&existingUser).Error
-
-		if err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("failed to query external user by alias: %w", err)
-			}
-			continue
-		}
-
-		// Found in DB, populate cache for all aliases and return
-		for _, a := range aliases {
-			ExternalUserCache.Set(a, existingUser.ID, cache.DefaultExpiration)
-		}
-		return lo.ToPtr(existingUser.ID), nil
-	}
-
-	return nil, nil
+// externalEntityWithID is a constraint for external entity types that have an ID field
+type externalEntityWithID interface {
+	dutyModels.ExternalUser | dutyModels.ExternalRole | dutyModels.ExternalGroup
+	TableName() string
 }
 
-// findExternalRoleIDByAliases looks up an external role ID by aliases
-// It first checks the cache, then queries the DB. Returns the ID if found, nil otherwise.
-func findExternalRoleIDByAliases(ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
-	for _, alias := range aliases {
-		if cachedID, ok := ExternalRoleCache.Get(alias); ok {
-			return lo.ToPtr(cachedID.(uuid.UUID)), nil
-		}
+// getEntityID extracts the ID from an external entity
+func getEntityID[T externalEntityWithID](entity *T) uuid.UUID {
+	switch e := any(entity).(type) {
+	case *dutyModels.ExternalUser:
+		return e.ID
+	case *dutyModels.ExternalRole:
+		return e.ID
+	case *dutyModels.ExternalGroup:
+		return e.ID
+	default:
+		return uuid.Nil
 	}
-
-	// Query DB for any matching alias
-	for _, alias := range aliases {
-		var existingRole dutyModels.ExternalRole
-		err := ctx.DB().
-			Select("id").
-			Where("? = ANY(aliases)", alias).
-			Where("deleted_at IS NULL").
-			First(&existingRole).Error
-
-		if err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("failed to query external role by alias: %w", err)
-			}
-			continue
-		}
-
-		// Found in DB, populate cache for all aliases and return
-		for _, a := range aliases {
-			ExternalRoleCache.Set(a, existingRole.ID, cache.DefaultExpiration)
-		}
-		return lo.ToPtr(existingRole.ID), nil
-	}
-
-	return nil, nil
 }
 
-// findExternalGroupIDByAliases looks up an external group ID by aliases
+// getEntityCache returns the appropriate cache for an external entity type
+func getEntityCache[T externalEntityWithID]() *cache.Cache {
+	var zero T
+	switch any(zero).(type) {
+	case dutyModels.ExternalUser:
+		return ExternalUserCache
+	case dutyModels.ExternalRole:
+		return ExternalRoleCache
+	case dutyModels.ExternalGroup:
+		return ExternalGroupCache
+	default:
+		return nil
+	}
+}
+
+// findExternalEntityIDByAliases looks up an external entity ID by aliases.
 // It first checks the cache, then queries the DB. Returns the ID if found, nil otherwise.
-func findExternalGroupIDByAliases(ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
+func findExternalEntityIDByAliases[T externalEntityWithID](ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
+	aliasCache := getEntityCache[T]()
+
 	for _, alias := range aliases {
-		if cachedID, ok := ExternalGroupCache.Get(alias); ok {
+		if cachedID, ok := aliasCache.Get(alias); ok {
 			return lo.ToPtr(cachedID.(uuid.UUID)), nil
 		}
 	}
 
 	// Query DB for any matching alias
 	for _, alias := range aliases {
-		var existingGroup dutyModels.ExternalGroup
+		var entity T
 		err := ctx.DB().
 			Select("id").
 			Where("? = ANY(aliases)", alias).
 			Where("deleted_at IS NULL").
-			First(&existingGroup).Error
+			First(&entity).Error
 
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("failed to query external group by alias: %w", err)
+				return nil, fmt.Errorf("failed to query %s by alias: %w", entity.TableName(), err)
 			}
 			continue
 		}
 
 		// Found in DB, populate cache for all aliases and return
+		id := getEntityID(&entity)
 		for _, a := range aliases {
-			ExternalGroupCache.Set(a, existingGroup.ID, cache.DefaultExpiration)
+			aliasCache.Set(a, id, cache.DefaultExpiration)
 		}
-		return lo.ToPtr(existingGroup.ID), nil
+		return lo.ToPtr(id), nil
 	}
 
 	return nil, nil
@@ -743,7 +711,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		externalUser.ScraperID = lo.Ternary(externalUser.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalUser.ScraperID)
 
 		if len(externalUser.Aliases) > 0 {
-			existingID, err := findExternalUserIDByAliases(ctx, externalUser.Aliases)
+			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, externalUser.Aliases)
 			if err != nil {
 				return summary, fmt.Errorf("failed to find external user by aliases: %w", err)
 			}
@@ -771,7 +739,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		externalGroup.ScraperID = lo.Ternary(externalGroup.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalGroup.ScraperID)
 
 		if len(externalGroup.Aliases) > 0 {
-			existingID, err := findExternalGroupIDByAliases(ctx, externalGroup.Aliases)
+			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalGroup](ctx, externalGroup.Aliases)
 			if err != nil {
 				return summary, fmt.Errorf("failed to find external group by aliases: %w", err)
 			}
@@ -799,7 +767,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		externalRole.ScraperID = lo.Ternary(externalRole.ScraperID == nil, scraperID, externalRole.ScraperID)
 
 		if len(externalRole.Aliases) > 0 {
-			existingID, err := findExternalRoleIDByAliases(ctx, externalRole.Aliases)
+			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalRole](ctx, externalRole.Aliases)
 			if err != nil {
 				return summary, fmt.Errorf("failed to find external role by aliases: %w", err)
 			}
@@ -832,7 +800,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	// Filter and save config access records for existing users only
 	for _, configAccess := range extractResult.configAccesses {
 		if configAccess.ExternalUserID == nil && len(configAccess.ExternalUserAliases) > 0 {
-			id, err := findExternalUserIDByAliases(ctx, configAccess.ExternalUserAliases)
+			id, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, configAccess.ExternalUserAliases)
 			if err != nil {
 				return summary, fmt.Errorf("failed to find user for config access: %w", err)
 			}
@@ -840,7 +808,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		if configAccess.ExternalRoleID == nil && len(configAccess.ExternalRoleAliases) > 0 {
-			id, err := findExternalRoleIDByAliases(ctx, configAccess.ExternalRoleAliases)
+			id, err := findExternalEntityIDByAliases[dutyModels.ExternalRole](ctx, configAccess.ExternalRoleAliases)
 			if err != nil {
 				return summary, fmt.Errorf("failed to find role for config access: %w", err)
 			}
@@ -848,7 +816,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		if configAccess.ExternalGroupID == nil && len(configAccess.ExternalGroupAliases) > 0 {
-			id, err := findExternalGroupIDByAliases(ctx, configAccess.ExternalGroupAliases)
+			id, err := findExternalEntityIDByAliases[dutyModels.ExternalGroup](ctx, configAccess.ExternalGroupAliases)
 			if err != nil {
 				return summary, fmt.Errorf("failed to find group for config access: %w", err)
 			}
