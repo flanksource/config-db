@@ -717,6 +717,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			}
 			if existingID != nil {
 				externalUser.ID = lo.FromPtr(existingID)
+			} else if externalUser.ID == uuid.Nil {
+				hid, err := hash.DeterministicUUID(externalUser.Aliases)
+				if err != nil {
+					return summary, fmt.Errorf("failed to generate id for externalUser %v: %w", externalUser, err)
+				}
+				externalUser.ID = hid
 			}
 		}
 
@@ -745,6 +751,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			}
 			if existingID != nil {
 				externalGroup.ID = lo.FromPtr(existingID)
+			} else if externalGroup.ID == uuid.Nil {
+				hid, err := hash.DeterministicUUID(externalGroup.Aliases)
+				if err != nil {
+					return summary, fmt.Errorf("failed to generate id for externalGroup %v: %w", externalGroup, err)
+				}
+				externalGroup.ID = hid
 			}
 		}
 
