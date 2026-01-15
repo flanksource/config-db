@@ -271,8 +271,6 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 			result.ExternalRoles = allExternalRoles
 			scraped = append(scraped, *result)
 		}
-
-		return scraped
 	}
 
 	return scraped
