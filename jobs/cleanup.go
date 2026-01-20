@@ -187,10 +187,14 @@ var CleanupConfigScrapers = &job.Job{
 			}
 		}
 
-		// Hard delete old config scrapers
+		// Hard delete old config scrapers that have no remaining config_items references
 		retention := ctx.Properties().Duration("config_scraper.retention.period", (time.Hour * 24 * time.Duration(ConfigScraperRetentionDays)))
 		days := int64(retention.Hours() / 24)
-		if err := ctx.DB().Exec(`DELETE FROM config_scrapers WHERE (NOW() - deleted_at ) > INTERVAL '1 day' * ?`, days).Error; err != nil {
+		if err := ctx.DB().Exec(`
+			DELETE FROM config_scrapers
+			WHERE (NOW() - deleted_at) > INTERVAL '1 day' * ?
+			AND id NOT IN (SELECT DISTINCT scraper_id FROM config_items WHERE scraper_id IS NOT NULL)
+		`, days).Error; err != nil {
 			ctx.History.AddErrorf("error hard deleting config_scrapers: %v", err)
 		}
 
