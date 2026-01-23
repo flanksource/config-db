@@ -3,6 +3,7 @@ package processors
 import (
 	"encoding/json"
 
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
@@ -30,6 +31,9 @@ func unmarshalConfigsFromString(s string, parent v1.ScrapeResult) ([]v1.ScrapeRe
 	var configs []v1.ScrapeResult
 	var results = []map[string]interface{}{}
 	if err := json.Unmarshal([]byte(s), &results); err != nil {
+		if logger.V(5).Enabled() {
+			logger.Infof("Failed to unmarshal script output: %v\n%s\n", err, s)
+		}
 		return nil, err
 	}
 

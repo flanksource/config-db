@@ -408,7 +408,14 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		case string:
 			parsedConfig, err = oj.ParseString(v)
 			if err != nil {
-				return results, fmt.Errorf("failed to parse json (format=%s,%s): %v", input.BaseScraper.Format, input.Source, err)
+				s := "failed to parse json"
+				if input.Format != "" {
+					s += fmt.Sprintf(" format=%s", input.Format)
+				}
+				if input.Source != "" {
+					s += fmt.Sprintf(" source=%s", input.Source)
+				}
+				return nil, fmt.Errorf("%s: %v\n%s", s, err, v)
 			}
 		default:
 			opts := oj.Options{OmitNil: input.OmitNil(), Sort: true, UseTags: true, FloatFormat: "%g"}
@@ -589,7 +596,15 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 	}
 
 	if input.ID == "" {
-		return input, fmt.Errorf("no id defined for: %s: %v", input, e.Config)
+		if len(input.Changes) == 0 {
+			return input, fmt.Errorf("no id defined for: %s", input.Debug().ANSI())
+		}
+		if len(lo.Filter(input.Changes, func(c v1.ChangeResult, _ int) bool {
+			return c.ExternalChangeID == ""
+		})) > 0 {
+			return input, fmt.Errorf("standalone changes must have both an `external_id` and `external_change_id`: %s: %v", input, e.Config)
+
+		}
 	}
 
 	if input.Name == "" {

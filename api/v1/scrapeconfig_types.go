@@ -67,6 +67,14 @@ func (t ScrapeConfig) GetContext() map[string]any {
 	}
 }
 
+func (t ScrapeConfig) IsDebug() bool {
+	return strings.EqualFold(t.Annotations["debug"], "true")
+}
+
+func (t ScrapeConfig) IsTrace() bool {
+	return strings.EqualFold(t.Annotations["trace"], "true")
+}
+
 func (t ScrapeConfig) NamespaceScope() string {
 	return t.Namespace
 }
