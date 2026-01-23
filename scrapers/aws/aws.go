@@ -490,7 +490,7 @@ func (aws Scraper) ecsTasks(ctx *AWSContext, config v1.AWS, client *ecs.Client, 
 	}
 
 	for _, taskArns := range lo.Chunk(allTaskArns, 100) {
-		ctx.Logger.V(2).Infof("describing %d ECS tasks for cluster %s", len(allTaskArns), clusterArn)
+		ctx.Logger.V(3).Infof("describing %d ECS tasks for cluster %s", len(allTaskArns), clusterArn)
 
 		describeTasksOutput, err := client.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 			Cluster: &clusterArn,
@@ -1563,8 +1563,8 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 			for _, record := range records.ResourceRecordSets {
 				var comments []string
 				if record.AliasTarget != nil {
-					comments = append(comments, fmt.Sprintf("AliasTarget=%s.%s", lo.FromPtrOr(record.AliasTarget.DNSName, ""),
-						lo.FromPtrOr(record.AliasTarget.HostedZoneId, "")))
+					record.Type = "Alias"
+					record.ResourceRecords = []r53types.ResourceRecord{{Value: record.AliasTarget.DNSName}}
 				}
 				if record.Failover != "" {
 					comments = append(comments, fmt.Sprintf("Failover=%s", strings.Join(
