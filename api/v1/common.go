@@ -141,6 +141,13 @@ type ChangeMapping struct {
 	Action ChangeAction `json:"action,omitempty"`
 	// Summary replaces the existing change summary.
 	Summary string `json:"summary,omitempty"`
+	// ConfigID is a CEL expression that returns the target config's external ID
+	// for redirecting changes to a different config item.
+	ConfigID string `json:"config_id,omitempty"`
+	// ConfigType is the target config type for redirecting changes.
+	ConfigType string `json:"config_type,omitempty"`
+	// ScraperID is the scraper ID for the target config. Use "all" for cross-scraper lookups.
+	ScraperID string `json:"scraper_id,omitempty"`
 }
 
 type TransformChange struct {
