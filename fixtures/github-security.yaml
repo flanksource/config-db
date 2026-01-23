@@ -1,0 +1,10 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: github-security-scan
+spec:
+  schedule: "@every 6h"
+  githubSecurity:
+    - repositories:
+        - owner: flanksource
+          repo: canary-checker

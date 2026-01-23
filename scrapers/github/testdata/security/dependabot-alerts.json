@@ -1,0 +1,136 @@
+[
+  {
+    "number": 1,
+    "state": "open",
+    "dependency": {
+      "package": {
+        "ecosystem": "npm",
+        "name": "lodash"
+      },
+      "manifest_path": "package.json",
+      "scope": "runtime"
+    },
+    "security_advisory": {
+      "ghsa_id": "GHSA-jf85-cpcp-j695",
+      "cve_id": "CVE-2020-8203",
+      "summary": "Prototype Pollution in lodash",
+      "description": "Versions of lodash prior to 4.17.19 are vulnerable to Prototype Pollution.",
+      "severity": "critical",
+      "identifiers": [
+        {
+          "type": "GHSA",
+          "value": "GHSA-jf85-cpcp-j695"
+        },
+        {
+          "type": "CVE",
+          "value": "CVE-2020-8203"
+        }
+      ],
+      "references": [
+        {
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2020-8203"
+        }
+      ],
+      "published_at": "2020-07-15T19:15:48Z",
+      "updated_at": "2023-09-11T20:59:47Z",
+      "withdrawn_at": null,
+      "cvss": {
+        "vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H",
+        "score": 9.1
+      },
+      "cwes": [
+        {
+          "cwe_id": "CWE-1321",
+          "name": "Improperly Controlled Modification of Object Prototype Attributes ('Prototype Pollution')"
+        }
+      ]
+    },
+    "security_vulnerability": {
+      "package": {
+        "ecosystem": "npm",
+        "name": "lodash"
+      },
+      "severity": "critical",
+      "vulnerable_version_range": "< 4.17.19",
+      "first_patched_version": {
+        "identifier": "4.17.19"
+      }
+    },
+    "url": "https://api.github.com/repos/flanksource/mission-control/dependabot/alerts/1",
+    "html_url": "https://github.com/flanksource/mission-control/security/dependabot/1",
+    "created_at": "2023-01-15T10:30:00Z",
+    "updated_at": "2023-01-20T15:45:00Z",
+    "dismissed_at": null,
+    "dismissed_by": null,
+    "dismissed_reason": null,
+    "dismissed_comment": null,
+    "fixed_at": null
+  },
+  {
+    "number": 2,
+    "state": "open",
+    "dependency": {
+      "package": {
+        "ecosystem": "npm",
+        "name": "axios"
+      },
+      "manifest_path": "package.json",
+      "scope": "runtime"
+    },
+    "security_advisory": {
+      "ghsa_id": "GHSA-wf5p-g6vw-rhxx",
+      "cve_id": "CVE-2023-45857",
+      "summary": "Cross-Site Request Forgery in axios",
+      "description": "Axios 1.5.1 allows CSRF attacks.",
+      "severity": "high",
+      "identifiers": [
+        {
+          "type": "GHSA",
+          "value": "GHSA-wf5p-g6vw-rhxx"
+        },
+        {
+          "type": "CVE",
+          "value": "CVE-2023-45857"
+        }
+      ],
+      "references": [
+        {
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2023-45857"
+        }
+      ],
+      "published_at": "2023-11-08T21:15:09Z",
+      "updated_at": "2024-01-12T16:30:00Z",
+      "withdrawn_at": null,
+      "cvss": {
+        "vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N",
+        "score": 8.1
+      },
+      "cwes": [
+        {
+          "cwe_id": "CWE-352",
+          "name": "Cross-Site Request Forgery (CSRF)"
+        }
+      ]
+    },
+    "security_vulnerability": {
+      "package": {
+        "ecosystem": "npm",
+        "name": "axios"
+      },
+      "severity": "high",
+      "vulnerable_version_range": ">= 1.3.2, < 1.6.0",
+      "first_patched_version": {
+        "identifier": "1.6.0"
+      }
+    },
+    "url": "https://api.github.com/repos/flanksource/mission-control/dependabot/alerts/2",
+    "html_url": "https://github.com/flanksource/mission-control/security/dependabot/2",
+    "created_at": "2024-01-10T08:15:00Z",
+    "updated_at": "2024-01-10T08:15:00Z",
+    "dismissed_at": null,
+    "dismissed_by": null,
+    "dismissed_reason": null,
+    "dismissed_comment": null,
+    "fixed_at": null
+  }
+]

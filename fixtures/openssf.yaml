@@ -1,0 +1,11 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: openssf-scorecard-scan
+spec:
+  schedule: "@every 24h"
+  openssfScorecard:
+    - repositories:
+        - owner: flanksource
+          repo: config-db
+      minScore: 5.0

@@ -93,6 +93,12 @@ func (t *ScrapeConfig) Type() string {
 	if len(t.Spec.GithubActions) != 0 {
 		return "githubactions"
 	}
+	if len(t.Spec.GitHubSecurity) != 0 {
+		return "githubsecurity"
+	}
+	if len(t.Spec.OpenSSFScorecard) != 0 {
+		return "openssf"
+	}
 	if len(t.Spec.Azure) != 0 {
 		return "azure"
 	}
