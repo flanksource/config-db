@@ -766,28 +766,28 @@ func (s ScrapeResult) Debug() api.Text {
 	if s.Error != nil {
 		t = t.Append(" Error: ", "text-red-500").Append(s.Error.Error())
 	}
-	if s.Aliases != nil && len(s.Aliases) > 0 {
+	if len(s.Aliases) > 0 {
 		t = t.Append(" Aliases: ", "text-muted").Append(strings.Join(s.Aliases, ", "))
 	}
 	if s.Description != "" {
 		t = t.NewLine().Append("Description: ", "text-muted").Append(s.Description)
 	}
 
-	if s.Locations != nil && len(s.Locations) > 0 {
+	if len(s.Locations) > 0 {
 		t = t.NewLine().Append("Locations: ", "text-muted").Append(strings.Join(s.Locations, ", "))
 	}
 
-	if s.Labels != nil && len(s.Labels) > 0 {
+	if len(s.Labels) > 0 {
 		t = t.NewLine().Append("Labels: ", "text-muted").Append(clicky.Map(s.Labels))
 	}
-	if s.Tags != nil && len(s.Tags) > 0 {
+	if len(s.Tags) > 0 {
 		t = t.NewLine().Append("Tags: ", "text-muted").Append(clicky.Map(s.Tags.AsMap()))
 	}
-	if s.Properties != nil && len(s.Properties) > 0 {
+	if len(s.Properties) > 0 {
 		t = t.NewLine().Append("Properties: ", "text-muted").Append(clicky.Map(s.Properties.AsMap()))
 	}
 
-	if s.Changes != nil && len(s.Changes) > 0 {
+	if len(s.Changes) > 0 {
 		t = t.NewLine().Append("Changes: ", "text-muted")
 		for _, change := range s.Changes {
 			t = t.NewLine().Append(fmt.Sprintf(" - %s: %s", change.ChangeType, change.Summary))
@@ -840,7 +840,7 @@ func (s ScrapeResult) Pretty() api.Text {
 	t = t.Append("ID: ", "text-muted").Append(s.ID)
 	t = t.Append(" Name: ", "text-muted").Append(s.Name)
 	t = t.Append(" Type: ", "text-muted").Append(s.Type)
-	if s.Tags != nil && len(s.Tags) > 0 {
+	if len(s.Tags) > 0 {
 		t = t.NewLine().Append("Tags: ", "text-muted").Append(clicky.Map(s.Tags.AsMap()))
 	}
 
