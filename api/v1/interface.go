@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flanksource/clicky"
+	"github.com/flanksource/clicky/api"
 	"github.com/flanksource/commons/collections/set"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
@@ -741,6 +743,110 @@ type ScrapeResult struct {
 	GCPStructPB *structpb.Struct `json:"-"`
 }
 
+func (s ScrapeResult) Debug() api.Text {
+	t := clicky.Text("")
+
+	t = t.Append("ID: ", "text-muted").Append(s.ID)
+	t = t.Append(" Name: ", "text-muted").Append(s.Name)
+	t = t.Append(" Type: ", "text-muted").Append(s.Type)
+	t = t.Append(" Status: ", "text-muted").Append(s.Status)
+	if s.Health != "" && s.Health != models.HealthUnknown {
+		t = t.Append(" Health: ", "text-muted").Append(string(s.Health))
+	}
+	if s.Source != "" {
+		t = t.NewLine().Append("Source: ", "text-muted").Append(s.Source)
+	}
+	if s.ScraperLess {
+		t = t.NewLine().Append("Scraper Less: ", "text-muted").Append("true")
+	}
+	if s.Icon != "" {
+		t = t.NewLine().Append("Icon: ", "text-muted").Append(s.Icon)
+	}
+
+	if s.Error != nil {
+		t = t.Append(" Error: ", "text-red-500").Append(s.Error.Error())
+	}
+	if s.Aliases != nil && len(s.Aliases) > 0 {
+		t = t.Append(" Aliases: ", "text-muted").Append(strings.Join(s.Aliases, ", "))
+	}
+	if s.Description != "" {
+		t = t.NewLine().Append("Description: ", "text-muted").Append(s.Description)
+	}
+
+	if s.Locations != nil && len(s.Locations) > 0 {
+		t = t.NewLine().Append("Locations: ", "text-muted").Append(strings.Join(s.Locations, ", "))
+	}
+
+	if s.Labels != nil && len(s.Labels) > 0 {
+		t = t.NewLine().Append("Labels: ", "text-muted").Append(clicky.Map(s.Labels))
+	}
+	if s.Tags != nil && len(s.Tags) > 0 {
+		t = t.NewLine().Append("Tags: ", "text-muted").Append(clicky.Map(s.Tags.AsMap()))
+	}
+	if s.Properties != nil && len(s.Properties) > 0 {
+		t = t.NewLine().Append("Properties: ", "text-muted").Append(clicky.Map(s.Properties.AsMap()))
+	}
+
+	if s.Changes != nil && len(s.Changes) > 0 {
+		t = t.NewLine().Append("Changes: ", "text-muted")
+		for _, change := range s.Changes {
+			t = t.NewLine().Append(fmt.Sprintf(" - %s: %s", change.ChangeType, change.Summary))
+		}
+	}
+
+	switch v := s.Config.(type) {
+	case string:
+		if s.Format == "json" || s.Format == "" {
+			t = t.NewLine().Append(clicky.CodeBlock("json", v)).NewLine()
+		} else {
+			t = t.NewLine().Append(clicky.CodeBlock(s.Format, v)).NewLine()
+		}
+	case map[string]any:
+		t = t.NewLine().Append(clicky.Map(v), "max-w-[100ch]").NewLine()
+	case map[string]string:
+		t = t.NewLine().Append(clicky.Map(v), "max-w-[100ch]").NewLine()
+	default:
+		t = t.NewLine().Append(fmt.Sprintf("%v", v)).NewLine()
+	}
+
+	return t
+}
+
+func (s ScrapeResult) PrettyRow(options interface{}) map[string]api.Text {
+	row := make(map[string]api.Text)
+	row["ID"] = clicky.Text(s.ID)
+	row["Name"] = clicky.Text(s.Name)
+	row["Type"] = clicky.Text(s.Type)
+	row["Health"] = clicky.Text(string(s.Health))
+	row["Status"] = clicky.Text(s.Status)
+	if s.Error != nil {
+		row["Error"] = clicky.Text(s.Error.Error())
+	} else {
+		row["Error"] = clicky.Text("")
+	}
+	clicky.MustPrint([]map[string]api.Text{row}, clicky.FormatOptions{JSON: true})
+	clicky.MustPrint([]map[string]api.Text{row}, clicky.FormatOptions{Pretty: true})
+
+	return row
+}
+
+func (s ScrapeResult) IsMetadataOnly() bool {
+	return s.Config == nil
+}
+
+func (s ScrapeResult) Pretty() api.Text {
+	t := clicky.Text("")
+
+	t = t.Append("ID: ", "text-muted").Append(s.ID)
+	t = t.Append(" Name: ", "text-muted").Append(s.Name)
+	t = t.Append(" Type: ", "text-muted").Append(s.Type)
+	if s.Tags != nil && len(s.Tags) > 0 {
+		t = t.NewLine().Append("Tags: ", "text-muted").Append(clicky.Map(s.Tags.AsMap()))
+	}
+
+	return t
+}
+
 // +kubebuilder:object:generate=false
 type ExternalConfigAccessLog struct {
 	models.ConfigAccessLog
@@ -883,6 +989,58 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 		Error:        s.Error,
 	}
 	return clone
+}
+
+// +kubebuilder:object:generate=false
+type FullScrapeResults struct {
+	Configs            []api.PrettyRow             `json:"configs,omitempty"`
+	Analysis           []models.ConfigAnalysis     `json:"analysis,omitempty"`
+	Changes            []models.ConfigChange       `json:"changes,omitempty"`
+	Relationships      []models.ConfigRelationship `json:"relationships,omitempty"`
+	ExternalRoles      []models.ExternalRole       `json:"external_roles,omitempty"`
+	ExternalUsers      []models.ExternalUser       `json:"external_users,omitempty"`
+	ExternalGroups     []models.ExternalGroup      `json:"external_groups,omitempty"`
+	ExternalUserGroups []models.ExternalUserGroup  `json:"external_user_groups,omitempty"`
+	ConfigAccess       []ExternalConfigAccess      `json:"config_access,omitempty"`
+	ConfigAccessLogs   []ExternalConfigAccessLog   `json:"config_access_logs,omitempty"`
+}
+
+func MergeScrapeResults(results ...ScrapeResults) FullScrapeResults {
+	full := FullScrapeResults{}
+	for _, res := range results {
+		for _, r := range res {
+			if r.Error != nil {
+				continue
+			}
+
+			if r.AnalysisResult != nil {
+				full.Analysis = append(full.Analysis, r.AnalysisResult.ToConfigAnalysis())
+			}
+
+			for _, change := range r.Changes {
+				configChange := models.ConfigChange{
+					ChangeType: change.ChangeType,
+					Severity:   models.Severity(change.Severity),
+					Source:     change.Source,
+					Summary:    change.Summary,
+					CreatedAt:  change.CreatedAt,
+				}
+				full.Changes = append(full.Changes, configChange)
+			}
+
+			if !r.IsMetadataOnly() {
+				full.Configs = append(full.Configs, r)
+			}
+
+			full.ExternalRoles = append(full.ExternalRoles, r.ExternalRoles...)
+			full.ExternalUsers = append(full.ExternalUsers, r.ExternalUsers...)
+			full.ExternalGroups = append(full.ExternalGroups, r.ExternalGroups...)
+			full.ExternalUserGroups = append(full.ExternalUserGroups, r.ExternalUserGroups...)
+			full.ConfigAccess = append(full.ConfigAccess, r.ConfigAccess...)
+			full.ConfigAccessLogs = append(full.ConfigAccessLogs, r.ConfigAccessLogs...)
+		}
+	}
+	return full
 }
 
 func Ellipses(str string, length int) string {
