@@ -886,8 +886,10 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			accessLog.ConfigID = uuid.MustParse(config)
 		}
 
-		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
-			Save(&accessLog.ConfigAccessLog).Error; err != nil {
+		if err := ctx.DB().Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "config_id"}, {Name: "external_user_id"}, {Name: "scraper_id"}},
+			DoNothing: true,
+		}).Save(&accessLog.ConfigAccessLog).Error; err != nil {
 			return summary, fmt.Errorf("failed to save access log: %w", err)
 		}
 	}
