@@ -886,8 +886,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			accessLog.ConfigID = uuid.MustParse(config)
 		}
 
-		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
-			Save(&accessLog.ConfigAccessLog).Error; err != nil {
+		if err := SaveConfigAccessLog(ctx, &accessLog.ConfigAccessLog); err != nil {
 			return summary, fmt.Errorf("failed to save access log: %w", err)
 		}
 	}
@@ -1393,6 +1392,20 @@ type updateConfigArgs struct {
 type configExternalKey struct {
 	externalID string
 	parentType string
+}
+
+func SaveConfigAccessLog(ctx api.ScrapeContext, accessLog *dutyModels.ConfigAccessLog) error {
+	if accessLog == nil {
+		return nil
+	}
+
+	return ctx.DB().Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "config_id"}, {Name: "external_user_id"}, {Name: "scraper_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"created_at", "mfa", "properties"}),
+		Where: clause.Where{Exprs: []clause.Expression{
+			clause.Expr{SQL: "excluded.created_at > config_access_logs.created_at"},
+		}},
+	}).Create(accessLog).Error
 }
 
 // extractResult holds the extracted configs & changes from the scrape result
