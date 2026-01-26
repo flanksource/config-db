@@ -67,6 +67,14 @@ func (t ScrapeConfig) GetContext() map[string]any {
 	}
 }
 
+func (t ScrapeConfig) IsDebug() bool {
+	return strings.EqualFold(t.Annotations["debug"], "true")
+}
+
+func (t ScrapeConfig) IsTrace() bool {
+	return strings.EqualFold(t.Annotations["trace"], "true")
+}
+
 func (t ScrapeConfig) NamespaceScope() string {
 	return t.Namespace
 }
@@ -92,6 +100,12 @@ func (t *ScrapeConfig) Type() string {
 	}
 	if len(t.Spec.GithubActions) != 0 {
 		return "githubactions"
+	}
+	if len(t.Spec.GitHubSecurity) != 0 {
+		return "githubsecurity"
+	}
+	if len(t.Spec.OpenSSFScorecard) != 0 {
+		return "openssf"
 	}
 	if len(t.Spec.Azure) != 0 {
 		return "azure"

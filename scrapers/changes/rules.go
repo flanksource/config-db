@@ -17,12 +17,15 @@ import (
 var changeRulesConfig []byte
 
 type changeRule struct {
-	Action   v1.ChangeAction `json:"action"`   // map the change action to this action.
-	Filter   string          `json:"filter"`   // cel-go filter for a config item.
-	Rule     string          `json:"rule"`     // cel-go filter for a config change.
-	Severity string          `json:"severity"` // replace with this severity.
-	Type     string          `json:"type"`     // replace with this change type.
-	Summary  string          `json:"summary"`  // Go templatable summary to replace the existing change summary.
+	Action     v1.ChangeAction `json:"action"`      // map the change action to this action.
+	Filter     string          `json:"filter"`      // cel-go filter for a config item.
+	Rule       string          `json:"rule"`        // cel-go filter for a config change.
+	Severity   string          `json:"severity"`    // replace with this severity.
+	Type       string          `json:"type"`        // replace with this change type.
+	Summary    string          `json:"summary"`     // Go templatable summary to replace the existing change summary.
+	ConfigID   string          `json:"config_id"`   // CEL expression for target config external ID.
+	ConfigType string          `json:"config_type"` // Target config type for redirecting changes.
+	ScraperID  string          `json:"scraper_id"`  // Scraper ID for target config ("all" for cross-scraper).
 }
 
 // matches the rule with a config using the filter
@@ -82,6 +85,22 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) err
 		change.Summary = summary
 	}
 
+	if t.ConfigID != "" {
+		configID, err := gomplate.RunTemplate(env, gomplate.Template{Expression: t.ConfigID})
+		if err != nil {
+			return fmt.Errorf("failed to evaluate config_id expression %s: %w", t.ConfigID, err)
+		}
+		change.ExternalID = configID
+	}
+
+	if t.ConfigType != "" {
+		change.ConfigType = t.ConfigType
+	}
+
+	if t.ScraperID != "" {
+		change.ScraperID = t.ScraperID
+	}
+
 	return nil
 }
 
@@ -105,11 +124,14 @@ func ProcessRules(ctx api.ScrapeContext, result *v1.ScrapeResult, rules ...v1.Ch
 	allRules := Rules
 	for _, r := range rules {
 		allRules = append(allRules, changeRule{
-			Action:   r.Action,
-			Rule:     r.Filter,
-			Type:     r.Type,
-			Severity: r.Severity,
-			Summary:  r.Summary,
+			Action:     r.Action,
+			Rule:       r.Filter,
+			Type:       r.Type,
+			Severity:   r.Severity,
+			Summary:    r.Summary,
+			ConfigID:   r.ConfigID,
+			ConfigType: r.ConfigType,
+			ScraperID:  r.ScraperID,
 		})
 	}
 

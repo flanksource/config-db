@@ -8,6 +8,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/flanksource/clicky"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
@@ -25,12 +26,18 @@ import (
 
 var outputDir string
 var debugPort int
+var export bool
+var save bool
 
 // Run ...
 var Run = &cobra.Command{
 	Use:   "run <scraper.yaml>",
 	Short: "Run scrapers and return",
 	Run: func(cmd *cobra.Command, configFiles []string) {
+
+		clicky.Flags.UseFlags()
+
+		logger.Use(os.Stderr)
 		logger.Infof("Scraping %v", configFiles)
 		scraperConfigs, err := v1.ParseConfigs(configFiles...)
 		if err != nil {
@@ -45,10 +52,6 @@ var Run = &cobra.Command{
 			}
 
 			dutyCtx = c
-		}
-
-		if dutyapi.DefaultConfig.ConnectionString == "" && outputDir == "" {
-			logger.Fatalf("skipping export: neither --output-dir nor --db is specified")
 		}
 
 		if debugPort >= 0 {
@@ -101,25 +104,35 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 	if err != nil {
 		return err
 	}
+
+	var all = v1.MergeScrapeResults(results)
 	logger.Infof("Scraped %d resources (%s)", len(results), timer.End())
-	if dutyapi.DefaultConfig.ConnectionString != "" && outputDir == "" {
-
-		summary, err := db.SaveResults(ctx, results)
-		logger.Infof("Exported %d resources to DB (%s)", len(results), timer.End())
-
-		fmt.Println(logger.Pretty(summary))
-
-		return err
-	}
 
 	if outputDir != "" {
-
 		for _, result := range results {
 			if err := exportResource(result, outputDir); err != nil {
 				return fmt.Errorf("failed to export results %v", err)
 			}
 		}
 		logger.Infof("Exported %d resources to %s (%s)", len(results), outputDir, timer.End())
+
+	} else {
+		clicky.MustPrint(all.Configs)
+		clicky.MustPrint(all.Changes)
+		clicky.MustPrint(all.Analysis)
+		clicky.MustPrint(all.Relationships)
+
+	}
+
+	if save && dutyapi.DefaultConfig.ConnectionString != "" {
+
+		summary, err := db.SaveResults(ctx, results)
+		if err != nil {
+			return fmt.Errorf("failed to save results to db: %v", err)
+		}
+		logger.Infof("Exported %d resources to DB (%s)", len(results), timer.End())
+
+		fmt.Println(clicky.MustFormat(summary))
 
 	}
 
@@ -162,6 +175,10 @@ func exportResource(resource v1.ScrapeResult, outputDir string) error {
 }
 
 func init() {
+	Run.Flags().BoolVar(&save, "save", false, "Save scraped configurations to the database")
+	Run.Flags().BoolVar(&export, "export", true, "Export scraped configurations to files in the output directory and/or pretty print them")
 	Run.Flags().StringVarP(&outputDir, "output-dir", "o", "", "The output folder for configurations")
 	Run.Flags().IntVar(&debugPort, "debug-port", -1, "Start an HTTP server to use the /debug routes, Use -1 to disable and 0 to pick a free port")
+	clicky.BindAllFlags(Run.Flags())
+
 }

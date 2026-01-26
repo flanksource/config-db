@@ -1,0 +1,67 @@
+[
+  {
+    "ghsa_id": "GHSA-xxxx-yyyy-zzzz",
+    "cve_id": "CVE-2024-12345",
+    "url": "https://api.github.com/repos/flanksource/mission-control/security-advisories/GHSA-xxxx-yyyy-zzzz",
+    "html_url": "https://github.com/flanksource/mission-control/security/advisories/GHSA-xxxx-yyyy-zzzz",
+    "summary": "SQL Injection in authentication module",
+    "description": "A SQL injection vulnerability was discovered in the authentication module that could allow attackers to bypass authentication.",
+    "severity": "critical",
+    "author": {
+      "login": "security-team",
+      "type": "User"
+    },
+    "publisher": {
+      "login": "flanksource",
+      "type": "Organization"
+    },
+    "identifiers": [
+      {
+        "type": "GHSA",
+        "value": "GHSA-xxxx-yyyy-zzzz"
+      },
+      {
+        "type": "CVE",
+        "value": "CVE-2024-12345"
+      }
+    ],
+    "state": "published",
+    "created_at": "2024-03-10T10:00:00Z",
+    "updated_at": "2024-03-10T14:30:00Z",
+    "published_at": "2024-03-10T14:30:00Z",
+    "closed_at": null,
+    "withdrawn_at": null,
+    "vulnerabilities": [
+      {
+        "package": {
+          "ecosystem": "npm",
+          "name": "mission-control-auth"
+        },
+        "vulnerable_version_range": "< 2.1.0",
+        "first_patched_version": "2.1.0",
+        "vulnerable_functions": [
+          "authenticate"
+        ]
+      }
+    ],
+    "cvss": {
+      "vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+      "score": 10.0
+    },
+    "cwes": [
+      {
+        "cwe_id": "CWE-089",
+        "name": "SQL Injection"
+      }
+    ],
+    "credits": [
+      {
+        "user": {
+          "login": "security-researcher",
+          "type": "User"
+        },
+        "type": "finder"
+      }
+    ]
+  }
+]

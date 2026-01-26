@@ -8,6 +8,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/gcp"
 	"github.com/flanksource/config-db/scrapers/http"
 	"github.com/flanksource/config-db/scrapers/logs"
+	"github.com/flanksource/config-db/scrapers/openssf"
 	"github.com/flanksource/config-db/scrapers/slack"
 	"github.com/flanksource/config-db/scrapers/system"
 	"github.com/flanksource/config-db/scrapers/terraform"
@@ -34,9 +35,11 @@ var All = []api.Scraper{
 	kubernetes.KubernetesFileScraper{},
 	devops.AzureDevopsScraper{},
 	github.GithubActionsScraper{},
+	github.GithubSecurityScraper{},
 	clickhouse.ClickhouseScraper{},
 	gcp.Scraper{},
 	logs.LogsScraper{},
+	openssf.OpenSSFScorecardScraper{},
 	slack.Scraper{},
 	sql.SqlScraper{},
 	trivy.Scanner{},
