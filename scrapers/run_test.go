@@ -3,6 +3,7 @@ package scrapers
 import (
 	gocontext "context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -1626,5 +1627,133 @@ var _ = Describe("External groups with aliases e2e test", Ordered, func() {
 		developersID, found := db.ExternalGroupCache.Get("developers")
 		Expect(found).To(BeTrue())
 		Expect(developersID).To(Equal(devsID)) // Same group, same ID
+	})
+})
+
+var _ = Describe("Config access logs upsert", Ordered, func() {
+	fetchAccessLogRefs := func() (dutymodels.ConfigItem, uuid.UUID, api.ScrapeContext, uuid.UUID, func()) {
+		var configItem dutymodels.ConfigItem
+		err := DefaultContext.DB().Where("scraper_id IS NOT NULL").First(&configItem).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to find config item with scraper_id")
+
+		scraperIDValue := lo.FromPtr(configItem.ScraperID)
+		Expect(scraperIDValue).NotTo(BeEmpty())
+
+		scraperID, err := uuid.Parse(scraperIDValue)
+		Expect(err).NotTo(HaveOccurred(), "failed to parse scraper id")
+
+		err = DefaultContext.DB().First(&dutymodels.ConfigScraper{}, "id = ?", scraperID).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to find scraper")
+
+		cleanupExternalUser := func() {}
+		var externalUser dutymodels.ExternalUser
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperID).First(&externalUser).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				externalUser = dutymodels.ExternalUser{
+					ID:        uuid.New(),
+					Name:      "access-log-user",
+					AccountID: "test-account",
+					UserType:  "user",
+					ScraperID: scraperID,
+					CreatedAt: time.Now(),
+				}
+				err = DefaultContext.DB().Create(&externalUser).Error
+				Expect(err).NotTo(HaveOccurred(), "failed to create external user")
+				cleanupExternalUser = func() {
+					err := DefaultContext.DB().Delete(&externalUser).Error
+					Expect(err).NotTo(HaveOccurred(), "failed to delete external user")
+				}
+			} else {
+				Expect(err).NotTo(HaveOccurred(), "failed to fetch external user")
+			}
+		}
+
+		return configItem, scraperID, api.NewScrapeContext(DefaultContext), externalUser.ID, cleanupExternalUser
+	}
+
+	cleanupAccessLog := func(configID, externalUserID, scraperID uuid.UUID) {
+		err := DefaultContext.DB().Where("config_id = ? AND external_user_id = ? AND scraper_id = ?",
+			configID, externalUserID, scraperID).Delete(&dutymodels.ConfigAccessLog{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete access logs")
+	}
+
+	It("should update access log when newer", func() {
+		configItem, scraperID, scraperCtx, externalUserID, cleanupExternalUser := fetchAccessLogRefs()
+		DeferCleanup(func() {
+			cleanupAccessLog(configItem.ID, externalUserID, scraperID)
+			cleanupExternalUser()
+		})
+
+		olderTime := time.Now().Add(-2 * time.Hour)
+		latestAccessTime := time.Now().Add(-1 * time.Hour)
+
+		olderLog := dutymodels.ConfigAccessLog{
+			ConfigID:       configItem.ID,
+			ExternalUserID: externalUserID,
+			ScraperID:      scraperID,
+			CreatedAt:      olderTime,
+			MFA:            false,
+		}
+
+		err := db.SaveConfigAccessLog(scraperCtx, &olderLog)
+		Expect(err).NotTo(HaveOccurred())
+
+		newerLog := dutymodels.ConfigAccessLog{
+			ConfigID:       configItem.ID,
+			ExternalUserID: externalUserID,
+			ScraperID:      scraperID,
+			CreatedAt:      latestAccessTime,
+			MFA:            true,
+		}
+
+		err = db.SaveConfigAccessLog(scraperCtx, &newerLog)
+		Expect(err).NotTo(HaveOccurred())
+
+		var storedLog dutymodels.ConfigAccessLog
+		err = DefaultContext.DB().Where("config_id = ? AND external_user_id = ? AND scraper_id = ?",
+			configItem.ID, externalUserID, scraperID).First(&storedLog).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(storedLog.MFA).To(BeTrue())
+		Expect(storedLog.CreatedAt).To(BeTemporally("~", latestAccessTime, time.Second))
+	})
+
+	It("should ignore older access log", func() {
+		configItem, scraperID, scraperCtx, externalUserID, cleanupExternalUser := fetchAccessLogRefs()
+		DeferCleanup(func() {
+			cleanupAccessLog(configItem.ID, externalUserID, scraperID)
+			cleanupExternalUser()
+		})
+
+		latestAccessTime := time.Now().Add(-1 * time.Hour)
+		latestLog := dutymodels.ConfigAccessLog{
+			ConfigID:       configItem.ID,
+			ExternalUserID: externalUserID,
+			ScraperID:      scraperID,
+			CreatedAt:      latestAccessTime,
+			MFA:            true,
+		}
+
+		err := db.SaveConfigAccessLog(scraperCtx, &latestLog)
+		Expect(err).NotTo(HaveOccurred())
+
+		olderTime := time.Now().Add(-3 * time.Hour)
+		olderLog := dutymodels.ConfigAccessLog{
+			ConfigID:       configItem.ID,
+			ExternalUserID: externalUserID,
+			ScraperID:      scraperID,
+			CreatedAt:      olderTime,
+			MFA:            false,
+		}
+
+		err = db.SaveConfigAccessLog(scraperCtx, &olderLog)
+		Expect(err).NotTo(HaveOccurred())
+
+		var storedLog dutymodels.ConfigAccessLog
+		err = DefaultContext.DB().Where("config_id = ? AND external_user_id = ? AND scraper_id = ?",
+			configItem.ID, externalUserID, scraperID).First(&storedLog).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(storedLog.MFA).To(BeTrue())
+		Expect(storedLog.CreatedAt).To(BeTemporally("~", latestAccessTime, time.Second))
 	})
 })
