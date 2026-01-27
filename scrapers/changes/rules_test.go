@@ -110,6 +110,76 @@ var _ = Describe("TestProcessRules", Ordered, func() {
 				{ChangeType: "diff", Patches: `{"status": {"failures": 0}}`},
 			},
 		},
+		{
+			name: "change redirect - config_id, config_type, scraper_id",
+			input: v1.ScrapeResult{
+				Type: "AzureDevops::PipelineRun",
+				Name: "Deploy to OIPA",
+				Changes: []v1.ChangeResult{
+					{
+						ChangeType: "Deployment",
+						ExternalID: "https://dev.azure.com/pipeline/7",
+						ConfigType: "AzureDevops::PipelineRun",
+						Details: map[string]any{
+							"templateParameters": map[string]any{
+								"Environment": "dev-base",
+							},
+						},
+					},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{
+					ChangeType: "Deployment",
+					ExternalID: "dev-base",
+					ConfigType: "OIPA::Environment",
+					ScraperID:  "all",
+					Details: map[string]any{
+						"templateParameters": map[string]any{
+							"Environment": "dev-base",
+						},
+					},
+				},
+			},
+			rules: []v1.ChangeMapping{
+				{
+					Filter:     `change_type == "Deployment" && has(details.templateParameters) && has(details.templateParameters.Environment)`,
+					ConfigID:   `details.templateParameters.Environment`,
+					ConfigType: "OIPA::Environment",
+					ScraperID:  "all",
+				},
+			},
+		},
+		{
+			name: "change redirect - config_id only",
+			input: v1.ScrapeResult{
+				Type: "AzureDevops::PipelineRun",
+				Changes: []v1.ChangeResult{
+					{
+						ChangeType: "Build",
+						ExternalID: "original-id",
+						Details: map[string]any{
+							"target": "new-target-id",
+						},
+					},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{
+					ChangeType: "Build",
+					ExternalID: "new-target-id",
+					Details: map[string]any{
+						"target": "new-target-id",
+					},
+				},
+			},
+			rules: []v1.ChangeMapping{
+				{
+					Filter:   `change_type == "Build"`,
+					ConfigID: `details.target`,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
