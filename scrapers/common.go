@@ -2,10 +2,8 @@ package scrapers
 
 import (
 	"github.com/flanksource/config-db/api"
-	"github.com/flanksource/config-db/scrapers/azure"
 	"github.com/flanksource/config-db/scrapers/clickhouse"
 	"github.com/flanksource/config-db/scrapers/exec"
-	"github.com/flanksource/config-db/scrapers/gcp"
 	"github.com/flanksource/config-db/scrapers/http"
 	"github.com/flanksource/config-db/scrapers/logs"
 	"github.com/flanksource/config-db/scrapers/slack"
@@ -15,7 +13,6 @@ import (
 	"github.com/flanksource/duty/types"
 
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/scrapers/aws"
 	"github.com/flanksource/config-db/scrapers/azure/devops"
 	"github.com/flanksource/config-db/scrapers/file"
 	"github.com/flanksource/config-db/scrapers/github"
@@ -23,11 +20,8 @@ import (
 	"github.com/flanksource/config-db/scrapers/sql"
 )
 
-// All is the scrapers registry
+// All is the scrapers registry (non-cloud scrapers)
 var All = []api.Scraper{
-	azure.Scraper{},
-	aws.Scraper{},
-	aws.CostScraper{},
 	exec.ExecScraper{},
 	file.FileScraper{},
 	kubernetes.KubernetesScraper{},
@@ -35,7 +29,6 @@ var All = []api.Scraper{
 	devops.AzureDevopsScraper{},
 	github.GithubActionsScraper{},
 	clickhouse.ClickhouseScraper{},
-	gcp.Scraper{},
 	logs.LogsScraper{},
 	slack.Scraper{},
 	sql.SqlScraper{},

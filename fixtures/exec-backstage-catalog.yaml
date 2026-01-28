@@ -3,17 +3,14 @@ kind: ScrapeConfig
 metadata:
   name: exec-backstage-catalog
   annotations:
-    trace: 'true'
+    trace: "true"
 spec:
-  schedule: '@every 1h'
+  schedule: "@every 1h"
   exec:
     - type: $.type
       id: $.id
       name: $.name
       description: $.metadata.description
-      setup:
-        python:
-          version: latest
       script: |
         #!/usr/bin/env python3
         # /// script
@@ -104,7 +101,7 @@ spec:
       checkout:
         url: https://github.com/backstage/backstage
         branch: master
-        # depth: 1 # https://github.com/flanksource/duty/issues/1688
+        depth: 1 # https://github.com/flanksource/duty/issues/1688
 
       tags:
         - name: lifecycle

@@ -1028,13 +1028,31 @@ func MergeScrapeResults(results ...ScrapeResults) FullScrapeResults {
 
 			for _, change := range r.Changes {
 				configChange := models.ConfigChange{
-					ChangeType: change.ChangeType,
-					Severity:   models.Severity(change.Severity),
-					Source:     change.Source,
-					Summary:    change.Summary,
-					CreatedAt:  change.CreatedAt,
+					ChangeType:       change.ChangeType,
+					Severity:         models.Severity(change.Severity),
+					Source:           change.Source,
+					Summary:          change.Summary,
+					CreatedAt:        change.CreatedAt,
+					ExternalChangeID: lo.ToPtr(change.ExternalChangeID),
+					ExternalID:       change.ExternalID,
+					ConfigType:       change.ConfigType,
+					Diff:             lo.FromPtr(change.Diff),
+					Patches:          change.Patches,
+				}
+				if change.Details != nil {
+					if detailsJSON, err := json.Marshal(change.Details); err == nil {
+						configChange.Details = detailsJSON
+					}
 				}
 				full.Changes = append(full.Changes, configChange)
+			}
+
+			for _, rel := range r.RelationshipResults {
+				full.Relationships = append(full.Relationships, models.ConfigRelationship{
+					ConfigID:  rel.ConfigID,
+					RelatedID: rel.RelatedConfigID,
+					Relation:  rel.Relationship,
+				})
 			}
 
 			if !r.IsMetadataOnly() {

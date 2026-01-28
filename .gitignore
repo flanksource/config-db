@@ -34,3 +34,9 @@ out/
 exec-checkout/
 __debug_bin*
 shell-bin-dir/
+*.tar.gz
+*.cfg
+*.html
+*.tgz
+specs/
+pwfile

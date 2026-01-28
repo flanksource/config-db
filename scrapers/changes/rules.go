@@ -90,7 +90,9 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) err
 		if err != nil {
 			return fmt.Errorf("failed to evaluate config_id expression %s: %w", t.ConfigID, err)
 		}
-		change.ExternalID = configID
+		if configID != "" {
+			change.ExternalID = configID
+		}
 	}
 
 	if t.ConfigType != "" {
