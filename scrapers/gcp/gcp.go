@@ -224,7 +224,7 @@ func removeTypes(results v1.ScrapeResults) v1.ScrapeResults {
 func addExtraAliases(results v1.ScrapeResults) v1.ScrapeResults {
 	for i := range results {
 		if results[i].Type == v1.GCPInstance {
-			tags := results[i].Tags.AsMap()
+			tags := results[i].Tags
 			results[i].Aliases = append(results[i].Aliases, fmt.Sprintf("gce://%s/%s/%s", tags["project"], tags["zone"], results[i].Name))
 		}
 	}
@@ -315,7 +315,7 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			Type:                configType,
 			CreatedAt:           lo.ToPtr(rd.CreatedAt),
 			Labels:              rd.Labels,
-			Tags:                tags,
+			Tags:                v1.Tags(tags).AsMap(),
 			Properties:          []*types.Property{getLink(rd)},
 			RelationshipResults: relationships.Relationships,
 			Children:            relationships.Children,

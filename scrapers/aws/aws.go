@@ -642,7 +642,7 @@ func (aws Scraper) eksFargateProfiles(ctx *AWSContext, config v1.AWS, client *ek
 			BaseScraper: config.BaseScraper,
 			Config:      describeFargateProfileOutput.FargateProfile,
 			ConfigClass: "FargateProfile",
-			Tags:        []v1.Tag{{Name: "cluster", Value: clusterName}},
+			Tags:        v1.JSONStringMap{"cluster": clusterName},
 			Name:        *describeFargateProfileOutput.FargateProfile.FargateProfileName,
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSEKSCluster, ExternalID: clusterName}},
 		})
@@ -841,7 +841,7 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 			BaseScraper: config.BaseScraper,
 			Config:      az,
 			ConfigClass: "AvailabilityZone",
-			Tags:        []v1.Tag{{Name: "region", Value: lo.FromPtr(az.RegionName)}},
+			Tags:        v1.JSONStringMap{"region": lo.FromPtr(az.RegionName)},
 			Labels:      map[string]string{"az-id": lo.FromPtr(az.ZoneId)},
 			Aliases:     []string{lo.FromPtr(az.ZoneName)},
 			Name:        lo.FromPtr(az.ZoneName),
@@ -860,7 +860,7 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 			*results = append(*results, v1.ScrapeResult{
 				ID:          lo.FromPtr(az.ZoneId),
 				Type:        v1.AWSAvailabilityZoneID,
-				Tags:        []v1.Tag{{Name: "region", Value: lo.FromPtr(az.RegionName)}},
+				Tags:        v1.JSONStringMap{"region": lo.FromPtr(az.RegionName)},
 				BaseScraper: config.BaseScraper,
 				Config:      map[string]string{"RegionName": *az.RegionName},
 				ConfigClass: "AvailabilityZone",
@@ -1013,7 +1013,7 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Type:        v1.AWSEBSVolume,
 			Labels:      labels,
 			Status:      string(volume.State),
-			Tags:        tags,
+			Tags:        tags.AsMap(),
 			BaseScraper: config.BaseScraper,
 			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEBSVolume, lo.FromPtr(volume.VolumeId), nil)},
 			Config:      volume,
@@ -1068,7 +1068,7 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			Type:                v1.AWSRDSInstance,
 			Status:              lo.FromPtr(instance.DBInstanceStatus),
 			Labels:              labels,
-			Tags:                []v1.Tag{{Name: "region", Value: getRegionFromArn(arn, "rds")}},
+			Tags:                v1.JSONStringMap{"region": getRegionFromArn(arn, "rds")},
 			BaseScraper:         config.BaseScraper,
 			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSRDSInstance, lo.FromPtr(instance.DBInstanceIdentifier), nil)},
 			Config:              instance,
@@ -1285,7 +1285,7 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			Type:                v1.AWSEC2VPC,
 			Status:              string(vpc.State),
 			Labels:              labels,
-			Tags:                []v1.Tag{{Name: "region", Value: ctx.Session.Region}},
+			Tags:                v1.JSONStringMap{"region": ctx.Session.Region},
 			BaseScraper:         config.BaseScraper,
 			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2VPC, lo.FromPtr(vpc.VpcId), nil)},
 			Config:              vpc,
@@ -1393,7 +1393,7 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				Type:                v1.AWSEC2Instance,
 				Labels:              labels,
 				Status:              string(i.State.Name),
-				Tags:                tags,
+				Tags:                tags.AsMap(),
 				BaseScraper:         config.BaseScraper,
 				Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSEC2Instance, instance.InstanceID, nil)},
 				Config:              instance,
@@ -1742,7 +1742,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			ConfigClass:         "LoadBalancer",
 			Name:                *lb.LoadBalancerName,
 			Labels:              labels,
-			Tags:                tags,
+			Tags:                tags.AsMap(),
 			Aliases:             []string{"AWSELB/" + arn, lo.FromPtr(lb.CanonicalHostedZoneName), *lb.LoadBalancerName},
 			ID:                  arn,
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(lb.VPCId)}},
@@ -1845,7 +1845,7 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 			Status:      string(subnet.State),
 			BaseScraper: config.BaseScraper,
 			Labels:      labels,
-			Tags:        tags,
+			Tags:        tags.AsMap(),
 			ConfigClass: "Subnet",
 			ID:          *subnet.SubnetId,
 			Config:      subnet,
@@ -2099,16 +2099,16 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				}}, (*results)[i].Parents...)
 			}
 
-			(*results)[i].Tags = append((*results)[i].Tags, v1.Tag{
-				Name:  "account",
-				Value: lo.FromPtr(awsCtx.Caller.Account),
-			})
+			if (*results)[i].Tags == nil {
+				(*results)[i].Tags = v1.JSONStringMap{}
+			}
+			(*results)[i].Tags["account"] = lo.FromPtr(awsCtx.Caller.Account)
 
 			for _, t := range awsConfig.Tags {
-				(*results)[i].Tags = append((*results)[i].Tags, v1.Tag{
-					Name:  t.Name,
-					Value: t.Value,
-				})
+				if (*results)[i].Tags == nil {
+					(*results)[i].Tags = v1.JSONStringMap{}
+				}
+				(*results)[i].Tags[t.Name] = t.Value
 			}
 
 			delete((*results)[i].Labels, "name")

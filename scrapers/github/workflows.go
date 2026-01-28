@@ -73,10 +73,12 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				ID:          fmt.Sprintf("%d/%s", workflow.GetID(), workflow.GetName()),
 				Name:        fmt.Sprintf("%s/%s", config.Repository, workflow.GetName()),
 				Changes:     changeResults,
-				Tags:        v1.Tags{{Name: "org", Value: config.Owner}},
-				Aliases:     []string{fmt.Sprintf("%s/%d", workflow.GetName(), workflow.GetID())},
-				CreatedAt:   lo.ToPtr(workflow.GetCreatedAt().Time),
-				Properties:  workflowProperties(workflow),
+				Tags: map[string]string{
+					"org": config.Owner,
+				},
+				Aliases:    []string{fmt.Sprintf("%s/%d", workflow.GetName(), workflow.GetID())},
+				CreatedAt:  lo.ToPtr(workflow.GetCreatedAt().Time),
+				Properties: workflowProperties(workflow),
 			}
 
 			// The latest completed run determines the health of the workflow

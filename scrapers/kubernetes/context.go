@@ -44,7 +44,7 @@ func newKubernetesContext(ctx api.ScrapeContext, isIncremental bool, config v1.K
 			Config:      make(map[string]any),
 			Labels:      make(v1.JSONStringMap),
 			ID:          "Kubernetes/Cluster/" + config.ClusterName,
-			Tags:        v1.Tags{{Name: "cluster", Value: config.ClusterName}},
+			Tags:        map[string]string{"cluster": config.ClusterName},
 		},
 		labelsPerNode:    make(map[string]map[string]string),
 		labelsForAllNode: make(map[string]string),

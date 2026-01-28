@@ -201,16 +201,16 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 
 			// Add subscription id & name tag to all the resources
-			results[i].Tags = append(results[i].Tags, v1.Tag{
-				Name:  "subscriptionID",
-				Value: azure.config.SubscriptionID,
-			})
+			if results[i].Tags == nil {
+				results[i].Tags = v1.JSONStringMap{}
+			}
+			results[i].Tags["subscriptionID"] = azure.config.SubscriptionID
 
 			if azure.subscriptionName != "" {
-				results[i].Tags = append(results[i].Tags, v1.Tag{
-					Name:  "subscriptionName",
-					Value: azure.subscriptionName,
-				})
+				if results[i].Tags == nil {
+					results[i].Tags = v1.JSONStringMap{}
+				}
+				results[i].Tags["subscriptionName"] = azure.subscriptionName
 			}
 
 			// Set parents where missing
@@ -241,16 +241,16 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				continue
 			}
 
-			results[i].Tags = append(results[i].Tags, v1.Tag{
-				Name:  "Tenant",
-				Value: tenantResult.Name,
-			})
+			if results[i].Tags == nil {
+				results[i].Tags = v1.JSONStringMap{}
+			}
+			results[i].Tags["Tenant"] = tenantResult.Name
 
 			for _, t := range config.Tags {
-				results[i].Tags = append(results[i].Tags, v1.Tag{
-					Name:  t.Name,
-					Value: t.Value,
-				})
+				if results[i].Tags == nil {
+					results[i].Tags = v1.JSONStringMap{}
+				}
+				results[i].Tags[t.Name] = t.Value
 			}
 		}
 	}
@@ -295,10 +295,10 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				Relationship: "Resourcegroup" + strings.TrimPrefix(r.Type, ConfigTypePrefix),
 			})
 
-			results[i].Tags = append(results[i].Tags, v1.Tag{
-				Name:  "resourceGroup",
-				Value: extractResourceGroup(r.ID),
-			})
+			if results[i].Tags == nil {
+				results[i].Tags = v1.JSONStringMap{}
+			}
+			results[i].Tags["resourceGroup"] = extractResourceGroup(r.ID)
 		}
 	}
 
