@@ -140,7 +140,7 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Type:        result.Type,
 		Name:        &result.Name,
 		Source:      &result.Source,
-		Labels:      &result.Labels,
+		Labels:      (*types.JSONStringMap)(&result.Labels),
 		Properties:  &result.Properties,
 		Config:      &dataStr,
 		Ready:       result.Ready,
@@ -154,7 +154,7 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		ci.ScraperID = nil
 	}
 
-	ci.Tags = result.Tags.AsMap()
+	ci.Tags = types.JSONStringMap(result.Tags)
 	// If the config result hasn't specified an id for the config,
 	// we try to use the external id as the primary key of the config item.
 	if ci.ID == "" {

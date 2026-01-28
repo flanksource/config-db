@@ -32,7 +32,10 @@ func (aws AWS) OnObject(ctx *KubernetesContext, obj *unstructured.Unstructured) 
 				accountID = extractAccountIDFromARN(mapRolesYAML)
 			}
 
-			ctx.cluster.Tags.Append("account", accountID)
+			if ctx.cluster.Tags == nil {
+				ctx.cluster.Tags = make(map[string]string)
+			}
+			ctx.cluster.Tags["account"] = accountID
 
 			if clusterScrapeResult, ok := ctx.cluster.Config.(map[string]any); ok {
 				clusterScrapeResult["aws-auth"] = cm

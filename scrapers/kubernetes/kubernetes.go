@@ -134,7 +134,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		Config:      make(map[string]any),
 		Labels:      make(v1.JSONStringMap),
 		ID:          "Kubernetes/Cluster/" + clusterName,
-		Tags:        v1.Tags{{Name: "cluster", Value: clusterName}},
+		Tags:        map[string]string{"cluster": clusterName},
 	}
 
 	results = append(results, cluster)
@@ -152,7 +152,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	}
 
 	for _, obj := range objs {
-		tags := ctx.config.Tags
+		tags := map[string]string{}
 
 		if ignore, err := ctx.IsIgnored(obj); err != nil {
 			ctx.Warnf("failed to ignore obj[%s]: %v", obj.GetName(), err)
@@ -166,7 +166,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 
 		if val, ok := obj.GetAnnotations()[v1.AnnotationCustomTags]; ok {
 			for k, v := range collections.SelectorToMap(val) {
-				tags = append(tags, v1.Tag{Name: k, Value: v})
+				tags[k] = v
 			}
 		}
 
@@ -487,10 +487,10 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		}
 
 		if ctx.cluster.Name != "" {
-			tags.Append("cluster", ctx.cluster.Name)
+			tags["cluster"] = ctx.cluster.Name
 		}
 		if obj.GetNamespace() != "" {
-			tags.Append("namespace", obj.GetNamespace())
+			tags["namespace"] = obj.GetNamespace()
 		}
 
 		labels["apiVersion"] = obj.GetAPIVersion()
@@ -527,22 +527,22 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		allAliases := append(aliases, AliasLookupHooks(ctx, obj)...)
 		props := PropertyLookupHooks(ctx, obj)
 		results = append(results, v1.ScrapeResult{
-			BaseScraper:         ctx.config.BaseScraper,
-			Name:                obj.GetName(),
-			ConfigClass:         obj.GetKind(),
-			Type:                GetConfigType(obj),
-			Status:              string(resourceHealth.Status),
-			Health:              models.Health(resourceHealth.Health),
-			Ready:               resourceHealth.Ready,
-			Description:         resourceHealth.Message,
-			CreatedAt:           lo.ToPtr(obj.GetCreationTimestamp().Time),
-			DeletedAt:           deletedAt,
-			DeleteReason:        deleteReason,
-			Config:              configObj,
-			ConfigID:            lo.ToPtr(string(obj.GetUID())),
-			ID:                  string(obj.GetUID()),
-			Labels:              stripLabels(labels, "-hash"),
-			Tags:                tags,
+			BaseScraper:  ctx.config.BaseScraper,
+			Name:         obj.GetName(),
+			ConfigClass:  obj.GetKind(),
+			Type:         GetConfigType(obj),
+			Status:       string(resourceHealth.Status),
+			Health:       models.Health(resourceHealth.Health),
+			Ready:        resourceHealth.Ready,
+			Description:  resourceHealth.Message,
+			CreatedAt:    lo.ToPtr(obj.GetCreationTimestamp().Time),
+			DeletedAt:    deletedAt,
+			DeleteReason: deleteReason,
+			Config:       configObj,
+			ConfigID:     lo.ToPtr(string(obj.GetUID())),
+			ID:           string(obj.GetUID()),
+			Labels:       stripLabels(labels, "-hash"),
+
 			Aliases:             allAliases,
 			Parents:             parents,
 			Children:            children,

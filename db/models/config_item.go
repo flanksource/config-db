@@ -35,7 +35,7 @@ type ConfigItem struct {
 	CostTotal1d   float64               `gorm:"column:cost_total_1d;default:null" json:"cost_total_1d,omitempty"`
 	CostTotal7d   float64               `gorm:"column:cost_total_7d;default:null" json:"cost_total_7d,omitempty"`
 	CostTotal30d  float64               `gorm:"column:cost_total_30d;default:null" json:"cost_total_30d,omitempty"`
-	Labels        *v1.JSONStringMap     `gorm:"column:labels;default:null" json:"labels,omitempty"`
+	Labels        *types.JSONStringMap  `gorm:"column:labels;default:null" json:"labels,omitempty"`
 	Tags          types.JSONStringMap   `gorm:"column:tags;default:null" json:"tags,omitempty"`
 	Properties    *types.Properties     `gorm:"column:properties;default:null" json:"properties,omitempty"`
 	CreatedAt     time.Time             `gorm:"column:created_at" json:"created_at"`
