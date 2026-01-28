@@ -366,9 +366,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -1186,9 +1199,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -1652,9 +1678,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -2282,9 +2321,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -3512,6 +3564,11 @@ spec:
                             version:
                               type: string
                           type: object
+                        powershell:
+                          properties:
+                            version:
+                              type: string
+                          type: object
                         python:
                           properties:
                             version:
@@ -3595,9 +3652,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -4020,9 +4090,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -4548,9 +4631,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -5022,9 +5118,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -5368,7 +5477,7 @@ spec:
                         options are JSON, properties
                       type: string
                     headers:
-                      additionalProperties:
+                      items:
                         properties:
                           name:
                             type: string
@@ -5411,7 +5520,7 @@ spec:
                                 type: string
                             type: object
                         type: object
-                      type: object
+                      type: array
                     health:
                       description: A static value or JSONPath expression to use as
                         the health of the config item
@@ -5871,9 +5980,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -6784,9 +6906,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -7580,9 +7715,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -8397,9 +8545,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -9080,9 +9241,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -9769,9 +9943,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -10283,9 +10470,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -10919,9 +11119,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set
@@ -11368,9 +11581,22 @@ spec:
                                       the corresponding EC2 instance config.\n\tAllowed
                                       actions: \"delete\", \"ignore\""
                                     type: string
+                                  config_id:
+                                    description: |-
+                                      ConfigID is a CEL expression that returns the target config's external ID
+                                      for redirecting changes to a different config item.
+                                    type: string
+                                  config_type:
+                                    description: ConfigType is the target config type
+                                      for redirecting changes.
+                                    type: string
                                   filter:
                                     description: Filter selects what change to apply
                                       the mapping to
+                                    type: string
+                                  scraper_id:
+                                    description: ScraperID is the scraper ID for the
+                                      target config. Use "all" for cross-scraper lookups.
                                     type: string
                                   severity:
                                     description: Severity is the severity to be set

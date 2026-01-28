@@ -35,6 +35,15 @@
         },
         "summary": {
           "type": "string"
+        },
+        "config_id": {
+          "type": "string"
+        },
+        "config_type": {
+          "type": "string"
+        },
+        "scraper_id": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
