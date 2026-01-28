@@ -7,24 +7,24 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/analyzers"
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/scrapers/aws"
 	"github.com/spf13/cobra"
 )
 
 var outputFile, outputFormat string
 
-// Analyzers ...
+// Analyzers is the analyzers registry (non-cloud analyzers)
 var Analyzers = []v1.Analyzer{
 	analyzers.PatchAnalyzer,
-	aws.EC2InstanceAnalyzer,
 }
+
+// ConfigUnmarshalers allows cloud-specific packages to register custom unmarshalers
+var ConfigUnmarshalers = map[string]func(obj *v1.ScrapeResult) error{}
 
 // Analyze ...
 var Analyze = &cobra.Command{
 	Use:   "analyze <resources>",
 	Short: "Analyze configuration items and report discrepencies/issues.",
 	Run: func(cmd *cobra.Command, configs []string) {
-
 		objects := []v1.ScrapeResult{}
 		for _, path := range configs {
 			obj := v1.ScrapeResult{}
@@ -36,13 +36,10 @@ var Analyze = &cobra.Command{
 				logger.Fatalf("Could not unmarshall %s: %v", path, err)
 			}
 
-			if obj.ConfigClass == "EC2Instance" {
-				nested, _ := json.Marshal(obj.Config)
-				instance := aws.Instance{}
-				if err := json.Unmarshal(nested, &instance); err != nil {
-					logger.Fatalf("Failed to unmarshal object into ec2 instance %s", obj.ID)
+			if unmarshaler, ok := ConfigUnmarshalers[obj.ConfigClass]; ok {
+				if err := unmarshaler(&obj); err != nil {
+					logger.Fatalf("Failed to unmarshal object %s: %v", obj.ID, err)
 				}
-				obj.Config = instance
 			}
 			objects = append(objects, obj)
 		}
@@ -62,5 +59,4 @@ var Analyze = &cobra.Command{
 func init() {
 	Analyze.Flags().StringVarP(&outputFile, "output", "o", "analysis.json", "Output file")
 	Analyze.Flags().StringVarP(&outputFormat, "format", "f", "json", "Output format")
-
 }
