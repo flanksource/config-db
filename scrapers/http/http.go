@@ -43,11 +43,14 @@ func scrape(ctx api.ScrapeContext, spec v1.HTTP) (*v1.ScrapeResult, error) {
 		return nil, fmt.Errorf("failed to create http client: %w", err)
 	}
 
-	for key, val := range spec.Headers {
-		if v, err := ctx.GetEnvValueFromCache(val, ctx.Namespace()); err != nil {
-			return nil, fmt.Errorf("failed to get header env value for %v: %w", val, err)
+	for _, header := range conn.Headers {
+		if header.Name == "" {
+			continue
+		}
+		if v, err := ctx.GetEnvValueFromCache(header, ctx.Namespace()); err != nil {
+			return nil, fmt.Errorf("failed to get header env value for %v: %w", header, err)
 		} else {
-			client.Header(key, v)
+			client.Header(header.Name, v)
 		}
 	}
 

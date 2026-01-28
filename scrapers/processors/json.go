@@ -22,7 +22,7 @@ import (
 	"github.com/ohler55/ojg/oj"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
-	kyaml "sigs.k8s.io/yaml"
+	"sigs.k8s.io/yaml"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -86,6 +86,8 @@ type Extract struct {
 	Config                             v1.BaseScraper
 	Excludes                           []ConfigFieldExclusion
 	Transform                          Transform
+	Tags                               map[string]jp.Expr
+	Labels                             map[string]jp.Expr
 }
 
 func (e Extract) WithoutItems() Extract {
@@ -99,6 +101,8 @@ func (e Extract) WithoutItems() Extract {
 		Config:      e.Config,
 		Excludes:    e.Excludes,
 		Transform:   e.Transform,
+		Tags:        e.Tags,
+		Labels:      e.Labels,
 	}
 }
 
@@ -112,6 +116,8 @@ func (e Extract) WithouTransform() Extract {
 		Health:      e.Health,
 		Config:      e.Config,
 		Excludes:    e.Excludes,
+		Tags:        e.Tags,
+		Labels:      e.Labels,
 	}
 }
 
@@ -226,6 +232,29 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 		})
 	}
 
+	for _, t := range config.Tags {
+		if t.JSONPath != "" {
+			expr, err := jp.ParseString(t.JSONPath)
+			if err != nil {
+				return extract, fmt.Errorf("failed to parse tag jsonpath: %s: %v", t.JSONPath, err)
+			}
+			if extract.Tags == nil {
+				extract.Tags = make(map[string]jp.Expr)
+			}
+			extract.Tags[t.Name] = expr
+		}
+	}
+
+	for k, v := range config.Labels {
+		if utils.IsJSONPath(v) {
+			expr, err := jp.ParseString(v)
+			if err != nil {
+				return extract, fmt.Errorf("failed to parse label jsonpath: %s: %v", v, err)
+			}
+			extract.Labels[k] = expr
+		}
+	}
+
 	return extract, nil
 }
 
@@ -337,64 +366,46 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 	logScrapes := ctx.PropertyOn(true, "log.items")
 
 	for _, input := range inputs {
-		for k, v := range input.BaseScraper.Labels {
-			if input.Labels == nil {
-				input.Labels = map[string]string{}
-			}
-			if _, ok := input.Labels[k]; !ok {
-				input.Labels[k] = v
-			}
-		}
-
-		if parsed, err := input.Tags.Eval(input.Labels, input.ConfigString()); err != nil {
-			return nil, fmt.Errorf("failed to evaluate tags for result[%s]: %w", input.String(), err)
-		} else {
-			input.Tags = parsed
-		}
-
-		// All tags are stored as labels.
-		// This is so that end users do not need to worry about tags/labels as
-		// everything will be available as labels when writing cel expressions.
-		input.Labels = collections.MergeMap(input.Labels, input.Tags.AsMap())
-
-		if input.Format == "properties" {
-			props, err := properties.LoadString(input.Config.(string))
-			if err != nil {
-				return results, errors.Wrapf(err, "Failed parse properties %s", input)
-			}
-
-			propMap := make(map[string]any)
-			// Remove comments and tabs
-			for key, val := range props.Map() {
-				if before, _, exists := strings.Cut(val, "\t"); exists {
-					val = before
+		if v, ok := input.Config.(string); ok {
+			if input.Format == "properties" {
+				props, err := properties.LoadString(v)
+				if err != nil {
+					return results, errors.Wrapf(err, "Failed parse properties %s", input)
 				}
-				if exists := strings.Contains(val, "#"); exists {
-					open := false
-					for i, ch := range val {
-						// Properties with strings are stored in single quotes
-						if ch == '\'' {
-							open = !open
-						}
-						if ch == '#' && !open {
-							val = strings.TrimSpace(val[0:i])
-							break
+
+				propMap := make(map[string]any)
+				// Remove comments and tabs
+				for key, val := range props.Map() {
+					if before, _, exists := strings.Cut(val, "\t"); exists {
+						val = before
+					}
+					if exists := strings.Contains(val, "#"); exists {
+						open := false
+						for i, ch := range val {
+							// Properties with strings are stored in single quotes
+							if ch == '\'' {
+								open = !open
+							}
+							if ch == '#' && !open {
+								val = strings.TrimSpace(val[0:i])
+								break
+							}
 						}
 					}
+					propMap[key] = val
 				}
-				propMap[key] = val
-			}
-			input.Config = propMap
-		} else if input.Format == "yaml" {
-			contentByte, err := kyaml.YAMLToJSON([]byte(input.Config.(string)))
-			if err != nil {
-				return results, errors.Wrapf(err, "Failed parse yaml %s", input)
-			}
-			input.Config = string(contentByte)
-		} else if input.Format != "" {
-			input.Config = map[string]any{
-				"format":  input.Format,
-				"content": input.Config,
+				input.Config = propMap
+			} else if input.Format == "yaml" || input.Format == "json" || input.Format == "" {
+				contentByte, err := yaml.YAMLToJSON([]byte(v))
+				if err != nil {
+					return results, errors.Wrapf(err, "Failed parse yaml %s", input)
+				}
+				input.Config = string(contentByte)
+			} else {
+				input.Config = map[string]any{
+					"format":  input.Format,
+					"content": input.Config,
+				}
 			}
 		}
 
@@ -408,7 +419,14 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		case string:
 			parsedConfig, err = oj.ParseString(v)
 			if err != nil {
-				return results, fmt.Errorf("failed to parse json (format=%s,%s): %v", input.BaseScraper.Format, input.Source, err)
+				s := "failed to parse json"
+				if input.Format != "" {
+					s += fmt.Sprintf(" format=%s", input.Format)
+				}
+				if input.Source != "" {
+					s += fmt.Sprintf(" source=%s", input.Source)
+				}
+				return nil, fmt.Errorf("%s: %v\n%s", s, err, v)
 			}
 		default:
 			opts := oj.Options{OmitNil: input.OmitNil(), Sort: true, UseTags: true, FloatFormat: "%g"}
@@ -478,7 +496,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 				result.Properties = append(result.Properties, &configProperty.Property)
 			}
 
-			extracted, err := e.extractAttributes(result)
+			extracted, err := e.extractAttributes(ctx, result)
 			if err != nil {
 				return results, fmt.Errorf("failed to extract attributes: %v", err)
 			}
@@ -579,44 +597,52 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 	return output, nil
 }
 
-func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, error) {
+func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult) (v1.ScrapeResult, error) {
 	var err error
 	if input.ID == "" {
 		input.ID, err = getString(e.ID, input.Config, e.Config.ID)
 		if err != nil {
-			return input, err
+			return input, lookupError(err, ctx, input)
 		}
 	}
 
 	if input.ID == "" {
-		return input, fmt.Errorf("no id defined for: %s: %v", input, e.Config)
+		if len(input.Changes) == 0 {
+			return input, fmt.Errorf("no id defined for: %s", input.Debug().ANSI())
+		}
+		if len(lo.Filter(input.Changes, func(c v1.ChangeResult, _ int) bool {
+			return c.ExternalChangeID == ""
+		})) > 0 {
+			return input, fmt.Errorf("standalone changes must have both an `external_id` and `external_change_id`: %s: %v", input, e.Config)
+
+		}
 	}
 
 	if input.Name == "" {
 		input.Name, err = getString(e.Name, input.Config, input.Name)
 		if err != nil {
-			return input, err
+			return input, lookupError(err, ctx, input)
 		}
 	}
 
 	if input.Description == "" {
 		input.Description, err = getString(e.Description, input.Config, input.Description)
 		if err != nil {
-			return input, err
+			return input, lookupError(err, ctx, input)
 		}
 	}
 
 	if input.Status == "" {
 		input.Status, err = getString(e.Status, input.Config, input.Status)
 		if err != nil {
-			return input, err
+			return input, lookupError(err, ctx, input)
 		}
 	}
 
 	if input.Health == "" {
 		h, err := getString(e.Health, input.Config, string(input.Health))
 		if err != nil {
-			return input, err
+			return input, lookupError(err, ctx, input)
 		}
 		input.Health = models.Health(h)
 	}
@@ -649,7 +675,7 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 	if input.Type == "" {
 		input.Type, err = getString(e.Type, input.Config, e.Config.Type)
 		if err != nil {
-			return input, err
+			return input, lookupError(err, ctx, input)
 		}
 	}
 
@@ -665,7 +691,7 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 
 		input.ConfigClass, err = getString(e.Class, input.Config, defaultClass)
 		if err != nil {
-			return input, err
+			return input, lookupError(err, ctx, input)
 		}
 	}
 
@@ -686,6 +712,53 @@ func (e Extract) extractAttributes(input v1.ScrapeResult) (v1.ScrapeResult, erro
 			return input, fmt.Errorf("failed to parse  %s: %v", ignore, err)
 		} else if err := expr.Del(input.Config); err != nil {
 			return input, fmt.Errorf("failed to ignore: %v", err)
+		}
+	}
+
+	tags := map[string]string{}
+	for k, v := range input.Tags {
+		if expr, ok := e.Tags[k]; ok {
+			tag, err := getString(expr, input.Config, v)
+			if err != nil {
+				if ctx.IsTrace() {
+					ctx.Debugf("[%s] failed to extract tag %s for %s", k, expr, debugConfig(input.Config))
+				} else if ctx.IsDebug() {
+					ctx.Debugf("[%s] failed to extract tag %s", k, expr)
+				}
+			} else if tag != "" {
+				tags[k] = tag
+			}
+		} else if v != "" {
+			tags[k] = v
+		}
+	}
+	input.Tags = tags
+
+	if input.Labels == nil {
+		input.Labels = map[string]string{}
+	}
+
+	for k, v := range e.Labels {
+		label, err := getString(v, input.Config, "")
+		if err != nil {
+			if ctx.IsDebug() {
+				ctx.Debugf("failed to extract label %s (%s) for %s", k, v, debugConfig(input.Config))
+			}
+		} else if label != "" {
+			input.Labels[k] = label
+		}
+
+	}
+
+	// All tags are stored as labels.
+	// This is so that end users do not need to worry about tags/labels as
+	// everything will be available as labels when writing cel expressions.
+	input.Labels = collections.MergeMap(input.Labels, tags)
+
+	// Inherit base scraper labels
+	for k, v := range input.BaseScraper.Labels {
+		if _, ok := input.Labels[k]; !ok {
+			input.Labels[k] = v
 		}
 	}
 
@@ -736,14 +809,28 @@ func getTimestamp(expr jp.Expr, data any, timeFormat string) (time.Time, error) 
 	return parsedTime, nil
 }
 
+func lookupError(err error, ctx api.ScrapeContext, input v1.ScrapeResult) error {
+	if !ctx.IsDebug() {
+		return err
+	}
+	return fmt.Errorf("%s\nin data:\n%s", err.Error(), debugConfig(input.Config))
+}
+
+func debugConfig(data any) string {
+	out, err := yaml.Marshal(data)
+	if err != nil {
+		return err.Error()
+	}
+	return lo.Ellipsis(string(out), 1000)
+}
+
 func getString(expr jp.Expr, data any, def string) (string, error) {
 	if len(expr) == 0 {
 		return def, nil
 	}
 	o := expr.Get(data)
 	if len(o) == 0 {
-		logger.Tracef("failed to get %s from:\n %v", expr, data)
-		return "", fmt.Errorf("%s not found", expr)
+		return def, fmt.Errorf("%s not found", expr)
 	}
 	s := fmt.Sprintf("%v", o[0])
 	return s, nil

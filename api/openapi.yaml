@@ -1,0 +1,659 @@
+openapi: 3.1.0
+info:
+  title: Config DB API
+  description: |
+    Config DB is a configuration management database that scrapes and stores configuration items
+    from various sources including Kubernetes, AWS, Azure, GCP, and more.
+  version: 1.0.0
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  contact:
+    name: Flanksource
+    url: https://flanksource.com
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Scrapers
+    description: Configuration scraper management
+  - name: Debug
+    description: Debug and monitoring endpoints (some restricted to localhost)
+  - name: Metrics
+    description: Prometheus metrics endpoints
+  - name: Database
+    description: PostgREST database proxy endpoints
+
+paths:
+  /live:
+    get:
+      tags:
+        - Health
+      summary: Liveness probe
+      description: |
+        Returns OK if the service is alive. When PostgREST is enabled, this proxies
+        to the PostgREST admin endpoint.
+      operationId: getLiveness
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
+  /ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness probe
+      description: |
+        Returns OK if the service is ready to receive traffic. When PostgREST is enabled,
+        this proxies to the PostgREST admin endpoint.
+      operationId: getReadiness
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
+  /metrics:
+    get:
+      tags:
+        - Metrics
+      summary: Prometheus metrics
+      description: Returns Prometheus-formatted metrics for monitoring.
+      operationId: getMetrics
+      responses:
+        "200":
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
+                  # TYPE go_gc_duration_seconds summary
+                  go_gc_duration_seconds{quantile="0"} 0
+
+  /run/{id}:
+    post:
+      tags:
+        - Scrapers
+      summary: Trigger scraper run
+      description: |
+        Immediately triggers a scraper job to run. This bypasses the normal schedule
+        and runs the scraper synchronously, returning the job details upon completion.
+
+        **RBAC:** No specific RBAC required (internal use)
+      operationId: runScraper
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The UUID of the scraper to run
+          schema:
+            type: string
+            format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        "200":
+          description: Scraper job completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobDetails"
+        "400":
+          description: Bad request - invalid scraper ID or database error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Scraper not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                message: "scraper with id=550e8400-e29b-41d4-a716-446655440000 was not found"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /db:
+    get:
+      tags:
+        - Database
+      summary: PostgREST database proxy
+      description: |
+        Proxies requests to the PostgREST endpoint for direct database access.
+        Only available when PostgREST is not disabled.
+
+        See [PostgREST documentation](https://postgrest.org/en/stable/api.html) for query syntax.
+      operationId: getDatabase
+      externalDocs:
+        description: PostgREST API documentation
+        url: https://postgrest.org/en/stable/api.html
+      responses:
+        "200":
+          description: Database query response
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /debug/routes:
+    get:
+      tags:
+        - Debug
+      summary: List all registered routes
+      description: Returns a list of all registered HTTP routes in the Echo server.
+      operationId: getRoutes
+      responses:
+        "200":
+          description: List of routes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Route"
+
+  /debug/loggers:
+    get:
+      tags:
+        - Debug
+      summary: Get logger levels
+      description: Returns the current logging levels for all named loggers.
+      operationId: getLoggers
+      responses:
+        "200":
+          description: Logger levels
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                example:
+                  default: info
+                  scraper: debug
+    post:
+      tags:
+        - Debug
+      summary: Set logger level
+      description: |
+        Temporarily or permanently change the logging level for a specific logger.
+        If duration is specified, the level will revert after that time.
+      operationId: setLoggerLevel
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - logger
+                - level
+              properties:
+                logger:
+                  type: string
+                  description: Name of the logger to modify
+                  example: scraper
+                level:
+                  type: string
+                  description: New logging level
+                  enum:
+                    - trace
+                    - debug
+                    - info
+                    - warn
+                    - error
+                  example: debug
+                duration:
+                  type: string
+                  description: Duration to apply the level change (Go duration format)
+                  example: 5m
+      responses:
+        "200":
+          description: Logger level changed
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Changed scraper from info to debug"
+        "400":
+          description: Missing logger name or level
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /debug/properties:
+    get:
+      tags:
+        - Debug
+      summary: Get supported properties
+      description: Returns a list of all supported configuration properties.
+      operationId: getProperties
+      responses:
+        "200":
+          description: Supported properties
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /debug/system/properties:
+    get:
+      tags:
+        - Debug
+      summary: Get system properties
+      description: Returns all current system property values.
+      operationId: getSystemProperties
+      responses:
+        "200":
+          description: System properties
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+
+  /debug/property:
+    post:
+      tags:
+        - Debug
+      summary: Set a property
+      description: Sets a system property value.
+      operationId: setProperty
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - name
+                - value
+              properties:
+                name:
+                  type: string
+                  description: Property name
+                  example: scraper.kubernetes.concurrency
+                value:
+                  type: string
+                  description: Property value
+                  example: "5"
+      responses:
+        "200":
+          description: Property set successfully
+        "400":
+          description: Missing property name or value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /debug/cron:
+    get:
+      tags:
+        - Debug
+      summary: Get cron job details
+      description: Returns details about all scheduled cron jobs.
+      operationId: getCronJobs
+      responses:
+        "200":
+          description: List of cron jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CronEntry"
+
+  /debug/cron/run:
+    post:
+      tags:
+        - Debug
+      summary: Trigger a cron job
+      description: Immediately runs a specific cron job by name.
+      operationId: runCronJob
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Name of the cron job to run
+                  example: ConfigScraperSync
+      responses:
+        "201":
+          description: Cron job triggered
+        "404":
+          description: Cron job not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Cron job with name foo not found in ConfigScraperSync, Scraper"
+
+  /debug/pprof:
+    get:
+      tags:
+        - Debug
+      summary: pprof index
+      description: |
+        Go pprof profiling index page. **Restricted to localhost only.**
+      operationId: getPprofIndex
+      security: []
+      responses:
+        "200":
+          description: pprof index page
+          content:
+            text/html:
+              schema:
+                type: string
+        "403":
+          description: Access restricted to localhost
+
+  /debug/pprof/cmdline:
+    get:
+      tags:
+        - Debug
+      summary: pprof cmdline
+      description: |
+        Returns the command line used to start the program. **Restricted to localhost only.**
+      operationId: getPprofCmdline
+      security: []
+      responses:
+        "200":
+          description: Command line
+          content:
+            text/plain:
+              schema:
+                type: string
+        "403":
+          description: Access restricted to localhost
+
+  /debug/pprof/profile:
+    get:
+      tags:
+        - Debug
+      summary: pprof CPU profile
+      description: |
+        Returns a CPU profile. **Restricted to localhost only.**
+      operationId: getPprofProfile
+      parameters:
+        - name: seconds
+          in: query
+          schema:
+            type: integer
+            default: 30
+          description: Duration of the profile in seconds
+      security: []
+      responses:
+        "200":
+          description: CPU profile
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Access restricted to localhost
+
+  /debug/pprof/symbol:
+    get:
+      tags:
+        - Debug
+      summary: pprof symbol lookup
+      description: |
+        Looks up program symbols. **Restricted to localhost only.**
+      operationId: getPprofSymbol
+      security: []
+      responses:
+        "200":
+          description: Symbol information
+          content:
+            text/plain:
+              schema:
+                type: string
+        "403":
+          description: Access restricted to localhost
+
+  /debug/pprof/trace:
+    get:
+      tags:
+        - Debug
+      summary: pprof execution trace
+      description: |
+        Returns an execution trace. **Restricted to localhost only.**
+      operationId: getPprofTrace
+      parameters:
+        - name: seconds
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Duration of the trace in seconds
+      security: []
+      responses:
+        "200":
+          description: Execution trace
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Access restricted to localhost
+
+  /debug/memsize:
+    get:
+      tags:
+        - Debug
+      summary: Memory size analysis
+      description: Returns memory usage analysis information.
+      operationId: getMemsize
+      responses:
+        "200":
+          description: Memory size information
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /debug/memsize/scan:
+    post:
+      tags:
+        - Debug
+      summary: Scan memory
+      description: Triggers a memory scan for analysis.
+      operationId: scanMemsize
+      responses:
+        "200":
+          description: Scan initiated
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /debug/memsize/report:
+    get:
+      tags:
+        - Debug
+      summary: Memory report
+      description: Returns detailed memory usage report.
+      operationId: getMemsizeReport
+      responses:
+        "200":
+          description: Memory report
+          content:
+            application/json:
+              schema:
+                type: object
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Error message
+      required:
+        - message
+
+    JobDetails:
+      type: object
+      description: Details of a completed job run
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique job history ID
+        name:
+          type: string
+          description: Name of the job
+          example: Scraper
+        success_count:
+          type: integer
+          description: Number of successful operations
+          example: 42
+        error_count:
+          type: integer
+          description: Number of errors encountered
+          example: 0
+        hostname:
+          type: string
+          description: Hostname where the job ran
+        duration_millis:
+          type: integer
+          format: int64
+          description: Duration of the job in milliseconds
+          example: 5432
+        resource_type:
+          type: string
+          description: Type of resource being processed
+          example: scraper
+        resource_id:
+          type: string
+          description: ID of the resource being processed
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional job details
+          properties:
+            scrape_summary:
+              type: object
+              additionalProperties:
+                $ref: "#/components/schemas/ScrapeSummary"
+            errors:
+              type: array
+              items:
+                type: string
+        status:
+          type: string
+          description: Final status of the job
+          enum:
+            - RUNNING
+            - SUCCESS
+            - WARNING
+            - FAILED
+            - STALE
+            - SKIPPED
+        time_start:
+          type: string
+          format: date-time
+          description: When the job started
+        time_end:
+          type: string
+          format: date-time
+          description: When the job ended
+
+    ScrapeSummary:
+      type: object
+      description: Summary of scraped configuration items by type
+      properties:
+        added:
+          type: integer
+          description: Number of new items added
+        updated:
+          type: integer
+          description: Number of existing items updated
+        unchanged:
+          type: integer
+          description: Number of items that remained unchanged
+        deleted:
+          type: integer
+          description: Number of items deleted
+
+    Route:
+      type: object
+      description: Echo route information
+      properties:
+        method:
+          type: string
+          description: HTTP method
+          enum:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - PATCH
+            - OPTIONS
+            - HEAD
+        path:
+          type: string
+          description: Route path pattern
+          example: /run/:id
+        name:
+          type: string
+          description: Handler function name
+
+    CronEntry:
+      type: object
+      description: Cron job entry information
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the cron entry
+        context:
+          type: object
+          additionalProperties: true
+          description: Context information about the job
+          properties:
+            name:
+              type: string
+              description: Name of the cron job
+        last_ran:
+          type: string
+          format: date-time
+          description: When the job last ran
+        next_run:
+          type: string
+          format: date-time
+          description: When the job will next run
+        next_run_in:
+          type: string
+          description: Human-readable time until next run
+          example: 5m30s

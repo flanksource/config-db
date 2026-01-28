@@ -11,14 +11,14 @@ import (
 
 func TestExtractConfigAccess(t *testing.T) {
 	testCases := []struct {
-		name                  string
-		input                 map[string]any
-		expectError           bool
-		expectedCount         int
-		expectedIDs           []string
-		expectedUserAliases   [][]string
-		expectedRoleAliases   [][]string
-		expectedGroupAliases  [][]string
+		name                 string
+		input                map[string]any
+		expectError          bool
+		expectedCount        int
+		expectedIDs          []string
+		expectedUserAliases  [][]string
+		expectedRoleAliases  [][]string
+		expectedGroupAliases [][]string
 	}{
 		{
 			name: "extracts config_access with external_user_aliases",
