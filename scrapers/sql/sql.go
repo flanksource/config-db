@@ -59,7 +59,7 @@ func (s SqlScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		defer db.Close() // nolint:errcheck
 
 		if ctx.IsDebug() {
-			ctx.Logger.Infof(clicky.CodeBlock("sql", config.Query).ANSI())
+			ctx.Logger.Infof(clicky.CodeBlock("sql", lo.Ellipsis(config.Query, 500)).ANSI())
 		}
 
 		rows, err := QuerySQL(db, config.Query)

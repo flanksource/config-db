@@ -151,6 +151,10 @@ lint: golangci-lint ## Run golangci-lint against code.
 build:
 	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" .
 
+.PHONY: build-slim
+build-slim:
+	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" -tags slim .
+
 .PHONY: build-prod
 build-prod:
 	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" -tags rustdiffgen .

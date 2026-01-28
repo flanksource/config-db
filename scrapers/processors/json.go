@@ -245,6 +245,9 @@ func NewExtractor(config v1.BaseScraper) (Extract, error) {
 		}
 	}
 
+	if extract.Labels == nil {
+		extract.Labels = make(map[string]jp.Expr)
+	}
 	for k, v := range config.Labels {
 		if utils.IsJSONPath(v) {
 			expr, err := jp.ParseString(v)
@@ -611,7 +614,7 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 			return input, fmt.Errorf("no id defined for: %s", input.Debug().ANSI())
 		}
 		if len(lo.Filter(input.Changes, func(c v1.ChangeResult, _ int) bool {
-			return c.ExternalChangeID == ""
+			return c.ExternalChangeID == "" || c.ExternalID == ""
 		})) > 0 {
 			return input, fmt.Errorf("standalone changes must have both an `external_id` and `external_change_id`: %s: %v", input, e.Config)
 
@@ -724,6 +727,9 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 					ctx.Debugf("[%s] failed to extract tag %s for %s", k, expr, debugConfig(input.Config))
 				} else if ctx.IsDebug() {
 					ctx.Debugf("[%s] failed to extract tag %s", k, expr)
+				}
+				if v != "" {
+					tags[k] = v
 				}
 			} else if tag != "" {
 				tags[k] = tag
