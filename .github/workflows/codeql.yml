@@ -10,13 +10,15 @@
 # supported CodeQL languages.
 #
 name: "CodeQL"
-timeout-minutes: 60
 on:
   push:
     branches: ["main"]
+    paths:
+      - "**.go"
   pull_request:
-    # The branches below must be a subset of the branches above
     branches: ["main"]
+    paths:
+      - "**.go"
   schedule:
     - cron: "0 0 * * *"
 
@@ -26,7 +28,7 @@ permissions:
 jobs:
   analyze:
     name: Analyze
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-8core
     if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
       actions: read
@@ -52,25 +54,12 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@42213152a85ae7569bdb6bec7bcd74cd691bfe41 # v3.30.9
         with:
-          languages: ${{ matrix.language }}
-          # If you wish to specify custom queries, you can do so here or in a config file.
-          # By default, queries listed here will override any specified in a config file.
-          # Prefix the list here with "+" to use these queries and those in the config file.
+          languages: go
+          dependency-caching: true
 
-      # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
-      # If this step fails, then you should remove it and run the build manually (see below)
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@42213152a85ae7569bdb6bec7bcd74cd691bfe41 # v3.30.9
-
-      # ℹ️ Command-line programs to run using the OS shell.
-      # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
-
-      #   If the Autobuild fails above, remove it and uncomment the following three lines.
-      #   modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance.
-
-      # - run: |
-      #   echo "Run, Build Application using script"
-      #   ./location_of_script_within_repo/buildscript.sh
+      # Build with slim tag to exclude heavy cloud provider dependencies (AWS/Azure/GCP SDKs)
+      - name: Build
+        run: go build -tags slim ./...
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@42213152a85ae7569bdb6bec7bcd74cd691bfe41 # v3.30.9
