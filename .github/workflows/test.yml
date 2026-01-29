@@ -16,6 +16,15 @@ jobs:
           go-version: 1.25.x
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Install deps
+        uses: flanksource/deps@v1.0.23
+        with:
+          tools: |
+            bun
+            uv
+            powershell
+            postgrest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: buildjet/cache@3e70d19e31d6a8030aeddf6ed8dbe601f94d09f4 # v4
         with:
           path: |
@@ -65,6 +74,15 @@ jobs:
           go-version: 1.25.x
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Install deps
+        uses: flanksource/deps@v1.0.23
+        with:
+          tools: |
+            bun
+            uv
+            powershell
+            postgrest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: buildjet/cache@3e70d19e31d6a8030aeddf6ed8dbe601f94d09f4 # v4
         with:
           path: |
@@ -79,7 +97,7 @@ jobs:
           make ginkgo
           ginkgo -r tests/e2e/
         env:
-          DUTY_DB_DISABLE_RLS: 'true'
+          DUTY_DB_DISABLE_RLS: "true"
           LOKI_URL: http://localhost:3100
           OPENSEARCH_URL: http://localhost:9200
 
@@ -104,6 +122,15 @@ jobs:
           key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
           restore-keys: |
             cache-
+      - name: Install deps
+        uses: flanksource/deps@v1.0.23
+        with:
+          tools: |
+            bun
+            uv
+            powershell
+            postgrest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Test
         run: make test-prod
 
