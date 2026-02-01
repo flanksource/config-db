@@ -3,7 +3,7 @@ package kubernetes
 import (
 	"strings"
 
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"

@@ -1,23 +1,22 @@
 package scrapers
 
 import (
-	"github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/scrapers/azure/devops"
 	"github.com/flanksource/config-db/scrapers/clickhouse"
 	"github.com/flanksource/config-db/scrapers/exec"
+	"github.com/flanksource/config-db/scrapers/file"
+	"github.com/flanksource/config-db/scrapers/github"
 	"github.com/flanksource/config-db/scrapers/http"
+	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/scrapers/logs"
 	"github.com/flanksource/config-db/scrapers/slack"
+	"github.com/flanksource/config-db/scrapers/sql"
 	"github.com/flanksource/config-db/scrapers/system"
 	"github.com/flanksource/config-db/scrapers/terraform"
 	"github.com/flanksource/config-db/scrapers/trivy"
 	"github.com/flanksource/duty/types"
-
-	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/flanksource/config-db/scrapers/azure/devops"
-	"github.com/flanksource/config-db/scrapers/file"
-	"github.com/flanksource/config-db/scrapers/github"
-	"github.com/flanksource/config-db/scrapers/kubernetes"
-	"github.com/flanksource/config-db/scrapers/sql"
 )
 
 // All is the scrapers registry (non-cloud scrapers)

@@ -3,7 +3,7 @@ package aws
 import (
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
 	"github.com/aws/aws-sdk-go-v2/service/configservice/types"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 func (aws Scraper) config(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {

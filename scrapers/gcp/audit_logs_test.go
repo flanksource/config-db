@@ -7,7 +7,7 @@ import (
 	"github.com/flanksource/duty/types"
 	"github.com/onsi/gomega"
 
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/utils"
 )
 

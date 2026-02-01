@@ -7,8 +7,8 @@ import (
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/properties"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/duty/context"

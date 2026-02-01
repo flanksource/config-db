@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/utils"
 	"github.com/gobwas/glob"
 	"github.com/hashicorp/go-getter"

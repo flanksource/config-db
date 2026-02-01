@@ -8,8 +8,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 	athena "github.com/uber/athenadriver/go"
 )
 

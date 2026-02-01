@@ -5,7 +5,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/advisor/armadvisor"
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/models"
 )
 

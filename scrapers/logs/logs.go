@@ -9,8 +9,8 @@ import (
 	"github.com/flanksource/duty/logs/loki"
 	"github.com/flanksource/duty/logs/opensearch"
 
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 // LogResult is a copy of logs.LogResult with modified JSON struct tags.

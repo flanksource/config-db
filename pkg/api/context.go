@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/samber/lo"

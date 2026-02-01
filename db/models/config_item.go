@@ -11,7 +11,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/samber/lo"
 
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 // ConfigItem represents the config item database table

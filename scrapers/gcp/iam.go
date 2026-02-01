@@ -7,7 +7,7 @@ import (
 
 	asset "cloud.google.com/go/asset/apiv1"
 	"cloud.google.com/go/asset/apiv1/assetpb"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/samber/lo"

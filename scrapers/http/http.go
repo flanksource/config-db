@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/samber/lo"

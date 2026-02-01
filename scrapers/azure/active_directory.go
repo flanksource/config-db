@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"

@@ -19,8 +19,6 @@ import (
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/types/known/structpb"
 	"k8s.io/apimachinery/pkg/fields"
-
-	"github.com/flanksource/config-db/utils"
 )
 
 const maxTagsCount = 5
@@ -635,7 +633,7 @@ func (t Tags) Eval(labels map[string]string, config string) (Tags, error) {
 				tag.Value = val
 			}
 		} else if tag.JSONPath != "" {
-			if !utils.IsJSONPath(tag.JSONPath) {
+			if !IsJSONPath(tag.JSONPath) {
 				return nil, fmt.Errorf("tag %q has an invalid json path %s", tag.Name, tag.JSONPath)
 			}
 

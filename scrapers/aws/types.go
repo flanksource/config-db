@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ssmTypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	supportTypes "github.com/aws/aws-sdk-go-v2/service/support/types"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 func deref(s *string) string {

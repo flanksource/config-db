@@ -10,8 +10,8 @@ import (
 
 	"github.com/flanksource/commons/deps"
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"
 	"github.com/gomarkdown/markdown"

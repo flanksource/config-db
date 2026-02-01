@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 type ConfigChangeUpdate struct {

@@ -2,7 +2,7 @@ package jobs
 
 import (
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/duty/context"
 	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/job"

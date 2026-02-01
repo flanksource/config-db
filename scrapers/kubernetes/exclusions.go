@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/collections"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty/context"
 	"github.com/patrickmn/go-cache"

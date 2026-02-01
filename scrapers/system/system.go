@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/models"
 	"github.com/samber/lo"
 	"gorm.io/gorm"

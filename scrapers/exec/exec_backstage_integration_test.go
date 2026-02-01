@@ -7,7 +7,7 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 )
 
 var _ = ginkgo.Describe("Exec Scraper - Backstage Catalog Integration", ginkgo.Ordered, func() {

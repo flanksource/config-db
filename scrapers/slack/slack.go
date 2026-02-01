@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/duration"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"

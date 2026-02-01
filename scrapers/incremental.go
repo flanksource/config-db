@@ -10,8 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/flanksource/commons/collections"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/utils/kube"

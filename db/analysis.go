@@ -3,7 +3,7 @@ package db
 import (
 	"errors"
 
-	"github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/duty/models"
 	"gorm.io/gorm"
 )

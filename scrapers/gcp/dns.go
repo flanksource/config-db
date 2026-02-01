@@ -9,7 +9,7 @@ import (
 	"github.com/samber/lo/mutable"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 func mergeDNSRecordSetsIntoManagedZone(results v1.ScrapeResults) v1.ScrapeResults {

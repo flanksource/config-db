@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 	cdbsql "github.com/flanksource/config-db/scrapers/sql"
 	"github.com/flanksource/duty/shell"
 	"github.com/samber/lo"

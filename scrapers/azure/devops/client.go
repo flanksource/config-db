@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/pkg/api"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 type Project struct {

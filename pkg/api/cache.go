@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty/context"
 	dutydb "github.com/flanksource/duty/db"
