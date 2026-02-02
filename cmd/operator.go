@@ -20,9 +20,9 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/flanksource/config-db/pkg/api"
 	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/config-db/scrapers"
 )
 

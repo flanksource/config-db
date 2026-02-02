@@ -3,9 +3,9 @@ package kubernetes
 import (
 	"fmt"
 
-	"github.com/flanksource/config-db/pkg/api"
 	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

@@ -15,8 +15,8 @@ import (
 	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/flanksource/config-db/pkg/api"
 	v1 "github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 )
 
 const (

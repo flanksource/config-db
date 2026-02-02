@@ -12,8 +12,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/flanksource/config-db/pkg/api"
 	v1 "github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/config-db/utils/kube"
 )
 

@@ -12,8 +12,8 @@ import (
 	_ "net/http/pprof" // required by serve
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/config-db/jobs"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/telemetry"

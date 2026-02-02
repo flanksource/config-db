@@ -1,8 +1,8 @@
 package changes
 
 import (
-	"github.com/flanksource/config-db/pkg/api"
 	v1 "github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

@@ -19,8 +19,8 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/flanksource/config-db/pkg/api"
 	v1 "github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/config-db/utils"
 )
 

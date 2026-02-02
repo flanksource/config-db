@@ -19,10 +19,10 @@ import (
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/flanksource/config-db/pkg/api"
 	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
 	dbmodels "github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/config-db/scrapers"
 )
 

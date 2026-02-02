@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/flanksource/config-db/pkg/api"
 	v1 "github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/ketall"
 	ketallClient "github.com/flanksource/ketall/client"

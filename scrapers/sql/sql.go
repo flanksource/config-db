@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/flanksource/clicky"
-	"github.com/flanksource/config-db/pkg/api"
 	v1 "github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/samber/lo"
 	"github.com/xo/dburl"
 
