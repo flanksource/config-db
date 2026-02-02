@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/flanksource/config-db/api/v1/git-hub-actions",
+  "$id": "https://github.com/flanksource/config-db/api/git-hub-actions",
   "$ref": "#/$defs/GitHubActions",
   "$defs": {
     "ChangeMapping": {

@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 
-	v1 v1 "github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api"
 	pb "github.com/flanksource/config-db/api/plugin/proto"
 )
 

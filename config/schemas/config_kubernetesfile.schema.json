@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/flanksource/config-db/api/v1/kubernetes-file",
+  "$id": "https://github.com/flanksource/config-db/api/kubernetes-file",
   "$ref": "#/$defs/KubernetesFile",
   "$defs": {
     "CNRMConnection": {

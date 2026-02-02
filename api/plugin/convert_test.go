@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
+	v1 "github.com/flanksource/config-db/api"
 	pb "github.com/flanksource/config-db/api/plugin/proto"
-	v1 v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/models"
 )
 
