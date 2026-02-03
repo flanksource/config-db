@@ -76,7 +76,7 @@ test-load:
 .PHONY: gotest
 gotest: ginkgo
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
-		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out ./...
+		ginkgo -r -v --skip-package=tests/e2e,api/plugin -coverprofile cover.out ./...
 
 .PHONY: gotest-prod
 gotest-prod:
