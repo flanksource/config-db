@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/properties"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	cdb "github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty/db"

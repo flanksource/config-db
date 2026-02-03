@@ -32,6 +32,8 @@ gen-schemas:
 	go mod edit -module=github.com/flanksource/config-db/hack/generate-schemas && \
 	go mod edit -require=github.com/flanksource/config-db@v1.0.0 && \
 	go mod edit -replace=github.com/flanksource/config-db=../../ && \
+	go mod edit -replace=github.com/flanksource/config-db/api=../../api/v1 && \
+	go mod edit -replace=github.com/flanksource/config-db/api/plugin=../../api/plugin && \
 	if grep -v "^//" ../../go.mod | grep -q "replace.*github.com/flanksource/duty.*=>"; then \
 		go mod edit -replace=github.com/flanksource/duty=../../../duty; \
 	fi && \
@@ -74,7 +76,7 @@ test-load:
 .PHONY: gotest
 gotest: ginkgo
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
-		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out ./...
+		ginkgo -r -v --skip-package=tests/e2e,api/plugin -coverprofile cover.out ./...
 
 .PHONY: gotest-prod
 gotest-prod:

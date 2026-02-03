@@ -1,0 +1,241 @@
+syntax = "proto3";
+
+package configdb.plugin;
+
+option go_package = "github.com/flanksource/config-db/api/plugin/proto";
+
+// ScraperPlugin is implemented by plugins (called by host)
+service ScraperPlugin {
+  rpc Scrape(ScrapeRequest) returns (ScrapeResponse);
+  rpc CanScrape(CanScrapeRequest) returns (CanScrapeResponse);
+  rpc GetInfo(Empty) returns (PluginInfo);
+}
+
+// HostServices is implemented by host (called by plugin)
+service HostServices {
+  rpc HydrateConnection(ConnectionRequest) returns (ConnectionResponse);
+  rpc GetEnvValue(EnvVarRequest) returns (EnvVarResponse);
+  rpc FindConfig(FindConfigRequest) returns (FindConfigResponse);
+}
+
+message Empty {}
+
+message PluginInfo {
+  string name = 1;
+  string version = 2;
+  repeated string supported_types = 3;
+}
+
+message ScrapeRequest {
+  string scraper_id = 1;
+  string namespace = 2;
+  bytes spec_json = 3;  // JSON-encoded ScraperSpec
+  bool incremental = 4;
+}
+
+message ScrapeResponse {
+  repeated ScrapeResultProto results = 1;
+  string error = 2;
+}
+
+message CanScrapeRequest {
+  bytes spec_json = 1;  // JSON-encoded ScraperSpec
+}
+
+message CanScrapeResponse {
+  bool can_scrape = 1;
+}
+
+message ScrapeResultProto {
+  string id = 1;
+  string config_id = 2;
+  string name = 3;
+  string config_class = 4;
+  string config_type = 5;
+  string status = 6;
+  string health = 7;
+  bool ready = 8;
+  string description = 9;
+  repeated string aliases = 10;
+  string source = 11;
+  bytes config = 12;  // JSON-encoded config
+  repeated string locations = 13;
+  string format = 14;
+  string icon = 15;
+  map<string, string> labels = 16;
+  map<string, string> tags = 17;
+  string error = 18;
+  bool scraper_less = 19;
+  int64 created_at = 20;
+  int64 deleted_at = 21;
+  string delete_reason = 22;
+
+  AnalysisResultProto analysis = 30;
+  repeated ChangeResultProto changes = 31;
+  repeated RelationshipResultProto relationships = 32;
+  repeated ConfigExternalKeyProto parents = 33;
+  repeated ConfigExternalKeyProto children = 34;
+  bytes properties = 35;  // JSON-encoded properties
+
+  repeated ExternalRoleProto external_roles = 40;
+  repeated ExternalUserProto external_users = 41;
+  repeated ExternalGroupProto external_groups = 42;
+  repeated ExternalUserGroupProto external_user_groups = 43;
+  repeated ExternalConfigAccessProto config_access = 44;
+  repeated ExternalConfigAccessLogProto config_access_logs = 45;
+
+  bytes base_scraper = 50;  // JSON-encoded BaseScraper
+}
+
+message ConfigExternalKeyProto {
+  string external_id = 1;
+  string type = 2;
+  string scraper_id = 3;
+}
+
+message AnalysisResultProto {
+  string summary = 1;
+  bytes analysis = 2;  // JSON-encoded map
+  string analysis_type = 3;
+  string severity = 4;
+  string source = 5;
+  string analyzer = 6;
+  repeated string messages = 7;
+  string status = 8;
+  int64 first_observed = 9;
+  int64 last_observed = 10;
+  repeated ExternalIDProto external_configs = 11;
+}
+
+message ExternalIDProto {
+  string external_id = 1;
+  string config_type = 2;
+  string scraper_id = 3;
+}
+
+message ChangeResultProto {
+  string external_id = 1;
+  string config_type = 2;
+  string scraper_id = 3;
+  string external_change_id = 4;
+  string action = 5;
+  string change_type = 6;
+  string patches = 7;
+  string summary = 8;
+  string severity = 9;
+  string source = 10;
+  string created_by = 11;
+  int64 created_at = 12;
+  bytes details = 13;  // JSON-encoded map
+  string diff = 14;
+  string config_id = 15;
+  bool update_existing = 16;
+}
+
+message RelationshipResultProto {
+  string config_id = 1;
+  ExternalIDProto config_external_id = 2;
+  ExternalIDProto related_external_id = 3;
+  string related_config_id = 4;
+  string relationship = 5;
+}
+
+message ExternalRoleProto {
+  string id = 1;
+  string account_id = 2;
+  string scraper_id = 3;
+  string name = 4;
+  string description = 5;
+}
+
+message ExternalUserProto {
+  string id = 1;
+  string name = 2;
+  string scraper_id = 3;
+  string account_id = 4;
+  string user_type = 5;
+  string email = 6;
+  int64 created_at = 7;
+  int64 deleted_at = 8;
+}
+
+message ExternalGroupProto {
+  string id = 1;
+  string account_id = 2;
+  string scraper_id = 3;
+  string name = 4;
+  string group_type = 5;
+  int64 created_at = 6;
+  int64 deleted_at = 7;
+}
+
+message ExternalUserGroupProto {
+  string external_user_id = 1;
+  string external_group_id = 2;
+}
+
+message ExternalConfigAccessProto {
+  string id = 1;
+  string config_id = 2;
+  string external_user_id = 3;
+  string external_role_id = 4;
+  string external_group_id = 5;
+  string scraper_id = 6;
+  int64 created_at = 7;
+  int64 deleted_at = 8;
+  ExternalIDProto config_external_id = 9;
+  repeated string external_user_aliases = 10;
+  repeated string external_role_aliases = 11;
+  repeated string external_group_aliases = 12;
+}
+
+message ExternalConfigAccessLogProto {
+  string id = 1;
+  string config_id = 2;
+  string external_user_id = 3;
+  string operation = 4;
+  string ip_address = 5;
+  int64 created_at = 6;
+  ExternalIDProto config_external_id = 7;
+}
+
+// Host service messages
+message ConnectionRequest {
+  string name = 1;
+  string namespace = 2;
+}
+
+message ConnectionResponse {
+  string username = 1;
+  string password = 2;
+  string url = 3;
+  map<string, string> properties = 4;
+  string error = 5;
+}
+
+message EnvVarRequest {
+  string name = 1;
+  string value_from_configmap_key_ref_name = 2;
+  string value_from_configmap_key_ref_key = 3;
+  string value_from_secret_key_ref_name = 4;
+  string value_from_secret_key_ref_key = 5;
+  string value_static = 6;
+  string namespace = 7;
+}
+
+message EnvVarResponse {
+  string value = 1;
+  string error = 2;
+}
+
+message FindConfigRequest {
+  string config_type = 1;
+  string external_id = 2;
+  string scraper_id = 3;
+}
+
+message FindConfigResponse {
+  string config_id = 1;
+  bool found = 2;
+  string error = 3;
+}

@@ -34,11 +34,11 @@ import (
 	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	pkgChanges "github.com/flanksource/config-db/changes"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/config-db/db/ulid"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/utils"
 )

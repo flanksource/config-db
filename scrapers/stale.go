@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/duration"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty/context"
 	"github.com/google/uuid"

@@ -10,7 +10,7 @@ import (
 	"google.golang.org/api/sqladmin/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 // scrapeCloudSQLBackupsForAllInstances finds Cloud SQL instances in the results and scrapes their backups

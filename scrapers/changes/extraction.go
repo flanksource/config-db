@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/hash"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/query"
 	"github.com/samber/lo"

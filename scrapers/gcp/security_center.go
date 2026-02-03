@@ -6,7 +6,7 @@ import (
 
 	securitycenter "cloud.google.com/go/securitycenter/apiv1"
 	"cloud.google.com/go/securitycenter/apiv1/securitycenterpb"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	k8sScraper "github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty/models"

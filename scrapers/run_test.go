@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/logger"
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/duty"
 	dutymodels "github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/query"

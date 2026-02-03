@@ -12,6 +12,7 @@ ARG VERSION
 
 COPY go.mod /app/go.mod
 COPY go.sum /app/go.sum
+COPY api/ /app/api/
 RUN go mod download
 
 COPY ./ ./

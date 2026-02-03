@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/flanksource/config-db/api/v1/terraform",
+  "$id": "https://github.com/flanksource/config-db/api/terraform",
   "$ref": "#/$defs/Terraform",
   "$defs": {
     "ChangeMapping": {

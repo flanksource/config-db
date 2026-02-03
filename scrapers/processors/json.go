@@ -24,8 +24,8 @@ import (
 	"github.com/samber/lo"
 	"sigs.k8s.io/yaml"
 
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/config-db/utils"
 )
 

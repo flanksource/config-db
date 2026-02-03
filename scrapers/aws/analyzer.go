@@ -6,7 +6,7 @@ import (
 
 	"github.com/flanksource/commons/console"
 	"github.com/flanksource/commons/logger"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 // EC2InstanceAnalyzer ...

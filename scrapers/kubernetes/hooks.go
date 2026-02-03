@@ -1,7 +1,7 @@
 package kubernetes
 
 import (
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

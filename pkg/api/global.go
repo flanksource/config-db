@@ -1,7 +1,7 @@
 package api
 
 import (
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/duty/upstream"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"

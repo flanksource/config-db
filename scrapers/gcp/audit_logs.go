@@ -12,7 +12,7 @@ import (
 	"google.golang.org/api/iterator"
 	"k8s.io/utils/set"
 
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/utils"
 )
 

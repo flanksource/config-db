@@ -12,7 +12,7 @@ import (
 	"github.com/aws/smithy-go/ptr"
 	"github.com/samber/lo"
 
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<- types.Event, config v1.AWS) error {

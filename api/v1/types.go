@@ -5,8 +5,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/flanksource/config-db/utils"
-
 	"github.com/google/uuid"
 
 	"gorm.io/gorm"
@@ -165,7 +163,7 @@ func (c ScraperSpec) ApplyPlugin(plugins []ScrapePluginSpec) ScraperSpec {
 }
 
 func (c ScraperSpec) GenerateName() (string, error) {
-	return utils.Hash(c)
+	return Hash(c)
 }
 
 // IsEmpty ...

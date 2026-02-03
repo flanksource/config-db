@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/flanksource/config-db/api/v1/aws",
+  "$id": "https://github.com/flanksource/config-db/api/aws",
   "$ref": "#/$defs/AWS",
   "$defs": {
     "AWS": {

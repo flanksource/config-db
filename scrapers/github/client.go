@@ -8,8 +8,8 @@ import (
 	"github.com/google/go-github/v73/github"
 	"golang.org/x/oauth2"
 
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
+	"github.com/flanksource/config-db/pkg/api"
 )
 
 const defaultWorkflowRunMaxAge = 7 * 24 * time.Hour

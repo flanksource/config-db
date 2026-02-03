@@ -3,7 +3,7 @@ package exec
 import (
 	"testing"
 
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 )
 
 func TestParseOutput_JSONObject(t *testing.T) {

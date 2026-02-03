@@ -9,9 +9,9 @@ import (
 	"github.com/flanksource/duty/context"
 	"github.com/labstack/echo/v4"
 
-	"github.com/flanksource/config-db/api"
-	v1 "github.com/flanksource/config-db/api/v1"
+	v1 "github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/pkg/api"
 )
 
 const runNowTimeout = 30 * time.Minute

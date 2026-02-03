@@ -7,8 +7,8 @@ import (
 
 	"github.com/fjl/memsize"
 	"github.com/fjl/memsize/memsizeui"
-	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/pkg/api"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/utils"
