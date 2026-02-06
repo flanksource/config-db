@@ -52,7 +52,7 @@ require (
 	github.com/flanksource/artifacts v1.0.18
 	github.com/flanksource/clicky v1.16.1
 	github.com/flanksource/commons v1.44.1
-	github.com/flanksource/duty v1.0.1173
+	github.com/flanksource/duty v1.0.1175
 	github.com/flanksource/is-healthy v1.0.82
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.13
