@@ -1,73 +1,71 @@
-[
-  {
-    "id": "Kubernetes/test-cluster/Pod/default/nginx",
-    "config_class": "Pod",
-    "config": {
-      "apiVersion": "v1",
-      "kind": "Pod",
-      "metadata": {
-        "name": "nginx",
-        "namespace": "default"
-      }
+{
+  "id": "Kubernetes/test-cluster/Pod/default/nginx",
+  "config_class": "Pod",
+  "config": {
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+      "name": "nginx",
+      "namespace": "default"
+    }
+  },
+  "external_roles": [
+    {
+      "name": "pod-reader",
+      "account_id": "test-cluster",
+      "role_type": "ClusterRole",
+      "aliases": ["Kubernetes/test-cluster/ClusterRole//pod-reader"]
+    }
+  ],
+  "external_users": [
+    {
+      "name": "my-sa",
+      "account_id": "test-cluster",
+      "user_type": "ServiceAccount",
+      "aliases": ["Kubernetes/test-cluster/ServiceAccount/default/my-sa"]
     },
-    "external_roles": [
-      {
-        "name": "pod-reader",
-        "account_id": "test-cluster",
-        "role_type": "ClusterRole",
-        "aliases": ["Kubernetes/test-cluster/ClusterRole//pod-reader"]
-      }
-    ],
-    "external_users": [
-      {
-        "name": "my-sa",
-        "account_id": "test-cluster",
-        "user_type": "ServiceAccount",
-        "aliases": ["Kubernetes/test-cluster/ServiceAccount/default/my-sa"]
+    {
+      "name": "admin@example.com",
+      "account_id": "test-cluster",
+      "user_type": "User",
+      "aliases": ["Kubernetes/test-cluster/User//admin@example.com"]
+    }
+  ],
+  "external_groups": [
+    {
+      "name": "system:authenticated",
+      "account_id": "test-cluster",
+      "group_type": "Group",
+      "aliases": ["Kubernetes/test-cluster/Group//system:authenticated"]
+    }
+  ],
+  "config_access": [
+    {
+      "id": "rbac-access-sa",
+      "external_config_id": {
+        "config_type": "Kubernetes::Pod",
+        "external_id": "Kubernetes/test-cluster/Pod/default/nginx"
       },
-      {
-        "name": "admin@example.com",
-        "account_id": "test-cluster",
-        "user_type": "User",
-        "aliases": ["Kubernetes/test-cluster/User//admin@example.com"]
-      }
-    ],
-    "external_groups": [
-      {
-        "name": "system:authenticated",
-        "account_id": "test-cluster",
-        "group_type": "Group",
-        "aliases": ["Kubernetes/test-cluster/Group//system:authenticated"]
-      }
-    ],
-    "config_access": [
-      {
-        "id": "rbac-access-sa",
-        "external_config_id": {
-          "config_type": "Kubernetes::Pod",
-          "external_id": "Kubernetes/test-cluster/Pod/default/nginx"
-        },
-        "external_user_aliases": ["Kubernetes/test-cluster/ServiceAccount/default/my-sa"],
-        "external_role_aliases": ["Kubernetes/test-cluster/ClusterRole//pod-reader"]
+      "external_user_aliases": ["Kubernetes/test-cluster/ServiceAccount/default/my-sa"],
+      "external_role_aliases": ["Kubernetes/test-cluster/ClusterRole//pod-reader"]
+    },
+    {
+      "id": "rbac-access-user",
+      "external_config_id": {
+        "config_type": "Kubernetes::Pod",
+        "external_id": "Kubernetes/test-cluster/Pod/default/nginx"
       },
-      {
-        "id": "rbac-access-user",
-        "external_config_id": {
-          "config_type": "Kubernetes::Pod",
-          "external_id": "Kubernetes/test-cluster/Pod/default/nginx"
-        },
-        "external_user_aliases": ["Kubernetes/test-cluster/User//admin@example.com"],
-        "external_role_aliases": ["Kubernetes/test-cluster/ClusterRole//pod-reader"]
+      "external_user_aliases": ["Kubernetes/test-cluster/User//admin@example.com"],
+      "external_role_aliases": ["Kubernetes/test-cluster/ClusterRole//pod-reader"]
+    },
+    {
+      "id": "rbac-access-group",
+      "external_config_id": {
+        "config_type": "Kubernetes::Pod",
+        "external_id": "Kubernetes/test-cluster/Pod/default/nginx"
       },
-      {
-        "id": "rbac-access-group",
-        "external_config_id": {
-          "config_type": "Kubernetes::Pod",
-          "external_id": "Kubernetes/test-cluster/Pod/default/nginx"
-        },
-        "external_group_aliases": ["Kubernetes/test-cluster/Group//system:authenticated"],
-        "external_role_aliases": ["Kubernetes/test-cluster/ClusterRole//pod-reader"]
-      }
-    ]
-  }
-]
+      "external_group_aliases": ["Kubernetes/test-cluster/Group//system:authenticated"],
+      "external_role_aliases": ["Kubernetes/test-cluster/ClusterRole//pod-reader"]
+    }
+  ]
+}

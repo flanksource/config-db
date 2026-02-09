@@ -1889,8 +1889,11 @@ var _ = Describe("Kubernetes RBAC config access e2e test", Ordered, func() {
 		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&configAccesses).Error
 		Expect(err).NotTo(HaveOccurred())
 
+		configItemID, err := uuid.Parse(configItem.ID)
+		Expect(err).NotTo(HaveOccurred())
+
 		for _, ca := range configAccesses {
-			Expect(ca.ConfigID).To(Equal(configItem.ID), "config_id should point to the Pod config item for access %s", ca.ID)
+			Expect(ca.ConfigID).To(Equal(configItemID), "config_id should point to the Pod config item for access %s", ca.ID)
 		}
 	})
 })

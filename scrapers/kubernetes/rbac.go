@@ -28,9 +28,9 @@ type rbacExtractor struct {
 	access      []v1.ExternalConfigAccess
 
 	// Maps for lookups
-	roleRules       map[string][]rbacRule    // key: kind/namespace/name -> rules
-	objectsByKind   map[string][]*objectRef  // key: kind -> list of objects
-	resourceToKind  map[string]string        // plural resource name -> Kind (e.g., "pods" -> "Pod")
+	roleRules      map[string][]rbacRule   // key: kind/namespace/name -> rules
+	objectsByKind  map[string][]*objectRef // key: kind -> list of objects
+	resourceToKind map[string]string       // plural resource name -> Kind (e.g., "pods" -> "Pod")
 }
 
 type rbacRule struct {
