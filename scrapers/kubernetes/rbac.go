@@ -103,9 +103,19 @@ func fetchCRDResourceKinds(ctx api.ScrapeContext, clusterName string) map[string
 
 	resourceMap := make(map[string]string)
 
+	if ctx.KubernetesConnection() == nil {
+		ctx.Debugf("no kubernetes connection available, skipping CRD lookup")
+		return resourceMap
+	}
+
 	k8s, err := ctx.Kubernetes()
 	if err != nil {
 		ctx.Warnf("failed to get k8s client for CRD lookup: %v", err)
+		return resourceMap
+	}
+
+	if k8s == nil || k8s.RestConfig() == nil {
+		ctx.Warnf("kubernetes client or rest config is nil, skipping CRD lookup")
 		return resourceMap
 	}
 

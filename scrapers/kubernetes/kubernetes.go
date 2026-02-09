@@ -140,7 +140,9 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	results = append(results, cluster)
 
 	// Initialize RBAC extractor for config access tracking
-	rbac := newRBACExtractor(ctx.ScrapeContext, clusterName, ctx.ScrapeConfig().GetPersistedID())
+	rbacCtx := ctx.ScrapeContext
+	rbacCtx.Context = rbacCtx.WithKubernetes(ctx.config.KubernetesConnection)
+	rbac := newRBACExtractor(rbacCtx, clusterName, ctx.ScrapeConfig().GetPersistedID())
 	rbac.indexObjects(objs)
 	var roleBindings []*unstructured.Unstructured
 
