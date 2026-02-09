@@ -5,15 +5,18 @@ package kubernetes
 
 import (
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
 	uuidV5 "github.com/gofrs/uuid/v5"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 type rbacExtractor struct {
@@ -25,9 +28,9 @@ type rbacExtractor struct {
 	access      []v1.ExternalConfigAccess
 
 	// Maps for lookups
-	roleRules     map[string][]rbacRule          // key: kind/namespace/name -> rules
-	objectsByKind map[string][]*objectRef        // key: kind -> list of objects
-	objectLookup  map[string]*unstructured.Unstructured // key: kind/namespace/name -> object
+	roleRules       map[string][]rbacRule    // key: kind/namespace/name -> rules
+	objectsByKind   map[string][]*objectRef  // key: kind -> list of objects
+	resourceToKind  map[string]string        // plural resource name -> Kind (e.g., "pods" -> "Pod")
 }
 
 type rbacRule struct {
@@ -43,37 +46,136 @@ type objectRef struct {
 	name      string
 }
 
-func newRBACExtractor(clusterName string, scraperID *uuid.UUID) *rbacExtractor {
+// builtinResourceKinds maps plural resource names to their Kind for core Kubernetes resources.
+var builtinResourceKinds = map[string]string{
+	"pods":                     "Pod",
+	"services":                 "Service",
+	"deployments":              "Deployment",
+	"replicasets":              "ReplicaSet",
+	"statefulsets":             "StatefulSet",
+	"daemonsets":               "DaemonSet",
+	"jobs":                     "Job",
+	"cronjobs":                 "CronJob",
+	"configmaps":               "ConfigMap",
+	"secrets":                  "Secret",
+	"persistentvolumeclaims":   "PersistentVolumeClaim",
+	"persistentvolumes":        "PersistentVolume",
+	"namespaces":               "Namespace",
+	"nodes":                    "Node",
+	"serviceaccounts":          "ServiceAccount",
+	"ingresses":                "Ingress",
+	"networkpolicies":          "NetworkPolicy",
+	"roles":                    "Role",
+	"rolebindings":             "RoleBinding",
+	"clusterroles":             "ClusterRole",
+	"clusterrolebindings":      "ClusterRoleBinding",
+	"events":                   "Event",
+	"endpoints":                "Endpoints",
+	"limitranges":              "LimitRange",
+	"resourcequotas":           "ResourceQuota",
+	"poddisruptionbudgets":     "PodDisruptionBudget",
+	"horizontalpodautoscalers": "HorizontalPodAutoscaler",
+}
+
+var crdResourceKindCache = struct {
+	sync.Mutex
+	entries map[string]crdCacheEntry
+}{
+	entries: make(map[string]crdCacheEntry),
+}
+
+type crdCacheEntry struct {
+	resourceToKind map[string]string
+	expiresAt      time.Time
+}
+
+const crdCacheTTL = 12 * time.Hour
+
+// fetchCRDResourceKinds queries the K8s API for CRDs and returns a resource→kind map.
+// Results are cached per cluster for 12 hours.
+func fetchCRDResourceKinds(ctx api.ScrapeContext, clusterName string) map[string]string {
+	crdResourceKindCache.Lock()
+	defer crdResourceKindCache.Unlock()
+
+	if entry, ok := crdResourceKindCache.entries[clusterName]; ok && time.Now().Before(entry.expiresAt) {
+		return entry.resourceToKind
+	}
+
+	resourceMap := make(map[string]string)
+
+	k8s, err := ctx.Kubernetes()
+	if err != nil {
+		ctx.Warnf("failed to get k8s client for CRD lookup: %v", err)
+		return resourceMap
+	}
+
+	cs, err := clientset.NewForConfig(k8s.RestConfig())
+	if err != nil {
+		ctx.Warnf("failed to create apiextensions client for CRD lookup: %v", err)
+		return resourceMap
+	}
+
+	allCRDs, err := cs.ApiextensionsV1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		ctx.Warnf("failed to list CRDs: %v", err)
+		return resourceMap
+	}
+
+	for _, crd := range allCRDs.Items {
+		plural := crd.Spec.Names.Plural
+		kind := crd.Spec.Names.Kind
+		if plural != "" && kind != "" {
+			resourceMap[strings.ToLower(plural)] = kind
+		}
+	}
+
+	crdResourceKindCache.entries[clusterName] = crdCacheEntry{
+		resourceToKind: resourceMap,
+		expiresAt:      time.Now().Add(crdCacheTTL),
+	}
+
+	return resourceMap
+}
+
+func newRBACExtractor(ctx api.ScrapeContext, clusterName string, scraperID *uuid.UUID) *rbacExtractor {
+	// Start with built-in resource mappings
+	resourceMap := make(map[string]string, len(builtinResourceKinds))
+	for k, v := range builtinResourceKinds {
+		resourceMap[k] = v
+	}
+
+	// Merge CRD mappings from the K8s API
+	for k, v := range fetchCRDResourceKinds(ctx, clusterName) {
+		resourceMap[k] = v
+	}
+
+	return newRBACExtractorWithResourceMap(clusterName, scraperID, resourceMap)
+}
+
+func newRBACExtractorWithResourceMap(clusterName string, scraperID *uuid.UUID, resourceToKind map[string]string) *rbacExtractor {
 	return &rbacExtractor{
-		clusterName:   clusterName,
-		scraperID:     scraperID,
-		roles:         make(map[uuid.UUID]models.ExternalRole),
-		users:         make(map[uuid.UUID]models.ExternalUser),
-		groups:        make(map[uuid.UUID]models.ExternalGroup),
-		roleRules:     make(map[string][]rbacRule),
-		objectsByKind: make(map[string][]*objectRef),
-		objectLookup:  make(map[string]*unstructured.Unstructured),
+		clusterName:    clusterName,
+		scraperID:      scraperID,
+		roles:          make(map[uuid.UUID]models.ExternalRole),
+		users:          make(map[uuid.UUID]models.ExternalUser),
+		groups:         make(map[uuid.UUID]models.ExternalGroup),
+		roleRules:      make(map[string][]rbacRule),
+		objectsByKind:  make(map[string][]*objectRef),
+		resourceToKind: resourceToKind,
 	}
 }
 
-// indexObjects builds lookup maps for all objects
+// indexObjects builds lookup maps for all scraped objects.
 func (r *rbacExtractor) indexObjects(objs []*unstructured.Unstructured) {
 	for _, obj := range objs {
 		kind := obj.GetKind()
-		namespace := obj.GetNamespace()
-		name := obj.GetName()
 
-		ref := &objectRef{
+		r.objectsByKind[kind] = append(r.objectsByKind[kind], &objectRef{
 			obj:       obj,
 			kind:      kind,
-			namespace: namespace,
-			name:      name,
-		}
-
-		r.objectsByKind[kind] = append(r.objectsByKind[kind], ref)
-
-		key := r.objectKey(kind, namespace, name)
-		r.objectLookup[key] = obj
+			namespace: obj.GetNamespace(),
+			name:      obj.GetName(),
+		})
 	}
 }
 
@@ -282,20 +384,22 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 	}
 }
 
-// findTargetResources finds all resources that match the given RBAC rules
+// findTargetResources finds all resources that match the given RBAC rules.
 func (r *rbacExtractor) findTargetResources(rules []rbacRule, bindingNamespace string, isClusterWide bool) []*objectRef {
 	var targets []*objectRef
 
 	for _, rule := range rules {
 		for _, resourceType := range rule.Resources {
-			// Convert plural resource name to Kind (e.g., "pods" -> "Pod")
-			kind := resourceToKind(resourceType)
-			if kind == "" {
+			if resourceType == "*" {
 				continue
 			}
 
-			objects := r.objectsByKind[kind]
-			for _, objRef := range objects {
+			kind, ok := r.resourceToKind[strings.ToLower(resourceType)]
+			if !ok {
+				continue
+			}
+
+			for _, objRef := range r.objectsByKind[kind] {
 				// For namespace-scoped bindings, only include resources in the same namespace
 				if !isClusterWide && objRef.namespace != bindingNamespace {
 					continue
@@ -306,53 +410,6 @@ func (r *rbacExtractor) findTargetResources(rules []rbacRule, bindingNamespace s
 	}
 
 	return targets
-}
-
-// resourceToKind converts a Kubernetes resource name (plural) to its Kind (singular, capitalized)
-func resourceToKind(resource string) string {
-	// Handle wildcards
-	if resource == "*" {
-		return ""
-	}
-
-	// Common resource mappings
-	resourceKindMap := map[string]string{
-		"pods":                   "Pod",
-		"services":               "Service",
-		"deployments":            "Deployment",
-		"replicasets":            "ReplicaSet",
-		"statefulsets":           "StatefulSet",
-		"daemonsets":             "DaemonSet",
-		"jobs":                   "Job",
-		"cronjobs":               "CronJob",
-		"configmaps":             "ConfigMap",
-		"secrets":                "Secret",
-		"persistentvolumeclaims": "PersistentVolumeClaim",
-		"persistentvolumes":      "PersistentVolume",
-		"namespaces":             "Namespace",
-		"nodes":                  "Node",
-		"serviceaccounts":        "ServiceAccount",
-		"ingresses":              "Ingress",
-		"networkpolicies":        "NetworkPolicy",
-		"roles":                  "Role",
-		"rolebindings":           "RoleBinding",
-		"clusterroles":           "ClusterRole",
-		"clusterrolebindings":    "ClusterRoleBinding",
-		"events":                 "Event",
-		"endpoints":              "Endpoints",
-		"limitranges":            "LimitRange",
-		"resourcequotas":         "ResourceQuota",
-		"poddisruptionbudgets":   "PodDisruptionBudget",
-		"horizontalpodautoscalers": "HorizontalPodAutoscaler",
-	}
-
-	if kind, ok := resourceKindMap[strings.ToLower(resource)]; ok {
-		return kind
-	}
-
-	// Fallback: try to capitalize and singularize
-	// For custom resources, this may not work perfectly
-	return ""
 }
 
 // GetConfigTypeForKind returns the config type for a given Kubernetes kind

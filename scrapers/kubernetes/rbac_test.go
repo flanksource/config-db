@@ -43,7 +43,7 @@ func TestRBACExtractor_ProcessRole(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			extractor := newRBACExtractor(clusterName, &scraperID)
+			extractor := testRBACExtractor(clusterName, &scraperID)
 			extractor.processRole(tt.obj)
 
 			roles := extractor.getRoles()
@@ -76,7 +76,7 @@ func TestRBACExtractor_ProcessRoleBinding_ServiceAccount(t *testing.T) {
 		{Kind: "ServiceAccount", Name: "my-sa", Namespace: "default"},
 	})
 
-	extractor := newRBACExtractor(clusterName, &scraperID)
+	extractor := testRBACExtractor(clusterName, &scraperID)
 	extractor.indexObjects([]*unstructured.Unstructured{role, pod1, pod2, podOtherNS, binding})
 	extractor.processRole(role)
 	extractor.processRoleBinding(binding)
@@ -119,7 +119,7 @@ func TestRBACExtractor_ProcessRoleBinding_User(t *testing.T) {
 		{Kind: "User", Name: "admin@example.com"},
 	})
 
-	extractor := newRBACExtractor(clusterName, &scraperID)
+	extractor := testRBACExtractor(clusterName, &scraperID)
 	extractor.indexObjects([]*unstructured.Unstructured{role, pod1, svc1, binding})
 	extractor.processRole(role)
 	extractor.processRoleBinding(binding)
@@ -152,7 +152,7 @@ func TestRBACExtractor_ProcessRoleBinding_Group(t *testing.T) {
 		{Kind: "Group", Name: "system:authenticated"},
 	})
 
-	extractor := newRBACExtractor(clusterName, &scraperID)
+	extractor := testRBACExtractor(clusterName, &scraperID)
 	extractor.indexObjects([]*unstructured.Unstructured{role, pod1, binding})
 	extractor.processRole(role)
 	extractor.processRoleBinding(binding)
@@ -189,7 +189,7 @@ func TestRBACExtractor_ProcessRoleBinding_MixedSubjects(t *testing.T) {
 		{Kind: "Group", Name: "developers"},
 	})
 
-	extractor := newRBACExtractor(clusterName, &scraperID)
+	extractor := testRBACExtractor(clusterName, &scraperID)
 	extractor.indexObjects([]*unstructured.Unstructured{role, pod1, binding})
 	extractor.processRole(role)
 	extractor.processRoleBinding(binding)
@@ -209,7 +209,7 @@ func TestRBACExtractor_Deduplication(t *testing.T) {
 	clusterName := "test-cluster"
 	scraperID := uuid.New()
 
-	extractor := newRBACExtractor(clusterName, &scraperID)
+	extractor := testRBACExtractor(clusterName, &scraperID)
 
 	// Process the same role twice
 	role := makeClusterRole("cluster-admin", []rbacRuleSpec{{Resources: []string{"pods"}}})
@@ -239,7 +239,7 @@ func TestRBACExtractor_NamespaceScoping(t *testing.T) {
 		{Kind: "User", Name: "user1"},
 	})
 
-	extractor := newRBACExtractor(clusterName, &scraperID)
+	extractor := testRBACExtractor(clusterName, &scraperID)
 	extractor.indexObjects([]*unstructured.Unstructured{role, podDefault1, podDefault2, podOther, binding})
 	extractor.processRole(role)
 	extractor.processRoleBinding(binding)
@@ -254,7 +254,49 @@ func TestRBACExtractor_NamespaceScoping(t *testing.T) {
 	}
 }
 
+func TestRBACExtractor_CRDResourceResolution(t *testing.T) {
+	clusterName := "test-cluster"
+	scraperID := uuid.New()
+
+	// Simulate CRD resource mapping (as if fetched from K8s API)
+	resourceMap := make(map[string]string, len(builtinResourceKinds))
+	for k, v := range builtinResourceKinds {
+		resourceMap[k] = v
+	}
+	resourceMap["canaries"] = "Canary"
+
+	// A custom resource instance
+	canary := makeCustomResource("Canary", "my-canary", "default")
+
+	// A ClusterRole granting access to the custom resource
+	role := makeClusterRole("canary-admin", []rbacRuleSpec{
+		{APIGroups: []string{"flanksource.com"}, Resources: []string{"canaries"}, Verbs: []string{"*"}},
+	})
+
+	binding := makeClusterRoleBinding("canary-binding", "ClusterRole", "canary-admin", []subject{
+		{Kind: "User", Name: "ops@example.com"},
+	})
+
+	extractor := newRBACExtractorWithResourceMap(clusterName, &scraperID, resourceMap)
+	extractor.indexObjects([]*unstructured.Unstructured{canary, role, binding})
+	extractor.processRole(role)
+	extractor.processRoleBinding(binding)
+
+	access := extractor.getAccess()
+	require.Len(t, access, 1, "expected 1 config access entry for the canary instance")
+	assert.Equal(t, ConfigTypePrefix+"Canary", access[0].ConfigExternalID.ConfigType)
+	assert.Equal(t, KubernetesAlias(clusterName, "Canary", "default", "my-canary"), access[0].ConfigExternalID.ExternalID)
+}
+
 // Helper types and functions
+
+func testRBACExtractor(clusterName string, scraperID *uuid.UUID) *rbacExtractor {
+	resourceMap := make(map[string]string, len(builtinResourceKinds))
+	for k, v := range builtinResourceKinds {
+		resourceMap[k] = v
+	}
+	return newRBACExtractorWithResourceMap(clusterName, scraperID, resourceMap)
+}
 
 type subject struct {
 	Kind      string
@@ -412,6 +454,21 @@ func makeService(name, namespace string) *unstructured.Unstructured {
 		Object: map[string]any{
 			"apiVersion": "v1",
 			"kind":       "Service",
+			"metadata": map[string]any{
+				"uid":               uuid.NewString(),
+				"name":              name,
+				"namespace":         namespace,
+				"creationTimestamp": time.Now().Format(time.RFC3339),
+			},
+		},
+	}
+}
+
+func makeCustomResource(kind, name, namespace string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "flanksource.com/v1",
+			"kind":       kind,
 			"metadata": map[string]any{
 				"uid":               uuid.NewString(),
 				"name":              name,
