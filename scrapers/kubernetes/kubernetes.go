@@ -569,10 +569,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	for _, binding := range roleBindings {
 		rbac.processRoleBinding(binding)
 	}
-
-	// Append RBAC results (ExternalRoles, ExternalUsers, ExternalGroups, ConfigAccess)
-	rbacResult := rbac.results(ctx.config.BaseScraper)
-	results = append(results, rbacResult)
+	results = append(results, rbac.results(ctx.config.BaseScraper))
 
 	results = append(results, changeResults...)
 	if ctx.IsIncrementalScrape() {

@@ -148,6 +148,10 @@ func fetchCRDResourceKinds(ctx api.ScrapeContext, clusterName string) map[string
 }
 
 func newRBACExtractor(ctx api.ScrapeContext, clusterName string, scraperID *uuid.UUID) *rbacExtractor {
+	if scraperID == nil {
+		return nil
+	}
+
 	// Start with built-in resource mappings
 	resourceMap := make(map[string]string, len(builtinResourceKinds))
 	for k, v := range builtinResourceKinds {
@@ -177,6 +181,9 @@ func newRBACExtractorWithResourceMap(clusterName string, scraperID *uuid.UUID, r
 
 // indexObjects builds lookup maps for all scraped objects.
 func (r *rbacExtractor) indexObjects(objs []*unstructured.Unstructured) {
+	if r == nil {
+		return
+	}
 	for _, obj := range objs {
 		kind := obj.GetKind()
 
@@ -194,6 +201,9 @@ func (r *rbacExtractor) objectKey(kind, namespace, name string) string {
 }
 
 func (r *rbacExtractor) processRole(obj *unstructured.Unstructured) {
+	if r == nil {
+		return
+	}
 	kind := obj.GetKind()
 	if kind != "ClusterRole" && kind != "Role" {
 		return
@@ -270,6 +280,9 @@ func (r *rbacExtractor) parseRules(obj *unstructured.Unstructured) []rbacRule {
 }
 
 func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
+	if r == nil {
+		return
+	}
 	kind := obj.GetKind()
 	if kind != "ClusterRoleBinding" && kind != "RoleBinding" {
 		return
@@ -456,6 +469,9 @@ func (r *rbacExtractor) getAccess() []v1.ExternalConfigAccess {
 }
 
 func (r *rbacExtractor) results(baseScraper v1.BaseScraper) v1.ScrapeResult {
+	if r == nil {
+		return v1.ScrapeResult{}
+	}
 	return v1.ScrapeResult{
 		BaseScraper:    baseScraper,
 		ExternalRoles:  r.getRoles(),
