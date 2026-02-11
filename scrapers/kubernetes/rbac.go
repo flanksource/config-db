@@ -499,4 +499,3 @@ func generateRBACID(parts ...string) uuid.UUID {
 	gen := uuidV5.NewV5(uuidV5.NamespaceOID, input)
 	return uuid.UUID(gen)
 }
-

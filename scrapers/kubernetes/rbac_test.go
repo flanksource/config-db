@@ -502,4 +502,3 @@ func makeCustomResource(kind, name, namespace string) *unstructured.Unstructured
 		},
 	}
 }
-

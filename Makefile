@@ -73,21 +73,37 @@ test-load:
 
 .PHONY: gotest
 gotest: ginkgo
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+	@ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
+		{ echo "ERROR: setup-envtest failed to configure test binaries"; exit 1; }; \
+	[ -n "$$ASSETS" ] || \
+		{ echo "ERROR: setup-envtest returned empty path for KUBEBUILDER_ASSETS"; exit 1; }; \
+	KUBEBUILDER_ASSETS="$$ASSETS" \
 		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out ./...
 
 .PHONY: gotest-prod
 gotest-prod:
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -tags rustdiffgen -skip ^TestE2E$$ ./... -coverprofile cover.out
+	@ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
+		{ echo "ERROR: setup-envtest failed to configure test binaries"; exit 1; }; \
+	[ -n "$$ASSETS" ] || \
+		{ echo "ERROR: setup-envtest returned empty path for KUBEBUILDER_ASSETS"; exit 1; }; \
+	KUBEBUILDER_ASSETS="$$ASSETS" go test -tags rustdiffgen -skip ^TestE2E$$ ./... -coverprofile cover.out
 
 .PHONY: gotest-load
 gotest-load:
 	make -C fixtures/load k6
-	LOAD_TEST=1 KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./tests -skip ^TestE2E$$ -coverprofile cover.out
+	@ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
+		{ echo "ERROR: setup-envtest failed to configure test binaries"; exit 1; }; \
+	[ -n "$$ASSETS" ] || \
+		{ echo "ERROR: setup-envtest returned empty path for KUBEBUILDER_ASSETS"; exit 1; }; \
+	LOAD_TEST=1 KUBEBUILDER_ASSETS="$$ASSETS" go test -v ./tests -skip ^TestE2E$$ -coverprofile cover.out
 
 .PHONY: env
 env: envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+	@ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
+		{ echo "ERROR: setup-envtest failed to configure test binaries"; exit 1; }; \
+	[ -n "$$ASSETS" ] || \
+		{ echo "ERROR: setup-envtest returned empty path for KUBEBUILDER_ASSETS"; exit 1; }; \
+	KUBEBUILDER_ASSETS="$$ASSETS" \
 		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out
 
 .PHONY: ginkgo
