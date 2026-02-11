@@ -71,38 +71,35 @@ test-load:
 	kubectl delete events --all -n testns
 	$(MAKE) gotest-load
 
-.PHONY: gotest
-gotest: ginkgo
+define validate-envtest-assets
 	@ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
 		{ echo "ERROR: setup-envtest failed to configure test binaries"; exit 1; }; \
 	[ -n "$$ASSETS" ] || \
 		{ echo "ERROR: setup-envtest returned empty path for KUBEBUILDER_ASSETS"; exit 1; }; \
+	[ -x "$$ASSETS/etcd" ] || \
+		{ echo "ERROR: etcd not found at $$ASSETS/etcd — try deleting .bin/k8s and re-running"; exit 1; };
+endef
+
+.PHONY: gotest
+gotest: ginkgo
+	$(validate-envtest-assets) \
 	KUBEBUILDER_ASSETS="$$ASSETS" \
 		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out ./...
 
 .PHONY: gotest-prod
 gotest-prod:
-	@ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
-		{ echo "ERROR: setup-envtest failed to configure test binaries"; exit 1; }; \
-	[ -n "$$ASSETS" ] || \
-		{ echo "ERROR: setup-envtest returned empty path for KUBEBUILDER_ASSETS"; exit 1; }; \
+	$(validate-envtest-assets) \
 	KUBEBUILDER_ASSETS="$$ASSETS" go test -tags rustdiffgen -skip ^TestE2E$$ ./... -coverprofile cover.out
 
 .PHONY: gotest-load
 gotest-load:
 	make -C fixtures/load k6
-	@ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
-		{ echo "ERROR: setup-envtest failed to configure test binaries"; exit 1; }; \
-	[ -n "$$ASSETS" ] || \
-		{ echo "ERROR: setup-envtest returned empty path for KUBEBUILDER_ASSETS"; exit 1; }; \
+	$(validate-envtest-assets) \
 	LOAD_TEST=1 KUBEBUILDER_ASSETS="$$ASSETS" go test -v ./tests -skip ^TestE2E$$ -coverprofile cover.out
 
 .PHONY: env
 env: envtest ## Run tests.
-	@ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
-		{ echo "ERROR: setup-envtest failed to configure test binaries"; exit 1; }; \
-	[ -n "$$ASSETS" ] || \
-		{ echo "ERROR: setup-envtest returned empty path for KUBEBUILDER_ASSETS"; exit 1; }; \
+	$(validate-envtest-assets) \
 	KUBEBUILDER_ASSETS="$$ASSETS" \
 		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out
 
@@ -250,12 +247,12 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(LOCALBIN)/controller-gen && $(LOCALBIN)/controller-gen --version | grep -q $(CONTROLLER_TOOLS_VERSION) || \
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
 
-ENVTEST_K8S_VERSION = 1.25.0
-CONTROLLER_RUNTIME_VERSION = v0.0.0-20240320141353-395cfc7486e6
+ENVTEST_K8S_VERSION = 1.34.0
+ENVTEST_BRANCH = release-0.22
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(CONTROLLER_RUNTIME_VERSION)
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_BRANCH)
 
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
