@@ -96,10 +96,14 @@ func TestRBACExtractor_ProcessRoleBinding_ServiceAccount(t *testing.T) {
 	access := extractor.getAccess()
 	require.Len(t, access, 2, "expected 2 config access entries (one per pod in namespace)")
 
+	expectedRoleAlias := KubernetesAlias(clusterName, "Role", "default", "pod-reader")
+
 	// Check that access entries point to pods, not the role
 	for _, a := range access {
 		assert.Equal(t, ConfigTypePrefix+"Pod", a.ConfigExternalID.ConfigType)
 		assert.Equal(t, []string{expectedUserAlias}, a.ExternalUserAliases)
+		assert.Equal(t, []string{expectedRoleAlias}, a.ExternalRoleAliases)
+		assert.NotEmpty(t, a.ID, "access ID should be set")
 	}
 }
 
@@ -136,6 +140,12 @@ func TestRBACExtractor_ProcessRoleBinding_User(t *testing.T) {
 	// Should have ConfigAccess for the pod and service (cluster-wide)
 	access := extractor.getAccess()
 	assert.Len(t, access, 2, "expected 2 config access entries (pod + service)")
+
+	expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "cluster-admin")
+	for _, a := range access {
+		assert.Equal(t, []string{expectedRoleAlias}, a.ExternalRoleAliases)
+		assert.NotEmpty(t, a.ID, "access ID should be set")
+	}
 }
 
 func TestRBACExtractor_ProcessRoleBinding_Group(t *testing.T) {
@@ -171,6 +181,10 @@ func TestRBACExtractor_ProcessRoleBinding_Group(t *testing.T) {
 	require.Len(t, access, 1, "expected 1 config access entry")
 	assert.Empty(t, access[0].ExternalUserAliases)
 	assert.Equal(t, []string{expectedGroupAlias}, access[0].ExternalGroupAliases)
+
+	expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "view")
+	assert.Equal(t, []string{expectedRoleAlias}, access[0].ExternalRoleAliases)
+	assert.NotEmpty(t, access[0].ID, "access ID should be set")
 }
 
 func TestRBACExtractor_ProcessRoleBinding_MixedSubjects(t *testing.T) {
@@ -203,6 +217,12 @@ func TestRBACExtractor_ProcessRoleBinding_MixedSubjects(t *testing.T) {
 	// Each subject gets one ConfigAccess entry for the pod
 	access := extractor.getAccess()
 	assert.Len(t, access, 3, "expected 3 config access entries (one per subject, all pointing to same pod)")
+
+	expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "edit")
+	for _, a := range access {
+		assert.Equal(t, []string{expectedRoleAlias}, a.ExternalRoleAliases)
+		assert.NotEmpty(t, a.ID, "access ID should be set")
+	}
 }
 
 func TestRBACExtractor_Deduplication(t *testing.T) {
@@ -286,6 +306,10 @@ func TestRBACExtractor_CRDResourceResolution(t *testing.T) {
 	require.Len(t, access, 1, "expected 1 config access entry for the canary instance")
 	assert.Equal(t, ConfigTypePrefix+"Canary", access[0].ConfigExternalID.ConfigType)
 	assert.Equal(t, KubernetesAlias(clusterName, "Canary", "default", "my-canary"), access[0].ConfigExternalID.ExternalID)
+
+	expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "canary-admin")
+	assert.Equal(t, []string{expectedRoleAlias}, access[0].ExternalRoleAliases)
+	assert.NotEmpty(t, access[0].ID, "access ID should be set")
 }
 
 // Helper types and functions
@@ -478,3 +502,4 @@ func makeCustomResource(kind, name, namespace string) *unstructured.Unstructured
 		},
 	}
 }
+

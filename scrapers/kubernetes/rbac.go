@@ -313,6 +313,9 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 	// Find all target resources based on the rules
 	targetResources := r.findTargetResources(rules, bindingNamespace, kind == "ClusterRoleBinding")
 
+	// Compute the role alias once for the binding
+	roleAlias := KubernetesAlias(r.clusterName, roleKind, roleNamespace, roleName)
+
 	// Get subjects
 	subjects, found, _ := unstructured.NestedSlice(obj.Object, "subjects")
 	if !found {
@@ -387,11 +390,21 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 		// If we have rules and target resources, create ConfigAccess for each resource
 		if hasRules && len(targetResources) > 0 {
 			for _, target := range targetResources {
+				subjectAlias := userAlias
+				if subjectAlias == "" {
+					subjectAlias = groupAlias
+				}
+				targetExternalID := KubernetesAlias(r.clusterName, target.kind, target.namespace, target.name)
+
 				access := v1.ExternalConfigAccess{
+					ConfigAccess: models.ConfigAccess{
+						ID: generateRBACID(subjectAlias, targetExternalID, roleAlias).String(),
+					},
 					ConfigExternalID: v1.ExternalID{
-						ExternalID: KubernetesAlias(r.clusterName, target.kind, target.namespace, target.name),
+						ExternalID: targetExternalID,
 						ConfigType: GetConfigTypeForKind(target.kind),
 					},
+					ExternalRoleAliases: []string{roleAlias},
 				}
 
 				if userAlias != "" {
@@ -486,3 +499,4 @@ func generateRBACID(parts ...string) uuid.UUID {
 	gen := uuidV5.NewV5(uuidV5.NamespaceOID, input)
 	return uuid.UUID(gen)
 }
+
