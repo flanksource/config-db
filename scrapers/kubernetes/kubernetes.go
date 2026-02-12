@@ -139,6 +139,16 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 
 	results = append(results, cluster)
 
+	// Initialize RBAC extractor for config access tracking
+	var rbac *rbacExtractor
+	var roleBindings []*unstructured.Unstructured
+	if ctx.Properties().On(true, "kubernetes.rbac_config_access") {
+		rbacCtx := ctx.ScrapeContext
+		rbacCtx.Context = rbacCtx.WithKubernetes(ctx.config.KubernetesConnection)
+		rbac = newRBACExtractor(rbacCtx, clusterName, ctx.ScrapeConfig().GetPersistedID())
+		rbac.indexObjects(objs)
+	}
+
 	ctx.Load(objs)
 	if ctx.IsIncrementalScrape() {
 		// On incremental scrape, we do not have all the data in the resource ID map.
@@ -419,6 +429,13 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 					}
 				}
 			}
+
+		case "ClusterRole", "Role":
+			rbac.processRole(obj)
+
+		case "ClusterRoleBinding", "RoleBinding":
+			// Store bindings for later processing after all roles are processed
+			roleBindings = append(roleBindings, obj)
 		}
 
 		if obj.GetNamespace() != "" {
@@ -550,6 +567,12 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			Properties:          props,
 		})
 	}
+
+	// Process role bindings after all roles have been processed
+	for _, binding := range roleBindings {
+		rbac.processRoleBinding(binding)
+	}
+	results = append(results, rbac.results(ctx.config.BaseScraper))
 
 	results = append(results, changeResults...)
 	if ctx.IsIncrementalScrape() {

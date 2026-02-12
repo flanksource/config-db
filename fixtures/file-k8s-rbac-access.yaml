@@ -1,0 +1,12 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-k8s-rbac-access-scraper
+spec:
+  full: true
+  file:
+    - type: Kubernetes::Pod
+      class: Pod
+      id: $.id
+      paths:
+        - fixtures/data/k8s_rbac_access_test.json
