@@ -1,7 +1,6 @@
 package folder
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"regexp"
@@ -182,15 +181,9 @@ func (f FolderScraper) createConfigItem(config v1.Folder, fileInfo fs.FileInfo, 
 		"mode":    fileInfo.Mode().String(),
 	}
 
-	metadataJSON, err := json.Marshal(metadata)
-	if err != nil {
-		return result.Errorf("failed to marshal metadata: %v", err)
-	}
-
-	result.Config = metadata
 	result.Source = fmt.Sprintf("%s/%s", basePath, fileInfo.Name())
 
-	return result.Success(string(metadataJSON))
+	return result.Success(metadata)
 }
 
 func newFolderFilterContext(filter v1.FolderFilter, allowDir bool) (*v1.FolderFilterContext, error) {
