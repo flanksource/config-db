@@ -6,7 +6,10 @@ import (
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
@@ -18,6 +21,19 @@ func (s Scraper) CanScrape(configs v1.ScraperSpec) bool {
 }
 
 func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
+	var results v1.ScrapeResults
+
+	results = append(results, scrapeAgents(ctx)...)
+	results = append(results, scrapePlaybooks(ctx)...)
+	results = append(results, scrapeJobHistories(ctx)...)
+
+	scraperID := lo.FromPtr(ctx.ScrapeConfig().GetPersistedID())
+	results = append(results, scrapeAccessEntities(ctx, scraperID))
+
+	return results
+}
+
+func scrapeAgents(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
 	var agents []models.Agent
@@ -42,6 +58,38 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			Status:      status,
 		})
 	}
+
+	return results
+}
+
+func scrapePlaybooks(ctx api.ScrapeContext) v1.ScrapeResults {
+	var results v1.ScrapeResults
+
+	var playbooks []models.Playbook
+	if err := ctx.DB().Where("deleted_at IS NULL AND source != ?", models.SourceCRD).Find(&playbooks).Error; err != nil {
+		return results.Errorf(err, "error querying playbooks")
+	}
+
+	for _, playbook := range playbooks {
+		name := playbook.Name
+		if playbook.Title != "" {
+			name = playbook.Title
+		}
+
+		results = append(results, v1.ScrapeResult{
+			ID:          playbook.ID.String(),
+			Name:        name,
+			Type:        "MissionControl::Playbook",
+			ConfigClass: "Playbook",
+			Config:      playbook.Spec,
+		})
+	}
+
+	return results
+}
+
+func scrapeJobHistories(ctx api.ScrapeContext) v1.ScrapeResults {
+	var results v1.ScrapeResults
 
 	jobHistories, err := gorm.G[models.JobHistory](ctx.DB()).
 		Table("job_history_latest_status").
@@ -90,5 +138,98 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			Config:      config,
 		})
 	}
+
 	return results
+}
+
+// scrapeAccessEntities returns a single metadata-only ScrapeResult that carries
+// external users (from people), external groups (from teams), and external roles
+// for playbook actions.
+func scrapeAccessEntities(ctx api.ScrapeContext, scraperID uuid.UUID) v1.ScrapeResult {
+	result := v1.ScrapeResult{}
+
+	users, err := scrapePeople(ctx, scraperID)
+	if err != nil {
+		result = result.SetError(err)
+	} else {
+		result.ExternalUsers = users
+	}
+
+	groups, err := scrapeTeams(ctx, scraperID)
+	if err != nil {
+		result = result.SetError(err)
+	} else {
+		result.ExternalGroups = groups
+	}
+
+	result.ExternalRoles = scrapePlaybookRoles(scraperID)
+
+	return result
+}
+
+func scrapePeople(ctx api.ScrapeContext, scraperID uuid.UUID) ([]models.ExternalUser, error) {
+	people, err := db.GetAllHumanPeople(ctx.DutyContext())
+	if err != nil {
+		return nil, fmt.Errorf("error querying people: %w", err)
+	}
+
+	externalUsers := make([]models.ExternalUser, 0, len(people))
+	for _, person := range people {
+		eu := models.ExternalUser{
+			Name:      person.Name,
+			AccountID: "mission-control",
+			UserType:  lo.CoalesceOrEmpty(person.Type, "local"),
+			Aliases:   pq.StringArray{"people:" + person.ID.String()},
+			ScraperID: scraperID,
+			CreatedAt: time.Now(),
+		}
+		if person.Email != "" {
+			eu.Email = &person.Email
+		}
+		externalUsers = append(externalUsers, eu)
+	}
+
+	return externalUsers, nil
+}
+
+func scrapeTeams(ctx api.ScrapeContext, scraperID uuid.UUID) ([]models.ExternalGroup, error) {
+	var teams []models.Team
+	if err := ctx.DB().Where("deleted_at IS NULL").Find(&teams).Error; err != nil {
+		return nil, fmt.Errorf("error querying teams: %w", err)
+	}
+
+	externalGroups := make([]models.ExternalGroup, 0, len(teams))
+	for _, team := range teams {
+		externalGroups = append(externalGroups, models.ExternalGroup{
+			Name:      team.Name,
+			AccountID: "mission-control",
+			GroupType: "team",
+			Aliases:   pq.StringArray{"team:" + team.ID.String()},
+			ScraperID: scraperID,
+			CreatedAt: time.Now(),
+		})
+	}
+
+	return externalGroups, nil
+}
+
+func scrapePlaybookRoles(scraperID uuid.UUID) []models.ExternalRole {
+	return []models.ExternalRole{
+		{
+			Name:      "playbook:run",
+			AccountID: "mission-control",
+			RoleType:  "playbook-action",
+			Aliases:   pq.StringArray{"role:playbook:run"},
+			ScraperID: &scraperID,
+			CreatedAt: time.Now(),
+		},
+		{
+			Name:      "playbook:approve",
+			AccountID: "mission-control",
+			RoleType:  "playbook-action",
+			Aliases:   pq.StringArray{"role:playbook:approve"},
+			ScraperID: &scraperID,
+			CreatedAt: time.Now(),
+		},
+	}
 }

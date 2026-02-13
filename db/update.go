@@ -733,6 +733,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			return summary, fmt.Errorf("failed to save external user: %w", err)
 		}
 
+		summary.AddInserted("MissionControl::ExternalUser")
 		seen.externalUserIDs = append(seen.externalUserIDs, externalUser.ID)
 
 		// Update cache for all aliases
@@ -767,6 +768,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			return summary, fmt.Errorf("failed to save external group: %w", err)
 		}
 
+		summary.AddInserted("MissionControl::ExternalGroup")
 		seen.externalGroupIDs = append(seen.externalGroupIDs, externalGroup.ID)
 
 		// Update cache for all aliases
@@ -801,6 +803,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			return summary, fmt.Errorf("failed to save external role: %w", err)
 		}
 
+		summary.AddInserted("MissionControl::ExternalRole")
 		seen.externalRoleIDs = append(seen.externalRoleIDs, externalRole.ID)
 
 		// Update cache for all aliases
