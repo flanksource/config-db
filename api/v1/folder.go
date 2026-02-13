@@ -67,7 +67,8 @@ func (f *Folder) GetPath() string {
 	}
 
 	if f.GCS != nil {
-		// GCS doesn't have ObjectPath
+		// GCS paths should be specified in the Path field
+		// GCS connection handles bucket configuration
 		return ""
 	}
 
@@ -79,6 +80,8 @@ func (f *Folder) GetConnection(ctx context.Context) (*models.Connection, error) 
 		return &models.Connection{Type: models.ConnectionTypeFolder}, nil
 	}
 
+	// Note: S3 and GCS have different method names (Populate vs HydrateConnection)
+	// defined by the duty library, so we handle them separately
 	if f.S3 != nil {
 		if err := f.S3.Populate(ctx); err != nil {
 			return nil, fmt.Errorf("failed to populate S3 connection: %v", err)

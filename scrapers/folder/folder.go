@@ -102,14 +102,14 @@ func (f FolderScraper) filterFile(ctx api.ScrapeContext, info fs.FileInfo, filte
 
 	// Check age filters
 	if filter.MinAge != nil {
-		minTime := time.Now().Add(-time.Duration(*filter.MinAge))
+		minTime := time.Now().Add(-*filter.MinAge)
 		if info.ModTime().After(minTime) {
 			return false
 		}
 	}
 
 	if filter.MaxAge != nil {
-		maxTime := time.Now().Add(-time.Duration(*filter.MaxAge))
+		maxTime := time.Now().Add(-*filter.MaxAge)
 		if info.ModTime().Before(maxTime) {
 			return false
 		}
