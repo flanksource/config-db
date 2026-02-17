@@ -108,7 +108,7 @@ spec:
           envFrom:
           {{- if .Values.upstream.enabled}}
             - secretRef:
-                name: {{ .Values.upstream.secretKeyRef.name }}
+                name: {{ tpl .Values.upstream.secretKeyRef.name . }}
           {{- end}}
           {{- if .Values.extraEnvFrom }}
             {{- toYaml .Values.extraEnvFrom | nindent 12 }}
