@@ -162,7 +162,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	}
 
 	for _, obj := range objs {
-		tags := map[string]string{}
+		tags := lo.Assign(map[string]string{}, ctx.config.Tags.AsMap())
 
 		if ignore, err := ctx.IsIgnored(obj); err != nil {
 			ctx.Warnf("failed to ignore obj[%s]: %v", obj.GetName(), err)
@@ -559,7 +559,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 			ConfigID:     lo.ToPtr(string(obj.GetUID())),
 			ID:           string(obj.GetUID()),
 			Labels:       stripLabels(labels, "-hash"),
-
+			Tags:         tags,
 			Aliases:             allAliases,
 			Parents:             parents,
 			Children:            children,

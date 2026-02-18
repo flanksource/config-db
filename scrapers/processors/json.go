@@ -719,6 +719,17 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 	}
 
 	tags := map[string]string{}
+	for _, t := range input.BaseScraper.Tags {
+		if t.Label != "" {
+			if val, ok := input.Labels[t.Label]; ok && val != "" {
+				tags[t.Name] = val
+				continue
+			}
+		}
+		if v, ok := input.Tags[t.Name]; ok && v != "" {
+			tags[t.Name] = v
+		}
+	}
 	for k, v := range input.Tags {
 		if expr, ok := e.Tags[k]; ok {
 			tag, err := getString(expr, input.Config, v)
