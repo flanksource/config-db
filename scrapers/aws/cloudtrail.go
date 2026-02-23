@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/aws/smithy-go/ptr"
 	"github.com/flanksource/commons/hash"
-	"github.com/flanksource/commons/logger"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/lib/pq"
 	"github.com/samber/lo"
@@ -90,7 +89,6 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 	}
 
 	ctx.Logger.V(2).Infof("scraping cloudtrail")
-	logger.Infof("Scraping cloudtrail")
 
 	var lastEventKey = ctx.Session.Region + *ctx.Caller.Account
 	c := make(chan types.Event)
@@ -105,7 +103,6 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 				maxTime = *event.EventTime
 			}
 
-			logger.Infof("GOT CLOUDTRAIL EVENT %s at %s", *event.EventName, lo.FromPtr(event.EventTime).String())
 			count++
 			if containsAny(config.CloudTrail.Exclude, *event.EventName) {
 				ignored++
@@ -113,14 +110,19 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 			}
 
 			if lo.FromPtr(event.EventName) == "AssumeRole" {
-				logger.Infof("GOT CLOUDTRAIL EVENT %+v", event)
+				// Certain cases return nil/nil
 				result, err := cloudtrailAssumeRoleToAccessLog(event)
 				if err != nil {
 					ctx.Logger.V(2).Infof("failed to convert AssumeRole event to access log: %v", err)
 					ignored++
-				} else {
+				} else if result != nil {
 					*results = append(*results, *result)
 				}
+				continue
+			}
+
+			// Ignore ReadOnly events other than AssumeRole
+			if lo.FromPtr(event.ReadOnly) == "true" {
 				continue
 			}
 
@@ -152,16 +154,8 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 	if lastEventTime, ok := LastEventTime.Load(lastEventKey); ok {
 		start = lastEventTime.(time.Time)
 	}
-	logger.Infof("Using start time %s", start.String())
-	err := lookupEvents(ctx, &cloudtrail.LookupEventsInput{
-		StartTime: &start,
-		//LookupAttributes: []types.LookupAttribute{
-		//{
-		//AttributeKey:   types.LookupAttributeKeyReadOnly,
-		//AttributeValue: strPtr("false"),
-		//},
-		//},
-	}, c, config)
+
+	err := lookupEvents(ctx, &cloudtrail.LookupEventsInput{StartTime: &start}, c, config)
 
 	if err != nil {
 		results.Errorf(err, "Failed to describe cloudtrail events")
@@ -284,6 +278,11 @@ func cloudtrailAssumeRoleToAccessLog(event types.Event) (*v1.ScrapeResult, error
 	// Extract caller identity.
 	var userName, userARN, accountID string
 	userType := ctEvent.UserIdentity.Type
+
+	// Ignore AWSService AssumeRole events
+	if userType == "AWSService" {
+		return nil, nil
+	}
 
 	switch userType {
 	case "IAMUser":
