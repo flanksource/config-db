@@ -10,6 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/aws/smithy-go/ptr"
+	"github.com/flanksource/commons/hash"
+	"github.com/flanksource/commons/logger"
+	dutyModels "github.com/flanksource/duty/models"
+	"github.com/lib/pq"
 	"github.com/samber/lo"
 
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -68,6 +72,7 @@ type CloudTrailEvent struct {
 	RequestParameters struct {
 		LogGroupName  string `json:"logGroupName"`
 		LogStreamName string `json:"logStreamName"`
+		RoleArn       string `json:"roleArn"`
 	} `json:"requestParameters"`
 	Resources []struct {
 		ARN       string `json:"ARN"`
@@ -85,10 +90,7 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 	}
 
 	ctx.Logger.V(2).Infof("scraping cloudtrail")
-
-	if len(config.CloudTrail.Exclude) == 0 {
-		config.CloudTrail.Exclude = []string{"AssumeRole"}
-	}
+	logger.Infof("Scraping cloudtrail")
 
 	var lastEventKey = ctx.Session.Region + *ctx.Caller.Account
 	c := make(chan types.Event)
@@ -102,9 +104,23 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 			if event.EventTime != nil && event.EventTime.After(maxTime) {
 				maxTime = *event.EventTime
 			}
+
+			logger.Infof("GOT CLOUDTRAIL EVENT %s at %s", *event.EventName, lo.FromPtr(event.EventTime).String())
 			count++
 			if containsAny(config.CloudTrail.Exclude, *event.EventName) {
 				ignored++
+				continue
+			}
+
+			if lo.FromPtr(event.EventName) == "AssumeRole" {
+				logger.Infof("GOT CLOUDTRAIL EVENT %+v", event)
+				result, err := cloudtrailAssumeRoleToAccessLog(event)
+				if err != nil {
+					ctx.Logger.V(2).Infof("failed to convert AssumeRole event to access log: %v", err)
+					ignored++
+				} else {
+					*results = append(*results, *result)
+				}
 				continue
 			}
 
@@ -136,14 +152,15 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 	if lastEventTime, ok := LastEventTime.Load(lastEventKey); ok {
 		start = lastEventTime.(time.Time)
 	}
+	logger.Infof("Using start time %s", start.String())
 	err := lookupEvents(ctx, &cloudtrail.LookupEventsInput{
 		StartTime: &start,
-		LookupAttributes: []types.LookupAttribute{
-			{
-				AttributeKey:   types.LookupAttributeKeyReadOnly,
-				AttributeValue: strPtr("false"),
-			},
-		},
+		//LookupAttributes: []types.LookupAttribute{
+		//{
+		//AttributeKey:   types.LookupAttributeKeyReadOnly,
+		//AttributeValue: strPtr("false"),
+		//},
+		//},
 	}, c, config)
 
 	if err != nil {
@@ -239,6 +256,84 @@ func cloudwatchLogStreamARN(event CloudTrailEvent) string {
 	}
 
 	return fmt.Sprintf("arn:aws:logs:%s:%s:log-group:%s:log-stream:%s", region, accountID, logGroup, logStream)
+}
+
+// cloudtrailAssumeRoleToAccessLog converts an AssumeRole CloudTrail event into
+// a ScrapeResult containing the caller as an ExternalUser and an access log entry
+// targeting the assumed role.
+func cloudtrailAssumeRoleToAccessLog(event types.Event) (*v1.ScrapeResult, error) {
+	var ctEvent CloudTrailEvent
+	if err := ctEvent.FromJSON(ptr.ToString(event.CloudTrailEvent)); err != nil {
+		return nil, fmt.Errorf("error parsing cloudtrail event: %w", err)
+	}
+
+	// Determine the assumed role ARN from request parameters or resources.
+	roleARN := ctEvent.RequestParameters.RoleArn
+	if roleARN == "" {
+		for _, r := range ctEvent.Resources {
+			if r.ARN != "" {
+				roleARN = r.ARN
+				break
+			}
+		}
+	}
+	if roleARN == "" {
+		return nil, fmt.Errorf("AssumeRole event has no role ARN")
+	}
+
+	// Extract caller identity.
+	var userName, userARN, accountID string
+	userType := ctEvent.UserIdentity.Type
+
+	switch userType {
+	case "IAMUser":
+		userName = ctEvent.UserIdentity.Username
+		userARN = ctEvent.UserIdentity.Arn
+		accountID = ctEvent.UserIdentity.AccountID
+	case "AssumedRole":
+		userName = ctEvent.UserIdentity.SessionContext.SessionIssuer.Username
+		userARN = ctEvent.UserIdentity.SessionContext.SessionIssuer.Arn
+		accountID = ctEvent.UserIdentity.AccountID
+	default:
+		userName = ctEvent.UserIdentity.Arn
+		userARN = ctEvent.UserIdentity.Arn
+		accountID = ctEvent.UserIdentity.AccountID
+	}
+
+	aliases := pq.StringArray{userARN}
+	userID, err := hash.DeterministicUUID(aliases)
+	if err != nil {
+		return nil, fmt.Errorf("error generating user id: %w", err)
+	}
+
+	externalUser := dutyModels.ExternalUser{
+		ID:        userID,
+		Name:      userName,
+		Aliases:   aliases,
+		AccountID: accountID,
+		UserType:  userType,
+	}
+
+	var eventTime time.Time
+	if event.EventTime != nil {
+		eventTime = *event.EventTime
+	}
+
+	accessLog := v1.ExternalConfigAccessLog{
+		ConfigAccessLog: dutyModels.ConfigAccessLog{
+			ExternalUserID: userID,
+			CreatedAt:      eventTime,
+		},
+		ConfigExternalID: v1.ExternalID{
+			ConfigType: "AWS::IAM::Role",
+			ExternalID: roleARN,
+		},
+	}
+
+	return &v1.ScrapeResult{
+		ExternalUsers:    []dutyModels.ExternalUser{externalUser},
+		ConfigAccessLogs: []v1.ExternalConfigAccessLog{accessLog},
+	}, nil
 }
 
 func cloudtrailEventToConfigType(resourceARN, eventSource string) string {

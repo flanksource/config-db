@@ -3,8 +3,11 @@ package aws
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
+	"github.com/flanksource/commons/hash"
+	"github.com/lib/pq"
 	"github.com/onsi/gomega"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
@@ -199,6 +202,114 @@ requestParameters:
 			if tt.expectedConfigType != "" {
 				g.Expect(change.ConfigType).To(gomega.Equal(tt.expectedConfigType))
 			}
+		})
+	}
+}
+
+func TestCloudTrailAssumeRoleToAccessLog(t *testing.T) {
+	eventTime := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name                   string
+		eventRaw               string
+		expectedUserName       string
+		expectedUserARN        string
+		expectedUserAccountID  string
+		expectedUserType       string
+		expectedRoleARN        string
+		expectedConfigType     string
+	}{
+		{
+			name: "IAM user assumes role",
+			eventRaw: `---
+userIdentity:
+  type: IAMUser
+  arn: arn:aws:iam::123456789012:user/admin
+  userName: admin
+  accountId: "123456789012"
+  principalId: AIDAEXAMPLE123
+requestParameters:
+  roleArn: arn:aws:iam::123456789012:role/MyRole
+  roleSessionName: my-session
+resources:
+  - ARN: arn:aws:iam::123456789012:role/MyRole
+    accountId: "123456789012"
+`,
+			expectedUserName:      "admin",
+			expectedUserARN:       "arn:aws:iam::123456789012:user/admin",
+			expectedUserAccountID: "123456789012",
+			expectedUserType:      "IAMUser",
+			expectedRoleARN:       "arn:aws:iam::123456789012:role/MyRole",
+			expectedConfigType:    "AWS::IAM::Role",
+		},
+		{
+			name: "AssumedRole assumes another role (role chaining)",
+			eventRaw: `---
+userIdentity:
+  type: AssumedRole
+  arn: arn:aws:sts::123456789012:assumed-role/IntermediateRole/session1
+  accountId: "123456789012"
+  principalId: AROAEXAMPLE:session1
+  sessionContext:
+    sessionIssuer:
+      arn: arn:aws:iam::123456789012:role/IntermediateRole
+      userName: IntermediateRole
+      accountId: "123456789012"
+requestParameters:
+  roleArn: arn:aws:iam::987654321098:role/TargetRole
+resources:
+  - ARN: arn:aws:iam::987654321098:role/TargetRole
+    accountId: "987654321098"
+`,
+			expectedUserName:      "IntermediateRole",
+			expectedUserARN:       "arn:aws:iam::123456789012:role/IntermediateRole",
+			expectedUserAccountID: "123456789012",
+			expectedUserType:      "AssumedRole",
+			expectedRoleARN:       "arn:aws:iam::987654321098:role/TargetRole",
+			expectedConfigType:    "AWS::IAM::Role",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := gomega.NewWithT(t)
+
+			var eventMap map[string]any
+			err := yaml.Unmarshal([]byte(tt.eventRaw), &eventMap)
+			g.Expect(err).To(gomega.Succeed())
+
+			eventJSON, err := json.Marshal(eventMap)
+			g.Expect(err).To(gomega.Succeed())
+
+			event := types.Event{
+				CloudTrailEvent: lo.ToPtr(string(eventJSON)),
+				EventTime:       &eventTime,
+				EventName:       lo.ToPtr("AssumeRole"),
+			}
+
+			result, err := cloudtrailAssumeRoleToAccessLog(event)
+			g.Expect(err).To(gomega.Succeed())
+			g.Expect(result).NotTo(gomega.BeNil())
+
+			// Verify ExternalUser
+			g.Expect(result.ExternalUsers).To(gomega.HaveLen(1))
+			user := result.ExternalUsers[0]
+			g.Expect(user.Name).To(gomega.Equal(tt.expectedUserName))
+			g.Expect(user.AccountID).To(gomega.Equal(tt.expectedUserAccountID))
+			g.Expect(user.UserType).To(gomega.Equal(tt.expectedUserType))
+			g.Expect(user.Aliases).To(gomega.ContainElement(tt.expectedUserARN))
+
+			expectedUserID, err := hash.DeterministicUUID(pq.StringArray{tt.expectedUserARN})
+			g.Expect(err).To(gomega.Succeed())
+			g.Expect(user.ID).To(gomega.Equal(expectedUserID))
+
+			// Verify ConfigAccessLog
+			g.Expect(result.ConfigAccessLogs).To(gomega.HaveLen(1))
+			accessLog := result.ConfigAccessLogs[0]
+			g.Expect(accessLog.ConfigExternalID.ExternalID).To(gomega.Equal(tt.expectedRoleARN))
+			g.Expect(accessLog.ConfigExternalID.ConfigType).To(gomega.Equal(tt.expectedConfigType))
+			g.Expect(accessLog.ExternalUserID).To(gomega.Equal(expectedUserID))
+			g.Expect(accessLog.CreatedAt).To(gomega.Equal(eventTime))
 		})
 	}
 }
