@@ -293,10 +293,20 @@ func cloudtrailAssumeRoleToAccessLog(event types.Event) (*v1.ScrapeResult, error
 		userName = ctEvent.UserIdentity.SessionContext.SessionIssuer.Username
 		userARN = ctEvent.UserIdentity.SessionContext.SessionIssuer.Arn
 		accountID = ctEvent.UserIdentity.AccountID
+		if userARN == "" {
+			userARN = ctEvent.UserIdentity.Arn
+		}
+		if userName == "" {
+			userName = userARN
+		}
 	default:
 		userName = ctEvent.UserIdentity.Arn
 		userARN = ctEvent.UserIdentity.Arn
 		accountID = ctEvent.UserIdentity.AccountID
+	}
+
+	if userARN == "" {
+		return nil, fmt.Errorf("AssumeRole event has no caller ARN")
 	}
 
 	aliases := pq.StringArray{userARN}
@@ -304,7 +314,6 @@ func cloudtrailAssumeRoleToAccessLog(event types.Event) (*v1.ScrapeResult, error
 	if err != nil {
 		return nil, fmt.Errorf("error generating user id: %w", err)
 	}
-
 	externalUser := dutyModels.ExternalUser{
 		ID:        userID,
 		Name:      userName,
