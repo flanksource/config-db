@@ -1400,8 +1400,13 @@ func SaveConfigAccessLog(ctx api.ScrapeContext, accessLog *dutyModels.ConfigAcce
 	}
 
 	return ctx.DB().Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "config_id"}, {Name: "external_user_id"}, {Name: "scraper_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"created_at", "mfa", "properties"}),
+		Columns: []clause.Column{{Name: "config_id"}, {Name: "external_user_id"}, {Name: "scraper_id"}},
+		DoUpdates: clause.Set{
+			{Column: clause.Column{Name: "created_at"}, Value: gorm.Expr("excluded.created_at")},
+			{Column: clause.Column{Name: "mfa"}, Value: gorm.Expr("excluded.mfa")},
+			{Column: clause.Column{Name: "properties"}, Value: gorm.Expr("excluded.properties")},
+			{Column: clause.Column{Name: "count"}, Value: gorm.Expr("config_access_logs.count + 1")},
+		},
 		Where: clause.Where{Exprs: []clause.Expression{
 			clause.Expr{SQL: "excluded.created_at > config_access_logs.created_at"},
 		}},
