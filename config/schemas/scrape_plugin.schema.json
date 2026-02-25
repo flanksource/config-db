@@ -6,28 +6,36 @@
     "ChangeMapping": {
       "properties": {
         "filter": {
-          "type": "string"
+          "type": "string",
+          "description": "Filter selects what change to apply the mapping to"
         },
         "severity": {
-          "type": "string"
+          "type": "string",
+          "description": "Severity is the severity to be set on the change"
         },
         "type": {
-          "type": "string"
+          "type": "string",
+          "description": "Type is the type to be set on the change"
         },
         "action": {
-          "type": "string"
+          "type": "string",
+          "description": "Action allows performing actions on the corresponding config item\nbased on this change. Example: You can map EC2 instance's \"TerminateInstances\"\nchange event to delete the corresponding EC2 instance config.\n\tAllowed actions: \"delete\", \"ignore\""
         },
         "summary": {
-          "type": "string"
+          "type": "string",
+          "description": "Summary replaces the existing change summary."
         },
         "config_id": {
-          "type": "string"
+          "type": "string",
+          "description": "ConfigID is a CEL expression that returns the target config's external ID\nfor redirecting changes to a different config item."
         },
         "config_type": {
-          "type": "string"
+          "type": "string",
+          "description": "ConfigType is the target config type for redirecting changes."
         },
         "scraper_id": {
-          "type": "string"
+          "type": "string",
+          "description": "ScraperID is the scraper ID for the target config. Use \"all\" for cross-scraper lookups."
         }
       },
       "additionalProperties": false,
@@ -143,10 +151,12 @@
     "LocationOrAlias": {
       "properties": {
         "type": {
-          "type": "string"
+          "type": "string",
+          "description": "Types on which this plugin should run.\nSupports match expression\nExample: AWS::*, Kubernetes::Namespace"
         },
         "filter": {
-          "type": "string"
+          "type": "string",
+          "description": "A Cel expression, when provided, must return true for this filter to apply.\n\nReceives the config item as the cel env variable."
         },
         "values": {
           "items": {
@@ -155,7 +165,8 @@
           "type": "array"
         },
         "withParent": {
-          "type": "string"
+          "type": "string",
+          "description": "The type of the parent to be used"
         }
       },
       "additionalProperties": false,
@@ -332,13 +343,16 @@
           "type": "object"
         },
         "expr": {
-          "type": "string"
+          "type": "string",
+          "description": "Alternately, a single cel-expression can be used\nthat returns a list of relationship selector."
         },
         "filter": {
-          "type": "string"
+          "type": "string",
+          "description": "Filter is a CEL expression that selects on what config items\nthe relationship needs to be applied"
         },
         "parent": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Parent sets all the configs found by the selector\nas the parent of the configs passed by the filter"
         }
       },
       "additionalProperties": false,
@@ -384,7 +398,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "ScrapePlugin is the Schema for the scraper plugins"
     },
     "ScrapePluginSpec": {
       "properties": {
@@ -392,19 +407,22 @@
           "$ref": "#/$defs/TransformChange"
         },
         "retention": {
-          "$ref": "#/$defs/RetentionSpec"
+          "$ref": "#/$defs/RetentionSpec",
+          "description": "Retention config for changes, types, and stale items."
         },
         "relationship": {
           "items": {
             "$ref": "#/$defs/RelationshipConfig"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Relationship allows you to form relationships between config items using selectors."
         },
         "properties": {
           "items": {
             "$ref": "#/$defs/ConfigProperties"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
         "locations": {
           "items": {
@@ -429,7 +447,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "ScrapePluginStatus defines the observed state of Plugin"
     },
     "Time": {
       "properties": {},
@@ -442,13 +461,15 @@
           "items": {
             "$ref": "#/$defs/ChangeMapping"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Mapping is a list of CEL expressions that maps a change to the specified type"
         },
         "exclude": {
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Exclude is a list of CEL expressions that excludes a given change"
         }
       },
       "additionalProperties": false,

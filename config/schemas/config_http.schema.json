@@ -6,28 +6,36 @@
     "ChangeMapping": {
       "properties": {
         "filter": {
-          "type": "string"
+          "type": "string",
+          "description": "Filter selects what change to apply the mapping to"
         },
         "severity": {
-          "type": "string"
+          "type": "string",
+          "description": "Severity is the severity to be set on the change"
         },
         "type": {
-          "type": "string"
+          "type": "string",
+          "description": "Type is the type to be set on the change"
         },
         "action": {
-          "type": "string"
+          "type": "string",
+          "description": "Action allows performing actions on the corresponding config item\nbased on this change. Example: You can map EC2 instance's \"TerminateInstances\"\nchange event to delete the corresponding EC2 instance config.\n\tAllowed actions: \"delete\", \"ignore\""
         },
         "summary": {
-          "type": "string"
+          "type": "string",
+          "description": "Summary replaces the existing change summary."
         },
         "config_id": {
-          "type": "string"
+          "type": "string",
+          "description": "ConfigID is a CEL expression that returns the target config's external ID\nfor redirecting changes to a different config item."
         },
         "config_type": {
-          "type": "string"
+          "type": "string",
+          "description": "ConfigType is the target config type for redirecting changes."
         },
         "scraper_id": {
-          "type": "string"
+          "type": "string",
+          "description": "ScraperID is the scraper ID for the target config. Use \"all\" for cross-scraper lookups."
         }
       },
       "additionalProperties": false,
@@ -39,7 +47,8 @@
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Optionally specify the config types\nfrom which the JSONPath fields need to be removed.\nIf left empty, all config types are considered."
         },
         "jsonpath": {
           "type": "string"
@@ -49,7 +58,8 @@
       "type": "object",
       "required": [
         "jsonpath"
-      ]
+      ],
+      "description": "ConfigFieldExclusion defines fields with JSONPath that needs to\nbe removed from the config."
     },
     "ConfigMapKeySelector": {
       "properties": {
@@ -165,61 +175,76 @@
     "HTTP": {
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the ID for the resource."
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the Name for the resource."
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the description for the resource."
         },
         "items": {
-          "type": "string"
+          "type": "string",
+          "description": "A JSONPath expression to use to extract individual items from the resource,\nitems are extracted first and then the ID,Name,Type and transformations are applied for each item."
         },
         "type": {
-          "type": "string"
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the type for the resource."
         },
         "class": {
-          "type": "string"
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the class for the resource."
         },
         "format": {
-          "type": "string"
+          "type": "string",
+          "description": "Format of config item, defaults to JSON, available options are JSON, properties"
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the status of the config item"
         },
         "health": {
-          "type": "string"
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the health of the config item"
         },
         "timestampFormat": {
-          "type": "string"
+          "type": "string",
+          "description": "TimestampFormat is a Go time format string used to\nparse timestamps in createFields and DeletedFields.\nIf not specified, the default is RFC3339."
         },
         "createFields": {
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "description": "CreateFields is a list of JSONPath expression used to identify the created time of the config.\nIf multiple fields are specified, the first non-empty value will be used."
         },
         "deleteFields": {
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "description": "DeleteFields is a JSONPath expression used to identify the deleted time of the config.\nIf multiple fields are specified, the first non-empty value will be used."
         },
         "transform": {
           "$ref": "#/$defs/Transform"
         },
         "labels": {
-          "$ref": "#/$defs/JSONStringMap"
+          "$ref": "#/$defs/JSONStringMap",
+          "description": "Labels for each config item."
         },
         "tags": {
-          "$ref": "#/$defs/Tags"
+          "$ref": "#/$defs/Tags",
+          "description": "Tags for each config item.\nMax allowed: 5"
         },
         "properties": {
           "items": {
             "$ref": "#/$defs/ConfigProperties"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
         "connection": {
           "type": "string"
@@ -261,13 +286,17 @@
           "items": {
             "$ref": "#/$defs/EnvVar"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Environment variables to be used in the templating."
         },
         "method": {
           "type": "string"
         },
         "body": {
           "type": "string"
+        },
+        "pagination": {
+          "$ref": "#/$defs/Pagination"
         }
       },
       "additionalProperties": false,
@@ -292,7 +321,8 @@
       "additionalProperties": {
         "type": "string"
       },
-      "type": "object"
+      "type": "object",
+      "description": "JSONStringMap defiend JSON data type, need to implements driver.Valuer, sql.Scanner interface"
     },
     "Link": {
       "properties": {
@@ -321,10 +351,12 @@
     "LocationOrAlias": {
       "properties": {
         "type": {
-          "type": "string"
+          "type": "string",
+          "description": "Types on which this plugin should run.\nSupports match expression\nExample: AWS::*, Kubernetes::Namespace"
         },
         "filter": {
-          "type": "string"
+          "type": "string",
+          "description": "A Cel expression, when provided, must return true for this filter to apply.\n\nReceives the config item as the cel env variable."
         },
         "values": {
           "items": {
@@ -333,7 +365,8 @@
           "type": "array"
         },
         "withParent": {
-          "type": "string"
+          "type": "string",
+          "description": "The type of the parent to be used"
         }
       },
       "additionalProperties": false,
@@ -360,13 +393,16 @@
     "Mask": {
       "properties": {
         "selector": {
-          "type": "string"
+          "type": "string",
+          "description": "Selector is a CEL expression that selects on what config items to apply the mask."
         },
         "jsonpath": {
-          "type": "string"
+          "type": "string",
+          "description": "JSONPath specifies what field in the config needs to be masked"
         },
         "value": {
-          "type": "string"
+          "type": "string",
+          "description": "Value can be a hash function name or just a string"
         }
       },
       "additionalProperties": false,
@@ -405,6 +441,35 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "Pagination": {
+      "properties": {
+        "nextPageExpr": {
+          "type": "string",
+          "description": "CEL expression to extract next page URL or request from response.\nReceives response map with body, headers, status, url fields.\nReturns string (URL), map (request spec with url/method/body/headers), or null (stop)."
+        },
+        "reduceExpr": {
+          "type": "string",
+          "description": "CEL expression to merge pages using accumulator pattern.\nReceives acc ([]any, starts empty) and page (response body). Returns new acc."
+        },
+        "perPage": {
+          "type": "boolean",
+          "description": "Process each page independently instead of merging."
+        },
+        "maxPages": {
+          "type": "integer",
+          "description": "Maximum number of pages to fetch. 0 means unlimited."
+        },
+        "delay": {
+          "type": "string",
+          "description": "Delay between page requests (e.g. \"500ms\", \"2s\")."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "nextPageExpr"
+      ]
+    },
     "RelationshipConfig": {
       "properties": {
         "id": {
@@ -435,13 +500,16 @@
           "type": "object"
         },
         "expr": {
-          "type": "string"
+          "type": "string",
+          "description": "Alternately, a single cel-expression can be used\nthat returns a list of relationship selector."
         },
         "filter": {
-          "type": "string"
+          "type": "string",
+          "description": "Filter is a CEL expression that selects on what config items\nthe relationship needs to be applied"
         },
         "parent": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Parent sets all the configs found by the selector\nas the parent of the configs passed by the filter"
         }
       },
       "additionalProperties": false,
@@ -528,16 +596,19 @@
           "items": {
             "$ref": "#/$defs/ConfigFieldExclusion"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Fields to remove from the config, useful for removing sensitive data and fields\nthat change often without a material impact i.e. Last Scraped Time"
         },
         "mask": {
-          "$ref": "#/$defs/MaskList"
+          "$ref": "#/$defs/MaskList",
+          "description": "Masks consist of configurations to replace sensitive fields\nwith hash functions or static string."
         },
         "relationship": {
           "items": {
             "$ref": "#/$defs/RelationshipConfig"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Relationship allows you to form relationships between config items using selectors."
         },
         "changes": {
           "$ref": "#/$defs/TransformChange"
@@ -564,13 +635,15 @@
           "items": {
             "$ref": "#/$defs/ChangeMapping"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Mapping is a list of CEL expressions that maps a change to the specified type"
         },
         "exclude": {
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Exclude is a list of CEL expressions that excludes a given change"
         }
       },
       "additionalProperties": false,

@@ -5648,6 +5648,33 @@ spec:
                         tokenURL:
                           type: string
                       type: object
+                    pagination:
+                      properties:
+                        delay:
+                          description: Delay between page requests (e.g. "500ms",
+                            "2s").
+                          type: string
+                        maxPages:
+                          description: Maximum number of pages to fetch. 0 means unlimited.
+                          type: integer
+                        nextPageExpr:
+                          description: |-
+                            CEL expression to extract next page URL or request from response.
+                            Receives response map with body, headers, status, url fields.
+                            Returns string (URL), map (request spec with url/method/body/headers), or null (stop).
+                          type: string
+                        perPage:
+                          description: Process each page independently instead of
+                            merging.
+                          type: boolean
+                        reduceExpr:
+                          description: |-
+                            CEL expression to merge pages using accumulator pattern.
+                            Receives acc ([]any, starts empty) and page (response body). Returns new acc.
+                          type: string
+                      required:
+                      - nextPageExpr
+                      type: object
                     password:
                       properties:
                         name:
