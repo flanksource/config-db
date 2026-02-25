@@ -19,9 +19,6 @@ import (
 	"github.com/gomarkdown/markdown/parser"
 )
 
-const (
-	trivyBinPath = ".bin"
-)
 
 type Scanner struct {
 }

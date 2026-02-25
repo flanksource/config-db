@@ -30,7 +30,7 @@ func TestPaginateOData(t *testing.T) {
 			page["@odata.nextLink"] = fmt.Sprintf("http://%s/items?$skip=%d", r.Host, (idx+1)*2)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(page)
+		_ = json.NewEncoder(w).Encode(page)
 	}))
 	defer server.Close()
 
@@ -63,7 +63,7 @@ func TestPaginateODataDefaultReduce(t *testing.T) {
 			page["@odata.nextLink"] = fmt.Sprintf("http://%s/data?page=%d", r.Host, idx+2)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(page)
+		_ = json.NewEncoder(w).Encode(page)
 	}))
 	defer server.Close()
 
@@ -95,7 +95,7 @@ func TestPaginatePerPage(t *testing.T) {
 			page["next"] = fmt.Sprintf("http://%s/api?page=%d", r.Host, idx+2)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(page)
+		_ = json.NewEncoder(w).Encode(page)
 	}))
 	defer server.Close()
 
@@ -126,7 +126,7 @@ func TestPaginateMaxPages(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		idx := int(atomic.AddInt32(&requestCount, 1))
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"value": []any{fmt.Sprintf("item-%d", idx)},
 			"next":  fmt.Sprintf("http://%s/items?page=%d", r.Host, idx+1),
 		})
@@ -156,18 +156,18 @@ func TestPaginate429Retry(t *testing.T) {
 		if idx == 2 {
 			w.Header().Set("Retry-After", "0")
 			w.WriteHeader(429)
-			w.Write([]byte(`{"error":"rate limited"}`))
+			_, _ = w.Write([]byte(`{"error":"rate limited"}`))
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		if idx <= 2 {
-			json.NewEncoder(w).Encode(map[string]any{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"value": []any{fmt.Sprintf("item-%d", idx)},
 				"next":  fmt.Sprintf("http://%s/items?page=%d", r.Host, idx+1),
 			})
 		} else {
-			json.NewEncoder(w).Encode(map[string]any{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"value": []any{fmt.Sprintf("item-%d", idx)},
 			})
 		}
@@ -196,14 +196,14 @@ func TestPaginateErrorOnNonOKPage(t *testing.T) {
 		idx := int(atomic.AddInt32(&requestCount, 1))
 		w.Header().Set("Content-Type", "application/json")
 		if idx == 1 {
-			json.NewEncoder(w).Encode(map[string]any{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"value": []any{"item-1"},
 				"next":  fmt.Sprintf("http://%s/items?page=2", r.Host),
 			})
 			return
 		}
 		w.WriteHeader(403)
-		w.Write([]byte(`{"error":"forbidden"}`))
+		_, _ = w.Write([]byte(`{"error":"forbidden"}`))
 	}))
 	defer server.Close()
 
