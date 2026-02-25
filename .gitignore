@@ -40,3 +40,4 @@ shell-bin-dir/
 *.tgz
 specs/
 pwfile
+.todos/

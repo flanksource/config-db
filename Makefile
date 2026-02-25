@@ -9,6 +9,8 @@ else
   VERSION_TAG=$(VERSION)
 endif
 
+LDFLAGS = -X "main.version=$(VERSION_TAG)" -X "github.com/flanksource/clicky.Version=$(VERSION_TAG)"
+
 # Image URL to use all building/pushing image targets
 IMG ?= docker.io/flanksource/$(NAME):${VERSION_TAG}
 
@@ -72,12 +74,16 @@ test-load:
 	$(MAKE) gotest-load
 
 define validate-envtest-assets
-	@ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
-		{ echo "ERROR: setup-envtest failed to configure test binaries"; exit 1; }; \
-	[ -n "$$ASSETS" ] || \
-		{ echo "ERROR: setup-envtest returned empty path for KUBEBUILDER_ASSETS"; exit 1; }; \
-	[ -x "$$ASSETS/etcd" ] || \
-		{ echo "ERROR: etcd not found at $$ASSETS/etcd — try deleting .bin/k8s and re-running"; exit 1; };
+	@if [ -x "$(ENVTEST_ASSETS_DIR)/etcd" ]; then \
+		ASSETS="$(ENVTEST_ASSETS_DIR)"; \
+	else \
+		ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
+			{ echo "ERROR: setup-envtest failed. Run 'make deps-envtest' to install via flanksource/deps"; exit 1; }; \
+		[ -n "$$ASSETS" ] || \
+			{ echo "ERROR: setup-envtest returned empty path. Run 'make deps-envtest' instead"; exit 1; }; \
+		[ -x "$$ASSETS/etcd" ] || \
+			{ echo "ERROR: etcd not found at $$ASSETS/etcd — try 'make deps-envtest'"; exit 1; }; \
+	fi;
 endef
 
 .PHONY: gotest
@@ -136,17 +142,17 @@ compress: .bin/upx
 
 .PHONY: linux
 linux:
-	GOOS=linux GOARCH=amd64 go build  -o ./.bin/$(NAME)_linux_amd64 -ldflags "-X \"main.version=$(VERSION_TAG)\""  main.go
-	GOOS=linux GOARCH=arm64 go build  -o ./.bin/$(NAME)_linux_arm64 -ldflags "-X \"main.version=$(VERSION_TAG)\""  main.go
+	GOOS=linux GOARCH=amd64 go build  -o ./.bin/$(NAME)_linux_amd64 -ldflags '$(LDFLAGS)'  main.go
+	GOOS=linux GOARCH=arm64 go build  -o ./.bin/$(NAME)_linux_arm64 -ldflags '$(LDFLAGS)'  main.go
 
 .PHONY: darwin
 darwin:
-	GOOS=darwin GOARCH=amd64 go build -o ./.bin/$(NAME)_darwin_amd64 -ldflags "-X \"main.version=$(VERSION_TAG)\""  main.go
-	GOOS=darwin GOARCH=arm64 go build -o ./.bin/$(NAME)_darwin_arm64 -ldflags "-X \"main.version=$(VERSION_TAG)\""  main.go
+	GOOS=darwin GOARCH=amd64 go build -o ./.bin/$(NAME)_darwin_amd64 -ldflags '$(LDFLAGS)'  main.go
+	GOOS=darwin GOARCH=arm64 go build -o ./.bin/$(NAME)_darwin_arm64 -ldflags '$(LDFLAGS)'  main.go
 
 .PHONY: windows
 windows:
-	GOOS=windows GOARCH=amd64 go build -o ./.bin/$(NAME).exe -ldflags "-X \"main.version=$(VERSION_TAG)\""  main.go
+	GOOS=windows GOARCH=amd64 go build -o ./.bin/$(NAME).exe -ldflags '$(LDFLAGS)'  main.go
 
 .PHONY: binaries
 binaries: linux darwin windows compress
@@ -162,19 +168,19 @@ lint: golangci-lint ## Run golangci-lint against code.
 
 .PHONY: build
 build:
-	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" .
+	go build -o ./.bin/$(NAME) -ldflags '$(LDFLAGS)' .
 
 .PHONY: build-slim
 build-slim:
-	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" -tags slim .
+	go build -o ./.bin/$(NAME) -ldflags '$(LDFLAGS)' -tags slim .
 
 .PHONY: build-prod
 build-prod:
-	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" -tags rustdiffgen .
+	go build -o ./.bin/$(NAME) -ldflags '$(LDFLAGS)' -tags rustdiffgen .
 
 .PHONY: build-prod
 build-debug:
-	go build -o ./.bin/$(NAME) -ldflags "-X \"main.version=$(VERSION_TAG)\"" -ldflags=-checklinkname=0 -tags rustdiffgen,debug .
+	go build -o ./.bin/$(NAME) -ldflags '$(LDFLAGS) -checklinkname=0' -tags rustdiffgen,debug .
 
 .PHONY: install
 install:
@@ -253,10 +259,19 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 
 ENVTEST_K8S_VERSION = 1.34.0
 ENVTEST_BRANCH = release-0.22
+ENVTEST_ASSETS_DIR = $(LOCALBIN)/k8s/$(ENVTEST_K8S_VERSION)-$(OS)-$(ARCH)
+
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_BRANCH)
+
+.PHONY: deps-envtest
+deps-envtest: $(LOCALBIN) ## Install envtest binaries using flanksource/deps.
+	@mkdir -p $(ENVTEST_ASSETS_DIR)
+	@test -x $(ENVTEST_ASSETS_DIR)/etcd || deps install etcd@v3.5.23 --bin-dir $(ENVTEST_ASSETS_DIR)
+	@test -x $(ENVTEST_ASSETS_DIR)/kube-apiserver || deps install kube-apiserver@v$(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR)
+	@test -x $(ENVTEST_ASSETS_DIR)/kubectl || deps install kubectl@v$(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR)
 
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
