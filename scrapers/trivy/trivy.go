@@ -8,11 +8,11 @@ import (
 	"html/template"
 	"os/exec"
 
-	"github.com/flanksource/commons/deps"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
+	"github.com/flanksource/deps"
 	"github.com/flanksource/duty/models"
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/html"
@@ -39,13 +39,15 @@ func (t Scanner) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 
+		var trivyBinPath string
 		// Ensure that trivy binary is available
-		if err := deps.InstallDependency("trivy", config.Version, ".bin"); err != nil {
+		if result, err := deps.InstallWithContext(ctx, "trivy", config.Version, deps.WithBinDir(".bin")); err != nil {
 			var result = v1.NewScrapeResult(config.BaseScraper)
 			results = append(results, result.Errorf("failed to install trivy: %w", err))
 			continue
+		} else {
+			trivyBinPath = fmt.Sprintf("%s/trivy", result.BinDir)
 		}
-		trivyBinPath := fmt.Sprintf("%s/trivy", trivyBinPath)
 
 		if config.Kubernetes != nil {
 			var result = v1.NewScrapeResult(config.BaseScraper)
