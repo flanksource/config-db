@@ -2,6 +2,7 @@ package v1
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -22,6 +23,8 @@ import (
 
 	"github.com/flanksource/config-db/utils"
 )
+
+var ErrRateLimited = errors.New("rate limited")
 
 const maxTagsCount = 5
 
@@ -526,6 +529,33 @@ func (s *ScrapeResults) Analysis(analyzer string, configType string, id string) 
 	return &result
 }
 
+func (s *ScrapeResults) RateLimited(msg string, resetAt *time.Time) ScrapeResults {
+	logger.Warnf("rate limited: %s (reset at %v)", msg, resetAt)
+	*s = append(*s, ScrapeResult{
+		Error:            fmt.Errorf("%s: %w", msg, ErrRateLimited),
+		RateLimitResetAt: resetAt,
+	})
+	return *s
+}
+
+func (t ScrapeResults) IsRateLimited() bool {
+	for _, r := range t {
+		if errors.Is(r.Error, ErrRateLimited) {
+			return true
+		}
+	}
+	return false
+}
+
+func (t ScrapeResults) GetRateLimitResetAt() *time.Time {
+	for _, r := range t {
+		if r.RateLimitResetAt != nil {
+			return r.RateLimitResetAt
+		}
+	}
+	return nil
+}
+
 func (s *ScrapeResults) Errorf(e error, msg string, args ...any) ScrapeResults {
 	errMsg := fmt.Sprintf(msg, args...)
 	logger.Errorf("%s: %v", errMsg, e)
@@ -731,6 +761,8 @@ type ScrapeResult struct {
 	ExternalUserGroups []models.ExternalUserGroup `json:"-"`
 	ConfigAccess       []ExternalConfigAccess     `json:"-"`
 	ConfigAccessLogs   []ExternalConfigAccessLog  `json:"-"`
+
+	RateLimitResetAt *time.Time `json:"-"`
 
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`

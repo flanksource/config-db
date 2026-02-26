@@ -67,10 +67,14 @@ func (t ScrapeConfig) GetContext() map[string]any {
 	}
 }
 
+// IsDebug checks the Kubernetes annotation "debug"="true".
+// Note: ScraperSpec.IsDebug() checks the LogLevel field instead.
 func (t ScrapeConfig) IsDebug() bool {
 	return strings.EqualFold(t.Annotations["debug"], "true")
 }
 
+// IsTrace checks the Kubernetes annotation "trace"="true".
+// Note: ScraperSpec.IsTrace() checks the LogLevel field instead.
 func (t ScrapeConfig) IsTrace() bool {
 	return strings.EqualFold(t.Annotations["trace"], "true")
 }

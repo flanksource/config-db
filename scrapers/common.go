@@ -27,6 +27,7 @@ var All = []api.Scraper{
 	kubernetes.KubernetesScraper{},
 	kubernetes.KubernetesFileScraper{},
 	devops.AzureDevopsScraper{},
+	github.GithubScraper{},
 	github.GithubActionsScraper{},
 	clickhouse.ClickhouseScraper{},
 	logs.LogsScraper{},

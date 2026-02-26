@@ -1,6 +1,10 @@
 package v1
 
-import "github.com/flanksource/duty/types"
+import (
+	"time"
+
+	"github.com/flanksource/duty/types"
+)
 
 // GitHubActions scraper scrapes the workflow and its runs based on the given filter.
 // By default, it fetches the last 7 days of workflow runs (Configurable via property: scrapers.githubactions.maxAge)
@@ -24,4 +28,47 @@ type GitHubActions struct {
 
 	// Returns workflow runs associated with a branch. Use the name of the branch of the push.
 	Branch string `yaml:"branch,omitempty" json:"branch,omitempty"`
+}
+
+// GitHub scraper creates GitHub::Repository config items and optionally
+// attaches security alerts and OpenSSF scorecard results as analyses.
+type GitHub struct {
+	BaseScraper `json:",inline" yaml:",inline"`
+
+	// Repositories is the list of repositories to scrape
+	Repositories []GitHubRepository `yaml:"repositories" json:"repositories"`
+
+	PersonalAccessToken types.EnvVar `yaml:"personalAccessToken,omitempty" json:"personalAccessToken,omitempty"`
+
+	// ConnectionName, if provided, will be used to populate personalAccessToken
+	ConnectionName string `yaml:"connection,omitempty" json:"connection,omitempty"`
+
+	// Security enables fetching Dependabot, code scanning, and secret scanning alerts
+	Security bool `yaml:"security,omitempty" json:"security,omitempty"`
+
+	// OpenSSF enables fetching OpenSSF Scorecard data
+	OpenSSF bool `yaml:"openssf,omitempty" json:"openssf,omitempty"`
+
+	// SecurityFilters for security alerts (only used when security=true)
+	SecurityFilters GitHubSecurityFilters `yaml:"securityFilters,omitempty" json:"securityFilters,omitempty"`
+}
+
+// GitHubRepository specifies a repository to scrape
+type GitHubRepository struct {
+	Owner string `yaml:"owner" json:"owner"`
+	Repo  string `yaml:"repo" json:"repo"`
+}
+
+// GitHubSecurityFilters defines filtering options for security alerts
+type GitHubSecurityFilters struct {
+	Severity []string `yaml:"severity,omitempty" json:"severity,omitempty"`
+	State    []string `yaml:"state,omitempty" json:"state,omitempty"`
+	MaxAge   string   `yaml:"maxAge,omitempty" json:"maxAge,omitempty"`
+}
+
+func (f GitHubSecurityFilters) ParseMaxAge() (time.Duration, error) {
+	if f.MaxAge == "" {
+		return 0, nil
+	}
+	return time.ParseDuration(f.MaxAge)
 }

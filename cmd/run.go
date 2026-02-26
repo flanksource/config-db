@@ -81,14 +81,19 @@ var Run = &cobra.Command{
 			}()
 		}
 
+		var hasErrors bool
 		for i := range scraperConfigs {
 			ctx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
 				WithTimeout(dutyCtx.Properties().Duration("scraper.timeout", 4*time.Hour))
 			defer cancelTimeout()
 			shutdown.AddHook(func() { defer cancel() })
 			if err := scrapeAndStore(ctx); err != nil {
+				hasErrors = true
 				logger.Errorf("error scraping config: (name=%s) %v", scraperConfigs[i].Name, err)
 			}
+		}
+		if hasErrors {
+			os.Exit(1)
 		}
 	},
 }
@@ -103,6 +108,14 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 	results, err := scrapers.Run(ctx)
 	if err != nil {
 		return err
+	}
+
+	scrapeResults := v1.ScrapeResults(results)
+	if scrapeResults.HasErr() {
+		for _, e := range scrapeResults.Errors() {
+			logger.Errorf("scrape error: %s", e)
+		}
+		return fmt.Errorf("scrape completed with %d error(s)", len(scrapeResults.Errors()))
 	}
 
 	var all = v1.MergeScrapeResults(results)
