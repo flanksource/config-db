@@ -3,6 +3,8 @@ package github
 import (
 	"context"
 	"fmt"
+	gohttp "net/http"
+	"os"
 	"time"
 
 	"github.com/google/go-github/v73/github"
@@ -13,6 +15,121 @@ import (
 )
 
 const defaultWorkflowRunMaxAge = 7 * 24 * time.Hour
+
+// GitHubClient wraps the GitHub client for the unified GitHub scraper
+type GitHubClient struct {
+	*github.Client
+	api.ScrapeContext
+	owner string
+	repo  string
+}
+
+func NewGitHubClient(ctx api.ScrapeContext, config v1.GitHub, owner, repo string) (*GitHubClient, error) {
+	var token string
+	if connection, err := ctx.HydrateConnectionByURL(config.ConnectionName); err != nil {
+		return nil, fmt.Errorf("failed to hydrate connection: %w", err)
+	} else if connection != nil {
+		token = connection.Password
+	} else if !config.PersonalAccessToken.IsEmpty() {
+		var err error
+		token, err = ctx.GetEnvValueFromCache(config.PersonalAccessToken, ctx.Namespace())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get token: %w", err)
+		}
+	}
+
+	if token == "" {
+		token = os.Getenv("GITHUB_TOKEN")
+		if token == "" {
+			token = os.Getenv("GH_TOKEN")
+		}
+	}
+
+	var tc *gohttp.Client
+	if token != "" {
+		ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+		tc = oauth2.NewClient(ctx, ts)
+	}
+	client := github.NewClient(tc)
+
+	return &GitHubClient{
+		ScrapeContext: ctx,
+		Client:        client,
+		owner:         owner,
+		repo:          repo,
+	}, nil
+}
+
+// AlertListOptions contains options for listing security alerts
+type AlertListOptions struct {
+	State     string
+	Severity  string
+	Page      int
+	PerPage   int
+	CreatedAt string
+}
+
+func (c *GitHubClient) GetDependabotAlerts(ctx context.Context, opts AlertListOptions) ([]*github.DependabotAlert, *github.Response, error) {
+	reqOpts := &github.ListAlertsOptions{
+		ListCursorOptions: github.ListCursorOptions{First: opts.PerPage},
+	}
+	if opts.State != "" {
+		reqOpts.State = &opts.State
+	}
+	if opts.Severity != "" {
+		reqOpts.Severity = &opts.Severity
+	}
+	alerts, resp, err := c.Client.Dependabot.ListRepoAlerts(ctx, c.owner, c.repo, reqOpts)
+	if err != nil {
+		return nil, resp, fmt.Errorf("failed to fetch Dependabot alerts: %w", err)
+	}
+	return alerts, resp, nil
+}
+
+func (c *GitHubClient) GetCodeScanningAlerts(ctx context.Context, opts AlertListOptions) ([]*github.Alert, *github.Response, error) {
+	reqOpts := &github.AlertListOptions{
+		State:       opts.State,
+		ListOptions: github.ListOptions{Page: opts.Page, PerPage: opts.PerPage},
+	}
+	if opts.Severity != "" {
+		reqOpts.Severity = opts.Severity
+	}
+	alerts, resp, err := c.Client.CodeScanning.ListAlertsForRepo(ctx, c.owner, c.repo, reqOpts)
+	if err != nil {
+		return nil, resp, fmt.Errorf("failed to fetch code scanning alerts: %w", err)
+	}
+	return alerts, resp, nil
+}
+
+func (c *GitHubClient) GetSecretScanningAlerts(ctx context.Context, opts AlertListOptions) ([]*github.SecretScanningAlert, *github.Response, error) {
+	reqOpts := &github.SecretScanningAlertListOptions{
+		State:       opts.State,
+		ListOptions: github.ListOptions{Page: opts.Page, PerPage: opts.PerPage},
+	}
+	alerts, resp, err := c.Client.SecretScanning.ListAlertsForRepo(ctx, c.owner, c.repo, reqOpts)
+	if err != nil {
+		return nil, resp, fmt.Errorf("failed to fetch secret scanning alerts: %w", err)
+	}
+	return alerts, resp, nil
+}
+
+func (c *GitHubClient) ShouldPauseForRateLimit(ctx context.Context) (bool, time.Duration, error) {
+	rateLimits, _, err := c.Client.RateLimit.Get(ctx)
+	if err != nil {
+		return false, 0, err
+	}
+
+	c.ScrapeContext.Logger.V(3).Infof("GitHub rate limit: remaining=%d, limit=%d",
+		rateLimits.Core.Remaining, rateLimits.Core.Limit)
+
+	const threshold = 100
+	if rateLimits.Core.Remaining < threshold {
+		waitDuration := time.Until(rateLimits.Core.Reset.Time)
+		return true, waitDuration, nil
+	}
+
+	return false, 0, nil
+}
 
 type GitHubActionsClient struct {
 	*github.Client

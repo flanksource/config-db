@@ -276,7 +276,8 @@ deps-envtest: $(LOCALBIN) ## Install envtest binaries using flanksource/deps.
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
-	test -s $(LOCALBIN)/golangci-lint || GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	test -s $(LOCALBIN)/golangci-lint && $(LOCALBIN)/golangci-lint version --short 2>/dev/null | grep -q $(subst v,,$(GOLANGCI_LINT_VERSION)) || \
+	GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 .PHONY: modernize-tool
 modernize-tool: $(MODERNIZE) ## Download modernize locally if necessary.

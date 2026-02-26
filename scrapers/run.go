@@ -31,8 +31,9 @@ const (
 var TempCacheStore syncmap.SyncMap[string, *api.TempCache]
 
 type ScrapeOutput struct {
-	Total   int // all configs & changes
-	Summary map[string]v1.ConfigTypeScrapeSummary
+	Total            int // all configs & changes
+	Summary          map[string]v1.ConfigTypeScrapeSummary
+	RateLimitResetAt *time.Time
 }
 
 func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
@@ -51,6 +52,12 @@ func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 	results, scraperErr := Run(ctx)
 	if scraperErr != nil {
 		return nil, fmt.Errorf("failed to run scraper %v: %w", ctx.ScrapeConfig().Name, scraperErr)
+	}
+
+	if v1.ScrapeResults(results).IsRateLimited() {
+		resetAt := v1.ScrapeResults(results).GetRateLimitResetAt()
+		ctx.Logger.Warnf("Scrape rate limited, skipping save/retention (reset at %v)", resetAt)
+		return &ScrapeOutput{RateLimitResetAt: resetAt}, nil
 	}
 
 	savedResult, err := db.SaveResults(ctx, results)

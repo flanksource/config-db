@@ -212,6 +212,14 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 		ResourceType: job.ResourceTypeScraper,
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		Fn: func(jr job.JobRuntime) error {
+			if resetAt := getLastRateLimitReset(jr.Context, sc.ScraperID()); resetAt != nil {
+				if time.Now().Before(*resetAt) {
+					jr.Logger.Warnf("still rate limited until %s, skipping", resetAt.Format(time.RFC3339))
+					jr.History.AddDetails("rate_limit_reset", resetAt.Format(time.RFC3339))
+					return nil
+				}
+			}
+
 			start := time.Now()
 
 			output, err := RunScraper(sc.WithJobHistory(jr.History))
@@ -219,6 +227,12 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 				jr.History.AddError(err.Error())
 				return fmt.Errorf("error running scraper[%s]: %w", sc.ScrapeConfig().Name, err)
 			}
+
+			if output.RateLimitResetAt != nil {
+				jr.History.AddDetails("rate_limit_reset", output.RateLimitResetAt.Format(time.RFC3339))
+				return nil
+			}
+
 			jr.History.SuccessCount = output.Total
 			jr.History.AddDetails("scrape_summary", output.Summary)
 
@@ -308,6 +322,21 @@ func scheduleScraperJob(sc api.ScrapeContext) error {
 			return fmt.Errorf("failed to schedule pubsub job: %v", err)
 		}
 		scrapeJobs.Store(consumePubSubJobKey(sc.ScraperID()), pubsubJob)
+	}
+	return nil
+}
+
+func getLastRateLimitReset(ctx context.Context, scraperID string) *time.Time {
+	var history models.JobHistory
+	err := ctx.DB().Where("resource_id = ? AND name = ?", scraperID, scrapeJobName).
+		Order("time_start DESC").First(&history).Error
+	if err != nil {
+		return nil
+	}
+	if resetStr, ok := history.Details["rate_limit_reset"].(string); ok {
+		if t, err := time.Parse(time.RFC3339, resetStr); err == nil && time.Now().Before(t) {
+			return &t
+		}
 	}
 	return nil
 }

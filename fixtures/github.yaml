@@ -1,0 +1,12 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: github
+spec:
+  schedule: "@every 6h"
+  github:
+    - security: true
+      openssf: true
+      repositories:
+        - owner: flanksource
+          repo: canary-checker
