@@ -22,8 +22,9 @@ type ScrapeContext struct {
 
 	namespace string
 
-	jobHistory   *models.JobHistory
-	scrapeConfig *v1.ScrapeConfig
+	jobHistory       *models.JobHistory
+	scrapeConfig     *v1.ScrapeConfig
+	lastScrapeSummary v1.ScrapeSummary
 }
 
 func NewScrapeContext(ctx dutyCtx.Context) ScrapeContext {
@@ -77,13 +78,26 @@ func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
 	return ctx.WithTempCache(cache), nil
 }
 
+func (ctx ScrapeContext) WithLastScrapeSummary(summary v1.ScrapeSummary) ScrapeContext {
+	ctx.lastScrapeSummary = summary
+	return ctx
+}
+
+func (ctx ScrapeContext) LastScrapeSummary() v1.ScrapeSummary {
+	if ctx.lastScrapeSummary == nil {
+		return v1.ScrapeSummary{}
+	}
+	return ctx.lastScrapeSummary
+}
+
 func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 	return ScrapeContext{
-		Context:      ctx.Context.WithValue(key, val),
-		temp:         ctx.temp,
-		namespace:    ctx.namespace,
-		jobHistory:   ctx.jobHistory,
-		scrapeConfig: ctx.scrapeConfig,
+		Context:           ctx.Context.WithValue(key, val),
+		temp:              ctx.temp,
+		namespace:         ctx.namespace,
+		jobHistory:        ctx.jobHistory,
+		scrapeConfig:      ctx.scrapeConfig,
+		lastScrapeSummary: ctx.lastScrapeSummary,
 	}
 
 }
