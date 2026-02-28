@@ -155,7 +155,7 @@ jobs:
   push-helm-chart:
     needs: [semantic-release, helm]
     if: needs.semantic-release.outputs.new-release-published == 'true'
-    uses: flanksource/action-workflows/.github/workflows/push-helm-chart.yml@edab5b9d3a5f8d1eeb59be89edb810246a06ae6d # main
+    uses: flanksource/action-workflows/.github/workflows/push-helm-chart.yml@4b41aaf6cf7727789c0d21cd0bc262e850ba543f # main
     with:
       filename_regex: "config-db-*.tgz"
       version: ${{ needs.semantic-release.outputs.release-version }}
