@@ -356,8 +356,10 @@ func getLastScrapeSummary(ctx context.Context, scraperID string) v1.ScrapeSummar
 	}
 
 	var history models.JobHistory
-	err := ctx.DB().Where("resource_id = ? AND name = ?", scraperID, scrapeJobName).
-		Order("time_start DESC").First(&history).Error
+	err := ctx.DB().
+		Where("resource_id = ? AND resource_type = ?", scraperID, job.ResourceTypeScraper).
+		Where("status IN ?", []string{models.StatusSuccess, models.StatusWarning, models.StatusFailed}).
+		Order("time_end DESC").First(&history).Error
 	if err != nil {
 		return nil
 	}
