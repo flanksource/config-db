@@ -1,0 +1,18 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: git-scraper-test
+spec:
+  git:
+    - url: https://github.com/flanksource/mission-control
+      branch: main
+      depth: 10
+      branches:
+        - main
+      files:
+        - pattern: "**/*.go"
+          strategy: ignore
+        - pattern: "**/*.yaml"
+          strategy: diff
+        - pattern: "**/*.md"
+          strategy: track

@@ -19,6 +19,7 @@ var AllScraperConfigs = map[string]any{
 	"exec":           Exec{},
 	"file":           File{},
 	"gcp":            GCP{},
+	"git":            Git{},
 	"github":         GitHub{},
 	"githubactions":  GitHubActions{},
 	"http":           HTTP{},
@@ -66,6 +67,7 @@ type ScraperSpec struct {
 	GCP            []GCP            `json:"gcp,omitempty" yaml:"gcp,omitempty"`
 	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
 	File           []File           `json:"file,omitempty" yaml:"file,omitempty"`
+	Git            []Git            `json:"git,omitempty" yaml:"git,omitempty"`
 	Kubernetes     []Kubernetes     `json:"kubernetes,omitempty" yaml:"kubernetes,omitempty"`
 	KubernetesFile []KubernetesFile `json:"kubernetesFile,omitempty" yaml:"kubernetesFile,omitempty"`
 	AzureDevops    []AzureDevops    `json:"azureDevops,omitempty" yaml:"azureDevops,omitempty"`
@@ -113,6 +115,10 @@ func (c ScraperSpec) ApplyPlugin(plugins []ScrapePluginSpec) ScraperSpec {
 
 	for i := range spec.File {
 		spec.File[i].BaseScraper = spec.File[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.Git {
+		spec.Git[i].BaseScraper = spec.Git[i].BaseScraper.ApplyPlugins(plugins...)
 	}
 
 	for i := range spec.Kubernetes {
