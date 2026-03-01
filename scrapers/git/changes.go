@@ -166,11 +166,25 @@ func treeAsAdded(tree *object.Tree) ([]fileDiff, error) {
 	return diffs, err
 }
 
-func resolveTagCommit(repo *git.Repository, ref *plumbing.Reference) (*object.Commit, error) {
+type resolvedTag struct {
+	sha  string
+	when time.Time
+}
+
+func resolveTag(repo *git.Repository, ref *plumbing.Reference) (resolvedTag, bool) {
+	// Annotated tag — resolve to target commit
 	if tag, err := repo.TagObject(ref.Hash()); err == nil {
-		return tag.Commit()
+		if commit, err := tag.Commit(); err == nil {
+			return resolvedTag{sha: commit.Hash.String(), when: commit.Committer.When}, true
+		}
+		// Annotated tag that doesn't point to a commit — use tagger date
+		return resolvedTag{sha: ref.Hash().String(), when: tag.Tagger.When}, true
 	}
-	return repo.CommitObject(ref.Hash())
+	// Lightweight tag — resolve directly to commit
+	if commit, err := repo.CommitObject(ref.Hash()); err == nil {
+		return resolvedTag{sha: commit.Hash.String(), when: commit.Committer.When}, true
+	}
+	return resolvedTag{}, false
 }
 
 func generateTagChanges(repo *git.Repository, repoExternalID string, previousTags map[string]string, since time.Time) ([]v1.ChangeResult, map[string]string) {
@@ -185,29 +199,28 @@ func generateTagChanges(repo *git.Repository, repoExternalID string, previousTag
 	_ = tags.ForEach(func(ref *plumbing.Reference) error {
 		name := ref.Name().Short()
 
-		commit, err := resolveTagCommit(repo, ref)
-		if err != nil {
-			return nil
-		}
-		sha := commit.Hash.String()
-
-		if !since.IsZero() && commit.Committer.When.Before(since) {
+		tag, ok := resolveTag(repo, ref)
+		if !ok {
 			return nil
 		}
 
-		currentTags[name] = sha
+		if !since.IsZero() && tag.when.Before(since) {
+			return nil
+		}
+
+		currentTags[name] = tag.sha
 
 		if _, existed := previousTags[name]; !existed {
 			now := time.Now()
 			changes = append(changes, v1.ChangeResult{
 				ExternalID:       repoExternalID,
 				ConfigType:       "Git::Repository",
-				ExternalChangeID: fmt.Sprintf("tag/%s/%s", name, sha),
+				ExternalChangeID: fmt.Sprintf("tag/%s/%s", name, tag.sha),
 				ChangeType:       "Tag",
 				Summary:          fmt.Sprintf("Tag %s created", name),
 				Source:           "git",
 				CreatedAt:        &now,
-				Details:          map[string]any{"tag": name, "sha": sha},
+				Details:          map[string]any{"tag": name, "sha": tag.sha},
 			})
 		}
 		return nil
@@ -243,13 +256,12 @@ func generateTagChangesForBranch(repo *git.Repository, branchExternalID string, 
 	_ = tags.ForEach(func(ref *plumbing.Reference) error {
 		name := ref.Name().Short()
 
-		commit, err := resolveTagCommit(repo, ref)
-		if err != nil {
+		tag, ok := resolveTag(repo, ref)
+		if !ok {
 			return nil
 		}
-		sha := commit.Hash.String()
 
-		if !since.IsZero() && commit.Committer.When.Before(since) {
+		if !since.IsZero() && tag.when.Before(since) {
 			return nil
 		}
 
@@ -257,17 +269,17 @@ func generateTagChangesForBranch(repo *git.Repository, branchExternalID string, 
 			return nil
 		}
 
-		if isAncestor(repo, plumbing.NewHash(sha), branchRef.Hash()) {
+		if isAncestor(repo, plumbing.NewHash(tag.sha), branchRef.Hash()) {
 			now := time.Now()
 			changes = append(changes, v1.ChangeResult{
 				ExternalID:       branchExternalID,
 				ConfigType:       "Git::Branch",
-				ExternalChangeID: fmt.Sprintf("tag/%s/%s", name, sha),
+				ExternalChangeID: fmt.Sprintf("tag/%s/%s", name, tag.sha),
 				ChangeType:       "Tag",
 				Summary:          fmt.Sprintf("Tag %s created", name),
 				Source:           "git",
 				CreatedAt:        &now,
-				Details:          map[string]any{"tag": name, "sha": sha},
+				Details:          map[string]any{"tag": name, "sha": tag.sha},
 			})
 		}
 		return nil
