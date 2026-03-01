@@ -25,7 +25,7 @@ var _ = ginkgo.Describe("Git Scraper Integration", ginkgo.Ordered, func() {
 		}
 	})
 
-	ginkgo.It("should have a Git::Repository config item", func() {
+	ginkgo.It("should have a Git::Repository config item with tags", func() {
 		var repo *v1.ScrapeResult
 		for i := range results {
 			if results[i].Type == "Git::Repository" {
@@ -37,6 +37,8 @@ var _ = ginkgo.Describe("Git Scraper Integration", ginkgo.Ordered, func() {
 		Expect(repo.ID).To(ContainSubstring("git/"))
 		Expect(repo.ConfigClass).To(Equal("Repository"))
 		Expect(repo.Name).ToNot(BeEmpty())
+		Expect(repo.Tags).To(HaveKey("url"))
+		Expect(repo.Tags).To(HaveKey("defaultBranch"))
 
 		configMap, ok := repo.Config.(map[string]any)
 		Expect(ok).To(BeTrue(), "repo config should be a map")
@@ -55,7 +57,7 @@ var _ = ginkgo.Describe("Git Scraper Integration", ginkgo.Ordered, func() {
 		}
 	})
 
-	ginkgo.It("should have a Git::Branch config item as child of the repo", func() {
+	ginkgo.It("should have a Git::Branch config item with tags as child of the repo", func() {
 		var branch *v1.ScrapeResult
 		for i := range results {
 			if results[i].Type == "Git::Branch" {
@@ -67,6 +69,8 @@ var _ = ginkgo.Describe("Git Scraper Integration", ginkgo.Ordered, func() {
 		Expect(branch.ID).To(ContainSubstring("::main"))
 		Expect(branch.ConfigClass).To(Equal("Branch"))
 		Expect(branch.Name).To(Equal("main"))
+		Expect(branch.Tags).To(HaveKey("branch"))
+		Expect(branch.Tags).To(HaveKey("url"))
 
 		Expect(branch.Parents).To(HaveLen(1), "branch should have exactly one parent")
 		Expect(branch.Parents[0].Type).To(Equal("Git::Repository"))
@@ -77,7 +81,7 @@ var _ = ginkgo.Describe("Git Scraper Integration", ginkgo.Ordered, func() {
 		Expect(configMap).To(HaveKey("files"))
 	})
 
-	ginkgo.It("should produce commit changes on the branch", func() {
+	ginkgo.It("should produce commit changes with author and committer", func() {
 		var branch *v1.ScrapeResult
 		for i := range results {
 			if results[i].Type == "Git::Branch" {
@@ -89,12 +93,15 @@ var _ = ginkgo.Describe("Git Scraper Integration", ginkgo.Ordered, func() {
 		Expect(branch.Changes).ToNot(BeEmpty(), "branch should have commit changes")
 
 		for _, c := range branch.Changes {
-			if c.ChangeType == "GitCommit" {
-				Expect(c.ExternalChangeID).ToNot(BeEmpty(), "commit change should have SHA as external change ID")
-				Expect(c.Summary).ToNot(BeEmpty(), "commit change should have a summary")
+			if c.ChangeType == "Commit" {
+				Expect(c.ExternalChangeID).ToNot(BeEmpty(), "commit should have SHA")
+				Expect(c.Summary).ToNot(BeEmpty(), "commit should have a summary")
 				Expect(c.Source).To(Equal("git"))
 				Expect(c.CreatedAt).ToNot(BeNil())
 				Expect(c.CreatedBy).ToNot(BeNil())
+				Expect(*c.CreatedBy).To(ContainSubstring("<"), "created_by should be in 'Name <email>' format")
+				Expect(c.Details).To(HaveKey("author"))
+				Expect(c.Details).To(HaveKey("committer"))
 			}
 		}
 	})
@@ -129,7 +136,7 @@ var _ = ginkgo.Describe("Git Scraper Integration", ginkgo.Ordered, func() {
 
 		hasDiff := false
 		for _, c := range branch.Changes {
-			if c.ChangeType == "GitCommit" && c.Diff != nil && *c.Diff != "" {
+			if c.ChangeType == "Commit" && c.Diff != nil && *c.Diff != "" {
 				hasDiff = true
 				break
 			}

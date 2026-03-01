@@ -4,15 +4,15 @@ metadata:
   name: git-scraper-test
 spec:
   git:
-    - url: https://github.com/flanksource/postq
+    - url: https://github.com/flanksource/mission-control
       branch: main
       depth: 10
       branches:
         - main
       files:
-        - pattern: "**/*"
-          strategy: track
         - pattern: "**/*.go"
-          strategy: diff
-        - pattern: vendor/**
           strategy: ignore
+        - pattern: "**/*.yaml"
+          strategy: diff
+        - pattern: "**/*.md"
+          strategy: track

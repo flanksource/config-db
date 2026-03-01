@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -104,7 +105,7 @@ func buildFileTree(repo *git.Repository, commitHash plumbing.Hash, rules []v1.Gi
 		if err == nil && lastCommit != nil {
 			entry.LastModified = lastCommit.Author.When
 			entry.LastModifiedSHA = lastCommit.Hash.String()
-			entry.LastModifiedBy = lastCommit.Author.Email
+			entry.LastModifiedBy = fmt.Sprintf("%s <%s>", lastCommit.Author.Name, lastCommit.Author.Email)
 		}
 
 		entries = append(entries, entry)
