@@ -1,41 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/flanksource/config-db/api/v1/http",
-  "$ref": "#/$defs/HTTP",
+  "$id": "https://github.com/flanksource/config-db/api/v1/git",
+  "$ref": "#/$defs/Git",
   "$defs": {
-    "AWSSigV4": {
-      "properties": {
-        "connection": {
-          "type": "string"
-        },
-        "accessKey": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "secretKey": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "sessionToken": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "assumeRole": {
-          "type": "string"
-        },
-        "region": {
-          "type": "string"
-        },
-        "endpoint": {
-          "type": "string"
-        },
-        "skipTLSVerify": {
-          "type": "boolean"
-        },
-        "service": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
     "ChangeMapping": {
       "properties": {
         "filter": {
@@ -205,7 +172,7 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "HTTP": {
+    "Git": {
       "properties": {
         "id": {
           "type": "string",
@@ -224,8 +191,7 @@
           "description": "A JSONPath expression to use to extract individual items from the resource,\nitems are extracted first and then the ID,Name,Type and transformations are applied for each item."
         },
         "type": {
-          "type": "string",
-          "description": "A static value or JSONPath expression to use as the type for the resource."
+          "type": "string"
         },
         "class": {
           "type": "string",
@@ -279,6 +245,9 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "url": {
+          "type": "string"
+        },
         "connection": {
           "type": "string"
         },
@@ -288,55 +257,51 @@
         "password": {
           "$ref": "#/$defs/EnvVar"
         },
-        "ntlm": {
-          "type": "boolean"
-        },
-        "ntlmv2": {
-          "type": "boolean"
-        },
-        "digest": {
-          "type": "boolean"
-        },
-        "url": {
-          "type": "string"
-        },
-        "bearer": {
+        "certificate": {
           "$ref": "#/$defs/EnvVar"
         },
-        "oauth": {
-          "$ref": "#/$defs/OAuth"
+        "branch": {
+          "type": "string"
         },
-        "tls": {
-          "$ref": "#/$defs/TLSConfig"
+        "depth": {
+          "type": "integer"
         },
-        "headers": {
+        "destination": {
+          "type": "string"
+        },
+        "branches": {
           "items": {
-            "$ref": "#/$defs/EnvVar"
-          },
-          "type": "array"
-        },
-        "awsSigV4": {
-          "$ref": "#/$defs/AWSSigV4"
-        },
-        "env": {
-          "items": {
-            "$ref": "#/$defs/EnvVar"
+            "type": "string"
           },
           "type": "array",
-          "description": "Environment variables to be used in the templating."
+          "description": "Branches to track. Supports glob patterns (e.g. \"release/*\").\nDefaults to the default branch only."
         },
-        "method": {
-          "type": "string"
-        },
-        "body": {
-          "type": "string"
-        },
-        "pagination": {
-          "$ref": "#/$defs/Pagination"
+        "files": {
+          "items": {
+            "$ref": "#/$defs/GitFileRule"
+          },
+          "type": "array",
+          "description": "Files configures per-glob file handling strategy.\nDefault strategy for unmatched files is \"track\"."
         }
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "GitFileRule": {
+      "properties": {
+        "pattern": {
+          "type": "string"
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "pattern",
+        "strategy"
+      ]
     },
     "HelmRefKeySelector": {
       "properties": {
@@ -450,62 +415,6 @@
       },
       "type": "array"
     },
-    "OAuth": {
-      "properties": {
-        "clientID": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "clientSecret": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "scope": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "tokenURL": {
-          "type": "string"
-        },
-        "params": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "Pagination": {
-      "properties": {
-        "nextPageExpr": {
-          "type": "string",
-          "description": "CEL expression to extract next page URL or request from response.\nReceives response map with body, headers, status, url fields.\nReturns string (URL), map (request spec with url/method/body/headers), or null (stop)."
-        },
-        "reduceExpr": {
-          "type": "string",
-          "description": "CEL expression to merge pages using accumulator pattern.\nReceives acc ([]any, starts empty) and page (response body). Returns new acc."
-        },
-        "perPage": {
-          "type": "boolean",
-          "description": "Process each page independently instead of merging."
-        },
-        "maxPages": {
-          "type": "integer",
-          "description": "Maximum number of pages to fetch. 0 means unlimited."
-        },
-        "delay": {
-          "type": "string",
-          "description": "Delay between page requests (e.g. \"500ms\", \"2s\")."
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "nextPageExpr"
-      ]
-    },
     "RelationshipConfig": {
       "properties": {
         "id": {
@@ -565,27 +474,6 @@
       "required": [
         "key"
       ]
-    },
-    "TLSConfig": {
-      "properties": {
-        "insecureSkipVerify": {
-          "type": "boolean"
-        },
-        "handshakeTimeout": {
-          "type": "integer"
-        },
-        "ca": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "cert": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "key": {
-          "$ref": "#/$defs/EnvVar"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
     },
     "Tag": {
       "properties": {

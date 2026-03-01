@@ -1,0 +1,18 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: git-scraper-test
+spec:
+  git:
+    - url: https://github.com/flanksource/postq
+      branch: main
+      depth: 10
+      branches:
+        - main
+      files:
+        - pattern: "**/*"
+          strategy: track
+        - pattern: "**/*.go"
+          strategy: diff
+        - pattern: vendor/**
+          strategy: ignore

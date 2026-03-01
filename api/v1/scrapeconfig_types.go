@@ -93,6 +93,9 @@ func (t *ScrapeConfig) Type() string {
 	if len(t.Spec.File) != 0 {
 		return "file"
 	}
+	if len(t.Spec.Git) != 0 {
+		return "git"
+	}
 	if len(t.Spec.Kubernetes) != 0 {
 		return "kubernetes"
 	}
