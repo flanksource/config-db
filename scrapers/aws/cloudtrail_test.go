@@ -210,14 +210,14 @@ func TestCloudTrailAssumeRoleToAccessLog(t *testing.T) {
 	eventTime := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		name                   string
-		eventRaw               string
-		expectedUserName       string
-		expectedUserARN        string
-		expectedUserAccountID  string
-		expectedUserType       string
-		expectedRoleARN        string
-		expectedConfigType     string
+		name                  string
+		eventRaw              string
+		expectedUserName      string
+		expectedUserARN       string
+		expectedUserAccountID string
+		expectedUserType      string
+		expectedRoleARN       string
+		expectedConfigType    string
 	}{
 		{
 			name: "IAM user assumes role",
