@@ -1,6 +1,7 @@
 package scrapers
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -32,8 +33,9 @@ var (
 	DefaultSchedule    string
 	MinScraperSchedule = time.Second * 29 // 29 to account for any ms errors
 
-	scrapeJobScheduler = cron.New()
-	scrapeJobs         sync.Map
+	scrapeJobScheduler  = cron.New()
+	scrapeJobs          sync.Map
+	scraperSummaryCache sync.Map
 )
 
 const scrapeJobName = "Scraper"
@@ -222,7 +224,10 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 
 			start := time.Now()
 
-			output, err := RunScraper(sc.WithJobHistory(jr.History))
+			scrapeCtx := sc.WithJobHistory(jr.History).
+				WithLastScrapeSummary(getLastScrapeSummary(jr.Context, sc.ScraperID()))
+
+			output, err := RunScraper(scrapeCtx)
 			if err != nil {
 				jr.History.AddError(err.Error())
 				return fmt.Errorf("error running scraper[%s]: %w", sc.ScrapeConfig().Name, err)
@@ -235,6 +240,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 
 			jr.History.SuccessCount = output.Total
 			jr.History.AddDetails("scrape_summary", output.Summary)
+			scraperSummaryCache.Store(sc.ScraperID(), v1.ScrapeSummary(output.Summary))
 
 			source := sc.ScrapeConfig().GetAnnotations()["source"]
 			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
@@ -339,6 +345,44 @@ func getLastRateLimitReset(ctx context.Context, scraperID string) *time.Time {
 		}
 	}
 	return nil
+}
+
+// getLastScrapeSummary returns the scrape summary from the most recent
+// successful job run. It checks the in-memory cache first and falls back
+// to querying the job_history table.
+func getLastScrapeSummary(ctx context.Context, scraperID string) v1.ScrapeSummary {
+	if cached, ok := scraperSummaryCache.Load(scraperID); ok {
+		return cached.(v1.ScrapeSummary)
+	}
+
+	var history models.JobHistory
+	err := ctx.DB().
+		Where("resource_id = ? AND resource_type = ?", scraperID, job.ResourceTypeScraper).
+		Where("status IN ?", []string{models.StatusSuccess, models.StatusWarning, models.StatusFailed}).
+		Order("time_end DESC").First(&history).Error
+	if err != nil {
+		return nil
+	}
+
+	raw, ok := history.Details["scrape_summary"]
+	if !ok {
+		return nil
+	}
+
+	// Details come back from the DB as map[string]interface{} after JSON
+	// deserialization, so we round-trip through JSON to get the typed struct.
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+
+	var summary v1.ScrapeSummary
+	if err := json.Unmarshal(data, &summary); err != nil {
+		return nil
+	}
+
+	scraperSummaryCache.Store(scraperID, summary)
+	return summary
 }
 
 func DeleteScrapeJob(id string) {

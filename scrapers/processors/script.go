@@ -10,8 +10,9 @@ import (
 
 func RunScript(ctx api.ScrapeContext, result v1.ScrapeResult, script v1.Script) ([]v1.ScrapeResult, error) {
 	env := map[string]interface{}{
-		"config": result.Config,
-		"result": result,
+		"config":              result.Config,
+		"result":              result,
+		"last_scrape_summary": ctx.LastScrapeSummary(),
 	}
 
 	out, err := ctx.RunTemplate(script.ToGomplate(), env)
