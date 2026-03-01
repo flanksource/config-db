@@ -1,141 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/flanksource/config-db/api/v1/azure-devops",
-  "$ref": "#/$defs/AzureDevops",
+  "$id": "https://github.com/flanksource/config-db/api/v1/git-hub",
+  "$ref": "#/$defs/GitHub",
   "$defs": {
-    "AzureDevops": {
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "A static value or JSONPath expression to use as the ID for the resource."
-        },
-        "name": {
-          "type": "string",
-          "description": "A static value or JSONPath expression to use as the Name for the resource."
-        },
-        "description": {
-          "type": "string",
-          "description": "A static value or JSONPath expression to use as the description for the resource."
-        },
-        "items": {
-          "type": "string",
-          "description": "A JSONPath expression to use to extract individual items from the resource,\nitems are extracted first and then the ID,Name,Type and transformations are applied for each item."
-        },
-        "type": {
-          "type": "string",
-          "description": "A static value or JSONPath expression to use as the type for the resource."
-        },
-        "class": {
-          "type": "string",
-          "description": "A static value or JSONPath expression to use as the class for the resource."
-        },
-        "format": {
-          "type": "string",
-          "description": "Format of config item, defaults to JSON, available options are JSON, properties"
-        },
-        "status": {
-          "type": "string",
-          "description": "A static value or JSONPath expression to use as the status of the config item"
-        },
-        "health": {
-          "type": "string",
-          "description": "A static value or JSONPath expression to use as the health of the config item"
-        },
-        "timestampFormat": {
-          "type": "string",
-          "description": "TimestampFormat is a Go time format string used to\nparse timestamps in createFields and DeletedFields.\nIf not specified, the default is RFC3339."
-        },
-        "createFields": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "CreateFields is a list of JSONPath expression used to identify the created time of the config.\nIf multiple fields are specified, the first non-empty value will be used."
-        },
-        "deleteFields": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "DeleteFields is a JSONPath expression used to identify the deleted time of the config.\nIf multiple fields are specified, the first non-empty value will be used."
-        },
-        "transform": {
-          "$ref": "#/$defs/Transform"
-        },
-        "labels": {
-          "$ref": "#/$defs/JSONStringMap",
-          "description": "Labels for each config item."
-        },
-        "tags": {
-          "$ref": "#/$defs/Tags",
-          "description": "Tags for each config item.\nMax allowed: 5"
-        },
-        "properties": {
-          "items": {
-            "$ref": "#/$defs/ConfigProperties"
-          },
-          "type": "array",
-          "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
-        },
-        "connection": {
-          "type": "string"
-        },
-        "organization": {
-          "type": "string"
-        },
-        "personalAccessToken": {
-          "$ref": "#/$defs/EnvVar"
-        },
-        "projects": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "pipelines": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "permissions": {
-          "$ref": "#/$defs/AzureDevopsPermissions",
-          "description": "Permissions configures fetching pipeline permissions to determine who can execute pipelines"
-        },
-        "maxAge": {
-          "type": "string",
-          "description": "MaxAge limits pipeline run scraping to runs created within this duration (e.g. \"7d\", \"24h\").\nDefaults to the system property azuredevops.pipeline.max_age, which defaults to 7d."
-        },
-        "releases": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "Releases filters classic release pipelines to scrape by name or glob"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "projects",
-        "pipelines"
-      ]
-    },
-    "AzureDevopsPermissions": {
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enabled enables fetching pipeline permissions"
-        },
-        "rateLimit": {
-          "type": "string",
-          "description": "RateLimit specifies how often to refresh permissions (e.g., \"6h\", \"24h\")\nDefaults to \"24h\" if not set"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "AzureDevopsPermissions configures permission fetching for Azure DevOps pipelines"
-    },
     "ChangeMapping": {
       "properties": {
         "filter": {
@@ -304,6 +171,153 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "GitHub": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the ID for the resource."
+        },
+        "name": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the Name for the resource."
+        },
+        "description": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the description for the resource."
+        },
+        "items": {
+          "type": "string",
+          "description": "A JSONPath expression to use to extract individual items from the resource,\nitems are extracted first and then the ID,Name,Type and transformations are applied for each item."
+        },
+        "type": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the type for the resource."
+        },
+        "class": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the class for the resource."
+        },
+        "format": {
+          "type": "string",
+          "description": "Format of config item, defaults to JSON, available options are JSON, properties"
+        },
+        "status": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the status of the config item"
+        },
+        "health": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the health of the config item"
+        },
+        "timestampFormat": {
+          "type": "string",
+          "description": "TimestampFormat is a Go time format string used to\nparse timestamps in createFields and DeletedFields.\nIf not specified, the default is RFC3339."
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CreateFields is a list of JSONPath expression used to identify the created time of the config.\nIf multiple fields are specified, the first non-empty value will be used."
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "DeleteFields is a JSONPath expression used to identify the deleted time of the config.\nIf multiple fields are specified, the first non-empty value will be used."
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap",
+          "description": "Labels for each config item."
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags",
+          "description": "Tags for each config item.\nMax allowed: 5"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array",
+          "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "repositories": {
+          "items": {
+            "$ref": "#/$defs/GitHubRepository"
+          },
+          "type": "array",
+          "description": "Repositories is the list of repositories to scrape"
+        },
+        "personalAccessToken": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "connection": {
+          "type": "string",
+          "description": "ConnectionName, if provided, will be used to populate personalAccessToken"
+        },
+        "security": {
+          "type": "boolean",
+          "description": "Security enables fetching Dependabot, code scanning, and secret scanning alerts"
+        },
+        "openssf": {
+          "type": "boolean",
+          "description": "OpenSSF enables fetching OpenSSF Scorecard data"
+        },
+        "securityFilters": {
+          "$ref": "#/$defs/GitHubSecurityFilters",
+          "description": "SecurityFilters for security alerts (only used when security=true)"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "repositories"
+      ],
+      "description": "GitHub scraper creates GitHub::Repository config items and optionally\nattaches security alerts and OpenSSF scorecard results as analyses."
+    },
+    "GitHubRepository": {
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "owner",
+        "repo"
+      ],
+      "description": "GitHubRepository specifies a repository to scrape"
+    },
+    "GitHubSecurityFilters": {
+      "properties": {
+        "severity": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "maxAge": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "GitHubSecurityFilters defines filtering options for security alerts"
     },
     "HelmRefKeySelector": {
       "properties": {

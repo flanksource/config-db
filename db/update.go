@@ -858,6 +858,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 		configAccess.ScraperID = lo.Ternary(configAccess.ScraperID == nil, scraperID, configAccess.ScraperID)
 
+		if configAccess.ScraperID == nil && configAccess.ApplicationID == nil && configAccess.Source == nil {
+			ctx.Logger.V(4).Infof("skipping config access row with no origin (config_id=%s)", configAccess.ConfigID)
+			continue
+		}
+
 		// Generate ID if not provided
 		if configAccess.ID == "" {
 			configAccess.ID = ulid.MustNew().AsUUID()
@@ -1531,6 +1536,10 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 					Location: l,
 				})
 			}
+
+			// Pre-populate TempCache so extractChanges can resolve ExternalIDs for
+			// config items that are new in this batch (not yet written to DB).
+			ctx.TempCache().Insert(*ci)
 		}
 
 		if toCreate, toUpdate, changeSummary, err := extractChanges(ctx, &result, ci); err != nil {

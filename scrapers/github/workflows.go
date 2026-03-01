@@ -37,6 +37,10 @@ func (gh GithubActionsScraper) CanScrape(spec v1.ScraperSpec) bool {
 func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 	for _, config := range ctx.ScrapeConfig().Spec.GithubActions {
+		if err := ctx.Err(); err != nil {
+			return results
+		}
+
 		client, err := NewGitHubActionsClient(ctx, config)
 		if err != nil {
 			results.Errorf(err, "failed to create github actions client for owner %s with repository %v", config.Owner, config.Repository)
@@ -50,6 +54,10 @@ func (gh GithubActionsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 
 		for _, workflow := range workflows {
+			if err := ctx.Err(); err != nil {
+				return results
+			}
+
 			if !collections.MatchItems(workflow.GetName(), config.Workflows...) {
 				continue
 			}

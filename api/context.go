@@ -19,6 +19,7 @@ type ScrapeContext struct {
 	temp *TempCache
 
 	isIncremental bool
+	debugRun      bool
 
 	namespace string
 
@@ -160,4 +161,20 @@ func (ctx ScrapeContext) Namespace() string {
 
 func (ctx ScrapeContext) IsTrace() bool {
 	return ctx.scrapeConfig.Spec.IsTrace()
+}
+
+func (ctx ScrapeContext) IsDebug() bool {
+	return ctx.scrapeConfig.Spec.IsDebug()
+}
+
+func (ctx ScrapeContext) IsDebugRun() bool {
+	return ctx.debugRun
+}
+
+func (ctx ScrapeContext) AsDebugRun(level string) ScrapeContext {
+	ctx.debugRun = true
+	sc := ctx.scrapeConfig.DeepCopy()
+	sc.Spec.LogLevel = level
+	ctx.scrapeConfig = sc
+	return ctx
 }
