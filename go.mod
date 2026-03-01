@@ -3,6 +3,17 @@ module github.com/flanksource/config-db
 go 1.25.1
 
 require (
+	github.com/flanksource/artifacts v1.0.21
+	github.com/flanksource/clicky v1.18.0
+	github.com/flanksource/commons v1.46.0
+	github.com/flanksource/deps v1.0.24
+	github.com/flanksource/duty v1.0.1193
+	github.com/flanksource/is-healthy v1.0.82
+	github.com/flanksource/ketall v1.1.9
+	github.com/flanksource/kopper v1.0.13
+)
+
+require (
 	cloud.google.com/go/asset v1.22.0
 	cloud.google.com/go/bigquery v1.72.0
 	cloud.google.com/go/securitycenter v1.38.1
@@ -49,14 +60,6 @@ require (
 	github.com/aws/smithy-go v1.24.0
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fjl/memsize v0.0.2
-	github.com/flanksource/artifacts v1.0.21
-	github.com/flanksource/clicky v1.18.0
-	github.com/flanksource/commons v1.46.0
-	github.com/flanksource/deps v1.0.24
-	github.com/flanksource/duty v1.0.1192
-	github.com/flanksource/is-healthy v1.0.82
-	github.com/flanksource/ketall v1.1.9
-	github.com/flanksource/kopper v1.0.13
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/gomarkdown/markdown v0.0.0-20240729212818-a2a9c4f76ef5

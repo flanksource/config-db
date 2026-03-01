@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/flanksource/clicky"
+	"github.com/flanksource/clicky/api"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -80,6 +82,29 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 	}
 
 	return &_change
+}
+
+func (c ConfigChange) Columns() []api.ColumnDef {
+	return []api.ColumnDef{
+		clicky.Column("ChangeType").Build(),
+		clicky.Column("Summary").Build(),
+		clicky.Column("Source").Build(),
+		clicky.Column("CreatedBy").Build(),
+		clicky.Column("Severity").Build(),
+		clicky.Column("CreatedAt").Build(),
+	}
+}
+
+func (c ConfigChange) Row() map[string]any {
+	row := map[string]any{
+		"ChangeType": clicky.Text(c.ChangeType),
+		"Summary":    clicky.Text(c.Summary),
+		"Source":     clicky.Text(c.Source),
+		"Severity":   clicky.Text(string(c.Severity)),
+		"CreatedAt":  clicky.Text(c.CreatedAt.Format(time.RFC3339)),
+		"CreatedBy":  clicky.Text(lo.FromPtr(c.CreatedBy)),
+	}
+	return row
 }
 
 func (c *ConfigChange) BeforeCreate(tx *gorm.DB) (err error) {

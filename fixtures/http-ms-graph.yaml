@@ -1,0 +1,64 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: ms-graph-scraper
+  namespace: mc
+spec:
+  schedule: "@every 1h"
+  full: true
+  http:
+    # ── Groups with members ──
+    - url: "https://graph.microsoft.com/v1.0/groups?$filter=startswith(displayName,'Flanksource')&$select=id,createdDateTime,displayName,members&$top=100&$expand=members($select=id,displayName,deletedDateTime,employeeId,mail,mailNickname,onPremisesDomainName,onPremisesSamAccountName,userPrincipalName)"
+      pagination:
+        nextPageExpr: '"@odata.nextLink" in response.body && response.body["@odata.nextLink"] != "" ? string(response.body["@odata.nextLink"]) : ""'
+        maxPages: 5
+      connection: connection://monitoring/azure-bearer
+      id: $.id
+      name: $.name
+      type: Azure::Group
+      transform:
+        expr: |
+          (dyn(config).map(group, {
+            'config_type': 'Azure::Group',
+            'id': group.id,
+            'name': group.displayName,
+            'config': {
+              'id': group.id,
+              'displayName': group.displayName,
+              'createdDateTime': group.createdDateTime,
+            },
+            'external_groups': [{
+              'name': group.displayName,
+              'account_id': group.id,
+              'group_type': 'security'
+            }],
+            'external_user_groups': group.members.filter(m, "@odata.type" in m && m["@odata.type"] == "#microsoft.graph.user" && m.?displayName.orValue('') != '').map(m, {
+              'external_user_id': m.id,
+              'external_group_id': group.id
+            })
+          }) + [{
+            'config_type': 'Azure::Group',
+            'id': '__external_users__',
+            'name': '__external_users__',
+            'external_users':
+              dyn(config).map(g, g.members.filter(m,
+                "@odata.type" in m &&
+                m["@odata.type"] == "#microsoft.graph.user" &&
+                m.?displayName.orValue('') != ''
+              )).flatten()
+              .map(m, m.id).uniq()
+              .map(uid,
+                dyn(config).map(g, g.members.filter(m,
+                  "@odata.type" in m &&
+                  m["@odata.type"] == "#microsoft.graph.user" &&
+                  m.id == uid
+                )).flatten()[0]
+              )
+              .map(m, {
+                'name': m.?displayName.orValue(''),
+                'account_id': m.id,
+                'email': m.?mail.orValue(''),
+                'user_type': 'human',
+                'aliases': [m.id, m.?mail.orValue(''), m.?userPrincipalName.orValue(''), m.?onPremisesSamAccountName.orValue(''), m.?mailNickname.orValue(''), m.?employeeId.orValue('')].filter(a, a != '').uniq()
+              })
+          }]).toJSON()
