@@ -293,6 +293,9 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		ctx.JobHistory().AddError(fmt.Sprintf("error running change mapping transformation: %v", err))
 	}
 
+	result.Changes = append(result.Changes, processMoveUpCopyUp(ctx, result, ci)...)
+	result.Changes = append(result.Changes, processCopyMove(ctx, result, ci)...)
+
 	for _, changeResult := range result.Changes {
 		if changeResult.Action == v1.Ignore {
 			changeSummary.AddIgnoredByAction(string(changeResult.Action), changeResult.ChangeType)
@@ -857,6 +860,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		configAccess.ScraperID = lo.Ternary(configAccess.ScraperID == nil, scraperID, configAccess.ScraperID)
+
+		if configAccess.ScraperID == nil && configAccess.ApplicationID == nil && configAccess.Source == nil {
+			ctx.Logger.V(4).Infof("skipping config access row with no origin (config_id=%s)", configAccess.ConfigID)
+			continue
+		}
 
 		// Generate ID if not provided
 		if configAccess.ID == "" {
@@ -1531,6 +1539,10 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 					Location: l,
 				})
 			}
+
+			// Pre-populate TempCache so extractChanges can resolve ExternalIDs for
+			// config items that are new in this batch (not yet written to DB).
+			ctx.TempCache().Insert(*ci)
 		}
 
 		if toCreate, toUpdate, changeSummary, err := extractChanges(ctx, &result, ci); err != nil {

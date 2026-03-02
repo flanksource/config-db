@@ -135,9 +135,8 @@ type ChangeMapping struct {
 	// Type is the type to be set on the change
 	Type string `json:"type,omitempty"`
 	// Action allows performing actions on the corresponding config item
-	// based on this change. Example: You can map EC2 instance's "TerminateInstances"
-	// change event to delete the corresponding EC2 instance config.
-	// 	Allowed actions: "delete", "ignore"
+	// based on this change.
+	// Allowed actions: "delete", "ignore", "move-up", "copy-up", "copy", "move"
 	Action ChangeAction `json:"action,omitempty"`
 	// Summary replaces the existing change summary.
 	Summary string `json:"summary,omitempty"`
@@ -148,6 +147,15 @@ type ChangeMapping struct {
 	ConfigType string `json:"config_type,omitempty"`
 	// ScraperID is the scraper ID for the target config. Use "all" for cross-scraper lookups.
 	ScraperID string `json:"scraper_id,omitempty"`
+	// AncestorType specifies the config type of the ancestor to target
+	// when using "move-up" or "copy-up" actions. The engine walks the parent_id
+	// chain and selects the first ancestor matching this type.
+	// If omitted, the immediate parent is used.
+	AncestorType string `json:"ancestor_type,omitempty"`
+	// Target specifies a config item selector for "copy" and "move" actions.
+	// The selector is evaluated to find target config items to redirect or
+	// duplicate changes to. Mutually exclusive with move-up/copy-up/ancestor_type.
+	Target *duty.RelationshipSelectorTemplate `json:"target,omitempty"`
 }
 
 type TransformChange struct {

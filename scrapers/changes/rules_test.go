@@ -3,6 +3,7 @@ package changes
 import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -180,6 +181,123 @@ var _ = Describe("TestProcessRules", Ordered, func() {
 				},
 			},
 		},
+		{
+			name: "move-up sets action and ancestor_type",
+			input: v1.ScrapeResult{
+				Type: "AzureDevops::PipelineRun",
+				Changes: []v1.ChangeResult{
+					{ChangeType: "Deployment", ExternalID: "run-1"},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{ChangeType: "Deployment", ExternalID: "run-1", Action: v1.MoveUp, AncestorType: "AzureDevops::Project"},
+			},
+			rules: []v1.ChangeMapping{
+				{
+					Filter:       `change_type == "Deployment"`,
+					Action:       v1.MoveUp,
+					AncestorType: "AzureDevops::Project",
+				},
+			},
+		},
+		{
+			name: "copy-up sets action without ancestor_type",
+			input: v1.ScrapeResult{
+				Type: "Kubernetes::Pod",
+				Changes: []v1.ChangeResult{
+					{ChangeType: "diff", ExternalID: "pod-1"},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{ChangeType: "diff", ExternalID: "pod-1", Action: v1.CopyUp},
+			},
+			rules: []v1.ChangeMapping{
+				{
+					Filter: `change_type == "diff"`,
+					Action: v1.CopyUp,
+				},
+			},
+		},
+		{
+			name: "copy sets action and target on change",
+			input: v1.ScrapeResult{
+				Type: "AzureDevops::PipelineRun",
+				Changes: []v1.ChangeResult{
+					{ChangeType: "Deployment", ExternalID: "run-1"},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{ChangeType: "Deployment", ExternalID: "run-1", Action: v1.Copy},
+			},
+			rules: []v1.ChangeMapping{
+				{
+					Filter: `change_type == "Deployment"`,
+					Action: v1.Copy,
+					Target: &duty.RelationshipSelectorTemplate{
+						Type: duty.Lookup{Value: "Kubernetes::Deployment"},
+						Name: duty.Lookup{Expr: "change.summary"},
+					},
+				},
+			},
+		},
+		{
+			name: "move sets action and target on change",
+			input: v1.ScrapeResult{
+				Type: "AzureDevops::PipelineRun",
+				Changes: []v1.ChangeResult{
+					{ChangeType: "Deployment", ExternalID: "run-2"},
+				},
+			},
+			expect: []v1.ChangeResult{
+				{ChangeType: "Deployment", ExternalID: "run-2", Action: v1.Move},
+			},
+			rules: []v1.ChangeMapping{
+				{
+					Filter: `change_type == "Deployment"`,
+					Action: v1.Move,
+					Target: &duty.RelationshipSelectorTemplate{
+						Type: duty.Lookup{Value: "Kubernetes::Deployment"},
+					},
+				},
+			},
+		},
+		{
+			name: "target mutually exclusive with move-up",
+			input: v1.ScrapeResult{
+				Changes: []v1.ChangeResult{
+					{ChangeType: "diff"},
+				},
+			},
+			rules: []v1.ChangeMapping{
+				{
+					Filter: `change_type == "diff"`,
+					Action: v1.MoveUp,
+					Target: &duty.RelationshipSelectorTemplate{
+						Type: duty.Lookup{Value: "Kubernetes::Deployment"},
+					},
+				},
+			},
+			err: true,
+		},
+		{
+			name: "target mutually exclusive with ancestor_type",
+			input: v1.ScrapeResult{
+				Changes: []v1.ChangeResult{
+					{ChangeType: "diff"},
+				},
+			},
+			rules: []v1.ChangeMapping{
+				{
+					Filter:       `change_type == "diff"`,
+					Action:       v1.Copy,
+					AncestorType: "Kubernetes::Namespace",
+					Target: &duty.RelationshipSelectorTemplate{
+						Type: duty.Lookup{Value: "Kubernetes::Deployment"},
+					},
+				},
+			},
+			err: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -203,6 +321,7 @@ func cleanChangeResults(changes []v1.ChangeResult) []v1.ChangeResult {
 	var cleanChanges []v1.ChangeResult
 	for _, c := range changes {
 		c.FlushMap()
+		c.Target = nil
 		cleanChanges = append(cleanChanges, c)
 	}
 	return cleanChanges
