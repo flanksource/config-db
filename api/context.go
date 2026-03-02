@@ -19,11 +19,12 @@ type ScrapeContext struct {
 	temp *TempCache
 
 	isIncremental bool
+	debugRun      bool
 
 	namespace string
 
-	jobHistory       *models.JobHistory
-	scrapeConfig     *v1.ScrapeConfig
+	jobHistory        *models.JobHistory
+	scrapeConfig      *v1.ScrapeConfig
 	lastScrapeSummary v1.ScrapeSummary
 }
 
@@ -173,5 +174,27 @@ func (ctx ScrapeContext) Namespace() string {
 }
 
 func (ctx ScrapeContext) IsTrace() bool {
+	if ctx.scrapeConfig == nil {
+		return false
+	}
 	return ctx.scrapeConfig.Spec.IsTrace()
+}
+
+func (ctx ScrapeContext) IsDebug() bool {
+	if ctx.scrapeConfig == nil {
+		return false
+	}
+	return ctx.scrapeConfig.Spec.IsDebug()
+}
+
+func (ctx ScrapeContext) IsDebugRun() bool {
+	return ctx.debugRun
+}
+
+func (ctx ScrapeContext) AsDebugRun(level string) ScrapeContext {
+	ctx.debugRun = true
+	sc := ctx.scrapeConfig.DeepCopy()
+	sc.Spec.LogLevel = level
+	ctx.scrapeConfig = sc
+	return ctx
 }
