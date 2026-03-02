@@ -1,7 +1,6 @@
 package devops
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -208,7 +207,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 	}
 
 	// Warm terminal-run cache for this pipeline (FR-2)
-	if err := terminalRunCache.ensureFresh(ctx, cacheTTL, project.Name, pipeline.ID); err != nil {
+	if err := terminalRunCache.ensureFresh(ctx, cacheTTL, config.Organization, project.Name, pipeline.ID); err != nil {
 		ctx.Logger.V(4).Infof("failed to warm terminal-run cache for %s/%s: %v", project.Name, pipeline.Name, err)
 	}
 
@@ -336,7 +335,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 	uniquePipelines := make(map[string]Pipeline) //nolint:govet
 
 	for _, run := range runs {
-		externalChangeID := fmt.Sprintf("%s/%d/%d", project.Name, pipeline.ID, run.ID)
+		externalChangeID := fmt.Sprintf("%s/%s/%d/%d", config.Organization, project.Name, pipeline.ID, run.ID)
 
 		// Skip runs older than maxAge cutoff (FR-4)
 		if run.CreatedDate.Before(cutoff) {
@@ -515,9 +514,10 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			summary = fmt.Sprintf("%s (%d jobs, %d tasks)", summary, jobCount, taskCount)
 		}
 
+		createdAt := run.CreatedDate
 		changeResult := v1.ChangeResult{
 			ChangeType:       changeType,
-			CreatedAt:        &run.CreatedDate,
+			CreatedAt:        &createdAt,
 			Severity:         severity,
 			ExternalID:       id,
 			ConfigType:       PipelineType,
@@ -539,10 +539,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		changes := p.Runs
 		p.Runs = nil
 
-		pipelineConfig := buildPipelineConfig(p)
-		configJSON, _ := json.Marshal(pipelineConfig)
-		var configMap map[string]any
-		_ = json.Unmarshal(configJSON, &configMap)
+		configMap := buildPipelineConfig(p)
 
 		users := make([]dutyModels.ExternalUser, 0, len(externalUsers))
 		for _, u := range externalUsers {
