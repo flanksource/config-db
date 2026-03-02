@@ -19,7 +19,6 @@ import (
 	"github.com/gomarkdown/markdown/parser"
 )
 
-
 type Scanner struct {
 }
 

@@ -78,5 +78,5 @@ func (m JSON) GormDataType() string {
 	return "json"
 }
 
-// JSONStringMap defiend JSON data type, need to implements driver.Valuer, sql.Scanner interface
+// JSONStringMap defined JSON data type, need to implements driver.Valuer, sql.Scanner interface
 type JSONStringMap types.JSONStringMap
