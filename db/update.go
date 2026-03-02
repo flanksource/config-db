@@ -1104,64 +1104,182 @@ func deleteStaleExternalEntities(ctx api.ScrapeContext, seen seenExternalEntitie
 		return nil
 	}
 
-	now := duty.Now()
-
 	// Delete stale external users
-	if len(seen.externalUserIDs) > 0 {
-		if err := ctx.DB().
-			Model(&dutyModels.ExternalUser{}).
-			Where("scraper_id = ?", *scraperID).
-			Where("deleted_at IS NULL").
-			Where("id NOT IN (?)", seen.externalUserIDs).
-			Update("deleted_at", now).Error; err != nil {
-			return fmt.Errorf("failed to delete stale external users: %w", err)
-		}
+	if err := deleteStaleEntitiesBatched(ctx, *scraperID, seen.externalUserIDs,
+		&dutyModels.ExternalUser{}, "external users"); err != nil {
+		return err
 	}
 
 	// Delete stale external groups
-	if len(seen.externalGroupIDs) > 0 {
-		if err := ctx.DB().
-			Model(&dutyModels.ExternalGroup{}).
-			Where("scraper_id = ?", *scraperID).
-			Where("deleted_at IS NULL").
-			Where("id NOT IN (?)", seen.externalGroupIDs).
-			Update("deleted_at", now).Error; err != nil {
-			return fmt.Errorf("failed to delete stale external groups: %w", err)
-		}
+	if err := deleteStaleEntitiesBatched(ctx, *scraperID, seen.externalGroupIDs,
+		&dutyModels.ExternalGroup{}, "external groups"); err != nil {
+		return err
 	}
 
 	// Delete stale external roles
-	if len(seen.externalRoleIDs) > 0 {
+	if err := deleteStaleRolesBatched(ctx, *scraperID, seen.externalRoleIDs,
+		"external roles"); err != nil {
+		return err
+	}
+
+	// Delete stale config access with retention period
+	if err := deleteStaleConfigAccessBatched(ctx, *scraperID, seen.configAccessIDs); err != nil {
+		return err
+	}
+
+	// Delete stale external user groups
+	if err := deleteStaleUserGroupsBatched(ctx, *scraperID, seen.externalUserGroupKeys); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// deleteStaleEntitiesBatched processes stale entity deletion in batches to avoid PostgreSQL parameter limits
+func deleteStaleEntitiesBatched(ctx api.ScrapeContext, scraperID uuid.UUID, seenIDs []uuid.UUID, model interface{}, entityName string) error {
+	const batchSize = 50000
+
+	if len(seenIDs) == 0 {
+		// If no entities were seen, delete all entities for this scraper
 		if err := ctx.DB().
-			Model(&dutyModels.ExternalRole{}).
-			Where("scraper_id = ?", *scraperID).
-			Where("id NOT IN (?)", seen.externalRoleIDs).
-			Delete(&dutyModels.ExternalRole{}).Error; err != nil {
-			return fmt.Errorf("failed to delete stale external roles: %w", err)
+			Model(model).
+			Where("scraper_id = ?", scraperID).
+			Where("deleted_at IS NULL").
+			Update("deleted_at", duty.Now()).Error; err != nil {
+			return fmt.Errorf("failed to delete stale %s: %w", entityName, err)
+		}
+		return nil
+	}
+
+	// Process in batches to avoid parameter limit
+	for i := 0; i < len(seenIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(seenIDs) {
+			end = len(seenIDs)
+		}
+		batch := seenIDs[i:end]
+
+		if err := ctx.DB().
+			Model(model).
+			Where("scraper_id = ?", scraperID).
+			Where("deleted_at IS NULL").
+			Where("id NOT IN (?)", batch).
+			Update("deleted_at", duty.Now()).Error; err != nil {
+			return fmt.Errorf("failed to delete stale %s: %w", entityName, err)
 		}
 	}
 
-	// Delete stale config access
-	if len(seen.configAccessIDs) > 0 {
+	return nil
+}
+
+// deleteStaleRolesBatched processes stale role deletion in batches (hard delete)
+func deleteStaleRolesBatched(ctx api.ScrapeContext, scraperID uuid.UUID, seenIDs []uuid.UUID, entityName string) error {
+	const batchSize = 50000
+
+	if len(seenIDs) == 0 {
+		// If no roles were seen, delete all roles for this scraper
+		if err := ctx.DB().
+			Model(&dutyModels.ExternalRole{}).
+			Where("scraper_id = ?", scraperID).
+			Delete(&dutyModels.ExternalRole{}).Error; err != nil {
+			return fmt.Errorf("failed to delete stale %s: %w", entityName, err)
+		}
+		return nil
+	}
+
+	// Process in batches to avoid parameter limit
+	for i := 0; i < len(seenIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(seenIDs) {
+			end = len(seenIDs)
+		}
+		batch := seenIDs[i:end]
+
+		if err := ctx.DB().
+			Model(&dutyModels.ExternalRole{}).
+			Where("scraper_id = ?", scraperID).
+			Where("id NOT IN (?)", batch).
+			Delete(&dutyModels.ExternalRole{}).Error; err != nil {
+			return fmt.Errorf("failed to delete stale %s: %w", entityName, err)
+		}
+	}
+
+	return nil
+}
+
+// deleteStaleConfigAccessBatched processes stale config access deletion in batches with retention period
+func deleteStaleConfigAccessBatched(ctx api.ScrapeContext, scraperID uuid.UUID, seenIDs []string) error {
+	const batchSize = 50000
+
+	// Get retention period from properties, default to 90 days
+	retentionDays := ctx.Properties().Int("config.access.retention", 90)
+	retentionTime := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour)
+
+	if len(seenIDs) == 0 {
+		// If no config access records were seen, delete all records for this scraper that are older than retention period
 		if err := ctx.DB().
 			Model(&dutyModels.ConfigAccess{}).
-			Where("scraper_id = ?", *scraperID).
+			Where("scraper_id = ?", scraperID).
 			Where("deleted_at IS NULL").
-			Where("id NOT IN (?)", seen.configAccessIDs).
-			Update("deleted_at", now).Error; err != nil {
+			Where("created_at < ?", retentionTime).
+			Update("deleted_at", duty.Now()).Error; err != nil {
+			return fmt.Errorf("failed to delete stale config access: %w", err)
+		}
+		return nil
+	}
+
+	// Process in batches to avoid parameter limit
+	for i := 0; i < len(seenIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(seenIDs) {
+			end = len(seenIDs)
+		}
+		batch := seenIDs[i:end]
+
+		if err := ctx.DB().
+			Model(&dutyModels.ConfigAccess{}).
+			Where("scraper_id = ?", scraperID).
+			Where("deleted_at IS NULL").
+			Where("created_at < ?", retentionTime).
+			Where("id NOT IN (?)", batch).
+			Update("deleted_at", duty.Now()).Error; err != nil {
 			return fmt.Errorf("failed to delete stale config access: %w", err)
 		}
 	}
 
-	// Delete stale external user groups
-	if len(seen.externalUserGroupKeys) > 0 {
-		// For composite key, we need to handle differently
+	return nil
+}
+
+// deleteStaleUserGroupsBatched processes stale user group deletion in batches
+func deleteStaleUserGroupsBatched(ctx api.ScrapeContext, scraperID uuid.UUID, seenKeys []string) error {
+	const batchSize = 50000
+
+	if len(seenKeys) == 0 {
+		// If no user groups were seen, delete all user groups for this scraper
 		if err := ctx.DB().
 			Model(&dutyModels.ExternalUserGroup{}).
 			Where("deleted_at IS NULL").
-			Where("external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)", *scraperID).
-			Where("(external_user_id::text || ':' || external_group_id::text) NOT IN (?)", seen.externalUserGroupKeys).
-			Update("deleted_at", now).Error; err != nil {
+			Where("external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)", scraperID).
+			Update("deleted_at", duty.Now()).Error; err != nil {
+			return fmt.Errorf("failed to delete stale external user groups: %w", err)
+		}
+		return nil
+	}
+
+	// Process in batches to avoid parameter limit
+	for i := 0; i < len(seenKeys); i += batchSize {
+		end := i + batchSize
+		if end > len(seenKeys) {
+			end = len(seenKeys)
+		}
+		batch := seenKeys[i:end]
+
+		if err := ctx.DB().
+			Model(&dutyModels.ExternalUserGroup{}).
+			Where("deleted_at IS NULL").
+			Where("external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)", scraperID).
+			Where("(external_user_id::text || ':' || external_group_id::text) NOT IN (?)", batch).
+			Update("deleted_at", duty.Now()).Error; err != nil {
 			return fmt.Errorf("failed to delete stale external user groups: %w", err)
 		}
 	}
