@@ -243,16 +243,17 @@ func buildReleaseResult(config v1.AzureDevops, project Project, def ReleaseDefin
 				details["postDeployApprovals"] = post
 			}
 
+			createdAt := release.CreatedOn
 			changes = append(changes, v1.ChangeResult{
 				ChangeType:       changeType,
-				CreatedAt:        &release.CreatedOn,
+				CreatedAt:        &createdAt,
 				CreatedBy:        createdBy,
 				ExternalID:       fmt.Sprintf("%s/%d", project.Name, def.ID),
 				ConfigType:       ReleaseType,
 				Source:           webURL,
 				Summary:          fmt.Sprintf("%s / %s", release.Name, env.Name),
 				Details:          details,
-				ExternalChangeID: fmt.Sprintf("%s/release/%d/%d/%d", project.Name, def.ID, release.ID, env.ID),
+				ExternalChangeID: fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID),
 			})
 
 			if log := deploymentAccessLog(release.CreatedBy, configExternalID, release.CreatedOn, env.Name, externalUsers); log != nil {

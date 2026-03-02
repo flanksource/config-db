@@ -135,7 +135,8 @@ func ProcessRules(ctx api.ScrapeContext, result *v1.ScrapeResult, rules ...v1.Ch
 		return nil
 	}
 
-	allRules := Rules
+	allRules := make([]changeRule, len(Rules), len(Rules)+len(rules))
+	copy(allRules, Rules)
 	var errors []error
 	for _, r := range rules {
 		if r.Target != nil && !r.Target.IsEmpty() && (r.Action == v1.MoveUp || r.Action == v1.CopyUp || r.AncestorType != "") {

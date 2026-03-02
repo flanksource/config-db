@@ -40,8 +40,8 @@ func (c *runCache) add(externalChangeID string) {
 // ensureFresh reloads the cache from DB when TTL has elapsed for a given pipeline.
 // Each pipeline has its own freshness tracking to avoid stale misses when
 // multiple pipelines are scraped.
-func (c *runCache) ensureFresh(ctx api.ScrapeContext, ttl time.Duration, project string, pipelineID int) error {
-	pipelineKey := fmt.Sprintf("%s/%d", project, pipelineID)
+func (c *runCache) ensureFresh(ctx api.ScrapeContext, ttl time.Duration, org, project string, pipelineID int) error {
+	pipelineKey := fmt.Sprintf("%s/%s/%d", org, project, pipelineID)
 
 	c.RLock()
 	lastLoad, loaded := c.pipelineLastLoad[pipelineKey]
@@ -52,7 +52,7 @@ func (c *runCache) ensureFresh(ctx api.ScrapeContext, ttl time.Duration, project
 		return nil
 	}
 
-	pattern := fmt.Sprintf("%s/%d/%%", project, pipelineID)
+	pattern := fmt.Sprintf("%s/%s/%d/%%", org, project, pipelineID)
 	return c.load(ctx, pattern, pipelineKey)
 }
 

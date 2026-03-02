@@ -95,12 +95,13 @@ func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 	return ScrapeContext{
 		Context:           ctx.Context.WithValue(key, val),
 		temp:              ctx.temp,
+		isIncremental:     ctx.isIncremental,
+		debugRun:          ctx.debugRun,
 		namespace:         ctx.namespace,
 		jobHistory:        ctx.jobHistory,
 		scrapeConfig:      ctx.scrapeConfig,
 		lastScrapeSummary: ctx.lastScrapeSummary,
 	}
-
 }
 
 func (ctx ScrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig, plugins ...v1.ScrapePluginSpec) ScrapeContext {
@@ -193,8 +194,10 @@ func (ctx ScrapeContext) IsDebugRun() bool {
 
 func (ctx ScrapeContext) AsDebugRun(level string) ScrapeContext {
 	ctx.debugRun = true
-	sc := ctx.scrapeConfig.DeepCopy()
-	sc.Spec.LogLevel = level
-	ctx.scrapeConfig = sc
+	if ctx.scrapeConfig != nil {
+		sc := ctx.scrapeConfig.DeepCopy()
+		sc.Spec.LogLevel = level
+		ctx.scrapeConfig = sc
+	}
 	return ctx
 }
