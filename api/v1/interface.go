@@ -106,6 +106,14 @@ type ChangeResult struct {
 	// UpdateExisting indicates whether to update an existing change
 	UpdateExisting bool `json:"update_existing"`
 
+	// AncestorType is set by move-up/copy-up change mappings to specify
+	// which ancestor config type to target during parent chain traversal.
+	AncestorType string `json:"-"`
+
+	// Target is set by copy/move change mappings to specify the config item
+	// selector for resolving target config items.
+	Target *duty.RelationshipSelectorTemplate `json:"-"`
+
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
 }
@@ -823,6 +831,9 @@ func (s ScrapeResult) Debug() api.Text {
 		t = t.NewLine().Append("Changes: ", "text-muted")
 		for _, change := range s.Changes {
 			t = t.NewLine().Append(fmt.Sprintf(" - %s: %s", change.ChangeType, change.Summary))
+			if len(change.Details) > 0 {
+				t = t.NewLine().Append(clicky.Map(change.Details, "max-w-[100ch]")).NewLine()
+			}
 		}
 	}
 
@@ -1060,16 +1071,17 @@ func MergeScrapeResults(results ...ScrapeResults) FullScrapeResults {
 
 			for _, change := range r.Changes {
 				configChange := models.ConfigChange{
-					ChangeType:       change.ChangeType,
-					Severity:         models.Severity(change.Severity),
-					Source:           change.Source,
-					Summary:          change.Summary,
-					CreatedAt:        change.CreatedAt,
-					ExternalChangeID: lo.ToPtr(change.ExternalChangeID),
-					ExternalID:       change.ExternalID,
-					ConfigType:       change.ConfigType,
-					Diff:             lo.FromPtr(change.Diff),
-					Patches:          change.Patches,
+					ChangeType:        change.ChangeType,
+					Severity:          models.Severity(change.Severity),
+					Source:            change.Source,
+					Summary:           change.Summary,
+					CreatedAt:         change.CreatedAt,
+					ExternalChangeID:  lo.ToPtr(change.ExternalChangeID),
+					ExternalID:        change.ExternalID,
+					ConfigType:        change.ConfigType,
+					Diff:              lo.FromPtr(change.Diff),
+					Patches:           change.Patches,
+					ExternalCreatedBy: change.CreatedBy,
 				}
 				if change.Details != nil {
 					if detailsJSON, err := json.Marshal(change.Details); err == nil {
