@@ -19,7 +19,7 @@
         },
         "action": {
           "type": "string",
-          "description": "Action allows performing actions on the corresponding config item\nbased on this change. Example: You can map EC2 instance's \"TerminateInstances\"\nchange event to delete the corresponding EC2 instance config.\n\tAllowed actions: \"delete\", \"ignore\""
+          "description": "Action allows performing actions on the corresponding config item\nbased on this change.\nAllowed actions: \"delete\", \"ignore\", \"move-up\", \"copy-up\", \"copy\", \"move\""
         },
         "summary": {
           "type": "string",
@@ -36,6 +36,14 @@
         "scraper_id": {
           "type": "string",
           "description": "ScraperID is the scraper ID for the target config. Use \"all\" for cross-scraper lookups."
+        },
+        "ancestor_type": {
+          "type": "string",
+          "description": "AncestorType specifies the config type of the ancestor to target\nwhen using \"move-up\" or \"copy-up\" actions. The engine walks the parent_id\nchain and selects the first ancestor matching this type.\nIf omitted, the immediate parent is used."
+        },
+        "target": {
+          "$ref": "#/$defs/RelationshipSelectorTemplate",
+          "description": "Target specifies a config item selector for \"copy\" and \"move\" actions.\nThe selector is evaluated to find target config items to redirect or\nduplicate changes to. Mutually exclusive with move-up/copy-up/ancestor_type."
         }
       },
       "additionalProperties": false,
@@ -129,7 +137,7 @@
         "type": "string"
       },
       "type": "object",
-      "description": "JSONStringMap defiend JSON data type, need to implements driver.Valuer, sql.Scanner interface"
+      "description": "JSONStringMap defined JSON data type, need to implements driver.Valuer, sql.Scanner interface"
     },
     "Link": {
       "properties": {
@@ -261,6 +269,39 @@
         "parent": {
           "type": "boolean",
           "description": "Parent sets all the configs found by the selector\nas the parent of the configs passed by the filter"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RelationshipSelectorTemplate": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "external_id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "name": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "type": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "agent": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "scope": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
         }
       },
       "additionalProperties": false,

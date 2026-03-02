@@ -218,7 +218,7 @@ func (t Transform) String() string {
 	}
 
 	if !t.Change.IsEmpty() {
-		s += fmt.Sprintf(" change=%s", t.Change)
+		s += fmt.Sprintf(" change=%v", t.Change)
 	}
 
 	s += fmt.Sprintf(" relationships=%d", len(t.Relationship))

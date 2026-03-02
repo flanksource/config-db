@@ -30,6 +30,10 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 	for _, config := range ctx.ScrapeConfig().Spec.GitHub {
 		for _, repoConfig := range config.Repositories {
+			if err := ctx.Err(); err != nil {
+				return results
+			}
+
 			repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
 			ctx.Logger.V(2).Infof("scraping GitHub repository: %s", repoFullName)
 
