@@ -52,6 +52,7 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) err
 
 	env["change"] = change.AsMap()
 	env["patch"] = change.PatchesMap()
+	env["last_scrape_summary"] = ctx.LastScrapeSummary()
 
 	ok, err := gomplate.RunTemplateBool(env, gomplate.Template{Expression: t.Rule})
 	if err != nil {
