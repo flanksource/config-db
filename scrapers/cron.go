@@ -240,7 +240,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 
 			jr.History.SuccessCount = output.Total
 			jr.History.AddDetails("scrape_summary", output.Summary)
-			scraperSummaryCache.Store(sc.ScraperID(), v1.ScrapeSummary(output.Summary))
+			scraperSummaryCache.Store(sc.ScraperID(), output.Summary)
 
 			source := sc.ScrapeConfig().GetAnnotations()["source"]
 			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
@@ -361,24 +361,22 @@ func getLastScrapeSummary(ctx context.Context, scraperID string) v1.ScrapeSummar
 		Where("status IN ?", []string{models.StatusSuccess, models.StatusWarning, models.StatusFailed}).
 		Order("time_end DESC").First(&history).Error
 	if err != nil {
-		return nil
+		return v1.ScrapeSummary{}
 	}
 
 	raw, ok := history.Details["scrape_summary"]
 	if !ok {
-		return nil
+		return v1.ScrapeSummary{}
 	}
 
-	// Details come back from the DB as map[string]interface{} after JSON
-	// deserialization, so we round-trip through JSON to get the typed struct.
 	data, err := json.Marshal(raw)
 	if err != nil {
-		return nil
+		return v1.ScrapeSummary{}
 	}
 
 	var summary v1.ScrapeSummary
 	if err := json.Unmarshal(data, &summary); err != nil {
-		return nil
+		return v1.ScrapeSummary{}
 	}
 
 	scraperSummaryCache.Store(scraperID, summary)
