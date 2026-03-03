@@ -42,7 +42,7 @@ func TestEnsureExternalUser_AddsNewUser(t *testing.T) {
 		t.Errorf("expected Name=Alice, got %q", u.Name)
 	}
 	if u.Tenant != "my-org" {
-		t.Errorf("expected AccountID=my-org, got %q", u.Tenant)
+		t.Errorf("expected Tenant=my-org, got %q", u.Tenant)
 	}
 }
 

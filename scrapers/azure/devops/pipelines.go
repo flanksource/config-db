@@ -268,7 +268,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 										ID:        groupID,
 										Name:      identity.ProviderDisplayName,
 										Aliases:   pq.StringArray{identity.Descriptor, identity.SubjectDescriptor},
-										Tenant: config.Organization,
+										Tenant:    config.Organization,
 										GroupType: "AzureDevOps",
 									}
 								}
@@ -286,12 +286,12 @@ func (ado AzureDevopsScraper) scrapePipeline(
 								}
 								if _, exists := externalUsers[email]; !exists {
 									externalUsers[email] = dutyModels.ExternalUser{
-										ID:        userID,
-										Name:      identity.ProviderDisplayName,
-										Email:     &email,
-										Aliases:   pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
-										Tenant: config.Organization,
-										UserType:  "AzureDevOps",
+										ID:       userID,
+										Name:     identity.ProviderDisplayName,
+										Email:    &email,
+										Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
+										Tenant:   config.Organization,
+										UserType: "AzureDevOps",
 									}
 								}
 								configAccess = append(configAccess, v1.ExternalConfigAccess{
@@ -436,12 +436,12 @@ func (ado AzureDevopsScraper) scrapePipeline(
 					ctx.Logger.V(4).Infof("failed to generate user id for %s: %v", email, err)
 				} else {
 					externalUsers[email] = dutyModels.ExternalUser{
-						ID:        userID,
-						Name:      requester.DisplayName,
-						Email:     &email,
-						Aliases:   pq.StringArray{email, requester.ID},
-						Tenant: config.Organization,
-						UserType:  "AzureDevOps",
+						ID:       userID,
+						Name:     requester.DisplayName,
+						Email:    &email,
+						Aliases:  pq.StringArray{email, requester.ID},
+						Tenant:   config.Organization,
+						UserType: "AzureDevOps",
 					}
 				}
 			}
@@ -477,12 +477,12 @@ func (ado AzureDevopsScraper) scrapePipeline(
 						continue
 					}
 					externalUsers[email] = dutyModels.ExternalUser{
-						ID:        userID,
-						Name:      approver.DisplayName,
-						Email:     &email,
-						Aliases:   pq.StringArray{email, approver.ID},
-						Tenant: config.Organization,
-						UserType:  "AzureDevOps",
+						ID:       userID,
+						Name:     approver.DisplayName,
+						Email:    &email,
+						Aliases:  pq.StringArray{email, approver.ID},
+						Tenant:   config.Organization,
+						UserType: "AzureDevOps",
 					}
 				}
 				if user, ok := externalUsers[email]; ok {
