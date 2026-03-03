@@ -1,0 +1,39 @@
+{
+  "id": "test-org-permission-changes",
+  "config": {
+    "name": "Permission Test Org",
+    "type": "organization"
+  },
+  "external_users": [
+    {
+      "name": "Perm User One",
+      "account_id": "perm-org",
+      "user_type": "human",
+      "email": "permuser1@example.com",
+      "aliases": ["perm-user-1", "permuser1@example.com"]
+    },
+    {
+      "name": "Perm User Two",
+      "account_id": "perm-org",
+      "user_type": "human",
+      "email": "permuser2@example.com",
+      "aliases": ["perm-user-2", "permuser2@example.com"]
+    }
+  ],
+  "config_access": [
+    {
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "test-org-permission-changes"
+      },
+      "external_user_aliases": ["perm-user-1"]
+    },
+    {
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "test-org-permission-changes"
+      },
+      "external_user_aliases": ["perm-user-2"]
+    }
+  ]
+}

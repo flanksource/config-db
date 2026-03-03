@@ -12,5 +12,7 @@ var (
 )
 
 const (
-	ChangeTypeDiff = "diff"
+	ChangeTypeDiff              = "diff"
+	ChangeTypePermissionAdded   = "PermissionAdded"
+	ChangeTypePermissionRemoved = "PermissionRemoved"
 )

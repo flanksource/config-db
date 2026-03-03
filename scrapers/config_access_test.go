@@ -441,7 +441,7 @@ var _ = Describe("Config access logs upsert", Ordered, func() {
 				externalUser = dutymodels.ExternalUser{
 					ID:        uuid.New(),
 					Name:      "access-log-user",
-					Tenant: "test-account",
+					Tenant:    "test-account",
 					UserType:  "user",
 					ScraperID: scraperID,
 					CreatedAt: time.Now(),
