@@ -30,6 +30,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 	"github.com/samber/lo"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -666,7 +667,7 @@ func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 }
 
 func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSummary, error) {
-	var summary = make(v1.ScrapeSummary)
+	var summary = v1.NewScrapeSummary()
 
 	if len(results) == 0 {
 		return summary, nil
@@ -674,14 +675,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	startTime, err := GetCurrentDBTime(ctx)
 	if err != nil {
-		return summary, fmt.Errorf("unable to get current db time: %w", err)
+		return summary, ctx.Oops().Wrapf(err, "unable to get current db time")
 	}
 
 	scraperID := ctx.ScrapeConfig().GetPersistedID()
 
 	extractResult, err := extractConfigsAndChangesFromResults(ctx, results)
 	if err != nil {
-		return summary, fmt.Errorf("failed to extract configs & changes from results: %w", err)
+		return summary, ctx.Oops().Wrapf(err, "failed to extract configs & changes from results")
 	}
 	for configType, cs := range extractResult.changeSummary {
 		summary.AddChangeSummary(configType, cs)
@@ -692,7 +693,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	if err := ctx.DB().
 		Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
 		CreateInBatches(extractResult.newConfigs, configItemsBulkInsertSize).Error; err != nil {
-		return summary, fmt.Errorf("failed to create config items: %w", dutydb.ErrorDetails(err))
+		return summary, ctx.Oops().Wrapf(dutydb.ErrorDetails(err), "failed to create config items")
 	}
 	for _, config := range extractResult.newConfigs {
 		summary.AddInserted(config.Type)
@@ -703,27 +704,39 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		uniqueLocations := lo.Uniq(extractResult.locations)
 		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}, {Name: "location"}}, DoNothing: true}).
 			CreateInBatches(&uniqueLocations, 200).Error; err != nil {
-			return summary, fmt.Errorf("failed to save config locations: %w", err)
+			return summary, ctx.Oops().Wrapf(err, "failed to save config locations")
 		}
 	}
 
 	// Track seen external entities for stale deletion
 	var seen seenExternalEntities
 
+	// Track original→saved ID remapping for resolving ExternalUserGroup references
+	userIDMap := make(map[uuid.UUID]uuid.UUID)
+	groupIDMap := make(map[uuid.UUID]uuid.UUID)
+
+	summary.ExternalUsers.Scraped = len(extractResult.externalUsers)
 	for _, externalUser := range extractResult.externalUsers {
 		externalUser.ScraperID = lo.Ternary(externalUser.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalUser.ScraperID)
+
+		originalID := externalUser.ID
+
+		if externalUser.ID == uuid.Nil && len(externalUser.Aliases) == 0 {
+			ctx.Logger.Warnf("skipping external user %q with no ID and no aliases", externalUser.Name)
+			continue
+		}
 
 		if len(externalUser.Aliases) > 0 {
 			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, externalUser.Aliases)
 			if err != nil {
-				return summary, fmt.Errorf("failed to find external user by aliases: %w", err)
+				return summary, ctx.Oops().With("aliases", externalUser.Aliases).Wrapf(err, "failed to find external user by aliases")
 			}
 			if existingID != nil {
 				externalUser.ID = lo.FromPtr(existingID)
 			} else if externalUser.ID == uuid.Nil {
 				hid, err := hash.DeterministicUUID(externalUser.Aliases)
 				if err != nil {
-					return summary, fmt.Errorf("failed to generate id for externalUser %v: %w", externalUser, err)
+					return summary, ctx.Oops().With("user", externalUser.Name).Wrapf(err, "failed to generate id for external user")
 				}
 				externalUser.ID = hid
 			}
@@ -733,10 +746,15 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			Columns:   []clause.Column{{Name: "id"}},
 			UpdateAll: true,
 		}).Create(&externalUser).Error; err != nil {
-			return summary, fmt.Errorf("failed to save external user: %w", err)
+			return summary, ctx.Oops().With("user", externalUser.Name, "id", externalUser.ID).Wrapf(err, "failed to save external user")
 		}
+		summary.ExternalUsers.Saved++
 
 		seen.externalUserIDs = append(seen.externalUserIDs, externalUser.ID)
+
+		if originalID != uuid.Nil && originalID != externalUser.ID {
+			userIDMap[originalID] = externalUser.ID
+		}
 
 		// Update cache for all aliases
 		for _, alias := range externalUser.Aliases {
@@ -744,20 +762,23 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
+	summary.ExternalGroups.Scraped = len(extractResult.externalGroups)
 	for _, externalGroup := range extractResult.externalGroups {
 		externalGroup.ScraperID = lo.Ternary(externalGroup.ScraperID == uuid.Nil, lo.FromPtr(scraperID), externalGroup.ScraperID)
+
+		originalID := externalGroup.ID
 
 		if len(externalGroup.Aliases) > 0 {
 			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalGroup](ctx, externalGroup.Aliases)
 			if err != nil {
-				return summary, fmt.Errorf("failed to find external group by aliases: %w", err)
+				return summary, ctx.Oops().With("aliases", externalGroup.Aliases).Wrapf(err, "failed to find external group by aliases")
 			}
 			if existingID != nil {
 				externalGroup.ID = lo.FromPtr(existingID)
 			} else if externalGroup.ID == uuid.Nil {
 				hid, err := hash.DeterministicUUID(externalGroup.Aliases)
 				if err != nil {
-					return summary, fmt.Errorf("failed to generate id for externalGroup %v: %w", externalGroup, err)
+					return summary, ctx.Oops().With("group", externalGroup.Name).Wrapf(err, "failed to generate id for external group")
 				}
 				externalGroup.ID = hid
 			}
@@ -767,10 +788,15 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			Columns:   []clause.Column{{Name: "id"}},
 			UpdateAll: true,
 		}).Create(&externalGroup).Error; err != nil {
-			return summary, fmt.Errorf("failed to save external group: %w", err)
+			return summary, ctx.Oops().With("group", externalGroup.Name, "id", externalGroup.ID).Wrapf(err, "failed to save external group")
 		}
+		summary.ExternalGroups.Saved++
 
 		seen.externalGroupIDs = append(seen.externalGroupIDs, externalGroup.ID)
+
+		if originalID != uuid.Nil && originalID != externalGroup.ID {
+			groupIDMap[originalID] = externalGroup.ID
+		}
 
 		// Update cache for all aliases
 		for _, alias := range externalGroup.Aliases {
@@ -778,20 +804,21 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
+	summary.ExternalRoles.Scraped = len(extractResult.externalRoles)
 	for _, externalRole := range extractResult.externalRoles {
 		externalRole.ScraperID = lo.Ternary(externalRole.ScraperID == nil, scraperID, externalRole.ScraperID)
 
 		if len(externalRole.Aliases) > 0 {
 			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalRole](ctx, externalRole.Aliases)
 			if err != nil {
-				return summary, fmt.Errorf("failed to find external role by aliases: %w", err)
+				return summary, ctx.Oops().With("aliases", externalRole.Aliases).Wrapf(err, "failed to find external role by aliases")
 			}
 			if existingID != nil {
 				externalRole.ID = lo.FromPtr(existingID)
 			} else {
 				hid, err := hash.DeterministicUUID(externalRole.Aliases)
 				if err != nil {
-					return summary, fmt.Errorf("failed to generate id for externalRole %v: %w", externalRole, err)
+					return summary, ctx.Oops().With("role", externalRole.Name).Wrapf(err, "failed to generate id for external role")
 				}
 				externalRole.ID = hid
 			}
@@ -801,8 +828,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			Columns:   []clause.Column{{Name: "id"}},
 			UpdateAll: true,
 		}).Create(&externalRole).Error; err != nil {
-			return summary, fmt.Errorf("failed to save external role: %w", err)
+			return summary, ctx.Oops().With("role", externalRole.Name, "id", externalRole.ID).Wrapf(err, "failed to save external role")
 		}
+		summary.ExternalRoles.Saved++
 
 		seen.externalRoleIDs = append(seen.externalRoleIDs, externalRole.ID)
 
@@ -812,12 +840,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
-	// Filter and save config access records for existing users only
-	for _, configAccess := range extractResult.configAccesses {
+	summary.ConfigAccess.Scraped = len(extractResult.configAccesses)
+	var resolvedAccesses []v1.ExternalConfigAccess
+	for i := range extractResult.configAccesses {
+		configAccess := &extractResult.configAccesses[i]
 		if configAccess.ExternalUserID == nil && len(configAccess.ExternalUserAliases) > 0 {
 			id, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, configAccess.ExternalUserAliases)
 			if err != nil {
-				return summary, fmt.Errorf("failed to find user for config access: %w", err)
+				return summary, ctx.Oops().With("aliases", configAccess.ExternalUserAliases).Wrapf(err, "failed to find user for config access")
 			}
 			configAccess.ExternalUserID = id
 		}
@@ -825,7 +855,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if configAccess.ExternalRoleID == nil && len(configAccess.ExternalRoleAliases) > 0 {
 			id, err := findExternalEntityIDByAliases[dutyModels.ExternalRole](ctx, configAccess.ExternalRoleAliases)
 			if err != nil {
-				return summary, fmt.Errorf("failed to find role for config access: %w", err)
+				return summary, ctx.Oops().With("aliases", configAccess.ExternalRoleAliases).Wrapf(err, "failed to find role for config access")
 			}
 			configAccess.ExternalRoleID = id
 		}
@@ -833,7 +863,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if configAccess.ExternalGroupID == nil && len(configAccess.ExternalGroupAliases) > 0 {
 			id, err := findExternalEntityIDByAliases[dutyModels.ExternalGroup](ctx, configAccess.ExternalGroupAliases)
 			if err != nil {
-				return summary, fmt.Errorf("failed to find group for config access: %w", err)
+				return summary, ctx.Oops().With("aliases", configAccess.ExternalGroupAliases).Wrapf(err, "failed to find group for config access")
 			}
 			configAccess.ExternalGroupID = id
 		}
@@ -841,18 +871,20 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if configAccess.ExternalUserID == nil &&
 			configAccess.ExternalRoleID == nil &&
 			configAccess.ExternalGroupID == nil {
+			summary.ConfigAccess.Skipped++
 			continue
 		}
 
 		if configAccess.ConfigID == uuid.Nil && configAccess.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, configAccess.ConfigExternalID)
 			if err != nil {
-				return summary, fmt.Errorf("failed to find config for config access: %w", err)
+				return summary, ctx.Oops().With("config_type", configAccess.ConfigExternalID.ConfigType, "external_id", configAccess.ConfigExternalID.ExternalID).Wrapf(err, "failed to find config for config access")
 			} else if config == "" {
 				ctx.Logger.V(2).Infof("config access doesn't have an associated config (type=%s external_id=%s)",
 					configAccess.ConfigExternalID.ConfigType,
 					configAccess.ConfigExternalID.ExternalID,
 				)
+				summary.ConfigAccess.Skipped++
 				continue
 			}
 
@@ -863,31 +895,36 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 		if configAccess.ScraperID == nil && configAccess.ApplicationID == nil && configAccess.Source == nil {
 			ctx.Logger.V(4).Infof("skipping config access row with no origin (config_id=%s)", configAccess.ConfigID)
+			summary.ConfigAccess.Skipped++
 			continue
 		}
 
-		// Generate ID if not provided
-		if configAccess.ID == "" {
-			configAccess.ID = ulid.MustNew().AsUUID()
-		}
-
-		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
-			Create(&configAccess.ConfigAccess).Error; err != nil {
-			return summary, fmt.Errorf("failed to save config access: %w", err)
-		}
-		seen.configAccessIDs = append(seen.configAccessIDs, configAccess.ID)
+		resolvedAccesses = append(resolvedAccesses, *configAccess)
 	}
 
+	if len(resolvedAccesses) > 0 {
+		permResult, err := upsertConfigAccess(ctx, resolvedAccesses, scraperID)
+		if err != nil {
+			return summary, ctx.Oops().Wrapf(err, "failed to upsert config access")
+		}
+		summary.ConfigAccess.Saved += permResult.saved
+		extractResult.newChanges = append(extractResult.newChanges, permResult.added...)
+		extractResult.newChanges = append(extractResult.newChanges, permResult.removed...)
+		summary.ConfigAccess.Deleted += len(permResult.removed)
+	}
+
+	summary.AccessLogs.Scraped = len(extractResult.configAccessLogs)
 	for _, accessLog := range extractResult.configAccessLogs {
 		if accessLog.ConfigID == uuid.Nil && accessLog.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, accessLog.ConfigExternalID)
 			if err != nil {
-				return summary, fmt.Errorf("failed to find config for access log: %w", err)
+				return summary, ctx.Oops().Wrapf(err, "failed to find config for access log")
 			} else if config == "" {
 				ctx.Logger.V(2).Infof("access log doesn't have an associated config (type=%s external_id=%s)",
 					accessLog.ConfigExternalID.ConfigType,
 					accessLog.ConfigExternalID.ExternalID,
 				)
+				summary.AccessLogs.Skipped++
 				continue
 			}
 
@@ -895,21 +932,33 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		if err := SaveConfigAccessLog(ctx, &accessLog.ConfigAccessLog); err != nil {
-			return summary, fmt.Errorf("failed to save access log: %w", err)
+			return summary, ctx.Oops().Wrapf(err, "failed to save access log")
 		}
+		summary.AccessLogs.Saved++
 	}
 
 	for _, externalUserGroup := range extractResult.externalUserGroups {
+		if savedID, ok := userIDMap[externalUserGroup.ExternalUserID]; ok {
+			externalUserGroup.ExternalUserID = savedID
+		}
+		if savedID, ok := groupIDMap[externalUserGroup.ExternalGroupID]; ok {
+			externalUserGroup.ExternalGroupID = savedID
+		}
+
 		if err := ctx.DB().Save(&externalUserGroup).Error; err != nil {
-			return summary, fmt.Errorf("failed to save external user group: %w", err)
+			return summary, ctx.Oops().With("user_id", externalUserGroup.ExternalUserID, "group_id", externalUserGroup.ExternalGroupID).Wrapf(err, "failed to save external user group")
 		}
 		seen.externalUserGroupKeys = append(seen.externalUserGroupKeys,
 			fmt.Sprintf("%s:%s", externalUserGroup.ExternalUserID, externalUserGroup.ExternalGroupID))
 	}
 
 	// Delete stale external entities that were not seen in this scrape
-	if err := deleteStaleExternalEntities(ctx, seen); err != nil {
+	if deletionCounts, err := deleteStaleExternalEntities(ctx, seen); err != nil {
 		ctx.Logger.Warnf("failed to delete stale external entities: %v", err)
+	} else {
+		summary.ExternalUsers.Deleted += int(deletionCounts.Users)
+		summary.ExternalGroups.Deleted += int(deletionCounts.Groups)
+		summary.ExternalRoles.Deleted += int(deletionCounts.Roles)
 	}
 
 	// updatedConfigIDs are configs that were not new in this scrape.
@@ -921,7 +970,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	for _, updateArg := range extractResult.configsToUpdate {
 		updated, diffChanges, err := updateCI(ctx, &summary, updateArg.Result, updateArg.New, updateArg.Existing)
 		if err != nil {
-			return summary, fmt.Errorf("failed to update config item (%s): %w", updateArg.Existing, err)
+			return summary, ctx.Oops().Wrapf(err, "failed to update config item (%s)", updateArg.Existing)
 		}
 
 		if updated {
@@ -938,13 +987,13 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	if err := updateLastScrapedTime(ctx, updatedConfigIDs); err != nil {
-		return summary, fmt.Errorf("failed to update last scraped time: %w", err)
+		return summary, ctx.Oops().Wrapf(err, "failed to update last scraped time")
 	}
 
 	if ctx.ScrapeConfig().Spec.CRDSync {
 		allScrapedConfigs := append(extractResult.newConfigs, lo.Map(extractResult.configsToUpdate, func(item *updateConfigArgs, _ int) *models.ConfigItem { return item.New })...)
 		if err := syncCRDChanges(ctx, allScrapedConfigs); err != nil {
-			return summary, fmt.Errorf("failed to sync CRD changes: %w", err)
+			return summary, ctx.Oops().Wrapf(err, "failed to sync CRD changes")
 		}
 	}
 
@@ -960,21 +1009,23 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	for _, c := range newChanges {
 		ctx.Counter("config_changes", "scraper_id", ctx.ScraperID(), "change_type", c.ChangeType, "config_type", c.ConfigType).Add(1)
+		summary.AddChanges(c.ConfigType, 1)
 	}
 
 	for _, c := range deduped {
 		ctx.Counter("config_changes_deduped", "scraper_id", ctx.ScraperID(), "change_type", c.Change.ChangeType, "config_type", c.Change.ConfigType).Add(1)
+		summary.AddDeduped(c.Change.ConfigType, 1)
 	}
 
 	if err := ctx.DB().CreateInBatches(&newChanges, configItemsBulkInsertSize).Error; err != nil {
 		if !dutydb.IsForeignKeyError(err) {
-			return summary, fmt.Errorf("failed to create config changes: %w", dutydb.ErrorDetails(err))
+			return summary, ctx.Oops().Wrapf(dutydb.ErrorDetails(err), "failed to create config changes")
 		}
 
 		for _, c := range newChanges {
 			if err := ctx.DB().Create(&c).Error; err != nil {
 				if !dutydb.IsForeignKeyError(err) {
-					return summary, fmt.Errorf("failed to create config change: %w", dutydb.ErrorDetails(err))
+					return summary, ctx.Oops().With("config_id", c.ConfigID, "change_type", c.ChangeType).Wrapf(dutydb.ErrorDetails(err), "failed to create config change")
 				}
 
 				ctx.Errorf("failed to save config change: (config:%s, details:%v changeType:%s, externalChangeID:%s), err=%v", c.ConfigID, c.Details, c.ChangeType, lo.FromPtr(c.ExternalChangeID), err)
@@ -1007,7 +1058,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		if err := ctx.DB().Model(&models.ConfigChange{}).Where("id = ?", dedup.Change.ID).UpdateColumns(update).Error; err != nil {
-			return summary, fmt.Errorf("failed to create deduped config changes: %w", dutydb.ErrorDetails(err))
+			return summary, ctx.Oops().With("change_id", dedup.Change.ID).Wrapf(dutydb.ErrorDetails(err), "failed to create deduped config changes")
 		}
 	}
 
@@ -1017,7 +1068,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	// That'll trigger the .BeforeCreate() hook which doesn't have a ON Conflict clause on the primary key.
 	for _, changeToUpdate := range extractResult.changesToUpdate {
 		if err := ctx.DB().Updates(&changeToUpdate).Error; err != nil {
-			return summary, fmt.Errorf("failed to update config changes: %w", err)
+			return summary, ctx.Oops().With("change_id", changeToUpdate.ID).Wrapf(err, "failed to update config changes")
 		}
 	}
 
@@ -1035,7 +1086,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	for _, result := range results {
 		if result.AnalysisResult != nil {
 			if err := upsertAnalysis(ctx, &result); err != nil {
-				return summary, fmt.Errorf("failed to analysis (%s): %w", result, err)
+				return summary, ctx.Oops().Wrapf(err, "failed to analysis (%s)", result)
 			}
 		}
 
@@ -1046,13 +1097,13 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	if res, err := relationshipSelectorToResults(ctx.DutyContext(), resultsWithRelationshipSelectors); err != nil {
-		return summary, fmt.Errorf("failed to get relationship results from relationship selectors: %w", err)
+		return summary, ctx.Oops().Wrapf(err, "failed to get relationship results from relationship selectors")
 	} else {
 		relationshipToForm = append(relationshipToForm, res...)
 	}
 
 	if err := relationshipResultHandler(ctx, relationshipToForm); err != nil {
-		return summary, fmt.Errorf("failed to form relationships: %w", err)
+		return summary, ctx.Oops().Wrapf(err, "failed to form relationships")
 	}
 
 	if !startTime.IsZero() && ctx.ScrapeConfig().GetPersistedID() != nil {
@@ -1063,13 +1114,13 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	scraperId := ctx.ScraperID()
-	for kind, v := range summary {
+	for kind, v := range summary.ConfigTypes {
 
 		if v.Added > 0 {
 			ctx.Counter("scraper_added", "scraper_id", scraperId, "kind", kind).Add(v.Added)
 		}
 		if v.Updated > 0 {
-			ctx.Counter("scraper_updated", "scraper_id", scraperId, "kind", kind).Add(v.Added)
+			ctx.Counter("scraper_updated", "scraper_id", scraperId, "kind", kind).Add(v.Updated)
 		}
 
 		ignored, orphaned, fk_errors := v.Change.Totals()
@@ -1096,77 +1147,73 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	return summary, nil
 }
 
+type staleDeletionCounts struct {
+	Users  int64
+	Groups int64
+	Roles  int64
+}
+
 // deleteStaleExternalEntities soft deletes external entities (users, groups, roles, config access)
 // that belong to this scraper but were not seen in the current scrape.
-func deleteStaleExternalEntities(ctx api.ScrapeContext, seen seenExternalEntities) error {
+func deleteStaleExternalEntities(ctx api.ScrapeContext, seen seenExternalEntities) (staleDeletionCounts, error) {
+	var counts staleDeletionCounts
 	scraperID := ctx.ScrapeConfig().GetPersistedID()
 	if scraperID == nil {
-		return nil
+		return counts, nil
 	}
 
 	now := duty.Now()
 
-	// Delete stale external users
 	if len(seen.externalUserIDs) > 0 {
-		if err := ctx.DB().
+		tx := ctx.DB().
 			Model(&dutyModels.ExternalUser{}).
 			Where("scraper_id = ?", *scraperID).
 			Where("deleted_at IS NULL").
 			Where("id NOT IN (?)", seen.externalUserIDs).
-			Update("deleted_at", now).Error; err != nil {
-			return fmt.Errorf("failed to delete stale external users: %w", err)
+			Update("deleted_at", now)
+		if tx.Error != nil {
+			return counts, fmt.Errorf("failed to delete stale external users: %w", tx.Error)
 		}
+		counts.Users = tx.RowsAffected
 	}
 
-	// Delete stale external groups
 	if len(seen.externalGroupIDs) > 0 {
-		if err := ctx.DB().
+		tx := ctx.DB().
 			Model(&dutyModels.ExternalGroup{}).
 			Where("scraper_id = ?", *scraperID).
 			Where("deleted_at IS NULL").
 			Where("id NOT IN (?)", seen.externalGroupIDs).
-			Update("deleted_at", now).Error; err != nil {
-			return fmt.Errorf("failed to delete stale external groups: %w", err)
+			Update("deleted_at", now)
+		if tx.Error != nil {
+			return counts, fmt.Errorf("failed to delete stale external groups: %w", tx.Error)
 		}
+		counts.Groups = tx.RowsAffected
 	}
 
-	// Delete stale external roles
 	if len(seen.externalRoleIDs) > 0 {
-		if err := ctx.DB().
+		tx := ctx.DB().
 			Model(&dutyModels.ExternalRole{}).
 			Where("scraper_id = ?", *scraperID).
 			Where("id NOT IN (?)", seen.externalRoleIDs).
-			Delete(&dutyModels.ExternalRole{}).Error; err != nil {
-			return fmt.Errorf("failed to delete stale external roles: %w", err)
+			Delete(&dutyModels.ExternalRole{})
+		if tx.Error != nil {
+			return counts, fmt.Errorf("failed to delete stale external roles: %w", tx.Error)
 		}
+		counts.Roles = tx.RowsAffected
 	}
 
-	// Delete stale config access
-	if len(seen.configAccessIDs) > 0 {
-		if err := ctx.DB().
-			Model(&dutyModels.ConfigAccess{}).
-			Where("scraper_id = ?", *scraperID).
-			Where("deleted_at IS NULL").
-			Where("id NOT IN (?)", seen.configAccessIDs).
-			Update("deleted_at", now).Error; err != nil {
-			return fmt.Errorf("failed to delete stale config access: %w", err)
-		}
-	}
-
-	// Delete stale external user groups
 	if len(seen.externalUserGroupKeys) > 0 {
-		// For composite key, we need to handle differently
 		if err := ctx.DB().
 			Model(&dutyModels.ExternalUserGroup{}).
 			Where("deleted_at IS NULL").
 			Where("external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)", *scraperID).
 			Where("(external_user_id::text || ':' || external_group_id::text) NOT IN (?)", seen.externalUserGroupKeys).
 			Update("deleted_at", now).Error; err != nil {
-			return fmt.Errorf("failed to delete stale external user groups: %w", err)
+			return counts, fmt.Errorf("failed to delete stale external user groups: %w", err)
 		}
 	}
 
-	return nil
+	return counts, nil
 }
 
 // seenExternalEntities tracks IDs of external entities seen during a scrape
@@ -1174,7 +1221,6 @@ type seenExternalEntities struct {
 	externalUserIDs       []uuid.UUID
 	externalGroupIDs      []uuid.UUID
 	externalRoleIDs       []uuid.UUID
-	configAccessIDs       []string
 	externalUserGroupKeys []string // "user_id:group_id" format
 }
 

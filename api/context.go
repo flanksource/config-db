@@ -84,11 +84,11 @@ func (ctx ScrapeContext) WithLastScrapeSummary(summary v1.ScrapeSummary) ScrapeC
 	return ctx
 }
 
-func (ctx ScrapeContext) LastScrapeSummary() v1.ScrapeSummary {
-	if ctx.lastScrapeSummary == nil {
-		return v1.ScrapeSummary{}
+func (ctx ScrapeContext) LastScrapeSummary() map[string]v1.ConfigTypeScrapeSummary {
+	if ctx.lastScrapeSummary.ConfigTypes == nil {
+		return map[string]v1.ConfigTypeScrapeSummary{}
 	}
-	return ctx.lastScrapeSummary
+	return ctx.lastScrapeSummary.ConfigTypes
 }
 
 func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
