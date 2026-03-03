@@ -60,7 +60,8 @@ var (
 func setupTestK8s() {
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("chart", "crds")},
+		BinaryAssetsDirectory: ".bin",
+		CRDDirectoryPaths:     []string{filepath.Join("chart", "crds")},
 	}
 
 	var err error

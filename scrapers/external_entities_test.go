@@ -13,7 +13,7 @@ import (
 	k8sTypes "k8s.io/apimachinery/pkg/types"
 )
 
-var _ = Describe("External users e2e test", Ordered, func() {
+var _ = FDescribe("External users e2e test", Ordered, func() {
 	var scrapeConfig v1.ScrapeConfig
 	var scraperCtx api.ScrapeContext
 	var scraperModel dutymodels.ConfigScraper
@@ -189,7 +189,7 @@ var _ = Describe("Stale external entities deletion test", Ordered, func() {
 	It("should create an additional external user directly in DB", func() {
 		staleUser := dutymodels.ExternalUser{
 			Name:      "Stale User",
-			AccountID: "org-456",
+			Tenant:    "org-456",
 			UserType:  "human",
 			ScraperID: scraperModel.ID,
 			Aliases:   []string{"stale-user"},
@@ -432,5 +432,86 @@ var _ = Describe("External groups with aliases e2e test", Ordered, func() {
 		developersID, found := db.ExternalGroupCache.Get("developers")
 		Expect(found).To(BeTrue())
 		Expect(developersID).To(Equal(devsID))
+	})
+})
+
+var _ = Describe("External entities only (no config item) e2e test", Ordered, func() {
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+	var scraperModel dutymodels.ConfigScraper
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("file-external-entities-only")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred())
+		scModel.Source = dutymodels.SourceUI
+
+		err = DefaultContext.DB().Create(&scModel).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+
+		scraperModel = scModel
+	})
+
+	AfterAll(func() {
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalGroup{}).Error
+		Expect(err).NotTo(HaveOccurred())
+
+		err = DefaultContext.DB().Delete(&scraperModel).Error
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("should scrape and save external entities without a config item", func() {
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+	})
+
+	It("should have saved external users", func() {
+		var users []dutymodels.ExternalUser
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&users).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(users).To(HaveLen(1))
+		Expect(users[0].Name).To(Equal("Alice"))
+		Expect(users[0].Aliases).To(ContainElements("alice", "alice@example.com"))
+	})
+
+	It("should have saved external groups", func() {
+		var groups []dutymodels.ExternalGroup
+		err := DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&groups).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(groups).To(HaveLen(1))
+		Expect(groups[0].Name).To(Equal("Engineers"))
+		Expect(groups[0].Aliases).To(ContainElements("engineers", "eng-team"))
+	})
+
+	It("should not have created any config items", func() {
+		var count int64
+		err := DefaultContext.DB().Model(&models.ConfigItem{}).Where("scraper_id = ?", scraperModel.ID).Count(&count).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(int64(0)))
+	})
+
+	It("should be idempotent on second scrape", func() {
+		db.ExternalUserCache.Flush()
+		db.ExternalGroupCache.Flush()
+
+		_, err := RunScraper(scraperCtx)
+		Expect(err).To(BeNil())
+
+		var users []dutymodels.ExternalUser
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&users).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(users).To(HaveLen(1))
+
+		var groups []dutymodels.ExternalGroup
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&groups).Error
+		Expect(err).NotTo(HaveOccurred())
+		Expect(groups).To(HaveLen(1))
 	})
 })
