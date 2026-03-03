@@ -1,0 +1,12 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-permission-changes-reduced-scraper
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/permission_change_reduced_test.json
