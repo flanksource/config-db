@@ -399,90 +399,6 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 	return newOnes, updates, changeSummary, nil
 }
 
-var OrphanCache = cache.New(60*time.Minute, 10*time.Minute)
-
-// ExternalUserCache stores alias -> external_user_id mapping
-var ExternalUserCache = cache.New(time.Hour, 10*time.Minute)
-
-// ExternalRoleCache stores alias -> external_role_id mapping
-var ExternalRoleCache = cache.New(time.Hour, 10*time.Minute)
-
-// ExternalGroupCache stores alias -> external_group_id mapping
-var ExternalGroupCache = cache.New(time.Hour, 10*time.Minute)
-
-// externalEntityWithID is a constraint for external entity types that have an ID field
-type externalEntityWithID interface {
-	dutyModels.ExternalUser | dutyModels.ExternalRole | dutyModels.ExternalGroup
-	TableName() string
-}
-
-// getEntityID extracts the ID from an external entity
-func getEntityID[T externalEntityWithID](entity *T) uuid.UUID {
-	switch e := any(entity).(type) {
-	case *dutyModels.ExternalUser:
-		return e.ID
-	case *dutyModels.ExternalRole:
-		return e.ID
-	case *dutyModels.ExternalGroup:
-		return e.ID
-	default:
-		return uuid.Nil
-	}
-}
-
-// getEntityCache returns the appropriate cache for an external entity type
-func getEntityCache[T externalEntityWithID]() *cache.Cache {
-	var zero T
-	switch any(zero).(type) {
-	case dutyModels.ExternalUser:
-		return ExternalUserCache
-	case dutyModels.ExternalRole:
-		return ExternalRoleCache
-	case dutyModels.ExternalGroup:
-		return ExternalGroupCache
-	default:
-		return nil
-	}
-}
-
-// findExternalEntityIDByAliases looks up an external entity ID by aliases.
-// It first checks the cache, then queries the DB. Returns the ID if found, nil otherwise.
-func findExternalEntityIDByAliases[T externalEntityWithID](ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
-	aliasCache := getEntityCache[T]()
-
-	for _, alias := range aliases {
-		if cachedID, ok := aliasCache.Get(alias); ok {
-			return lo.ToPtr(cachedID.(uuid.UUID)), nil
-		}
-	}
-
-	// Query DB for any matching alias
-	for _, alias := range aliases {
-		var entity T
-		err := ctx.DB().
-			Select("id").
-			Where("? = ANY(aliases)", alias).
-			Where("deleted_at IS NULL").
-			First(&entity).Error
-
-		if err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("failed to query %s by alias: %w", entity.TableName(), err)
-			}
-			continue
-		}
-
-		// Found in DB, populate cache for all aliases and return
-		id := getEntityID(&entity)
-		for _, a := range aliases {
-			aliasCache.Set(a, id, cache.DefaultExpiration)
-		}
-		return lo.ToPtr(id), nil
-	}
-
-	return nil, nil
-}
-
 func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	var ci *models.ConfigItem
 	var err error
@@ -723,6 +639,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 		if externalUser.ID == uuid.Nil && len(externalUser.Aliases) == 0 {
 			ctx.Logger.Warnf("skipping external user %q with no ID and no aliases", externalUser.Name)
+			summary.ExternalUsers.Skipped++
 			continue
 		}
 
@@ -768,6 +685,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 		originalID := externalGroup.ID
 
+		if externalGroup.ID == uuid.Nil && len(externalGroup.Aliases) == 0 {
+			ctx.Logger.Warnf("skipping external group %q with no ID and no aliases", externalGroup.Name)
+			summary.ExternalGroups.Skipped++
+			continue
+		}
+
 		if len(externalGroup.Aliases) > 0 {
 			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalGroup](ctx, externalGroup.Aliases)
 			if err != nil {
@@ -807,6 +730,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	summary.ExternalRoles.Scraped = len(extractResult.externalRoles)
 	for _, externalRole := range extractResult.externalRoles {
 		externalRole.ScraperID = lo.Ternary(externalRole.ScraperID == nil, scraperID, externalRole.ScraperID)
+
+		if externalRole.ID == uuid.Nil && len(externalRole.Aliases) == 0 {
+			ctx.Logger.Warnf("skipping external role %q with no ID and no aliases", externalRole.Name)
+			summary.ExternalRoles.Skipped++
+			continue
+		}
 
 		if len(externalRole.Aliases) > 0 {
 			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalRole](ctx, externalRole.Aliases)
@@ -943,6 +872,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 		if savedID, ok := groupIDMap[externalUserGroup.ExternalGroupID]; ok {
 			externalUserGroup.ExternalGroupID = savedID
+		}
+
+		if externalUserGroup.ExternalUserID == uuid.Nil || externalUserGroup.ExternalGroupID == uuid.Nil {
+			ctx.Logger.Warnf("skipping external user group with nil user_id=%s or group_id=%s", externalUserGroup.ExternalUserID, externalUserGroup.ExternalGroupID)
+			continue
 		}
 
 		if err := ctx.DB().Save(&externalUserGroup).Error; err != nil {

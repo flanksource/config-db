@@ -1,0 +1,9 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-external-entities-only
+spec:
+  full: true
+  file:
+    - paths:
+        - fixtures/data/external_entities_only_test.json

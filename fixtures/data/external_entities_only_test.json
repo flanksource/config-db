@@ -1,0 +1,18 @@
+{
+  "external_users": [
+    {
+      "name": "Alice",
+      "account_id": "org-1",
+      "user_type": "human",
+      "aliases": ["alice", "alice@example.com"]
+    }
+  ],
+  "external_groups": [
+    {
+      "name": "Engineers",
+      "account_id": "org-1",
+      "group_type": "team",
+      "aliases": ["engineers", "eng-team"]
+    }
+  ]
+}

@@ -601,6 +601,19 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 	return output, nil
 }
 
+func hasExternalEntities(config any) bool {
+	m, ok := config.(map[string]any)
+	if !ok {
+		return false
+	}
+	for _, key := range []string{"external_users", "external_groups", "external_roles", "external_user_groups"} {
+		if _, ok := m[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult) (v1.ScrapeResult, error) {
 	var err error
 	if input.ID == "" {
@@ -611,7 +624,7 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 	}
 
 	if input.ID == "" {
-		if len(input.Changes) == 0 {
+		if len(input.Changes) == 0 && !hasExternalEntities(input.Config) {
 			return input, fmt.Errorf("no id defined for: %s", input.Debug().ANSI())
 		}
 		if len(lo.Filter(input.Changes, func(c v1.ChangeResult, _ int) bool {
