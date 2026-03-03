@@ -1,5 +1,3 @@
-// ABOUTME: Unit tests for ScrapeContext, specifically the last scrape summary
-// ABOUTME: getter, setter, and propagation through context methods.
 package api
 
 import (
@@ -19,10 +17,12 @@ func TestScrapeContext_LastScrapeSummary(t *testing.T) {
 
 	t.Run("returns set summary", func(t *testing.T) {
 		summary := v1.ScrapeSummary{
-			"AWS::EC2::Instance": v1.ConfigTypeScrapeSummary{
-				Added:     3,
-				Updated:   5,
-				Unchanged: 10,
+			ConfigTypes: map[string]v1.ConfigTypeScrapeSummary{
+				"AWS::EC2::Instance": {
+					Added:     3,
+					Updated:   5,
+					Unchanged: 10,
+				},
 			},
 		}
 
@@ -37,7 +37,9 @@ func TestScrapeContext_LastScrapeSummary(t *testing.T) {
 
 	t.Run("preserves summary through WithJobHistory", func(t *testing.T) {
 		summary := v1.ScrapeSummary{
-			"Kubernetes::Pod": v1.ConfigTypeScrapeSummary{Added: 1},
+			ConfigTypes: map[string]v1.ConfigTypeScrapeSummary{
+				"Kubernetes::Pod": {Added: 1},
+			},
 		}
 
 		ctx := ScrapeContext{}
@@ -50,7 +52,9 @@ func TestScrapeContext_LastScrapeSummary(t *testing.T) {
 
 	t.Run("preserves summary through AsIncrementalScrape", func(t *testing.T) {
 		summary := v1.ScrapeSummary{
-			"Kubernetes::Pod": v1.ConfigTypeScrapeSummary{Updated: 7},
+			ConfigTypes: map[string]v1.ConfigTypeScrapeSummary{
+				"Kubernetes::Pod": {Updated: 7},
+			},
 		}
 
 		ctx := ScrapeContext{}

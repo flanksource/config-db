@@ -182,12 +182,80 @@ func (result *AnalysisResult) Message(msg string) *AnalysisResult {
 type AnalysisResults []AnalysisResult
 
 // +kubebuilder:object:generate=false
-type ScrapeSummary map[string]ConfigTypeScrapeSummary
+type EntitySummary struct {
+	Scraped int `json:"scraped,omitempty"`
+	Saved   int `json:"saved,omitempty"`
+	Skipped int `json:"skipped,omitempty"`
+	Deleted int `json:"deleted,omitempty"`
+}
+
+func (e EntitySummary) IsEmpty() bool {
+	return e.Scraped == 0 && e.Saved == 0 && e.Skipped == 0 && e.Deleted == 0
+}
+
+func (e EntitySummary) String() string {
+	var parts []string
+	if e.Scraped > 0 {
+		parts = append(parts, fmt.Sprintf("scraped=%d", e.Scraped))
+	}
+	if e.Saved > 0 {
+		parts = append(parts, fmt.Sprintf("saved=%d", e.Saved))
+	}
+	if e.Skipped > 0 {
+		parts = append(parts, fmt.Sprintf("skipped=%d", e.Skipped))
+	}
+	if e.Deleted > 0 {
+		parts = append(parts, fmt.Sprintf("deleted=%d", e.Deleted))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// +kubebuilder:object:generate=false
+type ScrapeSummary struct {
+	ConfigTypes    map[string]ConfigTypeScrapeSummary `json:"config_types,omitempty"`
+	ExternalUsers  EntitySummary                      `json:"external_users,omitempty"`
+	ExternalGroups EntitySummary                      `json:"external_groups,omitempty"`
+	ExternalRoles  EntitySummary                      `json:"external_roles,omitempty"`
+	ConfigAccess   EntitySummary                      `json:"config_access,omitempty"`
+	AccessLogs     EntitySummary                      `json:"access_logs,omitempty"`
+}
+
+func NewScrapeSummary() ScrapeSummary {
+	return ScrapeSummary{ConfigTypes: make(map[string]ConfigTypeScrapeSummary)}
+}
 
 func (summary ScrapeSummary) HasUpdates() bool {
 	totals := summary.Totals()
-	return totals.Added > 0 || totals.Updated > 0
+	if totals.Added > 0 || totals.Updated > 0 {
+		return true
+	}
+	return !summary.ExternalUsers.IsEmpty() ||
+		!summary.ExternalGroups.IsEmpty() ||
+		!summary.ExternalRoles.IsEmpty() ||
+		!summary.ConfigAccess.IsEmpty() ||
+		!summary.AccessLogs.IsEmpty()
+}
 
+func (s *ScrapeSummary) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["config_types"]; ok {
+		type Alias ScrapeSummary
+		var a Alias
+		if err := json.Unmarshal(data, &a); err != nil {
+			return err
+		}
+		*s = ScrapeSummary(a)
+		return nil
+	}
+	var m map[string]ConfigTypeScrapeSummary
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
+	}
+	s.ConfigTypes = m
+	return nil
 }
 
 func (summary ConfigTypeScrapeSummary) String() string {
@@ -202,8 +270,14 @@ func (summary ConfigTypeScrapeSummary) String() string {
 	if summary.Unchanged > 0 {
 		s = append(s, fmt.Sprintf("unchanged=%d", summary.Unchanged))
 	}
+	if summary.Changes > 0 {
+		s = append(s, fmt.Sprintf("changes=%d", summary.Changes))
+	}
+	if summary.Deduped > 0 {
+		s = append(s, fmt.Sprintf("deduped=%d", summary.Deduped))
+	}
 	for _, w := range summary.Warnings {
-		s = append(s, "warning=%s", w)
+		s = append(s, fmt.Sprintf("warning=%s", w))
 	}
 
 	if summary.Change != nil && len(summary.Change.Ignored) > 0 {
@@ -221,10 +295,9 @@ func (summary ConfigTypeScrapeSummary) String() string {
 }
 
 func (s ScrapeSummary) String() string {
-	types := lo.Keys(s)
+	types := lo.Keys(s.ConfigTypes)
 	if len(types) <= 3 {
 		return fmt.Sprintf("(%s) %v", types, s.Totals())
-
 	}
 	return fmt.Sprintf("types=%d, %v", len(types), s.Totals())
 }
@@ -241,53 +314,111 @@ func (a ConfigTypeScrapeSummary) Merge(b ConfigTypeScrapeSummary) ConfigTypeScra
 		Added:     a.Added + b.Added,
 		Updated:   a.Updated + b.Updated,
 		Unchanged: a.Unchanged + b.Unchanged,
+		Changes:   a.Changes + b.Changes,
+		Deduped:   a.Deduped + b.Deduped,
 		Change:    change,
 	}
 }
 
-func (summaries ScrapeSummary) Totals() ConfigTypeScrapeSummary {
+func (s ScrapeSummary) Totals() ConfigTypeScrapeSummary {
 	merged := ConfigTypeScrapeSummary{
 		Change: &ChangeSummary{},
 	}
 
-	for _, s := range summaries {
-		merged = merged.Merge(s)
+	for _, v := range s.ConfigTypes {
+		merged = merged.Merge(v)
 	}
 	return merged
 }
 
+func (t *ScrapeSummary) initConfigTypes() {
+	if t.ConfigTypes == nil {
+		t.ConfigTypes = make(map[string]ConfigTypeScrapeSummary)
+	}
+}
+
 func (t *ScrapeSummary) AddChangeSummary(configType string, cs ChangeSummary) {
-	v := (*t)[configType]
+	t.initConfigTypes()
+	v := t.ConfigTypes[configType]
 	v.Change = &ChangeSummary{
 		Ignored:          cs.Ignored,
 		Orphaned:         cs.Orphaned,
 		ForeignKeyErrors: cs.ForeignKeyErrors,
 	}
-	(*t)[configType] = v
+	t.ConfigTypes[configType] = v
 }
 
 func (t *ScrapeSummary) AddInserted(configType string) {
-	v := (*t)[configType]
+	t.initConfigTypes()
+	v := t.ConfigTypes[configType]
 	v.Added++
-	(*t)[configType] = v
+	t.ConfigTypes[configType] = v
 }
 
 func (t *ScrapeSummary) AddUpdated(configType string) {
-	v := (*t)[configType]
+	t.initConfigTypes()
+	v := t.ConfigTypes[configType]
 	v.Updated++
-	(*t)[configType] = v
+	t.ConfigTypes[configType] = v
 }
 
 func (t *ScrapeSummary) AddUnchanged(configType string) {
-	v := (*t)[configType]
+	t.initConfigTypes()
+	v := t.ConfigTypes[configType]
 	v.Unchanged++
-	(*t)[configType] = v
+	t.ConfigTypes[configType] = v
 }
 
 func (t *ScrapeSummary) AddWarning(configType, warning string) {
-	v := (*t)[configType]
+	t.initConfigTypes()
+	v := t.ConfigTypes[configType]
 	v.Warnings = append(v.Warnings, warning)
-	(*t)[configType] = v
+	t.ConfigTypes[configType] = v
+}
+
+func (t *ScrapeSummary) AddChanges(configType string, count int) {
+	t.initConfigTypes()
+	v := t.ConfigTypes[configType]
+	v.Changes += count
+	t.ConfigTypes[configType] = v
+}
+
+func (t *ScrapeSummary) AddDeduped(configType string, count int) {
+	t.initConfigTypes()
+	v := t.ConfigTypes[configType]
+	v.Deduped += count
+	t.ConfigTypes[configType] = v
+}
+
+func (s *ScrapeSummary) Merge(other ScrapeSummary) {
+	s.initConfigTypes()
+	for k, v := range other.ConfigTypes {
+		if existing, ok := s.ConfigTypes[k]; ok {
+			s.ConfigTypes[k] = existing.Merge(v)
+		} else {
+			s.ConfigTypes[k] = v
+		}
+	}
+	s.ExternalUsers.Scraped += other.ExternalUsers.Scraped
+	s.ExternalUsers.Saved += other.ExternalUsers.Saved
+	s.ExternalUsers.Skipped += other.ExternalUsers.Skipped
+	s.ExternalUsers.Deleted += other.ExternalUsers.Deleted
+	s.ExternalGroups.Scraped += other.ExternalGroups.Scraped
+	s.ExternalGroups.Saved += other.ExternalGroups.Saved
+	s.ExternalGroups.Skipped += other.ExternalGroups.Skipped
+	s.ExternalGroups.Deleted += other.ExternalGroups.Deleted
+	s.ExternalRoles.Scraped += other.ExternalRoles.Scraped
+	s.ExternalRoles.Saved += other.ExternalRoles.Saved
+	s.ExternalRoles.Skipped += other.ExternalRoles.Skipped
+	s.ExternalRoles.Deleted += other.ExternalRoles.Deleted
+	s.ConfigAccess.Scraped += other.ConfigAccess.Scraped
+	s.ConfigAccess.Saved += other.ConfigAccess.Saved
+	s.ConfigAccess.Skipped += other.ConfigAccess.Skipped
+	s.ConfigAccess.Deleted += other.ConfigAccess.Deleted
+	s.AccessLogs.Scraped += other.AccessLogs.Scraped
+	s.AccessLogs.Saved += other.AccessLogs.Saved
+	s.AccessLogs.Skipped += other.AccessLogs.Skipped
+	s.AccessLogs.Deleted += other.AccessLogs.Deleted
 }
 
 // +kubebuilder:object:generate=false
@@ -426,6 +557,8 @@ type ConfigTypeScrapeSummary struct {
 	Added     int            `json:"added,omitempty"`
 	Updated   int            `json:"updated,omitempty"`
 	Unchanged int            `json:"unchanged,omitempty"`
+	Changes   int            `json:"changes,omitempty"`
+	Deduped   int            `json:"deduped,omitempty"`
 	Change    *ChangeSummary `json:"change,omitempty"`
 	Warnings  []string       `json:"warnings,omitempty"`
 }

@@ -32,7 +32,7 @@ var TempCacheStore syncmap.SyncMap[string, *api.TempCache]
 
 type ScrapeOutput struct {
 	Total            int // all configs & changes
-	Summary          map[string]v1.ConfigTypeScrapeSummary
+	Summary          v1.ScrapeSummary
 	RateLimitResetAt *time.Time
 }
 
@@ -69,7 +69,7 @@ func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 		return nil, fmt.Errorf("failed to update stale config items: %w", err)
 	}
 
-	ctx.Logger.Debugf("Completed scrape with %s in %s", savedResult, timer.End())
+	ctx.Logger.Debugf("Completed scrape with %s in %s", savedResult.PrettyShort(), timer.End())
 
 	return &ScrapeOutput{
 		Total:   len(results),
@@ -117,7 +117,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 
 		ctx = ctx.WithScrapeConfig(ctx.ScrapeConfig(), plugins...)
 
-		ctx.Debugf("Starting scraper")
+		ctx.Debugf("Starting %s", scraper)
 		for _, result := range scraper.Scrape(ctx) {
 			scraped := processScrapeResult(ctx, result)
 
