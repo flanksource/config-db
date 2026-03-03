@@ -180,7 +180,7 @@ func scrapePeople(ctx api.ScrapeContext, scraperID uuid.UUID) ([]models.External
 	for _, person := range people {
 		eu := models.ExternalUser{
 			Name:      person.Name,
-			AccountID: "mission-control",
+			Tenant:    "mission-control",
 			UserType:  lo.CoalesceOrEmpty(person.Type, "local"),
 			Aliases:   pq.StringArray{"people:" + person.ID.String()},
 			ScraperID: scraperID,
@@ -205,7 +205,7 @@ func scrapeTeams(ctx api.ScrapeContext, scraperID uuid.UUID) ([]models.ExternalG
 	for _, team := range teams {
 		externalGroups = append(externalGroups, models.ExternalGroup{
 			Name:      team.Name,
-			AccountID: "mission-control",
+			Tenant:    "mission-control",
 			GroupType: "team",
 			Aliases:   pq.StringArray{"team:" + team.ID.String()},
 			ScraperID: scraperID,
@@ -220,7 +220,7 @@ func scrapePlaybookRoles(scraperID uuid.UUID) []models.ExternalRole {
 	return []models.ExternalRole{
 		{
 			Name:      policy.ActionPlaybookRun,
-			AccountID: "mission-control",
+			Tenant:    "mission-control",
 			RoleType:  "playbook-action",
 			Aliases:   pq.StringArray{"role:" + policy.ActionPlaybookRun},
 			ScraperID: &scraperID,
@@ -228,7 +228,7 @@ func scrapePlaybookRoles(scraperID uuid.UUID) []models.ExternalRole {
 		},
 		{
 			Name:      policy.ActionPlaybookApprove,
-			AccountID: "mission-control",
+			Tenant:    "mission-control",
 			RoleType:  "playbook-action",
 			Aliases:   pq.StringArray{"role:" + policy.ActionPlaybookApprove},
 			ScraperID: &scraperID,

@@ -315,11 +315,11 @@ func cloudtrailAssumeRoleToAccessLog(event types.Event) (*v1.ScrapeResult, error
 		return nil, fmt.Errorf("error generating user id: %w", err)
 	}
 	externalUser := dutyModels.ExternalUser{
-		ID:        userID,
-		Name:      userName,
-		Aliases:   aliases,
-		AccountID: accountID,
-		UserType:  userType,
+		ID:       userID,
+		Name:     userName,
+		Aliases:  aliases,
+		Tenant:   accountID,
+		UserType: userType,
 	}
 
 	var eventTime time.Time

@@ -124,12 +124,12 @@ func ensureExternalUser(identity *IdentityRef, organization string, users map[st
 		return
 	}
 	users[email] = dutyModels.ExternalUser{
-		ID:        userID,
-		Name:      identity.DisplayName,
-		Email:     &email,
-		Aliases:   pq.StringArray{email, identity.ID},
-		AccountID: organization,
-		UserType:  "AzureDevOps",
+		ID:       userID,
+		Name:     identity.DisplayName,
+		Email:    &email,
+		Aliases:  pq.StringArray{email, identity.ID},
+		Tenant:   organization,
+		UserType: "AzureDevOps",
 	}
 }
 

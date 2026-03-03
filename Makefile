@@ -259,15 +259,11 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 
 ENVTEST_K8S_VERSION = 1.34.0
 ENVTEST_BRANCH = release-0.22
-ENVTEST_ASSETS_DIR = $(LOCALBIN)/k8s/$(ENVTEST_K8S_VERSION)-$(OS)-$(ARCH)
+ENVTEST_ASSETS_DIR = $(LOCALBIN)
+
 
 .PHONY: envtest
-envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
-$(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_BRANCH)
-
-.PHONY: deps-envtest
-deps-envtest: $(LOCALBIN) ## Install envtest binaries using flanksource/deps.
+envtest: $(LOCALBIN) ## Install envtest binaries using flanksource/deps.
 	@mkdir -p $(ENVTEST_ASSETS_DIR)
 	@test -x $(ENVTEST_ASSETS_DIR)/etcd || deps install etcd@v3.5.23 --bin-dir $(ENVTEST_ASSETS_DIR)
 	@test -x $(ENVTEST_ASSETS_DIR)/kube-apiserver || deps install kube-apiserver@v$(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR)

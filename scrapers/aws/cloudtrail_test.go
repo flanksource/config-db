@@ -295,7 +295,7 @@ resources:
 			g.Expect(result.ExternalUsers).To(gomega.HaveLen(1))
 			user := result.ExternalUsers[0]
 			g.Expect(user.Name).To(gomega.Equal(tt.expectedUserName))
-			g.Expect(user.AccountID).To(gomega.Equal(tt.expectedUserAccountID))
+			g.Expect(user.Tenant).To(gomega.Equal(tt.expectedUserAccountID))
 			g.Expect(user.UserType).To(gomega.Equal(tt.expectedUserType))
 			g.Expect(user.Aliases).To(gomega.ContainElement(tt.expectedUserARN))
 
