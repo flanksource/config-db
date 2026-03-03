@@ -89,7 +89,7 @@ var Run = &cobra.Command{
 			shutdown.AddHook(func() { defer cancel() })
 			if err := scrapeAndStore(ctx); err != nil {
 				hasErrors = true
-				logger.Errorf("error scraping config: (name=%s) %v", scraperConfigs[i].Name, err)
+				logger.Errorf("error scraping config: (name=%s) %+v", scraperConfigs[i].Name, err)
 			}
 		}
 		if hasErrors {
@@ -124,7 +124,7 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 	if outputDir != "" {
 		for _, result := range results {
 			if err := exportResource(result, outputDir); err != nil {
-				return fmt.Errorf("failed to export results %v", err)
+				return fmt.Errorf("failed to export results: %w", err)
 			}
 		}
 		logger.Infof("Exported %d resources to %s (%s)", len(results), outputDir, timer.End())
@@ -138,11 +138,9 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 
 		summary, err := db.SaveResults(ctx, results)
 		if err != nil {
-			return fmt.Errorf("failed to save results to db: %v", err)
+			return fmt.Errorf("failed to save results to db: %w", err)
 		}
-		logger.Infof("Exported %d resources to DB (%s)", len(results), timer.End())
-
-		fmt.Println(clicky.MustFormat(summary))
+		logger.Infof("Exported %d resources to DB: %s (%s)", len(results), summary.PrettyShort(), timer.End())
 
 	}
 
