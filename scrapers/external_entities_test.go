@@ -13,7 +13,7 @@ import (
 	k8sTypes "k8s.io/apimachinery/pkg/types"
 )
 
-var _ = FDescribe("External users e2e test", Ordered, func() {
+var _ = Describe("External users e2e test", Ordered, func() {
 	var scrapeConfig v1.ScrapeConfig
 	var scraperCtx api.ScrapeContext
 	var scraperModel dutymodels.ConfigScraper
@@ -513,5 +513,31 @@ var _ = Describe("External entities only (no config item) e2e test", Ordered, fu
 		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Find(&groups).Error
 		Expect(err).NotTo(HaveOccurred())
 		Expect(groups).To(HaveLen(1))
+	})
+
+	It("should warm caches from DB after flush", func() {
+		db.ExternalUserCache.Flush()
+		db.ExternalGroupCache.Flush()
+
+		_, found := db.ExternalUserCache.Get("alice")
+		Expect(found).To(BeFalse())
+
+		db.WarmExternalEntityCaches(DefaultContext)
+
+		aliceID, found := db.ExternalUserCache.Get("alice")
+		Expect(found).To(BeTrue())
+		Expect(aliceID).NotTo(Equal(uuid.Nil))
+
+		aliceEmailID, found := db.ExternalUserCache.Get("alice@example.com")
+		Expect(found).To(BeTrue())
+		Expect(aliceEmailID).To(Equal(aliceID))
+
+		engID, found := db.ExternalGroupCache.Get("engineers")
+		Expect(found).To(BeTrue())
+		Expect(engID).NotTo(Equal(uuid.Nil))
+
+		engTeamID, found := db.ExternalGroupCache.Get("eng-team")
+		Expect(found).To(BeTrue())
+		Expect(engTeamID).To(Equal(engID))
 	})
 })
