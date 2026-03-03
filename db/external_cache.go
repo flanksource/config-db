@@ -8,6 +8,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/config-db/api"
+	"github.com/lib/pq"
 	"github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
@@ -68,7 +69,7 @@ func getEntityCache[T externalEntityWithID]() *cache.Cache {
 func WarmExternalEntityCaches(ctx context.Context) {
 	type idAliases struct {
 		ID      uuid.UUID
-		Aliases []string
+		Aliases pq.StringArray `gorm:"type:text[]"`
 	}
 
 	for _, table := range []struct {

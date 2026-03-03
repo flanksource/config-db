@@ -52,6 +52,7 @@ var Run = &cobra.Command{
 			}
 
 			dutyCtx = c
+			db.WarmExternalEntityCaches(dutyCtx)
 		}
 
 		if debugPort >= 0 {
