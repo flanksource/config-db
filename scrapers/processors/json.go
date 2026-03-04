@@ -696,7 +696,7 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 		}
 	}
 
-	if input.Type == "" {
+	if input.Type == "" && !hasExternalEntities(input.Config) {
 		return input, fmt.Errorf("no config type defined for: %s", input)
 	}
 
@@ -712,7 +712,7 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 		}
 	}
 
-	if input.ConfigClass == "" {
+	if input.ConfigClass == "" && !hasExternalEntities(input.Config) {
 		return input, fmt.Errorf("no class defined for: %s", input)
 	}
 
