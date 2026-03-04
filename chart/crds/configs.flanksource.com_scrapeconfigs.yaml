@@ -9980,13 +9980,13 @@ spec:
                           type: string
                         tenantID:
                           type: string
-                        workspaceId:
+                        workspaceID:
                           description: WorkspaceID is the Azure Log Analytics workspace
                             ID to query.
                           type: string
                       required:
                       - query
-                      - workspaceId
+                      - workspaceID
                       type: object
                     bigQuery:
                       description: BigQuery specifies the BigQuery configuration for

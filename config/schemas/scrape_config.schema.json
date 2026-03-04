@@ -590,7 +590,7 @@
         "limit": {
           "type": "string"
         },
-        "workspaceId": {
+        "workspaceID": {
           "type": "string"
         },
         "query": {
@@ -600,7 +600,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "workspaceId",
+        "workspaceID",
         "query"
       ],
       "description": "AzureLogAnalyticsConfig contains configuration for Azure Log Analytics log scraping"
