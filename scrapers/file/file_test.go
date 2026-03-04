@@ -1,41 +1,38 @@
 package file
 
-import "testing"
+import (
+	"testing"
 
-// test stripPrefix
-func TestStripPrefix(t *testing.T) {
-	cases := []struct {
-		input    string
-		expected string
-	}{
-		{"file://foo", "foo"},
-		{"git::foo", "foo"},
-		{"git::https://foo", "https://foo"},
-		{"foo", "foo"},
-		{"", ""},
-	}
-	for _, c := range cases {
-		actual := stripPrefix(c.input)
-		if actual != c.expected {
-			t.Errorf("stripPrefix(%s) == %s, expected %s", c.input, actual, c.expected)
-		}
-	}
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+func TestFile(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "File Suite")
 }
 
-func TestConvertLocalPath(t *testing.T) {
-	cases := []struct {
-		input    string
-		expected string
-	}{
-		{"file://foo", "foo-ecf5c8ee"},
-		{"git::foo", "foo-b943d8a5"},
-		{"git::https://foo/path?query=abc", "foo-path-8f49fbdc"},
-		{"foo", "foo-acbd18db"},
-	}
-	for _, c := range cases {
-		actual := convertToLocalPath(c.input)
-		if actual != c.expected {
-			t.Errorf("convertToLocalPath(%s) == %s, expected %s", c.input, actual, c.expected)
-		}
-	}
-}
+var _ = Describe("stripPrefix", func() {
+	DescribeTable("should strip known prefixes",
+		func(input, expected string) {
+			Expect(stripPrefix(input)).To(Equal(expected))
+		},
+		Entry("file:// prefix", "file://foo", "foo"),
+		Entry("git:: prefix", "git::foo", "foo"),
+		Entry("git:: with https", "git::https://foo", "https://foo"),
+		Entry("no prefix", "foo", "foo"),
+		Entry("empty string", "", ""),
+	)
+})
+
+var _ = Describe("convertToLocalPath", func() {
+	DescribeTable("should convert URLs to local paths with hash suffix",
+		func(input, expected string) {
+			Expect(convertToLocalPath(input)).To(Equal(expected))
+		},
+		Entry("file:// prefix", "file://foo", "foo-ecf5c8ee"),
+		Entry("git:: prefix", "git::foo", "foo-b943d8a5"),
+		Entry("git:: with URL and query", "git::https://foo/path?query=abc", "foo-path-8f49fbdc"),
+		Entry("plain path", "foo", "foo-acbd18db"),
+	)
+})

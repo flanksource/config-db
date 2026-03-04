@@ -90,7 +90,13 @@ endef
 gotest: ginkgo
 	$(validate-envtest-assets) \
 	KUBEBUILDER_ASSETS="$$ASSETS" \
-		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out ./...
+		ginkgo -r -v --skip-package=tests/e2e  ./...
+
+.PHONY: test-fast
+test-fast:
+		ginkgo --tags slim -p -r -v --skip-package=tests/e2e  ./...
+
+
 
 .PHONY: gotest-prod
 gotest-prod:

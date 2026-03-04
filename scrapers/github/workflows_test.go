@@ -3,28 +3,29 @@ package github
 import (
 	"testing"
 
-	"github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestWorkflowURL(t *testing.T) {
-	tests := []struct {
-		htmlURL  string
-		expected string
-	}{
-		{
-			htmlURL:  "https://github.com/flanksource/duty/blob/main/.github/workflows/release.yml",
-			expected: "https://github.com/flanksource/duty/actions/workflows/release.yml",
-		},
-		{
-			htmlURL:  "https://github.com/flanksource/duty/blob/main/.github/workflows/test.yaml",
-			expected: "https://github.com/flanksource/duty/actions/workflows/test.yaml",
-		},
-	}
-
-	g := gomega.NewWithT(t)
-	for _, test := range tests {
-		actual, err := getWorkflowURL(test.htmlURL)
-		g.Expect(err).To(gomega.BeNil())
-		g.Expect(actual).To(gomega.Equal(test.expected))
-	}
+func TestGithub(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Github Suite")
 }
+
+var _ = Describe("getWorkflowURL", func() {
+	DescribeTable("converts blob URL to actions URL",
+		func(htmlURL, expected string) {
+			actual, err := getWorkflowURL(htmlURL)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(actual).To(Equal(expected))
+		},
+		Entry("release.yml",
+			"https://github.com/flanksource/duty/blob/main/.github/workflows/release.yml",
+			"https://github.com/flanksource/duty/actions/workflows/release.yml",
+		),
+		Entry("test.yaml",
+			"https://github.com/flanksource/duty/blob/main/.github/workflows/test.yaml",
+			"https://github.com/flanksource/duty/actions/workflows/test.yaml",
+		),
+	)
+})

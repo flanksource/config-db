@@ -4,51 +4,37 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func Test_maskSensitiveAttributes(t *testing.T) {
-	tests := []struct {
-		name    string
-		wantErr bool
-	}{
-		{
-			name:    "cloudflare.tfstate",
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			content, err := os.ReadFile(fmt.Sprintf("testdata/%s", tt.name))
-			if err != nil {
-				t.Fatal(err)
-			}
+func TestTerraform(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Terraform Suite")
+}
+
+var _ = Describe("maskSensitiveAttributes", func() {
+	DescribeTable("masks sensitive fields",
+		func(name string) {
+			content, err := os.ReadFile(fmt.Sprintf("testdata/%s", name))
+			Expect(err).ToNot(HaveOccurred())
 
 			var state State
-			if err := json.Unmarshal(content, &state); err != nil {
-				t.Fatal(err)
-			}
+			Expect(json.Unmarshal(content, &state)).To(Succeed())
 
 			got, err := maskSensitiveAttributes(state, content)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("maskSensitiveAttributes() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			Expect(err).ToNot(HaveOccurred())
 
-			expected, err := os.ReadFile(fmt.Sprintf("testdata/%s.expected", tt.name))
-			if err != nil {
-				t.Fatal(err)
-			}
+			expected, err := os.ReadFile(fmt.Sprintf("testdata/%s.expected", name))
+			Expect(err).ToNot(HaveOccurred())
 
 			var expectedMap map[string]any
-			if err := json.Unmarshal(expected, &expectedMap); err != nil {
-				t.Fatal(err)
-			}
+			Expect(json.Unmarshal(expected, &expectedMap)).To(Succeed())
 
-			if !reflect.DeepEqual(got, expectedMap) {
-				t.Errorf("maskSensitiveAttributes() = %v, want %v", got, expectedMap)
-			}
-		})
-	}
-}
+			Expect(got).To(Equal(expectedMap))
+		},
+		Entry("cloudflare", "cloudflare.tfstate"),
+	)
+})

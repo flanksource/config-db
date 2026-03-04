@@ -2,176 +2,174 @@ package v1
 
 import (
 	"encoding/json"
-	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestPrettyShort(t *testing.T) {
-	tests := []struct {
-		name     string
-		summary  ScrapeSummary
-		expected string
-	}{
-		{
-			name:     "empty summary",
-			summary:  ScrapeSummary{},
-			expected: "no changes",
-		},
-		{
-			name: "configs only",
-			summary: ScrapeSummary{
-				ConfigTypes: map[string]ConfigTypeScrapeSummary{
-					"AWS::EC2::Instance": {Added: 5, Updated: 12, Unchanged: 100},
-				},
+var _ = Describe("ScrapeSummary", func() {
+	Describe("PrettyShort", func() {
+		DescribeTable("formats summary correctly",
+			func(summary ScrapeSummary, expected string) {
+				Expect(summary.PrettyShort()).To(Equal(expected))
 			},
-			expected: "configs(+5/~12/=100)",
-		},
-		{
-			name: "configs with changes and deduped",
-			summary: ScrapeSummary{
-				ConfigTypes: map[string]ConfigTypeScrapeSummary{
-					"AWS::EC2::Instance": {Added: 5, Updated: 12, Unchanged: 100, Changes: 8, Deduped: 3},
+			Entry("empty summary",
+				ScrapeSummary{},
+				"no changes"),
+			Entry("configs only",
+				ScrapeSummary{
+					ConfigTypes: map[string]ConfigTypeScrapeSummary{
+						"AWS::EC2::Instance": {Added: 5, Updated: 12, Unchanged: 100},
+					},
 				},
-			},
-			expected: "configs(+5/~12/=100) changes(+8/dedup=3)",
-		},
-		{
-			name: "full summary with entities",
-			summary: ScrapeSummary{
-				ConfigTypes: map[string]ConfigTypeScrapeSummary{
-					"AWS::EC2::Instance": {Added: 1},
+				"configs(+5/~12/=100)"),
+			Entry("configs with changes and deduped",
+				ScrapeSummary{
+					ConfigTypes: map[string]ConfigTypeScrapeSummary{
+						"AWS::EC2::Instance": {Added: 5, Updated: 12, Unchanged: 100, Changes: 8, Deduped: 3},
+					},
 				},
-				ExternalUsers:  EntitySummary{Scraped: 50, Saved: 50},
-				ExternalGroups: EntitySummary{Scraped: 10, Saved: 10},
-				ExternalRoles:  EntitySummary{Scraped: 5, Saved: 5},
-				ConfigAccess:   EntitySummary{Scraped: 200, Saved: 200},
-				AccessLogs:     EntitySummary{Scraped: 1000, Saved: 1000},
-			},
-			expected: "configs(+1/~0/=0) users=50 groups=10 roles=5 access=200 logs=1000",
-		},
-	}
+				"configs(+5/~12/=100) changes(+8/dedup=3)"),
+			Entry("full summary with entities",
+				ScrapeSummary{
+					ConfigTypes: map[string]ConfigTypeScrapeSummary{
+						"AWS::EC2::Instance": {Added: 1},
+					},
+					ExternalUsers:  EntitySummary{Scraped: 50, Saved: 50},
+					ExternalGroups: EntitySummary{Scraped: 10, Saved: 10},
+					ExternalRoles:  EntitySummary{Scraped: 5, Saved: 5},
+					ConfigAccess:   EntitySummary{Scraped: 200, Saved: 200},
+					AccessLogs:     EntitySummary{Scraped: 1000, Saved: 1000},
+				},
+				"configs(+1/~0/=0) users=50 groups=10 roles=5 access=200 logs=1000"),
+		)
+	})
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, tc.summary.PrettyShort())
+	Describe("UnmarshalJSON backward compatibility", func() {
+		It("should parse old map format", func() {
+			oldJSON := `{
+				"AWS::EC2::Instance": {"added": 3, "updated": 5, "unchanged": 10},
+				"Kubernetes::Pod": {"added": 1}
+			}`
+			var s ScrapeSummary
+			Expect(json.Unmarshal([]byte(oldJSON), &s)).To(Succeed())
+			Expect(s.ConfigTypes["AWS::EC2::Instance"].Added).To(Equal(3))
+			Expect(s.ConfigTypes["AWS::EC2::Instance"].Updated).To(Equal(5))
+			Expect(s.ConfigTypes["AWS::EC2::Instance"].Unchanged).To(Equal(10))
+			Expect(s.ConfigTypes["Kubernetes::Pod"].Added).To(Equal(1))
 		})
-	}
-}
 
-func TestUnmarshalJSON_BackwardCompat(t *testing.T) {
-	t.Run("old map format", func(t *testing.T) {
-		oldJSON := `{
-			"AWS::EC2::Instance": {"added": 3, "updated": 5, "unchanged": 10},
-			"Kubernetes::Pod": {"added": 1}
-		}`
-		var s ScrapeSummary
-		require.NoError(t, json.Unmarshal([]byte(oldJSON), &s))
-		assert.Equal(t, 3, s.ConfigTypes["AWS::EC2::Instance"].Added)
-		assert.Equal(t, 5, s.ConfigTypes["AWS::EC2::Instance"].Updated)
-		assert.Equal(t, 10, s.ConfigTypes["AWS::EC2::Instance"].Unchanged)
-		assert.Equal(t, 1, s.ConfigTypes["Kubernetes::Pod"].Added)
+		It("should parse new struct format", func() {
+			newJSON := `{
+				"config_types": {
+					"AWS::EC2::Instance": {"added": 3, "updated": 5}
+				},
+				"external_users": {"scraped": 50, "saved": 48, "skipped": 2}
+			}`
+			var s ScrapeSummary
+			Expect(json.Unmarshal([]byte(newJSON), &s)).To(Succeed())
+			Expect(s.ConfigTypes["AWS::EC2::Instance"].Added).To(Equal(3))
+			Expect(s.ConfigTypes["AWS::EC2::Instance"].Updated).To(Equal(5))
+			Expect(s.ExternalUsers.Scraped).To(Equal(50))
+			Expect(s.ExternalUsers.Saved).To(Equal(48))
+			Expect(s.ExternalUsers.Skipped).To(Equal(2))
+		})
+
+		It("should roundtrip new format", func() {
+			original := ScrapeSummary{
+				ConfigTypes: map[string]ConfigTypeScrapeSummary{
+					"AWS::EC2::Instance": {Added: 3, Changes: 10, Deduped: 2},
+				},
+				ExternalUsers: EntitySummary{Scraped: 50, Saved: 48},
+			}
+			data, err := json.Marshal(original)
+			Expect(err).ToNot(HaveOccurred())
+
+			var decoded ScrapeSummary
+			Expect(json.Unmarshal(data, &decoded)).To(Succeed())
+			Expect(decoded.ConfigTypes["AWS::EC2::Instance"]).To(Equal(original.ConfigTypes["AWS::EC2::Instance"]))
+			Expect(decoded.ExternalUsers).To(Equal(original.ExternalUsers))
+		})
 	})
 
-	t.Run("new struct format", func(t *testing.T) {
-		newJSON := `{
-			"config_types": {
-				"AWS::EC2::Instance": {"added": 3, "updated": 5}
-			},
-			"external_users": {"scraped": 50, "saved": 48, "skipped": 2}
-		}`
-		var s ScrapeSummary
-		require.NoError(t, json.Unmarshal([]byte(newJSON), &s))
-		assert.Equal(t, 3, s.ConfigTypes["AWS::EC2::Instance"].Added)
-		assert.Equal(t, 5, s.ConfigTypes["AWS::EC2::Instance"].Updated)
-		assert.Equal(t, 50, s.ExternalUsers.Scraped)
-		assert.Equal(t, 48, s.ExternalUsers.Saved)
-		assert.Equal(t, 2, s.ExternalUsers.Skipped)
+	Describe("ConfigTypeScrapeSummary Merge", func() {
+		It("should merge all fields correctly", func() {
+			a := ConfigTypeScrapeSummary{Added: 1, Updated: 2, Changes: 5, Deduped: 3}
+			b := ConfigTypeScrapeSummary{Added: 3, Updated: 4, Changes: 10, Deduped: 7}
+			merged := a.Merge(b)
+			Expect(merged.Added).To(Equal(4))
+			Expect(merged.Updated).To(Equal(6))
+			Expect(merged.Changes).To(Equal(15))
+			Expect(merged.Deduped).To(Equal(10))
+		})
 	})
 
-	t.Run("roundtrip new format", func(t *testing.T) {
-		original := ScrapeSummary{
-			ConfigTypes: map[string]ConfigTypeScrapeSummary{
-				"AWS::EC2::Instance": {Added: 3, Changes: 10, Deduped: 2},
-			},
-			ExternalUsers: EntitySummary{Scraped: 50, Saved: 48},
-		}
-		data, err := json.Marshal(original)
-		require.NoError(t, err)
+	Describe("ScrapeSummary Merge", func() {
+		It("should merge config types and entity summaries", func() {
+			a := ScrapeSummary{
+				ConfigTypes: map[string]ConfigTypeScrapeSummary{
+					"AWS::EC2::Instance": {Added: 1, Changes: 5},
+				},
+				ExternalUsers: EntitySummary{Scraped: 10, Saved: 8, Deleted: 1},
+			}
+			b := ScrapeSummary{
+				ConfigTypes: map[string]ConfigTypeScrapeSummary{
+					"AWS::EC2::Instance": {Added: 2, Changes: 3},
+					"Kubernetes::Pod":    {Added: 5},
+				},
+				ExternalUsers: EntitySummary{Scraped: 20, Saved: 18, Deleted: 2},
+			}
+			a.Merge(b)
 
-		var decoded ScrapeSummary
-		require.NoError(t, json.Unmarshal(data, &decoded))
-		assert.Equal(t, original.ConfigTypes["AWS::EC2::Instance"], decoded.ConfigTypes["AWS::EC2::Instance"])
-		assert.Equal(t, original.ExternalUsers, decoded.ExternalUsers)
+			Expect(a.ConfigTypes["AWS::EC2::Instance"].Added).To(Equal(3))
+			Expect(a.ConfigTypes["AWS::EC2::Instance"].Changes).To(Equal(8))
+			Expect(a.ConfigTypes["Kubernetes::Pod"].Added).To(Equal(5))
+			Expect(a.ExternalUsers.Scraped).To(Equal(30))
+			Expect(a.ExternalUsers.Saved).To(Equal(26))
+			Expect(a.ExternalUsers.Deleted).To(Equal(3))
+		})
 	})
-}
 
-func TestMergeWithChangesAndDeduped(t *testing.T) {
-	a := ConfigTypeScrapeSummary{Added: 1, Updated: 2, Changes: 5, Deduped: 3}
-	b := ConfigTypeScrapeSummary{Added: 3, Updated: 4, Changes: 10, Deduped: 7}
-	merged := a.Merge(b)
-	assert.Equal(t, 4, merged.Added)
-	assert.Equal(t, 6, merged.Updated)
-	assert.Equal(t, 15, merged.Changes)
-	assert.Equal(t, 10, merged.Deduped)
-}
-
-func TestScrapeSummaryMerge(t *testing.T) {
-	a := ScrapeSummary{
-		ConfigTypes: map[string]ConfigTypeScrapeSummary{
-			"AWS::EC2::Instance": {Added: 1, Changes: 5},
-		},
-		ExternalUsers: EntitySummary{Scraped: 10, Saved: 8, Deleted: 1},
-	}
-	b := ScrapeSummary{
-		ConfigTypes: map[string]ConfigTypeScrapeSummary{
-			"AWS::EC2::Instance": {Added: 2, Changes: 3},
-			"Kubernetes::Pod":    {Added: 5},
-		},
-		ExternalUsers: EntitySummary{Scraped: 20, Saved: 18, Deleted: 2},
-	}
-	a.Merge(b)
-
-	assert.Equal(t, 3, a.ConfigTypes["AWS::EC2::Instance"].Added)
-	assert.Equal(t, 8, a.ConfigTypes["AWS::EC2::Instance"].Changes)
-	assert.Equal(t, 5, a.ConfigTypes["Kubernetes::Pod"].Added)
-	assert.Equal(t, 30, a.ExternalUsers.Scraped)
-	assert.Equal(t, 26, a.ExternalUsers.Saved)
-	assert.Equal(t, 3, a.ExternalUsers.Deleted)
-}
-
-func TestEntitySummary_IsEmpty(t *testing.T) {
-	assert.True(t, EntitySummary{}.IsEmpty())
-	assert.False(t, EntitySummary{Scraped: 1}.IsEmpty())
-	assert.False(t, EntitySummary{Deleted: 1}.IsEmpty())
-}
-
-func TestTotalsWithNewFields(t *testing.T) {
-	s := ScrapeSummary{
-		ConfigTypes: map[string]ConfigTypeScrapeSummary{
-			"A": {Added: 1, Updated: 2, Unchanged: 3, Changes: 10, Deduped: 5},
-			"B": {Added: 4, Updated: 5, Unchanged: 6, Changes: 20, Deduped: 8},
-		},
-	}
-	totals := s.Totals()
-	assert.Equal(t, 5, totals.Added)
-	assert.Equal(t, 7, totals.Updated)
-	assert.Equal(t, 9, totals.Unchanged)
-	assert.Equal(t, 30, totals.Changes)
-	assert.Equal(t, 13, totals.Deduped)
-}
-
-func TestHasUpdates(t *testing.T) {
-	t.Run("empty", func(t *testing.T) {
-		assert.False(t, ScrapeSummary{}.HasUpdates())
+	Describe("EntitySummary IsEmpty", func() {
+		It("should return true for zero value", func() {
+			Expect(EntitySummary{}.IsEmpty()).To(BeTrue())
+		})
+		It("should return false when Scraped is set", func() {
+			Expect(EntitySummary{Scraped: 1}.IsEmpty()).To(BeFalse())
+		})
+		It("should return false when Deleted is set", func() {
+			Expect(EntitySummary{Deleted: 1}.IsEmpty()).To(BeFalse())
+		})
 	})
-	t.Run("config updates", func(t *testing.T) {
-		s := ScrapeSummary{ConfigTypes: map[string]ConfigTypeScrapeSummary{"A": {Added: 1}}}
-		assert.True(t, s.HasUpdates())
+
+	Describe("Totals", func() {
+		It("should aggregate across all config types", func() {
+			s := ScrapeSummary{
+				ConfigTypes: map[string]ConfigTypeScrapeSummary{
+					"A": {Added: 1, Updated: 2, Unchanged: 3, Changes: 10, Deduped: 5},
+					"B": {Added: 4, Updated: 5, Unchanged: 6, Changes: 20, Deduped: 8},
+				},
+			}
+			totals := s.Totals()
+			Expect(totals.Added).To(Equal(5))
+			Expect(totals.Updated).To(Equal(7))
+			Expect(totals.Unchanged).To(Equal(9))
+			Expect(totals.Changes).To(Equal(30))
+			Expect(totals.Deduped).To(Equal(13))
+		})
 	})
-	t.Run("entity updates only", func(t *testing.T) {
-		s := ScrapeSummary{ExternalUsers: EntitySummary{Saved: 5}}
-		assert.True(t, s.HasUpdates())
+
+	Describe("HasUpdates", func() {
+		It("should return false for empty summary", func() {
+			Expect(ScrapeSummary{}.HasUpdates()).To(BeFalse())
+		})
+		It("should return true with config updates", func() {
+			s := ScrapeSummary{ConfigTypes: map[string]ConfigTypeScrapeSummary{"A": {Added: 1}}}
+			Expect(s.HasUpdates()).To(BeTrue())
+		})
+		It("should return true with entity updates only", func() {
+			s := ScrapeSummary{ExternalUsers: EntitySummary{Saved: 5}}
+			Expect(s.HasUpdates()).To(BeTrue())
+		})
 	})
-}
+})

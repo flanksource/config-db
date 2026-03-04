@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"cloud.google.com/go/asset/apiv1/assetpb"
-	"github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -19,44 +20,41 @@ type testFixture struct {
 	} `json:"expectation"`
 }
 
-func TestParseResourceData(t *testing.T) {
-	g := gomega.NewWithT(t)
+func TestGCP(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "GCP Suite")
+}
 
-	files, err := os.ReadDir("testdata")
-	g.Expect(err).To(gomega.BeNil())
+var _ = Describe("parseResourceData", func() {
+	It("extracts zone and region from testdata fixtures", func() {
+		files, err := os.ReadDir("testdata")
+		Expect(err).ToNot(HaveOccurred())
 
-	for _, file := range files {
-		if !strings.HasSuffix(file.Name(), ".json") {
-			continue
-		}
+		for _, file := range files {
+			if !strings.HasSuffix(file.Name(), ".json") {
+				continue
+			}
 
-		t.Run(file.Name(), func(t *testing.T) {
+			By(file.Name())
 			filePath := filepath.Join("testdata", file.Name())
 			fileContent, err := os.ReadFile(filePath)
-			g.Expect(err).To(gomega.BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			var resourceData map[string]any
-			err = json.Unmarshal(fileContent, &resourceData)
-			g.Expect(err).To(gomega.BeNil())
+			Expect(json.Unmarshal(fileContent, &resourceData)).To(Succeed())
 
 			var fixture testFixture
-			err = json.Unmarshal(fileContent, &fixture)
-			g.Expect(err).To(gomega.BeNil())
+			Expect(json.Unmarshal(fileContent, &fixture)).To(Succeed())
 
 			delete(resourceData, "expectation")
 
 			data, err := structpb.NewStruct(resourceData)
-			g.Expect(err).To(gomega.BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
-			asset := &assetpb.Asset{
-				Resource: &assetpb.Resource{
-					Data: data,
-				},
-			}
+			asset := &assetpb.Asset{Resource: &assetpb.Resource{Data: data}}
 			result := parseResourceData(asset)
-
-			g.Expect(result.Zone).To(gomega.Equal(fixture.Expectation.Zone), "zone mismatch")
-			g.Expect(result.Region).To(gomega.Equal(fixture.Expectation.Region), "region mismatch")
-		})
-	}
-}
+			Expect(result.Zone).To(Equal(fixture.Expectation.Zone))
+			Expect(result.Region).To(Equal(fixture.Expectation.Region))
+		}
+	})
+})
