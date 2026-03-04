@@ -1,63 +1,43 @@
 package kubernetes
 
 import (
-	"testing"
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func Test_getSourceFromEvent(t *testing.T) {
-	tests := []struct {
-		name string
-		args v1.KubernetesEvent
-		want string
-	}{
-		{
-			name: "simple", args: v1.KubernetesEvent{
-				Source: map[string]string{
-					"component": "kubelet",
-					"host":      "minikube",
-				},
-			},
-			want: "kubelet",
+var _ = Describe("getSourceFromEvent", func() {
+	DescribeTable("returns the correct source",
+		func(event v1.KubernetesEvent, expected string) {
+			Expect(getSourceFromEvent(event)).To(Equal(expected))
 		},
-		{
-			name: "empty", args: v1.KubernetesEvent{
-				Source: map[string]string{},
+		Entry("simple", v1.KubernetesEvent{
+			Source: map[string]string{
+				"component": "kubelet",
+				"host":      "minikube",
 			},
-			want: "kubernetes/",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := getSourceFromEvent(tt.args); got != tt.want {
-				t.Errorf("getSourceFromEvent() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
+		}, "kubelet"),
+		Entry("empty", v1.KubernetesEvent{
+			Source: map[string]string{},
+		}, "kubernetes/"),
+	)
+})
 
-func TestEvent_FromObjMap(t *testing.T) {
-	t.Run("from object", func(t *testing.T) {
+var _ = Describe("KubernetesEvent.FromObjMap", func() {
+	It("populates metadata from a corev1.Event object", func() {
 		eventV1 := corev1.Event{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "HI",
-			},
+			ObjectMeta: metav1.ObjectMeta{Name: "HI"},
 		}
-		var eventFromV1 v1.KubernetesEvent
-		if err := eventFromV1.FromObjMap(eventV1); err != nil {
-			t.Fatalf("error was not expected %v", err)
-		}
-
-		if eventFromV1.Metadata == nil {
-			t.Fail()
-		}
+		var event v1.KubernetesEvent
+		Expect(event.FromObjMap(eventV1)).To(Succeed())
+		Expect(event.Metadata).ToNot(BeNil())
 	})
 
-	t.Run("from map", func(t *testing.T) {
+	It("populates metadata from a map", func() {
 		eventMap := map[string]any{
 			"metadata": map[string]any{
 				"name":              "HI",
@@ -66,32 +46,20 @@ func TestEvent_FromObjMap(t *testing.T) {
 				"creationTimestamp": "2020-01-01T00:00:00Z",
 			},
 		}
-		var eventFromMap v1.KubernetesEvent
-		if err := eventFromMap.FromObjMap(eventMap); err != nil {
-			t.Fatalf("error was not expected %v", err)
-		}
-
-		if eventFromMap.Metadata == nil {
-			t.Fail()
-		}
+		var event v1.KubernetesEvent
+		Expect(event.FromObjMap(eventMap)).To(Succeed())
+		Expect(event.Metadata).ToNot(BeNil())
 	})
 
-	t.Run("from map II", func(t *testing.T) {
-		eventMap := corev1.Event{
+	It("preserves creationTimestamp from a corev1.Event", func() {
+		ts := time.Date(1995, 8, 1, 0, 0, 0, 0, time.UTC)
+		eventObj := corev1.Event{
 			ObjectMeta: metav1.ObjectMeta{
-				CreationTimestamp: metav1.Time{
-					Time: time.Date(1995, 8, 1, 0, 0, 0, 0, time.UTC),
-				},
+				CreationTimestamp: metav1.Time{Time: ts},
 			},
 		}
-
-		var expected v1.KubernetesEvent
-		if err := expected.FromObjMap(eventMap); err != nil {
-			t.Fatalf("error was not expected %v", err)
-		}
-
-		if !expected.Metadata.CreationTimestamp.Time.Equal(eventMap.ObjectMeta.CreationTimestamp.Time) {
-			t.Fatalf("creation timestamps do not match, expected %v, got %v", eventMap.ObjectMeta.CreationTimestamp.Time, expected.Metadata.CreationTimestamp.Time)
-		}
+		var event v1.KubernetesEvent
+		Expect(event.FromObjMap(eventObj)).To(Succeed())
+		Expect(event.Metadata.CreationTimestamp.Time).To(Equal(ts))
 	})
-}
+})

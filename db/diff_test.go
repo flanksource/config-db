@@ -4,139 +4,85 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"runtime/debug"
 	"testing"
 	"time"
 
 	"github.com/flanksource/config-db/db/models"
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
 	"github.com/shirou/gopsutil/v3/process"
 )
 
-func Test_generateDiff(t *testing.T) {
-	type args struct {
-		newConf string
-		prev    string
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{
-			name: "simple",
-			args: args{
-				newConf: "testdata/simple-new.json",
-				prev:    "testdata/simple-old.json",
-			},
-			want: "testdata/simple.diff",
-		},
-		{
-			name: "person",
-			args: args{
-				newConf: "testdata/person-new.json",
-				prev:    "testdata/person-old.json",
-			},
-			want: "testdata/person.diff",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := generateDiff(readFile(t, tt.args.newConf), readFile(t, tt.args.prev))
-			if err != nil {
-				t.Errorf("generateDiff() error = %v", err)
-				return
-			}
-
-			wan := readFile(t, tt.want)
-			if diff := cmp.Diff(wan, got); diff != "" {
-				_ = os.WriteFile(tt.want+".actual", []byte(got), 0644)
-				t.Errorf("generateDiff() mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
+func TestDB(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "DB Suite")
 }
 
-func readFile(t *testing.T, path string) string {
-	t.Helper()
+func readTestFile(path string) string {
 	f, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("failed to open file (path=%s): %v", path, err)
-	}
-
+	ExpectWithOffset(1, err).ToNot(HaveOccurred(), "failed to open file (path=%s)", path)
 	return string(f)
 }
 
-func Test_dedupChanges(t *testing.T) {
-	type args struct {
-		window  time.Duration
-		changes []*models.ConfigChange
-	}
-	tests := []struct {
-		name     string
-		args     args
-		deduped  []models.ConfigChangeUpdate
-		nonDuped []*models.ConfigChange
-	}{
-		{
-			name: "",
-			args: args{
-				window: time.Hour,
-				changes: []*models.ConfigChange{
-					{ID: "8b9d2659-7a11-46ff-bdff-1c4e8964c437", CreatedAt: time.Date(2024, 01, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "first", Count: 1},
-					{ID: uuid.NewString(), CreatedAt: time.Date(2024, 02, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "second", Count: 1},
-					{ID: uuid.NewString(), CreatedAt: time.Date(2024, 03, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "third", Count: 1},
-					{ID: uuid.NewString(), CreatedAt: time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "fourth", Count: 1},
-					{ID: "01eda583-3f5e-4c44-851f-93ac73272b92", CreatedAt: time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("xyz"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "different", Count: 1},
-					{ID: uuid.NewString(), CreatedAt: time.Date(2024, 04, 03, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("xyz"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "different two", Count: 1},
-				},
-			},
-			deduped: []models.ConfigChangeUpdate{
-				{
-					Change: &models.ConfigChange{
-						ID:          "8b9d2659-7a11-46ff-bdff-1c4e8964c437",
-						CreatedAt:   time.Date(2024, 01, 02, 0, 0, 0, 0, time.UTC),
-						Fingerprint: lo.ToPtr("abc"),
-						ConfigID:    "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d",
-						Summary:     "first",
-						Count:       1,
-					},
-					CountIncrement: 4,
-				},
-			},
-			nonDuped: []*models.ConfigChange{
-				{
-					ID:          "01eda583-3f5e-4c44-851f-93ac73272b92",
-					CreatedAt:   time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC),
-					Fingerprint: lo.ToPtr("xyz"),
+var _ = Describe("generateDiff", func() {
+	DescribeTable("produces correct diffs",
+		func(newConf, prev, wantFile string) {
+			got, err := generateDiff(readTestFile(newConf), readTestFile(prev))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(got).To(Equal(readTestFile(wantFile)))
+		},
+		Entry("simple", "testdata/simple-new.json", "testdata/simple-old.json", "testdata/simple.diff"),
+		Entry("person", "testdata/person-new.json", "testdata/person-old.json", "testdata/person.diff"),
+	)
+})
+
+var _ = Describe("dedupChanges", func() {
+	It("deduplicates changes by fingerprint and separates non-duplicates", func() {
+		ChangeCacheByFingerprint.Set(changeFingeprintCacheKey("dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", "abc"), "8b9d2659-7a11-46ff-bdff-1c4e8964c437", time.Hour)
+
+		changes := []*models.ConfigChange{
+			{ID: "8b9d2659-7a11-46ff-bdff-1c4e8964c437", CreatedAt: time.Date(2024, 01, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "first", Count: 1},
+			{ID: uuid.NewString(), CreatedAt: time.Date(2024, 02, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "second", Count: 1},
+			{ID: uuid.NewString(), CreatedAt: time.Date(2024, 03, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "third", Count: 1},
+			{ID: uuid.NewString(), CreatedAt: time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "fourth", Count: 1},
+			{ID: "01eda583-3f5e-4c44-851f-93ac73272b92", CreatedAt: time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("xyz"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "different", Count: 1},
+			{ID: uuid.NewString(), CreatedAt: time.Date(2024, 04, 03, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("xyz"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "different two", Count: 1},
+		}
+
+		expectedDeduped := []models.ConfigChangeUpdate{
+			{
+				Change: &models.ConfigChange{
+					ID:          "8b9d2659-7a11-46ff-bdff-1c4e8964c437",
+					CreatedAt:   time.Date(2024, 01, 02, 0, 0, 0, 0, time.UTC),
+					Fingerprint: lo.ToPtr("abc"),
 					ConfigID:    "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d",
-					Summary:     "different",
+					Summary:     "first",
 					Count:       1,
 				},
+				CountIncrement: 4,
 			},
-		},
-	}
+		}
 
-	// Existing change "8b9d2659-7a11-46ff-bdff-1c4e8964c437" should count as deduped since it is set in db/cache
-	// change "01eda583-3f5e-4c44-851f-93ac73272b92" is nonDuped since it is first occurence. We do not care for duplicates in the same batch
-	ChangeCacheByFingerprint.Set(changeFingeprintCacheKey("dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", "abc"), "8b9d2659-7a11-46ff-bdff-1c4e8964c437", time.Hour)
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			nonDuped, deduped := dedupChanges(tt.args.window, tt.args.changes)
-			if diff := cmp.Diff(deduped, tt.deduped); diff != "" {
-				t.Errorf("%v", diff)
-			}
-			if !reflect.DeepEqual(nonDuped, tt.nonDuped) {
-				t.Errorf("dedupChanges() = %v, nonDuped %v", nonDuped, tt.nonDuped)
-			}
-		})
-	}
-}
+		expectedNonDuped := []*models.ConfigChange{
+			{
+				ID:          "01eda583-3f5e-4c44-851f-93ac73272b92",
+				CreatedAt:   time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC),
+				Fingerprint: lo.ToPtr("xyz"),
+				ConfigID:    "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d",
+				Summary:     "different",
+				Count:       1,
+			},
+		}
+
+		nonDuped, deduped := dedupChanges(time.Hour, changes)
+		Expect(deduped).To(Equal(expectedDeduped))
+		Expect(nonDuped).To(Equal(expectedNonDuped))
+	})
+})
 
 // go test -benchmem -run=^$ -bench ^BenchmarkDiffGenerator$ github.com/flanksource/config-db/db -count=5 -benchtime=10s -v -memprofile memprofile.out -cpuprofile profile.out
 func BenchmarkDiffGenerator(b *testing.B) {

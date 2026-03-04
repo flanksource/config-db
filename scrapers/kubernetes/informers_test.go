@@ -2,222 +2,144 @@ package kubernetes
 
 import (
 	"fmt"
-	"reflect"
-	"testing"
 	"time"
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/hash"
 	"github.com/google/uuid"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func TestPqComparator(t *testing.T) {
-	now := time.Now()
-
-	tests := []struct {
-		name     string
-		Items    []QueueItem
-		expected []string
-	}{
-		{
-			name: "add should have higher priority than update",
-			Items: []QueueItem{
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Pod", "a", now),
-				},
-				{
-					Operation: QueueItemOperationUpdate,
-					Obj:       getUnstructured("Pod", "b", now),
-				},
-			},
-			expected: []string{"a", "b"},
-		},
-		{
-			name: "update should have higher priority than delete",
-			Items: []QueueItem{
-				{
-					Operation: QueueItemOperationUpdate,
-					Obj:       getUnstructured("Pod", "a", now),
-				},
-				{
-					Operation: QueueItemOperationDelete,
-					Obj:       getUnstructured("Pod", "b", now),
-				},
-			},
-			expected: []string{"a", "b"},
-		},
-		{
-			name: "same operation should compare by kind - Namespace vs Pod",
-			Items: []QueueItem{
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Namespace", "a", now),
-				},
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Pod", "b", now),
-				},
-			},
-			expected: []string{"a", "b"},
-		},
-		{
-			name: "same operation and kind should compare by timestamp - earlier first",
-			Items: []QueueItem{
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Pod", "a", now.Add(-1*time.Hour)),
-				},
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Pod", "b", now),
-				},
-			},
-			expected: []string{"a", "b"},
-		},
-		{
-			name: "namespace comes first even before a pod created earlier",
-			Items: []QueueItem{
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Pod", "a", now.Add(-1*time.Hour)),
-				},
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Namespace", "b", now),
-				},
-			},
-			expected: []string{"b", "a"},
-		},
-		{
-			name: "operation priority should override kind priority",
-			Items: []QueueItem{
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Pod", "a", now),
-				},
-				{
-					Operation: QueueItemOperationDelete,
-					Obj:       getUnstructured("Namespace", "b", now),
-				},
-			},
-			expected: []string{"a", "b"},
-		},
-		{
-			name: "unknown kind should use default priority",
-			Items: []QueueItem{
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Canary", "a", now),
-				},
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Pod", "b", now),
-				},
-			},
-			expected: []string{"a", "b"},
-		},
-		{
-			name: "events with managed fields",
-			Items: []QueueItem{
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructuredEvent("Event", "a", now.Add(-2*time.Hour), now.Add(time.Hour)), // created ealier but re-created later
-				},
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructuredEvent("Event", "b", now.Add(-time.Hour), now.Add(time.Minute)),
-				},
-			},
-			expected: []string{"b", "a"},
-		},
-		{
-			name: "identical objects of unknown kind with owner reference",
-			Items: []QueueItem{
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructuredWithOwnerRef("Custom", "a", now, metav1.OwnerReference{Name: "http-canary", Kind: "Canary"}),
-				},
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructured("Custom", "b", now),
-				},
-			},
-			expected: []string{"a", "b"},
-		},
-		{
-			name: "same objects",
-			Items: []QueueItem{
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructuredWithResourceVersion("Pod", "a", "2c6a2f24-0199-435d-83a6-bd3f6d18d06d", "3", now.Add(-1*time.Hour)),
-				},
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructuredWithResourceVersion("Pod", "a", "2c6a2f24-0199-435d-83a6-bd3f6d18d06d", "1", now.Add(-1*time.Hour)),
-				},
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructuredWithResourceVersion("Pod", "a", "2c6a2f24-0199-435d-83a6-bd3f6d18d06d", "2", now.Add(-1*time.Hour)),
-				},
-				{
-					Operation: QueueItemOperationAdd,
-					Obj:       getUnstructuredWithResourceVersion("Pod", "a", "2c6a2f24-0199-435d-83a6-bd3f6d18d06d", "4", now.Add(-1*time.Hour)),
-				},
-			},
-			expected: []string{"a-4"},
-		},
+func drainQueue(q *collections.Queue[*QueueItem]) []string {
+	var result []string
+	for {
+		item, ok := q.Dequeue()
+		if !ok {
+			break
+		}
+		resourceVersion, ok, _ := unstructured.NestedString(item.Obj.Object, "metadata", "resourceVersion")
+		if ok {
+			result = append(result, fmt.Sprintf("%s-%s", item.Obj.GetName(), resourceVersion))
+		} else {
+			result = append(result, item.Obj.GetName())
+		}
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			q, err := collections.NewQueue(collections.QueueOpts[*QueueItem]{
-				Metrics: collections.MetricsOpts[*QueueItem]{
-					Name: fmt.Sprintf("m_%s", hash.Sha256Hex(tt.name)[:10]),
-				},
-				Comparator: pqComparator,
-				Equals:     queueItemIsEqual,
-				Dedupe:     true,
-			})
-			if err != nil {
-				t.Fatalf("failed to create queue: %v", err)
-			}
-
-			for _, item := range tt.Items {
-				q.Enqueue(&item)
-			}
-
-			var result []string
-			for {
-				item, ok := q.Dequeue()
-				if !ok {
-					break
-				}
-
-				resourceVersion, ok, _ := unstructured.NestedString(item.Obj.Object, "metadata", "resourceVersion")
-				if ok {
-					result = append(result, fmt.Sprintf("%s-%s", item.Obj.GetName(), resourceVersion))
-				} else {
-					result = append(result, item.Obj.GetName())
-				}
-			}
-
-			if !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("Test %s failed\nExpected: %v\nGot: %v", tt.name, tt.expected, result)
-			}
-		})
-	}
+	return result
 }
+
+func newQueue(name string) *collections.Queue[*QueueItem] {
+	q, err := collections.NewQueue(collections.QueueOpts[*QueueItem]{
+		Metrics: collections.MetricsOpts[*QueueItem]{
+			Name: fmt.Sprintf("m_%s", hash.Sha256Hex(name)[:10]),
+		},
+		Comparator: pqComparator,
+		Equals:     queueItemIsEqual,
+		Dedupe:     true,
+	})
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+	return q
+}
+
+var _ = Describe("PqComparator", func() {
+	var now time.Time
+
+	BeforeEach(func() {
+		now = time.Now()
+	})
+
+	DescribeTable("priority ordering",
+		func(items []QueueItem, expected []string) {
+			q := newQueue(CurrentSpecReport().FullText())
+			for i := range items {
+				q.Enqueue(&items[i])
+			}
+			Expect(drainQueue(q)).To(Equal(expected))
+		},
+		Entry("add should have higher priority than update",
+			[]QueueItem{
+				{Operation: QueueItemOperationAdd, Obj: getUnstructured("Pod", "a", time.Now())},
+				{Operation: QueueItemOperationUpdate, Obj: getUnstructured("Pod", "b", time.Now())},
+			},
+			[]string{"a", "b"},
+		),
+		Entry("update should have higher priority than delete",
+			[]QueueItem{
+				{Operation: QueueItemOperationUpdate, Obj: getUnstructured("Pod", "a", time.Now())},
+				{Operation: QueueItemOperationDelete, Obj: getUnstructured("Pod", "b", time.Now())},
+			},
+			[]string{"a", "b"},
+		),
+		Entry("same operation should compare by kind - Namespace vs Pod",
+			[]QueueItem{
+				{Operation: QueueItemOperationAdd, Obj: getUnstructured("Namespace", "a", time.Now())},
+				{Operation: QueueItemOperationAdd, Obj: getUnstructured("Pod", "b", time.Now())},
+			},
+			[]string{"a", "b"},
+		),
+		Entry("namespace comes first even before a pod created earlier",
+			[]QueueItem{
+				{Operation: QueueItemOperationAdd, Obj: getUnstructured("Pod", "a", time.Now().Add(-1*time.Hour))},
+				{Operation: QueueItemOperationAdd, Obj: getUnstructured("Namespace", "b", time.Now())},
+			},
+			[]string{"b", "a"},
+		),
+		Entry("operation priority should override kind priority",
+			[]QueueItem{
+				{Operation: QueueItemOperationAdd, Obj: getUnstructured("Pod", "a", time.Now())},
+				{Operation: QueueItemOperationDelete, Obj: getUnstructured("Namespace", "b", time.Now())},
+			},
+			[]string{"a", "b"},
+		),
+		Entry("unknown kind should use default priority",
+			[]QueueItem{
+				{Operation: QueueItemOperationAdd, Obj: getUnstructured("Canary", "a", time.Now())},
+				{Operation: QueueItemOperationAdd, Obj: getUnstructured("Pod", "b", time.Now())},
+			},
+			[]string{"a", "b"},
+		),
+	)
+
+	It("same operation and kind should compare by timestamp - earlier first", func() {
+		q := newQueue("timestamp-ordering")
+		q.Enqueue(&QueueItem{Operation: QueueItemOperationAdd, Obj: getUnstructured("Pod", "a", now.Add(-1*time.Hour))})
+		q.Enqueue(&QueueItem{Operation: QueueItemOperationAdd, Obj: getUnstructured("Pod", "b", now)})
+		Expect(drainQueue(q)).To(Equal([]string{"a", "b"}))
+	})
+
+	It("events with managed fields should order by managed field time", func() {
+		q := newQueue("events-managed-fields")
+		q.Enqueue(&QueueItem{Operation: QueueItemOperationAdd, Obj: getUnstructuredEvent("Event", "a", now.Add(-2*time.Hour), now.Add(time.Hour))})
+		q.Enqueue(&QueueItem{Operation: QueueItemOperationAdd, Obj: getUnstructuredEvent("Event", "b", now.Add(-time.Hour), now.Add(time.Minute))})
+		Expect(drainQueue(q)).To(Equal([]string{"b", "a"}))
+	})
+
+	It("identical objects of unknown kind with owner reference", func() {
+		q := newQueue("owner-ref")
+		q.Enqueue(&QueueItem{Operation: QueueItemOperationAdd, Obj: getUnstructuredWithOwnerRef("Custom", "a", now, metav1.OwnerReference{Name: "http-canary", Kind: "Canary"})})
+		q.Enqueue(&QueueItem{Operation: QueueItemOperationAdd, Obj: getUnstructured("Custom", "b", now)})
+		Expect(drainQueue(q)).To(Equal([]string{"a", "b"}))
+	})
+
+	It("same objects should dedupe to highest resource version", func() {
+		q := newQueue("same-objects")
+		q.Enqueue(&QueueItem{Operation: QueueItemOperationAdd, Obj: getUnstructuredWithResourceVersion("Pod", "a", "2c6a2f24-0199-435d-83a6-bd3f6d18d06d", "3", now.Add(-1*time.Hour))})
+		q.Enqueue(&QueueItem{Operation: QueueItemOperationAdd, Obj: getUnstructuredWithResourceVersion("Pod", "a", "2c6a2f24-0199-435d-83a6-bd3f6d18d06d", "1", now.Add(-1*time.Hour))})
+		q.Enqueue(&QueueItem{Operation: QueueItemOperationAdd, Obj: getUnstructuredWithResourceVersion("Pod", "a", "2c6a2f24-0199-435d-83a6-bd3f6d18d06d", "2", now.Add(-1*time.Hour))})
+		q.Enqueue(&QueueItem{Operation: QueueItemOperationAdd, Obj: getUnstructuredWithResourceVersion("Pod", "a", "2c6a2f24-0199-435d-83a6-bd3f6d18d06d", "4", now.Add(-1*time.Hour))})
+		Expect(drainQueue(q)).To(Equal([]string{"a-4"}))
+	})
+})
 
 func getUnstructuredEvent(kind, name string, creationTimestamp, recreationTimestamp time.Time) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]any{
 			"kind": kind,
 			"metadata": map[string]any{
-				"uid":               uuid.NewString(),
-				"name":              name,
+				"uid":              uuid.NewString(),
+				"name":             name,
 				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
 				"managedFields": []any{
 					map[string]any{
@@ -235,10 +157,10 @@ func getUnstructuredWithResourceVersion(kind, name, uid, version string, creatio
 		Object: map[string]any{
 			"kind": kind,
 			"metadata": map[string]any{
-				"uid":               uid,
-				"name":              name,
+				"uid":              uid,
+				"name":             name,
 				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
-				"resourceVersion":   version,
+				"resourceVersion":  version,
 			},
 		},
 	}
@@ -249,8 +171,8 @@ func getUnstructured(kind, name string, creationTimestamp time.Time) *unstructur
 		Object: map[string]any{
 			"kind": kind,
 			"metadata": map[string]any{
-				"uid":               uuid.NewString(),
-				"name":              name,
+				"uid":              uuid.NewString(),
+				"name":             name,
 				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
 			},
 		},
@@ -262,8 +184,8 @@ func getUnstructuredWithOwnerRef(kind, name string, creationTimestamp time.Time,
 		Object: map[string]any{
 			"kind": kind,
 			"metadata": map[string]any{
-				"uid":               uuid.NewString(),
-				"name":              name,
+				"uid":              uuid.NewString(),
+				"name":             name,
 				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
 				"ownerReferences": []any{
 					map[string]any{

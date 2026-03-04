@@ -4,64 +4,58 @@ import (
 	"testing"
 
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestScrapeContext_LastScrapeSummary(t *testing.T) {
-	t.Run("returns empty map when unset", func(t *testing.T) {
+func TestAPI(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "API Suite")
+}
+
+var _ = Describe("ScrapeContext LastScrapeSummary", func() {
+	It("returns empty map when unset", func() {
 		ctx := ScrapeContext{}
 		summary := ctx.LastScrapeSummary()
-		assert.NotNil(t, summary)
-		assert.Empty(t, summary)
+		Expect(summary).ToNot(BeNil())
+		Expect(summary).To(BeEmpty())
 	})
 
-	t.Run("returns set summary", func(t *testing.T) {
-		summary := v1.ScrapeSummary{
-			ConfigTypes: map[string]v1.ConfigTypeScrapeSummary{
-				"AWS::EC2::Instance": {
-					Added:     3,
-					Updated:   5,
-					Unchanged: 10,
-				},
-			},
-		}
-
+	It("returns set summary", func() {
 		ctx := ScrapeContext{}
-		ctx = ctx.WithLastScrapeSummary(summary)
+		ctx = ctx.WithLastScrapeSummary(v1.ScrapeSummary{
+			ConfigTypes: map[string]v1.ConfigTypeScrapeSummary{
+				"AWS::EC2::Instance": {Added: 3, Updated: 5, Unchanged: 10},
+			},
+		})
 
 		got := ctx.LastScrapeSummary()
-		assert.Equal(t, 3, got["AWS::EC2::Instance"].Added)
-		assert.Equal(t, 5, got["AWS::EC2::Instance"].Updated)
-		assert.Equal(t, 10, got["AWS::EC2::Instance"].Unchanged)
+		Expect(got["AWS::EC2::Instance"].Added).To(Equal(3))
+		Expect(got["AWS::EC2::Instance"].Updated).To(Equal(5))
+		Expect(got["AWS::EC2::Instance"].Unchanged).To(Equal(10))
 	})
 
-	t.Run("preserves summary through WithJobHistory", func(t *testing.T) {
-		summary := v1.ScrapeSummary{
+	It("preserves summary through WithJobHistory", func() {
+		ctx := ScrapeContext{}
+		ctx = ctx.WithLastScrapeSummary(v1.ScrapeSummary{
 			ConfigTypes: map[string]v1.ConfigTypeScrapeSummary{
 				"Kubernetes::Pod": {Added: 1},
 			},
-		}
-
-		ctx := ScrapeContext{}
-		ctx = ctx.WithLastScrapeSummary(summary)
+		})
 		ctx = ctx.WithJobHistory(nil)
 
-		got := ctx.LastScrapeSummary()
-		assert.Equal(t, 1, got["Kubernetes::Pod"].Added)
+		Expect(ctx.LastScrapeSummary()["Kubernetes::Pod"].Added).To(Equal(1))
 	})
 
-	t.Run("preserves summary through AsIncrementalScrape", func(t *testing.T) {
-		summary := v1.ScrapeSummary{
+	It("preserves summary through AsIncrementalScrape", func() {
+		ctx := ScrapeContext{}
+		ctx = ctx.WithLastScrapeSummary(v1.ScrapeSummary{
 			ConfigTypes: map[string]v1.ConfigTypeScrapeSummary{
 				"Kubernetes::Pod": {Updated: 7},
 			},
-		}
-
-		ctx := ScrapeContext{}
-		ctx = ctx.WithLastScrapeSummary(summary)
+		})
 		ctx = ctx.AsIncrementalScrape()
 
-		got := ctx.LastScrapeSummary()
-		assert.Equal(t, 7, got["Kubernetes::Pod"].Updated)
+		Expect(ctx.LastScrapeSummary()["Kubernetes::Pod"].Updated).To(Equal(7))
 	})
-}
+})

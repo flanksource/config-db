@@ -1,316 +1,284 @@
-// ABOUTME: Tests for RBAC resource extraction (Roles, RoleBindings, and their cluster variants).
-// ABOUTME: Verifies ExternalRoles, ExternalUsers, ExternalGroups, and ConfigAccess are created correctly.
-
 package kubernetes
 
 import (
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func TestRBACExtractor_ProcessRole(t *testing.T) {
-	clusterName := "test-cluster"
-	scraperID := uuid.New()
+var _ = Describe("RBACExtractor", func() {
+	Describe("ProcessRole", func() {
+		var (
+			clusterName = "test-cluster"
+			scraperID   = uuid.New()
+		)
 
-	tests := []struct {
-		name             string
-		obj              *unstructured.Unstructured
-		expectedRoleName string
-		expectedRoleType string
-		expectedAliases  []string
-	}{
-		{
-			name:             "ClusterRole",
-			obj:              makeClusterRole("cluster-admin", []rbacRuleSpec{{Resources: []string{"pods"}}}),
-			expectedRoleName: "cluster-admin",
-			expectedRoleType: "ClusterRole",
-			expectedAliases:  []string{KubernetesAlias(clusterName, "ClusterRole", "", "cluster-admin")},
-		},
-		{
-			name:             "Namespaced Role",
-			obj:              makeRole("pod-reader", "default", []rbacRuleSpec{{Resources: []string{"pods"}}}),
-			expectedRoleName: "pod-reader",
-			expectedRoleType: "Role",
-			expectedAliases:  []string{KubernetesAlias(clusterName, "Role", "default", "pod-reader")},
-		},
-	}
+		DescribeTable("creates role with correct attributes",
+			func(obj *unstructured.Unstructured, expectedName, expectedType string, expectedAliases []string) {
+				extractor := testRBACExtractor(clusterName, &scraperID)
+				extractor.processRole(obj)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			extractor := testRBACExtractor(clusterName, &scraperID)
-			extractor.processRole(tt.obj)
+				roles := extractor.getRoles()
+				Expect(roles).To(HaveLen(1))
 
-			roles := extractor.getRoles()
-			require.Len(t, roles, 1, "expected 1 role")
+				role := roles[0]
+				Expect(role.Name).To(Equal(expectedName))
+				Expect(role.RoleType).To(Equal(expectedType))
+				Expect(role.Tenant).To(Equal(clusterName))
+				Expect(role.ScraperID).To(Equal(&scraperID))
+				Expect(role.Aliases).To(Equal(pq.StringArray(expectedAliases)))
+			},
+			Entry("ClusterRole",
+				makeClusterRole("cluster-admin", []rbacRuleSpec{{Resources: []string{"pods"}}}),
+				"cluster-admin", "ClusterRole",
+				[]string{KubernetesAlias("test-cluster", "ClusterRole", "", "cluster-admin")}),
+			Entry("Namespaced Role",
+				makeRole("pod-reader", "default", []rbacRuleSpec{{Resources: []string{"pods"}}}),
+				"pod-reader", "Role",
+				[]string{KubernetesAlias("test-cluster", "Role", "default", "pod-reader")}),
+		)
+	})
 
-			role := roles[0]
-			assert.Equal(t, tt.expectedRoleName, role.Name)
-			assert.Equal(t, tt.expectedRoleType, role.RoleType)
-			assert.Equal(t, clusterName, role.Tenant)
-			assert.Equal(t, &scraperID, role.ScraperID)
-			assert.Equal(t, pq.StringArray(tt.expectedAliases), role.Aliases)
+	Describe("ProcessRoleBinding", func() {
+		Context("with ServiceAccount subject", func() {
+			It("creates user and scoped config access entries", func() {
+				clusterName := "test-cluster"
+				scraperID := uuid.New()
+
+				role := makeRole("pod-reader", "default", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get", "list"}},
+				})
+				pod1 := makePod("pod-1", "default")
+				pod2 := makePod("pod-2", "default")
+				podOtherNS := makePod("pod-other", "other-namespace")
+				binding := makeRoleBinding("my-binding", "default", "Role", "pod-reader", []subject{
+					{Kind: "ServiceAccount", Name: "my-sa", Namespace: "default"},
+				})
+
+				extractor := testRBACExtractor(clusterName, &scraperID)
+				extractor.indexObjects([]*unstructured.Unstructured{role, pod1, pod2, podOtherNS, binding})
+				extractor.processRole(role)
+				extractor.processRoleBinding(binding)
+
+				users := extractor.getUsers()
+				Expect(users).To(HaveLen(1))
+
+				user := users[0]
+				Expect(user.Name).To(Equal("my-sa"))
+				Expect(user.UserType).To(Equal("ServiceAccount"))
+				Expect(user.Tenant).To(Equal(clusterName))
+				Expect(user.ScraperID).To(Equal(scraperID))
+				expectedUserAlias := KubernetesAlias(clusterName, "ServiceAccount", "default", "my-sa")
+				Expect(user.Aliases).To(Equal(pq.StringArray{expectedUserAlias}))
+
+				access := extractor.getAccess()
+				Expect(access).To(HaveLen(2))
+
+				expectedRoleAlias := KubernetesAlias(clusterName, "Role", "default", "pod-reader")
+				for _, a := range access {
+					Expect(a.ConfigExternalID.ConfigType).To(Equal(ConfigTypePrefix + "Pod"))
+					Expect(a.ExternalUserAliases).To(Equal([]string{expectedUserAlias}))
+					Expect(a.ExternalRoleAliases).To(Equal([]string{expectedRoleAlias}))
+					Expect(a.ID).ToNot(BeEmpty())
+				}
+			})
 		})
-	}
-}
 
-func TestRBACExtractor_ProcessRoleBinding_ServiceAccount(t *testing.T) {
-	clusterName := "test-cluster"
-	scraperID := uuid.New()
+		Context("with User subject", func() {
+			It("creates user and cluster-wide config access entries", func() {
+				clusterName := "test-cluster"
+				scraperID := uuid.New()
 
-	// Create test objects: a Role and some Pods in the namespace
-	role := makeRole("pod-reader", "default", []rbacRuleSpec{
-		{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get", "list"}},
+				role := makeClusterRole("cluster-admin", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods", "services"}, Verbs: []string{"*"}},
+				})
+				pod1 := makePod("pod-1", "ns1")
+				svc1 := makeService("svc-1", "ns1")
+				binding := makeClusterRoleBinding("admin-binding", "ClusterRole", "cluster-admin", []subject{
+					{Kind: "User", Name: "admin@example.com"},
+				})
+
+				extractor := testRBACExtractor(clusterName, &scraperID)
+				extractor.indexObjects([]*unstructured.Unstructured{role, pod1, svc1, binding})
+				extractor.processRole(role)
+				extractor.processRoleBinding(binding)
+
+				users := extractor.getUsers()
+				Expect(users).To(HaveLen(1))
+
+				user := users[0]
+				Expect(user.Name).To(Equal("admin@example.com"))
+				Expect(user.UserType).To(Equal("User"))
+				expectedUserAlias := KubernetesAlias(clusterName, "User", "", "admin@example.com")
+				Expect(user.Aliases).To(Equal(pq.StringArray{expectedUserAlias}))
+
+				access := extractor.getAccess()
+				Expect(access).To(HaveLen(2))
+
+				expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "cluster-admin")
+				for _, a := range access {
+					Expect(a.ExternalRoleAliases).To(Equal([]string{expectedRoleAlias}))
+					Expect(a.ID).ToNot(BeEmpty())
+				}
+			})
+		})
+
+		Context("with Group subject", func() {
+			It("creates group and config access entries", func() {
+				clusterName := "test-cluster"
+				scraperID := uuid.New()
+
+				role := makeClusterRole("view", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get", "list"}},
+				})
+				pod1 := makePod("pod-1", "default")
+				binding := makeClusterRoleBinding("viewers-binding", "ClusterRole", "view", []subject{
+					{Kind: "Group", Name: "system:authenticated"},
+				})
+
+				extractor := testRBACExtractor(clusterName, &scraperID)
+				extractor.indexObjects([]*unstructured.Unstructured{role, pod1, binding})
+				extractor.processRole(role)
+				extractor.processRoleBinding(binding)
+
+				groups := extractor.getGroups()
+				Expect(groups).To(HaveLen(1))
+
+				group := groups[0]
+				Expect(group.Name).To(Equal("system:authenticated"))
+				Expect(group.GroupType).To(Equal("Group"))
+				Expect(group.Tenant).To(Equal(clusterName))
+				expectedGroupAlias := KubernetesAlias(clusterName, "Group", "", "system:authenticated")
+				Expect(group.Aliases).To(Equal(pq.StringArray{expectedGroupAlias}))
+
+				access := extractor.getAccess()
+				Expect(access).To(HaveLen(1))
+				Expect(access[0].ExternalUserAliases).To(BeEmpty())
+				Expect(access[0].ExternalGroupAliases).To(Equal([]string{expectedGroupAlias}))
+
+				expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "view")
+				Expect(access[0].ExternalRoleAliases).To(Equal([]string{expectedRoleAlias}))
+				Expect(access[0].ID).ToNot(BeEmpty())
+			})
+		})
+
+		Context("with mixed subjects", func() {
+			It("creates users, groups, and per-subject config access entries", func() {
+				clusterName := "test-cluster"
+				scraperID := uuid.New()
+
+				role := makeClusterRole("edit", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"*"}},
+				})
+				pod1 := makePod("pod-1", "default")
+				binding := makeClusterRoleBinding("mixed-binding", "ClusterRole", "edit", []subject{
+					{Kind: "ServiceAccount", Name: "ci-bot", Namespace: "ci"},
+					{Kind: "User", Name: "developer@example.com"},
+					{Kind: "Group", Name: "developers"},
+				})
+
+				extractor := testRBACExtractor(clusterName, &scraperID)
+				extractor.indexObjects([]*unstructured.Unstructured{role, pod1, binding})
+				extractor.processRole(role)
+				extractor.processRoleBinding(binding)
+
+				Expect(extractor.getUsers()).To(HaveLen(2))
+				Expect(extractor.getGroups()).To(HaveLen(1))
+
+				access := extractor.getAccess()
+				Expect(access).To(HaveLen(3))
+
+				expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "edit")
+				for _, a := range access {
+					Expect(a.ExternalRoleAliases).To(Equal([]string{expectedRoleAlias}))
+					Expect(a.ID).ToNot(BeEmpty())
+				}
+			})
+		})
 	})
 
-	pod1 := makePod("pod-1", "default")
-	pod2 := makePod("pod-2", "default")
-	podOtherNS := makePod("pod-other", "other-namespace")
+	Describe("Deduplication", func() {
+		It("deduplicates identical roles", func() {
+			clusterName := "test-cluster"
+			scraperID := uuid.New()
 
-	binding := makeRoleBinding("my-binding", "default", "Role", "pod-reader", []subject{
-		{Kind: "ServiceAccount", Name: "my-sa", Namespace: "default"},
+			extractor := testRBACExtractor(clusterName, &scraperID)
+			role := makeClusterRole("cluster-admin", []rbacRuleSpec{{Resources: []string{"pods"}}})
+			extractor.processRole(role)
+			extractor.processRole(role)
+
+			Expect(extractor.getRoles()).To(HaveLen(1))
+		})
 	})
 
-	extractor := testRBACExtractor(clusterName, &scraperID)
-	extractor.indexObjects([]*unstructured.Unstructured{role, pod1, pod2, podOtherNS, binding})
-	extractor.processRole(role)
-	extractor.processRoleBinding(binding)
+	Describe("NamespaceScoping", func() {
+		It("restricts access to the binding namespace", func() {
+			clusterName := "test-cluster"
+			scraperID := uuid.New()
 
-	users := extractor.getUsers()
-	require.Len(t, users, 1, "expected 1 user")
+			role := makeRole("pod-reader", "default", []rbacRuleSpec{
+				{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
+			})
+			podDefault1 := makePod("pod-1", "default")
+			podDefault2 := makePod("pod-2", "default")
+			podOther := makePod("pod-other", "other")
+			binding := makeRoleBinding("my-binding", "default", "Role", "pod-reader", []subject{
+				{Kind: "User", Name: "user1"},
+			})
 
-	user := users[0]
-	assert.Equal(t, "my-sa", user.Name)
-	assert.Equal(t, "ServiceAccount", user.UserType)
-	assert.Equal(t, clusterName, user.Tenant)
-	assert.Equal(t, scraperID, user.ScraperID)
-	expectedUserAlias := KubernetesAlias(clusterName, "ServiceAccount", "default", "my-sa")
-	assert.Equal(t, pq.StringArray{expectedUserAlias}, user.Aliases)
+			extractor := testRBACExtractor(clusterName, &scraperID)
+			extractor.indexObjects([]*unstructured.Unstructured{role, podDefault1, podDefault2, podOther, binding})
+			extractor.processRole(role)
+			extractor.processRoleBinding(binding)
 
-	// Should have ConfigAccess for the 2 pods in the default namespace only
-	access := extractor.getAccess()
-	require.Len(t, access, 2, "expected 2 config access entries (one per pod in namespace)")
+			access := extractor.getAccess()
+			Expect(access).To(HaveLen(2))
 
-	expectedRoleAlias := KubernetesAlias(clusterName, "Role", "default", "pod-reader")
-
-	// Check that access entries point to pods, not the role
-	for _, a := range access {
-		assert.Equal(t, ConfigTypePrefix+"Pod", a.ConfigExternalID.ConfigType)
-		assert.Equal(t, []string{expectedUserAlias}, a.ExternalUserAliases)
-		assert.Equal(t, []string{expectedRoleAlias}, a.ExternalRoleAliases)
-		assert.NotEmpty(t, a.ID, "access ID should be set")
-	}
-}
-
-func TestRBACExtractor_ProcessRoleBinding_User(t *testing.T) {
-	clusterName := "test-cluster"
-	scraperID := uuid.New()
-
-	// Create a ClusterRole that grants access to pods and services
-	role := makeClusterRole("cluster-admin", []rbacRuleSpec{
-		{APIGroups: []string{""}, Resources: []string{"pods", "services"}, Verbs: []string{"*"}},
+			for _, a := range access {
+				Expect(a.ConfigExternalID.ExternalID).To(ContainSubstring("/default/"))
+			}
+		})
 	})
 
-	pod1 := makePod("pod-1", "ns1")
-	svc1 := makeService("svc-1", "ns1")
+	Describe("CRDResourceResolution", func() {
+		It("resolves custom resource types and creates access entries", func() {
+			clusterName := "test-cluster"
+			scraperID := uuid.New()
 
-	binding := makeClusterRoleBinding("admin-binding", "ClusterRole", "cluster-admin", []subject{
-		{Kind: "User", Name: "admin@example.com"},
+			resourceMap := make(map[string]string, len(builtinResourceKinds))
+			for k, v := range builtinResourceKinds {
+				resourceMap[k] = v
+			}
+			resourceMap["canaries"] = "Canary"
+
+			canary := makeCustomResource("Canary", "my-canary", "default")
+			role := makeClusterRole("canary-admin", []rbacRuleSpec{
+				{APIGroups: []string{"flanksource.com"}, Resources: []string{"canaries"}, Verbs: []string{"*"}},
+			})
+			binding := makeClusterRoleBinding("canary-binding", "ClusterRole", "canary-admin", []subject{
+				{Kind: "User", Name: "ops@example.com"},
+			})
+
+			extractor := newRBACExtractorWithResourceMap(clusterName, &scraperID, resourceMap)
+			extractor.indexObjects([]*unstructured.Unstructured{canary, role, binding})
+			extractor.processRole(role)
+			extractor.processRoleBinding(binding)
+
+			access := extractor.getAccess()
+			Expect(access).To(HaveLen(1))
+			Expect(access[0].ConfigExternalID.ConfigType).To(Equal(ConfigTypePrefix + "Canary"))
+			Expect(access[0].ConfigExternalID.ExternalID).To(Equal(KubernetesAlias(clusterName, "Canary", "default", "my-canary")))
+
+			expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "canary-admin")
+			Expect(access[0].ExternalRoleAliases).To(Equal([]string{expectedRoleAlias}))
+			Expect(access[0].ID).ToNot(BeEmpty())
+		})
 	})
-
-	extractor := testRBACExtractor(clusterName, &scraperID)
-	extractor.indexObjects([]*unstructured.Unstructured{role, pod1, svc1, binding})
-	extractor.processRole(role)
-	extractor.processRoleBinding(binding)
-
-	users := extractor.getUsers()
-	require.Len(t, users, 1, "expected 1 user")
-
-	user := users[0]
-	assert.Equal(t, "admin@example.com", user.Name)
-	assert.Equal(t, "User", user.UserType)
-	expectedUserAlias := KubernetesAlias(clusterName, "User", "", "admin@example.com")
-	assert.Equal(t, pq.StringArray{expectedUserAlias}, user.Aliases)
-
-	// Should have ConfigAccess for the pod and service (cluster-wide)
-	access := extractor.getAccess()
-	assert.Len(t, access, 2, "expected 2 config access entries (pod + service)")
-
-	expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "cluster-admin")
-	for _, a := range access {
-		assert.Equal(t, []string{expectedRoleAlias}, a.ExternalRoleAliases)
-		assert.NotEmpty(t, a.ID, "access ID should be set")
-	}
-}
-
-func TestRBACExtractor_ProcessRoleBinding_Group(t *testing.T) {
-	clusterName := "test-cluster"
-	scraperID := uuid.New()
-
-	role := makeClusterRole("view", []rbacRuleSpec{
-		{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get", "list"}},
-	})
-
-	pod1 := makePod("pod-1", "default")
-
-	binding := makeClusterRoleBinding("viewers-binding", "ClusterRole", "view", []subject{
-		{Kind: "Group", Name: "system:authenticated"},
-	})
-
-	extractor := testRBACExtractor(clusterName, &scraperID)
-	extractor.indexObjects([]*unstructured.Unstructured{role, pod1, binding})
-	extractor.processRole(role)
-	extractor.processRoleBinding(binding)
-
-	groups := extractor.getGroups()
-	require.Len(t, groups, 1, "expected 1 group")
-
-	group := groups[0]
-	assert.Equal(t, "system:authenticated", group.Name)
-	assert.Equal(t, "Group", group.GroupType)
-	assert.Equal(t, clusterName, group.Tenant)
-	expectedGroupAlias := KubernetesAlias(clusterName, "Group", "", "system:authenticated")
-	assert.Equal(t, pq.StringArray{expectedGroupAlias}, group.Aliases)
-
-	access := extractor.getAccess()
-	require.Len(t, access, 1, "expected 1 config access entry")
-	assert.Empty(t, access[0].ExternalUserAliases)
-	assert.Equal(t, []string{expectedGroupAlias}, access[0].ExternalGroupAliases)
-
-	expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "view")
-	assert.Equal(t, []string{expectedRoleAlias}, access[0].ExternalRoleAliases)
-	assert.NotEmpty(t, access[0].ID, "access ID should be set")
-}
-
-func TestRBACExtractor_ProcessRoleBinding_MixedSubjects(t *testing.T) {
-	clusterName := "test-cluster"
-	scraperID := uuid.New()
-
-	role := makeClusterRole("edit", []rbacRuleSpec{
-		{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"*"}},
-	})
-
-	pod1 := makePod("pod-1", "default")
-
-	binding := makeClusterRoleBinding("mixed-binding", "ClusterRole", "edit", []subject{
-		{Kind: "ServiceAccount", Name: "ci-bot", Namespace: "ci"},
-		{Kind: "User", Name: "developer@example.com"},
-		{Kind: "Group", Name: "developers"},
-	})
-
-	extractor := testRBACExtractor(clusterName, &scraperID)
-	extractor.indexObjects([]*unstructured.Unstructured{role, pod1, binding})
-	extractor.processRole(role)
-	extractor.processRoleBinding(binding)
-
-	users := extractor.getUsers()
-	assert.Len(t, users, 2, "expected 2 users (SA + User)")
-
-	groups := extractor.getGroups()
-	assert.Len(t, groups, 1, "expected 1 group")
-
-	// Each subject gets one ConfigAccess entry for the pod
-	access := extractor.getAccess()
-	assert.Len(t, access, 3, "expected 3 config access entries (one per subject, all pointing to same pod)")
-
-	expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "edit")
-	for _, a := range access {
-		assert.Equal(t, []string{expectedRoleAlias}, a.ExternalRoleAliases)
-		assert.NotEmpty(t, a.ID, "access ID should be set")
-	}
-}
-
-func TestRBACExtractor_Deduplication(t *testing.T) {
-	clusterName := "test-cluster"
-	scraperID := uuid.New()
-
-	extractor := testRBACExtractor(clusterName, &scraperID)
-
-	// Process the same role twice
-	role := makeClusterRole("cluster-admin", []rbacRuleSpec{{Resources: []string{"pods"}}})
-	extractor.processRole(role)
-	extractor.processRole(role)
-
-	roles := extractor.getRoles()
-	assert.Len(t, roles, 1, "duplicate roles should be deduplicated")
-}
-
-func TestRBACExtractor_NamespaceScoping(t *testing.T) {
-	clusterName := "test-cluster"
-	scraperID := uuid.New()
-
-	// A Role in namespace "default" granting access to pods
-	role := makeRole("pod-reader", "default", []rbacRuleSpec{
-		{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
-	})
-
-	// Pods in different namespaces
-	podDefault1 := makePod("pod-1", "default")
-	podDefault2 := makePod("pod-2", "default")
-	podOther := makePod("pod-other", "other")
-
-	// RoleBinding in default namespace
-	binding := makeRoleBinding("my-binding", "default", "Role", "pod-reader", []subject{
-		{Kind: "User", Name: "user1"},
-	})
-
-	extractor := testRBACExtractor(clusterName, &scraperID)
-	extractor.indexObjects([]*unstructured.Unstructured{role, podDefault1, podDefault2, podOther, binding})
-	extractor.processRole(role)
-	extractor.processRoleBinding(binding)
-
-	// Should only have access to pods in "default" namespace
-	access := extractor.getAccess()
-	assert.Len(t, access, 2, "should only have access to 2 pods in default namespace")
-
-	for _, a := range access {
-		// Verify the config external ID contains "default" namespace
-		assert.Contains(t, a.ConfigExternalID.ExternalID, "/default/")
-	}
-}
-
-func TestRBACExtractor_CRDResourceResolution(t *testing.T) {
-	clusterName := "test-cluster"
-	scraperID := uuid.New()
-
-	// Simulate CRD resource mapping (as if fetched from K8s API)
-	resourceMap := make(map[string]string, len(builtinResourceKinds))
-	for k, v := range builtinResourceKinds {
-		resourceMap[k] = v
-	}
-	resourceMap["canaries"] = "Canary"
-
-	// A custom resource instance
-	canary := makeCustomResource("Canary", "my-canary", "default")
-
-	// A ClusterRole granting access to the custom resource
-	role := makeClusterRole("canary-admin", []rbacRuleSpec{
-		{APIGroups: []string{"flanksource.com"}, Resources: []string{"canaries"}, Verbs: []string{"*"}},
-	})
-
-	binding := makeClusterRoleBinding("canary-binding", "ClusterRole", "canary-admin", []subject{
-		{Kind: "User", Name: "ops@example.com"},
-	})
-
-	extractor := newRBACExtractorWithResourceMap(clusterName, &scraperID, resourceMap)
-	extractor.indexObjects([]*unstructured.Unstructured{canary, role, binding})
-	extractor.processRole(role)
-	extractor.processRoleBinding(binding)
-
-	access := extractor.getAccess()
-	require.Len(t, access, 1, "expected 1 config access entry for the canary instance")
-	assert.Equal(t, ConfigTypePrefix+"Canary", access[0].ConfigExternalID.ConfigType)
-	assert.Equal(t, KubernetesAlias(clusterName, "Canary", "default", "my-canary"), access[0].ConfigExternalID.ExternalID)
-
-	expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "canary-admin")
-	assert.Equal(t, []string{expectedRoleAlias}, access[0].ExternalRoleAliases)
-	assert.NotEmpty(t, access[0].ID, "access ID should be set")
-}
+})
 
 // Helper types and functions
 

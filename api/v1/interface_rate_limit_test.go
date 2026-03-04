@@ -2,83 +2,58 @@ package v1
 
 import (
 	"errors"
-	"testing"
 	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestRateLimited(t *testing.T) {
-	resetAt := time.Now().Add(10 * time.Minute)
-	var results ScrapeResults
-	results.RateLimited("test rate limit", &resetAt)
+var _ = Describe("RateLimit", func() {
+	It("should mark results as rate limited with reset time", func() {
+		resetAt := time.Now().Add(10 * time.Minute)
+		var results ScrapeResults
+		results.RateLimited("test rate limit", &resetAt)
 
-	if !results.IsRateLimited() {
-		t.Fatal("expected IsRateLimited() to return true")
-	}
+		Expect(results.IsRateLimited()).To(BeTrue())
+		Expect(results.HasErr()).To(BeTrue())
+		Expect(results.GetRateLimitResetAt()).ToNot(BeNil())
+		Expect(results.GetRateLimitResetAt().Equal(resetAt)).To(BeTrue())
+		Expect(errors.Is(results[0].Error, ErrRateLimited)).To(BeTrue())
+	})
 
-	if !results.HasErr() {
-		t.Fatal("expected HasErr() to return true for rate limited results")
-	}
+	It("should handle nil reset time", func() {
+		var results ScrapeResults
+		results.RateLimited("rate limit without reset", nil)
 
-	got := results.GetRateLimitResetAt()
-	if got == nil {
-		t.Fatal("expected GetRateLimitResetAt() to return non-nil")
-	}
-	if !got.Equal(resetAt) {
-		t.Fatalf("expected reset at %v, got %v", resetAt, got)
-	}
+		Expect(results.IsRateLimited()).To(BeTrue())
+		Expect(results.GetRateLimitResetAt()).To(BeNil())
+	})
 
-	if !errors.Is(results[0].Error, ErrRateLimited) {
-		t.Fatal("expected error to wrap ErrRateLimited")
-	}
-}
+	It("should return false for normal results", func() {
+		results := ScrapeResults{
+			{ID: "test-1", Name: "normal"},
+		}
 
-func TestRateLimitedNilResetAt(t *testing.T) {
-	var results ScrapeResults
-	results.RateLimited("rate limit without reset", nil)
+		Expect(results.IsRateLimited()).To(BeFalse())
+		Expect(results.GetRateLimitResetAt()).To(BeNil())
+	})
 
-	if !results.IsRateLimited() {
-		t.Fatal("expected IsRateLimited() to return true")
-	}
+	It("should return false for non-rate-limit errors", func() {
+		results := ScrapeResults{
+			{Error: errors.New("some other error")},
+		}
 
-	if results.GetRateLimitResetAt() != nil {
-		t.Fatal("expected GetRateLimitResetAt() to return nil")
-	}
-}
+		Expect(results.IsRateLimited()).To(BeFalse())
+	})
 
-func TestIsRateLimitedFalseForNormalResults(t *testing.T) {
-	results := ScrapeResults{
-		{ID: "test-1", Name: "normal"},
-	}
-	if results.IsRateLimited() {
-		t.Fatal("expected IsRateLimited() to return false for normal results")
-	}
+	It("should append to existing results", func() {
+		resetAt := time.Now().Add(5 * time.Minute)
+		results := ScrapeResults{
+			{ID: "existing-1", Name: "existing"},
+		}
+		results.RateLimited("hit limit", &resetAt)
 
-	if results.GetRateLimitResetAt() != nil {
-		t.Fatal("expected GetRateLimitResetAt() to return nil for normal results")
-	}
-}
-
-func TestIsRateLimitedFalseForNonRateLimitErrors(t *testing.T) {
-	results := ScrapeResults{
-		{Error: errors.New("some other error")},
-	}
-	if results.IsRateLimited() {
-		t.Fatal("expected IsRateLimited() to return false for non-rate-limit errors")
-	}
-}
-
-func TestRateLimitedWithExistingResults(t *testing.T) {
-	resetAt := time.Now().Add(5 * time.Minute)
-	results := ScrapeResults{
-		{ID: "existing-1", Name: "existing"},
-	}
-	results.RateLimited("hit limit", &resetAt)
-
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results, got %d", len(results))
-	}
-
-	if !results.IsRateLimited() {
-		t.Fatal("expected IsRateLimited() to return true")
-	}
-}
+		Expect(results).To(HaveLen(2))
+		Expect(results.IsRateLimited()).To(BeTrue())
+	})
+})

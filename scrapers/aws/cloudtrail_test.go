@@ -8,21 +8,54 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/flanksource/commons/hash"
 	"github.com/lib/pq"
-	"github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 )
 
-func TestCloudTrailEventToChange(t *testing.T) {
-	tests := []struct {
+func TestAWS(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "AWS Suite")
+}
+
+var _ = Describe("CloudTrailEventToChange", func() {
+	type testCase struct {
 		name               string
 		eventRaw           string
 		eventSource        string
 		expectedCreatedBy  string
 		expectedExternalID string
 		expectedConfigType string
-	}{
-		{
+	}
+
+	DescribeTable("extracting created_by from events",
+		func(tc testCase) {
+			var eventMap map[string]any
+			Expect(yaml.Unmarshal([]byte(tc.eventRaw), &eventMap)).To(Succeed())
+
+			eventJSON, err := json.Marshal(eventMap)
+			Expect(err).ToNot(HaveOccurred())
+
+			event := types.Event{
+				CloudTrailEvent: lo.ToPtr(string(eventJSON)),
+			}
+			if tc.eventSource != "" {
+				event.EventSource = lo.ToPtr(tc.eventSource)
+			}
+
+			change, err := cloudtrailEventToChange(event, types.Resource{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(change).ToNot(BeNil())
+			Expect(*change.CreatedBy).To(Equal(tc.expectedCreatedBy))
+			if tc.expectedExternalID != "" {
+				Expect(change.ExternalID).To(Equal(tc.expectedExternalID))
+			}
+			if tc.expectedConfigType != "" {
+				Expect(change.ConfigType).To(Equal(tc.expectedConfigType))
+			}
+		},
+		Entry("Assumed Role", testCase{
 			name: "Assumed Role",
 			eventRaw: `---
 userIdentity:
@@ -40,8 +73,8 @@ userIdentity:
       accountId: "213213"
     webIdFederationData: {}`,
 			expectedCreatedBy: "john",
-		},
-		{
+		}),
+		Entry("Assumed Role with Principal ID", testCase{
 			name: "Assumed Role with Principal ID",
 			eventRaw: `---
 userIdentity:
@@ -62,8 +95,8 @@ userIdentity:
       principalId: AROA3WOC7GPYMPZ5VPCER
     ec2RoleDelivery: "2.0"`,
 			expectedCreatedBy: "jenkinsmaster",
-		},
-		{
+		}),
+		Entry("Assumed Role with Principal ID 2", testCase{
 			name: "Assumed Role with Principal ID 2",
 			eventRaw: `---
 userIdentity:
@@ -84,8 +117,8 @@ userIdentity:
       accountId: "789789789789"
       principalId: AROA3EQTD5CGIBKBX7GCI`,
 			expectedCreatedBy: "AWSBackupDefaultServiceRole",
-		},
-		{
+		}),
+		Entry("Assumed Role with Invoker", testCase{
 			name: "Assumed Role with Invoker",
 			eventRaw: `---
 userIdentity:
@@ -106,8 +139,8 @@ userIdentity:
       accountId: "123123123123"
       principalId: AROA3WOC7GPYK3NTHEJFW`,
 			expectedCreatedBy: "ifs-mgmt-mon-eks20231002071117908400000007",
-		},
-		{
+		}),
+		Entry("IAM User", testCase{
 			name: "IAM User",
 			eventRaw: `---
 userIdentity:
@@ -123,8 +156,8 @@ userIdentity:
       mfaAuthenticated: "false"
 `,
 			expectedCreatedBy: "AdityaThebe",
-		},
-		{
+		}),
+		Entry("Root User", testCase{
 			name: "Root User",
 			eventRaw: `---
 userIdentity:
@@ -139,8 +172,8 @@ userIdentity:
       mfaAuthenticated: 'true'
 `,
 			expectedCreatedBy: "arn:aws:iam::789789789789:root",
-		},
-		{
+		}),
+		Entry("ECR PutImage with ARN resource", testCase{
 			name: "ECR PutImage with ARN resource",
 			eventRaw: `---
 userIdentity:
@@ -154,8 +187,8 @@ resources:
 			expectedCreatedBy:  "github-actions-ecr",
 			expectedExternalID: "arn:aws:ecr-public::765618022540:repository/incident-commander",
 			expectedConfigType: "AWS::ECR::Repository",
-		},
-		{
+		}),
+		Entry("CloudWatch Logs CreateLogStream from request parameters", testCase{
 			name: "CloudWatch Logs CreateLogStream from request parameters",
 			eventRaw: `---
 awsRegion: us-east-1
@@ -171,45 +204,14 @@ requestParameters:
 			expectedCreatedBy:  "github-actions-ecr",
 			expectedExternalID: "arn:aws:logs:us-east-1:765618022540:log-group:/aws/ecs/containerinsights/demo-dev-cluster/performance:log-stream:FargateTelemetry-2681",
 			expectedConfigType: "AWS::Logs::LogStream",
-		},
-	}
+		}),
+	)
+})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g := gomega.NewWithT(t)
-
-			var eventMap map[string]any
-			err := yaml.Unmarshal([]byte(tt.eventRaw), &eventMap)
-			g.Expect(err).To(gomega.Succeed())
-
-			eventJSON, err := json.Marshal(eventMap)
-			g.Expect(err).To(gomega.Succeed())
-
-			event := types.Event{
-				CloudTrailEvent: lo.ToPtr(string(eventJSON)),
-			}
-			if tt.eventSource != "" {
-				event.EventSource = lo.ToPtr(tt.eventSource)
-			}
-
-			change, err := cloudtrailEventToChange(event, types.Resource{})
-			g.Expect(err).To(gomega.Succeed())
-			g.Expect(change).To(gomega.Not(gomega.BeNil()))
-			g.Expect(*change.CreatedBy).To(gomega.Equal(tt.expectedCreatedBy))
-			if tt.expectedExternalID != "" {
-				g.Expect(change.ExternalID).To(gomega.Equal(tt.expectedExternalID))
-			}
-			if tt.expectedConfigType != "" {
-				g.Expect(change.ConfigType).To(gomega.Equal(tt.expectedConfigType))
-			}
-		})
-	}
-}
-
-func TestCloudTrailAssumeRoleToAccessLog(t *testing.T) {
+var _ = Describe("CloudTrailAssumeRoleToAccessLog", func() {
 	eventTime := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
 
-	tests := []struct {
+	type testCase struct {
 		name                  string
 		eventRaw              string
 		expectedUserName      string
@@ -218,8 +220,45 @@ func TestCloudTrailAssumeRoleToAccessLog(t *testing.T) {
 		expectedUserType      string
 		expectedRoleARN       string
 		expectedConfigType    string
-	}{
-		{
+	}
+
+	DescribeTable("extracting access logs from AssumeRole events",
+		func(tc testCase) {
+			var eventMap map[string]any
+			Expect(yaml.Unmarshal([]byte(tc.eventRaw), &eventMap)).To(Succeed())
+
+			eventJSON, err := json.Marshal(eventMap)
+			Expect(err).ToNot(HaveOccurred())
+
+			event := types.Event{
+				CloudTrailEvent: lo.ToPtr(string(eventJSON)),
+				EventTime:       &eventTime,
+				EventName:       lo.ToPtr("AssumeRole"),
+			}
+
+			result, err := cloudtrailAssumeRoleToAccessLog(event)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+
+			Expect(result.ExternalUsers).To(HaveLen(1))
+			user := result.ExternalUsers[0]
+			Expect(user.Name).To(Equal(tc.expectedUserName))
+			Expect(user.Tenant).To(Equal(tc.expectedUserAccountID))
+			Expect(user.UserType).To(Equal(tc.expectedUserType))
+			Expect(user.Aliases).To(ContainElement(tc.expectedUserARN))
+
+			expectedUserID, err := hash.DeterministicUUID(pq.StringArray{tc.expectedUserARN})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(user.ID).To(Equal(expectedUserID))
+
+			Expect(result.ConfigAccessLogs).To(HaveLen(1))
+			accessLog := result.ConfigAccessLogs[0]
+			Expect(accessLog.ConfigExternalID.ExternalID).To(Equal(tc.expectedRoleARN))
+			Expect(accessLog.ConfigExternalID.ConfigType).To(Equal(tc.expectedConfigType))
+			Expect(accessLog.ExternalUserID).To(Equal(expectedUserID))
+			Expect(accessLog.CreatedAt).To(Equal(eventTime))
+		},
+		Entry("IAM user assumes role", testCase{
 			name: "IAM user assumes role",
 			eventRaw: `---
 userIdentity:
@@ -241,8 +280,8 @@ resources:
 			expectedUserType:      "IAMUser",
 			expectedRoleARN:       "arn:aws:iam::123456789012:role/MyRole",
 			expectedConfigType:    "AWS::IAM::Role",
-		},
-		{
+		}),
+		Entry("AssumedRole assumes another role (role chaining)", testCase{
 			name: "AssumedRole assumes another role (role chaining)",
 			eventRaw: `---
 userIdentity:
@@ -267,49 +306,6 @@ resources:
 			expectedUserType:      "AssumedRole",
 			expectedRoleARN:       "arn:aws:iam::987654321098:role/TargetRole",
 			expectedConfigType:    "AWS::IAM::Role",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g := gomega.NewWithT(t)
-
-			var eventMap map[string]any
-			err := yaml.Unmarshal([]byte(tt.eventRaw), &eventMap)
-			g.Expect(err).To(gomega.Succeed())
-
-			eventJSON, err := json.Marshal(eventMap)
-			g.Expect(err).To(gomega.Succeed())
-
-			event := types.Event{
-				CloudTrailEvent: lo.ToPtr(string(eventJSON)),
-				EventTime:       &eventTime,
-				EventName:       lo.ToPtr("AssumeRole"),
-			}
-
-			result, err := cloudtrailAssumeRoleToAccessLog(event)
-			g.Expect(err).To(gomega.Succeed())
-			g.Expect(result).NotTo(gomega.BeNil())
-
-			// Verify ExternalUser
-			g.Expect(result.ExternalUsers).To(gomega.HaveLen(1))
-			user := result.ExternalUsers[0]
-			g.Expect(user.Name).To(gomega.Equal(tt.expectedUserName))
-			g.Expect(user.Tenant).To(gomega.Equal(tt.expectedUserAccountID))
-			g.Expect(user.UserType).To(gomega.Equal(tt.expectedUserType))
-			g.Expect(user.Aliases).To(gomega.ContainElement(tt.expectedUserARN))
-
-			expectedUserID, err := hash.DeterministicUUID(pq.StringArray{tt.expectedUserARN})
-			g.Expect(err).To(gomega.Succeed())
-			g.Expect(user.ID).To(gomega.Equal(expectedUserID))
-
-			// Verify ConfigAccessLog
-			g.Expect(result.ConfigAccessLogs).To(gomega.HaveLen(1))
-			accessLog := result.ConfigAccessLogs[0]
-			g.Expect(accessLog.ConfigExternalID.ExternalID).To(gomega.Equal(tt.expectedRoleARN))
-			g.Expect(accessLog.ConfigExternalID.ConfigType).To(gomega.Equal(tt.expectedConfigType))
-			g.Expect(accessLog.ExternalUserID).To(gomega.Equal(expectedUserID))
-			g.Expect(accessLog.CreatedAt).To(gomega.Equal(eventTime))
-		})
-	}
-}
+		}),
+	)
+})

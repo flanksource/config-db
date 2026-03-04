@@ -6,67 +6,62 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"testing"
 
 	v1 "github.com/flanksource/config-db/api/v1"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestGitHubScraperE2E(t *testing.T) {
-	if os.Getenv("GITHUB_TOKEN") == "" {
-		t.Skip("GITHUB_TOKEN not set, skipping e2e test")
-	}
+var _ = Describe("GitHub Scraper E2E", func() {
+	It("should scrape a repository via the CLI binary", func() {
+		if os.Getenv("GITHUB_TOKEN") == "" {
+			Skip("GITHUB_TOKEN not set, skipping e2e test")
+		}
 
-	rootDir := findRootDir(t)
-	binary := filepath.Join(t.TempDir(), "config-db")
+		rootDir := findRootDir()
+		binary := filepath.Join(GinkgoT().TempDir(), "config-db")
 
-	t.Log("building config-db binary")
-	build := exec.Command("go", "build", "-o", binary, ".")
-	build.Dir = rootDir
-	out, err := build.CombinedOutput()
-	require.NoError(t, err, "failed to build: %s", string(out))
+		build := exec.Command("go", "build", "-o", binary, ".")
+		build.Dir = rootDir
+		out, err := build.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), "failed to build: %s", string(out))
 
-	outputDir := t.TempDir()
-	fixture := filepath.Join(rootDir, "fixtures", "github.yaml")
+		outputDir := GinkgoT().TempDir()
+		fixture := filepath.Join(rootDir, "fixtures", "github.yaml")
 
-	t.Log("running config-db run")
-	run := exec.Command(binary, "run", fixture, "-o", outputDir, "--debug-port", "-1")
-	run.Env = append(os.Environ(), "GITHUB_TOKEN="+os.Getenv("GITHUB_TOKEN"))
-	runOut, err := run.CombinedOutput()
-	require.NoError(t, err, "config-db run failed (exit %v):\n%s", run.ProcessState.ExitCode(), string(runOut))
+		run := exec.Command(binary, "run", fixture, "-o", outputDir, "--debug-port", "-1")
+		run.Env = append(os.Environ(), "GITHUB_TOKEN="+os.Getenv("GITHUB_TOKEN"))
+		runOut, err := run.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), "config-db run failed (exit %v):\n%s", run.ProcessState.ExitCode(), string(runOut))
 
-	repoFile := findOutputFile(t, outputDir, "canary-checker")
-	data, err := os.ReadFile(repoFile)
-	require.NoError(t, err)
+		repoFile := findOutputFile(outputDir, "canary-checker")
+		data, err := os.ReadFile(repoFile)
+		Expect(err).ToNot(HaveOccurred())
 
-	var result v1.ScrapeResult
-	require.NoError(t, json.Unmarshal(data, &result))
+		var result v1.ScrapeResult
+		Expect(json.Unmarshal(data, &result)).To(Succeed())
 
-	assert.Equal(t, "GitHub::Repository", result.Type)
-	assert.Equal(t, "flanksource/canary-checker", result.Name)
-	assert.Equal(t, "Repository", result.ConfigClass)
-	assert.NotNil(t, result.Config)
-}
+		Expect(result.Type).To(Equal("GitHub::Repository"))
+		Expect(result.Name).To(Equal("flanksource/canary-checker"))
+		Expect(result.ConfigClass).To(Equal("Repository"))
+		Expect(result.Config).ToNot(BeNil())
+	})
+})
 
-func findRootDir(t *testing.T) string {
-	t.Helper()
+func findRootDir() string {
 	dir, err := os.Getwd()
-	require.NoError(t, err)
+	Expect(err).ToNot(HaveOccurred())
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("could not find project root (go.mod)")
-		}
+		Expect(parent).ToNot(Equal(dir), "could not find project root (go.mod)")
 		dir = parent
 	}
 }
 
-func findOutputFile(t *testing.T, dir, nameSubstr string) string {
-	t.Helper()
+func findOutputFile(dir, nameSubstr string) string {
 	var matches []string
 	_ = filepath.Walk(dir, func(path string, info os.FileInfo, _ error) error {
 		if info != nil && !info.IsDir() && strings.Contains(path, nameSubstr) && strings.HasSuffix(path, ".json") {
@@ -74,7 +69,7 @@ func findOutputFile(t *testing.T, dir, nameSubstr string) string {
 		}
 		return nil
 	})
-	require.NotEmpty(t, matches, "no output file containing %q found in %s, contents: %s", nameSubstr, dir, listDir(dir))
+	Expect(matches).ToNot(BeEmpty(), "no output file containing %q found in %s, contents: %s", nameSubstr, dir, listDir(dir))
 	return matches[0]
 }
 

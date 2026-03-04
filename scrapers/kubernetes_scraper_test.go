@@ -134,7 +134,7 @@ var _ = Describe("Dedup test", Ordered, func() {
 
 	It("should have populated 1 change with 10 counts  for config A", func() {
 		var changes []models.ConfigChange
-		err := DefaultContext.DB().Where("config_id = ?", cmA.ID).Find(&changes).Error
+		err := DefaultContext.DB().Where("config_id = ? AND change_type = ?", cmA.ID, "diff").Find(&changes).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
 
 		Expect(len(changes)).To(Equal(1))
@@ -143,7 +143,7 @@ var _ = Describe("Dedup test", Ordered, func() {
 
 	It("should have populated 1 change with 10 counts for config B", func() {
 		var changes []models.ConfigChange
-		err := DefaultContext.DB().Where("config_id = ?", cmB.ID).Find(&changes).Error
+		err := DefaultContext.DB().Where("config_id = ? AND change_type = ?", cmB.ID, "diff").Find(&changes).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
 
 		Expect(len(changes)).To(Equal(1))
