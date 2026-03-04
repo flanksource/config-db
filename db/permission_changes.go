@@ -29,7 +29,7 @@ type staleAccessResult struct {
 
 func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAccess, scraperID *uuid.UUID) (permissionChangeResult, error) {
 	var result permissionChangeResult
-	if scraperID == nil || len(accesses) == 0 {
+	if scraperID == nil {
 		return result, nil
 	}
 
@@ -44,6 +44,7 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
+			panic(r) // Re-panic to propagate the error
 		}
 	}()
 
@@ -76,41 +77,44 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 	}
 
 	// Upsert: insert new records, restore soft-deleted ones
-	var newRows []struct {
-		ID              string
-		ConfigID        uuid.UUID
-		ExternalUserID  *uuid.UUID
-		ExternalRoleID  *uuid.UUID
-		ExternalGroupID *uuid.UUID
-	}
-	newSQL := fmt.Sprintf(`
-		INSERT INTO config_access (id, config_id, external_user_id, external_role_id,
-			external_group_id, scraper_id, application_id, source, created_at)
-		SELECT t.id, t.config_id, t.external_user_id, t.external_role_id,
-			t.external_group_id, t.scraper_id, t.application_id, t.source, t.created_at
-		FROM %s t
-		ON CONFLICT (id) DO UPDATE SET deleted_at = NULL
-		WHERE config_access.deleted_at IS NOT NULL
-		RETURNING id, config_id, external_user_id, external_role_id, external_group_id
-	`, tempTable)
+	if len(accesses) > 0 {
+		var newRows []struct {
+			ID              string
+			ConfigID        uuid.UUID
+			ExternalUserID  *uuid.UUID
+			ExternalRoleID  *uuid.UUID
+			ExternalGroupID *uuid.UUID
+		}
+		newSQL := fmt.Sprintf(`
+			INSERT INTO config_access (id, config_id, external_user_id, external_role_id,
+				external_group_id, scraper_id, application_id, source, created_at)
+			SELECT t.id, t.config_id, t.external_user_id, t.external_role_id,
+				t.external_group_id, t.scraper_id, t.application_id, t.source, t.created_at
+			FROM %s t
+			ON CONFLICT (id) DO UPDATE SET deleted_at = NULL
+			WHERE config_access.deleted_at IS NOT NULL
+			RETURNING id, config_id, external_user_id, external_role_id, external_group_id
+		`, tempTable)
 
-	if err := tx.Raw(newSQL).Scan(&newRows).Error; err != nil {
-		tx.Rollback()
-		return result, fmt.Errorf("failed to upsert config access: %w", err)
-	}
+		if err := tx.Raw(newSQL).Scan(&newRows).Error; err != nil {
+			tx.Rollback()
+			return result, fmt.Errorf("failed to upsert config access: %w", err)
+		}
 
-	for _, row := range newRows {
-		summary := buildPermissionSummary(tx, v1.ChangeTypePermissionAdded, row.ExternalUserID, row.ExternalRoleID, row.ExternalGroupID)
-		result.added = append(result.added, &models.ConfigChange{
-			ID:         uuid.NewString(),
-			ConfigID:   row.ConfigID.String(),
-			ChangeType: v1.ChangeTypePermissionAdded,
-			Summary:    summary,
-			CreatedAt:  now,
-		})
+		for _, row := range newRows {
+			summary := buildPermissionSummary(tx, v1.ChangeTypePermissionAdded, row.ExternalUserID, row.ExternalRoleID, row.ExternalGroupID)
+			result.added = append(result.added, &models.ConfigChange{
+				ID:         uuid.NewString(),
+				ConfigID:   row.ConfigID.String(),
+				ChangeType: v1.ChangeTypePermissionAdded,
+				Summary:    summary,
+				CreatedAt:  now,
+			})
+		}
 	}
 
 	// Soft-delete stale records not in current scrape
+	// The temp table is empty when no accesses are scraped, which causes all existing rows to be deleted
 	var staleRows []staleAccessResult
 	staleSQL := fmt.Sprintf(`
 		WITH stale AS (

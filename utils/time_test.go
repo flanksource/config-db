@@ -9,14 +9,15 @@ import (
 
 var _ = Describe("MockTime", func() {
 	It("should return real time by default, mock when set, and restore", func() {
-		realTime := time.Now()
-		Expect(Now().Sub(realTime)).To(BeNumerically("<", time.Second))
+		Expect(time.Since(Now())).To(BeNumerically("<", time.Second))
 
 		mockTime := time.Date(2025, 6, 19, 12, 0, 0, 0, time.UTC)
 		restore := MockTime(mockTime)
+		defer restore() // Ensure restore runs even if assertions fail
+
 		Expect(Now()).To(Equal(mockTime))
 
 		restore()
-		Expect(Now().Sub(realTime)).To(BeNumerically("<", time.Second))
+		Expect(time.Since(Now())).To(BeNumerically("<", time.Second))
 	})
 })

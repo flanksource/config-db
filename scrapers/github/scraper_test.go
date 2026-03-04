@@ -82,6 +82,8 @@ var _ = Describe("GitHubScraper", func() {
 					openssfCheckNames[a.AnalysisResult.Analyzer] = true
 				}
 			}
+			Expect(openssfCheckNames).ToNot(BeEmpty(),
+				"dedup validation requires at least one OpenSSF check to be meaningful")
 			for _, a := range analyses {
 				if a.AnalysisResult != nil && a.AnalysisResult.Source == "GitHub Code Scanning" {
 					Expect(openssfCheckNames[a.AnalysisResult.Summary]).To(BeFalse(),

@@ -84,11 +84,25 @@ func (ctx ScrapeContext) WithLastScrapeSummary(summary v1.ScrapeSummary) ScrapeC
 	return ctx
 }
 
-func (ctx ScrapeContext) LastScrapeSummary() map[string]v1.ConfigTypeScrapeSummary {
+func (ctx ScrapeContext) LastScrapeSummary() v1.ScrapeSummary {
 	if ctx.lastScrapeSummary.ConfigTypes == nil {
-		return map[string]v1.ConfigTypeScrapeSummary{}
+		return v1.ScrapeSummary{
+			ConfigTypes: map[string]v1.ConfigTypeScrapeSummary{},
+		}
 	}
-	return ctx.lastScrapeSummary.ConfigTypes
+	// Return a defensive copy so callers cannot mutate context-owned state
+	copied := v1.ScrapeSummary{
+		ExternalUsers:  ctx.lastScrapeSummary.ExternalUsers,
+		ExternalGroups: ctx.lastScrapeSummary.ExternalGroups,
+		ExternalRoles:  ctx.lastScrapeSummary.ExternalRoles,
+		ConfigAccess:   ctx.lastScrapeSummary.ConfigAccess,
+		AccessLogs:     ctx.lastScrapeSummary.AccessLogs,
+		ConfigTypes:    make(map[string]v1.ConfigTypeScrapeSummary, len(ctx.lastScrapeSummary.ConfigTypes)),
+	}
+	for k, v := range ctx.lastScrapeSummary.ConfigTypes {
+		copied.ConfigTypes[k] = v
+	}
+	return copied
 }
 
 func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {

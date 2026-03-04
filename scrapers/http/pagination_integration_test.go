@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
+	"time"
 
 	commonsHTTP "github.com/flanksource/commons/http"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -39,7 +40,9 @@ var _ = Describe("paginate", func() {
 			firstResp, err := client.R(context.Background()).Get(server.URL + "/items")
 			Expect(err).ToNot(HaveOccurred())
 
-			results, err := paginate(context.Background(), client, v1.Pagination{
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			results, err := paginate(ctx, client, v1.Pagination{
 				NextPageExpr: `"@odata.nextLink" in response.body && response.body["@odata.nextLink"] != "" ? string(response.body["@odata.nextLink"]) : ""`,
 				ReduceExpr:   `acc + page.value`,
 			}, firstResp, server.URL+"/items", v1.BaseScraper{})
@@ -74,7 +77,9 @@ var _ = Describe("paginate", func() {
 			firstResp, err := client.R(context.Background()).Get(server.URL + "/data")
 			Expect(err).ToNot(HaveOccurred())
 
-			results, err := paginate(context.Background(), client, v1.Pagination{
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			results, err := paginate(ctx, client, v1.Pagination{
 				NextPageExpr: `"@odata.nextLink" in response.body && response.body["@odata.nextLink"] != "" ? string(response.body["@odata.nextLink"]) : ""`,
 			}, firstResp, server.URL+"/data", v1.BaseScraper{})
 
@@ -108,7 +113,9 @@ var _ = Describe("paginate", func() {
 			firstResp, err := client.R(context.Background()).Get(server.URL + "/api")
 			Expect(err).ToNot(HaveOccurred())
 
-			results, err := paginate(context.Background(), client, v1.Pagination{
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			results, err := paginate(ctx, client, v1.Pagination{
 				NextPageExpr: `has(response.body.next) && response.body.next != "" ? response.body.next : ""`,
 				PerPage:      true,
 			}, firstResp, server.URL+"/api", v1.BaseScraper{})
@@ -144,7 +151,9 @@ var _ = Describe("paginate", func() {
 			firstResp, err := client.R(context.Background()).Get(server.URL + "/items")
 			Expect(err).ToNot(HaveOccurred())
 
-			results, err := paginate(context.Background(), client, v1.Pagination{
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			results, err := paginate(ctx, client, v1.Pagination{
 				NextPageExpr: `response.body.next`,
 				ReduceExpr:   `acc + page.value`,
 				MaxPages:     3,
@@ -187,7 +196,9 @@ var _ = Describe("paginate", func() {
 			firstResp, err := client.R(context.Background()).Get(server.URL + "/items")
 			Expect(err).ToNot(HaveOccurred())
 
-			results, err := paginate(context.Background(), client, v1.Pagination{
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			results, err := paginate(ctx, client, v1.Pagination{
 				NextPageExpr: `has(response.body.next) ? response.body.next : ""`,
 				ReduceExpr:   `acc + page.value`,
 			}, firstResp, server.URL+"/items", v1.BaseScraper{})
@@ -222,7 +233,9 @@ var _ = Describe("paginate", func() {
 			firstResp, err := client.R(context.Background()).Get(server.URL + "/items")
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = paginate(context.Background(), client, v1.Pagination{
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			_, err = paginate(ctx, client, v1.Pagination{
 				NextPageExpr: `has(response.body.next) ? response.body.next : ""`,
 				ReduceExpr:   `acc + page.value`,
 			}, firstResp, server.URL+"/items", v1.BaseScraper{})

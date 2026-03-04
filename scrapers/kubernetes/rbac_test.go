@@ -113,6 +113,8 @@ var _ = Describe("RBACExtractor", func() {
 				user := users[0]
 				Expect(user.Name).To(Equal("admin@example.com"))
 				Expect(user.UserType).To(Equal("User"))
+				Expect(user.Tenant).To(Equal(clusterName))
+				Expect(user.ScraperID).To(Equal(scraperID))
 				expectedUserAlias := KubernetesAlias(clusterName, "User", "", "admin@example.com")
 				Expect(user.Aliases).To(Equal(pq.StringArray{expectedUserAlias}))
 
@@ -121,7 +123,9 @@ var _ = Describe("RBACExtractor", func() {
 
 				expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "cluster-admin")
 				for _, a := range access {
+					Expect(a.ExternalUserAliases).To(Equal([]string{expectedUserAlias}))
 					Expect(a.ExternalRoleAliases).To(Equal([]string{expectedRoleAlias}))
+					Expect(a.ExternalGroupAliases).To(BeEmpty(), "User-subject should not have group aliases")
 					Expect(a.ID).ToNot(BeEmpty())
 				}
 			})
@@ -196,6 +200,14 @@ var _ = Describe("RBACExtractor", func() {
 				for _, a := range access {
 					Expect(a.ExternalRoleAliases).To(Equal([]string{expectedRoleAlias}))
 					Expect(a.ID).ToNot(BeEmpty())
+
+					// Each access row should have exactly one subject-alias bucket populated
+					hasUser := len(a.ExternalUserAliases) > 0
+					hasGroup := len(a.ExternalGroupAliases) > 0
+					Expect(hasUser || hasGroup).To(BeTrue(),
+						"access row should have at least one of user or group aliases")
+					Expect(hasUser && hasGroup).To(BeFalse(),
+						"access row should not have both user and group aliases")
 				}
 			})
 		})

@@ -54,7 +54,12 @@ func (s ScrapeSummary) Pretty() api.Text {
 
 	for _, configType := range types {
 		v := s.ConfigTypes[configType]
-		if v.Added == 0 && v.Updated == 0 && v.Unchanged == 0 && v.Changes == 0 && v.Deduped == 0 {
+		hasChangeTotals := false
+		if v.Change != nil {
+			ignored, orphaned, fkErrors := v.Change.Totals()
+			hasChangeTotals = ignored > 0 || orphaned > 0 || fkErrors > 0
+		}
+		if v.Added == 0 && v.Updated == 0 && v.Unchanged == 0 && v.Changes == 0 && v.Deduped == 0 && !hasChangeTotals && len(v.Warnings) == 0 {
 			continue
 		}
 		t = t.Append(configType, "font-bold")

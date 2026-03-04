@@ -32,7 +32,13 @@ var _ = Describe("GitHub Scraper E2E", func() {
 		run := exec.Command(binary, "run", fixture, "-o", outputDir, "--debug-port", "-1")
 		run.Env = append(os.Environ(), "GITHUB_TOKEN="+os.Getenv("GITHUB_TOKEN"))
 		runOut, err := run.CombinedOutput()
-		Expect(err).ToNot(HaveOccurred(), "config-db run failed (exit %v):\n%s", run.ProcessState.ExitCode(), string(runOut))
+		if err != nil {
+			exitCode := -1
+			if run.ProcessState != nil {
+				exitCode = run.ProcessState.ExitCode()
+			}
+			Expect(err).ToNot(HaveOccurred(), "config-db run failed (exit %v):\n%s", exitCode, string(runOut))
+		}
 
 		repoFile := findOutputFile(outputDir, "canary-checker")
 		data, err := os.ReadFile(repoFile)
