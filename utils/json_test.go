@@ -20,10 +20,11 @@ var _ = Describe("ToJSONMap", func() {
 			resultMap, err := ToJSONMap(input)
 			if expectError {
 				Expect(err).To(HaveOccurred())
+				Expect(resultMap).To(BeNil())
 			} else {
 				Expect(err).ToNot(HaveOccurred())
+				Expect(resultMap).To(Equal(expectedMap))
 			}
-			Expect(resultMap).To(Equal(expectedMap))
 		},
 		Entry("struct with string fields",
 			TestStruct{Name: "John Doe", Age: 30, Email: "john.doe@example.com", Country: "USA"},

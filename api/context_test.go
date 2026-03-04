@@ -14,11 +14,11 @@ func TestAPI(t *testing.T) {
 }
 
 var _ = Describe("ScrapeContext LastScrapeSummary", func() {
-	It("returns empty map when unset", func() {
+	It("returns empty summary when unset", func() {
 		ctx := ScrapeContext{}
 		summary := ctx.LastScrapeSummary()
-		Expect(summary).ToNot(BeNil())
-		Expect(summary).To(BeEmpty())
+		Expect(summary.ConfigTypes).ToNot(BeNil())
+		Expect(summary.ConfigTypes).To(BeEmpty())
 	})
 
 	It("returns set summary", func() {
@@ -30,9 +30,9 @@ var _ = Describe("ScrapeContext LastScrapeSummary", func() {
 		})
 
 		got := ctx.LastScrapeSummary()
-		Expect(got["AWS::EC2::Instance"].Added).To(Equal(3))
-		Expect(got["AWS::EC2::Instance"].Updated).To(Equal(5))
-		Expect(got["AWS::EC2::Instance"].Unchanged).To(Equal(10))
+		Expect(got.ConfigTypes["AWS::EC2::Instance"].Added).To(Equal(3))
+		Expect(got.ConfigTypes["AWS::EC2::Instance"].Updated).To(Equal(5))
+		Expect(got.ConfigTypes["AWS::EC2::Instance"].Unchanged).To(Equal(10))
 	})
 
 	It("preserves summary through WithJobHistory", func() {
@@ -44,7 +44,7 @@ var _ = Describe("ScrapeContext LastScrapeSummary", func() {
 		})
 		ctx = ctx.WithJobHistory(nil)
 
-		Expect(ctx.LastScrapeSummary()["Kubernetes::Pod"].Added).To(Equal(1))
+		Expect(ctx.LastScrapeSummary().ConfigTypes["Kubernetes::Pod"].Added).To(Equal(1))
 	})
 
 	It("preserves summary through AsIncrementalScrape", func() {
@@ -56,6 +56,6 @@ var _ = Describe("ScrapeContext LastScrapeSummary", func() {
 		})
 		ctx = ctx.AsIncrementalScrape()
 
-		Expect(ctx.LastScrapeSummary()["Kubernetes::Pod"].Updated).To(Equal(7))
+		Expect(ctx.LastScrapeSummary().ConfigTypes["Kubernetes::Pod"].Updated).To(Equal(7))
 	})
 })

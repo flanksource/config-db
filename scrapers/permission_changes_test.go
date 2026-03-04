@@ -19,6 +19,9 @@ var _ = Describe("Permission change tracking", Ordered, func() {
 	var configItemID string
 
 	BeforeAll(func() {
+		// Reset global external-user cache to avoid flaky results from prior tests
+		db.ExternalUserCache.Flush()
+
 		scrapeConfig = getConfigSpec("file-permission-changes")
 
 		scModel, err := scrapeConfig.ToModel()
@@ -34,14 +37,14 @@ var _ = Describe("Permission change tracking", Ordered, func() {
 	})
 
 	AfterAll(func() {
-		DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{})
-		DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{})
+		Expect(DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error).NotTo(HaveOccurred())
 		if configItemID != "" {
-			DefaultContext.DB().Where("config_id = ? AND change_type IN (?, ?)", configItemID, v1.ChangeTypePermissionAdded, v1.ChangeTypePermissionRemoved).
-				Delete(&models.ConfigChange{})
+			Expect(DefaultContext.DB().Where("config_id = ? AND change_type IN (?, ?)", configItemID, v1.ChangeTypePermissionAdded, v1.ChangeTypePermissionRemoved).
+				Delete(&models.ConfigChange{}).Error).NotTo(HaveOccurred())
 		}
-		DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&models.ConfigItem{})
-		DefaultContext.DB().Delete(&scraperModel)
+		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&models.ConfigItem{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Delete(&scraperModel).Error).NotTo(HaveOccurred())
 	})
 
 	It("should emit PermissionAdded changes on first scrape", func() {
@@ -59,9 +62,13 @@ var _ = Describe("Permission change tracking", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(changes).To(HaveLen(2), "expected 2 PermissionAdded changes for 2 new config access entries")
 
-		for _, c := range changes {
+		summaries := make([]string, len(changes))
+		for i, c := range changes {
+			summaries[i] = c.Summary
 			Expect(c.Summary).To(ContainSubstring("user "), "change summary should include the user name")
 		}
+		Expect(summaries).To(ContainElement(ContainSubstring("Perm User One")))
+		Expect(summaries).To(ContainElement(ContainSubstring("Perm User Two")))
 	})
 
 	It("should not emit duplicate changes on re-scrape", func() {

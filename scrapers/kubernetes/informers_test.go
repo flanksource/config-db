@@ -100,6 +100,13 @@ var _ = Describe("PqComparator", func() {
 			},
 			[]string{"a", "b"},
 		),
+		Entry("re-enqueue should have same priority as add",
+			[]QueueItem{
+				{Operation: QueueItemOperationUpdate, Obj: getUnstructured("Pod", "a", time.Now())},
+				{Operation: QueueItemOperationReEnqueue, Obj: getUnstructured("Pod", "b", time.Now())},
+			},
+			[]string{"b", "a"},
+		),
 	)
 
 	It("same operation and kind should compare by timestamp - earlier first", func() {

@@ -193,6 +193,15 @@ func (e EntitySummary) IsEmpty() bool {
 	return e.Scraped == 0 && e.Saved == 0 && e.Skipped == 0 && e.Deleted == 0
 }
 
+func (e EntitySummary) Merge(other EntitySummary) EntitySummary {
+	return EntitySummary{
+		Scraped: e.Scraped + other.Scraped,
+		Saved:   e.Saved + other.Saved,
+		Skipped: e.Skipped + other.Skipped,
+		Deleted: e.Deleted + other.Deleted,
+	}
+}
+
 func (e EntitySummary) String() string {
 	var parts []string
 	if e.Scraped > 0 {
@@ -226,7 +235,7 @@ func NewScrapeSummary() ScrapeSummary {
 
 func (summary ScrapeSummary) HasUpdates() bool {
 	totals := summary.Totals()
-	if totals.Added > 0 || totals.Updated > 0 {
+	if totals.Added > 0 || totals.Updated > 0 || totals.Changes > 0 || totals.Deduped > 0 {
 		return true
 	}
 	return !summary.ExternalUsers.IsEmpty() ||
@@ -241,7 +250,18 @@ func (s *ScrapeSummary) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	if _, ok := raw["config_types"]; ok {
+
+	// Detect new-format payloads by checking for any known top-level key
+	newFormatKeys := []string{"config_types", "external_users", "external_groups", "external_roles", "config_access", "access_logs"}
+	isNewFormat := false
+	for _, key := range newFormatKeys {
+		if _, ok := raw[key]; ok {
+			isNewFormat = true
+			break
+		}
+	}
+
+	if isNewFormat {
 		type Alias ScrapeSummary
 		var a Alias
 		if err := json.Unmarshal(data, &a); err != nil {
@@ -250,6 +270,8 @@ func (s *ScrapeSummary) UnmarshalJSON(data []byte) error {
 		*s = ScrapeSummary(a)
 		return nil
 	}
+
+	// Legacy format: treat entire payload as map[string]ConfigTypeScrapeSummary
 	var m map[string]ConfigTypeScrapeSummary
 	if err := json.Unmarshal(data, &m); err != nil {
 		return err
@@ -342,6 +364,7 @@ func (t *ScrapeSummary) AddChangeSummary(configType string, cs ChangeSummary) {
 	v := t.ConfigTypes[configType]
 	v.Change = &ChangeSummary{
 		Ignored:          cs.Ignored,
+		IgnoredByAction:  cs.IgnoredByAction,
 		Orphaned:         cs.Orphaned,
 		ForeignKeyErrors: cs.ForeignKeyErrors,
 	}
@@ -399,26 +422,11 @@ func (s *ScrapeSummary) Merge(other ScrapeSummary) {
 			s.ConfigTypes[k] = v
 		}
 	}
-	s.ExternalUsers.Scraped += other.ExternalUsers.Scraped
-	s.ExternalUsers.Saved += other.ExternalUsers.Saved
-	s.ExternalUsers.Skipped += other.ExternalUsers.Skipped
-	s.ExternalUsers.Deleted += other.ExternalUsers.Deleted
-	s.ExternalGroups.Scraped += other.ExternalGroups.Scraped
-	s.ExternalGroups.Saved += other.ExternalGroups.Saved
-	s.ExternalGroups.Skipped += other.ExternalGroups.Skipped
-	s.ExternalGroups.Deleted += other.ExternalGroups.Deleted
-	s.ExternalRoles.Scraped += other.ExternalRoles.Scraped
-	s.ExternalRoles.Saved += other.ExternalRoles.Saved
-	s.ExternalRoles.Skipped += other.ExternalRoles.Skipped
-	s.ExternalRoles.Deleted += other.ExternalRoles.Deleted
-	s.ConfigAccess.Scraped += other.ConfigAccess.Scraped
-	s.ConfigAccess.Saved += other.ConfigAccess.Saved
-	s.ConfigAccess.Skipped += other.ConfigAccess.Skipped
-	s.ConfigAccess.Deleted += other.ConfigAccess.Deleted
-	s.AccessLogs.Scraped += other.AccessLogs.Scraped
-	s.AccessLogs.Saved += other.AccessLogs.Saved
-	s.AccessLogs.Skipped += other.AccessLogs.Skipped
-	s.AccessLogs.Deleted += other.AccessLogs.Deleted
+	s.ExternalUsers = s.ExternalUsers.Merge(other.ExternalUsers)
+	s.ExternalGroups = s.ExternalGroups.Merge(other.ExternalGroups)
+	s.ExternalRoles = s.ExternalRoles.Merge(other.ExternalRoles)
+	s.ConfigAccess = s.ConfigAccess.Merge(other.ConfigAccess)
+	s.AccessLogs = s.AccessLogs.Merge(other.AccessLogs)
 }
 
 // +kubebuilder:object:generate=false

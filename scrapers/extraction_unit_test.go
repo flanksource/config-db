@@ -33,14 +33,28 @@ var _ = Describe("extractConfigChangesFromConfig", func() {
 			for i, expectedID := range tc.expectedIDs {
 				Expect(result.ConfigAccess[i].ID).To(Equal(expectedID))
 			}
-			for i, expectedAliases := range tc.expectedUserAliases {
-				Expect(result.ConfigAccess[i].ExternalUserAliases).To(Equal(expectedAliases))
-			}
-			for i, expectedAliases := range tc.expectedRoleAliases {
-				Expect(result.ConfigAccess[i].ExternalRoleAliases).To(Equal(expectedAliases))
-			}
-			for i, expectedAliases := range tc.expectedGroupAliases {
-				Expect(result.ConfigAccess[i].ExternalGroupAliases).To(Equal(expectedAliases))
+			for i, ca := range result.ConfigAccess {
+				if i < len(tc.expectedUserAliases) {
+					Expect(ca.ExternalUserAliases).To(Equal(tc.expectedUserAliases[i]),
+						"user aliases mismatch at index %d", i)
+				} else {
+					Expect(ca.ExternalUserAliases).To(BeEmpty(),
+						"unexpected user aliases at index %d", i)
+				}
+				if i < len(tc.expectedRoleAliases) {
+					Expect(ca.ExternalRoleAliases).To(Equal(tc.expectedRoleAliases[i]),
+						"role aliases mismatch at index %d", i)
+				} else {
+					Expect(ca.ExternalRoleAliases).To(BeEmpty(),
+						"unexpected role aliases at index %d", i)
+				}
+				if i < len(tc.expectedGroupAliases) {
+					Expect(ca.ExternalGroupAliases).To(Equal(tc.expectedGroupAliases[i]),
+						"group aliases mismatch at index %d", i)
+				} else {
+					Expect(ca.ExternalGroupAliases).To(BeEmpty(),
+						"unexpected group aliases at index %d", i)
+				}
 			}
 		},
 		Entry("with external_user_aliases", testCase{

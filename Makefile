@@ -93,7 +93,7 @@ gotest: ginkgo
 		ginkgo -r -v --skip-package=tests/e2e  ./...
 
 .PHONY: test-fast
-test-fast:
+test-fast: ginkgo
 		ginkgo --tags slim -p -r -v --skip-package=tests/e2e  ./...
 
 

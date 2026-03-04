@@ -105,7 +105,11 @@ func findExternalEntityIDByAliases[T externalEntityWithID](ctx api.ScrapeContext
 
 	for _, alias := range aliases {
 		if cachedID, ok := aliasCache.Get(alias); ok {
-			return lo.ToPtr(cachedID.(uuid.UUID)), nil
+			id, valid := cachedID.(uuid.UUID)
+			if !valid {
+				continue
+			}
+			return lo.ToPtr(id), nil
 		}
 	}
 

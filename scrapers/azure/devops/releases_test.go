@@ -5,6 +5,7 @@ import (
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -27,6 +28,23 @@ func externalID(configType, id string) v1.ExternalID {
 
 func makeDef(id int, name, path string) ReleaseDefinition {
 	return ReleaseDefinition{ID: id, Name: name, Path: path}
+}
+
+// findAccessLog searches for an access log matching the given property key-value pairs.
+func findAccessLog(logs []v1.ExternalConfigAccessLog, props map[string]string) *v1.ExternalConfigAccessLog {
+	for i, log := range logs {
+		match := true
+		for k, v := range props {
+			if log.ConfigAccessLog.Properties[k] != v {
+				match = false
+				break
+			}
+		}
+		if match {
+			return &logs[i]
+		}
+	}
+	return nil
 }
 
 func makeRelease(id int, createdBy *IdentityRef, envs []ReleaseEnvironment, createdOn time.Time) Release {
@@ -178,6 +196,8 @@ var _ = Describe("approvalAccessLog", func() {
 
 		log := approvalAccessLog(a, externalID(ReleaseType, "proj/1"), "Staging", time.Now(), users)
 		Expect(log).ToNot(BeNil())
+		Expect(log.ConfigAccessLog.ExternalUserID).ToNot(Equal(uuid.Nil),
+			"fallback identity should be attributed in the access log")
 	})
 })
 
@@ -200,14 +220,8 @@ var _ = Describe("buildReleaseResult", func() {
 		)
 
 		Expect(result.ConfigAccessLogs).ToNot(BeEmpty())
-		found := false
-		for _, log := range result.ConfigAccessLogs {
-			if log.ConfigAccessLog.Properties["role"] == "Deployment" &&
-				log.ConfigAccessLog.Properties["environment"] == "Production" {
-				found = true
-			}
-		}
-		Expect(found).To(BeTrue(), "no Deployment access log for Production env")
+		log := findAccessLog(result.ConfigAccessLogs, map[string]string{"role": "Deployment", "environment": "Production"})
+		Expect(log).ToNot(BeNil(), "no Deployment access log for Production env")
 	})
 
 	It("emits approval access log", func() {
@@ -235,14 +249,8 @@ var _ = Describe("buildReleaseResult", func() {
 			cutoff,
 		)
 
-		found := false
-		for _, log := range result.ConfigAccessLogs {
-			if log.ConfigAccessLog.Properties["role"] == "DeploymentApproval" &&
-				log.ConfigAccessLog.Properties["status"] == "approved" {
-				found = true
-			}
-		}
-		Expect(found).To(BeTrue(), "no DeploymentApproval access log")
+		approvalLog := findAccessLog(result.ConfigAccessLogs, map[string]string{"role": "DeploymentApproval", "status": "approved"})
+		Expect(approvalLog).ToNot(BeNil(), "no DeploymentApproval access log")
 	})
 
 	It("skips pending approval environment", func() {

@@ -67,6 +67,23 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 		return result, err
 	}
 
+	// Populate caches only after transaction has committed successfully
+	for _, u := range resolvedUsers {
+		for _, alias := range u.Aliases {
+			ExternalUserCache.Set(alias, u.ID, cache.DefaultExpiration)
+		}
+	}
+	for _, g := range resolvedGroups {
+		for _, alias := range g.Aliases {
+			ExternalGroupCache.Set(alias, g.ID, cache.DefaultExpiration)
+		}
+	}
+	for _, r := range resolvedRoles {
+		for _, alias := range r.Aliases {
+			ExternalRoleCache.Set(alias, r.ID, cache.DefaultExpiration)
+		}
+	}
+
 	result.Users.Saved = counts.usersSaved
 	result.Users.Deleted = counts.usersDeleted
 	result.Groups.Saved = counts.groupsSaved
@@ -115,9 +132,6 @@ func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser
 		if originalID != uuid.Nil && originalID != u.ID {
 			idMap[originalID] = u.ID
 		}
-		for _, alias := range u.Aliases {
-			ExternalUserCache.Set(alias, u.ID, cache.DefaultExpiration)
-		}
 	}
 	return resolved, skipped, idMap, nil
 }
@@ -161,9 +175,6 @@ func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGr
 		if originalID != uuid.Nil && originalID != g.ID {
 			idMap[originalID] = g.ID
 		}
-		for _, alias := range g.Aliases {
-			ExternalGroupCache.Set(alias, g.ID, cache.DefaultExpiration)
-		}
 	}
 	return resolved, skipped, idMap, nil
 }
@@ -202,9 +213,6 @@ func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole
 		}
 		r.UpdatedAt = &now
 		resolved = append(resolved, r)
-		for _, alias := range r.Aliases {
-			ExternalRoleCache.Set(alias, r.ID, cache.DefaultExpiration)
-		}
 	}
 	return resolved, skipped, nil
 }
@@ -224,7 +232,7 @@ func upsertExternalEntities(
 	scraperID *uuid.UUID,
 ) (upsertCounts, error) {
 	var counts upsertCounts
-	if scraperID == nil || (len(users) == 0 && len(groups) == 0 && len(roles) == 0 && len(userGroups) == 0) {
+	if scraperID == nil {
 		return counts, nil
 	}
 
@@ -238,6 +246,7 @@ func upsertExternalEntities(
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
+			panic(r) // Re-panic to propagate the error
 		}
 	}()
 
@@ -380,6 +389,14 @@ func upsertExternalEntities(
 			return counts, fmt.Errorf("failed to delete stale external roles: %w", r.Error)
 		}
 		counts.rolesDeleted = int(r.RowsAffected)
+	} else {
+		// No roles scraped — delete all roles for this scraper
+		r := tx.Exec(`DELETE FROM external_roles WHERE scraper_id = ?`, *scraperID)
+		if r.Error != nil {
+			tx.Rollback()
+			return counts, fmt.Errorf("failed to delete stale external roles: %w", r.Error)
+		}
+		counts.rolesDeleted = int(r.RowsAffected)
 	}
 
 	// Stale deletion: groups (soft delete)
@@ -394,6 +411,14 @@ func upsertExternalEntities(
 			return counts, fmt.Errorf("failed to delete stale external groups: %w", r.Error)
 		}
 		counts.groupsDeleted = int(r.RowsAffected)
+	} else {
+		// No groups scraped — soft-delete all groups for this scraper
+		r := tx.Exec(`UPDATE external_groups SET deleted_at = NOW() WHERE scraper_id = ? AND deleted_at IS NULL`, *scraperID)
+		if r.Error != nil {
+			tx.Rollback()
+			return counts, fmt.Errorf("failed to delete stale external groups: %w", r.Error)
+		}
+		counts.groupsDeleted = int(r.RowsAffected)
 	}
 
 	// Stale deletion: users (soft delete)
@@ -403,6 +428,14 @@ func upsertExternalEntities(
 			WHERE scraper_id = ? AND deleted_at IS NULL
 				AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_users.id)
 		`, tempUsers), *scraperID)
+		if r.Error != nil {
+			tx.Rollback()
+			return counts, fmt.Errorf("failed to delete stale external users: %w", r.Error)
+		}
+		counts.usersDeleted = int(r.RowsAffected)
+	} else {
+		// No users scraped — soft-delete all users for this scraper
+		r := tx.Exec(`UPDATE external_users SET deleted_at = NOW() WHERE scraper_id = ? AND deleted_at IS NULL`, *scraperID)
 		if r.Error != nil {
 			tx.Rollback()
 			return counts, fmt.Errorf("failed to delete stale external users: %w", r.Error)

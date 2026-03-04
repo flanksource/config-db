@@ -42,7 +42,13 @@ var _ = Describe("generateDiff", func() {
 
 var _ = Describe("dedupChanges", func() {
 	It("deduplicates changes by fingerprint and separates non-duplicates", func() {
-		ChangeCacheByFingerprint.Set(changeFingeprintCacheKey("dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", "abc"), "8b9d2659-7a11-46ff-bdff-1c4e8964c437", time.Hour)
+		abcKey := changeFingeprintCacheKey("dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", "abc")
+		ChangeCacheByFingerprint.Set(abcKey, "8b9d2659-7a11-46ff-bdff-1c4e8964c437", time.Hour)
+		defer func() {
+			// Clean up inserted cache keys so they don't leak into other specs
+			ChangeCacheByFingerprint.Delete(abcKey)
+			ChangeCacheByFingerprint.Delete(changeFingeprintCacheKey("dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", "xyz"))
+		}()
 
 		changes := []*models.ConfigChange{
 			{ID: "8b9d2659-7a11-46ff-bdff-1c4e8964c437", CreatedAt: time.Date(2024, 01, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "first", Count: 1},

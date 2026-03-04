@@ -57,9 +57,9 @@ var _ = Describe("Dedup test", Ordered, func() {
 		}
 
 		// Clear stale scraper_id from previous runs to avoid cluster name uniqueness conflict
-		DefaultContext.DB().Model(&models.ConfigItem{}).
+		Expect(DefaultContext.DB().Model(&models.ConfigItem{}).
 			Where("name = ? AND type = ?", "dedup-test-cluster", "Kubernetes::Cluster").
-			Update("scraper_id", nil)
+			Update("scraper_id", nil).Error).NotTo(HaveOccurred(), "failed to clear stale scraper_id")
 
 		scModel, err := scrapeConfig.ToModel()
 		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
@@ -134,7 +134,7 @@ var _ = Describe("Dedup test", Ordered, func() {
 
 	It("should have populated 1 change with 10 counts  for config A", func() {
 		var changes []models.ConfigChange
-		err := DefaultContext.DB().Where("config_id = ? AND change_type = ?", cmA.ID, "diff").Find(&changes).Error
+		err := DefaultContext.DB().Where("config_id = ? AND change_type = ?", cmA.ID, v1.ChangeTypeDiff).Find(&changes).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
 
 		Expect(len(changes)).To(Equal(1))
@@ -143,7 +143,7 @@ var _ = Describe("Dedup test", Ordered, func() {
 
 	It("should have populated 1 change with 10 counts for config B", func() {
 		var changes []models.ConfigChange
-		err := DefaultContext.DB().Where("config_id = ? AND change_type = ?", cmB.ID, "diff").Find(&changes).Error
+		err := DefaultContext.DB().Where("config_id = ? AND change_type = ?", cmB.ID, v1.ChangeTypeDiff).Find(&changes).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
 
 		Expect(len(changes)).To(Equal(1))

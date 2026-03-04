@@ -17,7 +17,7 @@ var _ = Describe("extractAccountIDFromARN", func() {
 		func(input, expected string) {
 			Expect(extractAccountIDFromARN(input)).To(Equal(expected))
 		},
-		Entry("valid ARN", `- groups:\n  - system:masters\n  rolearn: arn:aws:iam::123456789:role/kubernetes-admin\n  username: admin\n- groups:\n  - system:bootstrappers\n  - system:nodes\n  rolearn: arn:aws:iam::123456789:role/eksctl-mission-control-demo-clust-NodeInstanceRole-VRLF7VBIVK3M\n  username: system:node:{{EC2PrivateDNSName}}\n`, "123456789"),
+		Entry("valid ARN", `- groups:\n  - system:masters\n  rolearn: arn:aws:iam::123456789012:role/kubernetes-admin\n  username: admin\n- groups:\n  - system:bootstrappers\n  - system:nodes\n  rolearn: arn:aws:iam::123456789012:role/eksctl-mission-control-demo-clust-NodeInstanceRole-VRLF7VBIVK3M\n  username: system:node:{{EC2PrivateDNSName}}\n`, "123456789012"),
 	)
 })
 

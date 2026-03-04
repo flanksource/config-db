@@ -30,6 +30,7 @@ var _ = Describe("parseResourceData", func() {
 		files, err := os.ReadDir("testdata")
 		Expect(err).ToNot(HaveOccurred())
 
+		processed := 0
 		for _, file := range files {
 			if !strings.HasSuffix(file.Name(), ".json") {
 				continue
@@ -55,6 +56,8 @@ var _ = Describe("parseResourceData", func() {
 			result := parseResourceData(asset)
 			Expect(result.Zone).To(Equal(fixture.Expectation.Zone))
 			Expect(result.Region).To(Equal(fixture.Expectation.Region))
+			processed++
 		}
+		Expect(processed).To(BeNumerically(">", 0), "expected at least one .json fixture in testdata/")
 	})
 })

@@ -607,8 +607,24 @@ func hasExternalEntities(config any) bool {
 		return false
 	}
 	for _, key := range []string{"external_users", "external_groups", "external_roles", "external_user_groups"} {
-		if _, ok := m[key]; ok {
-			return true
+		val, ok := m[key]
+		if !ok {
+			continue
+		}
+		// Check that the value is non-nil and non-empty
+		switch v := val.(type) {
+		case []any:
+			if len(v) > 0 {
+				return true
+			}
+		case []map[string]any:
+			if len(v) > 0 {
+				return true
+			}
+		default:
+			if v != nil {
+				return true
+			}
 		}
 	}
 	return false
