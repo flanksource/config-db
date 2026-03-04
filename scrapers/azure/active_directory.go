@@ -74,7 +74,7 @@ func (azure Scraper) fetchAppRoles(appObjectID string) v1.ScrapeResults {
 			ExternalRoles: []models.ExternalRole{
 				{
 					ID:          lo.FromPtr(role.GetId()),
-					AccountID:   azure.config.TenantID,
+					Tenant:   azure.config.TenantID,
 					ScraperID:   azure.ctx.ScrapeConfig().GetPersistedID(),
 					Name:        lo.FromPtr(role.GetDisplayName()),
 					Description: lo.FromPtr(role.GetDescription()),
@@ -433,7 +433,7 @@ func (azure Scraper) userToScrapeResult(user msgraphModels.Userable, selector ty
 		ID:        userID,
 		Name:      displayName,
 		ScraperID: lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
-		AccountID: azure.config.TenantID,
+		Tenant: azure.config.TenantID,
 		UserType:  "User",
 		Email:     user.GetMail(),
 		CreatedAt: lo.FromPtr(user.GetCreatedDateTime()),
@@ -502,7 +502,7 @@ func (azure Scraper) groupToScrapeResult(group msgraphModels.Groupable, selector
 
 	externalGroup := models.ExternalGroup{
 		ID:        groupID,
-		AccountID: azure.config.TenantID,
+		Tenant: azure.config.TenantID,
 		ScraperID: lo.FromPtr(azure.ctx.ScrapeConfig().GetPersistedID()),
 		Name:      lo.FromPtr(group.GetDisplayName()),
 		CreatedAt: lo.FromPtr(group.GetCreatedDateTime()),

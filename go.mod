@@ -7,7 +7,7 @@ require (
 	github.com/flanksource/clicky v1.18.0
 	github.com/flanksource/commons v1.47.1
 	github.com/flanksource/deps v1.0.24
-	github.com/flanksource/duty v1.0.1199
+	github.com/flanksource/duty v1.0.1202
 	github.com/flanksource/is-healthy v1.0.82
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.13

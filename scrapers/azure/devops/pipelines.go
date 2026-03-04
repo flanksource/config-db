@@ -268,7 +268,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 										ID:        groupID,
 										Name:      identity.ProviderDisplayName,
 										Aliases:   pq.StringArray{identity.Descriptor, identity.SubjectDescriptor},
-										AccountID: config.Organization,
+										Tenant: config.Organization,
 										GroupType: "AzureDevOps",
 									}
 								}
@@ -290,7 +290,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 										Name:      identity.ProviderDisplayName,
 										Email:     &email,
 										Aliases:   pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
-										AccountID: config.Organization,
+										Tenant: config.Organization,
 										UserType:  "AzureDevOps",
 									}
 								}
@@ -440,7 +440,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 						Name:      requester.DisplayName,
 						Email:     &email,
 						Aliases:   pq.StringArray{email, requester.ID},
-						AccountID: config.Organization,
+						Tenant: config.Organization,
 						UserType:  "AzureDevOps",
 					}
 				}
@@ -481,7 +481,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 						Name:      approver.DisplayName,
 						Email:     &email,
 						Aliases:   pq.StringArray{email, approver.ID},
-						AccountID: config.Organization,
+						Tenant: config.Organization,
 						UserType:  "AzureDevOps",
 					}
 				}
