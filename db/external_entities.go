@@ -27,19 +27,21 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	result.Groups.Scraped = len(extract.externalGroups)
 	result.Roles.Scraped = len(extract.externalRoles)
 
-	resolvedUsers, skippedUsers, userIDMap, err := resolveExternalUsers(ctx, extract.externalUsers, scraperID)
+	now := time.Now()
+
+	resolvedUsers, skippedUsers, userIDMap, err := resolveExternalUsers(ctx, extract.externalUsers, scraperID, now)
 	if err != nil {
 		return result, err
 	}
 	result.Users.Skipped = skippedUsers
 
-	resolvedGroups, skippedGroups, groupIDMap, err := resolveExternalGroups(ctx, extract.externalGroups, scraperID)
+	resolvedGroups, skippedGroups, groupIDMap, err := resolveExternalGroups(ctx, extract.externalGroups, scraperID, now)
 	if err != nil {
 		return result, err
 	}
 	result.Groups.Skipped = skippedGroups
 
-	resolvedRoles, skippedRoles, err := resolveExternalRoles(ctx, extract.externalRoles, scraperID)
+	resolvedRoles, skippedRoles, err := resolveExternalRoles(ctx, extract.externalRoles, scraperID, now)
 	if err != nil {
 		return result, err
 	}
@@ -74,7 +76,7 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	return result, nil
 }
 
-func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser, scraperID *uuid.UUID) ([]dutyModels.ExternalUser, int, map[uuid.UUID]uuid.UUID, error) {
+func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalUser, int, map[uuid.UUID]uuid.UUID, error) {
 	var resolved []dutyModels.ExternalUser
 	var skipped int
 	idMap := make(map[uuid.UUID]uuid.UUID)
@@ -105,6 +107,10 @@ func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser
 			}
 		}
 
+		if u.CreatedAt.IsZero() {
+			u.CreatedAt = now
+		}
+		u.UpdatedAt = &now
 		resolved = append(resolved, u)
 		if originalID != uuid.Nil && originalID != u.ID {
 			idMap[originalID] = u.ID
@@ -116,7 +122,7 @@ func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser
 	return resolved, skipped, idMap, nil
 }
 
-func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGroup, scraperID *uuid.UUID) ([]dutyModels.ExternalGroup, int, map[uuid.UUID]uuid.UUID, error) {
+func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGroup, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalGroup, int, map[uuid.UUID]uuid.UUID, error) {
 	var resolved []dutyModels.ExternalGroup
 	var skipped int
 	idMap := make(map[uuid.UUID]uuid.UUID)
@@ -147,6 +153,10 @@ func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGr
 			}
 		}
 
+		if g.CreatedAt.IsZero() {
+			g.CreatedAt = now
+		}
+		g.UpdatedAt = &now
 		resolved = append(resolved, g)
 		if originalID != uuid.Nil && originalID != g.ID {
 			idMap[originalID] = g.ID
@@ -158,7 +168,7 @@ func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGr
 	return resolved, skipped, idMap, nil
 }
 
-func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole, scraperID *uuid.UUID) ([]dutyModels.ExternalRole, int, error) {
+func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalRole, int, error) {
 	var resolved []dutyModels.ExternalRole
 	var skipped int
 
@@ -187,6 +197,10 @@ func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole
 			}
 		}
 
+		if r.CreatedAt.IsZero() {
+			r.CreatedAt = now
+		}
+		r.UpdatedAt = &now
 		resolved = append(resolved, r)
 		for _, alias := range r.Aliases {
 			ExternalRoleCache.Set(alias, r.ID, cache.DefaultExpiration)
@@ -210,13 +224,12 @@ func upsertExternalEntities(
 	scraperID *uuid.UUID,
 ) (upsertCounts, error) {
 	var counts upsertCounts
-	if scraperID == nil {
+	if scraperID == nil || (len(users) == 0 && len(groups) == 0 && len(roles) == 0 && len(userGroups) == 0) {
 		return counts, nil
 	}
 
 	scraperIDStr := scraperID.String()
 	suffix := sanitizeForTempTable(scraperIDStr)
-	now := time.Now()
 
 	tx := ctx.DB().Begin()
 	if tx.Error != nil {
@@ -235,28 +248,28 @@ func upsertExternalEntities(
 
 	// Create temp tables for non-empty entity slices
 	if len(users) > 0 {
-		if err := createTempAndInsert(tx, tempUsers, "external_users", users, now); err != nil {
+		if err := createTempAndInsert(tx, tempUsers, "external_users", users); err != nil {
 			tx.Rollback()
 			return counts, fmt.Errorf("failed to setup temp users: %w", err)
 		}
 	}
 
 	if len(groups) > 0 {
-		if err := createTempAndInsert(tx, tempGroups, "external_groups", groups, now); err != nil {
+		if err := createTempAndInsert(tx, tempGroups, "external_groups", groups); err != nil {
 			tx.Rollback()
 			return counts, fmt.Errorf("failed to setup temp groups: %w", err)
 		}
 	}
 
 	if len(roles) > 0 {
-		if err := createTempAndInsert(tx, tempRoles, "external_roles", roles, now); err != nil {
+		if err := createTempAndInsert(tx, tempRoles, "external_roles", roles); err != nil {
 			tx.Rollback()
 			return counts, fmt.Errorf("failed to setup temp roles: %w", err)
 		}
 	}
 
 	if len(userGroups) > 0 {
-		if err := createTempAndInsert(tx, tempUserGroups, "external_user_groups", userGroups, now); err != nil {
+		if err := createTempAndInsert(tx, tempUserGroups, "external_user_groups", userGroups); err != nil {
 			tx.Rollback()
 			return counts, fmt.Errorf("failed to setup temp user groups: %w", err)
 		}
@@ -404,7 +417,7 @@ func upsertExternalEntities(
 	return counts, nil
 }
 
-func createTempAndInsert[T any](tx *gorm.DB, tempTable, sourceTable string, items []T, now time.Time) error {
+func createTempAndInsert[T any](tx *gorm.DB, tempTable, sourceTable string, items []T) error {
 	if err := tx.Exec(fmt.Sprintf(`CREATE TEMP TABLE %s (LIKE %s INCLUDING ALL) ON COMMIT DROP`, tempTable, sourceTable)).Error; err != nil {
 		return fmt.Errorf("failed to create temp table %s: %w", tempTable, err)
 	}
