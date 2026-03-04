@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Jeffail/gabs/v2"
@@ -22,6 +23,14 @@ type Replacement struct {
 type Replacements []Replacement
 
 var tokenizer Replacements
+
+var fingerprintIgnorePrefixes = []string{
+	"metadata.managedFields",
+	"metadata.resourceVersion",
+	"metadata.generation",
+	"metadata.annotations.kubectl.kubernetes.io/last-applied-configuration",
+	"metadata.annotations.control-plane.alpha.kubernetes.io/leader",
+}
 
 func init() {
 	tokenizer = NewReplacements(
@@ -78,6 +87,9 @@ func Fingerprint(change *models.ConfigChange) (string, error) {
 		"__external_change_id": lo.FromPtr(change.ExternalChangeID),
 	}
 	for k, v := range flat {
+		if shouldIgnoreFingerprintPath(k) {
+			continue
+		}
 		out[k] = tokenizer.Tokenize(v)
 	}
 
@@ -85,6 +97,15 @@ func Fingerprint(change *models.ConfigChange) (string, error) {
 
 	hash := Hash(out)
 	return hash, nil
+}
+
+func shouldIgnoreFingerprintPath(path string) bool {
+	for _, prefix := range fingerprintIgnorePrefixes {
+		if path == prefix || strings.HasPrefix(path, prefix+".") {
+			return true
+		}
+	}
+	return false
 }
 
 func Hash(data map[string]interface{}) string {
