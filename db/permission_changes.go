@@ -52,6 +52,7 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 		return result, fmt.Errorf("failed to create temp table: %w", err)
 	}
 
+	seen := make(map[string]struct{})
 	for _, ca := range accesses {
 		if ca.ID == "" {
 			hid, err := deterministicAccessID(ca.ConfigAccess)
@@ -61,6 +62,11 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 			}
 			ca.ID = hid
 		}
+
+		if _, ok := seen[ca.ID]; ok {
+			continue
+		}
+		seen[ca.ID] = struct{}{}
 
 		if err := tx.Table(tempTable).Create(&ca.ConfigAccess).Error; err != nil {
 			tx.Rollback()
