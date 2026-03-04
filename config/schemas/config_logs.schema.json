@@ -3,6 +3,44 @@
   "$id": "https://github.com/flanksource/config-db/api/v1/logs",
   "$ref": "#/$defs/Logs",
   "$defs": {
+    "AzureLogAnalyticsConfig": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "clientID": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "clientSecret": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "tenantID": {
+          "type": "string"
+        },
+        "start": {
+          "type": "string"
+        },
+        "end": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "workspaceId",
+        "query"
+      ],
+      "description": "AzureLogAnalyticsConfig contains configuration for Azure Log Analytics log scraping"
+    },
     "BigQueryConfig": {
       "properties": {
         "connection": {
@@ -449,6 +487,10 @@
         "bigQuery": {
           "$ref": "#/$defs/BigQueryConfig",
           "description": "BigQuery specifies the BigQuery configuration for log scraping"
+        },
+        "azureLogAnalytics": {
+          "$ref": "#/$defs/AzureLogAnalyticsConfig",
+          "description": "AzureLogAnalytics specifies the Azure Log Analytics configuration for log scraping"
         },
         "fieldMapping": {
           "$ref": "#/$defs/FieldMappingConfig",

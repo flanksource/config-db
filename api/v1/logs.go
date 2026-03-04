@@ -3,6 +3,7 @@ package v1
 import (
 	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/logs"
+	"github.com/flanksource/duty/logs/azureloganalytics"
 	"github.com/flanksource/duty/logs/bigquery"
 	"github.com/flanksource/duty/logs/gcpcloudlogging"
 	"github.com/flanksource/duty/logs/loki"
@@ -23,6 +24,9 @@ type Logs struct {
 
 	// BigQuery specifies the BigQuery configuration for log scraping
 	BigQuery *BigQueryConfig `json:"bigQuery,omitempty"`
+
+	// AzureLogAnalytics specifies the Azure Log Analytics configuration for log scraping
+	AzureLogAnalytics *AzureLogAnalyticsConfig `json:"azureLogAnalytics,omitempty"`
 
 	// FieldMapping defines how source log fields map to canonical LogLine fields
 	FieldMapping *logs.FieldMappingConfig `json:"fieldMapping,omitempty"`
@@ -50,4 +54,10 @@ type OpenSearchConfig struct {
 type BigQueryConfig struct {
 	connection.GCPConnection `json:",inline"`
 	bigquery.Request         `json:",inline"`
+}
+
+// AzureLogAnalyticsConfig contains configuration for Azure Log Analytics log scraping
+type AzureLogAnalyticsConfig struct {
+	connection.AzureConnection `json:",inline"`
+	azureloganalytics.Request  `json:",inline"`
 }
