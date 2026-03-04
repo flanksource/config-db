@@ -81,7 +81,7 @@ func (Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeResult
 				role := models.ExternalRole{
 					ID:        roleID,
 					Name:      binding.Role,
-					AccountID: config.Project,
+					Tenant: config.Project,
 					ScraperID: ctx.ScrapeConfig().GetPersistedID(),
 					RoleType:  lo.Ternary(strings.HasPrefix(binding.Role, "roles/"), "Global", "Custom"),
 				}
@@ -109,7 +109,7 @@ func (Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeResult
 						ID:        userID,
 						Name:      name,
 						ScraperID: lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()),
-						AccountID: config.Project,
+						Tenant: config.Project,
 						CreatedAt: time.Now(), // We don't have this information
 						UserType:  userType,
 					}

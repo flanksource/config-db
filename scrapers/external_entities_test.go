@@ -189,7 +189,7 @@ var _ = Describe("Stale external entities deletion test", Ordered, func() {
 	It("should create an additional external user directly in DB", func() {
 		staleUser := dutymodels.ExternalUser{
 			Name:      "Stale User",
-			AccountID: "org-456",
+			Tenant: "org-456",
 			UserType:  "human",
 			ScraperID: scraperModel.ID,
 			Aliases:   []string{"stale-user"},

@@ -441,7 +441,7 @@ var _ = Describe("Config access logs upsert", Ordered, func() {
 				externalUser = dutymodels.ExternalUser{
 					ID:        uuid.New(),
 					Name:      "access-log-user",
-					AccountID: "test-account",
+					Tenant: "test-account",
 					UserType:  "user",
 					ScraperID: scraperID,
 					CreatedAt: time.Now(),
@@ -599,7 +599,7 @@ var _ = Describe("Kubernetes RBAC config access e2e test", Ordered, func() {
 		Expect(roles).To(HaveLen(1))
 		Expect(roles[0].Name).To(Equal("pod-reader"))
 		Expect(roles[0].RoleType).To(Equal("ClusterRole"))
-		Expect(roles[0].AccountID).To(Equal("test-cluster"))
+		Expect(roles[0].Tenant).To(Equal("test-cluster"))
 	})
 
 	It("should have saved external users to the database", func() {

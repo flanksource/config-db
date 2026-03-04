@@ -52,7 +52,7 @@ func TestRBACExtractor_ProcessRole(t *testing.T) {
 			role := roles[0]
 			assert.Equal(t, tt.expectedRoleName, role.Name)
 			assert.Equal(t, tt.expectedRoleType, role.RoleType)
-			assert.Equal(t, clusterName, role.AccountID)
+			assert.Equal(t, clusterName, role.Tenant)
 			assert.Equal(t, &scraperID, role.ScraperID)
 			assert.Equal(t, pq.StringArray(tt.expectedAliases), role.Aliases)
 		})
@@ -87,7 +87,7 @@ func TestRBACExtractor_ProcessRoleBinding_ServiceAccount(t *testing.T) {
 	user := users[0]
 	assert.Equal(t, "my-sa", user.Name)
 	assert.Equal(t, "ServiceAccount", user.UserType)
-	assert.Equal(t, clusterName, user.AccountID)
+	assert.Equal(t, clusterName, user.Tenant)
 	assert.Equal(t, scraperID, user.ScraperID)
 	expectedUserAlias := KubernetesAlias(clusterName, "ServiceAccount", "default", "my-sa")
 	assert.Equal(t, pq.StringArray{expectedUserAlias}, user.Aliases)
@@ -173,7 +173,7 @@ func TestRBACExtractor_ProcessRoleBinding_Group(t *testing.T) {
 	group := groups[0]
 	assert.Equal(t, "system:authenticated", group.Name)
 	assert.Equal(t, "Group", group.GroupType)
-	assert.Equal(t, clusterName, group.AccountID)
+	assert.Equal(t, clusterName, group.Tenant)
 	expectedGroupAlias := KubernetesAlias(clusterName, "Group", "", "system:authenticated")
 	assert.Equal(t, pq.StringArray{expectedGroupAlias}, group.Aliases)
 

@@ -128,7 +128,7 @@ func ensureExternalUser(identity *IdentityRef, organization string, users map[st
 		Name:      identity.DisplayName,
 		Email:     &email,
 		Aliases:   pq.StringArray{email, identity.ID},
-		AccountID: organization,
+		Tenant: organization,
 		UserType:  "AzureDevOps",
 	}
 }
