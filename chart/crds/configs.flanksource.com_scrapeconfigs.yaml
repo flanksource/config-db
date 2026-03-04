@@ -9869,6 +9869,125 @@ spec:
               logs:
                 items:
                   properties:
+                    azureLogAnalytics:
+                      description: AzureLogAnalytics specifies the Azure Log Analytics
+                        configuration for log scraping
+                      properties:
+                        clientID:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                helmRef:
+                                  properties:
+                                    key:
+                                      description: Key is a JSONPath expression used
+                                        to fetch the key from the merged JSON.
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                secretKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                serviceAccount:
+                                  description: ServiceAccount specifies the service
+                                    account whose token should be fetched
+                                  type: string
+                              type: object
+                          type: object
+                        clientSecret:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                helmRef:
+                                  properties:
+                                    key:
+                                      description: Key is a JSONPath expression used
+                                        to fetch the key from the merged JSON.
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                secretKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                  required:
+                                  - key
+                                  type: object
+                                serviceAccount:
+                                  description: ServiceAccount specifies the service
+                                    account whose token should be fetched
+                                  type: string
+                              type: object
+                          type: object
+                        connection:
+                          type: string
+                        end:
+                          description: |-
+                            The end time for the query
+                            Supports Datemath
+                          type: string
+                        limit:
+                          description: Limit is the maximum number of lines to return
+                          type: string
+                        query:
+                          description: Query is the KQL (Kusto Query Language) query
+                            to execute.
+                          type: string
+                        start:
+                          description: |-
+                            The start time for the query
+                            SupportsDatemath
+                          type: string
+                        tenantID:
+                          type: string
+                        workspaceID:
+                          description: WorkspaceID is the Azure Log Analytics workspace
+                            ID to query.
+                          type: string
+                      required:
+                      - query
+                      - workspaceID
+                      type: object
                     bigQuery:
                       description: BigQuery specifies the BigQuery configuration for
                         log scraping

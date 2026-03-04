@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/flanksource/duty/logs"
+	"github.com/flanksource/duty/logs/azureloganalytics"
 	"github.com/flanksource/duty/logs/bigquery"
 	"github.com/flanksource/duty/logs/gcpcloudlogging"
 	"github.com/flanksource/duty/logs/loki"
@@ -68,6 +69,16 @@ func (s LogsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					SetError(fmt.Errorf("failed to scrape BigQuery logs: %w", err)))
 			} else {
 				results = append(results, bqResults...)
+			}
+		}
+
+		if config.AzureLogAnalytics != nil {
+			azureResults, err := s.scrapeAzureLogAnalytics(ctx, config)
+			if err != nil {
+				results = append(results, v1.NewScrapeResult(config.BaseScraper).
+					SetError(fmt.Errorf("failed to scrape Azure Log Analytics: %w", err)))
+			} else {
+				results = append(results, azureResults...)
 			}
 		}
 	}
@@ -163,6 +174,26 @@ func (s LogsScraper) scrapeBigQuery(ctx api.ScrapeContext, config v1.Logs) (v1.S
 	response, err := searcher.Search(ctx.DutyContext(), config.BigQuery.Request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search logs in BigQuery: %w", err)
+	}
+
+	var results v1.ScrapeResults
+	results = append(results, v1.ScrapeResult{
+		BaseScraper: config.BaseScraper,
+		Config:      LogResult(*response),
+	})
+
+	return results, nil
+}
+
+func (s LogsScraper) scrapeAzureLogAnalytics(ctx api.ScrapeContext, config v1.Logs) (v1.ScrapeResults, error) {
+	if config.AzureLogAnalytics == nil {
+		return nil, nil
+	}
+
+	searcher := azureloganalytics.New(config.AzureLogAnalytics.AzureConnection, config.FieldMapping)
+	response, err := searcher.Search(ctx.DutyContext(), config.AzureLogAnalytics.Request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search logs in Azure Log Analytics: %w", err)
 	}
 
 	var results v1.ScrapeResults
