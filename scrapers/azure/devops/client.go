@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"net/url"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -73,20 +73,23 @@ func (p Pipeline) GetLabels() map[string]string {
 }
 
 // GetID returns a stable ID for a pipeline, independent of revision.
-// The API URL contains a ?revision=N query parameter that changes on each update,
-// so we prefer the web link (stable browser URL) and strip any query string as a fallback.
+// Only the volatile ?revision=N param is stripped; ?definitionId=N is preserved
+// since it distinguishes pipelines within the same project.
 func (p Pipeline) GetID() string {
+	href := ""
 	if web, ok := p.Links["web"]; ok && web.Href != "" {
-		// Strip query params from web.Href to keep the ID stable
-		if i := strings.IndexByte(web.Href, '?'); i >= 0 {
-			return web.Href[:i]
-		}
-		return web.Href
+		href = web.Href
+	} else {
+		href = p.URL
 	}
-	if i := strings.IndexByte(p.URL, '?'); i >= 0 {
-		return p.URL[:i]
+	u, err := url.Parse(href)
+	if err != nil {
+		return href
 	}
-	return p.URL
+	q := u.Query()
+	q.Del("revision")
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 type Pipelines struct {

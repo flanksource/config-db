@@ -190,12 +190,20 @@ var _ = Describe("defCache", func() {
 })
 
 var _ = Describe("Pipeline.GetID", func() {
-	It("prefers stripped web href when present", func() {
+	It("preserves definitionId from web href", func() {
 		p := Pipeline{
 			URL:   "https://dev.azure.com/myorg/myproject/_apis/pipelines/42?revision=7",
 			Links: map[string]Link{"web": {Href: "https://dev.azure.com/myorg/myproject/_build/definition?definitionId=42"}},
 		}
-		Expect(p.GetID()).To(Equal("https://dev.azure.com/myorg/myproject/_build/definition"))
+		Expect(p.GetID()).To(Equal("https://dev.azure.com/myorg/myproject/_build/definition?definitionId=42"))
+	})
+
+	It("strips revision but preserves definitionId from web href", func() {
+		p := Pipeline{
+			URL:   "https://dev.azure.com/myorg/myproject/_apis/pipelines/42?revision=7",
+			Links: map[string]Link{"web": {Href: "https://dev.azure.com/myorg/myproject/_build/definition?definitionId=42&revision=3"}},
+		}
+		Expect(p.GetID()).To(Equal("https://dev.azure.com/myorg/myproject/_build/definition?definitionId=42"))
 	})
 
 	It("returns clean web href as-is", func() {
@@ -206,7 +214,7 @@ var _ = Describe("Pipeline.GetID", func() {
 		Expect(p.GetID()).To(Equal("https://dev.azure.com/myorg/myproject/_build/definition"))
 	})
 
-	It("strips query string from URL when no web link", func() {
+	It("strips revision from URL when no web link", func() {
 		p := Pipeline{URL: "https://dev.azure.com/myorg/myproject/_apis/pipelines/42?revision=7"}
 		Expect(p.GetID()).To(Equal("https://dev.azure.com/myorg/myproject/_apis/pipelines/42"))
 	})
@@ -215,6 +223,16 @@ var _ = Describe("Pipeline.GetID", func() {
 		p1 := Pipeline{URL: "https://dev.azure.com/myorg/myproject/_apis/pipelines/42?revision=7"}
 		p2 := Pipeline{URL: "https://dev.azure.com/myorg/myproject/_apis/pipelines/42?revision=8"}
 		Expect(p1.GetID()).To(Equal(p2.GetID()))
+	})
+
+	It("produces different IDs for different definitionIds", func() {
+		p1 := Pipeline{
+			Links: map[string]Link{"web": {Href: "https://dev.azure.com/myorg/myproject/_build/definition?definitionId=42"}},
+		}
+		p2 := Pipeline{
+			Links: map[string]Link{"web": {Href: "https://dev.azure.com/myorg/myproject/_build/definition?definitionId=99"}},
+		}
+		Expect(p1.GetID()).ToNot(Equal(p2.GetID()))
 	})
 })
 
