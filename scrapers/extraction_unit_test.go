@@ -123,8 +123,9 @@ var _ = Describe("extractConfigChangesFromConfig", func() {
 					{"id": "access-003", "external_config_id": map[string]any{"config_type": "Database", "external_id": "db-123"}, "external_user_aliases": []string{"admin"}},
 				},
 			},
-			expectedCount: 1,
-			expectedIDs:   []string{"access-003"},
+			expectedCount:       1,
+			expectedIDs:         []string{"access-003"},
+			expectedUserAliases: [][]string{{"admin"}},
 		}),
 	)
 
