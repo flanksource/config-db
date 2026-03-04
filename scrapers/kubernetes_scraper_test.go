@@ -51,9 +51,15 @@ var _ = Describe("Dedup test", Ordered, func() {
 
 	BeforeAll(func() {
 		scrapeConfig = getConfigSpec("kubernetes")
+		scrapeConfig.Spec.Kubernetes[0].ClusterName = "dedup-test-cluster"
 		scrapeConfig.Spec.Kubernetes[0].Kubeconfig = &types.EnvVar{
 			ValueStatic: kubeConfigPath,
 		}
+
+		// Clear stale scraper_id from previous runs to avoid cluster name uniqueness conflict
+		DefaultContext.DB().Model(&models.ConfigItem{}).
+			Where("name = ? AND type = ?", "dedup-test-cluster", "Kubernetes::Cluster").
+			Update("scraper_id", nil)
 
 		scModel, err := scrapeConfig.ToModel()
 		Expect(err).NotTo(HaveOccurred(), "failed to convert scrape config to model")
@@ -102,8 +108,9 @@ var _ = Describe("Dedup test", Ordered, func() {
 			})
 
 			It(fmt.Sprintf("[%d] should have the updated the db", i), func() {
+				scraperID := string(scrapeConfig.GetUID())
 				{
-					err := DefaultContext.DB().Where("name = ?", configA.Name).First(&cmA).Error
+					err := DefaultContext.DB().Where("name = ? AND scraper_id = ?", configA.Name, scraperID).First(&cmA).Error
 					Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
 
 					var configMap apiv1.ConfigMap
@@ -113,7 +120,7 @@ var _ = Describe("Dedup test", Ordered, func() {
 				}
 
 				{
-					err := DefaultContext.DB().Where("name = ?", configB.Name).First(&cmB).Error
+					err := DefaultContext.DB().Where("name = ? AND scraper_id = ?", configB.Name, scraperID).First(&cmB).Error
 					Expect(err).NotTo(HaveOccurred(), "failed to find configmap")
 
 					var configMap apiv1.ConfigMap
