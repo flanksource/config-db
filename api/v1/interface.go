@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"regexp"
 	"strings"
 	"time"
@@ -999,65 +1000,139 @@ func (s ScrapeResult) Debug() api.Text {
 	return t
 }
 
-func (s ScrapeResult) Columns() []api.ColumnDef {
-	return []api.ColumnDef{
-		clicky.Column("ID").Build(),
-		clicky.Column("Name").Build(),
-		clicky.Column("Type").Build(),
-		clicky.Column("Health").Build(),
-		clicky.Column("Details").Build(),
-		clicky.Column("Error").Build(),
+// ConfigTable renders scrape results as an HTML table with expandable rows.
+// +kubebuilder:object:generate=false
+type ConfigTable []ScrapeResult
+
+func (ct ConfigTable) HTML() string {
+	if len(ct) == 0 {
+		return `<p class="text-gray-500 text-center py-4">No configs</p>`
 	}
 
-}
-func (s ScrapeResult) Row() map[string]any {
-	row := make(map[string]any)
-	row["ID"] = clicky.Text(s.ID)
-	row["Name"] = clicky.Text(s.Name)
-	row["Type"] = clicky.Text(s.Type)
-	row["Health"] = clicky.Text(string(s.Health))
-	row["Details"] = s.configDetails()
-	if s.Error != nil {
-		row["Error"] = clicky.Text(s.Error.Error())
-	} else {
-		row["Error"] = clicky.Text("")
-	}
-	return row
-}
+	var b strings.Builder
 
-func (s ScrapeResult) configDetails() api.Collapsed {
-	if s.Config == nil {
-		return clicky.Collapsed("empty", clicky.Text(""))
-	}
+	// When rendered inside the summary section's 2-column grid, this script
+	// makes the configs span full width below the counts instead of beside them,
+	// and hides the redundant <dt> label since we render our own header.
+	b.WriteString(`<script>` +
+		`var _el=document.currentScript.parentElement.parentElement;` +
+		`_el.style.gridColumn='1/-1';` +
+		`var _dt=_el.querySelector('dt');if(_dt)_dt.style.display='none';` +
+		`</script>`)
+	b.WriteString(`<h3 class="text-lg font-semibold text-gray-900 mb-3">Configs</h3>`)
+	b.WriteString(`<table class="w-full text-sm border-collapse">`)
 
-	var data any
-	switch v := s.Config.(type) {
-	case string:
-		if json.Unmarshal([]byte(v), &data) != nil {
-			data = v
+	// Header row
+	b.WriteString(`<thead><tr class="bg-gray-100 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">`)
+	b.WriteString(`<th class="px-3 py-2 w-8"></th>`)
+	b.WriteString(`<th class="px-3 py-2">Name</th>`)
+	b.WriteString(`<th class="px-3 py-2">Type</th>`)
+	b.WriteString(`<th class="px-3 py-2">Health</th>`)
+	b.WriteString(`<th class="px-3 py-2">Error</th>`)
+	b.WriteString(`</tr></thead>`)
+
+	// Data rows with Alpine.js expand/collapse.
+	// Each row pair (data + detail) shares an Alpine.js scope via <tbody>.
+	for _, s := range ct {
+		name := html.EscapeString(s.Name)
+		if name == "" {
+			name = html.EscapeString(s.ID)
 		}
-	default:
-		data = v
-	}
+		typ := html.EscapeString(s.Type)
+		hlth := html.EscapeString(string(s.Health))
+		healthClass := "text-gray-400"
+		switch s.Health {
+		case "healthy":
+			healthClass = "text-green-600"
+		case "unhealthy":
+			healthClass = "text-red-600"
+		case "warning":
+			healthClass = "text-yellow-600"
+		}
+		errText := ""
+		if s.Error != nil {
+			errText = html.EscapeString(s.Error.Error())
+			if len(errText) > 100 {
+				errText = errText[:100] + "…"
+			}
+		}
 
-	b, err := yaml.Marshal(data)
-	if err != nil {
-		b = []byte(fmt.Sprintf("%v", s.Config))
-	}
-	yamlStr := string(b)
+		b.WriteString(`<tbody x-data="{ open: false }">`)
+		b.WriteString(`<tr @click="open = !open" class="cursor-pointer hover:bg-gray-50 border-b border-gray-100">`)
 
-	content := clicky.Text("")
+		// Chevron cell
+		b.WriteString(
+			`<td class="px-3 py-2 text-gray-400">` +
+				`<iconify-icon x-show="!open" icon="codicon:chevron-right"></iconify-icon>` +
+				`<iconify-icon x-show="open" icon="codicon:chevron-down"></iconify-icon>` +
+				`</td>`)
+		fmt.Fprintf(&b, `<td class="px-3 py-2 font-medium">%s</td>`, name)
+		fmt.Fprintf(&b, `<td class="px-3 py-2 text-gray-500">%s</td>`, typ)
+		fmt.Fprintf(&b, `<td class="px-3 py-2 %s">%s</td>`, healthClass, hlth)
+		fmt.Fprintf(&b, `<td class="px-3 py-2 text-red-500 text-xs">%s</td>`, errText)
+		b.WriteString(`</tr>`)
+
+		// Expandable detail row
+		details := ct.buildDetails(s)
+		fmt.Fprintf(&b,
+			`<tr x-show="open">`+
+				`<td></td><td colspan="4" class="px-3 py-3 bg-gray-50">%s</td>`+
+				`</tr>`, details)
+		b.WriteString(`</tbody>`)
+	}
+	b.WriteString(`</table>`)
+	return b.String()
+}
+
+func (ct ConfigTable) buildDetails(s ScrapeResult) string {
+	var b strings.Builder
+	if s.ID != "" {
+		fmt.Fprintf(&b, `<div class="mb-1"><span class="text-gray-500 font-medium">ID: </span><span>%s</span></div>`, html.EscapeString(s.ID))
+	}
+	if s.Error != nil {
+		fmt.Fprintf(&b, `<div class="mb-1"><span class="text-red-500 font-medium">Error: </span><span>%s</span></div>`, html.EscapeString(s.Error.Error()))
+	}
 	if len(s.Labels) > 0 {
-		content = content.Append("Labels: ", "text-gray-500 font-medium").Append(clicky.Map(s.Labels, "badge")).NewLine()
+		t := clicky.Text("").Append("Labels: ", "text-gray-500 font-medium").Append(clicky.Map(s.Labels, "badge"))
+		fmt.Fprintf(&b, `<div class="mb-1">%s</div>`, t.HTML())
 	}
 	if len(s.Tags) > 0 {
-		content = content.Append("Tags: ", "text-gray-500 font-medium").Append(clicky.Map(s.Tags, "badge")).NewLine()
+		t := clicky.Text("").Append("Tags: ", "text-gray-500 font-medium").Append(clicky.Map(s.Tags, "badge"))
+		fmt.Fprintf(&b, `<div class="mb-1">%s</div>`, t.HTML())
 	}
-	content = content.Append(clicky.CodeBlock("yaml", yamlStr), "min-w-[600px] block")
-
-	label := fmt.Sprintf("Config (%d bytes)", len(yamlStr))
-	return clicky.Collapsed(label, content)
+	if s.Config != nil {
+		var data any
+		switch v := s.Config.(type) {
+		case string:
+			if json.Unmarshal([]byte(v), &data) != nil {
+				data = v
+			}
+		default:
+			data = v
+		}
+		yamlBytes, err := yaml.Marshal(data)
+		if err != nil {
+			yamlBytes = []byte(fmt.Sprintf("%v", s.Config))
+		}
+		b.WriteString(clicky.CodeBlock("yaml", string(yamlBytes)).HTML())
+	}
+	return b.String()
 }
+
+func (ct ConfigTable) String() string {
+	var lines []string
+	for _, s := range ct {
+		errStr := ""
+		if s.Error != nil {
+			errStr = s.Error.Error()
+		}
+		lines = append(lines, fmt.Sprintf("%-30s %-25s %-10s %s", s.Name, s.Type, string(s.Health), errStr))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (ct ConfigTable) ANSI() string    { return ct.String() }
+func (ct ConfigTable) Markdown() string { return ct.String() }
 
 // CountsGrid renders scrape result counts as a 2-column grid.
 // +kubebuilder:object:generate=false
