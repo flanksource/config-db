@@ -398,9 +398,7 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 				targetExternalID := KubernetesAlias(r.clusterName, target.kind, target.namespace, target.name)
 
 				access := v1.ExternalConfigAccess{
-					ConfigAccess: models.ConfigAccess{
-						ID: generateRBACID(subjectAlias, targetExternalID, roleAlias).String(),
-					},
+					ID: generateRBACID(subjectAlias, targetExternalID, roleAlias).String(),
 					ConfigExternalID: v1.ExternalID{
 						ExternalID: targetExternalID,
 						ConfigType: GetConfigTypeForKind(target.kind),

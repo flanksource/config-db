@@ -1,0 +1,17 @@
+input:
+  access_logs:
+    - config_type: Bucket
+      config_id: "s3://my-bucket"
+      user: alice
+    - config_type: Bucket
+      config_id: "s3://my-bucket"
+      user: [bob, "bob@example.com"]
+pre_populate:
+  configs:
+    "Bucket/s3://my-bucket": "00000000-0000-0000-0000-aaaaaaaaaaaa"
+assertions:
+  - size(access_logs) == 2
+  - access_logs[0].external_user_aliases == ['alice']
+  - access_logs[1].external_user_aliases == ['bob', 'bob@example.com']
+  - summary.access_logs.scraped == 2
+  - summary.access_logs.skipped == 0

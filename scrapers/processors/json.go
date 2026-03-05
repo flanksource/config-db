@@ -606,7 +606,7 @@ func hasExternalEntities(config any) bool {
 	if !ok {
 		return false
 	}
-	for _, key := range []string{"external_users", "external_groups", "external_roles", "external_user_groups"} {
+	for _, key := range []string{"external_users", "external_groups", "external_roles", "external_user_groups", "users", "roles", "groups", "user_groups", "access_logs", "config_access", "access"} {
 		val, ok := m[key]
 		if !ok {
 			continue
@@ -640,7 +640,7 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 	}
 
 	if input.ID == "" {
-		if len(input.Changes) == 0 && !hasExternalEntities(input.Config) {
+		if input.Config != nil && len(input.Changes) == 0 && !hasExternalEntities(input.Config) {
 			return input, fmt.Errorf("no id defined for: %s", input.Debug().ANSI())
 		}
 		if len(lo.Filter(input.Changes, func(c v1.ChangeResult, _ int) bool {

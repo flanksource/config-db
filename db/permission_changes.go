@@ -56,7 +56,7 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 	seen := make(map[string]struct{})
 	for _, ca := range accesses {
 		if ca.ID == "" {
-			hid, err := deterministicAccessID(ca.ConfigAccess)
+			hid, err := deterministicAccessID(ca.ToConfigAccess())
 			if err != nil {
 				tx.Rollback()
 				return result, fmt.Errorf("failed to generate config access id: %w", err)
@@ -69,7 +69,8 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 		}
 		seen[ca.ID] = struct{}{}
 
-		if err := tx.Table(tempTable).Create(&ca.ConfigAccess).Error; err != nil {
+		configAccess := ca.ToConfigAccess()
+		if err := tx.Table(tempTable).Create(&configAccess).Error; err != nil {
 			tx.Rollback()
 			return result, fmt.Errorf("failed to insert into temp table: %w", err)
 		}
