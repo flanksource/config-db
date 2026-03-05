@@ -316,25 +316,30 @@ Any other string value (e.g. `"Updated"`, `"ScaleUp"`) is stored as-is without s
 
 ## 5. ExternalConfigAccess
 
-**File**: `api/v1/interface.go:1054-1060`
-
-Embeds `models.ConfigAccess` plus additional fields for external resolution.
+**File**: `api/v1/interface.go:1285-1308`
 
 | Field | Type | Required | JSON Tag | Description |
 |-------|------|----------|----------|-------------|
-| `ConfigID` | `uuid.UUID` | **Conditional**\* | _(embedded)_ | Direct config UUID. |
+| `ID` | `string` | Optional | `id` | Unique identifier for the access entry. |
+| `ConfigID` | `uuid.UUID` | **Conditional**\* | `config_id` | Direct config UUID. |
 | `ConfigExternalID` | `ExternalID` | **Conditional**\* | `external_config_id` | External config reference (resolved to `ConfigID` during ResolveAccess). |
-| `ExternalUserID` | `*uuid.UUID` | Optional | _(embedded)_ | Resolved user UUID. |
-| `ExternalGroupID` | `*uuid.UUID` | Optional | _(embedded)_ | Resolved group UUID. |
-| `ExternalRoleID` | `*uuid.UUID` | Optional | _(embedded)_ | Resolved role UUID. |
+| `ExternalUserID` | `*uuid.UUID` | Optional | `external_user_id` | Resolved user UUID. |
+| `ExternalGroupID` | `*uuid.UUID` | Optional | `external_group_id` | Resolved group UUID. |
+| `ExternalRoleID` | `*uuid.UUID` | Optional | `external_role_id` | Resolved role UUID. |
 | `ExternalUserAliases` | `[]string` | Optional | `external_user_aliases` | User aliases; expanded from `user` shorthand. |
 | `ExternalRoleAliases` | `[]string` | Optional | `external_role_aliases` | Role aliases; expanded from `role` shorthand. |
 | `ExternalGroupAliases` | `[]string` | Optional | `external_group_aliases` | Group aliases; expanded from `group` shorthand. |
-| `ScraperID` | `*uuid.UUID` | **Conditional**\*\* | _(embedded)_ | Defaults to requester's scraper ID if nil. |
-| `ApplicationID` | `*uuid.UUID` | **Conditional**\*\* | _(embedded)_ | Application context. |
-| `Source` | `*string` | **Conditional**\*\* | _(embedded)_ | Source identifier. |
+| `ScraperID` | `*uuid.UUID` | **Conditional**\*\* | `scraper_id` | Defaults to requester's scraper ID if nil. |
+| `ApplicationID` | `*uuid.UUID` | **Conditional**\*\* | `application_id` | Application context. |
+| `Source` | `*string` | **Conditional**\*\* | `source` | Source identifier. |
+| `CreatedAt` | `time.Time` | Optional | `created_at` | Creation timestamp. |
+| `DeletedAt` | `*time.Time` | Optional | `deleted_at` | Deletion timestamp. |
+| `DeletedBy` | `*uuid.UUID` | Optional | `deleted_by` | Who deleted the entry. |
+| `CreatedBy` | `*uuid.UUID` | Optional | `created_by` | Who created the entry. |
+| `LastReviewedAt` | `*time.Time` | Optional | `last_reviewed_at` | Last review timestamp. |
+| `LastReviewedBy` | `*uuid.UUID` | Optional | `last_reviewed_by` | Who last reviewed. |
 
-\* **Validation rule:** Must have EITHER `ConfigID != uuid.Nil` OR `ConfigExternalID.ExternalID != ""`. Items with neither are **dropped**.
+\* **Validation rule:** Must have EITHER `ConfigID != uuid.Nil` OR `ConfigExternalID.ExternalID != ""`. Items with neither are **dropped**. Additionally, must have at least one principal (user, group, or role via ID or aliases); items without are **dropped** with warning "config_access missing user/group reference".
 
 \*\* **Resolution rule:** At least one of `ScraperID`, `ApplicationID`, or `Source` must be non-nil after resolution. `ScraperID` defaults to the requester's scraper ID.
 
@@ -359,7 +364,7 @@ Shorthand is only applied when the corresponding struct field is empty/nil.
 
 ## 6. ExternalConfigAccessLog
 
-**File**: `api/v1/interface.go:1048-1051`
+**File**: `api/v1/interface.go:1252-1256`
 
 Embeds `models.ConfigAccessLog` plus external resolution fields.
 
@@ -367,10 +372,18 @@ Embeds `models.ConfigAccessLog` plus external resolution fields.
 |-------|------|----------|----------|-------------|
 | `ConfigID` | `uuid.UUID` | **Conditional**\* | _(embedded)_ | Direct config UUID. |
 | `ConfigExternalID` | `ExternalID` | **Conditional**\* | `external_config_id,omitempty` | External config reference. |
+| `ExternalUserAliases` | `[]string` | Optional | `external_user_aliases,omitempty` | User aliases; expanded from `user` shorthand. |
 
-\* **Validation rule:** Must have EITHER `ConfigID != uuid.Nil` OR `ConfigExternalID.ExternalID != ""`. Items with neither are **dropped**.
+\* **Validation rule:** Must have EITHER `ConfigID != uuid.Nil` OR `ConfigExternalID.ExternalID != ""`. Items with neither are **dropped**. Additionally, must have either `ExternalUserID` or `ExternalUserAliases`; items without are **dropped** with warning "access_log missing user reference".
 
-**Shorthand expansion** (`expandAccessLogShorthand`): Same config ref resolution as config_access — `config_id`/`uuid` parsed as UUID or external ID.
+**Shorthand expansion** (`expandAccessLogShorthand`):
+
+| YAML Key | Expanded To | Type |
+|----------|-------------|------|
+| `user` | `ExternalUserAliases` | `string` or `[]string` |
+| `config_id`/`uuid` | `ConfigID` (if valid UUID) or `ConfigExternalID` | `string` |
+| `external_id` | `ConfigExternalID.ExternalID` | `string` |
+| `config_type`/`type` | `ConfigExternalID.ConfigType` | `string` |
 
 ---
 
@@ -473,6 +486,7 @@ analysis:
 access_logs:
   - config_id: "arn:aws:iam::123:role/Admin"    # non-UUID → auto-moved to external_id
     config_type: "AWS::IAM::Role"
+    user: "john@example.com"                    # shorthand → ExternalUserAliases: ["john@example.com"]
     # ... plus models.ConfigAccessLog fields
 
 # Access control entries (keys: "config_access" OR "access")
@@ -519,7 +533,9 @@ Items that fail validation are **silently dropped** with a warning added to the 
 | `changes` | `ChangeType != ""` | `"change missing change_type"` |
 | `analysis` | `ExternalID != ""` OR `len(ExternalConfigs) > 0` | `"analysis missing external_id"` |
 | `config_access` | `ConfigID != uuid.Nil` OR `ConfigExternalID.ExternalID != ""` | `"config_access missing config reference"` |
+| `config_access` | `HasPrincipal()` (at least one user/group/role ID or alias) | `"config_access missing user/group reference"` |
 | `access_logs` | `ConfigID != uuid.Nil` OR `ConfigExternalID.ExternalID != ""` | `"access_log missing config reference"` |
+| `access_logs` | `ExternalUserID != uuid.Nil` OR `len(ExternalUserAliases) > 0` | `"access_log missing user reference"` |
 
 **File**: `scrapers/extract/extract.go:577-621`
 

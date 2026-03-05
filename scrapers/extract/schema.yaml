@@ -383,16 +383,22 @@ $defs:
         description: Label filters for lookup.
 
   # ── ConfigAccess ───────────────────────────────────────────────────
-  # Source: api/v1/interface.go:1054-1060, models/config_access.go:170-188
+  # Source: api/v1/interface.go:1285-1308
   ConfigAccess:
     type: object
     description: >
       Access control entry linking a config to a user, group, or role.
       Requires a config reference (config_id or external_id + config_type),
-      at least one subject (user, role, or group), and a source identity
+      at least one principal (user, role, or group via ID or alias), and a source identity
       (scraper_id, application_id, or source).
-      Items missing a config reference are dropped.
+      Items missing a config reference are dropped with warning "config_access missing config reference".
+      Items missing a principal are dropped with warning "config_access missing user/group reference".
     properties:
+      id:
+        type: string
+        description: Unique identifier for the access entry.
+
+      # Config reference fields
       config_id:
         type: string
         description: >
@@ -479,6 +485,13 @@ $defs:
         format: uuid
         description: Resolved role UUID. Usually set by alias resolution, not directly.
 
+      # Structured config reference (alternative to shorthand config_id/uuid/external_id)
+      external_config_id:
+        $ref: "#/$defs/ExternalID"
+        description: >
+          Structured external config reference. Resolved to ConfigID during ResolveAccess.
+          Alternative to using the shorthand config_id/uuid/external_id/config_type fields.
+
       # Source identity
       scraper_id:
         type: string
@@ -492,8 +505,34 @@ $defs:
         type: string
         description: Source identifier string.
 
+      # Audit fields
+      created_at:
+        type: string
+        format: date-time
+        description: Creation timestamp. ISO 8601 format.
+      deleted_at:
+        type: string
+        format: date-time
+        description: Deletion timestamp.
+      deleted_by:
+        type: string
+        format: uuid
+        description: UUID of who deleted the entry.
+      created_by:
+        type: string
+        format: uuid
+        description: UUID of who created the entry.
+      last_reviewed_at:
+        type: string
+        format: date-time
+        description: Last review timestamp.
+      last_reviewed_by:
+        type: string
+        format: uuid
+        description: UUID of who last reviewed.
+
   # ── ConfigAccessLog ────────────────────────────────────────────────
-  # Source: api/v1/interface.go:1048-1051, models/config_access.go:220-228
+  # Source: api/v1/interface.go:1252-1256
   ConfigAccessLog:
     type: object
     description: >
@@ -506,6 +545,13 @@ $defs:
         - uuid: alternative key for config_id
       Items missing both ConfigID and external_id after processing are dropped
       with warning "access_log missing config reference".
+
+      User reference (required, one of):
+        - external_user_id: direct UUID
+        - user: shorthand for external_user_aliases (string or array)
+        - external_user_aliases: array of alias strings
+      Items missing a user reference are dropped
+      with warning "access_log missing user reference".
     properties:
       config_id:
         type: string
@@ -529,10 +575,36 @@ $defs:
         type: string
         description: Alternative key for config_type.
 
+      # User reference fields
       external_user_id:
         type: string
         format: uuid
         description: UUID of the user who accessed the config.
+      user:
+        description: >
+          Shorthand for external_user_aliases. Accepts a single string or array of strings.
+          Expanded only when external_user_aliases is empty.
+          During resolution, aliases are looked up; if no match, a new ExternalUser is auto-created.
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+      external_user_aliases:
+        type: array
+        items:
+          type: string
+        description: >
+          User aliases. Populated from "user" shorthand if empty.
+          Used to resolve to ExternalUserID during ResolveAccess.
+
+      # Structured config reference (alternative to shorthand config_id/uuid/external_id)
+      external_config_id:
+        $ref: "#/$defs/ExternalID"
+        description: >
+          Structured external config reference. Alternative to using the
+          shorthand config_id/uuid/external_id/config_type fields.
+
       scraper_id:
         type: string
         format: uuid
