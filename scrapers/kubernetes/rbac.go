@@ -149,6 +149,7 @@ func fetchCRDResourceKinds(ctx api.ScrapeContext, clusterName string) map[string
 
 func newRBACExtractor(ctx api.ScrapeContext, clusterName string, scraperID *uuid.UUID) *rbacExtractor {
 	if scraperID == nil {
+		ctx.Warnf("Skipping RBAC extraction since scraperID is nil")
 		return nil
 	}
 

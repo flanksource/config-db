@@ -84,7 +84,7 @@ func configDebugYAML(s ScrapeResult) api.Text {
 	t := clicky.Text("")
 
 	// Header line: always visible
-	header := fmt.Sprintf("ID=%s|Name=%s|Type=%s", s.ID, s.Name, s.Type)
+	header := fmt.Sprintf("ID=%s Name=%s Type=%s", s.ID, s.Name, s.Type)
 
 	// Build collapsible details
 	details := clicky.Text("")
@@ -191,36 +191,139 @@ func externalEntitiesSection(r FullScrapeResults) api.Text {
 	if len(r.ExternalUsers) > 0 {
 		t = t.Append(fmt.Sprintf("  Users: %d", len(r.ExternalUsers))).NewLine()
 		for _, u := range r.ExternalUsers {
-			t = t.Append(fmt.Sprintf("    - %s (%s)", u.Name, u.Tenant), "text-muted").NewLine()
+			detail := fmt.Sprintf("    - %s", u.Name)
+			if u.Tenant != "" {
+				detail += fmt.Sprintf(" (%s)", u.Tenant)
+			}
+			if u.UserType != "" {
+				detail += fmt.Sprintf(" [%s]", u.UserType)
+			}
+			if u.Email != nil && *u.Email != "" {
+				detail += fmt.Sprintf(" <%s>", *u.Email)
+			}
+			if len(u.Aliases) > 0 {
+				detail += fmt.Sprintf(" aliases=%s", strings.Join(u.Aliases, ","))
+			}
+			t = t.Append(detail, "text-muted").NewLine()
 		}
 	}
 
 	if len(r.ExternalGroups) > 0 {
 		t = t.Append(fmt.Sprintf("  Groups: %d", len(r.ExternalGroups))).NewLine()
 		for _, g := range r.ExternalGroups {
-			t = t.Append(fmt.Sprintf("    - %s (%s)", g.Name, g.Tenant), "text-muted").NewLine()
+			detail := fmt.Sprintf("    - %s", g.Name)
+			if g.Tenant != "" {
+				detail += fmt.Sprintf(" (%s)", g.Tenant)
+			}
+			if g.GroupType != "" {
+				detail += fmt.Sprintf(" [%s]", g.GroupType)
+			}
+			if len(g.Aliases) > 0 {
+				detail += fmt.Sprintf(" aliases=%s", strings.Join(g.Aliases, ","))
+			}
+			t = t.Append(detail, "text-muted").NewLine()
 		}
 	}
 
 	if len(r.ExternalRoles) > 0 {
 		t = t.Append(fmt.Sprintf("  Roles: %d", len(r.ExternalRoles))).NewLine()
 		for _, role := range r.ExternalRoles {
-			t = t.Append(fmt.Sprintf("    - %s (%s)", role.Name, role.Tenant), "text-muted").NewLine()
+			detail := fmt.Sprintf("    - %s", role.Name)
+			if role.Tenant != "" {
+				detail += fmt.Sprintf(" (%s)", role.Tenant)
+			}
+			if role.RoleType != "" {
+				detail += fmt.Sprintf(" [%s]", role.RoleType)
+			}
+			if role.Description != "" {
+				detail += fmt.Sprintf(" - %s", role.Description)
+			}
+			if len(role.Aliases) > 0 {
+				detail += fmt.Sprintf(" aliases=%s", strings.Join(role.Aliases, ","))
+			}
+			t = t.Append(detail, "text-muted").NewLine()
 		}
 	}
 
 	if len(r.ExternalUserGroups) > 0 {
 		t = t.Append(fmt.Sprintf("  User-Group Mappings: %d", len(r.ExternalUserGroups))).NewLine()
+		for _, ug := range r.ExternalUserGroups {
+			t = t.Append(fmt.Sprintf("    - user=%s group=%s", ug.ExternalUserID, ug.ExternalGroupID), "text-muted").NewLine()
+		}
 	}
 
 	if len(r.ConfigAccess) > 0 {
 		t = t.Append(fmt.Sprintf("  Config Access: %d", len(r.ConfigAccess))).NewLine()
+		t = t.Add(configAccessByEntity(r.ConfigAccess))
 	}
 
 	if len(r.ConfigAccessLogs) > 0 {
 		t = t.Append(fmt.Sprintf("  Access Logs: %d", len(r.ConfigAccessLogs))).NewLine()
+		for _, al := range r.ConfigAccessLogs {
+			detail := fmt.Sprintf("    - config=%s user=%s", al.ConfigExternalID, al.ExternalUserID)
+			if al.Count != nil {
+				detail += fmt.Sprintf(" count=%d", *al.Count)
+			}
+			if al.MFA {
+				detail += " mfa=true"
+			}
+			t = t.Append(detail, "text-muted").NewLine()
+		}
 	}
 
 	t = t.NewLine()
+	return t
+}
+
+// configAccessByEntity groups ConfigAccess entries by user/role/group and renders
+// each entity as a collapsible section containing its config entries.
+func configAccessByEntity(entries []ExternalConfigAccess) api.Text {
+	t := clicky.Text("")
+
+	// Group entries by entity key (type:id or type:aliases)
+	type entityKey struct {
+		kind  string // "user", "role", "group"
+		label string
+	}
+	groups := make(map[entityKey][]ExternalConfigAccess)
+	var order []entityKey
+
+	for _, ca := range entries {
+		var key entityKey
+		switch {
+		case ca.ExternalUserID != nil:
+			key = entityKey{"user", ca.ExternalUserID.String()}
+		case len(ca.ExternalUserAliases) > 0:
+			key = entityKey{"user", strings.Join(ca.ExternalUserAliases, ",")}
+		case ca.ExternalRoleID != nil:
+			key = entityKey{"role", ca.ExternalRoleID.String()}
+		case len(ca.ExternalRoleAliases) > 0:
+			key = entityKey{"role", strings.Join(ca.ExternalRoleAliases, ",")}
+		case ca.ExternalGroupID != nil:
+			key = entityKey{"group", ca.ExternalGroupID.String()}
+		case len(ca.ExternalGroupAliases) > 0:
+			key = entityKey{"group", strings.Join(ca.ExternalGroupAliases, ",")}
+		default:
+			key = entityKey{"unknown", ca.ID}
+		}
+
+		if _, seen := groups[key]; !seen {
+			order = append(order, key)
+		}
+		groups[key] = append(groups[key], ca)
+	}
+
+	for _, key := range order {
+		configs := groups[key]
+		header := fmt.Sprintf("    %s:%s (%d configs)", key.kind, key.label, len(configs))
+
+		details := clicky.Text("")
+		for _, ca := range configs {
+			details = details.Append(fmt.Sprintf("      - %s", ca.ConfigExternalID), "text-muted").NewLine()
+		}
+
+		t = t.Add(clicky.Collapsed(header, details)).NewLine()
+	}
+
 	return t
 }
