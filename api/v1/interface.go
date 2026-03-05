@@ -10,8 +10,9 @@ import (
 
 	"github.com/flanksource/clicky"
 	"github.com/flanksource/clicky/api"
-	"gopkg.in/yaml.v3"
 	"github.com/flanksource/commons/collections/set"
+	"github.com/flanksource/commons/har"
+	"gopkg.in/yaml.v3"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
@@ -1058,13 +1059,43 @@ func (s ScrapeResult) configDetails() api.Collapsed {
 	return clicky.Collapsed(label, content)
 }
 
-// BuildCountsSummary renders each count on its own line for the HTML summary section.
-func BuildCountsSummary(all FullScrapeResults) api.Text {
-	type entry struct {
-		label string
-		count int
+// CountsGrid renders scrape result counts as a 2-column grid.
+// +kubebuilder:object:generate=false
+type CountsGrid []countEntry
+
+type countEntry struct {
+	label string
+	count int
+}
+
+func (g CountsGrid) HTML() string {
+	var b strings.Builder
+	b.WriteString(`<div class="grid grid-cols-2 gap-x-8 gap-y-2">`)
+	for _, e := range g {
+		fmt.Fprintf(&b,
+			`<div class="flex justify-between px-3 py-1 bg-gray-50 rounded">`+
+				`<span class="text-sm font-medium text-gray-500">%s</span>`+
+				`<span class="text-sm text-gray-900">%d</span>`+
+				`</div>`, e.label, e.count)
 	}
-	entries := []entry{
+	b.WriteString(`</div>`)
+	return b.String()
+}
+
+func (g CountsGrid) String() string {
+	var parts []string
+	for _, e := range g {
+		parts = append(parts, fmt.Sprintf("%s: %d", e.label, e.count))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func (g CountsGrid) ANSI() string    { return g.String() }
+func (g CountsGrid) Markdown() string { return g.String() }
+
+// BuildCounts returns scrape result counts as a 2-column grid.
+func BuildCounts(all FullScrapeResults) CountsGrid {
+	return CountsGrid{
 		{"Configs", len(all.Configs)},
 		{"Analysis", len(all.Analysis)},
 		{"Changes", len(all.Changes)},
@@ -1076,67 +1107,120 @@ func BuildCountsSummary(all FullScrapeResults) api.Text {
 		{"Config Access", len(all.ConfigAccess)},
 		{"Config Access Logs", len(all.ConfigAccessLogs)},
 	}
-
-	t := clicky.Text("")
-	for i, e := range entries {
-		if i > 0 {
-			t = t.NewLine()
-		}
-		t = t.Append(e.label+": ", "text-gray-500 font-medium").Append(fmt.Sprintf("%d", e.count))
-	}
-	return t
 }
 
 var ansiEscapeRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-// BuildLogOutput converts raw log text into a collapsible, color-coded log display.
-func BuildLogOutput(rawLogs string) api.Textable {
+// LogLine is a single log entry that renders as a table row with colored level prefix.
+// +kubebuilder:object:generate=false
+type LogLine struct {
+	text api.Text
+}
+
+func (l LogLine) Columns() []api.ColumnDef {
+	return []api.ColumnDef{
+		clicky.Column("Line").Build(),
+	}
+}
+
+func (l LogLine) Row() map[string]any {
+	return map[string]any{"Line": l.text}
+}
+
+// BuildLogLines parses raw log text into LogLine rows for table rendering.
+func BuildLogLines(rawLogs string) []LogLine {
 	cleaned := ansiEscapeRegex.ReplaceAllString(rawLogs, "")
 	lines := strings.Split(strings.TrimRight(cleaned, "\n"), "\n")
 	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
 		return nil
 	}
 
-	t := clicky.Text("")
-	for i, line := range lines {
-		if i > 0 {
-			t = t.NewLine()
-		}
-		t = t.Add(colorLogLine(line))
+	out := make([]LogLine, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, LogLine{text: colorLogLine(line)})
 	}
-
-	return clicky.Collapsed(
-		fmt.Sprintf("Logs (%d lines)", len(lines)),
-		t,
-	)
+	return out
 }
 
-// colorLogLine applies color to the log level prefix in a log line.
+var logLevelRegex = regexp.MustCompile(`\s(INF|ERR|WRN|DBG\S*|TRC\S*|FTL)\s`)
+
+var logLevelColors = map[string]string{
+	"INF": "text-green-600",
+	"ERR": "text-red-600",
+	"WRN": "text-yellow-600",
+	"DBG": "text-blue-600",
+	"TRC": "text-gray-500",
+	"FTL": "text-red-600",
+}
+
+// colorLogLine highlights the log level prefix with appropriate colors.
+// Matches DBG, DBG-1, TRC-2, etc.
 func colorLogLine(line string) api.Text {
-	type levelStyle struct {
-		tag   string
-		color string
-	}
-	levels := []levelStyle{
-		{" INF ", "text-green-600"},
-		{" ERR ", "text-red-600"},
-		{" WRN ", "text-yellow-600"},
-		{" DBG ", "text-blue-600"},
-		{" TRC ", "text-gray-500"},
-		{" FTL ", "text-red-600"},
+	loc := logLevelRegex.FindStringIndex(line)
+	if loc == nil {
+		return clicky.Text(line)
 	}
 
-	for _, l := range levels {
-		idx := strings.Index(line, l.tag)
-		if idx >= 0 {
-			before := line[:idx+1]
-			level := strings.TrimSpace(l.tag)
-			after := line[idx+len(l.tag)-1:]
-			return clicky.Text(before).Append(level, l.color).Append(after)
-		}
-	}
+	// loc covers the match including surrounding spaces
+	tag := strings.TrimSpace(line[loc[0]:loc[1]])
+	before := line[:loc[0]+1]
+	after := line[loc[1]-1:]
 
-	return clicky.Text(line)
+	// Base level is the prefix before any dash (DBG-1 → DBG)
+	base := tag
+	if i := strings.IndexByte(tag, '-'); i >= 0 {
+		base = tag[:i]
+	}
+	color := logLevelColors[base]
+
+	return clicky.Text(before).Append(tag, color).Append(after)
+}
+
+// HAREntry renders a single HAR request/response as a table row.
+// +kubebuilder:object:generate=false
+type HAREntry struct {
+	Method   string
+	URL      string
+	Status   int
+	Duration string
+}
+
+func (h HAREntry) Columns() []api.ColumnDef {
+	return []api.ColumnDef{
+		clicky.Column("Method").Build(),
+		clicky.Column("URL").Build(),
+		clicky.Column("Status").Build(),
+		clicky.Column("Duration").Build(),
+	}
+}
+
+func (h HAREntry) Row() map[string]any {
+	statusStyle := "text-green-600"
+	if h.Status >= 400 {
+		statusStyle = "text-red-600"
+	} else if h.Status >= 300 {
+		statusStyle = "text-yellow-600"
+	}
+	return map[string]any{
+		"Method":   clicky.Text(h.Method),
+		"URL":      clicky.Text(h.URL),
+		"Status":   clicky.Text(fmt.Sprintf("%d", h.Status)).WithStyles(statusStyle),
+		"Duration": clicky.Text(h.Duration),
+	}
+}
+
+// BuildHAREntries converts HAR entries into table rows.
+func BuildHAREntries(entries []har.Entry) []HAREntry {
+	out := make([]HAREntry, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, HAREntry{
+			Method:   e.Request.Method,
+			URL:      e.Request.URL,
+			Status:   e.Response.Status,
+			Duration: fmt.Sprintf("%.0fms", e.Time),
+		})
+	}
+	return out
 }
 
 func (s ScrapeResult) IsMetadataOnly() bool {
