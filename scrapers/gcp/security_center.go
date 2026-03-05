@@ -112,7 +112,7 @@ func parseFinding(finding *securitycenterpb.ListFindingsResponse_ListFindingsRes
 		}
 	}
 
-	analysis.ExternalConfigs = append(analysis.ExternalConfigs, v1.ExternalID{ExternalID: finding.Resource.Name})
+	analysis.ExternalID = finding.Resource.Name
 
 	return &analysis
 }

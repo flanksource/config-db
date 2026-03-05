@@ -1,0 +1,27 @@
+input:
+  config:
+    name: Test Org
+  access:
+    - id: a1
+      uuid: 550e8400-e29b-41d4-a716-446655440000
+      user: alice
+    - id: a2
+      config_id: 660e8400-e29b-41d4-a716-446655440000
+      role: admin
+
+expected:
+  config_access:
+    - id: a1
+      config_id: 550e8400-e29b-41d4-a716-446655440000
+      external_user_aliases: [alice]
+    - id: a2
+      config_id: 660e8400-e29b-41d4-a716-446655440000
+      external_role_aliases: [admin]
+assertions:
+  - size(config_access) == 2
+  - config_access[0].config_id == '550e8400-e29b-41d4-a716-446655440000'
+  - config_access[1].config_id == '660e8400-e29b-41d4-a716-446655440000'
+  - config_access[0].external_user_aliases == ['alice']
+  - config_access[1].external_role_aliases == ['admin']
+  - summary.config_access.scraped == 2
+  - summary.config_access.skipped == 0

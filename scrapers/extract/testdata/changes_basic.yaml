@@ -1,0 +1,24 @@
+input:
+  config:
+    name: my-app
+  changes:
+    - external_id: app-1
+      config_type: Deployment
+      change_type: diff
+      action: Updated
+      summary: "image tag changed from v1.0 to v1.1"
+      severity: low
+    - external_id: app-1
+      config_type: Deployment
+      change_type: RunAction
+      action: ScaleUp
+      summary: "replicas 2 -> 3"
+assertions:
+  - size(changes) == 2
+  - changes[0].change_type == 'diff'
+  - changes[0].action == 'Updated'
+  - changes[0].summary == 'image tag changed from v1.0 to v1.1'
+  - changes[0].severity == 'low'
+  - changes[1].change_type == 'RunAction'
+  - changes[1].action == 'ScaleUp'
+  - summary.changes.scraped == 2

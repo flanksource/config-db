@@ -1,0 +1,16 @@
+input:
+  type: Service
+  external_id: svc-1
+  config_access:
+    - id: a1
+      external_user_aliases: [unknown-user]
+pre_populate:
+  configs:
+    "Service/svc-1": "00000000-0000-0000-0000-aaaaaaaaaaaa"
+assertions:
+  - size(config_access) == 1
+  - has(config_access[0].external_user_id)
+  - size(external_users) >= 1
+  - external_users[size(external_users)-1].name == 'unknown-user'
+  - summary.config_access.scraped == 1
+  - summary.config_access.skipped == 0

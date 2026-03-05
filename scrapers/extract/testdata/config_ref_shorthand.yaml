@@ -1,0 +1,43 @@
+input:
+  config:
+    name: Test Org
+  access:
+    - id: a1
+      type: Organization
+      external_id: org-1
+      user: alice
+    - id: a2
+      config_type: Database
+      external_id: db-1
+      role: admin
+  users:
+    - name: Alice
+      aliases: [alice]
+
+pre_populate:
+  configs:
+    Organization/org-1: "00000000-0000-0000-0000-aaaaaaaaaaaa"
+    Database/db-1: "00000000-0000-0000-0000-bbbbbbbbbbbb"
+expected:
+  config_access:
+    - id: a1
+      config_external_id:
+        config_type: Organization
+        external_id: org-1
+      external_user_aliases: [alice]
+    - id: a2
+      config_external_id:
+        config_type: Database
+        external_id: db-1
+      external_role_aliases: [admin]
+  external_users:
+    - name: Alice
+assertions:
+  - size(config_access) == 2
+  - config_access[0].external_config_id.config_type == 'Organization'
+  - config_access[1].external_config_id.config_type == 'Database'
+  - config_access[0].external_user_aliases == ['alice']
+  - config_access[1].external_role_aliases == ['admin']
+  - summary.config_access.scraped == 2
+  - summary.config_access.skipped == 0
+  - summary.users.scraped == 1

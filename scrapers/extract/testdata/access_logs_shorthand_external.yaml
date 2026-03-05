@@ -1,0 +1,13 @@
+input:
+  access_logs:
+    - config_id: "s3://my-bucket"
+      config_type: Bucket
+      external_user_id: "00000000-0000-0000-0000-000000000001"
+pre_populate:
+  configs:
+    "Bucket/s3://my-bucket": "00000000-0000-0000-0000-aaaaaaaaaaaa"
+assertions:
+  - size(access_logs) == 1
+  - access_logs[0].config_id == '00000000-0000-0000-0000-aaaaaaaaaaaa'
+  - summary.access_logs.scraped == 1
+  - summary.access_logs.skipped == 0

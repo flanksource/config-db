@@ -1,0 +1,20 @@
+input:
+  config_access:
+    - id: access-001
+      external_config_id:
+        config_type: Bucket
+        external_id: "s3://my-bucket"
+      external_user_aliases: [admin, "admin@example.com"]
+      external_role_aliases: [bucket-reader, bucket-writer]
+      external_group_aliases: [storage-team, cloud-ops]
+pre_populate:
+  configs:
+    "Bucket/s3://my-bucket": "00000000-0000-0000-0000-aaaaaaaaaaaa"
+assertions:
+  - size(config_access) == 1
+  - config_access[0].id == 'access-001'
+  - config_access[0].external_config_id.config_type == 'Bucket'
+  - config_access[0].external_config_id.external_id == 's3://my-bucket'
+  - config_access[0].external_user_aliases == ['admin', 'admin@example.com']
+  - config_access[0].external_role_aliases == ['bucket-reader', 'bucket-writer']
+  - config_access[0].external_group_aliases == ['storage-team', 'cloud-ops']

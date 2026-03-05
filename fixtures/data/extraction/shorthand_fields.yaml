@@ -1,0 +1,45 @@
+input:
+  config:
+    name: Test Org
+  config_access:
+    - id: a1
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      user: alice
+    - id: a2
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      role: admin
+    - id: a3
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      group: devs
+    - id: a4
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      user: [alice, bob]
+      role: [admin, owner]
+      group: [devs, ops]
+
+expected:
+  config_access:
+    - id: a1
+      external_user_aliases: [alice]
+      external_role_aliases: []
+      external_group_aliases: []
+    - id: a2
+      external_user_aliases: []
+      external_role_aliases: [admin]
+      external_group_aliases: []
+    - id: a3
+      external_user_aliases: []
+      external_role_aliases: []
+      external_group_aliases: [devs]
+    - id: a4
+      external_user_aliases: [alice, bob]
+      external_role_aliases: [admin, owner]
+      external_group_aliases: [devs, ops]

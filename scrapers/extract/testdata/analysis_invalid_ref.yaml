@@ -1,0 +1,17 @@
+input:
+  analysis:
+    - analyzer: security
+      severity: high
+      summary: "no config ref at all"
+    - analyzer: cost
+      severity: low
+      summary: "valid"
+      external_id: "db-1"
+      config_type: Database
+assertions:
+  - size(analysis) == 1
+  - analysis[0].external_id == 'db-1'
+  - summary.analysis.scraped == 2
+  - summary.analysis.skipped == 1
+  - size(warnings) == 1
+  - warnings[0] == 'analysis missing external_id'

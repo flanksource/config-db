@@ -1,0 +1,16 @@
+input:
+  config_access:
+    - id: access-003
+      external_config_id:
+        config_type: Database
+        external_id: db-123
+      external_user_aliases: [admin]
+pre_populate:
+  configs:
+    Database/db-123: "00000000-0000-0000-0000-aaaaaaaaaaaa"
+assertions:
+  - size(config_access) == 1
+  - config_access[0].id == 'access-003'
+  - config_access[0].external_config_id.config_type == 'Database'
+  - config_access[0].external_config_id.external_id == 'db-123'
+  - config_access[0].external_user_aliases == ['admin']

@@ -1,0 +1,49 @@
+input:
+  config:
+    name: Test Org
+  access:
+    - id: a1
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      user: alice
+  users:
+    - name: Alice
+      aliases: [alice]
+      external_user_id: "00000000-0000-0000-0000-000000000001"
+  roles:
+    - name: Admin
+      aliases: [admin]
+  groups:
+    - name: Devs
+      aliases: [devs]
+      external_group_id: "00000000-0000-0000-0000-000000000001"
+pre_populate:
+  configs:
+    Org/org-1: "00000000-0000-0000-0000-aaaaaaaaaaaa"
+expected:
+  config_access:
+    - id: a1
+      external_user_aliases: [alice]
+  external_users:
+    - name: Alice
+      aliases: [alice]
+  external_roles:
+    - name: Admin
+      aliases: [admin]
+  external_groups:
+    - name: Devs
+      aliases: [devs]
+assertions:
+  - size(config_access) == 1
+  - config_access[0].id == 'a1'
+  - config_access[0].external_user_aliases[0] == 'alice'
+  - size(external_users) == 1
+  - external_users[0].name == 'Alice'
+  - size(external_roles) == 1
+  - size(external_groups) == 1
+  - summary.config_access.scraped == 1
+  - summary.config_access.skipped == 0
+  - summary.users.scraped == 1
+  - summary.roles.scraped == 1
+  - summary.groups.scraped == 1

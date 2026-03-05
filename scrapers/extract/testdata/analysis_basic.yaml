@@ -1,0 +1,22 @@
+input:
+  analysis:
+    - analyzer: cost-optimization
+      severity: medium
+      summary: "Underutilized instance"
+      source: "AWS Trusted Advisor"
+      external_id: "i-123"
+      config_type: "EC2Instance"
+    - analyzer: security
+      severity: high
+      summary: "Public S3 bucket"
+      source: "AWS Trusted Advisor"
+      external_id: "s3://public-bucket"
+      config_type: "S3Bucket"
+assertions:
+  - size(analysis) == 2
+  - analysis[0].analyzer == 'cost-optimization'
+  - analysis[0].severity == 'medium'
+  - analysis[0].external_id == 'i-123'
+  - analysis[1].severity == 'high'
+  - analysis[1].external_id == 's3://public-bucket'
+  - summary.analysis.scraped == 2

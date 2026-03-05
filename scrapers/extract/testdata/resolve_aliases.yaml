@@ -1,0 +1,63 @@
+input:
+  config:
+    name: Test Org
+  access:
+    - id: a1
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      user: alice
+    - id: a2
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      role: admin
+    - id: a3
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      group: devs
+  users:
+    - name: Alice
+      aliases: [alice]
+      external_user_id: "00000000-0000-0000-0000-000000000001"
+  roles:
+    - name: Admin
+      aliases: [admin]
+  groups:
+    - name: Devs
+      aliases: [devs]
+      external_group_id: "00000000-0000-0000-0000-000000000010"
+
+pre_populate:
+  configs:
+    Org/org-1: "00000000-0000-0000-0000-aaaaaaaaaaaa"
+expected:
+  config_access:
+    - id: a1
+      external_user_aliases: [alice]
+    - id: a2
+      external_role_aliases: [admin]
+    - id: a3
+      external_group_aliases: [devs]
+  external_users:
+    - name: Alice
+      aliases: [alice]
+  external_roles:
+    - name: Admin
+      aliases: [admin]
+  external_groups:
+    - name: Devs
+      aliases: [devs]
+assertions:
+  - size(config_access) == 3
+  - config_access[0].external_user_aliases == ['alice']
+  - config_access[1].external_role_aliases == ['admin']
+  - config_access[2].external_group_aliases == ['devs']
+  - size(external_users) == 1
+  - external_users[0].name == 'Alice'
+  - summary.config_access.scraped == 3
+  - summary.config_access.skipped == 0
+  - summary.users.scraped == 1
+  - summary.roles.scraped == 1
+  - summary.groups.scraped == 1

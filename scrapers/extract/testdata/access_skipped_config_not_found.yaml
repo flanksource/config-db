@@ -1,0 +1,34 @@
+input:
+  config_access:
+    - id: found
+      external_config_id:
+        config_type: Database
+        external_id: db-1
+      external_user_aliases: [alice]
+    - id: not-found
+      external_config_id:
+        config_type: Database
+        external_id: db-missing
+      external_user_aliases: [bob]
+  access_logs:
+    - external_config_id:
+        config_type: Database
+        external_id: db-1
+      external_user_id: "00000000-0000-0000-0000-000000000001"
+    - external_config_id:
+        config_type: Database
+        external_id: db-missing
+      external_user_id: "00000000-0000-0000-0000-000000000002"
+pre_populate:
+  configs:
+    "Database/db-1": "00000000-0000-0000-0000-aaaaaaaaaaaa"
+assertions:
+  - size(config_access) == 1
+  - config_access[0].id == 'found'
+  - config_access[0].config_id == '00000000-0000-0000-0000-aaaaaaaaaaaa'
+  - summary.config_access.scraped == 2
+  - summary.config_access.skipped == 1
+  - size(access_logs) == 1
+  - access_logs[0].config_id == '00000000-0000-0000-0000-aaaaaaaaaaaa'
+  - summary.access_logs.scraped == 2
+  - summary.access_logs.skipped == 1

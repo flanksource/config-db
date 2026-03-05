@@ -145,8 +145,8 @@ func getUnstructuredEvent(kind, name string, creationTimestamp, recreationTimest
 		Object: map[string]any{
 			"kind": kind,
 			"metadata": map[string]any{
-				"uid":              uuid.NewString(),
-				"name":             name,
+				"uid":               uuid.NewString(),
+				"name":              name,
 				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
 				"managedFields": []any{
 					map[string]any{
@@ -164,10 +164,10 @@ func getUnstructuredWithResourceVersion(kind, name, uid, version string, creatio
 		Object: map[string]any{
 			"kind": kind,
 			"metadata": map[string]any{
-				"uid":              uid,
-				"name":             name,
+				"uid":               uid,
+				"name":              name,
 				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
-				"resourceVersion":  version,
+				"resourceVersion":   version,
 			},
 		},
 	}
@@ -178,8 +178,8 @@ func getUnstructured(kind, name string, creationTimestamp time.Time) *unstructur
 		Object: map[string]any{
 			"kind": kind,
 			"metadata": map[string]any{
-				"uid":              uuid.NewString(),
-				"name":             name,
+				"uid":               uuid.NewString(),
+				"name":              name,
 				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
 			},
 		},
@@ -191,8 +191,8 @@ func getUnstructuredWithOwnerRef(kind, name string, creationTimestamp time.Time,
 		Object: map[string]any{
 			"kind": kind,
 			"metadata": map[string]any{
-				"uid":              uuid.NewString(),
-				"name":             name,
+				"uid":               uuid.NewString(),
+				"name":              name,
 				"creationTimestamp": creationTimestamp.Format(time.RFC3339),
 				"ownerReferences": []any{
 					map[string]any{

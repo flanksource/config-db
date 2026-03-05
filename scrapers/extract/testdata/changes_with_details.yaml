@@ -1,0 +1,18 @@
+input:
+  changes:
+    - external_id: vm-123
+      config_type: VM
+      change_type: diff
+      action: Updated
+      summary: "disk resized"
+      details:
+        old_size: "100GB"
+        new_size: "200GB"
+      source: azure
+assertions:
+  - size(changes) == 1
+  - changes[0].config_type == 'VM'
+  - changes[0].details.old_size == '100GB'
+  - changes[0].details.new_size == '200GB'
+  - changes[0].source == 'azure'
+  - summary.changes.scraped == 1

@@ -1,0 +1,31 @@
+input:
+  users:
+    - name: Alice
+      aliases: [alice, "alice@acme.com"]
+  groups:
+    - name: Devs
+      aliases: [devs]
+  config_access:
+    - id: a1
+      external_config_id:
+        config_type: DB
+        external_id: db-1
+      external_user_aliases: ["alice@acme.com"]
+    - id: a2
+      external_config_id:
+        config_type: DB
+        external_id: db-1
+      external_group_aliases: [devs]
+pre_populate:
+  configs:
+    DB/db-1: "00000000-0000-0000-0000-aaaaaaaaaaaa"
+assertions:
+  - size(config_access) == 2
+  - has(config_access[0].external_user_id)
+  - has(config_access[1].external_group_id)
+  - config_access[0].config_id == '00000000-0000-0000-0000-aaaaaaaaaaaa'
+  - config_access[1].config_id == '00000000-0000-0000-0000-aaaaaaaaaaaa'
+  - summary.config_access.scraped == 2
+  - summary.config_access.skipped == 0
+  - summary.users.scraped == 1
+  - summary.groups.scraped == 1

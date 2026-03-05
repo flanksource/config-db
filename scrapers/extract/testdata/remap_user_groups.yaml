@@ -1,0 +1,25 @@
+input:
+  users:
+    - name: Alice
+      id: "aaaa0000-0000-0000-0000-000000000001"
+      aliases: [alice]
+  groups:
+    - name: Devs
+      id: "bbbb0000-0000-0000-0000-000000000001"
+      aliases: [devs]
+  user_groups:
+    - external_user_id: "aaaa0000-0000-0000-0000-000000000001"
+      external_group_id: "bbbb0000-0000-0000-0000-000000000001"
+pre_populate:
+  users:
+    alice: "00000000-0000-0000-0000-000000000001"
+  groups:
+    devs: "00000000-0000-0000-0000-000000000002"
+assertions:
+  - external_users[0].id == '00000000-0000-0000-0000-000000000001'
+  - external_groups[0].id == '00000000-0000-0000-0000-000000000002'
+  - size(external_user_groups) == 1
+  - external_user_groups[0].external_user_id == '00000000-0000-0000-0000-000000000001'
+  - external_user_groups[0].external_group_id == '00000000-0000-0000-0000-000000000002'
+  - summary.users.scraped == 1
+  - summary.groups.scraped == 1
