@@ -389,14 +389,6 @@ func upsertExternalEntities(
 			return counts, fmt.Errorf("failed to delete stale external roles: %w", r.Error)
 		}
 		counts.rolesDeleted = int(r.RowsAffected)
-	} else {
-		// No roles scraped — delete all roles for this scraper
-		r := tx.Exec(`DELETE FROM external_roles WHERE scraper_id = ?`, *scraperID)
-		if r.Error != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external roles: %w", r.Error)
-		}
-		counts.rolesDeleted = int(r.RowsAffected)
 	}
 
 	// Stale deletion: groups (soft delete)
@@ -411,14 +403,6 @@ func upsertExternalEntities(
 			return counts, fmt.Errorf("failed to delete stale external groups: %w", r.Error)
 		}
 		counts.groupsDeleted = int(r.RowsAffected)
-	} else {
-		// No groups scraped — soft-delete all groups for this scraper
-		r := tx.Exec(`UPDATE external_groups SET deleted_at = NOW() WHERE scraper_id = ? AND deleted_at IS NULL`, *scraperID)
-		if r.Error != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external groups: %w", r.Error)
-		}
-		counts.groupsDeleted = int(r.RowsAffected)
 	}
 
 	// Stale deletion: users (soft delete)
@@ -428,14 +412,6 @@ func upsertExternalEntities(
 			WHERE scraper_id = ? AND deleted_at IS NULL
 				AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_users.id)
 		`, tempUsers), *scraperID)
-		if r.Error != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external users: %w", r.Error)
-		}
-		counts.usersDeleted = int(r.RowsAffected)
-	} else {
-		// No users scraped — soft-delete all users for this scraper
-		r := tx.Exec(`UPDATE external_users SET deleted_at = NOW() WHERE scraper_id = ? AND deleted_at IS NULL`, *scraperID)
 		if r.Error != nil {
 			tx.Rollback()
 			return counts, fmt.Errorf("failed to delete stale external users: %w", r.Error)

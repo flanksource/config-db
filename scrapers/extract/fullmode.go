@@ -7,10 +7,12 @@ import (
 
 // ExtractFullMode processes scraped results in full mode, extracting changes, access logs,
 // config access, external users, groups, user groups, and roles from the config.
-func ExtractFullMode(resolver Resolver, scraperID *uuid.UUID, originalConfig any, scraped v1.ScrapeResults) v1.ScrapeResults {
+// Entity alias resolution and config ID resolution are deferred to the update pipeline
+// because config items may not exist in the DB yet at extraction time.
+func ExtractFullMode(scraperID *uuid.UUID, scraped v1.ScrapeResults) v1.ScrapeResults {
 	all := ExtractedConfig{}
 	for i := range scraped {
-		extracted, err := ExtractConfigChangesFromConfig(resolver, scraperID, originalConfig)
+		extracted, err := ExtractConfigChangesFromConfig(nil, scraperID, scraped[i].Config)
 		if err != nil {
 			scraped[i].Error = err
 			continue
@@ -33,7 +35,9 @@ func ExtractFullMode(resolver Resolver, scraperID *uuid.UUID, originalConfig any
 			scraped[i].Changes = append(scraped[i].Changes, cr)
 		}
 
-		scraped[i].Config = extracted.Config
+		if extracted.Config != nil {
+			scraped[i].Config = extracted.Config
+		}
 	}
 
 	type entityAppender struct {

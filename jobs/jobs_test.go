@@ -5,7 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = ginkgo.Describe("Job Tests", ginkgo.Ordered, func() {
+var _ = ginkgo.Describe("Job Tests", ginkgo.Ordered, ginkgo.Label("slow"), func() {
 	var totalconfigitems int
 
 	ginkgo.BeforeAll(func() {

@@ -4,12 +4,14 @@ input:
   changes:
     - external_id: app-1
       config_type: Deployment
+      external_change_id: chg-1
       change_type: diff
       action: Updated
       summary: "image tag changed from v1.0 to v1.1"
       severity: low
     - external_id: app-1
       config_type: Deployment
+      external_change_id: chg-2
       change_type: RunAction
       action: ScaleUp
       summary: "replicas 2 -> 3"

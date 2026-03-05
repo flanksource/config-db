@@ -126,19 +126,19 @@ var Run = &cobra.Command{
 // runHTMLOutput wraps scrape results for HTML rendering.
 // Uses pretty:"table" tags to prevent empty slices from appearing as broken summary entries.
 type runHTMLOutput struct {
-	Counts             v1.CountsGrid                  `json:"-"`
-	Configs            []v1.ScrapeResult              `pretty:"table"`
-	Analysis           []models.ConfigAnalysis        `pretty:"table"`
-	Changes            []models.ConfigChange          `pretty:"table"`
-	Relationships      []models.ConfigRelationship    `pretty:"table"`
-	ExternalRoles      []models.ExternalRole          `pretty:"table"`
-	ExternalUsers      []models.ExternalUser          `pretty:"table"`
-	ExternalGroups     []models.ExternalGroup         `pretty:"table"`
-	ExternalUserGroups []models.ExternalUserGroup     `pretty:"table"`
-	ConfigAccess       []v1.ExternalConfigAccess      `pretty:"table"`
-	ConfigAccessLogs   []v1.ExternalConfigAccessLog   `pretty:"table"`
-	HTTPTraffic        []v1.HAREntry                  `pretty:"table"`
-	Logs               []v1.LogLine                   `pretty:"table"`
+	Counts             v1.CountsGrid                `json:"-"`
+	Configs            []v1.ScrapeResult            `pretty:"table"`
+	Analysis           []models.ConfigAnalysis      `pretty:"table"`
+	Changes            []models.ConfigChange        `pretty:"table"`
+	Relationships      []models.ConfigRelationship  `pretty:"table"`
+	ExternalRoles      []models.ExternalRole        `pretty:"table"`
+	ExternalUsers      []models.ExternalUser        `pretty:"table"`
+	ExternalGroups     []models.ExternalGroup       `pretty:"table"`
+	ExternalUserGroups []models.ExternalUserGroup   `pretty:"table"`
+	ConfigAccess       []v1.ExternalConfigAccess    `pretty:"table"`
+	ConfigAccessLogs   []v1.ExternalConfigAccessLog `pretty:"table"`
+	HTTPTraffic        []v1.HAREntry                `pretty:"table"`
+	Logs               []v1.LogLine                 `pretty:"table"`
 }
 
 func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {

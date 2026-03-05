@@ -2,6 +2,7 @@ input:
   changes:
     - external_id: vm-123
       config_type: VM
+      external_change_id: chg-1
       change_type: diff
       action: Updated
       summary: "disk resized"

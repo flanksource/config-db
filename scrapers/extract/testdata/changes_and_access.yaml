@@ -4,6 +4,7 @@ input:
   changes:
     - external_id: db-1
       config_type: Database
+      external_change_id: chg-1
       change_type: diff
       action: Updated
       summary: "connection pool increased"

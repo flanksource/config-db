@@ -440,8 +440,8 @@ func sanitizeConfigIDFields(configMap map[string]any) {
 func parseConfigRef(raw map[string]any) v1.ExternalID {
 	var ext v1.ExternalID
 	if v, ok := findStringKey(raw, "config_id", "uuid"); ok {
-		if parsed, err := uuid.Parse(v); err == nil {
-			ext.ConfigID = parsed
+		if _, err := uuid.Parse(v); err == nil {
+			ext.ConfigID = v
 		} else {
 			ext.ExternalID = v
 		}
@@ -482,8 +482,8 @@ func expandConfigAccessShorthand(configMap map[string]any, configAccess []v1.Ext
 		}
 		if configAccess[i].ConfigExternalID.IsEmpty() && configAccess[i].ConfigID == uuid.Nil {
 			ref := parseConfigRef(raw)
-			if ref.ConfigID != uuid.Nil {
-				configAccess[i].ConfigID = ref.ConfigID
+			if ref.ConfigID != "" {
+				configAccess[i].ConfigID = uuid.MustParse(ref.ConfigID)
 			} else {
 				configAccess[i].ConfigExternalID = ref
 			}
@@ -501,8 +501,8 @@ func expandAccessLogShorthand(configMap map[string]any, accessLogs []v1.External
 		}
 		if accessLogs[i].ConfigExternalID.IsEmpty() && accessLogs[i].ConfigID == uuid.Nil {
 			ref := parseConfigRef(rawItems[i])
-			if ref.ConfigID != uuid.Nil {
-				accessLogs[i].ConfigID = ref.ConfigID
+			if ref.ConfigID != "" {
+				accessLogs[i].ConfigID = uuid.MustParse(ref.ConfigID)
 			} else {
 				accessLogs[i].ConfigExternalID = ref
 			}
@@ -577,12 +577,22 @@ func applyConfigRefDefaults(configMap map[string]any, result *ExtractedConfig) {
 func validateConfigRefs(result *ExtractedConfig) {
 	var validChanges []v1.ChangeResult
 	for _, c := range result.Changes {
-		if c.ExternalID != "" {
-			validChanges = append(validChanges, c)
+		if c.ExternalID == "" {
+			result.Summary.Changes.Skipped++
+			result.AddWarning("change missing external_id")
 			continue
 		}
-		result.Summary.Changes.Skipped++
-		result.AddWarning("change missing external_id")
+		if c.ExternalChangeID == "" {
+			result.Summary.Changes.Skipped++
+			result.AddWarning("change missing external_change_id")
+			continue
+		}
+		if c.ChangeType == "" {
+			result.Summary.Changes.Skipped++
+			result.AddWarning("change missing change_type")
+			continue
+		}
+		validChanges = append(validChanges, c)
 	}
 	result.Changes = validChanges
 

@@ -10,7 +10,7 @@ import (
 	"github.com/flanksource/config-db/api"
 )
 
-var _ = ginkgo.Describe("Exec Scraper - Backstage Catalog Integration", ginkgo.Ordered, func() {
+var _ = ginkgo.Describe("Exec Scraper - Backstage Catalog Integration", ginkgo.Ordered, ginkgo.Label("slow"), func() {
 	ginkgo.It("should scrape Backstage catalog entities from GitHub", func() {
 		// Load fixture
 		scrapeConfig := getConfigSpec("exec-backstage-catalog")

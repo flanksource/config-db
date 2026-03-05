@@ -188,9 +188,9 @@ func (c ScraperSpec) IsDebug() bool {
 }
 
 type ExternalID struct {
-	ConfigID   uuid.UUID `json:"config_id,omitempty"`
-	ConfigType string    `json:"config_type,omitempty"`
-	ExternalID string    `json:"external_id,omitempty"`
+	ConfigID   string `json:"config_id,omitempty"`
+	ConfigType string `json:"config_type,omitempty"`
+	ExternalID string `json:"external_id,omitempty"`
 
 	// Scraper id of the config
 	// If left empty, the scraper id is the requester's scraper id.
@@ -241,7 +241,7 @@ func (e ExternalID) String() string {
 }
 
 func (e ExternalID) IsEmpty() bool {
-	return e.ConfigID == uuid.Nil && (e.ConfigType == "" || len(e.ExternalID) == 0)
+	return e.ConfigID == "" && (e.ConfigType == "" || len(e.ExternalID) == 0)
 }
 
 type ConfigDeleteReason string

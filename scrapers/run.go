@@ -159,7 +159,7 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 	}
 
 	if ctx.ScrapeConfig().Spec.Full {
-		scraped = extract.ExtractFullMode(db.NewDBResolver(ctx), ctx.ScrapeConfig().GetPersistedID(), result.Config, scraped)
+		scraped = extract.ExtractFullMode(ctx.ScrapeConfig().GetPersistedID(), scraped)
 	}
 
 	return scraped
