@@ -37,6 +37,9 @@ func ExtractFullMode(scraperID *uuid.UUID, scraped v1.ScrapeResults) v1.ScrapeRe
 
 		if extracted.Config != nil {
 			scraped[i].Config = extracted.Config
+		} else if extracted.HasEntities() {
+			scraped[i].Config = nil
+			scraped[i].ID = ""
 		}
 	}
 

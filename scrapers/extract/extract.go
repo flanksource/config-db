@@ -39,6 +39,13 @@ type ExtractedConfig struct {
 	Warnings           []string                     `json:"warnings,omitempty"`
 }
 
+func (e ExtractedConfig) HasEntities() bool {
+	return len(e.ConfigAccess) > 0 || len(e.AccessLogs) > 0 ||
+		len(e.ExternalUsers) > 0 || len(e.ExternalGroups) > 0 ||
+		len(e.ExternalRoles) > 0 || len(e.ExternalUserGroups) > 0 ||
+		len(e.Changes) > 0 || len(e.Analysis) > 0
+}
+
 func (e *ExtractedConfig) AddWarning(msg string) {
 	if slices.Contains(e.Warnings, msg) {
 		return
