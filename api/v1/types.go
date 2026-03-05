@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/flanksource/clicky"
+	"github.com/flanksource/clicky/api"
 	"github.com/flanksource/config-db/utils"
 
 	"github.com/google/uuid"
@@ -233,11 +235,30 @@ func (e ExternalID) Key() string {
 	return strings.ToLower(fmt.Sprintf("%s%s%s", e.ConfigType, e.ExternalID, e.ScraperID))
 }
 
-func (e ExternalID) String() string {
-	if e.ScraperID != "" {
-		return fmt.Sprintf("scraper_id=%s type=%s externalids=%s", e.ScraperID, e.ConfigType, e.ExternalID)
+func (e ExternalID) Pretty() api.Text {
+	t := clicky.Text("")
+	if e.ConfigType != "" {
+		t = t.Append(e.ConfigType, "text-muted").Append("/")
 	}
-	return fmt.Sprintf("type=%s externalids=%s", e.ConfigType, e.ExternalID)
+	if e.ConfigID != "" {
+		t = t.Append(e.ConfigID)
+	} else if e.ExternalID != "" {
+		t = t.Append(e.ExternalID)
+	}
+
+	if len(e.Labels) > 0 {
+		t = t.Append(" labels: ", "text-muted").Append(clicky.Map(e.Labels))
+	}
+
+	if e.ScraperID != "" {
+		t = t.Append(" scraper: ", "text-muted").Append(e.ScraperID)
+	}
+
+	return t
+}
+
+func (e ExternalID) String() string {
+	return e.Pretty().ANSI()
 }
 
 func (e ExternalID) IsEmpty() bool {

@@ -17,6 +17,7 @@ import (
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
+	"github.com/google/uuid"
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
 	"github.com/samber/lo"
@@ -860,7 +861,7 @@ type DirectedRelationship struct {
 // ScrapeResult ...
 // +kubebuilder:object:generate=false
 type ScrapeResult struct {
-	types.NoOpResourceSelectable
+	types.NoOpResourceSelectable `json:"-"`
 
 	// ID is the id of the config at it's origin (i.e. the external id)
 	// Eg: For Azure, it's the azure resource id and for kuberetenes it's the object UID.
@@ -1250,16 +1251,111 @@ func (s ScrapeResult) Pretty() api.Text {
 // +kubebuilder:object:generate=false
 type ExternalConfigAccessLog struct {
 	models.ConfigAccessLog
-	ConfigExternalID ExternalID `json:"external_config_id,omitempty"`
+	ConfigExternalID    ExternalID `json:"external_config_id,omitempty"`
+	ExternalUserAliases []string   `json:"external_user_aliases,omitempty"`
+}
+
+func (e ExternalConfigAccessLog) Columns() []api.ColumnDef {
+	return []api.ColumnDef{
+		clicky.Column("ConfigID").Build(),
+		clicky.Column("UserID").Build(),
+		clicky.Column("MFA").Build(),
+		clicky.Column("Count").Build(),
+		clicky.Column("CreatedAt").Type("date").Build(),
+	}
+}
+
+func (e ExternalConfigAccessLog) Row() map[string]any {
+	row := map[string]any{
+		"MFA":       e.MFA,
+		"CreatedAt": e.CreatedAt,
+	}
+	if e.ConfigID != uuid.Nil {
+		row["ConfigID"] = clicky.Text(e.ConfigID.String())
+	} else {
+		row["ConfigID"] = e.ConfigExternalID
+	}
+	if e.Count != nil {
+		row["Count"] = *e.Count
+	}
+	return row
 }
 
 // +kubebuilder:object:generate=false
 type ExternalConfigAccess struct {
-	models.ConfigAccess
+	ID            string     `json:"id"`
+	ApplicationID *uuid.UUID `json:"application_id,omitempty"`
+	ScraperID     *uuid.UUID `json:"scraper_id,omitempty"`
+	Source        *string    `json:"source,omitempty"`
+
+	ConfigID        uuid.UUID  `json:"config_id,omitempty"`
+	ExternalUserID  *uuid.UUID `json:"external_user_id,omitempty"`
+	ExternalGroupID *uuid.UUID `json:"external_group_id,omitempty"`
+	ExternalRoleID  *uuid.UUID `json:"external_role_id,omitempty"`
+
+	CreatedAt time.Time  `json:"created_at,omitempty"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	DeletedBy *uuid.UUID `json:"deleted_by,omitempty"`
+	CreatedBy *uuid.UUID `json:"created_by,omitempty"`
+
+	LastReviewedAt *time.Time `json:"last_reviewed_at,omitempty"`
+	LastReviewedBy *uuid.UUID `json:"last_reviewed_by,omitempty"`
+
 	ConfigExternalID     ExternalID `json:"external_config_id"`
 	ExternalUserAliases  []string   `json:"external_user_aliases"`
 	ExternalRoleAliases  []string   `json:"external_role_aliases"`
 	ExternalGroupAliases []string   `json:"external_group_aliases"`
+}
+
+func (e ExternalConfigAccess) HasPrincipal() bool {
+	return e.ExternalUserID != nil || e.ExternalGroupID != nil || e.ExternalRoleID != nil ||
+		len(e.ExternalUserAliases) > 0 || len(e.ExternalGroupAliases) > 0 || len(e.ExternalRoleAliases) > 0
+}
+
+func (e ExternalConfigAccess) ToConfigAccess() models.ConfigAccess {
+	return models.ConfigAccess{
+		ID:              e.ID,
+		ApplicationID:   e.ApplicationID,
+		ScraperID:       e.ScraperID,
+		Source:          e.Source,
+		ConfigID:        e.ConfigID,
+		ExternalUserID:  e.ExternalUserID,
+		ExternalGroupID: e.ExternalGroupID,
+		ExternalRoleID:  e.ExternalRoleID,
+		CreatedAt:       e.CreatedAt,
+		DeletedAt:       e.DeletedAt,
+		DeletedBy:       e.DeletedBy,
+		CreatedBy:       e.CreatedBy,
+		LastReviewedAt:  e.LastReviewedAt,
+		LastReviewedBy:  e.LastReviewedBy,
+	}
+}
+
+func (e *ExternalConfigAccess) UnmarshalJSON(data []byte) error {
+	type Alias ExternalConfigAccess
+	aux := &struct {
+		ScraperID     *string `json:"scraper_id,omitempty"`
+		ApplicationID *string `json:"application_id,omitempty"`
+		*Alias
+	}{
+		Alias: (*Alias)(e),
+	}
+
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	if aux.ScraperID != nil {
+		if id, err := uuid.Parse(*aux.ScraperID); err == nil {
+			e.ScraperID = &id
+		}
+	}
+	if aux.ApplicationID != nil {
+		if id, err := uuid.Parse(*aux.ApplicationID); err == nil {
+			e.ApplicationID = &id
+		}
+	}
+	return nil
 }
 
 var _ types.ResourceSelectable = (*ScrapeResult)(nil)

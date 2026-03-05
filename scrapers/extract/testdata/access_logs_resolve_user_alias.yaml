@@ -1,0 +1,24 @@
+input:
+  access_logs:
+    - config_type: Bucket
+      config_id: "s3://my-bucket"
+      user: alice
+    - config_type: Bucket
+      config_id: "s3://my-bucket"
+      user: newuser
+pre_populate:
+  configs:
+    "Bucket/s3://my-bucket": "00000000-0000-0000-0000-aaaaaaaaaaaa"
+  users:
+    alice: "00000000-0000-0000-0000-000000000001"
+assertions:
+  - size(access_logs) == 2
+  - access_logs[0].config_id == '00000000-0000-0000-0000-aaaaaaaaaaaa'
+  - access_logs[0].external_user_id == '00000000-0000-0000-0000-000000000001'
+  - access_logs[1].config_id == '00000000-0000-0000-0000-aaaaaaaaaaaa'
+  - access_logs[1].external_user_id != '00000000-0000-0000-0000-000000000000'
+  - size(external_users) == 1
+  - external_users[0].name == 'newuser'
+  - external_users[0].aliases == ['newuser']
+  - summary.access_logs.scraped == 2
+  - summary.access_logs.skipped == 0

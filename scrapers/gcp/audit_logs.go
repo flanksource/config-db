@@ -170,13 +170,11 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		uniquePermissions.Insert(row.Permission)
 
 		configAccesses = append(configAccesses, v1.ExternalConfigAccess{
-			ConfigAccess: models.ConfigAccess{
-				ID:             generateConsistentID(fmt.Sprintf("%s::%s::%s::%s", config.Project, row.Email, row.Permission, row.PermissionType)).String(), // one record per email, permission, and permission type
-				ExternalUserID: lo.ToPtr(generateConsistentID(row.Email)),
-				ExternalRoleID: lo.ToPtr(generateConsistentID(row.Permission)),
-				ScraperID:      ctx.ScrapeConfig().GetPersistedID(),
-				CreatedAt:      row.Timestamp,
-			},
+			ID:               generateConsistentID(fmt.Sprintf("%s::%s::%s::%s", config.Project, row.Email, row.Permission, row.PermissionType)).String(),
+			ExternalUserID:   lo.ToPtr(generateConsistentID(row.Email)),
+			ExternalRoleID:   lo.ToPtr(generateConsistentID(row.Permission)),
+			ScraperID:        ctx.ScrapeConfig().GetPersistedID(),
+			CreatedAt:        row.Timestamp,
 			ConfigExternalID: resourceID,
 		})
 	}

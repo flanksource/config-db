@@ -311,6 +311,30 @@ func ResolveAccess(r Resolver, scraperID *uuid.UUID, result *ExtractedConfig) er
 	var resolvedLogs []v1.ExternalConfigAccessLog
 	for i := range result.AccessLogs {
 		al := &result.AccessLogs[i]
+
+		if al.ExternalUserID == uuid.Nil && len(al.ExternalUserAliases) > 0 {
+			id, err := r.FindUserIDByAliases(al.ExternalUserAliases)
+			if err != nil {
+				return fmt.Errorf("find user for access log: %w", err)
+			}
+			if id != nil {
+				al.ExternalUserID = *id
+			} else {
+				newID := uuid.New()
+				al.ExternalUserID = newID
+				result.ExternalUsers = append(result.ExternalUsers, models.ExternalUser{
+					ID:      newID,
+					Name:    al.ExternalUserAliases[0],
+					Aliases: al.ExternalUserAliases,
+				})
+			}
+		}
+
+		if al.ExternalUserID == uuid.Nil {
+			result.Summary.AccessLogs.Skipped++
+			continue
+		}
+
 		if al.ConfigID == uuid.Nil && !al.ConfigExternalID.IsEmpty() {
 			configID, err := r.FindConfigIDByExternalID(al.ConfigExternalID)
 			if err != nil {
@@ -506,8 +530,15 @@ func expandAccessLogShorthand(configMap map[string]any, accessLogs []v1.External
 		if i >= len(rawItems) {
 			break
 		}
+		raw := rawItems[i]
+
+		if len(accessLogs[i].ExternalUserAliases) == 0 {
+			if v, ok := raw["user"]; ok {
+				accessLogs[i].ExternalUserAliases = toStringSlice(v)
+			}
+		}
 		if accessLogs[i].ConfigExternalID.IsEmpty() && accessLogs[i].ConfigID == uuid.Nil {
-			ref := parseConfigRef(rawItems[i])
+			ref := parseConfigRef(raw)
 			if ref.ConfigID != "" {
 				accessLogs[i].ConfigID = uuid.MustParse(ref.ConfigID)
 			} else {
@@ -616,23 +647,33 @@ func validateConfigRefs(result *ExtractedConfig) {
 
 	var validAccess []v1.ExternalConfigAccess
 	for _, ca := range result.ConfigAccess {
-		if ca.ConfigID != uuid.Nil || ca.ConfigExternalID.ExternalID != "" {
-			validAccess = append(validAccess, ca)
+		if ca.ConfigID == uuid.Nil && ca.ConfigExternalID.ExternalID == "" {
+			result.Summary.ConfigAccess.Skipped++
+			result.AddWarning("config_access missing config reference")
 			continue
 		}
-		result.Summary.ConfigAccess.Skipped++
-		result.AddWarning("config_access missing config reference")
+		if !ca.HasPrincipal() {
+			result.Summary.ConfigAccess.Skipped++
+			result.AddWarning("config_access missing user/group reference")
+			continue
+		}
+		validAccess = append(validAccess, ca)
 	}
 	result.ConfigAccess = validAccess
 
 	var validLogs []v1.ExternalConfigAccessLog
 	for _, al := range result.AccessLogs {
-		if al.ConfigID != uuid.Nil || al.ConfigExternalID.ExternalID != "" {
-			validLogs = append(validLogs, al)
+		if al.ConfigID == uuid.Nil && al.ConfigExternalID.ExternalID == "" {
+			result.Summary.AccessLogs.Skipped++
+			result.AddWarning("access_log missing config reference")
 			continue
 		}
-		result.Summary.AccessLogs.Skipped++
-		result.AddWarning("access_log missing config reference")
+		if al.ExternalUserID == uuid.Nil && len(al.ExternalUserAliases) == 0 {
+			result.Summary.AccessLogs.Skipped++
+			result.AddWarning("access_log missing user reference")
+			continue
+		}
+		validLogs = append(validLogs, al)
 	}
 	result.AccessLogs = validLogs
 }
