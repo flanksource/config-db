@@ -2,7 +2,6 @@ apiVersion: configs.flanksource.com/v1
 kind: ScrapeConfig
 metadata:
   name: kubernetes-scraper
-  uid: caf62ab0-49cb-41a3-a524-0288a4e14426
 spec:
   retention:
     changes:
