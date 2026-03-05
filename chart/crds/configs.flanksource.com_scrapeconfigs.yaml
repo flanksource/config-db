@@ -139,8 +139,23 @@ spec:
                     endpoint:
                       type: string
                     exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
                       items:
                         type: string
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
                       type: array
                     format:
                       description: Format of config item, defaults to JSON, available
@@ -1110,6 +1125,23 @@ spec:
                             type: object
                           type: array
                       type: object
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     exclusions:
                       properties:
                         activityLogs:
@@ -1657,6 +1689,23 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -2476,6 +2525,23 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -3888,6 +3954,23 @@ spec:
                             type: object
                         type: object
                       type: array
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -4439,6 +4522,23 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -5073,10 +5173,23 @@ spec:
                     endpoint:
                       type: string
                     exclude:
-                      description: Exclude is a list of GCP asset types to exclude
-                        from scraping.
+                      description: Exclude specifies patterns for excluding external
+                        entities.
                       items:
                         type: string
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
                       type: array
                     format:
                       description: Format of config item, defaults to JSON, available
@@ -5623,6 +5736,23 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -6243,6 +6373,23 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -7062,6 +7209,23 @@ spec:
                             type: object
                         type: object
                       type: array
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -8266,6 +8430,23 @@ spec:
                               type: array
                           type: object
                       type: object
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     exclusions:
                       description: Exclusions excludes certain kubernetes objects
                         from being scraped.
@@ -9230,6 +9411,23 @@ spec:
                       required:
                       - cluster
                       type: object
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     files:
                       items:
                         properties:
@@ -10073,6 +10271,23 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     fieldMapping:
                       description: FieldMapping defines how source log fields map
                         to canonical LogLine fields
@@ -10937,6 +11152,23 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -11773,6 +12005,23 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -12640,6 +12889,23 @@ spec:
                       type: string
                     driver:
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -13170,6 +13436,23 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -13922,6 +14205,23 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
+                    exclude:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
+                      properties:
+                        externalGroups:
+                          items:
+                            type: string
+                          type: array
+                        externalRoles:
+                          items:
+                            type: string
+                          type: array
+                        externalUsers:
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties

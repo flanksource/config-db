@@ -254,6 +254,13 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Exclude is a list of GCP asset types to exclude from scraping."
+        },
         "connection": {
           "type": "string"
         },
@@ -275,13 +282,6 @@
           },
           "type": "array",
           "description": "Include is a list of GCP asset types to scrape.\nReference: https://cloud.google.com/asset-inventory/docs/supported-asset-types\nExample: storage.googleapis.com/Bucket"
-        },
-        "exclude": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "Exclude is a list of GCP asset types to exclude from scraping."
         },
         "auditLogs": {
           "$ref": "#/$defs/GCPAuditLogs",
@@ -523,6 +523,31 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "ScraperExclusion": {
+      "properties": {
+        "externalRoles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "externalUsers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "externalGroups": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ScraperExclusion specifies patterns for excluding external entities by name.\nPatterns support wildcards via collections.MatchItems (e.g. \"system:controller:*\")."
     },
     "SecretKeySelector": {
       "properties": {

@@ -77,6 +77,12 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "connection": {
           "type": "string",
           "description": "ConnectionName of the connection. It'll be used to populate the endpoint, accessKey and secretKey."
@@ -110,12 +116,6 @@
           "$ref": "#/$defs/CloudTrail"
         },
         "include": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "exclude": {
           "items": {
             "type": "string"
           },
@@ -528,6 +528,31 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "ScraperExclusion": {
+      "properties": {
+        "externalRoles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "externalUsers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "externalGroups": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ScraperExclusion specifies patterns for excluding external entities by name.\nPatterns support wildcards via collections.MatchItems (e.g. \"system:controller:*\")."
     },
     "SecretKeySelector": {
       "properties": {
