@@ -1,0 +1,6 @@
+input:
+  config:
+    name: Test Org
+  config_access: []
+assertions:
+  - size(config_access) == 0

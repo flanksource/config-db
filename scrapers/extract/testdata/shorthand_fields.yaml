@@ -1,0 +1,56 @@
+input:
+  config:
+    name: Test Org
+  config_access:
+    - id: a1
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      user: alice
+    - id: a2
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      role: admin
+    - id: a3
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      group: devs
+    - id: a4
+      external_config_id:
+        config_type: Org
+        external_id: org-1
+      user: [alice, bob]
+      role: [admin, owner]
+      group: [devs, ops]
+
+pre_populate:
+  configs:
+    Org/org-1: "00000000-0000-0000-0000-aaaaaaaaaaaa"
+expected:
+  config_access:
+    - id: a1
+      external_user_aliases: [alice]
+      external_role_aliases: []
+      external_group_aliases: []
+    - id: a2
+      external_user_aliases: []
+      external_role_aliases: [admin]
+      external_group_aliases: []
+    - id: a3
+      external_user_aliases: []
+      external_role_aliases: []
+      external_group_aliases: [devs]
+    - id: a4
+      external_user_aliases: [alice, bob]
+      external_role_aliases: [admin, owner]
+      external_group_aliases: [devs, ops]
+assertions:
+  - size(config_access) == 4
+  - config_access[0].external_user_aliases == ['alice']
+  - config_access[1].external_role_aliases == ['admin']
+  - config_access[2].external_group_aliases == ['devs']
+  - config_access[3].external_user_aliases == ['alice', 'bob']
+  - config_access[3].external_role_aliases == ['admin', 'owner']
+  - config_access[3].external_group_aliases == ['devs', 'ops']

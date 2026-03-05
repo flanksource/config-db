@@ -1,0 +1,18 @@
+input:
+  config:
+    name: Test Org
+  config_access:
+    - id: access-003
+      external_config_id:
+        config_type: Organization
+        external_id: test-org
+      external_user_aliases: [alice]
+      external_role_aliases: [admin, owner]
+pre_populate:
+  configs:
+    Organization/test-org: "00000000-0000-0000-0000-aaaaaaaaaaaa"
+assertions:
+  - size(config_access) == 1
+  - config_access[0].id == 'access-003'
+  - config_access[0].external_user_aliases == ['alice']
+  - config_access[0].external_role_aliases == ['admin', 'owner']

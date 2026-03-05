@@ -1,0 +1,18 @@
+input:
+  analysis:
+    - analyzer: compliance
+      severity: medium
+      summary: "Missing encryption"
+      external_id: db-1
+      config_type: Database
+    - analyzer: performance
+      severity: low
+      summary: "Slow query detected"
+assertions:
+  - size(analysis) == 1
+  - analysis[0].external_id == 'db-1'
+  - analysis[0].config_type == 'Database'
+  - summary.analysis.scraped == 2
+  - summary.analysis.skipped == 1
+  - size(warnings) == 1
+  - warnings[0] == 'analysis missing external_id'

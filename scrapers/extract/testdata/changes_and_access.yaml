@@ -1,0 +1,35 @@
+input:
+  config:
+    name: production-db
+  changes:
+    - external_id: db-1
+      config_type: Database
+      change_type: diff
+      action: Updated
+      summary: "connection pool increased"
+  config_access:
+    - id: ca-1
+      external_config_id:
+        config_type: Database
+        external_id: db-1
+      external_user_aliases: [dba-admin]
+  access_logs:
+    - external_config_id:
+        config_type: Database
+        external_id: db-1
+      external_user_id: "00000000-0000-0000-0000-000000000001"
+pre_populate:
+  configs:
+    "Database/db-1": "00000000-0000-0000-0000-bbbbbbbbbbbb"
+assertions:
+  - size(changes) == 1
+  - changes[0].config_type == 'Database'
+  - size(config_access) == 1
+  - config_access[0].config_id == '00000000-0000-0000-0000-bbbbbbbbbbbb'
+  - size(access_logs) == 1
+  - access_logs[0].config_id == '00000000-0000-0000-0000-bbbbbbbbbbbb'
+  - summary.config_access.scraped == 1
+  - summary.config_access.skipped == 0
+  - summary.changes.scraped == 1
+  - summary.access_logs.scraped == 1
+  - summary.access_logs.skipped == 0

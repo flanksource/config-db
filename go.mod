@@ -157,12 +157,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kms v1.49.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.5 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.4 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
-	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/casbin/casbin/v2 v2.135.0 // indirect
 	github.com/casbin/casbin/v3 v3.8.1 // indirect
 	github.com/casbin/gorm-adapter/v3 v3.41.0 // indirect
@@ -170,6 +168,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cert-manager/cert-manager v1.19.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/charmbracelet/bubbletea v1.3.10 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/ansi v0.11.4 // indirect
@@ -254,7 +253,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
 	github.com/henvic/httpretty v0.1.4 // indirect
 	github.com/hirochachacha/go-smb2 v1.1.0 // indirect
-	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/itchyny/gojq v0.12.18 // indirect
 	github.com/itchyny/timefmt-go v0.1.7 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
@@ -286,7 +284,6 @@ require (
 	github.com/lrita/cmap v0.0.0-20231108122212-cb084a67f554 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
-	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/microsoft/kiota-abstractions-go v1.9.3 // indirect
 	github.com/microsoft/kiota-authentication-azure-go v1.3.1 // indirect
 	github.com/microsoft/kiota-http-go v1.5.4 // indirect
@@ -296,6 +293,8 @@ require (
 	github.com/microsoft/kiota-serialization-text-go v1.1.3 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/moby/term v0.5.2 // indirect
+	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
+	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nats-io/nats.go v1.48.0 // indirect
@@ -335,6 +334,7 @@ require (
 	github.com/skeema/knownhosts v1.3.2 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/std-uritemplate/std-uritemplate/go/v2 v2.0.3 // indirect
+	github.com/stoewer/go-strcase v1.3.1 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
@@ -347,12 +347,8 @@ require (
 	github.com/vadimi/go-http-ntlm v1.0.3 // indirect
 	github.com/vadimi/go-http-ntlm/v2 v2.5.0 // indirect
 	github.com/vadimi/go-ntlm v1.2.1 // indirect
-	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
-	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
-	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/xuri/efp v0.0.1 // indirect

@@ -1,0 +1,21 @@
+input:
+  config:
+    name: my-bucket
+  type: Bucket
+  external_id: "s3://my-bucket"
+  analysis:
+    - analyzer: security
+      severity: high
+      summary: "Public access enabled"
+    - analyzer: cost
+      severity: low
+      summary: "Underutilized"
+      external_id: vm-1
+      config_type: VM
+assertions:
+  - size(analysis) == 2
+  - analysis[0].external_id == 's3://my-bucket'
+  - analysis[0].config_type == 'Bucket'
+  - analysis[1].external_id == 'vm-1'
+  - analysis[1].config_type == 'VM'
+  - summary.analysis.scraped == 2

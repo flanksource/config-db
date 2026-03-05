@@ -1,0 +1,21 @@
+input:
+  config:
+    name: my-app
+  type: Deployment
+  external_id: app-1
+  changes:
+    - change_type: diff
+      action: Updated
+      summary: "image tag changed"
+    - external_id: other-app
+      config_type: Service
+      change_type: RunAction
+      action: Restarted
+      summary: "manual restart"
+assertions:
+  - size(changes) == 2
+  - changes[0].external_id == 'app-1'
+  - changes[0].config_type == 'Deployment'
+  - changes[1].external_id == 'other-app'
+  - changes[1].config_type == 'Service'
+  - summary.changes.scraped == 2

@@ -51,18 +51,20 @@ func IsMoreSevere(s1, s2 models.Severity) bool {
 // AnalysisResult ...
 // +kubebuilder:object:generate=false
 type AnalysisResult struct {
-	Summary         string              // Summary of the analysis
-	Analysis        map[string]any      // Detailed metadata of the analysis
-	AnalysisType    models.AnalysisType // Type of analysis, e.g. availability, compliance, cost, security, performance.
-	Severity        models.Severity     // Severity of the analysis, e.g. critical, high, medium, low, info
-	Source          string              // Source indicates who/what made the analysis. example: Azure advisor, AWS Trusted advisor
-	Analyzer        string              // Very brief description of the analysis
-	Messages        []string            // A detailed paragraphs of the analysis
-	Status          string
-	FirstObserved   *time.Time
-	LastObserved    *time.Time
-	Error           error
-	ExternalConfigs []ExternalID
+	ExternalID      string              `json:"external_id,omitempty"`
+	ConfigType      string              `json:"config_type,omitempty"`
+	Summary         string              `json:"summary,omitempty"`
+	Analysis        map[string]any      `json:"analysis,omitempty"`
+	AnalysisType    models.AnalysisType `json:"analysis_type,omitempty"`
+	Severity        models.Severity     `json:"severity,omitempty"`
+	Source          string              `json:"source,omitempty"`
+	Analyzer        string              `json:"analyzer,omitempty"`
+	Messages        []string            `json:"messages,omitempty"`
+	Status          string              `json:"status,omitempty"`
+	FirstObserved   *time.Time          `json:"first_observed,omitempty"`
+	LastObserved    *time.Time          `json:"last_observed,omitempty"`
+	Error           error               `json:"-"`
+	ExternalConfigs []ExternalID        `json:"external_configs,omitempty"`
 }
 
 // ToConfigAnalysis converts this analysis result to a config analysis
@@ -205,21 +207,25 @@ func (e EntitySummary) Merge(other EntitySummary) EntitySummary {
 	}
 }
 
-func (e EntitySummary) String() string {
-	var parts []string
+func (e EntitySummary) Pretty() api.Text {
+	t := clicky.Text("")
 	if e.Scraped > 0 {
-		parts = append(parts, fmt.Sprintf("scraped=%d", e.Scraped))
+		t = t.Appendf("%d", e.Scraped).AddText(" scraped", "muted")
 	}
 	if e.Saved > 0 {
-		parts = append(parts, fmt.Sprintf("saved=%d", e.Saved))
+		t = t.Space().Appendf("%d", e.Saved).AddText(" saved", "success")
 	}
 	if e.Skipped > 0 {
-		parts = append(parts, fmt.Sprintf("skipped=%d", e.Skipped))
+		t = t.Space().Appendf("%d", e.Skipped).AddText(" skipped", "warning")
 	}
 	if e.Deleted > 0 {
-		parts = append(parts, fmt.Sprintf("deleted=%d", e.Deleted))
+		t = t.Space().Appendf("%d", e.Deleted).AddText(" deleted", "error")
 	}
-	return strings.Join(parts, ", ")
+	return t
+}
+
+func (e EntitySummary) String() string {
+	return e.Pretty().String()
 }
 
 // +kubebuilder:object:generate=false
@@ -672,8 +678,9 @@ func (s *ScrapeResults) AddChange(base BaseScraper, change ChangeResult) *Scrape
 
 func (s *ScrapeResults) Analysis(analyzer string, configType string, id string) *AnalysisResult {
 	result := AnalysisResult{
-		Analyzer:        analyzer,
-		ExternalConfigs: []ExternalID{{ConfigType: configType, ExternalID: id}},
+		Analyzer:   analyzer,
+		ConfigType: configType,
+		ExternalID: id,
 	}
 	*s = append(*s, ScrapeResult{
 		AnalysisResult: &result,
@@ -1243,7 +1250,7 @@ func (s ScrapeResult) Pretty() api.Text {
 // +kubebuilder:object:generate=false
 type ExternalConfigAccessLog struct {
 	models.ConfigAccessLog
-	ConfigExternalID ExternalID
+	ConfigExternalID ExternalID `json:"external_config_id,omitempty"`
 }
 
 // +kubebuilder:object:generate=false

@@ -1,0 +1,685 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Full Mode Config Map
+description: >
+  Schema for the Config field (map[string]any) returned by scrapers when Spec.Full is true.
+  The extraction pipeline parses reserved top-level keys to extract changes, analysis,
+  access control, and external entities from the config map.
+
+type: object
+additionalProperties: true
+properties:
+  # ── Top-level config reference defaults ──────────────────────────────
+  # These are inherited by changes, analysis, config_access, and access_logs
+  # items that lack explicit config references.
+
+  uuid:
+    type: string
+    format: uuid
+    description: >
+      Default config UUID. Must be a valid UUID; non-UUID values are silently ignored.
+      Alternative key: config_id. First key found wins.
+      Takes precedence over external_id when both are set.
+
+  config_id:
+    type: string
+    description: >
+      Alternative to uuid. If the value is a valid UUID, used as ConfigID;
+      otherwise silently ignored for default inheritance (unlike in sub-items
+      where non-UUID values are moved to external_id).
+
+  external_id:
+    type: string
+    description: >
+      Default external identifier. Inherited by sub-items missing a config reference.
+      Used together with type/config_type for external lookup.
+
+  type:
+    type: string
+    description: >
+      Default config type (e.g. AWS::EC2::Instance). Alternative key: config_type.
+
+  config_type:
+    type: string
+    description: Alternative to type.
+
+  # ── Actual config data ───────────────────────────────────────────────
+
+  config:
+    type: object
+    description: >
+      The actual configuration data to persist. Everything outside this key
+      is treated as metadata/entities and stripped from the stored config.
+      Can be any valid JSON/YAML value (object, array, string, number, etc.).
+
+  # ── Changes ──────────────────────────────────────────────────────────
+
+  changes:
+    type: array
+    items:
+      $ref: "#/$defs/ChangeResult"
+
+  # ── Analysis ─────────────────────────────────────────────────────────
+
+  analysis:
+    type: array
+    items:
+      $ref: "#/$defs/AnalysisResult"
+
+  # ── Access logs (alternative key: "logs") ────────────────────────────
+
+  access_logs:
+    type: array
+    items:
+      $ref: "#/$defs/ConfigAccessLog"
+
+  logs:
+    type: array
+    description: Alternative key for access_logs. First match wins.
+    items:
+      $ref: "#/$defs/ConfigAccessLog"
+
+  # ── Config access (alternative key: "access") ───────────────────────
+
+  config_access:
+    type: array
+    items:
+      $ref: "#/$defs/ConfigAccess"
+
+  access:
+    type: array
+    description: Alternative key for config_access. First match wins.
+    items:
+      $ref: "#/$defs/ConfigAccess"
+
+  # ── External users (alternative key: "users") ───────────────────────
+
+  external_users:
+    type: array
+    items:
+      $ref: "#/$defs/ExternalUser"
+
+  users:
+    type: array
+    description: Alternative key for external_users. First match wins.
+    items:
+      $ref: "#/$defs/ExternalUser"
+
+  # ── External groups (alternative key: "groups") ─────────────────────
+
+  external_groups:
+    type: array
+    items:
+      $ref: "#/$defs/ExternalGroup"
+
+  groups:
+    type: array
+    description: Alternative key for external_groups. First match wins.
+    items:
+      $ref: "#/$defs/ExternalGroup"
+
+  # ── External roles (alternative key: "roles") ───────────────────────
+
+  external_roles:
+    type: array
+    items:
+      $ref: "#/$defs/ExternalRole"
+
+  roles:
+    type: array
+    description: Alternative key for external_roles. First match wins.
+    items:
+      $ref: "#/$defs/ExternalRole"
+
+  # ── External user-group mappings (alternative key: "user_groups") ───
+
+  external_user_groups:
+    type: array
+    items:
+      $ref: "#/$defs/ExternalUserGroup"
+
+  user_groups:
+    type: array
+    description: Alternative key for external_user_groups. First match wins.
+    items:
+      $ref: "#/$defs/ExternalUserGroup"
+
+# ════════════════════════════════════════════════════════════════════════
+# Type definitions
+# ════════════════════════════════════════════════════════════════════════
+
+$defs:
+  # ── ChangeResult ───────────────────────────────────────────────────
+  # Source: api/v1/interface.go:85-121
+  ChangeResult:
+    type: object
+    description: >
+      A config change event. After default inheritance, external_id is required;
+      items missing it are silently dropped.
+
+      Mutual exclusivity: configID (direct UUID lookup) vs external_id + config_type
+      (external lookup). If configID is set, external_id/config_type are ignored for lookup.
+    required:
+      - external_id
+      - external_change_id
+      - change_type
+    properties:
+      external_id:
+        type: string
+        description: >
+          External ID of the target config. REQUIRED after default inheritance.
+          Items without this are dropped with warning "change missing external_id".
+          Can be inherited from top-level external_id.
+      config_type:
+        type: string
+        description: >
+          Config type of the target. Can be inherited from top-level type/config_type.
+          Needed together with external_id for external lookup.
+      scraper_id:
+        type: string
+        description: >
+          Scraper ID for config lookup scope.
+          Empty string = current scraper's ID.
+          "all" = cross-scraper lookup (disregards scraper boundary).
+      external_change_id:
+        type: string
+        description: >
+          Unique change identifier used for deduplication, within a scraper
+        $ref: "#/$defs/ChangeAction"
+      change_type:
+        type: string
+        description: >
+          Category of change. Free-form string.
+          Known constants: "diff", "PermissionAdded", "PermissionRemoved".
+      patches:
+        type: string
+        description: >
+          JSON patch string describing the change.
+          If summary is empty, it is auto-generated from patches.
+      diff:
+        type: string
+        description: Textual diff of the change.
+      summary:
+        type: string
+        description: >
+          Human-readable change summary.
+          Auto-generated from patches if left empty.
+      severity:
+        type: string
+        description: >
+          Free-form severity string.
+          Common values: "critical", "high", "medium", "low", "info".
+      source:
+        type: string
+        description: Origin of the change (e.g. "CloudTrail", "AuditLog").
+      created_by:
+        type: string
+        description: Email or identifier of the change author.
+      created_at:
+        type: string
+        format: date-time
+        description: When the change occurred. ISO 8601 format.
+      details:
+        type: object
+        additionalProperties: true
+        description: Arbitrary structured metadata about the change.
+      configID:
+        type: string
+        format: uuid
+        description: >
+          Direct config UUID. Bypasses external_id + config_type lookup.
+          Mutually exclusive with external_id for lookup purposes:
+          if set, external_id/config_type are not used for resolution.
+      update_existing:
+        type: boolean
+        default: false
+        description: >
+          When true, update an existing change record instead of creating a new one.
+          Matched by external_change_id.
+
+  # ── ChangeAction ───────────────────────────────────────────────────
+  # Source: api/v1/const.go:3-12
+  ChangeAction:
+    type: string
+    description: >
+      Action to take for this change.
+      "move-up" and "copy-up" require AncestorType (set internally by change mapping rules, not from JSON).
+      "copy" and "move" require Target selector (set internally by change mapping rules, not from JSON).
+    enum:
+      - delete
+      - ignore
+      - move-up
+      - copy-up
+      - copy
+      - move
+
+  # ── AnalysisResult ─────────────────────────────────────────────────
+  # Source: api/v1/interface.go:50-65
+  AnalysisResult:
+    type: object
+    description: >
+      Analysis finding for a config item.
+
+      Validation: must have EITHER external_id OR external_configs (non-empty array).
+      Items with neither are dropped with warning "analysis missing external_id".
+      These two fields are alternative ways to reference target config(s).
+    oneOf:
+      - required: [external_id]
+      - required: [external_configs]
+    properties:
+      external_id:
+        type: string
+        description: >
+          External ID of the config this analysis applies to.
+          Can be inherited from top-level external_id.
+          Mutually exclusive with external_configs as the config reference mechanism:
+          provide one or the other.
+      config_type:
+        type: string
+        description: Config type. Can be inherited from top-level type/config_type.
+      analyzer:
+        type: string
+        description: >
+          Analyzer identifier. Matched against built-in analysis rules
+          which can auto-set analysis_type and severity.
+      summary:
+        type: string
+        description: Brief human-readable description of the finding.
+      analysis:
+        type: object
+        additionalProperties: true
+        description: Structured analysis findings.
+      analysis_type:
+        $ref: "#/$defs/AnalysisType"
+      severity:
+        $ref: "#/$defs/Severity"
+      source:
+        type: string
+        description: Origin of the analysis.
+      messages:
+        type: array
+        items:
+          type: string
+        description: >
+          Detail messages. Joined with "<br><br>" separator when stored in DB.
+      status:
+        type: string
+        description: Current status. Free-form string.
+      first_observed:
+        type: string
+        format: date-time
+        description: When the finding was first seen. ISO 8601 format.
+      last_observed:
+        type: string
+        format: date-time
+        description: When the finding was last seen. ISO 8601 format.
+      external_configs:
+        type: array
+        description: >
+          Related config references. Alternative to single external_id.
+          Use when the analysis applies to multiple configs.
+          Mutually exclusive with external_id as the config reference mechanism.
+        items:
+          $ref: "#/$defs/ExternalID"
+
+  AnalysisType:
+    type: string
+    enum:
+      - availability
+      - compliance
+      - cost
+      - integration
+      - other
+      - performance
+      - recommendation
+      - reliability
+
+  Severity:
+    type: string
+    enum:
+      - info
+      - low
+      - medium
+      - high
+      - critical
+
+  # ── ExternalID (config reference) ──────────────────────────────────
+  # Source: api/v1/types.go:190-201
+  ExternalID:
+    type: object
+    description: >
+      Reference to a config item. Two lookup modes (mutually exclusive):
+      1. config_id (UUID) — direct lookup by primary key.
+      2. external_id + config_type — external lookup. Both must be non-empty.
+      The pipeline checks config_id first; if set, external_id/config_type are ignored.
+
+      IsEmpty() returns true when: config_id is nil AND (config_type is empty OR external_id is empty).
+    properties:
+      config_id:
+        type: string
+        format: uuid
+        description: Direct config UUID. Takes precedence over external_id + config_type.
+      config_type:
+        type: string
+        description: >
+          Config type for external lookup.
+          Required together with external_id for a valid external reference.
+      external_id:
+        type: string
+        description: >
+          External identifier string.
+          Required together with config_type for a valid external reference.
+      scraper_id:
+        type: string
+        description: >
+          Scraper scope for lookup.
+          Empty string = current scraper.
+          "all" = cross-scraper lookup.
+      labels:
+        type: object
+        additionalProperties:
+          type: string
+        description: Label filters for lookup.
+
+  # ── ConfigAccess ───────────────────────────────────────────────────
+  # Source: api/v1/interface.go:1054-1060, models/config_access.go:170-188
+  ConfigAccess:
+    type: object
+    description: >
+      Access control entry linking a config to a user, group, or role.
+
+      Config reference (required, one of):
+        - config_id: valid UUID → used directly as ConfigID
+        - config_id: non-UUID string → auto-moved to external_id before unmarshal
+        - external_id + config_type: external lookup
+        - uuid: alternative key for config_id
+      Items missing both ConfigID and external_id after processing are dropped
+      with warning "config_access missing config reference".
+
+      Subject reference (at least one):
+        - user/external_user_aliases → resolved to ExternalUserID
+        - role/external_role_aliases → resolved to ExternalRoleID
+        - group/external_group_aliases → resolved to ExternalGroupID
+      If aliases don't match existing entities, new entities are auto-created.
+
+      Source identity (at least one required after resolution):
+        - scraper_id (defaults to current scraper's ID)
+        - application_id
+        - source
+    properties:
+      config_id:
+        type: string
+        description: >
+          Config reference. Dual behavior based on value:
+          - Valid UUID → kept as config_id (direct lookup)
+          - Non-UUID string → automatically moved to external_id before unmarshal
+          This sanitization only applies to config_access and access_logs items.
+      uuid:
+        type: string
+        format: uuid
+        description: Alternative key for config_id. Parsed identically.
+      external_id:
+        type: string
+        description: >
+          External identifier of the config. Used with config_type for lookup.
+          May be auto-populated from a non-UUID config_id value.
+      config_type:
+        type: string
+        description: "Config type for external lookup. Alternative key: type."
+      type:
+        type: string
+        description: Alternative key for config_type.
+
+      # Shorthand alias fields
+      user:
+        description: >
+          Shorthand for external_user_aliases. Accepts a single string or array of strings.
+          Expanded only when external_user_aliases is empty.
+          During resolution, aliases are looked up; if no match, a new ExternalUser is auto-created.
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+      role:
+        description: >
+          Shorthand for external_role_aliases. Accepts a single string or array of strings.
+          Expanded only when external_role_aliases is empty.
+          During resolution, aliases are looked up; if no match, a new ExternalRole is auto-created.
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+      group:
+        description: >
+          Shorthand for external_group_aliases. Accepts a single string or array of strings.
+          Expanded only when external_group_aliases is empty.
+          During resolution, aliases are looked up; if no match, a new ExternalGroup is auto-created.
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+
+      # Structured alias fields (populated by shorthand or directly)
+      external_user_aliases:
+        type: array
+        items:
+          type: string
+        description: User aliases. Populated from "user" shorthand if empty.
+      external_role_aliases:
+        type: array
+        items:
+          type: string
+        description: Role aliases. Populated from "role" shorthand if empty.
+      external_group_aliases:
+        type: array
+        items:
+          type: string
+        description: Group aliases. Populated from "group" shorthand if empty.
+
+      # Direct ID fields (typically set by resolution, not by scraper)
+      external_user_id:
+        type: string
+        format: uuid
+        description: Resolved user UUID. Usually set by alias resolution, not directly.
+      external_group_id:
+        type: string
+        format: uuid
+        description: Resolved group UUID. Usually set by alias resolution, not directly.
+      external_role_id:
+        type: string
+        format: uuid
+        description: Resolved role UUID. Usually set by alias resolution, not directly.
+
+      # Source identity
+      scraper_id:
+        type: string
+        format: uuid
+        description: Scraper UUID. Defaults to current scraper's ID if not set.
+      application_id:
+        type: string
+        format: uuid
+        description: Application UUID context.
+      source:
+        type: string
+        description: Source identifier string.
+
+  # ── ConfigAccessLog ────────────────────────────────────────────────
+  # Source: api/v1/interface.go:1048-1051, models/config_access.go:220-228
+  ConfigAccessLog:
+    type: object
+    description: >
+      Access audit log entry recording who accessed a config and when.
+
+      Config reference (required, one of):
+        - config_id: valid UUID → used directly as ConfigID
+        - config_id: non-UUID string → auto-moved to external_id before unmarshal
+        - external_id + config_type: external lookup
+        - uuid: alternative key for config_id
+      Items missing both ConfigID and external_id after processing are dropped
+      with warning "access_log missing config reference".
+    properties:
+      config_id:
+        type: string
+        description: >
+          Config reference. Dual behavior based on value:
+          - Valid UUID → kept as config_id (direct lookup)
+          - Non-UUID string → automatically moved to external_id before unmarshal
+      uuid:
+        type: string
+        format: uuid
+        description: Alternative key for config_id. Parsed identically.
+      external_id:
+        type: string
+        description: >
+          External identifier of the config. Used with config_type for lookup.
+          May be auto-populated from a non-UUID config_id value.
+      config_type:
+        type: string
+        description: "Config type for external lookup. Alternative key: type."
+      type:
+        type: string
+        description: Alternative key for config_type.
+
+      external_user_id:
+        type: string
+        format: uuid
+        description: UUID of the user who accessed the config.
+      scraper_id:
+        type: string
+        format: uuid
+        description: Scraper UUID.
+      created_at:
+        type: string
+        format: date-time
+        description: When the access occurred. ISO 8601 format.
+      mfa:
+        type: boolean
+        description: Whether multi-factor authentication was used.
+      properties:
+        type: object
+        additionalProperties: true
+        description: Additional access log properties.
+      count:
+        type: integer
+        minimum: 1
+        default: 1
+        description: Number of access events (for aggregated logs).
+
+  # ── ExternalUser ───────────────────────────────────────────────────
+  # Source: duty/models/config_access.go:13-29
+  ExternalUser:
+    type: object
+    required:
+      - name
+    properties:
+      id:
+        type: string
+        format: uuid
+        description: >
+          Stable unique identifier. If omitted, auto-generated (generate_ulid).
+          Can be a deterministic hash of aliases for idempotent upserts.
+      name:
+        type: string
+        description: Display name of the user.
+      aliases:
+        type: array
+        items:
+          type: string
+        description: >
+          Alternative identifiers (emails, usernames, provider-specific IDs).
+          Used for alias-based entity resolution.
+      account_id:
+        type: string
+        description: >
+          Tenant/account identifier (Azure Tenant ID, AWS Account ID,
+          GCP Project, K8s cluster name).
+      user_type:
+        type: string
+        description: User type classification.
+      email:
+        type: string
+        format: email
+        description: User email address.
+      created_by:
+        type: string
+        description: Creator identifier.
+
+  # ── ExternalGroup ──────────────────────────────────────────────────
+  # Source: duty/models/config_access.go:65-77
+  ExternalGroup:
+    type: object
+    required:
+      - name
+    properties:
+      id:
+        type: string
+        format: uuid
+        description: Stable unique identifier.
+      name:
+        type: string
+        description: Display name of the group.
+      aliases:
+        type: array
+        items:
+          type: string
+        description: Alternative identifiers for alias-based resolution.
+      account_id:
+        type: string
+        description: Tenant/account identifier.
+      group_type:
+        type: string
+        description: Group type classification.
+
+  # ── ExternalRole ───────────────────────────────────────────────────
+  # Source: duty/models/config_access.go:126-139
+  ExternalRole:
+    type: object
+    required:
+      - name
+    properties:
+      id:
+        type: string
+        format: uuid
+        description: Stable unique identifier.
+      name:
+        type: string
+        description: Display name of the role.
+      aliases:
+        type: array
+        items:
+          type: string
+        description: Alternative identifiers for alias-based resolution.
+      account_id:
+        type: string
+        description: Tenant/account identifier.
+      application_id:
+        type: string
+        format: uuid
+        description: >
+          Links the role to a specific application
+          (e.g. Azure AD App Registration).
+      role_type:
+        type: string
+        description: Role type classification.
+      description:
+        type: string
+        description: Human-readable role description.
+
+  # ── ExternalUserGroup ──────────────────────────────────────────────
+  # Source: duty/models/config_access.go:112-119
+  ExternalUserGroup:
+    type: object
+    required:
+      - external_user_id
+      - external_group_id
+    properties:
+      external_user_id:
+        type: string
+        format: uuid
+        description: UUID of the external user.
+      external_group_id:
+        type: string
+        format: uuid
+        description: UUID of the external group.

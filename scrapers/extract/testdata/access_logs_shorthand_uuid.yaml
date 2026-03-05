@@ -1,0 +1,10 @@
+input:
+  access_logs:
+    - config_id: "00000000-0000-0000-0000-aaaaaaaaaaaa"
+      external_user_id: "00000000-0000-0000-0000-000000000001"
+assertions:
+  - size(access_logs) == 1
+  - access_logs[0].config_id == '00000000-0000-0000-0000-aaaaaaaaaaaa'
+  - access_logs[0].external_user_id == '00000000-0000-0000-0000-000000000001'
+  - summary.access_logs.scraped == 1
+  - summary.access_logs.skipped == 0

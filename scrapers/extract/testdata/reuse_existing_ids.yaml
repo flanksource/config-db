@@ -1,0 +1,21 @@
+input:
+  users:
+    - name: Alice
+      aliases: [alice]
+  roles:
+    - name: Admin
+      aliases: [admin]
+pre_populate:
+  users:
+    alice: "00000000-0000-0000-0000-000000000001"
+  roles:
+    admin: "00000000-0000-0000-0000-000000000002"
+assertions:
+  - size(external_users) == 1
+  - external_users[0].id == '00000000-0000-0000-0000-000000000001'
+  - external_users[0].name == 'Alice'
+  - size(external_roles) == 1
+  - external_roles[0].id == '00000000-0000-0000-0000-000000000002'
+  - external_roles[0].name == 'Admin'
+  - "summary.users.scraped == 1 && summary.users.saved == 0"
+  - "summary.roles.scraped == 1 && summary.roles.saved == 0"

@@ -1,0 +1,15 @@
+input:
+  config_access:
+    - id: a1
+      user: alice
+  external_users:
+    - name: alice
+      aliases: [alice]
+pre_populate:
+  users:
+    alice: "00000000-0000-0000-0000-000000000001"
+assertions:
+  - size(config_access) == 0
+  - summary.config_access.skipped == 1
+  - size(warnings) == 1
+  - warnings[0] == 'config_access missing config reference'

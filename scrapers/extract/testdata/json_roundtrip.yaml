@@ -1,0 +1,24 @@
+input:
+  id: test-org
+  config:
+    name: Test Organization
+  external_users:
+    - name: Alice
+      aliases: [alice, "alice@example.com"]
+  config_access:
+    - id: access-001
+      external_config_id:
+        config_type: Organization
+        external_id: test-org
+      external_user_aliases: [alice, "alice@example.com"]
+pre_populate:
+  configs:
+    Organization/test-org: "00000000-0000-0000-0000-aaaaaaaaaaaa"
+assertions:
+  - size(external_users) >= 1
+  - external_users[0].name == 'Alice'
+  - size(config_access) == 1
+  - config_access[0].id == 'access-001'
+  - config_access[0].external_config_id.config_type == 'Organization'
+  - config_access[0].external_config_id.external_id == 'test-org'
+  - config_access[0].external_user_aliases == ['alice', 'alice@example.com']

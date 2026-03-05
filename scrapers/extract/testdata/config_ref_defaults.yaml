@@ -1,0 +1,45 @@
+input:
+  config:
+    name: Test Org
+  type: Organization
+  external_id: org-1
+  access:
+    - id: a1
+      user: alice
+    - id: a2
+      user: bob
+    - id: a3
+      external_config_id:
+        config_type: Database
+        external_id: db-1
+      user: carol
+
+pre_populate:
+  configs:
+    Organization/org-1: "00000000-0000-0000-0000-aaaaaaaaaaaa"
+    Database/db-1: "00000000-0000-0000-0000-bbbbbbbbbbbb"
+expected:
+  config_access:
+    - id: a1
+      config_external_id:
+        config_type: Organization
+        external_id: org-1
+      external_user_aliases: [alice]
+    - id: a2
+      config_external_id:
+        config_type: Organization
+        external_id: org-1
+      external_user_aliases: [bob]
+    - id: a3
+      config_external_id:
+        config_type: Database
+        external_id: db-1
+      external_user_aliases: [carol]
+assertions:
+  - size(config_access) == 3
+  - config_access[0].external_config_id.config_type == 'Organization'
+  - config_access[0].external_config_id.external_id == 'org-1'
+  - config_access[2].external_config_id.config_type == 'Database'
+  - config_access[2].external_config_id.external_id == 'db-1'
+  - summary.config_access.scraped == 3
+  - summary.config_access.skipped == 0
