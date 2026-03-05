@@ -1,14 +1,17 @@
 package cmd
 
 import (
+	"bytes"
 	gocontext "context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path"
 	"time"
 
 	"github.com/flanksource/clicky"
+	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
@@ -28,16 +31,32 @@ var outputDir string
 var debugPort int
 var export bool
 var save bool
+var debug bool
 
 // Run ...
 var Run = &cobra.Command{
 	Use:   "run <scraper.yaml>",
 	Short: "Run scrapers and return",
 	Run: func(cmd *cobra.Command, configFiles []string) {
+		var logBuf bytes.Buffer
+		var harCollector *har.Collector
+
+		if debug {
+			clicky.Flags.Level = "trace"
+			harCollector = har.NewCollector(har.DefaultConfig())
+		}
 
 		clicky.Flags.UseFlags()
 
-		logger.Use(os.Stderr)
+		if debug {
+			logger.Use(io.MultiWriter(os.Stderr, &logBuf))
+			// logger.Use() creates a new logger that doesn't inherit the
+			// trace level set by UseFlags(), so re-apply it.
+			logger.StandardLogger().SetLogLevel("trace")
+		} else {
+			logger.Use(os.Stderr)
+		}
+
 		logger.Infof("Scraping %v", configFiles)
 		scraperConfigs, err := v1.ParseConfigs(configFiles...)
 		if err != nil {
@@ -83,32 +102,45 @@ var Run = &cobra.Command{
 		}
 
 		var hasErrors bool
+		var allResults v1.ScrapeResults
 		for i := range scraperConfigs {
-			ctx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
+			scrapeCtx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
 				WithTimeout(dutyCtx.Properties().Duration("scraper.timeout", 4*time.Hour))
 			defer cancelTimeout()
 			shutdown.AddHook(func() { defer cancel() })
-			if err := scrapeAndStore(ctx); err != nil {
+
+			if debug {
+				scrapeCtx = scrapeCtx.AsDebugRun("trace").WithHARCollector(harCollector)
+			}
+
+			results, err := scrapeAndStore(scrapeCtx)
+			if err != nil {
 				hasErrors = true
 				logger.Errorf("error scraping config: (name=%s) %+v", scraperConfigs[i].Name, err)
 			}
+			allResults = append(allResults, results...)
 		}
+
+		if debug {
+			writeDebugOutput(allResults, harCollector, logBuf.String())
+		}
+
 		if hasErrors {
 			os.Exit(1)
 		}
 	},
 }
 
-func scrapeAndStore(ctx api.ScrapeContext) error {
+func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 	ctx, err := ctx.InitTempCache()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	timer := timer.NewMemoryTimer()
 	results, err := scrapers.Run(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	scrapeResults := v1.ScrapeResults(results)
@@ -116,7 +148,7 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 		for _, e := range scrapeResults.Errors() {
 			logger.Errorf("scrape error: %s", e)
 		}
-		return fmt.Errorf("scrape completed with %d error(s)", len(scrapeResults.Errors()))
+		return results, fmt.Errorf("scrape completed with %d error(s)", len(scrapeResults.Errors()))
 	}
 
 	var all = v1.MergeScrapeResults(results)
@@ -125,12 +157,12 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 	if outputDir != "" {
 		for _, result := range results {
 			if err := exportResource(result, outputDir); err != nil {
-				return fmt.Errorf("failed to export results: %w", err)
+				return results, fmt.Errorf("failed to export results: %w", err)
 			}
 		}
 		logger.Infof("Exported %d resources to %s (%s)", len(results), outputDir, timer.End())
 
-	} else {
+	} else if !debug {
 		clicky.MustPrint(all)
 
 	}
@@ -139,13 +171,33 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 
 		summary, err := db.SaveResults(ctx, results)
 		if err != nil {
-			return fmt.Errorf("failed to save results to db: %w", err)
+			return results, fmt.Errorf("failed to save results to db: %w", err)
 		}
 		logger.Infof("Exported %d resources to DB: %s (%s)", len(results), summary.PrettyShort(), timer.End())
 
 	}
 
-	return nil
+	return results, nil
+}
+
+func writeDebugOutput(results v1.ScrapeResults, harCollector *har.Collector, logs string) {
+	merged := v1.MergeScrapeResults(results)
+	debugResult := v1.DebugResult{
+		Results: merged,
+		HAR:     harCollector.Entries(),
+		Logs:    logs,
+	}
+
+	dir := outputDir
+	if dir == "" {
+		dir = "."
+	}
+	outputPath := path.Join(dir, "debug.html")
+	if err := clicky.FormatToFile(debugResult, clicky.FormatOptions{HTML: true}, outputPath); err != nil {
+		logger.Errorf("failed to write debug output: %v", err)
+		return
+	}
+	logger.Infof("Debug output written to %s", outputPath)
 }
 
 func exportResource(resource v1.ScrapeResult, outputDir string) error {
@@ -188,6 +240,6 @@ func init() {
 	Run.Flags().BoolVar(&export, "export", true, "Export scraped configurations to files in the output directory and/or pretty print them")
 	Run.Flags().StringVarP(&outputDir, "output-dir", "o", "", "The output folder for configurations")
 	Run.Flags().IntVar(&debugPort, "debug-port", -1, "Start an HTTP server to use the /debug routes, Use -1 to disable and 0 to pick a free port")
+	Run.Flags().BoolVar(&debug, "debug", false, "Capture all logs, HAR traffic, and output an HTML debug report")
 	clicky.BindAllFlags(Run.Flags())
-
 }

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
@@ -20,6 +21,7 @@ type ScrapeContext struct {
 
 	isIncremental bool
 	debugRun      bool
+	harCollector  *har.Collector
 
 	namespace string
 
@@ -111,6 +113,7 @@ func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 		temp:              ctx.temp,
 		isIncremental:     ctx.isIncremental,
 		debugRun:          ctx.debugRun,
+		harCollector:      ctx.harCollector,
 		namespace:         ctx.namespace,
 		jobHistory:        ctx.jobHistory,
 		scrapeConfig:      ctx.scrapeConfig,
@@ -214,4 +217,13 @@ func (ctx ScrapeContext) AsDebugRun(level string) ScrapeContext {
 		ctx.scrapeConfig = sc
 	}
 	return ctx
+}
+
+func (ctx ScrapeContext) WithHARCollector(collector *har.Collector) ScrapeContext {
+	ctx.harCollector = collector
+	return ctx
+}
+
+func (ctx ScrapeContext) HARCollector() *har.Collector {
+	return ctx.harCollector
 }
