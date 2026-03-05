@@ -127,7 +127,7 @@ var Run = &cobra.Command{
 // Uses pretty:"table" tags to prevent empty slices from appearing as broken summary entries.
 type runHTMLOutput struct {
 	Counts             v1.CountsGrid                  `json:"-"`
-	Configs            []v1.ScrapeResult              `pretty:"table"`
+	Configs            v1.ConfigTable                 `json:"-"`
 	Analysis           []models.ConfigAnalysis        `pretty:"table"`
 	Changes            []models.ConfigChange          `pretty:"table"`
 	Relationships      []models.ConfigRelationship    `pretty:"table"`
@@ -191,7 +191,7 @@ func printOutput(results v1.ScrapeResults, harCollector *har.Collector, logs str
 	all := v1.MergeScrapeResults(results)
 	output := runHTMLOutput{
 		Counts:             v1.BuildCounts(all),
-		Configs:            all.Configs,
+		Configs:            v1.ConfigTable(all.Configs),
 		Analysis:           all.Analysis,
 		Changes:            all.Changes,
 		Relationships:      all.Relationships,
