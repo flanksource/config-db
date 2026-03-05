@@ -1,14 +1,17 @@
 package cmd
 
 import (
+	"bytes"
 	gocontext "context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path"
 	"time"
 
 	"github.com/flanksource/clicky"
+	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
@@ -19,6 +22,7 @@ import (
 	dutyapi "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
 	dutyEcho "github.com/flanksource/duty/echo"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/shutdown"
 	"github.com/labstack/echo/v4"
 	"github.com/spf13/cobra"
@@ -34,10 +38,18 @@ var Run = &cobra.Command{
 	Use:   "run <scraper.yaml>",
 	Short: "Run scrapers and return",
 	Run: func(cmd *cobra.Command, configFiles []string) {
+		var logBuf bytes.Buffer
+		harCollector := har.NewCollector(har.DefaultConfig())
 
 		clicky.Flags.UseFlags()
 
-		logger.Use(os.Stderr)
+		// Capture all logs by teeing stderr to a buffer.
+		// Must happen BEFORE context.New() so contexts inherit the multiwriter logger.
+		logger.Use(io.MultiWriter(os.Stderr, &logBuf))
+		// logger.Use() creates a fresh logger that doesn't inherit the level
+		// set by UseFlags(), so re-apply trace to capture everything.
+		logger.StandardLogger().SetLogLevel("trace")
+
 		logger.Infof("Scraping %v", configFiles)
 		scraperConfigs, err := v1.ParseConfigs(configFiles...)
 		if err != nil {
@@ -83,32 +95,62 @@ var Run = &cobra.Command{
 		}
 
 		var hasErrors bool
+		var allResults v1.ScrapeResults
 		for i := range scraperConfigs {
-			ctx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
+			scrapeCtx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
 				WithTimeout(dutyCtx.Properties().Duration("scraper.timeout", 4*time.Hour))
 			defer cancelTimeout()
 			shutdown.AddHook(func() { defer cancel() })
-			if err := scrapeAndStore(ctx); err != nil {
+
+			scrapeCtx = scrapeCtx.WithHARCollector(harCollector)
+
+			results, err := scrapeAndStore(scrapeCtx)
+			if err != nil {
 				hasErrors = true
 				logger.Errorf("error scraping config: (name=%s) %+v", scraperConfigs[i].Name, err)
 			}
+			allResults = append(allResults, results...)
 		}
+
+		// Restore stderr-only logging before rendering
+		logger.Use(os.Stderr)
+
+		printOutput(allResults, harCollector, logBuf.String())
+
 		if hasErrors {
 			os.Exit(1)
 		}
 	},
 }
 
-func scrapeAndStore(ctx api.ScrapeContext) error {
+// runHTMLOutput wraps scrape results for HTML rendering.
+// Uses pretty:"table" tags to prevent empty slices from appearing as broken summary entries.
+type runHTMLOutput struct {
+	Counts             v1.CountsGrid                  `json:"-"`
+	Configs            []v1.ScrapeResult              `pretty:"table"`
+	Analysis           []models.ConfigAnalysis        `pretty:"table"`
+	Changes            []models.ConfigChange          `pretty:"table"`
+	Relationships      []models.ConfigRelationship    `pretty:"table"`
+	ExternalRoles      []models.ExternalRole          `pretty:"table"`
+	ExternalUsers      []models.ExternalUser          `pretty:"table"`
+	ExternalGroups     []models.ExternalGroup         `pretty:"table"`
+	ExternalUserGroups []models.ExternalUserGroup     `pretty:"table"`
+	ConfigAccess       []v1.ExternalConfigAccess      `pretty:"table"`
+	ConfigAccessLogs   []v1.ExternalConfigAccessLog   `pretty:"table"`
+	HTTPTraffic        []v1.HAREntry                  `pretty:"table"`
+	Logs               []v1.LogLine                   `pretty:"table"`
+}
+
+func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 	ctx, err := ctx.InitTempCache()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	timer := timer.NewMemoryTimer()
 	results, err := scrapers.Run(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	scrapeResults := v1.ScrapeResults(results)
@@ -116,36 +158,53 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 		for _, e := range scrapeResults.Errors() {
 			logger.Errorf("scrape error: %s", e)
 		}
-		return fmt.Errorf("scrape completed with %d error(s)", len(scrapeResults.Errors()))
+		return results, fmt.Errorf("scrape completed with %d error(s)", len(scrapeResults.Errors()))
 	}
 
-	var all = v1.MergeScrapeResults(results)
 	logger.Infof("Scraped %d resources (%s)", len(results), timer.End())
 
 	if outputDir != "" {
 		for _, result := range results {
 			if err := exportResource(result, outputDir); err != nil {
-				return fmt.Errorf("failed to export results: %w", err)
+				return results, fmt.Errorf("failed to export results: %w", err)
 			}
 		}
 		logger.Infof("Exported %d resources to %s (%s)", len(results), outputDir, timer.End())
-
-	} else {
-		clicky.MustPrint(all)
-
 	}
 
 	if save && dutyapi.DefaultConfig.ConnectionString != "" {
-
 		summary, err := db.SaveResults(ctx, results)
 		if err != nil {
-			return fmt.Errorf("failed to save results to db: %w", err)
+			return results, fmt.Errorf("failed to save results to db: %w", err)
 		}
 		logger.Infof("Exported %d resources to DB: %s (%s)", len(results), summary.PrettyShort(), timer.End())
-
 	}
 
-	return nil
+	return results, nil
+}
+
+func printOutput(results v1.ScrapeResults, harCollector *har.Collector, logs string) {
+	if outputDir != "" {
+		return
+	}
+
+	all := v1.MergeScrapeResults(results)
+	output := runHTMLOutput{
+		Counts:             v1.BuildCounts(all),
+		Configs:            all.Configs,
+		Analysis:           all.Analysis,
+		Changes:            all.Changes,
+		Relationships:      all.Relationships,
+		ExternalRoles:      all.ExternalRoles,
+		ExternalUsers:      all.ExternalUsers,
+		ExternalGroups:     all.ExternalGroups,
+		ExternalUserGroups: all.ExternalUserGroups,
+		ConfigAccess:       all.ConfigAccess,
+		ConfigAccessLogs:   all.ConfigAccessLogs,
+		HTTPTraffic:        v1.BuildHAREntries(harCollector.Entries()),
+		Logs:               v1.BuildLogLines(logs),
+	}
+	clicky.MustPrint(output)
 }
 
 func exportResource(resource v1.ScrapeResult, outputDir string) error {

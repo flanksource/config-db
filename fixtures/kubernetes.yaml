@@ -57,8 +57,8 @@ spec:
         changes:
           mapping:
             - filter: >
-                change_type == 'diff' && summary == "status.containerStatuses" && 
-                patch != null && has(patch.status) && has(patch.status.containerStatuses) && 
+                change_type == 'diff' && summary == "status.containerStatuses" &&
+                patch != null && has(patch.status) && has(patch.status.containerStatuses) &&
                 patch.status.containerStatuses.size() > 0 &&
                 has(patch.status.containerStatuses[0].restartCount)
               type: PodCrashLooping
@@ -71,9 +71,9 @@ spec:
             - 'config_type == "Kubernetes::Node" && has(details.message) && details.message == "status.images"'
             - 'details.source.component == "canary-checker" && (change_type == "Failed" || change_type == "Pass")'
             - >
-              change_type == "diff" && summary == "status.reconciledAt" && 
-              config != null && 
-              has(config.apiVersion) && config.apiVersion == "argoproj.io/v1alpha1" && 
+              change_type == "diff" && summary == "status.reconciledAt" &&
+              config != null &&
+              has(config.apiVersion) && config.apiVersion == "argoproj.io/v1alpha1" &&
               has(config.kind) && config.kind == "Application"
       properties:
         - filter: 'config_type == "Kubernetes::Pod"'

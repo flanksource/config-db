@@ -64,6 +64,10 @@ func scrape(ctx api.ScrapeContext, spec v1.HTTP) (v1.ScrapeResults, error) {
 		return nil, fmt.Errorf("failed to create http client: %w", err)
 	}
 
+	if collector := ctx.HARCollector(); collector != nil {
+		client = client.HARCollector(collector)
+	}
+
 	for _, header := range conn.Headers {
 		if header.Name == "" {
 			continue
