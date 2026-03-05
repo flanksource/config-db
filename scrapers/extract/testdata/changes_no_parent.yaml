@@ -2,10 +2,12 @@ input:
   changes:
     - external_id: vm-1
       config_type: VM
+      external_change_id: chg-1
       change_type: diff
       action: Updated
       summary: "disk resized"
-    - change_type: RunAction
+    - external_change_id: chg-2
+      change_type: RunAction
       action: ScaleUp
       summary: "replicas increased"
 assertions:

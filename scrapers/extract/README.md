@@ -225,9 +225,9 @@ Defaults are only applied when the item's own fields are empty/nil:
 | `ExternalID` | `string` | **Required**\* | `external_id` | External ID of target config. Validated: items missing this after defaults are **dropped**. |
 | `ConfigType` | `string` | **Required**\* | `config_type` | Type of target config. Can inherit from top-level `type`/`config_type` default. |
 | `ScraperID` | `string` | Optional | `scraper_id` | Scraper ID for config lookup. `""` = current scraper, `"all"` = cross-scraper lookup. |
-| `ExternalChangeID` | `string` | Recommended | `external_change_id` | Unique change identifier (used for deduplication). |
+| `ExternalChangeID` | `string` | **Required** | `external_change_id` | Unique change identifier (used for deduplication). Items without this are **dropped**. |
 | `Action` | `ChangeAction` | Optional | `action` | See [ChangeAction values](#changeaction-allowed-values). |
-| `ChangeType` | `string` | Optional | `change_type` | Category of change. Known constants: `"diff"`, `"PermissionAdded"`, `"PermissionRemoved"`. Free-form. |
+| `ChangeType` | `string` | **Required** | `change_type` | Category of change. Known constants: `"diff"`, `"PermissionAdded"`, `"PermissionRemoved"`. Free-form. Items without this are **dropped**. |
 | `Patches` | `string` | Optional | `patches` | JSON patch string describing the change. |
 | `Diff` | `*string` | Optional | `diff,omitempty` | Textual diff. |
 | `Summary` | `string` | Optional | `summary` | Human-readable summary. Auto-generated from patches if empty. |
@@ -246,9 +246,11 @@ Defaults are only applied when the item's own fields are empty/nil:
 - `Action` values `"move-up"` / `"copy-up"` use `AncestorType` (internal, not from JSON).
 - `Action` values `"copy"` / `"move"` use `Target` selector (internal, not from JSON).
 
-### ChangeAction Allowed Values
+### ChangeAction Values
 
 **File**: `api/v1/const.go:3-12`
+
+Free-form string. Common values with special handling:
 
 | Value | Description |
 |-------|-------------|
@@ -258,6 +260,8 @@ Defaults are only applied when the item's own fields are empty/nil:
 | `"copy-up"` | Copy change to parent ancestor (requires `AncestorType`, set by change mapping rules) |
 | `"copy"` | Copy change to target config (requires `Target` selector, set by change mapping rules) |
 | `"move"` | Move change to target config (requires `Target` selector, set by change mapping rules) |
+
+Any other string value (e.g. `"Updated"`, `"ScaleUp"`) is stored as-is without special handling.
 
 ---
 
@@ -295,6 +299,8 @@ Defaults are only applied when the item's own fields are empty/nil:
 | `"performance"` |
 | `"recommendation"` |
 | `"reliability"` |
+| `"security"` |
+| `"technical_debt"` |
 
 ### Severity Allowed Values
 
@@ -509,6 +515,8 @@ Items that fail validation are **silently dropped** with a warning added to the 
 | Entity | Validation Rule | Warning Message |
 |--------|----------------|-----------------|
 | `changes` | `ExternalID != ""` | `"change missing external_id"` |
+| `changes` | `ExternalChangeID != ""` | `"change missing external_change_id"` |
+| `changes` | `ChangeType != ""` | `"change missing change_type"` |
 | `analysis` | `ExternalID != ""` OR `len(ExternalConfigs) > 0` | `"analysis missing external_id"` |
 | `config_access` | `ConfigID != uuid.Nil` OR `ConfigExternalID.ExternalID != ""` | `"config_access missing config reference"` |
 | `access_logs` | `ConfigID != uuid.Nil` OR `ConfigExternalID.ExternalID != ""` | `"access_log missing config reference"` |

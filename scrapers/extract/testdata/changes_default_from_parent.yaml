@@ -4,11 +4,13 @@ input:
   type: Deployment
   external_id: app-1
   changes:
-    - change_type: diff
+    - external_change_id: chg-1
+      change_type: diff
       action: Updated
       summary: "image tag changed"
     - external_id: other-app
       config_type: Service
+      external_change_id: chg-2
       change_type: RunAction
       action: Restarted
       summary: "manual restart"

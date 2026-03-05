@@ -45,7 +45,6 @@ properties:
   # ── Actual config data ───────────────────────────────────────────────
 
   config:
-    type: object
     description: >
       The actual configuration data to persist. Everything outside this key
       is treated as metadata/entities and stripped from the stored config.
@@ -183,7 +182,8 @@ $defs:
       external_change_id:
         type: string
         description: >
-          Unique change identifier used for deduplication, within a scraper
+          Unique change identifier used for deduplication, within a scraper.
+      action:
         $ref: "#/$defs/ChangeAction"
       change_type:
         type: string
@@ -241,16 +241,8 @@ $defs:
   ChangeAction:
     type: string
     description: >
-      Action to take for this change.
-      "move-up" and "copy-up" require AncestorType (set internally by change mapping rules, not from JSON).
-      "copy" and "move" require Target selector (set internally by change mapping rules, not from JSON).
-    enum:
-      - delete
-      - ignore
-      - move-up
-      - copy-up
-      - copy
-      - move
+      Action for this change. Free-form string; common values include
+      "delete", "ignore", "move-up", "copy-up", "copy", "move".
 
   # ── AnalysisResult ─────────────────────────────────────────────────
   # Source: api/v1/interface.go:50-65
@@ -264,10 +256,17 @@ $defs:
       These two fields are alternative ways to reference target config(s).
     oneOf:
       - required: [external_id]
+        properties:
+          external_id:
+            minLength: 1
       - required: [external_configs]
+        properties:
+          external_configs:
+            minItems: 1
     properties:
       external_id:
         type: string
+        minLength: 1
         description: >
           External ID of the config this analysis applies to.
           Can be inherited from top-level external_id.
@@ -314,6 +313,7 @@ $defs:
         description: When the finding was last seen. ISO 8601 format.
       external_configs:
         type: array
+        minItems: 1
         description: >
           Related config references. Alternative to single external_id.
           Use when the analysis applies to multiple configs.
@@ -332,6 +332,8 @@ $defs:
       - performance
       - recommendation
       - reliability
+      - security
+      - technical_debt
 
   Severity:
     type: string
@@ -352,7 +354,7 @@ $defs:
       2. external_id + config_type — external lookup. Both must be non-empty.
       The pipeline checks config_id first; if set, external_id/config_type are ignored.
 
-      IsEmpty() returns true when: config_id is nil AND (config_type is empty OR external_id is empty).
+      Considered empty when config_id is unset AND (config_type is empty OR external_id is empty).
     properties:
       config_id:
         type: string
@@ -386,32 +388,17 @@ $defs:
     type: object
     description: >
       Access control entry linking a config to a user, group, or role.
-
-      Config reference (required, one of):
-        - config_id: valid UUID → used directly as ConfigID
-        - config_id: non-UUID string → auto-moved to external_id before unmarshal
-        - external_id + config_type: external lookup
-        - uuid: alternative key for config_id
-      Items missing both ConfigID and external_id after processing are dropped
-      with warning "config_access missing config reference".
-
-      Subject reference (at least one):
-        - user/external_user_aliases → resolved to ExternalUserID
-        - role/external_role_aliases → resolved to ExternalRoleID
-        - group/external_group_aliases → resolved to ExternalGroupID
-      If aliases don't match existing entities, new entities are auto-created.
-
-      Source identity (at least one required after resolution):
-        - scraper_id (defaults to current scraper's ID)
-        - application_id
-        - source
+      Requires a config reference (config_id or external_id + config_type),
+      at least one subject (user, role, or group), and a source identity
+      (scraper_id, application_id, or source).
+      Items missing a config reference are dropped.
     properties:
       config_id:
         type: string
         description: >
           Config reference. Dual behavior based on value:
           - Valid UUID → kept as config_id (direct lookup)
-          - Non-UUID string → automatically moved to external_id before unmarshal
+          - Non-UUID string → automatically treated as external_id during processing
           This sanitization only applies to config_access and access_logs items.
       uuid:
         type: string
@@ -514,7 +501,7 @@ $defs:
 
       Config reference (required, one of):
         - config_id: valid UUID → used directly as ConfigID
-        - config_id: non-UUID string → auto-moved to external_id before unmarshal
+        - config_id: non-UUID string → automatically treated as external_id during processing
         - external_id + config_type: external lookup
         - uuid: alternative key for config_id
       Items missing both ConfigID and external_id after processing are dropped
@@ -525,7 +512,7 @@ $defs:
         description: >
           Config reference. Dual behavior based on value:
           - Valid UUID → kept as config_id (direct lookup)
-          - Non-UUID string → automatically moved to external_id before unmarshal
+          - Non-UUID string → automatically treated as external_id during processing
       uuid:
         type: string
         format: uuid

@@ -12,7 +12,6 @@ import (
 	"github.com/flanksource/clicky/api"
 	"github.com/flanksource/commons/collections/set"
 	"github.com/flanksource/commons/har"
-	"gopkg.in/yaml.v3"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
@@ -22,6 +21,7 @@ import (
 	"github.com/ohler55/ojg/oj"
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/types/known/structpb"
+	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/fields"
 
 	"github.com/flanksource/config-db/utils"
@@ -1097,7 +1097,7 @@ func (g CountsGrid) String() string {
 	return strings.Join(parts, ", ")
 }
 
-func (g CountsGrid) ANSI() string    { return g.String() }
+func (g CountsGrid) ANSI() string     { return g.String() }
 func (g CountsGrid) Markdown() string { return g.String() }
 
 // BuildCounts returns scrape result counts as a 2-column grid.

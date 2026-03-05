@@ -1,17 +1,18 @@
 input:
   changes:
-    - config_type: Deployment
-      external_change_id: chg-1
+    - external_id: app-1
+      config_type: Deployment
       change_type: diff
-      summary: "has type but no id"
-    - external_id: "app-2"
+      summary: "missing external_change_id"
+    - external_id: app-2
+      config_type: Deployment
       external_change_id: chg-2
       change_type: diff
-      summary: "valid ref (type optional)"
+      summary: "valid change"
 assertions:
   - size(changes) == 1
   - changes[0].external_id == 'app-2'
   - summary.changes.scraped == 2
   - summary.changes.skipped == 1
   - size(warnings) == 1
-  - warnings[0] == 'change missing external_id'
+  - warnings[0] == 'change missing external_change_id'
