@@ -1,14 +1,17 @@
 package cmd
 
 import (
+	"bytes"
 	gocontext "context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path"
 	"time"
 
 	"github.com/flanksource/clicky"
+	clickyapi "github.com/flanksource/clicky/api"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
@@ -19,6 +22,7 @@ import (
 	dutyapi "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
 	dutyEcho "github.com/flanksource/duty/echo"
+	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/shutdown"
 	"github.com/labstack/echo/v4"
 	"github.com/spf13/cobra"
@@ -99,15 +103,39 @@ var Run = &cobra.Command{
 	},
 }
 
+// runHTMLOutput wraps scrape results for HTML rendering.
+// Uses pretty:"table" tags to prevent empty slices from appearing as broken summary entries.
+type runHTMLOutput struct {
+	Counts             clickyapi.Textable             `json:"-"`
+	Configs            []v1.ScrapeResult              `pretty:"table"`
+	Analysis           []models.ConfigAnalysis        `pretty:"table"`
+	Changes            []models.ConfigChange          `pretty:"table"`
+	Relationships      []models.ConfigRelationship    `pretty:"table"`
+	ExternalRoles      []models.ExternalRole          `pretty:"table"`
+	ExternalUsers      []models.ExternalUser          `pretty:"table"`
+	ExternalGroups     []models.ExternalGroup         `pretty:"table"`
+	ExternalUserGroups []models.ExternalUserGroup     `pretty:"table"`
+	ConfigAccess       []v1.ExternalConfigAccess      `pretty:"table"`
+	ConfigAccessLogs   []v1.ExternalConfigAccessLog   `pretty:"table"`
+	Logs               clickyapi.Textable             `json:"-"`
+}
+
 func scrapeAndStore(ctx api.ScrapeContext) error {
 	ctx, err := ctx.InitTempCache()
 	if err != nil {
 		return err
 	}
 
+	// Capture logs for HTML output by teeing to both stderr and buffer.
+	// Must also update ctx.Logger since the context holds its own logger reference.
+	var logBuf bytes.Buffer
+	logger.Use(io.MultiWriter(os.Stderr, &logBuf))
+	ctx.Logger = logger.StandardLogger()
+
 	timer := timer.NewMemoryTimer()
 	results, err := scrapers.Run(ctx)
 	if err != nil {
+		logger.Use(os.Stderr)
 		return err
 	}
 
@@ -116,11 +144,15 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 		for _, e := range scrapeResults.Errors() {
 			logger.Errorf("scrape error: %s", e)
 		}
+		logger.Use(os.Stderr)
 		return fmt.Errorf("scrape completed with %d error(s)", len(scrapeResults.Errors()))
 	}
 
 	var all = v1.MergeScrapeResults(results)
 	logger.Infof("Scraped %d resources (%s)", len(results), timer.End())
+
+	// Restore stderr-only logging before rendering
+	logger.Use(os.Stderr)
 
 	if outputDir != "" {
 		for _, result := range results {
@@ -131,8 +163,21 @@ func scrapeAndStore(ctx api.ScrapeContext) error {
 		logger.Infof("Exported %d resources to %s (%s)", len(results), outputDir, timer.End())
 
 	} else {
-		clicky.MustPrint(all)
-
+		output := runHTMLOutput{
+			Counts: v1.BuildCountsSummary(all),
+			Configs:            all.Configs,
+			Analysis:           all.Analysis,
+			Changes:            all.Changes,
+			Relationships:      all.Relationships,
+			ExternalRoles:      all.ExternalRoles,
+			ExternalUsers:      all.ExternalUsers,
+			ExternalGroups:     all.ExternalGroups,
+			ExternalUserGroups: all.ExternalUserGroups,
+			ConfigAccess:       all.ConfigAccess,
+			ConfigAccessLogs:   all.ConfigAccessLogs,
+			Logs:               v1.BuildLogOutput(logBuf.String()),
+		}
+		clicky.MustPrint(output)
 	}
 
 	if save && dutyapi.DefaultConfig.ConnectionString != "" {

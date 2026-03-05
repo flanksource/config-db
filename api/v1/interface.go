@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/flanksource/clicky"
 	"github.com/flanksource/clicky/api"
+	"gopkg.in/yaml.v3"
 	"github.com/flanksource/commons/collections/set"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
@@ -1002,6 +1004,7 @@ func (s ScrapeResult) Columns() []api.ColumnDef {
 		clicky.Column("Name").Build(),
 		clicky.Column("Type").Build(),
 		clicky.Column("Health").Build(),
+		clicky.Column("Details").Build(),
 		clicky.Column("Error").Build(),
 	}
 
@@ -1012,12 +1015,128 @@ func (s ScrapeResult) Row() map[string]any {
 	row["Name"] = clicky.Text(s.Name)
 	row["Type"] = clicky.Text(s.Type)
 	row["Health"] = clicky.Text(string(s.Health))
+	row["Details"] = s.configDetails()
 	if s.Error != nil {
 		row["Error"] = clicky.Text(s.Error.Error())
 	} else {
 		row["Error"] = clicky.Text("")
 	}
 	return row
+}
+
+func (s ScrapeResult) configDetails() api.Collapsed {
+	if s.Config == nil {
+		return clicky.Collapsed("empty", clicky.Text(""))
+	}
+
+	var data any
+	switch v := s.Config.(type) {
+	case string:
+		if json.Unmarshal([]byte(v), &data) != nil {
+			data = v
+		}
+	default:
+		data = v
+	}
+
+	b, err := yaml.Marshal(data)
+	if err != nil {
+		b = []byte(fmt.Sprintf("%v", s.Config))
+	}
+	yamlStr := string(b)
+
+	content := clicky.Text("")
+	if len(s.Labels) > 0 {
+		content = content.Append("Labels: ", "text-gray-500 font-medium").Append(clicky.Map(s.Labels, "badge")).NewLine()
+	}
+	if len(s.Tags) > 0 {
+		content = content.Append("Tags: ", "text-gray-500 font-medium").Append(clicky.Map(s.Tags, "badge")).NewLine()
+	}
+	content = content.Append(clicky.CodeBlock("yaml", yamlStr), "min-w-[600px] block")
+
+	label := fmt.Sprintf("Config (%d bytes)", len(yamlStr))
+	return clicky.Collapsed(label, content)
+}
+
+// BuildCountsSummary renders each count on its own line for the HTML summary section.
+func BuildCountsSummary(all FullScrapeResults) api.Text {
+	type entry struct {
+		label string
+		count int
+	}
+	entries := []entry{
+		{"Configs", len(all.Configs)},
+		{"Analysis", len(all.Analysis)},
+		{"Changes", len(all.Changes)},
+		{"Relationships", len(all.Relationships)},
+		{"External Roles", len(all.ExternalRoles)},
+		{"External Users", len(all.ExternalUsers)},
+		{"External Groups", len(all.ExternalGroups)},
+		{"External User Groups", len(all.ExternalUserGroups)},
+		{"Config Access", len(all.ConfigAccess)},
+		{"Config Access Logs", len(all.ConfigAccessLogs)},
+	}
+
+	t := clicky.Text("")
+	for i, e := range entries {
+		if i > 0 {
+			t = t.NewLine()
+		}
+		t = t.Append(e.label+": ", "text-gray-500 font-medium").Append(fmt.Sprintf("%d", e.count))
+	}
+	return t
+}
+
+var ansiEscapeRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// BuildLogOutput converts raw log text into a collapsible, color-coded log display.
+func BuildLogOutput(rawLogs string) api.Textable {
+	cleaned := ansiEscapeRegex.ReplaceAllString(rawLogs, "")
+	lines := strings.Split(strings.TrimRight(cleaned, "\n"), "\n")
+	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
+		return nil
+	}
+
+	t := clicky.Text("")
+	for i, line := range lines {
+		if i > 0 {
+			t = t.NewLine()
+		}
+		t = t.Add(colorLogLine(line))
+	}
+
+	return clicky.Collapsed(
+		fmt.Sprintf("Logs (%d lines)", len(lines)),
+		t,
+	)
+}
+
+// colorLogLine applies color to the log level prefix in a log line.
+func colorLogLine(line string) api.Text {
+	type levelStyle struct {
+		tag   string
+		color string
+	}
+	levels := []levelStyle{
+		{" INF ", "text-green-600"},
+		{" ERR ", "text-red-600"},
+		{" WRN ", "text-yellow-600"},
+		{" DBG ", "text-blue-600"},
+		{" TRC ", "text-gray-500"},
+		{" FTL ", "text-red-600"},
+	}
+
+	for _, l := range levels {
+		idx := strings.Index(line, l.tag)
+		if idx >= 0 {
+			before := line[:idx+1]
+			level := strings.TrimSpace(l.tag)
+			after := line[idx+len(l.tag)-1:]
+			return clicky.Text(before).Append(level, l.color).Append(after)
+		}
+	}
+
+	return clicky.Text(line)
 }
 
 func (s ScrapeResult) IsMetadataOnly() bool {
