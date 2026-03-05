@@ -77,11 +77,9 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "connection": {
           "type": "string",
@@ -116,6 +114,12 @@
           "$ref": "#/$defs/CloudTrail"
         },
         "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exclude": {
           "items": {
             "type": "string"
           },
@@ -333,7 +337,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -499,7 +503,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -819,7 +823,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -1204,7 +1208,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -1413,7 +1417,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -1518,12 +1522,9 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "description": "Exclude is a list of GCP asset types to exclude from scraping."
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "connection": {
           "type": "string"
@@ -1546,6 +1547,13 @@
           },
           "type": "array",
           "description": "Include is a list of GCP asset types to scrape.\nReference: https://cloud.google.com/asset-inventory/docs/supported-asset-types\nExample: storage.googleapis.com/Bucket"
+        },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Exclude is a list of GCP asset types to exclude from scraping."
         },
         "auditLogs": {
           "$ref": "#/$defs/GCPAuditLogs",
@@ -1813,7 +1821,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -1925,7 +1933,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -2078,7 +2086,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -2260,7 +2268,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -2497,7 +2505,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -2720,7 +2728,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -3170,7 +3178,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -3500,7 +3508,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -3871,7 +3879,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -4081,7 +4089,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
@@ -4261,7 +4269,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },

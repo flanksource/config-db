@@ -308,7 +308,7 @@ type BaseScraper struct {
 	Properties []ConfigProperties `json:"properties,omitempty" template:"true"`
 
 	// Exclude specifies patterns for excluding external entities.
-	Exclude ScraperExclusion `json:"exclude,omitempty" yaml:"exclude,omitempty"`
+	Exclude ScraperExclusion `json:"excludeResources,omitempty" yaml:"excludeResources,omitempty"`
 }
 
 func (base BaseScraper) ApplyPlugins(plugins ...ScrapePluginSpec) BaseScraper {

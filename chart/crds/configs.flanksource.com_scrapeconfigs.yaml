@@ -139,10 +139,12 @@ spec:
                     endpoint:
                       type: string
                     exclude:
-                      description: Exclude specifies patterns for excluding external
-                        entities.
                       items:
                         type: string
+                      type: array
+                    excludeResources:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
                       properties:
                         externalGroups:
                           items:
@@ -156,7 +158,7 @@ spec:
                           items:
                             type: string
                           type: array
-                      type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -1125,7 +1127,7 @@ spec:
                             type: object
                           type: array
                       type: object
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -1689,7 +1691,7 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -2525,7 +2527,7 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -3954,7 +3956,7 @@ spec:
                             type: object
                         type: object
                       type: array
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -4522,7 +4524,7 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -5173,10 +5175,14 @@ spec:
                     endpoint:
                       type: string
                     exclude:
-                      description: Exclude specifies patterns for excluding external
-                        entities.
+                      description: Exclude is a list of GCP asset types to exclude
+                        from scraping.
                       items:
                         type: string
+                      type: array
+                    excludeResources:
+                      description: Exclude specifies patterns for excluding external
+                        entities.
                       properties:
                         externalGroups:
                           items:
@@ -5190,7 +5196,7 @@ spec:
                           items:
                             type: string
                           type: array
-                      type: array
+                      type: object
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties
@@ -5736,7 +5742,7 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -6373,7 +6379,7 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -7209,7 +7215,7 @@ spec:
                             type: object
                         type: object
                       type: array
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -8430,7 +8436,7 @@ spec:
                               type: array
                           type: object
                       type: object
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -9411,7 +9417,7 @@ spec:
                       required:
                       - cluster
                       type: object
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -10271,7 +10277,7 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -11152,7 +11158,7 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -12005,7 +12011,7 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -12889,7 +12895,7 @@ spec:
                       type: string
                     driver:
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -13436,7 +13442,7 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:
@@ -14205,7 +14211,7 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the description for the resource.
                       type: string
-                    exclude:
+                    excludeResources:
                       description: Exclude specifies patterns for excluding external
                         entities.
                       properties:

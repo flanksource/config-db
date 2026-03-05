@@ -77,11 +77,9 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "connection": {
           "type": "string",
@@ -116,6 +114,12 @@
           "$ref": "#/$defs/CloudTrail"
         },
         "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exclude": {
           "items": {
             "type": "string"
           },

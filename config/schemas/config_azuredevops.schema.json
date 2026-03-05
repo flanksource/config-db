@@ -77,7 +77,7 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
-        "exclude": {
+        "excludeResources": {
           "$ref": "#/$defs/ScraperExclusion",
           "description": "Exclude specifies patterns for excluding external entities."
         },
