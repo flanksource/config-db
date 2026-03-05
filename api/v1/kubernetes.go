@@ -76,6 +76,9 @@ type KubernetesExclusionConfig struct {
 	Kinds      []string          `json:"kind,omitempty" yaml:"kind,omitempty"`
 	Namespaces []string          `json:"namespace,omitempty" yaml:"namespace,omitempty"`
 	Labels     map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Roles      []string          `json:"roles,omitempty" yaml:"roles,omitempty"`
+	Users      []string          `json:"users,omitempty" yaml:"users,omitempty"`
+	Groups     []string          `json:"groups,omitempty" yaml:"groups,omitempty"`
 }
 
 // List returns the union of the exclusions.
