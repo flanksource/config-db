@@ -23,7 +23,7 @@ import (
 type rbacExtractor struct {
 	clusterName string
 	scraperID   *uuid.UUID
-	exclusions  v1.KubernetesExclusionConfig
+	exclusions  v1.ScraperExclusion
 	roles       map[uuid.UUID]models.ExternalRole
 	users       map[uuid.UUID]models.ExternalUser
 	groups      map[uuid.UUID]models.ExternalGroup
@@ -150,7 +150,7 @@ func fetchCRDResourceKinds(ctx api.ScrapeContext, clusterName string) map[string
 	return resourceMap
 }
 
-func newRBACExtractor(ctx api.ScrapeContext, clusterName string, scraperID *uuid.UUID, exclusions v1.KubernetesExclusionConfig) *rbacExtractor {
+func newRBACExtractor(ctx api.ScrapeContext, clusterName string, scraperID *uuid.UUID, exclusions v1.ScraperExclusion) *rbacExtractor {
 	if scraperID == nil {
 		ctx.Warnf("Ignoring RBAC Extraction due to empty scraperID")
 		return nil
@@ -170,7 +170,7 @@ func newRBACExtractor(ctx api.ScrapeContext, clusterName string, scraperID *uuid
 	return newRBACExtractorWithResourceMap(clusterName, scraperID, resourceMap, exclusions)
 }
 
-func newRBACExtractorWithResourceMap(clusterName string, scraperID *uuid.UUID, resourceToKind map[string]string, exclusions v1.KubernetesExclusionConfig) *rbacExtractor {
+func newRBACExtractorWithResourceMap(clusterName string, scraperID *uuid.UUID, resourceToKind map[string]string, exclusions v1.ScraperExclusion) *rbacExtractor {
 	return &rbacExtractor{
 		clusterName:    clusterName,
 		scraperID:      scraperID,
@@ -218,7 +218,7 @@ func (r *rbacExtractor) processRole(obj *unstructured.Unstructured) {
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
 
-	if len(r.exclusions.Roles) > 0 && collections.MatchItems(name, r.exclusions.Roles...) {
+	if len(r.exclusions.ExternalRoles) > 0 && collections.MatchItems(name, r.exclusions.ExternalRoles...) {
 		key := r.objectKey(kind, namespace, name)
 		r.ignoredRoles[key] = true
 		// Still parse and store the rules so bindings can resolve correctly,
@@ -355,11 +355,11 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 		// Skip excluded users (ServiceAccount, User) and groups
 		switch subjKind {
 		case "ServiceAccount", "User":
-			if len(r.exclusions.Users) > 0 && collections.MatchItems(subjName, r.exclusions.Users...) {
+			if len(r.exclusions.ExternalUsers) > 0 && collections.MatchItems(subjName, r.exclusions.ExternalUsers...) {
 				continue
 			}
 		case "Group":
-			if len(r.exclusions.Groups) > 0 && collections.MatchItems(subjName, r.exclusions.Groups...) {
+			if len(r.exclusions.ExternalGroups) > 0 && collections.MatchItems(subjName, r.exclusions.ExternalGroups...) {
 				continue
 			}
 		}

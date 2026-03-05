@@ -283,6 +283,14 @@ type CustomScraperBase struct {
 	DeleteFields []string `json:"deleteFields,omitempty"`
 }
 
+// ScraperExclusion specifies patterns for excluding external entities by name.
+// Patterns support wildcards via collections.MatchItems (e.g. "system:controller:*").
+type ScraperExclusion struct {
+	ExternalRoles  []string `json:"externalRoles,omitempty" yaml:"externalRoles,omitempty"`
+	ExternalUsers  []string `json:"externalUsers,omitempty" yaml:"externalUsers,omitempty"`
+	ExternalGroups []string `json:"externalGroups,omitempty" yaml:"externalGroups,omitempty"`
+}
+
 type BaseScraper struct {
 	CustomScraperBase `yaml:",inline" json:",inline"`
 
@@ -298,6 +306,9 @@ type BaseScraper struct {
 	// Properties are custom templatable properties for the scraped config items
 	// grouped by the config type.
 	Properties []ConfigProperties `json:"properties,omitempty" template:"true"`
+
+	// Exclude specifies patterns for excluding external entities.
+	Exclude ScraperExclusion `json:"exclude,omitempty" yaml:"exclude,omitempty"`
 }
 
 func (base BaseScraper) ApplyPlugins(plugins ...ScrapePluginSpec) BaseScraper {

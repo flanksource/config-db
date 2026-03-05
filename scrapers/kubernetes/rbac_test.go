@@ -265,8 +265,8 @@ var _ = Describe("RBACExtractor", func() {
 
 		Context("role exclusion by exact name", func() {
 			It("excludes the role and cascades to binding subjects", func() {
-				exclusions := v1.KubernetesExclusionConfig{
-					Roles: []string{"system:controller:job-controller"},
+				exclusions := v1.ScraperExclusion{
+					ExternalRoles: []string{"system:controller:job-controller"},
 				}
 
 				role := makeClusterRole("system:controller:job-controller", []rbacRuleSpec{
@@ -290,8 +290,8 @@ var _ = Describe("RBACExtractor", func() {
 
 		Context("role exclusion by wildcard", func() {
 			It("excludes multiple roles matching the pattern", func() {
-				exclusions := v1.KubernetesExclusionConfig{
-					Roles: []string{"system:controller:*"},
+				exclusions := v1.ScraperExclusion{
+					ExternalRoles: []string{"system:controller:*"},
 				}
 
 				role1 := makeClusterRole("system:controller:job-controller", []rbacRuleSpec{
@@ -338,8 +338,8 @@ var _ = Describe("RBACExtractor", func() {
 
 		Context("SA referenced by both ignored and non-ignored roles", func() {
 			It("keeps the SA with only non-ignored access entries", func() {
-				exclusions := v1.KubernetesExclusionConfig{
-					Roles: []string{"system:controller:*"},
+				exclusions := v1.ScraperExclusion{
+					ExternalRoles: []string{"system:controller:*"},
 				}
 
 				ignoredRole := makeClusterRole("system:controller:foo", []rbacRuleSpec{
@@ -381,8 +381,8 @@ var _ = Describe("RBACExtractor", func() {
 
 		Context("SA only referenced by ignored roles", func() {
 			It("prunes the SA from results", func() {
-				exclusions := v1.KubernetesExclusionConfig{
-					Roles: []string{"system:controller:*"},
+				exclusions := v1.ScraperExclusion{
+					ExternalRoles: []string{"system:controller:*"},
 				}
 
 				role := makeClusterRole("system:controller:foo", []rbacRuleSpec{
@@ -406,8 +406,8 @@ var _ = Describe("RBACExtractor", func() {
 
 		Context("user exclusion pattern", func() {
 			It("excludes matching users and their access entries", func() {
-				exclusions := v1.KubernetesExclusionConfig{
-					Users: []string{"system:kube-*"},
+				exclusions := v1.ScraperExclusion{
+					ExternalUsers: []string{"system:kube-*"},
 				}
 
 				role := makeClusterRole("view", []rbacRuleSpec{
@@ -437,8 +437,8 @@ var _ = Describe("RBACExtractor", func() {
 
 		Context("group exclusion pattern", func() {
 			It("excludes matching groups and their access entries", func() {
-				exclusions := v1.KubernetesExclusionConfig{
-					Groups: []string{"system:*"},
+				exclusions := v1.ScraperExclusion{
+					ExternalGroups: []string{"system:*"},
 				}
 
 				role := makeClusterRole("view", []rbacRuleSpec{
@@ -477,7 +477,7 @@ var _ = Describe("RBACExtractor", func() {
 					{Kind: "ServiceAccount", Name: "unused-sa", Namespace: "default"},
 				})
 
-				extractor := testRBACExtractorWithExclusions(clusterName, &scraperID, v1.KubernetesExclusionConfig{})
+				extractor := testRBACExtractorWithExclusions(clusterName, &scraperID, v1.ScraperExclusion{})
 				extractor.indexObjects([]*unstructured.Unstructured{role, binding})
 				extractor.processRole(role)
 				extractor.processRoleBinding(binding)
@@ -511,7 +511,7 @@ var _ = Describe("RBACExtractor", func() {
 				{Kind: "User", Name: "ops@example.com"},
 			})
 
-			extractor := newRBACExtractorWithResourceMap(clusterName, &scraperID, resourceMap, v1.KubernetesExclusionConfig{})
+			extractor := newRBACExtractorWithResourceMap(clusterName, &scraperID, resourceMap, v1.ScraperExclusion{})
 			extractor.indexObjects([]*unstructured.Unstructured{canary, role, binding})
 			extractor.processRole(role)
 			extractor.processRoleBinding(binding)
@@ -535,10 +535,10 @@ func testRBACExtractor(clusterName string, scraperID *uuid.UUID) *rbacExtractor 
 	for k, v := range builtinResourceKinds {
 		resourceMap[k] = v
 	}
-	return newRBACExtractorWithResourceMap(clusterName, scraperID, resourceMap, v1.KubernetesExclusionConfig{})
+	return newRBACExtractorWithResourceMap(clusterName, scraperID, resourceMap, v1.ScraperExclusion{})
 }
 
-func testRBACExtractorWithExclusions(clusterName string, scraperID *uuid.UUID, exclusions v1.KubernetesExclusionConfig) *rbacExtractor {
+func testRBACExtractorWithExclusions(clusterName string, scraperID *uuid.UUID, exclusions v1.ScraperExclusion) *rbacExtractor {
 	resourceMap := make(map[string]string, len(builtinResourceKinds))
 	for k, v := range builtinResourceKinds {
 		resourceMap[k] = v
