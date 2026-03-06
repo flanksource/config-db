@@ -291,6 +291,10 @@ type ScraperExclusion struct {
 	ExternalGroups []string `json:"externalGroups,omitempty" yaml:"externalGroups,omitempty"`
 }
 
+func (e ScraperExclusion) IsEmpty() bool {
+	return len(e.ExternalRoles) == 0 && len(e.ExternalUsers) == 0 && len(e.ExternalGroups) == 0
+}
+
 type BaseScraper struct {
 	CustomScraperBase `yaml:",inline" json:",inline"`
 
