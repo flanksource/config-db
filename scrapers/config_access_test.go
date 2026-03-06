@@ -484,7 +484,7 @@ var _ = Describe("Config access logs upsert", Ordered, func() {
 			MFA:            false,
 		}
 
-		err := db.SaveConfigAccessLog(scraperCtx, &olderLog)
+		err := db.SaveConfigAccessLogs(scraperCtx, []dutymodels.ConfigAccessLog{olderLog})
 		Expect(err).NotTo(HaveOccurred())
 
 		newerLog := dutymodels.ConfigAccessLog{
@@ -495,7 +495,7 @@ var _ = Describe("Config access logs upsert", Ordered, func() {
 			MFA:            true,
 		}
 
-		err = db.SaveConfigAccessLog(scraperCtx, &newerLog)
+		err = db.SaveConfigAccessLogs(scraperCtx, []dutymodels.ConfigAccessLog{newerLog})
 		Expect(err).NotTo(HaveOccurred())
 
 		var storedLog dutymodels.ConfigAccessLog
@@ -522,7 +522,7 @@ var _ = Describe("Config access logs upsert", Ordered, func() {
 			MFA:            true,
 		}
 
-		err := db.SaveConfigAccessLog(scraperCtx, &latestLog)
+		err := db.SaveConfigAccessLogs(scraperCtx, []dutymodels.ConfigAccessLog{latestLog})
 		Expect(err).NotTo(HaveOccurred())
 
 		olderTime := time.Now().Add(-3 * time.Hour)
@@ -534,7 +534,7 @@ var _ = Describe("Config access logs upsert", Ordered, func() {
 			MFA:            false,
 		}
 
-		err = db.SaveConfigAccessLog(scraperCtx, &olderLog)
+		err = db.SaveConfigAccessLogs(scraperCtx, []dutymodels.ConfigAccessLog{olderLog})
 		Expect(err).NotTo(HaveOccurred())
 
 		var storedLog dutymodels.ConfigAccessLog
