@@ -17,7 +17,7 @@ func identityRef(uniqueName, displayName, id string) *IdentityRef {
 func makeUsers(identities ...*IdentityRef) map[string]dutyModels.ExternalUser {
 	m := make(map[string]dutyModels.ExternalUser)
 	for _, id := range identities {
-		ensureExternalUser(id, "test-org", m)
+		addExternalUser(id, "test-org", m)
 	}
 	return m
 }
@@ -57,24 +57,25 @@ func makeRelease(id int, createdBy *IdentityRef, envs []ReleaseEnvironment, crea
 	}
 }
 
-var _ = Describe("ensureExternalUser", func() {
-	It("adds a new user", func() {
+var _ = Describe("addExternalUser", func() {
+	It("adds a new user without ID", func() {
 		users := make(map[string]dutyModels.ExternalUser)
 		identity := identityRef("alice@org.com", "Alice", "alice-id")
 
-		ensureExternalUser(identity, "my-org", users)
+		addExternalUser(identity, "my-org", users)
 
 		u, ok := users["alice@org.com"]
 		Expect(ok).To(BeTrue())
 		Expect(u.Name).To(Equal("Alice"))
 		Expect(u.Tenant).To(Equal("my-org"))
+		Expect(u.ID).To(Equal(uuid.Nil))
 	})
 
 	It("skips nil or empty identity", func() {
 		users := make(map[string]dutyModels.ExternalUser)
 
-		ensureExternalUser(nil, "org", users)
-		ensureExternalUser(&IdentityRef{UniqueName: ""}, "org", users)
+		addExternalUser(nil, "org", users)
+		addExternalUser(&IdentityRef{UniqueName: ""}, "org", users)
 
 		Expect(users).To(BeEmpty())
 	})
@@ -83,8 +84,8 @@ var _ = Describe("ensureExternalUser", func() {
 		users := make(map[string]dutyModels.ExternalUser)
 		identity := identityRef("alice@org.com", "Alice", "alice-id")
 
-		ensureExternalUser(identity, "org", users)
-		ensureExternalUser(identity, "org", users)
+		addExternalUser(identity, "org", users)
+		addExternalUser(identity, "org", users)
 
 		Expect(users).To(HaveLen(1))
 	})
@@ -196,7 +197,7 @@ var _ = Describe("approvalAccessLog", func() {
 
 		log := approvalAccessLog(a, externalID(ReleaseType, "proj/1"), "Staging", time.Now(), users)
 		Expect(log).ToNot(BeNil())
-		Expect(log.ConfigAccessLog.ExternalUserID).ToNot(Equal(uuid.Nil),
+		Expect(log.ExternalUserAliases).ToNot(BeEmpty(),
 			"fallback identity should be attributed in the access log")
 	})
 })
@@ -212,7 +213,7 @@ var _ = Describe("buildReleaseResult", func() {
 		release := makeRelease(100, trigger, []ReleaseEnvironment{env}, createdOn)
 
 		result := buildReleaseResult(
-			v1.AzureDevops{Organization: "test-org"},
+			v1.AzureDevops{Organization: "test-org", Permissions: &v1.AzureDevopsPermissions{Enabled: true}},
 			Project{Name: "MyProject"},
 			def,
 			[]Release{release},
@@ -242,7 +243,7 @@ var _ = Describe("buildReleaseResult", func() {
 		release := makeRelease(100, trigger, []ReleaseEnvironment{env}, createdOn)
 
 		result := buildReleaseResult(
-			v1.AzureDevops{Organization: "test-org"},
+			v1.AzureDevops{Organization: "test-org", Permissions: &v1.AzureDevopsPermissions{Enabled: true}},
 			Project{Name: "MyProject"},
 			def,
 			[]Release{release},

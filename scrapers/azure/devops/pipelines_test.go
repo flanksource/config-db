@@ -373,8 +373,8 @@ var _ = Describe("buildReleaseResult", func() {
 			Expect(ch.ExternalID).To(Equal("MyProject/7"))
 			Expect(ch.ConfigType).To(Equal(ReleaseType))
 			Expect(ch.ExternalChangeID).ToNot(BeEmpty())
-			Expect(ch.Source).To(Equal(webURL))
-			Expect(ch.Details["webUrl"]).To(Equal(webURL))
+			Expect(ch.Source).To(Equal("Release-1"))
+			Expect(ch.Details["url"]).To(Equal(webURL))
 		}
 
 		Expect(result.Changes[0].ChangeType).To(Equal(ChangeTypeSucceeded))

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -198,7 +199,13 @@ func (ado *AzureDevopsClient) GetPipelines(ctx context.Context, project string) 
 		return nil, err
 	}
 
-	return response.Value, nil
+	pipelines := response.Value
+	for _, pipeline := range pipelines {
+		pipeline.Folder = strings.TrimPrefix(pipeline.Folder, "/")
+		pipeline.Folder = strings.TrimPrefix(pipeline.Folder, "\\")
+	}
+
+	return pipelines, nil
 }
 
 func (ado *AzureDevopsClient) GetPipelineRuns(ctx context.Context, project string, pipeline Pipeline) ([]Run, error) {
@@ -489,6 +496,7 @@ type buildArtifacts struct {
 // RunDetails contains the full details of a pipeline run including steps
 type RunDetails struct {
 	Run
+	URL         string             `json:"url,omitempty"`
 	RequestedBy *IdentityRef       `json:"requestedBy,omitempty"`
 	Steps       []JobStepSummary   `json:"steps,omitempty"`
 	Parameters  map[string]any     `json:"parameters,omitempty"`
@@ -965,7 +973,12 @@ func (ado *AzureDevopsReleaseClient) GetReleaseDefinitions(ctx context.Context, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get release definitions: %w", err)
 	}
-	return response.Value, nil
+	releases := response.Value
+	for i := range releases {
+		releases[i].Path = strings.TrimPrefix(releases[i].Path, "/")
+		releases[i].Path = strings.TrimPrefix(releases[i].Path, "\\")
+	}
+	return releases, nil
 }
 
 // GetReleases returns releases for a definition with environments expanded.
