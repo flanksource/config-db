@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/flanksource/clicky"
+	clickyapi "github.com/flanksource/clicky/api"
 	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
@@ -127,7 +128,7 @@ var Run = &cobra.Command{
 // Uses pretty:"table" tags to prevent empty slices from appearing as broken summary entries.
 type runHTMLOutput struct {
 	Counts             v1.CountsGrid                  `json:"-"`
-	Configs            v1.ConfigTable                 `json:"-"`
+	Configs            clickyapi.TextTable             `json:"-"`
 	Analysis           []models.ConfigAnalysis        `pretty:"table"`
 	Changes            []models.ConfigChange          `pretty:"table"`
 	Relationships      []models.ConfigRelationship    `pretty:"table"`
