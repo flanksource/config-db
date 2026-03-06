@@ -353,70 +353,74 @@ func upsertExternalEntities(
 		}
 	}
 
-	// Stale deletion: user_groups first (FK dependency)
-	if len(userGroups) > 0 {
-		if err := tx.Exec(fmt.Sprintf(`
-			UPDATE external_user_groups SET deleted_at = NOW()
-			WHERE deleted_at IS NULL
-				AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
-				AND NOT EXISTS (SELECT 1 FROM %s t
-					WHERE t.external_user_id = external_user_groups.external_user_id
-						AND t.external_group_id = external_user_groups.external_group_id)
-		`, tempUserGroups), *scraperID).Error; err != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external user groups: %w", err)
+	// Skip stale deletion during incremental scrapes because the batch is
+	// partial and would incorrectly remove entities not present in this batch.
+	if !ctx.IsIncrementalScrape() {
+		// Stale deletion: user_groups first (FK dependency)
+		if len(userGroups) > 0 {
+			if err := tx.Exec(fmt.Sprintf(`
+				UPDATE external_user_groups SET deleted_at = NOW()
+				WHERE deleted_at IS NULL
+					AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
+					AND NOT EXISTS (SELECT 1 FROM %s t
+						WHERE t.external_user_id = external_user_groups.external_user_id
+							AND t.external_group_id = external_user_groups.external_group_id)
+			`, tempUserGroups), *scraperID).Error; err != nil {
+				tx.Rollback()
+				return counts, fmt.Errorf("failed to delete stale external user groups: %w", err)
+			}
+		} else if len(users) > 0 || len(groups) > 0 {
+			// No user groups scraped but we have users/groups — delete all user_groups for this scraper's users
+			if err := tx.Exec(`
+				UPDATE external_user_groups SET deleted_at = NOW()
+				WHERE deleted_at IS NULL
+					AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
+			`, *scraperID).Error; err != nil {
+				tx.Rollback()
+				return counts, fmt.Errorf("failed to delete stale external user groups: %w", err)
+			}
 		}
-	} else if len(users) > 0 || len(groups) > 0 {
-		// No user groups scraped but we have users/groups — delete all user_groups for this scraper's users
-		if err := tx.Exec(`
-			UPDATE external_user_groups SET deleted_at = NOW()
-			WHERE deleted_at IS NULL
-				AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
-		`, *scraperID).Error; err != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external user groups: %w", err)
-		}
-	}
 
-	// Stale deletion: roles (hard delete, preserving current behavior)
-	if len(roles) > 0 {
-		r := tx.Exec(fmt.Sprintf(`
-			DELETE FROM external_roles WHERE scraper_id = ?
-				AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_roles.id)
-		`, tempRoles), *scraperID)
-		if r.Error != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external roles: %w", r.Error)
+		// Stale deletion: roles (hard delete, preserving current behavior)
+		if len(roles) > 0 {
+			r := tx.Exec(fmt.Sprintf(`
+				DELETE FROM external_roles WHERE scraper_id = ?
+					AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_roles.id)
+			`, tempRoles), *scraperID)
+			if r.Error != nil {
+				tx.Rollback()
+				return counts, fmt.Errorf("failed to delete stale external roles: %w", r.Error)
+			}
+			counts.rolesDeleted = int(r.RowsAffected)
 		}
-		counts.rolesDeleted = int(r.RowsAffected)
-	}
 
-	// Stale deletion: groups (soft delete)
-	if len(groups) > 0 {
-		r := tx.Exec(fmt.Sprintf(`
-			UPDATE external_groups SET deleted_at = NOW()
-			WHERE scraper_id = ? AND deleted_at IS NULL
-				AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_groups.id)
-		`, tempGroups), *scraperID)
-		if r.Error != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external groups: %w", r.Error)
+		// Stale deletion: groups (soft delete)
+		if len(groups) > 0 {
+			r := tx.Exec(fmt.Sprintf(`
+				UPDATE external_groups SET deleted_at = NOW()
+				WHERE scraper_id = ? AND deleted_at IS NULL
+					AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_groups.id)
+			`, tempGroups), *scraperID)
+			if r.Error != nil {
+				tx.Rollback()
+				return counts, fmt.Errorf("failed to delete stale external groups: %w", r.Error)
+			}
+			counts.groupsDeleted = int(r.RowsAffected)
 		}
-		counts.groupsDeleted = int(r.RowsAffected)
-	}
 
-	// Stale deletion: users (soft delete)
-	if len(users) > 0 {
-		r := tx.Exec(fmt.Sprintf(`
-			UPDATE external_users SET deleted_at = NOW()
-			WHERE scraper_id = ? AND deleted_at IS NULL
-				AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_users.id)
-		`, tempUsers), *scraperID)
-		if r.Error != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external users: %w", r.Error)
+		// Stale deletion: users (soft delete)
+		if len(users) > 0 {
+			r := tx.Exec(fmt.Sprintf(`
+				UPDATE external_users SET deleted_at = NOW()
+				WHERE scraper_id = ? AND deleted_at IS NULL
+					AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_users.id)
+			`, tempUsers), *scraperID)
+			if r.Error != nil {
+				tx.Rollback()
+				return counts, fmt.Errorf("failed to delete stale external users: %w", r.Error)
+			}
+			counts.usersDeleted = int(r.RowsAffected)
 		}
-		counts.usersDeleted = int(r.RowsAffected)
 	}
 
 	if err := tx.Commit().Error; err != nil {

@@ -1,0 +1,39 @@
+{
+  "id": "test-org-incremental-rbac",
+  "config": {
+    "name": "Incremental RBAC Test Org",
+    "type": "organization"
+  },
+  "external_users": [
+    {
+      "name": "Alice Smith",
+      "account_id": "org-inc",
+      "user_type": "human",
+      "email": "alice-inc@example.com",
+      "aliases": ["alice-inc", "alice-inc@example.com"]
+    },
+    {
+      "name": "Bob Jones",
+      "account_id": "org-inc",
+      "user_type": "human",
+      "email": "bob-inc@example.com",
+      "aliases": ["bob-inc", "bob-inc@example.com"]
+    }
+  ],
+  "config_access": [
+    {
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "test-org-incremental-rbac"
+      },
+      "external_user_aliases": ["alice-inc"]
+    },
+    {
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "test-org-incremental-rbac"
+      },
+      "external_user_aliases": ["bob-inc"]
+    }
+  ]
+}
