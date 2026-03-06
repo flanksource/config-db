@@ -24,6 +24,9 @@ var OrphanCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 // ExternalUserCache stores alias -> external_user_id mapping
 var ExternalUserCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 
+// ExternalUserIDCache stores external_user_id -> external_user_id for existence checks
+var ExternalUserIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+
 // ExternalRoleCache stores alias -> external_role_id mapping
 var ExternalRoleCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 
@@ -92,6 +95,9 @@ func WarmExternalEntityCaches(ctx context.Context) {
 		for _, row := range rows {
 			for _, alias := range row.Aliases {
 				table.cache.Set(alias, row.ID, cache.DefaultExpiration)
+			}
+			if table.name == "external_users" {
+				ExternalUserIDCache.Set(row.ID.String(), row.ID, cache.DefaultExpiration)
 			}
 		}
 		logger.Infof("warmed %s cache with %d entities", table.name, len(rows))

@@ -2,12 +2,15 @@ package db
 
 import (
 	"fmt"
+	"slices"
+	"sort"
 	"time"
 
 	"github.com/flanksource/commons/hash"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -21,7 +24,7 @@ type externalEntitySyncResult struct {
 	Roles  v1.EntitySummary
 }
 
-func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraperID *uuid.UUID) (externalEntitySyncResult, error) {
+func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraperID *uuid.UUID) (externalEntitySyncResult, map[uuid.UUID]uuid.UUID, error) {
 	var result externalEntitySyncResult
 	result.Users.Scraped = len(extract.externalUsers)
 	result.Groups.Scraped = len(extract.externalGroups)
@@ -31,19 +34,19 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 
 	resolvedUsers, skippedUsers, userIDMap, err := resolveExternalUsers(ctx, extract.externalUsers, scraperID, now)
 	if err != nil {
-		return result, err
+		return result, nil, err
 	}
 	result.Users.Skipped = skippedUsers
 
 	resolvedGroups, skippedGroups, groupIDMap, err := resolveExternalGroups(ctx, extract.externalGroups, scraperID, now)
 	if err != nil {
-		return result, err
+		return result, nil, err
 	}
 	result.Groups.Skipped = skippedGroups
 
 	resolvedRoles, skippedRoles, err := resolveExternalRoles(ctx, extract.externalRoles, scraperID, now)
 	if err != nil {
-		return result, err
+		return result, nil, err
 	}
 	result.Roles.Skipped = skippedRoles
 
@@ -64,23 +67,28 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 
 	counts, err := upsertExternalEntities(ctx, resolvedUsers, resolvedGroups, resolvedRoles, resolvedUserGroups, scraperID)
 	if err != nil {
-		return result, err
+		return result, nil, err
 	}
 
-	// Populate caches only after transaction has committed successfully
-	for _, u := range resolvedUsers {
-		for _, alias := range u.Aliases {
-			ExternalUserCache.Set(alias, u.ID, cache.DefaultExpiration)
+	// Populate caches only after transaction has committed successfully.
+	// When scraperID is nil, upsertExternalEntities skips insertion,
+	// so we must not cache IDs that don't exist in the DB.
+	if scraperID != nil {
+		for _, u := range resolvedUsers {
+			ExternalUserIDCache.Set(u.ID.String(), u.ID, cache.DefaultExpiration)
+			for _, alias := range u.Aliases {
+				ExternalUserCache.Set(alias, u.ID, cache.DefaultExpiration)
+			}
 		}
-	}
-	for _, g := range resolvedGroups {
-		for _, alias := range g.Aliases {
-			ExternalGroupCache.Set(alias, g.ID, cache.DefaultExpiration)
+		for _, g := range resolvedGroups {
+			for _, alias := range g.Aliases {
+				ExternalGroupCache.Set(alias, g.ID, cache.DefaultExpiration)
+			}
 		}
-	}
-	for _, r := range resolvedRoles {
-		for _, alias := range r.Aliases {
-			ExternalRoleCache.Set(alias, r.ID, cache.DefaultExpiration)
+		for _, r := range resolvedRoles {
+			for _, alias := range r.Aliases {
+				ExternalRoleCache.Set(alias, r.ID, cache.DefaultExpiration)
+			}
 		}
 	}
 
@@ -90,13 +98,14 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	result.Groups.Deleted = counts.groupsDeleted
 	result.Roles.Saved = counts.rolesSaved
 	result.Roles.Deleted = counts.rolesDeleted
-	return result, nil
+	return result, userIDMap, nil
 }
 
 func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalUser, int, map[uuid.UUID]uuid.UUID, error) {
 	var resolved []dutyModels.ExternalUser
 	var skipped int
 	idMap := make(map[uuid.UUID]uuid.UUID)
+	seen := make(map[uuid.UUID]int) // id -> index in resolved slice
 
 	for _, u := range users {
 		u.ScraperID = lo.Ternary(u.ScraperID == uuid.Nil, lo.FromPtr(scraperID), u.ScraperID)
@@ -109,11 +118,15 @@ func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser
 		}
 
 		if len(u.Aliases) > 0 {
+			sort.Strings(u.Aliases)
 			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, u.Aliases)
 			if err != nil {
 				return nil, 0, nil, ctx.Oops().With("aliases", u.Aliases).Wrapf(err, "failed to find external user by aliases")
 			}
 			if existingID != nil {
+				if u.ID != uuid.Nil && u.ID != *existingID {
+					u.Aliases = append(u.Aliases, u.ID.String())
+				}
 				u.ID = *existingID
 			} else if u.ID == uuid.Nil {
 				hid, err := hash.DeterministicUUID(u.Aliases)
@@ -128,7 +141,19 @@ func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser
 			u.CreatedAt = now
 		}
 		u.UpdatedAt = &now
-		resolved = append(resolved, u)
+
+		// Deduplicate by resolved ID — merge aliases into first occurrence
+		if idx, exists := seen[u.ID]; exists {
+			for _, alias := range u.Aliases {
+				if !slices.Contains(resolved[idx].Aliases, alias) {
+					resolved[idx].Aliases = append(resolved[idx].Aliases, alias)
+				}
+			}
+		} else {
+			seen[u.ID] = len(resolved)
+			resolved = append(resolved, u)
+		}
+
 		if originalID != uuid.Nil && originalID != u.ID {
 			idMap[originalID] = u.ID
 		}
@@ -291,7 +316,8 @@ func upsertExternalEntities(
 			SELECT id, aliases, name, account_id, user_type, email, scraper_id, created_at, updated_at, created_by
 			FROM %s
 			ON CONFLICT (id) DO UPDATE SET
-				aliases = EXCLUDED.aliases, name = EXCLUDED.name, account_id = EXCLUDED.account_id,
+				aliases = ARRAY(SELECT DISTINCT unnest FROM unnest(external_users.aliases || EXCLUDED.aliases) ORDER BY 1),
+				name = EXCLUDED.name, account_id = EXCLUDED.account_id,
 				user_type = EXCLUDED.user_type, email = EXCLUDED.email,
 				updated_at = EXCLUDED.updated_at, deleted_at = NULL
 		`, tempUsers))
@@ -424,6 +450,37 @@ func upsertExternalEntities(
 	}
 
 	return counts, nil
+}
+
+// ensureExternalUserFromAliases creates a minimal external user from aliases if none exists.
+func ensureExternalUserFromAliases(ctx api.ScrapeContext, aliases []string, scraperID *uuid.UUID) error {
+	sort.Strings(aliases)
+	id, err := hash.DeterministicUUID(aliases)
+	if err != nil {
+		return fmt.Errorf("failed to generate deterministic UUID: %w", err)
+	}
+	now := time.Now()
+	user := dutyModels.ExternalUser{
+		ID:        id,
+		Aliases:   aliases,
+		ScraperID: lo.FromPtr(scraperID),
+		CreatedAt: now,
+		UpdatedAt: &now,
+	}
+	if err := ctx.DB().Exec(`
+		INSERT INTO external_users (id, aliases, scraper_id, account_id, created_at, updated_at)
+		VALUES (?, ?, ?, '', ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			aliases = ARRAY(SELECT DISTINCT unnest FROM unnest(external_users.aliases || EXCLUDED.aliases) ORDER BY 1),
+			updated_at = EXCLUDED.updated_at, deleted_at = NULL
+	`, user.ID, pq.StringArray(user.Aliases), user.ScraperID, user.CreatedAt, user.UpdatedAt).Error; err != nil {
+		return fmt.Errorf("failed to upsert external user: %w", err)
+	}
+	ExternalUserIDCache.Set(user.ID.String(), user.ID, cache.DefaultExpiration)
+	for _, alias := range aliases {
+		ExternalUserCache.Set(alias, user.ID, cache.DefaultExpiration)
+	}
+	return nil
 }
 
 func createTempAndInsert[T any](tx *gorm.DB, tempTable, sourceTable string, items []T) error {
