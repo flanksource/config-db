@@ -1033,7 +1033,10 @@ func (s ScrapeResult) Row() map[string]any {
 	return row
 }
 
-func (s ScrapeResult) Pretty() api.Text {
+func (s *ScrapeResult) Pretty() api.Text {
+	if s == nil {
+		return clicky.Text("nil")
+	}
 	t := clicky.Text("")
 	if s.ConfigClass != "" {
 		t = t.Append(s.ConfigClass+"/", "text-muted")
@@ -1197,10 +1200,10 @@ type ansiLine struct {
 	raw string // original line with ANSI escapes
 }
 
-func (a ansiLine) ANSI() string    { return a.raw }
-func (a ansiLine) HTML() string    { return ansiToHTML(a.raw) }
-func (a ansiLine) String() string  { return ansiEscapeRegex.ReplaceAllString(a.raw, "") }
-func (a ansiLine) Markdown() string { return a.String() }
+func (a ansiLine) ANSI() string          { return a.raw }
+func (a ansiLine) HTML() string          { return ansiToHTML(a.raw) }
+func (a ansiLine) String() string        { return ansiEscapeRegex.ReplaceAllString(a.raw, "") }
+func (a ansiLine) Markdown() string      { return a.String() }
 func (a ansiLine) MarkdownSlack() string { return a.String() }
 
 func (b LogBlock) Pretty() api.Text {
