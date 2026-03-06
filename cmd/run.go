@@ -10,8 +10,11 @@ import (
 	"path"
 	"time"
 
+	"encoding/json"
+
 	"github.com/flanksource/clicky"
 	"github.com/flanksource/commons/har"
+	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
@@ -25,7 +28,11 @@ import (
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/shutdown"
 	"github.com/labstack/echo/v4"
+	"github.com/lib/pq"
 	"github.com/spf13/cobra"
+	"gorm.io/gorm"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var outputDir string
@@ -94,8 +101,17 @@ var Run = &cobra.Command{
 			}()
 		}
 
+		if save && dutyapi.DefaultConfig.ConnectionString != "" {
+			for i := range scraperConfigs {
+				if err := ensureScraper(dutyCtx, &scraperConfigs[i]); err != nil {
+					logger.Fatalf("failed to ensure scraper for %s: %v", scraperConfigs[i].Name, err)
+				}
+			}
+		}
+
 		var hasErrors bool
 		var allResults v1.ScrapeResults
+		var lastSummary *v1.ScrapeSummary
 		for i := range scraperConfigs {
 			scrapeCtx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
 				WithTimeout(dutyCtx.Properties().Duration("scraper.timeout", 4*time.Hour))
@@ -104,18 +120,21 @@ var Run = &cobra.Command{
 
 			scrapeCtx = scrapeCtx.WithHARCollector(harCollector)
 
-			results, err := scrapeAndStore(scrapeCtx)
+			results, summary, err := scrapeAndStore(scrapeCtx)
 			if err != nil {
 				hasErrors = true
 				logger.Errorf("error scraping config: (name=%s) %+v", scraperConfigs[i].Name, err)
 			}
 			allResults = append(allResults, results...)
+			if summary != nil {
+				lastSummary = summary
+			}
 		}
 
 		// Restore stderr-only logging before rendering
 		logger.Use(os.Stderr)
 
-		printOutput(allResults, harCollector, logBuf.String())
+		printOutput(allResults, lastSummary, harCollector, logBuf.String())
 
 		if hasErrors {
 			os.Exit(1)
@@ -127,6 +146,7 @@ var Run = &cobra.Command{
 // Uses pretty:"table" tags to prevent empty slices from appearing as broken summary entries.
 type runHTMLOutput struct {
 	Counts             v1.CountsGrid                `json:"-"`
+	SaveSummary        *v1.ScrapeSummary             `json:"-"`
 	Configs            []v1.ScrapeResult            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
 	Changes            []models.ConfigChange        `pretty:"table"`
@@ -138,19 +158,19 @@ type runHTMLOutput struct {
 	ConfigAccess       []v1.ExternalConfigAccess    `pretty:"table"`
 	ConfigAccessLogs   []v1.ExternalConfigAccessLog `pretty:"table"`
 	HTTPTraffic        []v1.HAREntry                `pretty:"table"`
-	Logs               []v1.LogLine                 `pretty:"table"`
+	Logs               v1.LogBlock                  `json:"-"`
 }
 
-func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
+func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary, error) {
 	ctx, err := ctx.InitTempCache()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	timer := timer.NewMemoryTimer()
 	results, err := scrapers.Run(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	scrapeResults := v1.ScrapeResults(results)
@@ -158,7 +178,7 @@ func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 		for _, e := range scrapeResults.Errors() {
 			logger.Errorf("scrape error: %s", e)
 		}
-		return results, fmt.Errorf("scrape completed with %d error(s)", len(scrapeResults.Errors()))
+		return results, nil, fmt.Errorf("scrape completed with %d error(s)", len(scrapeResults.Errors()))
 	}
 
 	logger.Infof("Scraped %d resources (%s)", len(results), timer.End())
@@ -166,7 +186,7 @@ func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 	if outputDir != "" {
 		for _, result := range results {
 			if err := exportResource(result, outputDir); err != nil {
-				return results, fmt.Errorf("failed to export results: %w", err)
+				return results, nil, fmt.Errorf("failed to export results: %w", err)
 			}
 		}
 		logger.Infof("Exported %d resources to %s (%s)", len(results), outputDir, timer.End())
@@ -175,15 +195,16 @@ func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 	if save && dutyapi.DefaultConfig.ConnectionString != "" {
 		summary, err := db.SaveResults(ctx, results)
 		if err != nil {
-			return results, fmt.Errorf("failed to save results to db: %w", err)
+			return results, nil, fmt.Errorf("failed to save results to db: %w", err)
 		}
 		logger.Infof("Exported %d resources to DB: %s (%s)", len(results), summary.PrettyShort(), timer.End())
+		return results, &summary, nil
 	}
 
-	return results, nil
+	return results, nil, nil
 }
 
-func printOutput(results v1.ScrapeResults, harCollector *har.Collector, logs string) {
+func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollector *har.Collector, logs string) {
 	if outputDir != "" {
 		return
 	}
@@ -191,6 +212,7 @@ func printOutput(results v1.ScrapeResults, harCollector *har.Collector, logs str
 	all := v1.MergeScrapeResults(results)
 	output := runHTMLOutput{
 		Counts:             v1.BuildCounts(all),
+		SaveSummary:        summary,
 		Configs:            all.Configs,
 		Analysis:           all.Analysis,
 		Changes:            all.Changes,
@@ -202,7 +224,7 @@ func printOutput(results v1.ScrapeResults, harCollector *har.Collector, logs str
 		ConfigAccess:       all.ConfigAccess,
 		ConfigAccessLogs:   all.ConfigAccessLogs,
 		HTTPTraffic:        v1.BuildHAREntries(harCollector.Entries()),
-		Logs:               v1.BuildLogLines(logs),
+		Logs:               v1.BuildLogBlock(logs),
 	}
 	clicky.MustPrint(output)
 }
@@ -240,6 +262,51 @@ func exportResource(resource v1.ScrapeResult, outputDir string) error {
 
 	// logger.Debugf("Exporting %s (%dkb)", outputPath, len(data)/1024)
 	return os.WriteFile(outputPath, []byte(data), 0644)
+}
+
+// ensureScraper looks up an existing scraper by name, or creates one with a
+// deterministic ID so that --save mode has a valid scraper_id for FK constraints.
+func ensureScraper(ctx context.Context, sc *v1.ScrapeConfig) error {
+	name := sc.Name
+	if name == "" {
+		name = "cli-scraper"
+	}
+
+	var existing models.ConfigScraper
+	err := ctx.DB().Where("name = ? AND deleted_at IS NULL", name).First(&existing).Error
+	if err == nil {
+		sc.ObjectMeta.UID = types.UID(existing.ID.String())
+		return nil
+	}
+	if err != gorm.ErrRecordNotFound {
+		return fmt.Errorf("failed to lookup scraper: %w", err)
+	}
+
+	id, err := hash.DeterministicUUID(pq.StringArray{name})
+	if err != nil {
+		return fmt.Errorf("failed to generate scraper id: %w", err)
+	}
+
+	specJSON, err := json.Marshal(sc.Spec)
+	if err != nil {
+		return fmt.Errorf("failed to marshal spec: %w", err)
+	}
+
+	if err := ctx.DB().Exec(`
+		INSERT INTO config_scrapers (id, name, spec, source)
+		VALUES (?, ?, ?, 'ConfigFile')
+		ON CONFLICT (id) DO UPDATE SET
+			name = EXCLUDED.name, spec = EXCLUDED.spec, deleted_at = NULL
+	`, id, name, string(specJSON)).Error; err != nil {
+		return fmt.Errorf("failed to create scraper: %w", err)
+	}
+
+	sc.ObjectMeta = metav1.ObjectMeta{
+		Name: name,
+		UID:  types.UID(id.String()),
+	}
+	logger.Infof("Created scraper %s with id %s", name, id)
+	return nil
 }
 
 func init() {

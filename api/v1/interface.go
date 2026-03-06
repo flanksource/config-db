@@ -1184,6 +1184,114 @@ func (l LogLine) Row() map[string]any {
 	return map[string]any{"Line": l.text}
 }
 
+// LogBlock renders all log lines as a single preformatted block.
+// ANSI escape codes are preserved for terminal rendering and converted to HTML spans for web.
+// +kubebuilder:object:generate=false
+type LogBlock struct {
+	lines []ansiLine
+}
+
+// ansiLine holds both raw ANSI text (for terminal) and an HTML-converted version (for web).
+// +kubebuilder:object:generate=false
+type ansiLine struct {
+	raw string // original line with ANSI escapes
+}
+
+func (a ansiLine) ANSI() string    { return a.raw }
+func (a ansiLine) HTML() string    { return ansiToHTML(a.raw) }
+func (a ansiLine) String() string  { return ansiEscapeRegex.ReplaceAllString(a.raw, "") }
+func (a ansiLine) Markdown() string { return a.String() }
+func (a ansiLine) MarkdownSlack() string { return a.String() }
+
+func (b LogBlock) Pretty() api.Text {
+	if len(b.lines) == 0 {
+		return clicky.Text("")
+	}
+	t := clicky.Text("").Add(b.lines[0])
+	for _, line := range b.lines[1:] {
+		t = t.NewLine().Add(line)
+	}
+	return t
+}
+
+// BuildLogBlock splits raw log output into ansiLine entries.
+func BuildLogBlock(rawLogs string) LogBlock {
+	raw := strings.TrimRight(rawLogs, "\n")
+	lines := strings.Split(raw, "\n")
+	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
+		return LogBlock{}
+	}
+	out := make([]ansiLine, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, ansiLine{raw: line})
+	}
+	return LogBlock{lines: out}
+}
+
+// ansiToHTML converts ANSI SGR escape sequences to HTML spans with inline styles.
+func ansiToHTML(s string) string {
+	var b strings.Builder
+	open := false
+	i := 0
+	for i < len(s) {
+		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
+			// Find end of SGR sequence
+			j := i + 2
+			for j < len(s) && s[j] != 'm' {
+				j++
+			}
+			if j < len(s) {
+				codes := s[i+2 : j]
+				if open {
+					b.WriteString("</span>")
+					open = false
+				}
+				if style := sgrToCSS(codes); style != "" {
+					fmt.Fprintf(&b, `<span style="%s">`, style)
+					open = true
+				}
+				i = j + 1
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	if open {
+		b.WriteString("</span>")
+	}
+	return b.String()
+}
+
+// sgrToCSS converts an SGR parameter string (e.g. "38;2;22;163;73") to inline CSS.
+func sgrToCSS(codes string) string {
+	if codes == "0" || codes == "" {
+		return "" // reset
+	}
+	parts := strings.Split(codes, ";")
+	if len(parts) >= 5 && parts[0] == "38" && parts[1] == "2" {
+		// 24-bit foreground: 38;2;r;g;b
+		return fmt.Sprintf("color:rgb(%s,%s,%s)", parts[2], parts[3], parts[4])
+	}
+	switch codes {
+	case "1":
+		return "font-weight:bold"
+	case "2":
+		return "opacity:0.6"
+	case "91":
+		return "color:#dc2626"
+	case "92":
+		return "color:#16a34a"
+	case "93":
+		return "color:#ca8a04"
+	case "33":
+		return "color:#ca8a04"
+	case "34", "34;1":
+		return "color:#2563eb"
+	}
+	return ""
+}
+
 // BuildLogLines parses raw log text into LogLine rows for table rendering.
 func BuildLogLines(rawLogs string) []LogLine {
 	cleaned := ansiEscapeRegex.ReplaceAllString(rawLogs, "")
@@ -1330,10 +1438,16 @@ func (e ExternalConfigAccessLog) Row() map[string]any {
 	if e.Count != nil {
 		row["Count"] = *e.Count
 	}
-	row["UserID"] = strings.Join(e.ExternalUserAliases, "")
+
+	aliases := strings.Join(e.ExternalUserAliases, ",")
 	if e.ExternalUserID != uuid.Nil {
-		row["UserID"] = row["UserID"].(string) + ", " + e.ExternalUserID.String()
+		if aliases != "" {
+			aliases += ", "
+		}
+		aliases += e.ExternalUserID.String()
 	}
+	row["UserID"] = aliases
+
 	return row
 }
 
