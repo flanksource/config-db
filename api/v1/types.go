@@ -186,7 +186,7 @@ func (c ScraperSpec) IsTrace() bool {
 }
 
 func (c ScraperSpec) IsDebug() bool {
-	return c.LogLevel == "debug"
+	return c.LogLevel == "debug" || c.IsTrace()
 }
 
 type ExternalID struct {

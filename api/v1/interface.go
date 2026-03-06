@@ -1033,6 +1033,55 @@ func (s ScrapeResult) Row() map[string]any {
 	return row
 }
 
+func (s ScrapeResult) Pretty() api.Text {
+	t := clicky.Text("")
+	if s.ConfigClass != "" {
+		t = t.Append(s.ConfigClass+"/", "text-muted")
+	}
+	if s.Name != "" {
+		t = t.Append(s.Name)
+	}
+
+	if len(s.Changes) > 0 {
+		t = t.Append(" changes=", "text-muted").Append(len(s.Changes))
+	}
+	if len(s.RelationshipResults) > 0 {
+		t = t.Append(" relationships=", "text-muted").Append(len(s.RelationshipResults))
+	}
+	if len(s.Parents) > 0 {
+		t = t.Append(" parents=", "text-muted").Append(len(s.Parents))
+	}
+	if len(s.Children) > 0 {
+		t = t.Append(" children=", "text-muted").Append(len(s.Children))
+	}
+	if len(s.RelationshipSelectors) > 0 {
+		t = t.Append(" relations=", "text-muted").Append(len(s.RelationshipSelectors))
+	}
+	if len(s.ConfigAccess) > 0 {
+		t = t.Append(" access=", "text-muted").Append(len(s.ConfigAccess))
+	}
+	if len(s.ConfigAccessLogs) > 0 {
+		t = t.Append(" accessLogs=", "text-muted").Append(len(s.ConfigAccessLogs))
+	}
+	if len(s.ExternalRoles) > 0 {
+		t = t.Append(" roles=", "text-muted").Append(len(s.ExternalRoles))
+	}
+	if len(s.ExternalUsers) > 0 {
+		t = t.Append(" users=", "text-muted").Append(len(s.ExternalUsers))
+	}
+	if len(s.ExternalGroups) > 0 {
+		t = t.Append(" groups=", "text-muted").Append(len(s.ExternalGroups))
+	}
+	if len(s.ExternalUserGroups) > 0 {
+		t = t.Append(" userGroups=", "text-muted").Append(len(s.ExternalUserGroups))
+	}
+	if len(s.Properties) > 0 {
+		t = t.Append(" properties=", "text-muted").Append(len(s.Properties))
+	}
+
+	return t
+}
+
 func (s ScrapeResult) configDetails() api.Collapsed {
 	if s.Config == nil {
 		return clicky.Collapsed("empty", clicky.Text(""))
@@ -1235,24 +1284,23 @@ func (s ScrapeResult) IsMetadataOnly() bool {
 	return s.Config == nil
 }
 
-func (s ScrapeResult) Pretty() api.Text {
-	t := clicky.Text("")
-
-	t = t.Append("ID: ", "text-muted").Append(s.ID)
-	t = t.Append(" Name: ", "text-muted").Append(s.Name)
-	t = t.Append(" Type: ", "text-muted").Append(s.Type)
-	if len(s.Tags) > 0 {
-		t = t.NewLine().Append("Tags: ", "text-muted").Append(clicky.Map(s.Tags))
-	}
-
-	return t
-}
-
 // +kubebuilder:object:generate=false
 type ExternalConfigAccessLog struct {
 	models.ConfigAccessLog
 	ConfigExternalID    ExternalID `json:"external_config_id,omitempty"`
 	ExternalUserAliases []string   `json:"external_user_aliases,omitempty"`
+}
+
+func (e ExternalConfigAccessLog) Pretty() api.Text {
+	t := clicky.Text("").Add(e.ConfigExternalID.Pretty())
+	if len(e.ExternalUserAliases) > 0 {
+		t = t.Append(" user_aliases=", "text-muted").Append(strings.Join(e.ExternalUserAliases, ","))
+	}
+	if e.ExternalUserID != uuid.Nil {
+		t = t.Append(" user_id=", "text-muted").Append(e.ExternalUserID.String())
+	}
+
+	return t
 }
 
 func (e ExternalConfigAccessLog) Columns() []api.ColumnDef {
@@ -1277,6 +1325,10 @@ func (e ExternalConfigAccessLog) Row() map[string]any {
 	}
 	if e.Count != nil {
 		row["Count"] = *e.Count
+	}
+	row["UserID"] = strings.Join(e.ExternalUserAliases, "")
+	if e.ExternalUserID != uuid.Nil {
+		row["UserID"] = row["UserID"].(string) + ", " + e.ExternalUserID.String()
 	}
 	return row
 }
