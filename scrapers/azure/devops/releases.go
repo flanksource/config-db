@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/collections"
-	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyModels "github.com/flanksource/duty/models"
@@ -109,9 +108,8 @@ func (ado AzureDevopsScraper) scrapeReleases(
 	return results
 }
 
-// ensureExternalUser adds an ExternalUser for the given ADO identity to the map if not already present.
-// Returns the user UUID or zero on error.
-func ensureExternalUser(identity *IdentityRef, organization string, users map[string]dutyModels.ExternalUser) {
+// addExternalUser adds an ExternalUser (aliases-only, no ID) for the given ADO identity to the map if not already present.
+func addExternalUser(identity *IdentityRef, organization string, users map[string]dutyModels.ExternalUser) {
 	if identity == nil || identity.UniqueName == "" {
 		return
 	}
@@ -119,12 +117,7 @@ func ensureExternalUser(identity *IdentityRef, organization string, users map[st
 	if _, exists := users[email]; exists {
 		return
 	}
-	userID, err := hash.DeterministicUUID(pq.StringArray{email})
-	if err != nil {
-		return
-	}
 	users[email] = dutyModels.ExternalUser{
-		ID:       userID,
 		Name:     identity.DisplayName,
 		Email:    &email,
 		Aliases:  pq.StringArray{email, identity.ID},
@@ -144,14 +137,14 @@ func deploymentAccessLog(identity *IdentityRef, configExternalID v1.ExternalID, 
 	}
 	return &v1.ExternalConfigAccessLog{
 		ConfigAccessLog: dutyModels.ConfigAccessLog{
-			ExternalUserID: user.ID,
-			CreatedAt:      createdAt,
+			CreatedAt: createdAt,
 			Properties: map[string]any{
 				"role":        "Deployment",
 				"environment": envName,
 			},
 		},
-		ConfigExternalID: configExternalID,
+		ExternalUserAliases: user.Aliases,
+		ConfigExternalID:    configExternalID,
 	}
 }
 
@@ -182,11 +175,11 @@ func approvalAccessLog(a ReleaseApproval, configExternalID v1.ExternalID, envNam
 	}
 	return &v1.ExternalConfigAccessLog{
 		ConfigAccessLog: dutyModels.ConfigAccessLog{
-			ExternalUserID: user.ID,
-			CreatedAt:      createdAt,
-			Properties:     props,
+			CreatedAt:  createdAt,
+			Properties: props,
 		},
-		ConfigExternalID: configExternalID,
+		ExternalUserAliases: user.Aliases,
+		ConfigExternalID:    configExternalID,
 	}
 }
 
@@ -207,7 +200,9 @@ func buildReleaseResult(config v1.AzureDevops, project Project, def ReleaseDefin
 			continue
 		}
 
-		ensureExternalUser(release.CreatedBy, config.Organization, externalUsers)
+		if config.Permissions != nil && config.Permissions.Enabled {
+			addExternalUser(release.CreatedBy, config.Organization, externalUsers)
+		}
 
 		for _, env := range release.Environments {
 			changeType, ok := releaseEnvStatusToChangeType[env.Status]
@@ -227,14 +222,15 @@ func buildReleaseResult(config v1.AzureDevops, project Project, def ReleaseDefin
 				"releaseId":   release.ID,
 				"releaseName": release.Name,
 				"environment": env.Name,
-				"status":      env.Status,
+
+				"status": env.Status,
 			}
 			if createdBy != nil {
 				details["createdBy"] = *createdBy
 			}
 			webURL := release.Links["web"].Href
 			if webURL != "" {
-				details["webUrl"] = webURL
+				details["url"] = webURL
 			}
 			if pre := approvalSummary(env.PreDeployApprovals); len(pre) > 0 {
 				details["preDeployApprovals"] = pre
@@ -250,21 +246,23 @@ func buildReleaseResult(config v1.AzureDevops, project Project, def ReleaseDefin
 				CreatedBy:        createdBy,
 				ExternalID:       fmt.Sprintf("%s/%d", project.Name, def.ID),
 				ConfigType:       ReleaseType,
-				Source:           webURL,
+				Source:           release.Name,
 				Summary:          fmt.Sprintf("%s / %s", release.Name, env.Name),
 				Details:          details,
 				ExternalChangeID: fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID),
 			})
 
-			if log := deploymentAccessLog(release.CreatedBy, configExternalID, release.CreatedOn, env.Name, externalUsers); log != nil {
-				accessLogs = append(accessLogs, *log)
-			}
-
-			for _, a := range append(env.PreDeployApprovals, env.PostDeployApprovals...) {
-				ensureExternalUser(a.ApprovedBy, config.Organization, externalUsers)
-				ensureExternalUser(a.Approver, config.Organization, externalUsers)
-				if log := approvalAccessLog(a, configExternalID, env.Name, release.CreatedOn, externalUsers); log != nil {
+			if config.Permissions != nil && config.Permissions.Enabled {
+				if log := deploymentAccessLog(release.CreatedBy, configExternalID, release.CreatedOn, env.Name, externalUsers); log != nil {
 					accessLogs = append(accessLogs, *log)
+				}
+
+				for _, a := range append(env.PreDeployApprovals, env.PostDeployApprovals...) {
+					addExternalUser(a.ApprovedBy, config.Organization, externalUsers)
+					addExternalUser(a.Approver, config.Organization, externalUsers)
+					if log := approvalAccessLog(a, configExternalID, env.Name, release.CreatedOn, externalUsers); log != nil {
+						accessLogs = append(accessLogs, *log)
+					}
 				}
 			}
 		}

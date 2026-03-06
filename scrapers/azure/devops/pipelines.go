@@ -280,13 +280,8 @@ func (ado AzureDevopsScraper) scrapePipeline(
 								if email == "" {
 									email = identity.ProviderDisplayName
 								}
-								userID, err := hash.DeterministicUUID(pq.StringArray{email})
-								if err != nil {
-									continue
-								}
 								if _, exists := externalUsers[email]; !exists {
 									externalUsers[email] = dutyModels.ExternalUser{
-										ID:       userID,
 										Name:     identity.ProviderDisplayName,
 										Email:    &email,
 										Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
@@ -405,7 +400,9 @@ func (ado AzureDevopsScraper) scrapePipeline(
 				webURL := ""
 				if webLink, ok := run.Links["web"]; ok {
 					webURL = webLink.Href
+					runDetails.URL = webURL
 				}
+
 				runDetails.Steps = GetJobStepsSummary(timeline, webURL)
 			}
 
@@ -427,75 +424,47 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			terminalRunCache.add(externalChangeID)
 		}
 
-		// Track requester as external user + access log
-		if requester != nil && requester.UniqueName != "" {
-			email := requester.UniqueName
-			if _, exists := externalUsers[email]; !exists {
-				userID, err := hash.DeterministicUUID(pq.StringArray{email})
-				if err != nil {
-					ctx.Logger.V(4).Infof("failed to generate user id for %s: %v", email, err)
-				} else {
-					externalUsers[email] = dutyModels.ExternalUser{
-						ID:       userID,
-						Name:     requester.DisplayName,
-						Email:    &email,
-						Aliases:  pq.StringArray{email, requester.ID},
-						Tenant:   config.Organization,
-						UserType: "AzureDevOps",
-					}
-				}
-			}
-			if user, ok := externalUsers[email]; ok {
-				accessLogs = append(accessLogs, v1.ExternalConfigAccessLog{
-					ConfigAccessLog: dutyModels.ConfigAccessLog{
-						ExternalUserID: user.ID,
-						CreatedAt:      run.CreatedDate,
-					},
-					ConfigExternalID: v1.ExternalID{
-						ConfigType: PipelineType,
-						ExternalID: fmt.Sprintf("%s/%d", project.Name, pipeline.ID),
-					},
-				})
-			}
-		}
-
-		// Enrich approvers as external users + access logs
-		for _, approval := range approvals {
-			for _, step := range approval.Steps {
-				approver := step.ActualApprover
-				if approver == nil {
-					approver = &step.AssignedApprover
-				}
-				if approver.UniqueName == "" {
-					continue
-				}
-				email := approver.UniqueName
-				if _, exists := externalUsers[email]; !exists {
-					userID, err := hash.DeterministicUUID(pq.StringArray{email})
-					if err != nil {
-						ctx.Logger.V(4).Infof("failed to generate user id for approver %s: %v", email, err)
-						continue
-					}
-					externalUsers[email] = dutyModels.ExternalUser{
-						ID:       userID,
-						Name:     approver.DisplayName,
-						Email:    &email,
-						Aliases:  pq.StringArray{email, approver.ID},
-						Tenant:   config.Organization,
-						UserType: "AzureDevOps",
-					}
-				}
-				if user, ok := externalUsers[email]; ok {
+		if config.Permissions != nil && config.Permissions.Enabled {
+			// Track requester as external user + access log
+			if requester != nil && requester.UniqueName != "" {
+				addExternalUser(requester, config.Organization, externalUsers)
+				if user, ok := externalUsers[requester.UniqueName]; ok {
 					accessLogs = append(accessLogs, v1.ExternalConfigAccessLog{
 						ConfigAccessLog: dutyModels.ConfigAccessLog{
-							ExternalUserID: user.ID,
-							CreatedAt:      step.LastModifiedOn,
+							CreatedAt: run.CreatedDate,
 						},
+						ExternalUserAliases: user.Aliases,
 						ConfigExternalID: v1.ExternalID{
 							ConfigType: PipelineType,
 							ExternalID: fmt.Sprintf("%s/%d", project.Name, pipeline.ID),
 						},
 					})
+				}
+			}
+
+			// Enrich approvers as external users + access logs
+			for _, approval := range approvals {
+				for _, step := range approval.Steps {
+					approver := step.ActualApprover
+					if approver == nil {
+						approver = &step.AssignedApprover
+					}
+					if approver.UniqueName == "" {
+						continue
+					}
+					addExternalUser(approver, config.Organization, externalUsers)
+					if user, ok := externalUsers[approver.UniqueName]; ok {
+						accessLogs = append(accessLogs, v1.ExternalConfigAccessLog{
+							ConfigAccessLog: dutyModels.ConfigAccessLog{
+								CreatedAt: step.LastModifiedOn,
+							},
+							ExternalUserAliases: user.Aliases,
+							ConfigExternalID: v1.ExternalID{
+								ConfigType: PipelineType,
+								ExternalID: fmt.Sprintf("%s/%d", project.Name, pipeline.ID),
+							},
+						})
+					}
 				}
 			}
 		}
@@ -514,6 +483,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			summary = fmt.Sprintf("%s (%d jobs, %d tasks)", summary, jobCount, taskCount)
 		}
 
+		runDetails.URL = run.Links["web"].Href
 		createdAt := run.CreatedDate
 		changeResult := v1.ChangeResult{
 			ChangeType:       changeType,
@@ -521,7 +491,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			Severity:         severity,
 			ExternalID:       id,
 			ConfigType:       PipelineType,
-			Source:           run.Links["web"].Href,
+			Source:           localPipeline.Name,
 			Summary:          summary,
 			Details:          runDetails.ToJSON(),
 			ExternalChangeID: externalChangeID,
