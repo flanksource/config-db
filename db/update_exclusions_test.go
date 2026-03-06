@@ -7,7 +7,6 @@ import (
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
-	"github.com/google/uuid"
 )
 
 func TestApplyExternalEntityExclusions(t *testing.T) {
@@ -79,11 +78,11 @@ func TestApplyExternalEntityExclusions(t *testing.T) {
 			},
 			ConfigAccess: []v1.ExternalConfigAccess{
 				{
-					ConfigAccess:        models.ConfigAccess{ConfigID: uuid.New()},
+					ConfigExternalID:    v1.ExternalID{ConfigType: "Test", ExternalID: "1"},
 					ExternalUserAliases: []string{"system:kube-proxy"},
 				},
 				{
-					ConfigAccess:        models.ConfigAccess{ConfigID: uuid.New()},
+					ConfigExternalID:    v1.ExternalID{ConfigType: "Test", ExternalID: "2"},
 					ExternalUserAliases: []string{"alice"},
 				},
 			},
@@ -108,11 +107,11 @@ func TestApplyExternalEntityExclusions(t *testing.T) {
 		result := &v1.ScrapeResult{
 			ConfigAccess: []v1.ExternalConfigAccess{
 				{
-					ConfigAccess:        models.ConfigAccess{ConfigID: uuid.New()},
+					ConfigExternalID:    v1.ExternalID{ConfigType: "Test", ExternalID: "1"},
 					ExternalRoleAliases: []string{"system:controller:job-controller"},
 				},
 				{
-					ConfigAccess:        models.ConfigAccess{ConfigID: uuid.New()},
+					ConfigExternalID:    v1.ExternalID{ConfigType: "Test", ExternalID: "2"},
 					ExternalRoleAliases: []string{"custom-role"},
 				},
 			},
