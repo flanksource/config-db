@@ -735,6 +735,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			accessLog.ConfigID = uuid.MustParse(config)
 		}
 
+		if accessLog.ExternalUserID == uuid.Nil {
+			summary.AddWarning("AccessLog", fmt.Sprintf("access log has no user_id %s", accessLog))
+			continue
+		}
+
 		if err := SaveConfigAccessLog(ctx, &accessLog.ConfigAccessLog); err != nil {
 			return summary, ctx.Oops().Wrapf(err, "failed to save access log")
 		}
