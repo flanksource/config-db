@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	github.com/flanksource/artifacts v1.0.21
-	github.com/flanksource/clicky v1.18.0
+	github.com/flanksource/clicky v1.18.1
 	github.com/flanksource/commons v1.47.3
 	github.com/flanksource/deps v1.0.24
 	github.com/flanksource/duty v1.0.1205
