@@ -636,13 +636,29 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
-	entityResult, err := syncExternalEntities(ctx, extractResult, scraperID)
+	entityResult, userIDMap, err := syncExternalEntities(ctx, extractResult, scraperID)
 	if err != nil {
 		return summary, ctx.Oops().Wrapf(err, "failed to sync external entities")
 	}
 	summary.ExternalUsers = entityResult.Users
 	summary.ExternalGroups = entityResult.Groups
 	summary.ExternalRoles = entityResult.Roles
+
+	// Remap stale ExternalUserIDs after entity sync has resolved canonical IDs
+	for i := range extractResult.configAccesses {
+		if extractResult.configAccesses[i].ExternalUserID != nil {
+			if remapped, ok := userIDMap[*extractResult.configAccesses[i].ExternalUserID]; ok {
+				extractResult.configAccesses[i].ExternalUserID = &remapped
+			}
+		}
+	}
+	for i := range extractResult.configAccessLogs {
+		if extractResult.configAccessLogs[i].ExternalUserID != uuid.Nil {
+			if remapped, ok := userIDMap[extractResult.configAccessLogs[i].ExternalUserID]; ok {
+				extractResult.configAccessLogs[i].ExternalUserID = remapped
+			}
+		}
+	}
 
 	summary.ConfigAccess.Scraped = len(extractResult.configAccesses)
 	var resolvedAccesses []v1.ExternalConfigAccess
@@ -718,6 +734,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	summary.AccessLogs.Scraped = len(extractResult.configAccessLogs)
+	var resolvedAccessLogs []dutyModels.ConfigAccessLog
 	for _, accessLog := range extractResult.configAccessLogs {
 		if accessLog.ConfigID == uuid.Nil && accessLog.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, accessLog.ConfigExternalID)
@@ -735,16 +752,50 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			accessLog.ConfigID = uuid.MustParse(config)
 		}
 
+		if accessLog.ExternalUserID == uuid.Nil && len(accessLog.ExternalUserAliases) > 0 {
+			id, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, accessLog.ExternalUserAliases)
+			if err != nil {
+				return summary, ctx.Oops().Wrapf(err, "failed to find user for access log")
+			}
+			if id != nil {
+				accessLog.ExternalUserID = *id
+			} else {
+				if err := ensureExternalUserFromAliases(ctx, accessLog.ExternalUserAliases, scraperID); err != nil {
+					ctx.Logger.Warnf("failed to auto-create external user from aliases %v: %v", accessLog.ExternalUserAliases, err)
+				} else {
+					id, _ = findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, accessLog.ExternalUserAliases)
+					if id != nil {
+						accessLog.ExternalUserID = *id
+					}
+				}
+			}
+		}
+
+		if accessLog.ExternalUserID != uuid.Nil {
+			if _, ok := ExternalUserIDCache.Get(accessLog.ExternalUserID.String()); !ok {
+				id, _ := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, []string{accessLog.ExternalUserID.String()})
+				if id != nil {
+					accessLog.ExternalUserID = *id
+				} else {
+					summary.AddWarning("AccessLog", fmt.Sprintf("access log user_id=%s aliases=%v not found, skipping", accessLog.ExternalUserID, accessLog.ExternalUserAliases))
+					summary.AccessLogs.Skipped++
+					continue
+				}
+			}
+		}
+
 		if accessLog.ExternalUserID == uuid.Nil {
-			summary.AddWarning("AccessLog", fmt.Sprintf("access log has no user_id %s", accessLog))
+			summary.AddWarning("AccessLog", fmt.Sprintf("access log has no user_id aliases=%v %s", accessLog.ExternalUserAliases, accessLog))
 			continue
 		}
 
-		if err := SaveConfigAccessLog(ctx, &accessLog.ConfigAccessLog); err != nil {
-			return summary, ctx.Oops().Wrapf(err, "failed to save access log")
-		}
-		summary.AccessLogs.Saved++
+		resolvedAccessLogs = append(resolvedAccessLogs, accessLog.ConfigAccessLog)
 	}
+
+	if err := SaveConfigAccessLogs(ctx, resolvedAccessLogs); err != nil {
+		return summary, ctx.Oops().Wrapf(err, "failed to save access logs")
+	}
+	summary.AccessLogs.Saved = len(resolvedAccessLogs)
 
 	// updatedConfigIDs are configs that were not new in this scrape.
 	// We keep track of them so that we can update their last scraped time.
@@ -1156,8 +1207,8 @@ type configExternalKey struct {
 	parentType string
 }
 
-func SaveConfigAccessLog(ctx api.ScrapeContext, accessLog *dutyModels.ConfigAccessLog) error {
-	if accessLog == nil {
+func SaveConfigAccessLogs(ctx api.ScrapeContext, accessLogs []dutyModels.ConfigAccessLog) error {
+	if len(accessLogs) == 0 {
 		return nil
 	}
 
@@ -1172,7 +1223,7 @@ func SaveConfigAccessLog(ctx api.ScrapeContext, accessLog *dutyModels.ConfigAcce
 		Where: clause.Where{Exprs: []clause.Expression{
 			clause.Expr{SQL: "excluded.created_at > config_access_logs.created_at"},
 		}},
-	}).Create(accessLog).Error
+	}).CreateInBatches(&accessLogs, configItemsBulkInsertSize).Error
 }
 
 // extractResult holds the extracted configs & changes from the scrape result
