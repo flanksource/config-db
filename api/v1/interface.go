@@ -1291,6 +1291,10 @@ type ExternalConfigAccessLog struct {
 	ExternalUserAliases []string   `json:"external_user_aliases,omitempty"`
 }
 
+func (e ExternalConfigAccessLog) String() string {
+	return e.Pretty().String()
+}
+
 func (e ExternalConfigAccessLog) Pretty() api.Text {
 	t := clicky.Text("").Add(e.ConfigExternalID.Pretty())
 	if len(e.ExternalUserAliases) > 0 {
