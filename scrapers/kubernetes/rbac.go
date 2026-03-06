@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
@@ -22,6 +23,7 @@ import (
 type rbacExtractor struct {
 	clusterName string
 	scraperID   *uuid.UUID
+	exclusions  v1.ScraperExclusion
 	roles       map[uuid.UUID]models.ExternalRole
 	users       map[uuid.UUID]models.ExternalUser
 	groups      map[uuid.UUID]models.ExternalGroup
@@ -31,6 +33,7 @@ type rbacExtractor struct {
 	roleRules      map[string][]rbacRule   // key: kind/namespace/name -> rules
 	objectsByKind  map[string][]*objectRef // key: kind -> list of objects
 	resourceToKind map[string]string       // plural resource name -> Kind (e.g., "pods" -> "Pod")
+	ignoredRoles   map[string]bool         // key: kind/namespace/name -> true if role is excluded
 }
 
 type rbacRule struct {
@@ -147,7 +150,7 @@ func fetchCRDResourceKinds(ctx api.ScrapeContext, clusterName string) map[string
 	return resourceMap
 }
 
-func newRBACExtractor(ctx api.ScrapeContext, clusterName string, scraperID *uuid.UUID) *rbacExtractor {
+func newRBACExtractor(ctx api.ScrapeContext, clusterName string, scraperID *uuid.UUID, exclusions v1.ScraperExclusion) *rbacExtractor {
 	if scraperID == nil {
 		ctx.Warnf("Ignoring RBAC Extraction due to empty scraperID")
 		return nil
@@ -164,19 +167,21 @@ func newRBACExtractor(ctx api.ScrapeContext, clusterName string, scraperID *uuid
 		resourceMap[k] = v
 	}
 
-	return newRBACExtractorWithResourceMap(clusterName, scraperID, resourceMap)
+	return newRBACExtractorWithResourceMap(clusterName, scraperID, resourceMap, exclusions)
 }
 
-func newRBACExtractorWithResourceMap(clusterName string, scraperID *uuid.UUID, resourceToKind map[string]string) *rbacExtractor {
+func newRBACExtractorWithResourceMap(clusterName string, scraperID *uuid.UUID, resourceToKind map[string]string, exclusions v1.ScraperExclusion) *rbacExtractor {
 	return &rbacExtractor{
 		clusterName:    clusterName,
 		scraperID:      scraperID,
+		exclusions:     exclusions,
 		roles:          make(map[uuid.UUID]models.ExternalRole),
 		users:          make(map[uuid.UUID]models.ExternalUser),
 		groups:         make(map[uuid.UUID]models.ExternalGroup),
 		roleRules:      make(map[string][]rbacRule),
 		objectsByKind:  make(map[string][]*objectRef),
 		resourceToKind: resourceToKind,
+		ignoredRoles:   make(map[string]bool),
 	}
 }
 
@@ -212,6 +217,16 @@ func (r *rbacExtractor) processRole(obj *unstructured.Unstructured) {
 
 	name := obj.GetName()
 	namespace := obj.GetNamespace()
+
+	if len(r.exclusions.ExternalRoles) > 0 && collections.MatchItems(name, r.exclusions.ExternalRoles...) {
+		key := r.objectKey(kind, namespace, name)
+		r.ignoredRoles[key] = true
+		// Still parse and store the rules so bindings can resolve correctly,
+		// but don't create the ExternalRole entry.
+		rules := r.parseRules(obj)
+		r.roleRules[key] = rules
+		return
+	}
 
 	id := generateRBACID(r.clusterName, kind, namespace, name)
 	alias := KubernetesAlias(r.clusterName, kind, namespace, name)
@@ -307,8 +322,12 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 		roleNamespace = bindingNamespace
 	}
 
-	// Lookup the role's rules
+	// Lookup the role's rules; skip bindings for ignored roles
 	roleKey := r.objectKey(roleKind, roleNamespace, roleName)
+	if r.ignoredRoles[roleKey] {
+		return
+	}
+
 	rules, hasRules := r.roleRules[roleKey]
 
 	// Find all target resources based on the rules
@@ -332,6 +351,18 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 		subjKind, _ := subjMap["kind"].(string)
 		subjName, _ := subjMap["name"].(string)
 		subjNamespace, _ := subjMap["namespace"].(string)
+
+		// Skip excluded users (ServiceAccount, User) and groups
+		switch subjKind {
+		case "ServiceAccount", "User":
+			if len(r.exclusions.ExternalUsers) > 0 && collections.MatchItems(subjName, r.exclusions.ExternalUsers...) {
+				continue
+			}
+		case "Group":
+			if len(r.exclusions.ExternalGroups) > 0 && collections.MatchItems(subjName, r.exclusions.ExternalGroups...) {
+				continue
+			}
+		}
 
 		var userAlias, groupAlias string
 
@@ -480,10 +511,36 @@ func (r *rbacExtractor) getAccess() []v1.ExternalConfigAccess {
 	return r.access
 }
 
+// pruneOrphanedUsers removes users that have no corresponding access entries.
+func (r *rbacExtractor) pruneOrphanedUsers() {
+	usedAliases := make(map[string]bool)
+	for _, a := range r.access {
+		for _, alias := range a.ExternalUserAliases {
+			usedAliases[alias] = true
+		}
+	}
+
+	for id, user := range r.users {
+		hasAccess := false
+		for _, alias := range user.Aliases {
+			if usedAliases[alias] {
+				hasAccess = true
+				break
+			}
+		}
+		if !hasAccess {
+			delete(r.users, id)
+		}
+	}
+}
+
 func (r *rbacExtractor) results(baseScraper v1.BaseScraper) v1.ScrapeResult {
 	if r == nil {
 		return v1.ScrapeResult{}
 	}
+
+	r.pruneOrphanedUsers()
+
 	return v1.ScrapeResult{
 		BaseScraper:    baseScraper,
 		ExternalRoles:  r.getRoles(),

@@ -145,7 +145,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	if ctx.Properties().On(true, "kubernetes.rbac_config_access") {
 		rbacCtx := ctx.ScrapeContext
 		rbacCtx.Context = rbacCtx.WithKubernetes(ctx.config.KubernetesConnection)
-		rbac = newRBACExtractor(rbacCtx, clusterName, ctx.ScrapeConfig().GetPersistedID())
+		rbac = newRBACExtractor(rbacCtx, clusterName, ctx.ScrapeConfig().GetPersistedID(), ctx.config.BaseScraper.Exclude)
 		rbac.indexObjects(objs)
 	}
 
