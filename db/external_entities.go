@@ -14,6 +14,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/flanksource/config-db/api"
 )
@@ -165,6 +166,7 @@ func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGr
 	var resolved []dutyModels.ExternalGroup
 	var skipped int
 	idMap := make(map[uuid.UUID]uuid.UUID)
+	seen := make(map[uuid.UUID]int)
 
 	for _, g := range groups {
 		g.ScraperID = lo.Ternary(g.ScraperID == uuid.Nil, lo.FromPtr(scraperID), g.ScraperID)
@@ -177,6 +179,7 @@ func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGr
 		}
 
 		if len(g.Aliases) > 0 {
+			sort.Strings(g.Aliases)
 			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalGroup](ctx, g.Aliases)
 			if err != nil {
 				return nil, 0, nil, ctx.Oops().With("aliases", g.Aliases).Wrapf(err, "failed to find external group by aliases")
@@ -196,9 +199,19 @@ func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGr
 			g.CreatedAt = now
 		}
 		g.UpdatedAt = &now
-		resolved = append(resolved, g)
-		if originalID != uuid.Nil && originalID != g.ID {
-			idMap[originalID] = g.ID
+
+		if idx, exists := seen[g.ID]; exists {
+			for _, alias := range g.Aliases {
+				if !slices.Contains(resolved[idx].Aliases, alias) {
+					resolved[idx].Aliases = append(resolved[idx].Aliases, alias)
+				}
+			}
+		} else {
+			seen[g.ID] = len(resolved)
+			resolved = append(resolved, g)
+			if originalID != uuid.Nil && originalID != g.ID {
+				idMap[originalID] = g.ID
+			}
 		}
 	}
 	return resolved, skipped, idMap, nil
@@ -207,6 +220,7 @@ func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGr
 func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalRole, int, error) {
 	var resolved []dutyModels.ExternalRole
 	var skipped int
+	seen := make(map[uuid.UUID]int)
 
 	for _, r := range roles {
 		r.ScraperID = lo.Ternary(r.ScraperID == nil, scraperID, r.ScraperID)
@@ -218,6 +232,7 @@ func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole
 		}
 
 		if len(r.Aliases) > 0 {
+			sort.Strings(r.Aliases)
 			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalRole](ctx, r.Aliases)
 			if err != nil {
 				return nil, 0, ctx.Oops().With("aliases", r.Aliases).Wrapf(err, "failed to find external role by aliases")
@@ -237,7 +252,17 @@ func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole
 			r.CreatedAt = now
 		}
 		r.UpdatedAt = &now
-		resolved = append(resolved, r)
+
+		if idx, exists := seen[r.ID]; exists {
+			for _, alias := range r.Aliases {
+				if !slices.Contains(resolved[idx].Aliases, alias) {
+					resolved[idx].Aliases = append(resolved[idx].Aliases, alias)
+				}
+			}
+		} else {
+			seen[r.ID] = len(resolved)
+			resolved = append(resolved, r)
+		}
 	}
 	return resolved, skipped, nil
 }
@@ -379,71 +404,33 @@ func upsertExternalEntities(
 		}
 	}
 
-	// Stale deletion: user_groups first (FK dependency)
-	if len(userGroups) > 0 {
-		if err := tx.Exec(fmt.Sprintf(`
-			UPDATE external_user_groups SET deleted_at = NOW()
-			WHERE deleted_at IS NULL
-				AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
-				AND NOT EXISTS (SELECT 1 FROM %s t
-					WHERE t.external_user_id = external_user_groups.external_user_id
-						AND t.external_group_id = external_user_groups.external_group_id)
-		`, tempUserGroups), *scraperID).Error; err != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external user groups: %w", err)
-		}
-	} else if len(users) > 0 || len(groups) > 0 {
-		// No user groups scraped but we have users/groups — delete all user_groups for this scraper's users
-		if err := tx.Exec(`
-			UPDATE external_user_groups SET deleted_at = NOW()
-			WHERE deleted_at IS NULL
-				AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
-		`, *scraperID).Error; err != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external user groups: %w", err)
+	// Stale deletion: user_group memberships
+	if !ctx.IsIncrementalScrape() {
+		if len(userGroups) > 0 {
+			if err := tx.Exec(fmt.Sprintf(`
+				UPDATE external_user_groups SET deleted_at = NOW()
+				WHERE deleted_at IS NULL
+					AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
+					AND NOT EXISTS (SELECT 1 FROM %s t
+						WHERE t.external_user_id = external_user_groups.external_user_id
+							AND t.external_group_id = external_user_groups.external_group_id)
+			`, tempUserGroups), *scraperID).Error; err != nil {
+				tx.Rollback()
+				return counts, fmt.Errorf("failed to delete stale external user groups: %w", err)
+			}
+		} else if len(users) > 0 || len(groups) > 0 {
+			if err := tx.Exec(`
+				UPDATE external_user_groups SET deleted_at = NOW()
+				WHERE deleted_at IS NULL
+					AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
+			`, *scraperID).Error; err != nil {
+				tx.Rollback()
+				return counts, fmt.Errorf("failed to delete stale external user groups: %w", err)
+			}
 		}
 	}
 
-	// Stale deletion: roles (hard delete, preserving current behavior)
-	if len(roles) > 0 {
-		r := tx.Exec(fmt.Sprintf(`
-			DELETE FROM external_roles WHERE scraper_id = ?
-				AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_roles.id)
-		`, tempRoles), *scraperID)
-		if r.Error != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external roles: %w", r.Error)
-		}
-		counts.rolesDeleted = int(r.RowsAffected)
-	}
-
-	// Stale deletion: groups (soft delete)
-	if len(groups) > 0 {
-		r := tx.Exec(fmt.Sprintf(`
-			UPDATE external_groups SET deleted_at = NOW()
-			WHERE scraper_id = ? AND deleted_at IS NULL
-				AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_groups.id)
-		`, tempGroups), *scraperID)
-		if r.Error != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external groups: %w", r.Error)
-		}
-		counts.groupsDeleted = int(r.RowsAffected)
-	}
-
-	// Stale deletion: users (soft delete)
-	if len(users) > 0 {
-		r := tx.Exec(fmt.Sprintf(`
-			UPDATE external_users SET deleted_at = NOW()
-			WHERE scraper_id = ? AND deleted_at IS NULL
-				AND NOT EXISTS (SELECT 1 FROM %s t WHERE t.id = external_users.id)
-		`, tempUsers), *scraperID)
-		if r.Error != nil {
-			tx.Rollback()
-			return counts, fmt.Errorf("failed to delete stale external users: %w", r.Error)
-		}
-		counts.usersDeleted = int(r.RowsAffected)
-	}
+	// FIXME: add stale deletion for external_users, external_groups, and external_roles
 
 	if err := tx.Commit().Error; err != nil {
 		return counts, fmt.Errorf("failed to commit external entities transaction: %w", err)
@@ -483,11 +470,42 @@ func ensureExternalUserFromAliases(ctx api.ScrapeContext, aliases []string, scra
 	return nil
 }
 
+// dedupeByID merges duplicate entities (by ID) keeping the first occurrence
+// and appending unique aliases from later duplicates.
+// Entities with a nil ID are passed through as-is.
+func dedupeByID[T any](
+	items []T,
+	getID func(T) uuid.UUID,
+	getAliases func(T) []string,
+	setAliases func(*T, []string),
+) []T {
+	seen := make(map[uuid.UUID]int)
+	var out []T
+	for _, item := range items {
+		id := getID(item)
+		if id == uuid.Nil {
+			out = append(out, item)
+			continue
+		}
+		if idx, exists := seen[id]; exists {
+			for _, alias := range getAliases(item) {
+				if !slices.Contains(getAliases(out[idx]), alias) {
+					setAliases(&out[idx], append(getAliases(out[idx]), alias))
+				}
+			}
+		} else {
+			seen[id] = len(out)
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
 func createTempAndInsert[T any](tx *gorm.DB, tempTable, sourceTable string, items []T) error {
 	if err := tx.Exec(fmt.Sprintf(`CREATE TEMP TABLE %s (LIKE %s INCLUDING ALL) ON COMMIT DROP`, tempTable, sourceTable)).Error; err != nil {
 		return fmt.Errorf("failed to create temp table %s: %w", tempTable, err)
 	}
-	if err := tx.Table(tempTable).CreateInBatches(items, 200).Error; err != nil {
+	if err := tx.Table(tempTable).Clauses(clause.OnConflict{DoNothing: true}).CreateInBatches(items, 200).Error; err != nil {
 		return fmt.Errorf("failed to insert into temp table %s: %w", tempTable, err)
 	}
 	return nil

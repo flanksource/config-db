@@ -1414,6 +1414,22 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 		return 0
 	})
 
+	extractResult.externalUsers = dedupeByID(extractResult.externalUsers,
+		func(u dutyModels.ExternalUser) uuid.UUID { return u.ID },
+		func(u dutyModels.ExternalUser) []string { return u.Aliases },
+		func(u *dutyModels.ExternalUser, a []string) { u.Aliases = a },
+	)
+	extractResult.externalGroups = dedupeByID(extractResult.externalGroups,
+		func(g dutyModels.ExternalGroup) uuid.UUID { return g.ID },
+		func(g dutyModels.ExternalGroup) []string { return g.Aliases },
+		func(g *dutyModels.ExternalGroup, a []string) { g.Aliases = a },
+	)
+	extractResult.externalRoles = dedupeByID(extractResult.externalRoles,
+		func(r dutyModels.ExternalRole) uuid.UUID { return r.ID },
+		func(r dutyModels.ExternalRole) []string { return r.Aliases },
+		func(r *dutyModels.ExternalRole, a []string) { r.Aliases = a },
+	)
+
 	return extractResult, nil
 }
 
