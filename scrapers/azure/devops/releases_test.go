@@ -3,9 +3,12 @@ package devops
 import (
 	"time"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	dutyCtx "github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -14,12 +17,16 @@ func identityRef(uniqueName, displayName, id string) *IdentityRef {
 	return &IdentityRef{UniqueName: uniqueName, DisplayName: displayName, ID: id}
 }
 
-func makeUsers(identities ...*IdentityRef) map[string]dutyModels.ExternalUser {
-	m := make(map[string]dutyModels.ExternalUser)
+func testCtx() api.ScrapeContext {
+	return api.NewScrapeContext(dutyCtx.New())
+}
+
+func makeUsers(identities ...*IdentityRef) []dutyModels.ExternalUser {
+	ctx := testCtx()
 	for _, id := range identities {
-		addExternalUser(id, "test-org", m)
+		addExternalEntity(ctx, id, "test-org")
 	}
-	return m
+	return ctx.Users()
 }
 
 func externalID(configType, id string) v1.ExternalID {
@@ -30,7 +37,6 @@ func makeDef(id int, name, path string) ReleaseDefinition {
 	return ReleaseDefinition{ID: id, Name: name, Path: path}
 }
 
-// findAccessLog searches for an access log matching the given property key-value pairs.
 func findAccessLog(logs []v1.ExternalConfigAccessLog, props map[string]string) *v1.ExternalConfigAccessLog {
 	for i, log := range logs {
 		match := true
@@ -57,37 +63,128 @@ func makeRelease(id int, createdBy *IdentityRef, envs []ReleaseEnvironment, crea
 	}
 }
 
-var _ = Describe("addExternalUser", func() {
-	It("adds a new user without ID", func() {
-		users := make(map[string]dutyModels.ExternalUser)
+var _ = Describe("ScrapeContext.AddUser", func() {
+	It("adds a new user", func() {
+		ctx := testCtx()
+		email := "alice@org.com"
+		ctx.AddUser(dutyModels.ExternalUser{
+			Name:     "Alice",
+			Email:    &email,
+			Aliases:  pq.StringArray{email, "alice-id"},
+			Tenant:   "my-org",
+			UserType: "AzureDevOps",
+		})
+
+		users := ctx.Users()
+		Expect(users).To(HaveLen(1))
+		Expect(users[0].Name).To(Equal("Alice"))
+		Expect(users[0].Tenant).To(Equal("my-org"))
+		Expect(users[0].ID).To(Equal(uuid.Nil))
+	})
+
+	It("deduplicates by alias overlap", func() {
+		ctx := testCtx()
+		email := "alice@org.com"
+		ctx.AddUser(dutyModels.ExternalUser{
+			Name:    "Alice",
+			Email:   &email,
+			Aliases: pq.StringArray{email, "alice-id"},
+		})
+		ctx.AddUser(dutyModels.ExternalUser{
+			Name:    "Alice",
+			Email:   &email,
+			Aliases: pq.StringArray{email, "alice-id"},
+		})
+
+		Expect(ctx.Users()).To(HaveLen(1))
+	})
+
+	It("merges new aliases on overlap", func() {
+		ctx := testCtx()
+		email := "alice@org.com"
+		ctx.AddUser(dutyModels.ExternalUser{
+			Name:    "Alice",
+			Aliases: pq.StringArray{email},
+		})
+		ctx.AddUser(dutyModels.ExternalUser{
+			Name:    "Alice",
+			Aliases: pq.StringArray{email, "new-alias"},
+		})
+
+		users := ctx.Users()
+		Expect(users).To(HaveLen(1))
+		Expect(users[0].Aliases).To(ContainElements(email, "new-alias"))
+	})
+})
+
+var _ = Describe("ScrapeContext.AddGroup", func() {
+	It("adds a new group", func() {
+		ctx := testCtx()
+		ctx.AddGroup(dutyModels.ExternalGroup{
+			Name:      "QA Team",
+			Aliases:   pq.StringArray{`[OIPA]\QA`, "group-id-1"},
+			Tenant:    "org",
+			GroupType: "AzureDevOps",
+		})
+
+		groups := ctx.Groups()
+		Expect(groups).To(HaveLen(1))
+		Expect(groups[0].Name).To(Equal("QA Team"))
+		Expect(groups[0].GroupType).To(Equal("AzureDevOps"))
+		Expect(groups[0].Aliases).To(ContainElements(`[OIPA]\QA`, "group-id-1"))
+	})
+
+	It("deduplicates by alias overlap", func() {
+		ctx := testCtx()
+		ctx.AddGroup(dutyModels.ExternalGroup{
+			Name:    "QA Team",
+			Aliases: pq.StringArray{`[OIPA]\QA`, "group-id-1"},
+		})
+		ctx.AddGroup(dutyModels.ExternalGroup{
+			Name:    "QA Team",
+			Aliases: pq.StringArray{`[OIPA]\QA`},
+		})
+
+		Expect(ctx.Groups()).To(HaveLen(1))
+	})
+})
+
+var _ = Describe("addExternalEntity", func() {
+	It("routes container identities to groups", func() {
+		ctx := testCtx()
+		container := &IdentityRef{
+			UniqueName:  `[OIPA]\QA`,
+			DisplayName: "QA Team",
+			ID:          "group-id-1",
+			IsContainer: true,
+		}
+
+		addExternalEntity(ctx, container, "org")
+
+		Expect(ctx.Users()).To(BeEmpty())
+		Expect(ctx.Groups()).To(HaveLen(1))
+		Expect(ctx.Groups()[0].Name).To(Equal("QA Team"))
+	})
+
+	It("routes non-container identities to users", func() {
+		ctx := testCtx()
 		identity := identityRef("alice@org.com", "Alice", "alice-id")
 
-		addExternalUser(identity, "my-org", users)
+		addExternalEntity(ctx, identity, "org")
 
-		u, ok := users["alice@org.com"]
-		Expect(ok).To(BeTrue())
-		Expect(u.Name).To(Equal("Alice"))
-		Expect(u.Tenant).To(Equal("my-org"))
-		Expect(u.ID).To(Equal(uuid.Nil))
+		Expect(ctx.Groups()).To(BeEmpty())
+		Expect(ctx.Users()).To(HaveLen(1))
+		Expect(ctx.Users()[0].Name).To(Equal("Alice"))
 	})
 
 	It("skips nil or empty identity", func() {
-		users := make(map[string]dutyModels.ExternalUser)
+		ctx := testCtx()
 
-		addExternalUser(nil, "org", users)
-		addExternalUser(&IdentityRef{UniqueName: ""}, "org", users)
+		addExternalEntity(ctx, nil, "org")
+		addExternalEntity(ctx, &IdentityRef{UniqueName: ""}, "org")
 
-		Expect(users).To(BeEmpty())
-	})
-
-	It("is idempotent on duplicate", func() {
-		users := make(map[string]dutyModels.ExternalUser)
-		identity := identityRef("alice@org.com", "Alice", "alice-id")
-
-		addExternalUser(identity, "org", users)
-		addExternalUser(identity, "org", users)
-
-		Expect(users).To(HaveLen(1))
+		Expect(ctx.Users()).To(BeEmpty())
+		Expect(ctx.Groups()).To(BeEmpty())
 	})
 })
 
@@ -109,14 +206,13 @@ var _ = Describe("deploymentAccessLog", func() {
 	})
 
 	It("returns nil for nil identity", func() {
-		users := make(map[string]dutyModels.ExternalUser)
-		log := deploymentAccessLog(nil, externalID(ReleaseType, "proj/1"), time.Now(), "Staging", users)
+		log := deploymentAccessLog(nil, externalID(ReleaseType, "proj/1"), time.Now(), "Staging", nil)
 		Expect(log).To(BeNil())
 	})
 
 	It("returns nil for unknown identity", func() {
 		identity := identityRef("unknown@org.com", "Unknown", "uid")
-		log := deploymentAccessLog(identity, externalID(ReleaseType, "proj/1"), time.Now(), "Staging", map[string]dutyModels.ExternalUser{})
+		log := deploymentAccessLog(identity, externalID(ReleaseType, "proj/1"), time.Now(), "Staging", nil)
 		Expect(log).To(BeNil())
 	})
 })
@@ -213,6 +309,7 @@ var _ = Describe("buildReleaseResult", func() {
 		release := makeRelease(100, trigger, []ReleaseEnvironment{env}, createdOn)
 
 		result := buildReleaseResult(
+			testCtx(),
 			v1.AzureDevops{Organization: "test-org", Permissions: &v1.AzureDevopsPermissions{Enabled: true}},
 			Project{Name: "MyProject"},
 			def,
@@ -243,6 +340,7 @@ var _ = Describe("buildReleaseResult", func() {
 		release := makeRelease(100, trigger, []ReleaseEnvironment{env}, createdOn)
 
 		result := buildReleaseResult(
+			testCtx(),
 			v1.AzureDevops{Organization: "test-org", Permissions: &v1.AzureDevopsPermissions{Enabled: true}},
 			Project{Name: "MyProject"},
 			def,
@@ -271,6 +369,7 @@ var _ = Describe("buildReleaseResult", func() {
 		release := makeRelease(100, trigger, []ReleaseEnvironment{env}, createdOn)
 
 		result := buildReleaseResult(
+			testCtx(),
 			v1.AzureDevops{Organization: "test-org"},
 			Project{Name: "MyProject"},
 			def,
@@ -293,6 +392,7 @@ var _ = Describe("buildReleaseResult", func() {
 		release := makeRelease(100, nil, []ReleaseEnvironment{env}, createdOn)
 
 		result := buildReleaseResult(
+			testCtx(),
 			v1.AzureDevops{Organization: "org"},
 			Project{Name: "MyProject"},
 			def,

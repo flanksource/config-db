@@ -80,59 +80,70 @@ func (ado AzureDevopsScraper) scrapeReleases(
 	project Project,
 	cutoff time.Time,
 ) v1.ScrapeResults {
+	var results v1.ScrapeResults
+
 	definitions, err := releaseClient.GetReleaseDefinitions(ctx, project.Name)
 	if err != nil {
-		var errs v1.ScrapeResults
-		errs.Errorf(err, "failed to get release definitions for %s", project.Name)
-		return errs
+		return results.Errorf(err, "failed to get release definitions for %s", project.Name)
 	}
-	ctx.Logger.V(1).Infof("[releases] project=%s definitions=%d filter=%v cutoff=%s",
+	ctx.Logger.V(2).Infof("scraping releases for project=%s definitions=%d filter=%v cutoff=%s",
 		project.Name, len(definitions), config.Releases, cutoff.Format(time.RFC3339))
 
-	var results v1.ScrapeResults
 	for _, def := range definitions {
 		if !collections.MatchItems(def.Name, config.Releases...) {
-			ctx.Logger.V(3).Infof("[releases] skipping definition %q (no match)", def.Name)
+			ctx.Logger.V(3).Infof("skipping release %q (no match)", def.Name)
 			continue
 		}
 		releases, err := releaseClient.GetReleases(ctx, project.Name, def.ID)
 		if err != nil {
-			ctx.Logger.V(4).Infof("failed to get releases for %s/%s: %v", project.Name, def.Name, err)
-			continue
+			return results.Errorf(err, "failed to get releases for definition %d in project %s", def.ID, project.Name)
 		}
-		ctx.Logger.V(1).Infof("[releases] definition=%q releases=%d", def.Name, len(releases))
-		result := buildReleaseResult(config, project, def, releases, cutoff)
-		ctx.Logger.V(1).Infof("[releases] definition=%q changes=%d", def.Name, len(result.Changes))
+		result := buildReleaseResult(ctx, config, project, def, releases, cutoff)
 		results = append(results, result)
 	}
 	return results
 }
 
-// addExternalUser adds an ExternalUser (aliases-only, no ID) for the given ADO identity to the map if not already present.
-func addExternalUser(identity *IdentityRef, organization string, users map[string]dutyModels.ExternalUser) {
+func addExternalEntity(ctx api.ScrapeContext, identity *IdentityRef, organization string) {
 	if identity == nil || identity.UniqueName == "" {
 		return
 	}
-	email := identity.UniqueName
-	if _, exists := users[email]; exists {
+	if identity.IsContainer {
+		ctx.AddGroup(dutyModels.ExternalGroup{
+			Name:      identity.DisplayName,
+			Aliases:   pq.StringArray{identity.UniqueName, identity.ID},
+			Tenant:    organization,
+			GroupType: "AzureDevOps",
+		})
 		return
 	}
-	users[email] = dutyModels.ExternalUser{
+	email := identity.UniqueName
+	ctx.AddUser(dutyModels.ExternalUser{
 		Name:     identity.DisplayName,
 		Email:    &email,
 		Aliases:  pq.StringArray{email, identity.ID},
 		Tenant:   organization,
 		UserType: "AzureDevOps",
-	}
+	})
 }
 
-// deploymentAccessLog builds a Deployment access log entry for a release trigger.
-func deploymentAccessLog(identity *IdentityRef, configExternalID v1.ExternalID, createdAt time.Time, envName string, users map[string]dutyModels.ExternalUser) *v1.ExternalConfigAccessLog {
+func findUserByAlias(users []dutyModels.ExternalUser, alias string) *dutyModels.ExternalUser {
+	for i, u := range users {
+		for _, a := range u.Aliases {
+			if a == alias {
+				return &users[i]
+			}
+		}
+	}
+	return nil
+}
+
+func deploymentAccessLog(identity *IdentityRef, configExternalID v1.ExternalID, createdAt time.Time, envName string, users []dutyModels.ExternalUser) *v1.ExternalConfigAccessLog {
 	if identity == nil || identity.UniqueName == "" {
 		return nil
 	}
-	user, ok := users[identity.UniqueName]
-	if !ok {
+	user := findUserByAlias(users, identity.UniqueName)
+	if user == nil {
 		return nil
 	}
 	return &v1.ExternalConfigAccessLog{
@@ -148,9 +159,7 @@ func deploymentAccessLog(identity *IdentityRef, configExternalID v1.ExternalID, 
 	}
 }
 
-// approvalAccessLog builds a DeploymentApproval access log entry for a resolved approval.
-// Returns nil for automated or pending approvals.
-func approvalAccessLog(a ReleaseApproval, configExternalID v1.ExternalID, envName string, createdAt time.Time, users map[string]dutyModels.ExternalUser) *v1.ExternalConfigAccessLog {
+func approvalAccessLog(a ReleaseApproval, configExternalID v1.ExternalID, envName string, createdAt time.Time, users []dutyModels.ExternalUser) *v1.ExternalConfigAccessLog {
 	if a.IsAutomated || a.Status == "pending" || a.Status == "skipped" {
 		return nil
 	}
@@ -161,8 +170,8 @@ func approvalAccessLog(a ReleaseApproval, configExternalID v1.ExternalID, envNam
 	if actor == nil || actor.UniqueName == "" {
 		return nil
 	}
-	user, ok := users[actor.UniqueName]
-	if !ok {
+	user := findUserByAlias(users, actor.UniqueName)
+	if user == nil {
 		return nil
 	}
 	props := map[string]any{
@@ -183,10 +192,8 @@ func approvalAccessLog(a ReleaseApproval, configExternalID v1.ExternalID, envNam
 	}
 }
 
-func buildReleaseResult(config v1.AzureDevops, project Project, def ReleaseDefinition, releases []Release, cutoff time.Time) v1.ScrapeResult {
-	externalUsers := make(map[string]dutyModels.ExternalUser)
-	var accessLogs []v1.ExternalConfigAccessLog
-	var changes []v1.ChangeResult
+func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Project, def ReleaseDefinition, releases []Release, cutoff time.Time) v1.ScrapeResult {
+	var result v1.ScrapeResult
 
 	configExternalID := v1.ExternalID{
 		ConfigType: ReleaseType,
@@ -194,14 +201,12 @@ func buildReleaseResult(config v1.AzureDevops, project Project, def ReleaseDefin
 	}
 
 	for _, release := range releases {
-		// The ADO list-releases API does not populate env.createdOn/modifiedOn —
-		// they always return as zero. Filter by release.CreatedOn instead.
 		if release.CreatedOn.Before(cutoff) {
 			continue
 		}
 
 		if config.Permissions != nil && config.Permissions.Enabled {
-			addExternalUser(release.CreatedBy, config.Organization, externalUsers)
+			addExternalEntity(ctx, release.CreatedBy, config.Organization)
 		}
 
 		for _, env := range release.Environments {
@@ -222,8 +227,7 @@ func buildReleaseResult(config v1.AzureDevops, project Project, def ReleaseDefin
 				"releaseId":   release.ID,
 				"releaseName": release.Name,
 				"environment": env.Name,
-
-				"status": env.Status,
+				"status":      env.Status,
 			}
 			if createdBy != nil {
 				details["createdBy"] = *createdBy
@@ -240,54 +244,45 @@ func buildReleaseResult(config v1.AzureDevops, project Project, def ReleaseDefin
 			}
 
 			createdAt := release.CreatedOn
-			changes = append(changes, v1.ChangeResult{
+			result.Changes = append(result.Changes, v1.ChangeResult{
 				ChangeType:       changeType,
 				CreatedAt:        &createdAt,
 				CreatedBy:        createdBy,
 				ExternalID:       fmt.Sprintf("%s/%d", project.Name, def.ID),
 				ConfigType:       ReleaseType,
-				Source:           release.Name,
+				Source:           "AzureDevops/release/" + configExternalID.ExternalID,
 				Summary:          fmt.Sprintf("%s / %s", release.Name, env.Name),
 				Details:          details,
 				ExternalChangeID: fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID),
 			})
 
 			if config.Permissions != nil && config.Permissions.Enabled {
-				if log := deploymentAccessLog(release.CreatedBy, configExternalID, release.CreatedOn, env.Name, externalUsers); log != nil {
-					accessLogs = append(accessLogs, *log)
+				if log := deploymentAccessLog(release.CreatedBy, configExternalID, release.CreatedOn, env.Name, ctx.Users()); log != nil {
+					result.ConfigAccessLogs = append(result.ConfigAccessLogs, *log)
 				}
 
 				for _, a := range append(env.PreDeployApprovals, env.PostDeployApprovals...) {
-					addExternalUser(a.ApprovedBy, config.Organization, externalUsers)
-					addExternalUser(a.Approver, config.Organization, externalUsers)
-					if log := approvalAccessLog(a, configExternalID, env.Name, release.CreatedOn, externalUsers); log != nil {
-						accessLogs = append(accessLogs, *log)
+					addExternalEntity(ctx, a.ApprovedBy, config.Organization)
+					addExternalEntity(ctx, a.Approver, config.Organization)
+					if log := approvalAccessLog(a, configExternalID, env.Name, release.CreatedOn, ctx.Users()); log != nil {
+						result.ConfigAccessLogs = append(result.ConfigAccessLogs, *log)
 					}
 				}
 			}
 		}
 	}
 
-	users := make([]dutyModels.ExternalUser, 0, len(externalUsers))
-	for _, u := range externalUsers {
-		users = append(users, u)
+	result.ConfigClass = "Deployment"
+	result.Config = map[string]any{
+		"id":           def.ID,
+		"name":         def.Name,
+		"path":         def.Path,
+		"project":      project.Name,
+		"organization": config.Organization,
 	}
-
-	return v1.ScrapeResult{
-		ConfigClass: "Deployment",
-		Config: map[string]any{
-			"id":           def.ID,
-			"name":         def.Name,
-			"path":         def.Path,
-			"project":      project.Name,
-			"organization": config.Organization,
-		},
-		Type:             ReleaseType,
-		ID:               fmt.Sprintf("%s/%d", project.Name, def.ID),
-		Name:             releaseDisplayName(def),
-		Changes:          changes,
-		Aliases:          []string{fmt.Sprintf("%s/release/%d", project.Name, def.ID)},
-		ExternalUsers:    users,
-		ConfigAccessLogs: accessLogs,
-	}
+	result.Type = ReleaseType
+	result.ID = fmt.Sprintf("%s/%d", project.Name, def.ID)
+	result.Name = releaseDisplayName(def)
+	result.Aliases = []string{fmt.Sprintf("%s/release/%d", project.Name, def.ID)}
+	return result
 }

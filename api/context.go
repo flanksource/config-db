@@ -28,12 +28,19 @@ type ScrapeContext struct {
 	jobHistory        *models.JobHistory
 	scrapeConfig      *v1.ScrapeConfig
 	lastScrapeSummary v1.ScrapeSummary
+
+	users  *List[*models.ExternalUser, models.ExternalUser]
+	groups *List[*models.ExternalGroup, models.ExternalGroup]
+	roles  *List[*models.ExternalRole, models.ExternalRole]
 }
 
 func NewScrapeContext(ctx dutyCtx.Context) ScrapeContext {
 	return ScrapeContext{
 		Context: ctx,
 		temp:    NewTempCache(),
+		users:   NewList[*models.ExternalUser, models.ExternalUser](),
+		groups:  NewList[*models.ExternalGroup, models.ExternalGroup](),
+		roles:   NewList[*models.ExternalRole, models.ExternalRole](),
 	}
 }
 
@@ -118,6 +125,9 @@ func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 		jobHistory:        ctx.jobHistory,
 		scrapeConfig:      ctx.scrapeConfig,
 		lastScrapeSummary: ctx.lastScrapeSummary,
+		users:             ctx.users,
+		groups:            ctx.groups,
+		roles:             ctx.roles,
 	}
 }
 
@@ -227,3 +237,17 @@ func (ctx ScrapeContext) WithHARCollector(collector *har.Collector) ScrapeContex
 func (ctx ScrapeContext) HARCollector() *har.Collector {
 	return ctx.harCollector
 }
+
+func (ctx ScrapeContext) WithEntities() ScrapeContext {
+	ctx.users = NewList[*models.ExternalUser, models.ExternalUser]()
+	ctx.groups = NewList[*models.ExternalGroup, models.ExternalGroup]()
+	ctx.roles = NewList[*models.ExternalRole, models.ExternalRole]()
+	return ctx
+}
+
+func (ctx ScrapeContext) AddUser(user models.ExternalUser)   { ctx.users.Upsert(user) }
+func (ctx ScrapeContext) AddGroup(group models.ExternalGroup) { ctx.groups.Upsert(group) }
+func (ctx ScrapeContext) AddRole(role models.ExternalRole)    { ctx.roles.Upsert(role) }
+func (ctx ScrapeContext) Users() []models.ExternalUser        { return ctx.users.Items() }
+func (ctx ScrapeContext) Groups() []models.ExternalGroup      { return ctx.groups.Items() }
+func (ctx ScrapeContext) Roles() []models.ExternalRole        { return ctx.roles.Items() }

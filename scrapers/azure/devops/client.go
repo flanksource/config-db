@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-resty/resty/v2"
+	commonsHTTP "github.com/flanksource/commons/http"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -152,9 +152,10 @@ type Runs struct {
 }
 
 type AzureDevopsClient struct {
-	*resty.Client
+	*commonsHTTP.Client
 	api.ScrapeContext
 	Organization string
+	token        string
 }
 
 // resolveOrgAndToken extracts the organization and personal access token from
@@ -181,20 +182,44 @@ func NewAzureDevopsClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 		return nil, err
 	}
 
-	client := resty.New().
-		SetBaseURL(fmt.Sprintf("https://dev.azure.com/%s", org)).
-		SetBasicAuth(org, token)
+	client := commonsHTTP.NewClient().
+		BaseURL(fmt.Sprintf("https://dev.azure.com/%s", org)).
+		Auth(org, token)
+	if collector := ctx.HARCollector(); collector != nil {
+		client = client.HARCollector(collector)
+	}
 
 	return &AzureDevopsClient{
 		ScrapeContext: ctx,
 		Client:        client,
 		Organization:  org,
+		token:         token,
 	}, nil
 }
 
+// get is a convenience wrapper that performs a GET request and unmarshals the JSON response.
+func get[T any](client *commonsHTTP.Client, ctx context.Context, path string, params ...string) (*T, *commonsHTTP.Response, error) {
+	req := client.R(ctx)
+	for i := 0; i+1 < len(params); i += 2 {
+		req = req.QueryParam(params[i], params[i+1])
+	}
+	resp, err := req.Get(path)
+	if err != nil {
+		return nil, resp, err
+	}
+	if !resp.IsOK() {
+		body, _ := resp.AsString()
+		return nil, resp, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, body)
+	}
+	var result T
+	if err := resp.Into(&result); err != nil {
+		return nil, resp, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return &result, resp, nil
+}
+
 func (ado *AzureDevopsClient) GetPipelines(ctx context.Context, project string) ([]Pipeline, error) {
-	var response Pipelines
-	_, err := ado.R().SetContext(ctx).SetResult(&response).Get(fmt.Sprintf("/%s/_apis/pipelines", project))
+	response, _, err := get[Pipelines](ado.Client, ctx, fmt.Sprintf("/%s/_apis/pipelines", project))
 	if err != nil {
 		return nil, err
 	}
@@ -209,9 +234,7 @@ func (ado *AzureDevopsClient) GetPipelines(ctx context.Context, project string) 
 }
 
 func (ado *AzureDevopsClient) GetPipelineRuns(ctx context.Context, project string, pipeline Pipeline) ([]Run, error) {
-	var runs Runs
-	_, err := ado.R().SetContext(ctx).SetResult(&runs).Get(fmt.Sprintf("/%s/_apis/pipelines/%d/runs", project, pipeline.ID))
-
+	runs, _, err := get[Runs](ado.Client, ctx, fmt.Sprintf("/%s/_apis/pipelines/%d/runs", project, pipeline.ID))
 	if err != nil {
 		return nil, err
 	}
@@ -222,18 +245,14 @@ func (ado *AzureDevopsClient) GetPipelineRuns(ctx context.Context, project strin
 		}
 		results = append(results, run)
 	}
-
 	return results, nil
 }
 
 func (ado *AzureDevopsClient) GetProjects(ctx context.Context) ([]Project, error) {
-	var projects Projects
-	_, err := ado.R().SetContext(ctx).SetResult(&projects).Get("/_apis/projects")
-
+	projects, _, err := get[Projects](ado.Client, ctx, "/_apis/projects")
 	if err != nil {
 		return nil, err
 	}
-
 	return projects.Value, nil
 }
 
@@ -339,20 +358,18 @@ type PipelineDefinition struct {
 
 // GetPipelineWithDefinition fetches a pipeline with its build definition details
 func (ado *AzureDevopsClient) GetPipelineWithDefinition(ctx context.Context, project string, pipelineID int) (*PipelineDefinition, error) {
-	var pipeline Pipeline
-	_, err := ado.R().SetContext(ctx).SetResult(&pipeline).Get(fmt.Sprintf("/%s/_apis/pipelines/%d", project, pipelineID))
+	pipeline, _, err := get[Pipeline](ado.Client, ctx, fmt.Sprintf("/%s/_apis/pipelines/%d", project, pipelineID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pipeline: %w", err)
 	}
 
-	var definition BuildDefinition
-	_, err = ado.R().SetContext(ctx).SetResult(&definition).Get(fmt.Sprintf("/%s/_apis/build/definitions/%d", project, pipelineID))
+	definition, _, err := get[BuildDefinition](ado.Client, ctx, fmt.Sprintf("/%s/_apis/build/definitions/%d", project, pipelineID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build definition: %w", err)
 	}
 
 	pipelineDef := &PipelineDefinition{
-		Pipeline: pipeline,
+		Pipeline: *pipeline,
 	}
 
 	if definition.Process != nil {
@@ -370,15 +387,14 @@ func (ado *AzureDevopsClient) GetPipelineWithDefinition(ctx context.Context, pro
 
 // GetBuildTimeline gets the timeline/steps for a specific build
 func (ado *AzureDevopsClient) GetBuildTimeline(ctx context.Context, project string, buildID int) (*Timeline, error) {
-	var timeline Timeline
-	resp, err := ado.R().SetContext(ctx).SetResult(&timeline).Get(fmt.Sprintf("/%s/_apis/build/builds/%d/timeline", project, buildID))
+	timeline, resp, err := get[Timeline](ado.Client, ctx, fmt.Sprintf("/%s/_apis/build/builds/%d/timeline", project, buildID))
 	if err != nil {
+		if resp != nil && resp.StatusCode == 404 {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to get build timeline: %w", err)
 	}
-	if resp.StatusCode() == 404 {
-		return nil, nil
-	}
-	return &timeline, nil
+	return timeline, nil
 }
 
 // GetJobStepsSummary extracts a summary of job steps from the timeline
@@ -529,6 +545,7 @@ type IdentityRef struct {
 	UniqueName  string `json:"uniqueName"`
 	Descriptor  string `json:"descriptor,omitempty"`
 	ImageURL    string `json:"imageUrl,omitempty"`
+	IsContainer bool   `json:"isContainer,omitempty"`
 }
 
 // Build represents a build with requestedBy info
@@ -661,11 +678,8 @@ func (rd RunDetails) ToJSON() map[string]any {
 
 // GetProjectApprovals fetches all approvals for a project and returns a map keyed by pipeline run ID.
 func (ado *AzureDevopsClient) GetProjectApprovals(ctx context.Context, project string) (map[int][]PipelineApproval, error) {
-	var response PipelineApprovals
-	_, err := ado.R().SetContext(ctx).SetResult(&response).
-		SetQueryParam("api-version", "7.1-preview.1").
-		SetQueryParam("$expand", "steps").
-		Get(fmt.Sprintf("/%s/_apis/pipelines/approvals", project))
+	response, _, err := get[PipelineApprovals](ado.Client, ctx, fmt.Sprintf("/%s/_apis/pipelines/approvals", project),
+		"api-version", "7.1-preview.1", "$expand", "steps")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project approvals: %w", err)
 	}
@@ -680,10 +694,8 @@ func (ado *AzureDevopsClient) GetProjectApprovals(ctx context.Context, project s
 
 // GetBuildArtifacts fetches artifacts produced by a build
 func (ado *AzureDevopsClient) GetBuildArtifacts(ctx context.Context, project string, buildID int) ([]BuildArtifact, error) {
-	var response buildArtifacts
-	_, err := ado.R().SetContext(ctx).SetResult(&response).
-		SetQueryParam("api-version", "7.1").
-		Get(fmt.Sprintf("/%s/_apis/build/builds/%d/artifacts", project, buildID))
+	response, _, err := get[buildArtifacts](ado.Client, ctx, fmt.Sprintf("/%s/_apis/build/builds/%d/artifacts", project, buildID),
+		"api-version", "7.1")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build artifacts: %w", err)
 	}
@@ -692,12 +704,8 @@ func (ado *AzureDevopsClient) GetBuildArtifacts(ctx context.Context, project str
 
 // GetTestRuns fetches test runs for a build and aggregates the counts
 func (ado *AzureDevopsClient) GetTestRuns(ctx context.Context, project string, buildID int) (*TestRunSummary, error) {
-	var response testRuns
-	_, err := ado.R().SetContext(ctx).SetResult(&response).
-		SetQueryParam("buildId", fmt.Sprintf("%d", buildID)).
-		SetQueryParam("includeRunDetails", "true").
-		SetQueryParam("api-version", "7.1").
-		Get(fmt.Sprintf("/%s/_apis/test/runs", project))
+	response, _, err := get[testRuns](ado.Client, ctx, fmt.Sprintf("/%s/_apis/test/runs", project),
+		"buildId", fmt.Sprintf("%d", buildID), "includeRunDetails", "true", "api-version", "7.1")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get test runs: %w", err)
 	}
@@ -718,17 +726,15 @@ func (ado *AzureDevopsClient) GetTestRuns(ctx context.Context, project string, b
 // GetBuilds gets builds for a specific definition with requestedBy info.
 // When since is non-zero only builds updated after that time are returned.
 func (ado *AzureDevopsClient) GetBuilds(ctx context.Context, project string, definitionID int, since time.Time) ([]Build, error) {
-	req := ado.R().SetContext(ctx).SetResult(&Builds{}).
-		SetQueryParam("definitions", fmt.Sprintf("%d", definitionID)).
-		SetQueryParam("api-version", "7.1")
+	params := []string{"definitions", fmt.Sprintf("%d", definitionID), "api-version", "7.1"}
 	if !since.IsZero() {
-		req = req.SetQueryParam("minTime", since.UTC().Format(time.RFC3339))
+		params = append(params, "minTime", since.UTC().Format(time.RFC3339))
 	}
-	resp, err := req.Get(fmt.Sprintf("/%s/_apis/build/builds", project))
+	response, _, err := get[Builds](ado.Client, ctx, fmt.Sprintf("/%s/_apis/build/builds", project), params...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get builds: %w", err)
 	}
-	return resp.Result().(*Builds).Value, nil
+	return response.Value, nil
 }
 
 // Build permission bits for Azure DevOps Build namespace
@@ -753,13 +759,8 @@ const BuildSecurityNamespaceID = "33344d9c-fc72-4d6f-aba5-fa317101a7e9"
 // GetPipelinePermissions gets ACL permissions for a pipeline
 func (ado *AzureDevopsClient) GetPipelinePermissions(ctx context.Context, project string, projectID string, pipelineID int) ([]AccessControlList, error) {
 	token := fmt.Sprintf("%s/%d", projectID, pipelineID)
-
-	var acls AccessControlLists
-	_, err := ado.R().SetContext(ctx).SetResult(&acls).
-		SetQueryParam("api-version", "7.1").
-		SetQueryParam("token", token).
-		SetQueryParam("includeExtendedInfo", "true").
-		Get(fmt.Sprintf("/_apis/accesscontrollists/%s", BuildSecurityNamespaceID))
+	acls, _, err := get[AccessControlLists](ado.Client, ctx, fmt.Sprintf("/_apis/accesscontrollists/%s", BuildSecurityNamespaceID),
+		"api-version", "7.1", "token", token, "includeExtendedInfo", "true")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pipeline permissions: %w", err)
 	}
@@ -846,16 +847,12 @@ func (ado *AzureDevopsClient) GetIdentitiesByDescriptor(ctx context.Context, des
 		return nil, nil
 	}
 
-	vsspsClient := resty.New().
-		SetBaseURL(fmt.Sprintf("https://vssps.dev.azure.com/%s", ado.Organization)).
-		SetBasicAuth(ado.Client.UserInfo.Username, ado.Client.UserInfo.Password)
+	vsspsClient := commonsHTTP.NewClient().
+		BaseURL(fmt.Sprintf("https://vssps.dev.azure.com/%s", ado.Organization)).
+		Auth(ado.Organization, ado.token)
 
-	var identities ResolvedIdentities
-	_, err := vsspsClient.R().SetContext(ctx).
-		SetResult(&identities).
-		SetQueryParam("api-version", "7.1").
-		SetQueryParam("descriptors", joinDescriptors(descriptors)).
-		Get("/_apis/identities")
+	identities, _, err := get[ResolvedIdentities](vsspsClient, ctx, "/_apis/identities",
+		"api-version", "7.1", "descriptors", joinDescriptors(descriptors))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve identities: %w", err)
 	}
@@ -875,10 +872,8 @@ func joinDescriptors(descriptors []string) string {
 
 // GetPipelineSecurityRoles gets the build definition security roles (who can queue, admin, etc.)
 func (ado *AzureDevopsClient) GetPipelineSecurityRoles(ctx context.Context, project string, pipelineID int) ([]PipelineRole, error) {
-	var roles PipelineRoles
-	_, err := ado.R().SetContext(ctx).SetResult(&roles).
-		SetQueryParam("api-version", "7.1-preview.1").
-		Get(fmt.Sprintf("/%s/_apis/build/definitions/%d/authorizedresources", project, pipelineID))
+	roles, _, err := get[PipelineRoles](ado.Client, ctx, fmt.Sprintf("/%s/_apis/build/definitions/%d/authorizedresources", project, pipelineID),
+		"api-version", "7.1-preview.1")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pipeline security roles: %w", err)
 	}
@@ -899,7 +894,7 @@ type PipelineRole struct {
 
 // AzureDevopsReleaseClient talks to vsrm.dev.azure.com for classic release pipelines.
 type AzureDevopsReleaseClient struct {
-	*resty.Client
+	*commonsHTTP.Client
 	api.ScrapeContext
 }
 
@@ -909,9 +904,12 @@ func NewAzureDevopsReleaseClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*Az
 	if err != nil {
 		return nil, err
 	}
-	client := resty.New().
-		SetBaseURL(fmt.Sprintf("https://vsrm.dev.azure.com/%s", org)).
-		SetBasicAuth(org, token)
+	client := commonsHTTP.NewClient().
+		BaseURL(fmt.Sprintf("https://vsrm.dev.azure.com/%s", org)).
+		Auth(org, token)
+	if collector := ctx.HARCollector(); collector != nil {
+		client = client.HARCollector(collector)
+	}
 	return &AzureDevopsReleaseClient{ScrapeContext: ctx, Client: client}, nil
 }
 
@@ -966,10 +964,8 @@ type Releases struct {
 
 // GetReleaseDefinitions returns all classic release definitions for a project.
 func (ado *AzureDevopsReleaseClient) GetReleaseDefinitions(ctx context.Context, project string) ([]ReleaseDefinition, error) {
-	var response ReleaseDefinitions
-	_, err := ado.R().SetContext(ctx).SetResult(&response).
-		SetQueryParam("api-version", "7.1").
-		Get(fmt.Sprintf("/%s/_apis/release/definitions", project))
+	response, _, err := get[ReleaseDefinitions](ado.Client, ctx, fmt.Sprintf("/%s/_apis/release/definitions", project),
+		"api-version", "7.1")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get release definitions: %w", err)
 	}
@@ -986,13 +982,10 @@ func (ado *AzureDevopsReleaseClient) GetReleaseDefinitions(ctx context.Context, 
 // the cutoff can still have environments that were deployed after it.
 // Callers should filter by environment ModifiedOn instead.
 func (ado *AzureDevopsReleaseClient) GetReleases(ctx context.Context, project string, definitionID int) ([]Release, error) {
-	resp, err := ado.R().SetContext(ctx).SetResult(&Releases{}).
-		SetQueryParam("api-version", "7.1").
-		SetQueryParam("definitionId", fmt.Sprintf("%d", definitionID)).
-		SetQueryParam("$expand", "environments,approvals").
-		Get(fmt.Sprintf("/%s/_apis/release/releases", project))
+	response, _, err := get[Releases](ado.Client, ctx, fmt.Sprintf("/%s/_apis/release/releases", project),
+		"api-version", "7.1", "definitionId", fmt.Sprintf("%d", definitionID), "$expand", "environments,approvals")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get releases: %w", err)
 	}
-	return resp.Result().(*Releases).Value, nil
+	return response.Value, nil
 }

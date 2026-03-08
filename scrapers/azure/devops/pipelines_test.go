@@ -364,7 +364,7 @@ var _ = Describe("buildReleaseResult", func() {
 
 		cutoff := releaseCreatedAt.Add(-time.Minute)
 		config := v1.AzureDevops{Organization: "myorg"}
-		result := buildReleaseResult(config, project, def, releases, cutoff)
+		result := buildReleaseResult(testCtx(), config, project, def, releases, cutoff)
 
 		Expect(result.ID).To(Equal("MyProject/7"))
 		Expect(result.Changes).To(HaveLen(2))
@@ -373,7 +373,7 @@ var _ = Describe("buildReleaseResult", func() {
 			Expect(ch.ExternalID).To(Equal("MyProject/7"))
 			Expect(ch.ConfigType).To(Equal(ReleaseType))
 			Expect(ch.ExternalChangeID).ToNot(BeEmpty())
-			Expect(ch.Source).To(Equal("Release-1"))
+			Expect(ch.Source).To(Equal("AzureDevops/release/MyProject/7"))
 			Expect(ch.Details["url"]).To(Equal(webURL))
 		}
 
