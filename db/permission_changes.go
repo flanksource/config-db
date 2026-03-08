@@ -114,48 +114,51 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 		}
 	}
 
-	// Soft-delete stale records not in current scrape
-	// The temp table is empty when no accesses are scraped, which causes all existing rows to be deleted
-	var staleRows []staleAccessResult
-	staleSQL := fmt.Sprintf(`
-		WITH stale AS (
-			UPDATE config_access
-			SET deleted_at = NOW()
-			WHERE scraper_id = ?
-				AND deleted_at IS NULL
-				AND NOT EXISTS (
-					SELECT 1 FROM %s t
-					WHERE t.config_id = config_access.config_id
-						AND t.scraper_id = config_access.scraper_id
-						AND t.external_user_id IS NOT DISTINCT FROM config_access.external_user_id
-						AND t.external_role_id IS NOT DISTINCT FROM config_access.external_role_id
-						AND t.external_group_id IS NOT DISTINCT FROM config_access.external_group_id
-				)
-			RETURNING config_access.config_id, config_access.external_user_id, config_access.external_role_id, config_access.external_group_id
-		)
-		SELECT s.config_id,
-			COALESCE(eu.name, '') as user_name,
-			COALESCE(er.name, '') as role_name,
-			COALESCE(eg.name, '') as group_name
-		FROM stale s
-		LEFT JOIN external_users eu ON s.external_user_id = eu.id
-		LEFT JOIN external_roles er ON s.external_role_id = er.id
-		LEFT JOIN external_groups eg ON s.external_group_id = eg.id
-	`, tempTable)
+	// Soft-delete stale records not in current scrape.
+	// Skip during incremental scrapes because the batch is partial and
+	// would incorrectly remove records that simply weren't in this batch.
+	if !ctx.IsIncrementalScrape() {
+		var staleRows []staleAccessResult
+		staleSQL := fmt.Sprintf(`
+			WITH stale AS (
+				UPDATE config_access
+				SET deleted_at = NOW()
+				WHERE scraper_id = ?
+					AND deleted_at IS NULL
+					AND NOT EXISTS (
+						SELECT 1 FROM %s t
+						WHERE t.config_id = config_access.config_id
+							AND t.scraper_id = config_access.scraper_id
+							AND t.external_user_id IS NOT DISTINCT FROM config_access.external_user_id
+							AND t.external_role_id IS NOT DISTINCT FROM config_access.external_role_id
+							AND t.external_group_id IS NOT DISTINCT FROM config_access.external_group_id
+					)
+				RETURNING config_access.config_id, config_access.external_user_id, config_access.external_role_id, config_access.external_group_id
+			)
+			SELECT s.config_id,
+				COALESCE(eu.name, '') as user_name,
+				COALESCE(er.name, '') as role_name,
+				COALESCE(eg.name, '') as group_name
+			FROM stale s
+			LEFT JOIN external_users eu ON s.external_user_id = eu.id
+			LEFT JOIN external_roles er ON s.external_role_id = er.id
+			LEFT JOIN external_groups eg ON s.external_group_id = eg.id
+		`, tempTable)
 
-	if err := tx.Raw(staleSQL, *scraperID).Scan(&staleRows).Error; err != nil {
-		tx.Rollback()
-		return result, fmt.Errorf("failed to delete stale config access: %w", err)
-	}
+		if err := tx.Raw(staleSQL, *scraperID).Scan(&staleRows).Error; err != nil {
+			tx.Rollback()
+			return result, fmt.Errorf("failed to delete stale config access: %w", err)
+		}
 
-	for _, row := range staleRows {
-		result.removed = append(result.removed, &models.ConfigChange{
-			ID:         uuid.NewString(),
-			ConfigID:   row.ConfigID,
-			ChangeType: v1.ChangeTypePermissionRemoved,
-			Summary:    buildRemovalSummary(row),
-			CreatedAt:  now,
-		})
+		for _, row := range staleRows {
+			result.removed = append(result.removed, &models.ConfigChange{
+				ID:         uuid.NewString(),
+				ConfigID:   row.ConfigID,
+				ChangeType: v1.ChangeTypePermissionRemoved,
+				Summary:    buildRemovalSummary(row),
+				CreatedAt:  now,
+			})
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
