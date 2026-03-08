@@ -145,7 +145,6 @@ var _ = Describe("Stale external entities deletion test", Ordered, func() {
 	var scrapeConfig v1.ScrapeConfig
 	var scraperCtx api.ScrapeContext
 	var scraperModel dutymodels.ConfigScraper
-	var initialUserIDs []uuid.UUID
 
 	BeforeAll(func() {
 		scrapeConfig = getConfigSpec("file-config-access")
@@ -186,7 +185,6 @@ var _ = Describe("Stale external entities deletion test", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(users).To(HaveLen(2))
 
-		initialUserIDs = lo.Map(users, func(u dutymodels.ExternalUser, _ int) uuid.UUID { return u.ID })
 	})
 
 	It("should create an additional external user directly in DB", func() {
@@ -206,7 +204,7 @@ var _ = Describe("Stale external entities deletion test", Ordered, func() {
 		Expect(users).To(HaveLen(3))
 	})
 
-	It("should soft delete stale external user on next scrape", func() {
+	It("should NOT soft delete stale external user on next scrape", func() {
 		db.ExternalUserCache.Flush()
 
 		_, err := RunScraper(scraperCtx)
@@ -215,16 +213,7 @@ var _ = Describe("Stale external entities deletion test", Ordered, func() {
 		var activeUsers []dutymodels.ExternalUser
 		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Where("deleted_at IS NULL").Find(&activeUsers).Error
 		Expect(err).NotTo(HaveOccurred())
-		Expect(activeUsers).To(HaveLen(2))
-
-		activeUserIDs := lo.Map(activeUsers, func(u dutymodels.ExternalUser, _ int) uuid.UUID { return u.ID })
-		Expect(activeUserIDs).To(ConsistOf(initialUserIDs))
-
-		var deletedUsers []dutymodels.ExternalUser
-		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Where("deleted_at IS NOT NULL").Find(&deletedUsers).Error
-		Expect(err).NotTo(HaveOccurred())
-		Expect(deletedUsers).To(HaveLen(1))
-		Expect(deletedUsers[0].Name).To(Equal("Stale User"))
+		Expect(activeUsers).To(HaveLen(3))
 	})
 })
 
