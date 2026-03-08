@@ -128,6 +128,9 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				approvalsByRunID = map[int][]PipelineApproval{}
 			}
 
+			// Share a single entity context per project so users/groups are deduped
+			entityCtx := ctx.WithEntities()
+
 			// Fan-out pipeline processing with a bounded worker pool
 			var (
 				mu             sync.Mutex
@@ -146,7 +149,7 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					if err := ctx.Err(); err != nil {
 						return nil // context cancelled, stop silently
 					}
-					pipelineResults := ado.scrapePipeline(ctx, client, config, project, pipeline, since, cutoff, cacheTTL, approvalsByRunID)
+					pipelineResults := ado.scrapePipeline(entityCtx, client, config, project, pipeline, since, cutoff, cacheTTL, approvalsByRunID)
 					mu.Lock()
 					projectResults = append(projectResults, pipelineResults...)
 					mu.Unlock()
@@ -154,16 +157,22 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				})
 			}
 			_ = g.Wait()
-			results = append(results, projectResults...)
 
 			if len(config.Releases) > 0 {
 				releaseClient, err := NewAzureDevopsReleaseClient(ctx, config)
 				if err != nil {
-					results.Errorf(err, "failed to create release client for %s", config.Organization)
+					return results.Errorf(err, "failed to create release client for %s", config.Organization)
 				} else {
-					results = append(results, ado.scrapeReleases(ctx, releaseClient, config, project, cutoff)...)
+					projectResults = append(projectResults, ado.scrapeReleases(entityCtx, releaseClient, config, project, cutoff)...)
 				}
 			}
+
+			// Assign deduped entities only to the first result to avoid duplicates
+			if len(projectResults) > 0 {
+				projectResults[0].ExternalUsers = entityCtx.Users()
+				projectResults[0].ExternalGroups = entityCtx.Groups()
+			}
+			results = append(results, projectResults...)
 		}
 	}
 	return results
@@ -181,7 +190,8 @@ func (ado AzureDevopsScraper) scrapePipeline(
 	cacheTTL time.Duration,
 	approvalsByRunID map[int][]PipelineApproval,
 ) v1.ScrapeResults {
-	errs := &v1.ScrapeResults{}
+
+	var results v1.ScrapeResults
 
 	// Revision-based definition cache (FR-4)
 	pipelineDef, cached := pipelineDefCache.get(config.Organization, project.Name, pipeline.ID, pipeline.Revision)
@@ -189,8 +199,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		var err error
 		pipelineDef, err = client.GetPipelineWithDefinition(ctx, project.Name, pipeline.ID)
 		if err != nil {
-			errs.Errorf(err, "failed to get pipeline definition for %s/%s", project.Name, pipeline.Name)
-			return *errs
+			return results.Errorf(err, "failed to get pipeline definition for %s/%s", project.Name, pipeline.Name)
 		}
 		pipelineDefCache.set(config.Organization, project.Name, pipeline.ID, pipeline.Revision, pipelineDef)
 	}
@@ -211,8 +220,6 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		ctx.Logger.V(4).Infof("failed to warm terminal-run cache for %s/%s: %v", project.Name, pipeline.Name, err)
 	}
 
-	externalUsers := make(map[string]dutyModels.ExternalUser)
-	externalGroups := make(map[string]dutyModels.ExternalGroup)
 	var accessLogs []v1.ExternalConfigAccessLog
 	var configAccess []v1.ExternalConfigAccess
 
@@ -258,20 +265,24 @@ func (ado AzureDevopsScraper) scrapePipeline(
 									email = mailProp.Value
 								}
 							}
+							ctx.Logger.V(4).Infof("resolved identity descriptor=%s subject=%s name=%q email=%q isContainer=%v isActive=%v",
+								identity.Descriptor, identity.SubjectDescriptor, identity.ProviderDisplayName, email, identity.IsContainer, identity.IsActive)
+							// Skip service identities (e.g. build service accounts)
+							if identity.ProviderDisplayName == "" && email == "" {
+								continue
+							}
 							if identity.IsContainer {
 								groupID, err := hash.DeterministicUUID(pq.StringArray{identity.Descriptor})
 								if err != nil {
 									continue
 								}
-								if _, exists := externalGroups[identity.Descriptor]; !exists {
-									externalGroups[identity.Descriptor] = dutyModels.ExternalGroup{
-										ID:        groupID,
-										Name:      identity.ProviderDisplayName,
-										Aliases:   pq.StringArray{identity.Descriptor, identity.SubjectDescriptor},
-										Tenant:    config.Organization,
-										GroupType: "AzureDevOps",
-									}
-								}
+								ctx.AddGroup(dutyModels.ExternalGroup{
+									ID:        groupID,
+									Name:      identity.ProviderDisplayName,
+									Aliases:   pq.StringArray{identity.Descriptor, identity.SubjectDescriptor},
+									Tenant:    config.Organization,
+									GroupType: "AzureDevOps",
+								})
 								configAccess = append(configAccess, v1.ExternalConfigAccess{
 									ConfigExternalID:     v1.ExternalID{ConfigType: PipelineType, ExternalID: fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},
 									ExternalGroupAliases: []string{identity.Descriptor},
@@ -280,15 +291,13 @@ func (ado AzureDevopsScraper) scrapePipeline(
 								if email == "" {
 									email = identity.ProviderDisplayName
 								}
-								if _, exists := externalUsers[email]; !exists {
-									externalUsers[email] = dutyModels.ExternalUser{
-										Name:     identity.ProviderDisplayName,
-										Email:    &email,
-										Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
-										Tenant:   config.Organization,
-										UserType: "AzureDevOps",
-									}
-								}
+								ctx.AddUser(dutyModels.ExternalUser{
+									Name:     identity.ProviderDisplayName,
+									Email:    &email,
+									Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
+									Tenant:   config.Organization,
+									UserType: "AzureDevOps",
+								})
 								configAccess = append(configAccess, v1.ExternalConfigAccess{
 									ConfigExternalID:    v1.ExternalID{ConfigType: PipelineType, ExternalID: fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},
 									ExternalUserAliases: []string{email},
@@ -309,7 +318,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 	// Incremental build fetch (FR-3)
 	builds, err := client.GetBuilds(ctx, project.Name, pipeline.ID, since) //nolint:govet
 	if err != nil {
-		ctx.Logger.V(4).Infof("failed to get builds for %s/%s: %v", project.Name, pipeline.Name, err)
+		return results.Errorf(err, "failed to get builds for %s/%s", project.Name, pipeline.Name)
 	}
 	buildRequesters := make(map[int]*IdentityRef, len(builds))
 	for _, build := range builds {
@@ -323,8 +332,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 	runs, err := client.GetPipelineRuns(ctx, project.Name, pipeline)
 	if err != nil {
-		errs.Errorf(err, "failed to get pipeline runs for %s/%s", project.Name, pipeline.Name)
-		return *errs
+		return results.Errorf(err, "failed to get pipeline runs for %s/%s", project.Name, pipeline.Name)
 	}
 
 	uniquePipelines := make(map[string]Pipeline) //nolint:govet
@@ -358,8 +366,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			}
 			id, err = gomplate.RunTemplate(env, gomplate.Template{Expression: config.ID})
 			if err != nil {
-				errs.Errorf(err, "failed to render id template for %s/%s", project.Name, pipeline.Name)
-				return *errs
+				return results.Errorf(err, "failed to render id template for %s/%s", project.Name, pipeline.Name)
 			}
 		}
 
@@ -395,7 +402,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		if terminal {
 			timeline, err := client.GetBuildTimeline(ctx, project.Name, run.ID)
 			if err != nil {
-				ctx.Logger.V(4).Infof("failed to get timeline for run %d: %v", run.ID, err)
+				return results.Errorf(err, "failed to get timeline for run %d in %s/%s", run.ID, project.Name, pipeline.Name)
 			} else {
 				webURL := ""
 				if webLink, ok := run.Links["web"]; ok {
@@ -408,14 +415,14 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 			artifacts, err := client.GetBuildArtifacts(ctx, project.Name, run.ID)
 			if err != nil {
-				ctx.Logger.V(4).Infof("failed to get artifacts for run %d: %v", run.ID, err)
+				return results.Errorf(err, "failed to get artifacts for run %d in %s/%s", run.ID, project.Name, pipeline.Name)
 			} else {
 				runDetails.Artifacts = artifacts
 			}
 
 			tests, err := client.GetTestRuns(ctx, project.Name, run.ID)
 			if err != nil {
-				ctx.Logger.V(4).Infof("failed to get test runs for run %d: %v", run.ID, err)
+				return results.Errorf(err, "failed to get test runs for run %d in %s/%s", run.ID, project.Name, pipeline.Name)
 			} else {
 				runDetails.Tests = tests
 			}
@@ -427,8 +434,8 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		if config.Permissions != nil && config.Permissions.Enabled {
 			// Track requester as external user + access log
 			if requester != nil && requester.UniqueName != "" {
-				addExternalUser(requester, config.Organization, externalUsers)
-				if user, ok := externalUsers[requester.UniqueName]; ok {
+				addExternalEntity(ctx, requester, config.Organization)
+				if user := findUserByAlias(ctx.Users(), requester.UniqueName); user != nil {
 					accessLogs = append(accessLogs, v1.ExternalConfigAccessLog{
 						ConfigAccessLog: dutyModels.ConfigAccessLog{
 							CreatedAt: run.CreatedDate,
@@ -452,8 +459,8 @@ func (ado AzureDevopsScraper) scrapePipeline(
 					if approver.UniqueName == "" {
 						continue
 					}
-					addExternalUser(approver, config.Organization, externalUsers)
-					if user, ok := externalUsers[approver.UniqueName]; ok {
+					addExternalEntity(ctx, approver, config.Organization)
+					if user := findUserByAlias(ctx.Users(), approver.UniqueName); user != nil {
 						accessLogs = append(accessLogs, v1.ExternalConfigAccessLog{
 							ConfigAccessLog: dutyModels.ConfigAccessLog{
 								CreatedAt: step.LastModifiedOn,
@@ -491,7 +498,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			Severity:         severity,
 			ExternalID:       id,
 			ConfigType:       PipelineType,
-			Source:           localPipeline.Name,
+			Source:           "AzureDevops/pipeline/" + id,
 			Summary:          summary,
 			Details:          runDetails.ToJSON(),
 			ExternalChangeID: externalChangeID,
@@ -504,38 +511,24 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		uniquePipelines[id] = localPipeline
 	}
 
-	var pipelineResults v1.ScrapeResults
 	for id, p := range uniquePipelines {
 		changes := p.Runs
 		p.Runs = nil
 
-		configMap := buildPipelineConfig(p)
-
-		users := make([]dutyModels.ExternalUser, 0, len(externalUsers))
-		for _, u := range externalUsers {
-			users = append(users, u)
-		}
-		groups := make([]dutyModels.ExternalGroup, 0, len(externalGroups))
-		for _, g := range externalGroups {
-			groups = append(groups, g)
-		}
-
-		pipelineResults = append(pipelineResults, v1.ScrapeResult{
+		results = append(results, v1.ScrapeResult{
 			ConfigClass:      "Deployment",
-			Config:           configMap,
+			Config:           buildPipelineConfig(p),
 			Type:             PipelineType,
 			ID:               id,
 			Labels:           p.GetLabels(),
 			Name:             p.Name,
 			Changes:          changes,
 			Aliases:          []string{fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},
-			ExternalUsers:    users,
-			ExternalGroups:   groups,
 			ConfigAccess:     configAccess,
 			ConfigAccessLogs: accessLogs,
 		})
 	}
-	return pipelineResults
+	return results
 }
 
 // hasPendingApprovals returns true if any approval step is neither approved nor rejected.
