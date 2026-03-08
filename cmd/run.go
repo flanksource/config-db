@@ -146,7 +146,7 @@ var Run = &cobra.Command{
 // Uses pretty:"table" tags to prevent empty slices from appearing as broken summary entries.
 type runHTMLOutput struct {
 	Counts             v1.CountsGrid                `json:"-"`
-	SaveSummary        *v1.ScrapeSummary             `json:"-"`
+	SaveSummary        *v1.ScrapeSummary            `json:"-"`
 	Configs            []v1.ScrapeResult            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
 	Changes            []models.ConfigChange        `pretty:"table"`
@@ -157,8 +157,8 @@ type runHTMLOutput struct {
 	ExternalUserGroups []models.ExternalUserGroup   `pretty:"table"`
 	ConfigAccess       []v1.ExternalConfigAccess    `pretty:"table"`
 	ConfigAccessLogs   []v1.ExternalConfigAccessLog `pretty:"table"`
-	HTTPTraffic        []v1.HAREntry                `pretty:"table"`
-	Logs               v1.LogBlock                  `json:"-"`
+	Logs               v1.LogOutput                 `json:"-"`
+	HTTPTraffic        []har.Entry                  `json:"har,omitempty"`
 }
 
 func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary, error) {
@@ -212,7 +212,6 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 	all := v1.MergeScrapeResults(results)
 	output := runHTMLOutput{
 		Counts:             v1.BuildCounts(all),
-		SaveSummary:        summary,
 		Configs:            all.Configs,
 		Analysis:           all.Analysis,
 		Changes:            all.Changes,
@@ -223,9 +222,10 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 		ExternalUserGroups: all.ExternalUserGroups,
 		ConfigAccess:       all.ConfigAccess,
 		ConfigAccessLogs:   all.ConfigAccessLogs,
-		HTTPTraffic:        v1.BuildHAREntries(harCollector.Entries()),
-		Logs:               v1.BuildLogBlock(logs),
+		HTTPTraffic:        harCollector.Entries(),
+		Logs:               v1.BuildLogOutput(logs),
 	}
+	output.SaveSummary = summary
 	clicky.MustPrint(output)
 }
 

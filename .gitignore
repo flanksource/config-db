@@ -46,3 +46,6 @@ out.*
 .claude
 .ginkgo/
 .todos/
+tmp.y*ml
+specs/*.md
+.shell/

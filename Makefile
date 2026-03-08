@@ -94,7 +94,7 @@ gotest: ginkgo
 
 .PHONY: test-fast
 test-fast: ginkgo
-		ginkgo --tags slim   --label-filter "!slow" -r -vv --skip-package=tests/e2e  ./...
+		ginkgo --tags slim --nodes=4   --label-filter "!slow" -r -v --skip-package=tests/e2e  ./...
 
 
 
