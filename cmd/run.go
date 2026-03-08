@@ -158,7 +158,7 @@ type runHTMLOutput struct {
 	ConfigAccess       []v1.ExternalConfigAccess    `pretty:"table"`
 	ConfigAccessLogs   []v1.ExternalConfigAccessLog `pretty:"table"`
 	HTTPTraffic        []v1.HAREntry                `pretty:"table"`
-	Logs               v1.LogBlock                  `json:"-"`
+	Logs               []v1.LogLine                 `pretty:"table"`
 }
 
 func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary, error) {
@@ -211,9 +211,8 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 
 	all := v1.MergeScrapeResults(results)
 	output := runHTMLOutput{
-		Counts:             v1.BuildCounts(all),
-		SaveSummary:        summary,
-		Configs:            all.Configs,
+		Counts:  v1.BuildCounts(all),
+		Configs: all.Configs,
 		Analysis:           all.Analysis,
 		Changes:            all.Changes,
 		Relationships:      all.Relationships,
@@ -224,8 +223,9 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 		ConfigAccess:       all.ConfigAccess,
 		ConfigAccessLogs:   all.ConfigAccessLogs,
 		HTTPTraffic:        v1.BuildHAREntries(harCollector.Entries()),
-		Logs:               v1.BuildLogBlock(logs),
+		Logs:               v1.BuildLogLines(logs),
 	}
+	output.SaveSummary = summary
 	clicky.MustPrint(output)
 }
 
