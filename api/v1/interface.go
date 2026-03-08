@@ -11,8 +11,7 @@ import (
 	"github.com/flanksource/clicky"
 	"github.com/flanksource/clicky/api"
 	"github.com/flanksource/commons/collections/set"
-	"github.com/flanksource/commons/har"
-	"github.com/flanksource/commons/logger"
+"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
@@ -1009,28 +1008,47 @@ func (s ScrapeResult) Debug() api.Text {
 
 func (s ScrapeResult) Columns() []api.ColumnDef {
 	return []api.ColumnDef{
-		clicky.Column("ID").Build(),
 		clicky.Column("Name").Build(),
 		clicky.Column("Type").Build(),
 		clicky.Column("Health").Build(),
-		clicky.Column("Details").Build(),
 		clicky.Column("Error").Build(),
 	}
-
 }
+
 func (s ScrapeResult) Row() map[string]any {
-	row := make(map[string]any)
-	row["ID"] = clicky.Text(s.ID)
-	row["Name"] = clicky.Text(s.Name)
-	row["Type"] = clicky.Text(s.Type)
-	row["Health"] = clicky.Text(string(s.Health))
-	row["Details"] = s.configDetails()
-	if s.Error != nil {
-		row["Error"] = clicky.Text(s.Error.Error())
-	} else {
-		row["Error"] = clicky.Text("")
+	name := s.Name
+	if name == "" {
+		name = s.ID
 	}
-	return row
+
+	healthStyle := "text-gray-400"
+	switch s.Health {
+	case "healthy":
+		healthStyle = "text-green-600"
+	case "unhealthy":
+		healthStyle = "text-red-600"
+	case "warning":
+		healthStyle = "text-yellow-600"
+	}
+
+	errText := ""
+	if s.Error != nil {
+		errText = s.Error.Error()
+		if len(errText) > 100 {
+			errText = errText[:100] + "…"
+		}
+	}
+
+	return map[string]any{
+		"Name":   clicky.Text(name),
+		"Type":   clicky.Text(s.Type, "text-gray-500"),
+		"Health": clicky.Text(string(s.Health), healthStyle),
+		"Error":  clicky.Text(errText, "text-red-500 text-xs"),
+	}
+}
+
+func (s ScrapeResult) RowDetail() api.Textable {
+	return buildDetails(s)
 }
 
 func (s *ScrapeResult) Pretty() api.Text {
@@ -1085,38 +1103,37 @@ func (s *ScrapeResult) Pretty() api.Text {
 	return t
 }
 
-func (s ScrapeResult) configDetails() api.Collapsed {
-	if s.Config == nil {
-		return clicky.Collapsed("empty", clicky.Text(""))
+func buildDetails(s ScrapeResult) api.Text {
+	t := clicky.Text("")
+	if s.ID != "" {
+		t = t.Append("ID: ", "text-gray-500 font-medium").Append(s.ID)
 	}
-
-	var data any
-	switch v := s.Config.(type) {
-	case string:
-		if json.Unmarshal([]byte(v), &data) != nil {
-			data = v
-		}
-	default:
-		data = v
+	if s.Error != nil {
+		t = t.NewLine().Append("Error: ", "text-red-500 font-medium").Append(s.Error.Error())
 	}
-
-	b, err := yaml.Marshal(data)
-	if err != nil {
-		b = []byte(fmt.Sprintf("%v", s.Config))
-	}
-	yamlStr := string(b)
-
-	content := clicky.Text("")
 	if len(s.Labels) > 0 {
-		content = content.Append("Labels: ", "text-gray-500 font-medium").Append(clicky.Map(s.Labels, "badge")).NewLine()
+		t = t.NewLine().Append("Labels: ", "text-gray-500 font-medium").Append(clicky.Map(s.Labels, "badge"))
 	}
 	if len(s.Tags) > 0 {
-		content = content.Append("Tags: ", "text-gray-500 font-medium").Append(clicky.Map(s.Tags, "badge")).NewLine()
+		t = t.NewLine().Append("Tags: ", "text-gray-500 font-medium").Append(clicky.Map(s.Tags, "badge"))
 	}
-	content = content.Append(clicky.CodeBlock("yaml", yamlStr), "min-w-[600px] block")
-
-	label := fmt.Sprintf("Config (%d bytes)", len(yamlStr))
-	return clicky.Collapsed(label, content)
+	if s.Config != nil {
+		var data any
+		switch v := s.Config.(type) {
+		case string:
+			if json.Unmarshal([]byte(v), &data) != nil {
+				data = v
+			}
+		default:
+			data = v
+		}
+		yamlBytes, err := yaml.Marshal(data)
+		if err != nil {
+			yamlBytes = []byte(fmt.Sprintf("%v", s.Config))
+		}
+		t = t.NewLine().Append(clicky.CodeBlock("yaml", string(yamlBytes)))
+	}
+	return t
 }
 
 // CountsGrid renders scrape result counts as a 2-column grid.
@@ -1171,225 +1188,58 @@ func BuildCounts(all FullScrapeResults) CountsGrid {
 
 var ansiEscapeRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-// LogLine is a single log entry that renders as a table row with colored level prefix.
-// +kubebuilder:object:generate=false
-type LogLine struct {
-	text api.Text
-}
-
-func (l LogLine) Columns() []api.ColumnDef {
-	return []api.ColumnDef{
-		clicky.Column("Line").Build(),
-	}
-}
-
-func (l LogLine) Row() map[string]any {
-	return map[string]any{"Line": l.text}
-}
-
-// LogBlock renders all log lines as a single preformatted block.
-// ANSI escape codes are preserved for terminal rendering and converted to HTML spans for web.
-// +kubebuilder:object:generate=false
-type LogBlock struct {
-	lines []ansiLine
-}
-
-// ansiLine holds both raw ANSI text (for terminal) and an HTML-converted version (for web).
-// +kubebuilder:object:generate=false
-type ansiLine struct {
-	raw string // original line with ANSI escapes
-}
-
-func (a ansiLine) ANSI() string          { return a.raw }
-func (a ansiLine) HTML() string          { return ansiToHTML(a.raw) }
-func (a ansiLine) String() string        { return ansiEscapeRegex.ReplaceAllString(a.raw, "") }
-func (a ansiLine) Markdown() string      { return a.String() }
-func (a ansiLine) MarkdownSlack() string { return a.String() }
-
-func (b LogBlock) Pretty() api.Text {
-	if len(b.lines) == 0 {
-		return clicky.Text("")
-	}
-	t := clicky.Text("").Add(b.lines[0])
-	for _, line := range b.lines[1:] {
-		t = t.NewLine().Add(line)
-	}
-	return t
-}
-
-// BuildLogBlock splits raw log output into ansiLine entries.
-func BuildLogBlock(rawLogs string) LogBlock {
-	raw := strings.TrimRight(rawLogs, "\n")
-	lines := strings.Split(raw, "\n")
-	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
-		return LogBlock{}
-	}
-	out := make([]ansiLine, 0, len(lines))
-	for _, line := range lines {
-		out = append(out, ansiLine{raw: line})
-	}
-	return LogBlock{lines: out}
-}
-
-// ansiToHTML converts ANSI SGR escape sequences to HTML spans with inline styles.
-func ansiToHTML(s string) string {
-	var b strings.Builder
-	open := false
-	i := 0
-	for i < len(s) {
-		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
-			// Find end of SGR sequence
-			j := i + 2
-			for j < len(s) && s[j] != 'm' {
-				j++
-			}
-			if j < len(s) {
-				codes := s[i+2 : j]
-				if open {
-					b.WriteString("</span>")
-					open = false
-				}
-				if style := sgrToCSS(codes); style != "" {
-					fmt.Fprintf(&b, `<span style="%s">`, style)
-					open = true
-				}
-				i = j + 1
-				continue
-			}
-		}
-		b.WriteByte(s[i])
-		i++
-	}
-	if open {
-		b.WriteString("</span>")
-	}
-	return b.String()
-}
-
-// sgrToCSS converts an SGR parameter string (e.g. "38;2;22;163;73") to inline CSS.
-func sgrToCSS(codes string) string {
-	if codes == "0" || codes == "" {
-		return "" // reset
-	}
-	parts := strings.Split(codes, ";")
-	if len(parts) >= 5 && parts[0] == "38" && parts[1] == "2" {
-		// 24-bit foreground: 38;2;r;g;b
-		return fmt.Sprintf("color:rgb(%s,%s,%s)", parts[2], parts[3], parts[4])
-	}
-	switch codes {
-	case "1":
-		return "font-weight:bold"
-	case "2":
-		return "opacity:0.6"
-	case "91":
-		return "color:#dc2626"
-	case "92":
-		return "color:#16a34a"
-	case "93":
-		return "color:#ca8a04"
-	case "33":
-		return "color:#ca8a04"
-	case "34", "34;1":
-		return "color:#2563eb"
-	}
-	return ""
-}
-
-// BuildLogLines parses raw log text into LogLine rows for table rendering.
-func BuildLogLines(rawLogs string) []LogLine {
-	cleaned := ansiEscapeRegex.ReplaceAllString(rawLogs, "")
-	lines := strings.Split(strings.TrimRight(cleaned, "\n"), "\n")
-	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
-		return nil
-	}
-
-	out := make([]LogLine, 0, len(lines))
-	for _, line := range lines {
-		out = append(out, LogLine{text: colorLogLine(line)})
-	}
-	return out
-}
-
 var logLevelRegex = regexp.MustCompile(`\s(INF|ERR|WRN|DBG\S*|TRC\S*|FTL)\s`)
 
-var logLevelColors = map[string]string{
+var logLevelStyles = map[string]string{
 	"INF": "text-green-600",
 	"ERR": "text-red-600",
 	"WRN": "text-yellow-600",
 	"DBG": "text-blue-600",
 	"TRC": "text-gray-500",
-	"FTL": "text-red-600",
+	"FTL": "text-red-600 font-bold",
 }
 
-// colorLogLine highlights the log level prefix with appropriate colors.
-// Matches DBG, DBG-1, TRC-2, etc.
+// LogOutput renders log lines with colored level prefixes.
+// +kubebuilder:object:generate=false
+type LogOutput struct {
+	lines []string
+}
+
+func (l LogOutput) Pretty() api.Text {
+	if len(l.lines) == 0 {
+		return clicky.Text("")
+	}
+	t := colorLogLine(l.lines[0])
+	for _, line := range l.lines[1:] {
+		t = t.NewLine().Append(colorLogLine(line))
+	}
+	return t
+}
+
 func colorLogLine(line string) api.Text {
 	loc := logLevelRegex.FindStringIndex(line)
 	if loc == nil {
 		return clicky.Text(line)
 	}
-
-	// loc covers the match including surrounding spaces
 	tag := strings.TrimSpace(line[loc[0]:loc[1]])
-	before := line[:loc[0]+1]
-	after := line[loc[1]-1:]
-
-	// Base level is the prefix before any dash (DBG-1 → DBG)
 	base := tag
 	if i := strings.IndexByte(tag, '-'); i >= 0 {
 		base = tag[:i]
 	}
-	color := logLevelColors[base]
-
-	return clicky.Text(before).Append(tag, color).Append(after)
+	return clicky.Text(line[:loc[0]+1]).
+		Append(tag, logLevelStyles[base]).
+		Append(line[loc[1]-1:])
 }
 
-// HAREntry renders a single HAR request/response as a table row.
-// +kubebuilder:object:generate=false
-type HAREntry struct {
-	Method   string
-	URL      string
-	Status   int
-	Duration string
-}
-
-func (h HAREntry) Columns() []api.ColumnDef {
-	return []api.ColumnDef{
-		clicky.Column("Method").Build(),
-		clicky.Column("URL").Build(),
-		clicky.Column("Status").Build(),
-		clicky.Column("Duration").Build(),
+func BuildLogOutput(rawLogs string) LogOutput {
+	cleaned := ansiEscapeRegex.ReplaceAllString(rawLogs, "")
+	trimmed := strings.TrimRight(cleaned, "\n")
+	if trimmed == "" {
+		return LogOutput{}
 	}
+	return LogOutput{lines: strings.Split(trimmed, "\n")}
 }
 
-func (h HAREntry) Row() map[string]any {
-	statusStyle := "text-green-600"
-	if h.Status >= 400 {
-		statusStyle = "text-red-600"
-	} else if h.Status >= 300 {
-		statusStyle = "text-yellow-600"
-	}
-	return map[string]any{
-		"Method":   clicky.Text(h.Method),
-		"URL":      clicky.Text(h.URL),
-		"Status":   clicky.Text(fmt.Sprintf("%d", h.Status)).WithStyles(statusStyle),
-		"Duration": clicky.Text(h.Duration),
-	}
-}
-
-// BuildHAREntries converts HAR entries into table rows.
-func BuildHAREntries(entries []har.Entry) []HAREntry {
-	out := make([]HAREntry, 0, len(entries))
-	for _, e := range entries {
-		out = append(out, HAREntry{
-			Method:   e.Request.Method,
-			URL:      e.Request.URL,
-			Status:   e.Response.Status,
-			Duration: fmt.Sprintf("%.0fms", e.Time),
-		})
-	}
-	return out
-}
 
 func (s ScrapeResult) IsMetadataOnly() bool {
 	return s.Config == nil
