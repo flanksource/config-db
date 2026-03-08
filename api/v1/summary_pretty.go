@@ -46,7 +46,10 @@ func (s ScrapeSummary) PrettyShort() string {
 	return strings.Join(parts, " ")
 }
 
-func (s ScrapeSummary) Pretty() api.Text {
+func (s *ScrapeSummary) Pretty() api.Text {
+	if s == nil {
+		return clicky.Text("")
+	}
 	t := clicky.Text("")
 
 	types := lo.Keys(s.ConfigTypes)
