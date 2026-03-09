@@ -488,7 +488,7 @@ var _ = Describe("GetLabels", func() {
 })
 
 var _ = Describe("buildPipelineConfig", func() {
-	It("includes definition YAML content", func() {
+	It("includes configuration and repository metadata", func() {
 		p := Pipeline{
 			ID:       42,
 			Name:     "Build",
@@ -506,10 +506,8 @@ var _ = Describe("buildPipelineConfig", func() {
 			},
 			Links: map[string]Link{"web": {Href: "https://dev.azure.com/myorg/myproject/_build/definition?definitionId=42"}},
 		}
-		yamlContent := "trigger:\n  - main\npool:\n  vmImage: ubuntu-latest\nsteps:\n  - script: echo Hello"
 
-		cfg := buildPipelineConfig(p, yamlContent)
-		Expect(cfg["definition"]).To(Equal(yamlContent))
+		cfg := buildPipelineConfig(p)
 		Expect(cfg["configuration"]).To(Equal(map[string]any{"type": "yaml", "yamlPath": "azure-pipelines.yml"}))
 		Expect(cfg["repository"]).To(Equal(map[string]any{
 			"name":          "myrepo",
@@ -519,10 +517,10 @@ var _ = Describe("buildPipelineConfig", func() {
 		Expect(cfg["webUrl"]).To(Equal("https://dev.azure.com/myorg/myproject/_build/definition?definitionId=42"))
 	})
 
-	It("omits definition when YAML content is empty", func() {
+	It("works with minimal pipeline", func() {
 		p := Pipeline{ID: 1, Name: "Test"}
-		cfg := buildPipelineConfig(p, "")
-		_, hasDefinition := cfg["definition"]
-		Expect(hasDefinition).To(BeFalse())
+		cfg := buildPipelineConfig(p)
+		Expect(cfg["name"]).To(Equal("Test"))
+		Expect(cfg).NotTo(HaveKey("configuration"))
 	})
 })

@@ -11,6 +11,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/lib/pq"
 	"github.com/samber/lo"
@@ -337,6 +338,20 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 	uniquePipelines := make(map[string]Pipeline) //nolint:govet
 
+	// Seed with base pipeline so a config item is always emitted even if all runs are skipped
+	basePipeline := pipeline
+	delete(basePipeline.Links, "self")
+	baseID := basePipeline.GetID()
+	if config.ID != "" {
+		env := map[string]any{
+			"project":      project,
+			"pipeline":     basePipeline,
+			"organization": config.Organization,
+		}
+		baseID, _ = gomplate.RunTemplate(env, gomplate.Template{Expression: config.ID})
+	}
+	uniquePipelines[baseID] = basePipeline
+
 	for _, run := range runs {
 		externalChangeID := fmt.Sprintf("%s/%s/%d/%d", config.Organization, project.Name, pipeline.ID, run.ID)
 
@@ -516,14 +531,39 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		changes := p.Runs
 		p.Runs = nil
 
+		var config any
+		var format string
+		if pipelineDef.YamlContent != "" {
+			config = pipelineDef.YamlContent
+			format = "yaml"
+		} else {
+			config = buildPipelineConfig(p)
+		}
+
+		var properties types.Properties
+		if p.Configuration != nil && p.Configuration.Path != "" {
+			properties = append(properties, &types.Property{
+				Name: "Path",
+				Text: p.Configuration.Path,
+			})
+		}
+		if web, ok := p.Links["web"]; ok && web.Href != "" {
+			properties = append(properties, &types.Property{
+				Name:  "Source",
+				Links: []types.Link{{Type: "source", URL: web.Href}},
+			})
+		}
+
 		results = append(results, v1.ScrapeResult{
 			ConfigClass:      "Deployment",
-			Config:           buildPipelineConfig(p, pipelineDef.YamlContent),
+			Config:           config,
+			Format:           format,
 			Type:             PipelineType,
 			ID:               id,
 			Labels:           p.GetLabels(),
 			Name:             p.Name,
 			Changes:          changes,
+			Properties:       properties,
 			Aliases:          []string{fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},
 			ConfigAccess:     configAccess,
 			ConfigAccessLogs: accessLogs,
@@ -601,7 +641,7 @@ func pipelineApprovalChanges(approvals []PipelineApproval, externalID, source, b
 	return out
 }
 
-func buildPipelineConfig(p Pipeline, yamlContent string) map[string]any {
+func buildPipelineConfig(p Pipeline) map[string]any {
 	cfg := map[string]any{
 		"id":       p.ID,
 		"name":     p.Name,
@@ -621,9 +661,6 @@ func buildPipelineConfig(p Pipeline, yamlContent string) map[string]any {
 				"defaultBranch": p.Configuration.Repository.DefaultBranch,
 			}
 		}
-	}
-	if yamlContent != "" {
-		cfg["definition"] = yamlContent
 	}
 	if p.Links != nil {
 		if web, ok := p.Links["web"]; ok {
