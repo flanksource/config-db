@@ -404,3 +404,67 @@ var _ = Describe("buildReleaseResult", func() {
 		Expect(result.ConfigAccessLogs).To(BeEmpty())
 	})
 })
+
+var _ = Describe("releaseApprovalChanges", func() {
+	release := Release{ID: 1, Name: "Release-1", CreatedOn: time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC)}
+
+	It("skips automated, skipped, and pending approvals", func() {
+		approvals := []ReleaseApproval{
+			{ID: 1, IsAutomated: true, Status: "approved"},
+			{ID: 2, Status: "skipped"},
+			{ID: 3, Status: "pending"},
+		}
+		Expect(releaseApprovalChanges(approvals, release, "Staging", "proj/1", "src", "base")).To(BeEmpty())
+	})
+
+	It("emits Approved change with correct fields", func() {
+		approvals := []ReleaseApproval{{
+			ID:         10,
+			Status:     "approved",
+			ApprovedBy: &IdentityRef{UniqueName: "bob@example.com"},
+			Comments:   "Looks good",
+		}}
+
+		changes := releaseApprovalChanges(approvals, release, "Staging", "proj/1", "src", "base")
+		Expect(changes).To(HaveLen(1))
+
+		ch := changes[0]
+		Expect(ch.ChangeType).To(Equal(ChangeTypeApproved))
+		Expect(*ch.CreatedBy).To(Equal("bob@example.com"))
+		Expect(ch.ExternalID).To(Equal("proj/1"))
+		Expect(ch.ConfigType).To(Equal(ReleaseType))
+		Expect(ch.Severity).To(Equal("info"))
+		Expect(ch.Summary).To(ContainSubstring("Release-1"))
+		Expect(ch.Summary).To(ContainSubstring("Staging"))
+		Expect(ch.Summary).To(ContainSubstring("bob@example.com"))
+		Expect(ch.Summary).To(ContainSubstring("Looks good"))
+		Expect(ch.ExternalChangeID).To(Equal("base/approval/10"))
+	})
+
+	It("emits Rejected change with high severity", func() {
+		approvals := []ReleaseApproval{{
+			ID:       20,
+			Status:   "rejected",
+			Approver: &IdentityRef{UniqueName: "carol@example.com"},
+		}}
+
+		changes := releaseApprovalChanges(approvals, release, "Prod", "proj/1", "src", "base")
+		Expect(changes).To(HaveLen(1))
+		Expect(changes[0].ChangeType).To(Equal(ChangeTypeRejected))
+		Expect(changes[0].Severity).To(Equal("high"))
+		Expect(*changes[0].CreatedBy).To(Equal("carol@example.com"))
+	})
+
+	It("prefers ApprovedBy over Approver", func() {
+		approvals := []ReleaseApproval{{
+			ID:         30,
+			Status:     "approved",
+			Approver:   &IdentityRef{UniqueName: "assigned@example.com"},
+			ApprovedBy: &IdentityRef{UniqueName: "actual@example.com"},
+		}}
+
+		changes := releaseApprovalChanges(approvals, release, "Staging", "proj/1", "src", "base")
+		Expect(changes).To(HaveLen(1))
+		Expect(*changes[0].CreatedBy).To(Equal("actual@example.com"))
+	})
+})
