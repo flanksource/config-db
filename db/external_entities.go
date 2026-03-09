@@ -341,7 +341,7 @@ func upsertExternalEntities(
 			SELECT id, aliases, name, account_id, user_type, email, scraper_id, created_at, updated_at, created_by
 			FROM %s
 			ON CONFLICT (id) DO UPDATE SET
-				aliases = ARRAY(SELECT DISTINCT unnest FROM unnest(external_users.aliases || EXCLUDED.aliases) ORDER BY 1),
+				aliases = NULLIF(ARRAY(SELECT DISTINCT unnest FROM unnest(external_users.aliases || EXCLUDED.aliases) ORDER BY 1), '{}'::text[]),
 				name = EXCLUDED.name, account_id = EXCLUDED.account_id,
 				user_type = EXCLUDED.user_type, email = EXCLUDED.email,
 				updated_at = EXCLUDED.updated_at, deleted_at = NULL
@@ -360,7 +360,8 @@ func upsertExternalEntities(
 			SELECT id, aliases, name, account_id, scraper_id, group_type, created_at, updated_at
 			FROM %s
 			ON CONFLICT (id) DO UPDATE SET
-				aliases = EXCLUDED.aliases, name = EXCLUDED.name, account_id = EXCLUDED.account_id,
+				aliases = NULLIF(ARRAY(SELECT DISTINCT unnest FROM unnest(external_groups.aliases || EXCLUDED.aliases) ORDER BY 1), '{}'::text[]),
+				name = EXCLUDED.name, account_id = EXCLUDED.account_id,
 				group_type = EXCLUDED.group_type,
 				updated_at = EXCLUDED.updated_at, deleted_at = NULL
 		`, tempGroups))
@@ -378,7 +379,8 @@ func upsertExternalEntities(
 			SELECT id, aliases, name, account_id, role_type, description, scraper_id, application_id, created_at, updated_at
 			FROM %s
 			ON CONFLICT (id) DO UPDATE SET
-				aliases = EXCLUDED.aliases, name = EXCLUDED.name, account_id = EXCLUDED.account_id,
+				aliases = NULLIF(ARRAY(SELECT DISTINCT unnest FROM unnest(external_roles.aliases || EXCLUDED.aliases) ORDER BY 1), '{}'::text[]),
+				name = EXCLUDED.name, account_id = EXCLUDED.account_id,
 				role_type = EXCLUDED.role_type, description = EXCLUDED.description,
 				updated_at = EXCLUDED.updated_at, deleted_at = NULL
 		`, tempRoles))
@@ -458,7 +460,7 @@ func ensureExternalUserFromAliases(ctx api.ScrapeContext, aliases []string, scra
 		INSERT INTO external_users (id, aliases, scraper_id, account_id, created_at, updated_at)
 		VALUES (?, ?, ?, '', ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
-			aliases = ARRAY(SELECT DISTINCT unnest FROM unnest(external_users.aliases || EXCLUDED.aliases) ORDER BY 1),
+			aliases = NULLIF(ARRAY(SELECT DISTINCT unnest FROM unnest(external_users.aliases || EXCLUDED.aliases) ORDER BY 1), '{}'::text[]),
 			updated_at = EXCLUDED.updated_at, deleted_at = NULL
 	`, user.ID, pq.StringArray(user.Aliases), user.ScraperID, user.CreatedAt, user.UpdatedAt).Error; err != nil {
 		return fmt.Errorf("failed to upsert external user: %w", err)
