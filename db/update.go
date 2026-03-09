@@ -202,7 +202,7 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 
 	if ci.CreatedAt.IsZero() && existing.CreatedAt.IsZero() {
 		updates["created_at"] = gorm.Expr("NOW()")
-	} else if ci.CreatedAt != existing.CreatedAt && !ci.CreatedAt.IsZero() {
+	} else if !ci.CreatedAt.Equal(existing.CreatedAt) && !ci.CreatedAt.IsZero() {
 		updates["created_at"] = ci.CreatedAt
 	}
 
