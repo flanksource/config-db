@@ -56,6 +56,7 @@ jobs:
         with:
           languages: go
           dependency-caching: true
+          ram: 24576
 
       # Build with slim tag to exclude heavy cloud provider dependencies (AWS/Azure/GCP SDKs)
       - name: Build
