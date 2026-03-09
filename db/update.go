@@ -792,6 +792,25 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		resolvedAccessLogs = append(resolvedAccessLogs, accessLog.ConfigAccessLog)
 	}
 
+	// Deduplicate by (config_id, external_user_id, scraper_id) to avoid
+	// "ON CONFLICT DO UPDATE cannot affect row a second time" errors.
+	type accessLogKey struct {
+		ConfigID       uuid.UUID
+		ExternalUserID uuid.UUID
+		ScraperID      uuid.UUID
+	}
+	dedupedLogs := make(map[accessLogKey]dutyModels.ConfigAccessLog, len(resolvedAccessLogs))
+	for _, log := range resolvedAccessLogs {
+		key := accessLogKey{log.ConfigID, log.ExternalUserID, log.ScraperID}
+		if existing, ok := dedupedLogs[key]; !ok || log.CreatedAt.After(existing.CreatedAt) {
+			dedupedLogs[key] = log
+		}
+	}
+	resolvedAccessLogs = make([]dutyModels.ConfigAccessLog, 0, len(dedupedLogs))
+	for _, log := range dedupedLogs {
+		resolvedAccessLogs = append(resolvedAccessLogs, log)
+	}
+
 	if err := SaveConfigAccessLogs(ctx, resolvedAccessLogs); err != nil {
 		return summary, ctx.Oops().Wrapf(err, "failed to save access logs")
 	}
