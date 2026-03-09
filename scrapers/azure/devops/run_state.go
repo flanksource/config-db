@@ -21,6 +21,8 @@ const (
 	ChangeTypeFailed          = "Failed"
 	ChangeTypeCancelled       = "Cancelled"
 	ChangeTypeTimedOut        = "TimedOut"
+	ChangeTypeApproved        = "Approved"
+	ChangeTypeRejected        = "Rejected"
 )
 
 // terminalChangeTypes is the set of ChangeType values that represent terminal states.

@@ -192,6 +192,59 @@ func approvalAccessLog(a ReleaseApproval, configExternalID v1.ExternalID, envNam
 	}
 }
 
+func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envName, externalID, source, baseExternalChangeID string) []v1.ChangeResult {
+	var out []v1.ChangeResult
+	for _, a := range approvals {
+		if a.IsAutomated || a.Status == "skipped" || a.Status == "pending" {
+			continue
+		}
+		var changeType string
+		switch a.Status {
+		case "approved":
+			changeType = ChangeTypeApproved
+		case "rejected":
+			changeType = ChangeTypeRejected
+		default:
+			continue
+		}
+
+		approver := a.ApprovedBy
+		if approver == nil {
+			approver = a.Approver
+		}
+		var createdBy *string
+		approverName := ""
+		if approver != nil && approver.UniqueName != "" {
+			createdBy = &approver.UniqueName
+			approverName = approver.UniqueName
+		}
+
+		severity := "info"
+		if changeType == ChangeTypeRejected {
+			severity = "high"
+		}
+
+		summary := fmt.Sprintf("%s / %s - %s by %s", release.Name, envName, changeType, approverName)
+		if a.Comments != "" {
+			summary += ": " + a.Comments
+		}
+
+		createdAt := release.CreatedOn
+		out = append(out, v1.ChangeResult{
+			ChangeType:       changeType,
+			CreatedAt:        &createdAt,
+			CreatedBy:        createdBy,
+			Severity:         severity,
+			ExternalID:       externalID,
+			ConfigType:       ReleaseType,
+			Source:           source,
+			Summary:          summary,
+			ExternalChangeID: fmt.Sprintf("%s/approval/%d", baseExternalChangeID, a.ID),
+		})
+	}
+	return out
+}
+
 func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Project, def ReleaseDefinition, releases []Release, cutoff time.Time) v1.ScrapeResult {
 	var result v1.ScrapeResult
 
@@ -255,6 +308,13 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 				Details:          details,
 				ExternalChangeID: fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID),
 			})
+
+			result.Changes = append(result.Changes, releaseApprovalChanges(
+				append(env.PreDeployApprovals, env.PostDeployApprovals...),
+				release, env.Name, configExternalID.ExternalID,
+				"AzureDevops/release/"+configExternalID.ExternalID,
+				fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID),
+			)...)
 
 			if config.Permissions != nil && config.Permissions.Enabled {
 				if log := deploymentAccessLog(release.CreatedBy, configExternalID, release.CreatedOn, env.Name, ctx.Users()); log != nil {
