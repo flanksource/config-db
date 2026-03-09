@@ -9,6 +9,7 @@ import (
 	"time"
 
 	commonsHTTP "github.com/flanksource/commons/http"
+	"github.com/flanksource/commons/logger"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -61,16 +62,7 @@ type Repository struct {
 }
 
 func (p Pipeline) GetLabels() map[string]string {
-	var labels = map[string]string{}
-
-	for k, v := range p.TemplateParameters {
-		labels[k] = fmt.Sprintf("%v", v)
-
-	}
-	for k, v := range p.Variables {
-		labels[k] = v.Value
-	}
-	return labels
+	return map[string]string{}
 }
 
 // GetID returns a stable ID for a pipeline, independent of revision.
@@ -351,6 +343,7 @@ type BuildDefinitionVariable struct {
 type PipelineDefinition struct {
 	Pipeline
 	YamlPath       string `json:"yamlPath,omitempty"`
+	YamlContent    string `json:"yamlContent,omitempty"`
 	RepositoryName string `json:"repositoryName,omitempty"`
 	RepositoryURL  string `json:"repositoryUrl,omitempty"`
 	DefaultBranch  string `json:"defaultBranch,omitempty"`
@@ -380,9 +373,40 @@ func (ado *AzureDevopsClient) GetPipelineWithDefinition(ctx context.Context, pro
 		pipelineDef.RepositoryName = definition.Repository.Name
 		pipelineDef.RepositoryURL = definition.Repository.URL
 		pipelineDef.DefaultBranch = definition.Repository.DefaultBranch
+
+		if pipelineDef.YamlPath != "" && definition.Repository.ID != "" {
+			content, err := ado.GetRepositoryFile(ctx, project, definition.Repository.ID, pipelineDef.YamlPath, definition.Repository.DefaultBranch)
+			if err != nil {
+				logger.Warnf("failed to fetch pipeline YAML %s: %v", pipelineDef.YamlPath, err)
+			} else {
+				pipelineDef.YamlContent = content
+			}
+		}
 	}
 
 	return pipelineDef, nil
+}
+
+// GetRepositoryFile fetches a file's content from an Azure DevOps Git repository.
+// It requests raw text via Accept: text/plain so the response body is the file content directly.
+func (ado *AzureDevopsClient) GetRepositoryFile(ctx context.Context, project, repoID, path, branch string) (string, error) {
+	resp, err := ado.Client.R(ctx).
+		Header("Accept", "text/plain").
+		QueryParam("path", path).
+		QueryParam("includeContent", "true").
+		QueryParam("recursionLevel", "0").
+		QueryParam("versionDescriptor.version", strings.TrimPrefix(branch, "refs/heads/")).
+		QueryParam("versionDescriptor.versionOptions", "0").
+		QueryParam("versionDescriptor.versionType", "0").
+		Get(fmt.Sprintf("/%s/_apis/git/repositories/%s/Items", project, repoID))
+	if err != nil {
+		return "", fmt.Errorf("failed to get repository file: %w", err)
+	}
+	if !resp.IsOK() {
+		body, _ := resp.AsString()
+		return "", fmt.Errorf("unexpected status %d: %s", resp.StatusCode, body)
+	}
+	return resp.AsString()
 }
 
 // GetBuildTimeline gets the timeline/steps for a specific build
