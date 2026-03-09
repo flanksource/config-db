@@ -367,25 +367,162 @@ var _ = Describe("buildReleaseResult", func() {
 		result := buildReleaseResult(testCtx(), config, project, def, releases, cutoff)
 
 		Expect(result.ID).To(Equal("MyProject/7"))
-		Expect(result.Changes).To(HaveLen(2))
+		Expect(result.Changes).To(HaveLen(3))
 
-		for _, ch := range result.Changes {
-			Expect(ch.ExternalID).To(Equal("MyProject/7"))
-			Expect(ch.ConfigType).To(Equal(ReleaseType))
-			Expect(ch.ExternalChangeID).ToNot(BeEmpty())
-			Expect(ch.Source).To(Equal("AzureDevops/release/MyProject/7"))
-			Expect(ch.Details["url"]).To(Equal(webURL))
-		}
+		Expect(result.Changes[0].ExternalID).To(Equal("MyProject/7"))
+		Expect(result.Changes[0].ConfigType).To(Equal(ReleaseType))
+		Expect(result.Changes[0].Source).To(Equal("AzureDevops/release/MyProject/7"))
 
 		Expect(result.Changes[0].ChangeType).To(Equal(ChangeTypeSucceeded))
-		Expect(result.Changes[1].ChangeType).To(Equal(ChangeTypeInProgress))
+		Expect(result.Changes[1].ChangeType).To(Equal(ChangeTypeApproved))
+		Expect(result.Changes[2].ChangeType).To(Equal(ChangeTypeInProgress))
 
 		pre, ok := result.Changes[0].Details["preDeployApprovals"].([]map[string]any)
 		Expect(ok).To(BeTrue())
 		Expect(pre).To(HaveLen(1))
 		Expect(pre[0]["approver"]).To(Equal("approver@example.com"))
 
-		_, hasPre := result.Changes[1].Details["preDeployApprovals"]
+		_, hasPre := result.Changes[2].Details["preDeployApprovals"]
 		Expect(hasPre).To(BeFalse())
+	})
+})
+
+var _ = Describe("pipelineApprovalChanges", func() {
+	It("returns no changes for empty approvals", func() {
+		Expect(pipelineApprovalChanges(nil, "id", "src", "base")).To(BeEmpty())
+	})
+
+	It("skips pending steps", func() {
+		approvals := []PipelineApproval{{
+			ID:    "a1",
+			Steps: []ApprovalStep{{Status: "pending", AssignedApprover: IdentityRef{UniqueName: "u@example.com"}}},
+		}}
+		Expect(pipelineApprovalChanges(approvals, "id", "src", "base")).To(BeEmpty())
+	})
+
+	It("emits Approved change with correct fields", func() {
+		ts := time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC)
+		approvals := []PipelineApproval{{
+			ID: "a1",
+			Steps: []ApprovalStep{{
+				Status:           "approved",
+				AssignedApprover: IdentityRef{UniqueName: "assigned@example.com"},
+				ActualApprover:   &IdentityRef{UniqueName: "actual@example.com"},
+				Comment:          "LGTM",
+				LastModifiedOn:   ts,
+			}},
+		}}
+
+		changes := pipelineApprovalChanges(approvals, "ext-id", "my-source", "org/proj/1/100")
+		Expect(changes).To(HaveLen(1))
+
+		ch := changes[0]
+		Expect(ch.ChangeType).To(Equal(ChangeTypeApproved))
+		Expect(*ch.CreatedBy).To(Equal("actual@example.com"))
+		Expect(*ch.CreatedAt).To(Equal(ts))
+		Expect(ch.ExternalID).To(Equal("ext-id"))
+		Expect(ch.ConfigType).To(Equal(PipelineType))
+		Expect(ch.Source).To(Equal("my-source"))
+		Expect(ch.Severity).To(Equal("info"))
+		Expect(ch.Summary).To(ContainSubstring("actual@example.com"))
+		Expect(ch.Summary).To(ContainSubstring("LGTM"))
+		Expect(ch.ExternalChangeID).To(Equal("org/proj/1/100/approval/a1/0"))
+	})
+
+	It("emits Rejected change with high severity", func() {
+		approvals := []PipelineApproval{{
+			ID: "a2",
+			Steps: []ApprovalStep{{
+				Status:           "rejected",
+				AssignedApprover: IdentityRef{UniqueName: "user@example.com"},
+				LastModifiedOn:   time.Now(),
+			}},
+		}}
+
+		changes := pipelineApprovalChanges(approvals, "id", "src", "base")
+		Expect(changes).To(HaveLen(1))
+		Expect(changes[0].ChangeType).To(Equal(ChangeTypeRejected))
+		Expect(changes[0].Severity).To(Equal("high"))
+	})
+
+	It("falls back to AssignedApprover when ActualApprover is nil", func() {
+		approvals := []PipelineApproval{{
+			ID: "a3",
+			Steps: []ApprovalStep{{
+				Status:           "approved",
+				AssignedApprover: IdentityRef{UniqueName: "assigned@example.com"},
+				LastModifiedOn:   time.Now(),
+			}},
+		}}
+
+		changes := pipelineApprovalChanges(approvals, "id", "src", "base")
+		Expect(changes).To(HaveLen(1))
+		Expect(*changes[0].CreatedBy).To(Equal("assigned@example.com"))
+	})
+
+	It("handles mixed steps correctly", func() {
+		approvals := []PipelineApproval{{
+			ID: "a4",
+			Steps: []ApprovalStep{
+				{Status: "approved", AssignedApprover: IdentityRef{UniqueName: "a@x.com"}, LastModifiedOn: time.Now()},
+				{Status: "pending", AssignedApprover: IdentityRef{UniqueName: "b@x.com"}},
+				{Status: "rejected", AssignedApprover: IdentityRef{UniqueName: "c@x.com"}, LastModifiedOn: time.Now()},
+			},
+		}}
+
+		changes := pipelineApprovalChanges(approvals, "id", "src", "base")
+		Expect(changes).To(HaveLen(2))
+		Expect(changes[0].ChangeType).To(Equal(ChangeTypeApproved))
+		Expect(changes[1].ChangeType).To(Equal(ChangeTypeRejected))
+	})
+})
+
+var _ = Describe("GetLabels", func() {
+	It("returns empty labels regardless of pipeline fields", func() {
+		p := Pipeline{
+			TemplateParameters: map[string]any{"env": "prod"},
+			Variables:          map[string]Variable{"region": {Value: "us-east-1"}},
+		}
+		Expect(p.GetLabels()).To(BeEmpty())
+	})
+})
+
+var _ = Describe("buildPipelineConfig", func() {
+	It("includes definition YAML content", func() {
+		p := Pipeline{
+			ID:       42,
+			Name:     "Build",
+			URL:      "https://dev.azure.com/myorg/myproject/_apis/pipelines/42",
+			Folder:   `\`,
+			Revision: 3,
+			Configuration: &PipelineConfig{
+				Type: "yaml",
+				Path: "azure-pipelines.yml",
+				Repository: &Repository{
+					Name:          "myrepo",
+					URL:           "https://dev.azure.com/myorg/myproject/_git/myrepo",
+					DefaultBranch: "refs/heads/main",
+				},
+			},
+			Links: map[string]Link{"web": {Href: "https://dev.azure.com/myorg/myproject/_build/definition?definitionId=42"}},
+		}
+		yamlContent := "trigger:\n  - main\npool:\n  vmImage: ubuntu-latest\nsteps:\n  - script: echo Hello"
+
+		cfg := buildPipelineConfig(p, yamlContent)
+		Expect(cfg["definition"]).To(Equal(yamlContent))
+		Expect(cfg["configuration"]).To(Equal(map[string]any{"type": "yaml", "yamlPath": "azure-pipelines.yml"}))
+		Expect(cfg["repository"]).To(Equal(map[string]any{
+			"name":          "myrepo",
+			"url":           "https://dev.azure.com/myorg/myproject/_git/myrepo",
+			"defaultBranch": "refs/heads/main",
+		}))
+		Expect(cfg["webUrl"]).To(Equal("https://dev.azure.com/myorg/myproject/_build/definition?definitionId=42"))
+	})
+
+	It("omits definition when YAML content is empty", func() {
+		p := Pipeline{ID: 1, Name: "Test"}
+		cfg := buildPipelineConfig(p, "")
+		_, hasDefinition := cfg["definition"]
+		Expect(hasDefinition).To(BeFalse())
 	})
 })

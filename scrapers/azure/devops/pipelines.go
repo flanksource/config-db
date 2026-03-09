@@ -508,6 +508,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		}
 
 		localPipeline.Runs = append(localPipeline.Runs, changeResult)
+		localPipeline.Runs = append(localPipeline.Runs, pipelineApprovalChanges(approvals, id, changeResult.Source, externalChangeID)...)
 		uniquePipelines[id] = localPipeline
 	}
 
@@ -517,7 +518,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 		results = append(results, v1.ScrapeResult{
 			ConfigClass:      "Deployment",
-			Config:           buildPipelineConfig(p),
+			Config:           buildPipelineConfig(p, pipelineDef.YamlContent),
 			Type:             PipelineType,
 			ID:               id,
 			Labels:           p.GetLabels(),
@@ -555,7 +556,52 @@ func countSteps(steps []JobStepSummary) (jobs, tasks int) {
 	return
 }
 
-func buildPipelineConfig(p Pipeline) map[string]any {
+func pipelineApprovalChanges(approvals []PipelineApproval, externalID, source, baseExternalChangeID string) []v1.ChangeResult {
+	var out []v1.ChangeResult
+	for _, approval := range approvals {
+		for i, step := range approval.Steps {
+			var changeType string
+			switch step.Status {
+			case "approved":
+				changeType = ChangeTypeApproved
+			case "rejected":
+				changeType = ChangeTypeRejected
+			default:
+				continue
+			}
+
+			approver := step.ActualApprover
+			if approver == nil {
+				approver = &step.AssignedApprover
+			}
+
+			severity := "info"
+			summary := fmt.Sprintf("%s by %s", changeType, approver.UniqueName)
+			if changeType == ChangeTypeRejected {
+				severity = "high"
+			}
+			if step.Comment != "" {
+				summary += ": " + step.Comment
+			}
+
+			createdAt := step.LastModifiedOn
+			out = append(out, v1.ChangeResult{
+				ChangeType:       changeType,
+				CreatedAt:        &createdAt,
+				CreatedBy:        lo.ToPtr(approver.UniqueName),
+				Severity:         severity,
+				ExternalID:       externalID,
+				ConfigType:       PipelineType,
+				Source:           source,
+				Summary:          summary,
+				ExternalChangeID: fmt.Sprintf("%s/approval/%s/%d", baseExternalChangeID, approval.ID, i),
+			})
+		}
+	}
+	return out
+}
+
+func buildPipelineConfig(p Pipeline, yamlContent string) map[string]any {
 	cfg := map[string]any{
 		"id":       p.ID,
 		"name":     p.Name,
@@ -576,15 +622,8 @@ func buildPipelineConfig(p Pipeline) map[string]any {
 			}
 		}
 	}
-	if len(p.Variables) > 0 {
-		vars := make(map[string]string, len(p.Variables))
-		for k, v := range p.Variables {
-			vars[k] = v.Value
-		}
-		cfg["variables"] = vars
-	}
-	if len(p.TemplateParameters) > 0 {
-		cfg["templateParameters"] = p.TemplateParameters
+	if yamlContent != "" {
+		cfg["definition"] = yamlContent
 	}
 	if p.Links != nil {
 		if web, ok := p.Links["web"]; ok {
