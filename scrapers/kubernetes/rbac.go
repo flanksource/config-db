@@ -25,7 +25,8 @@ type rbacExtractor struct {
 	roles       map[uuid.UUID]models.ExternalRole
 	users       map[uuid.UUID]models.ExternalUser
 	groups      map[uuid.UUID]models.ExternalGroup
-	access      []v1.ExternalConfigAccess
+	access     []v1.ExternalConfigAccess
+	seenAccess map[string]struct{} // dedup key for access entries
 
 	roleRules      map[string][]rbacRule // key: kind/namespace/name -> rules
 	resourceToKind map[string]string     // plural resource name -> Kind (e.g., "pods" -> "Pod")
@@ -167,6 +168,7 @@ func newRBACExtractorWithResourceMap(clusterName string, scraperID *uuid.UUID, r
 		users:          make(map[uuid.UUID]models.ExternalUser),
 		groups:         make(map[uuid.UUID]models.ExternalGroup),
 		roleRules:      make(map[string][]rbacRule),
+		seenAccess:     make(map[string]struct{}),
 		resourceToKind: resourceToKind,
 	}
 }
@@ -290,9 +292,12 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 		roleNamespace = bindingNamespace
 	}
 
-	// Lookup the role's rules
+	// Lookup the role's rules; skip if the role was not scraped
 	roleKey := r.objectKey(roleKind, roleNamespace, roleName)
-	rules := r.roleRules[roleKey]
+	rules, hasRules := r.roleRules[roleKey]
+	if !hasRules || len(rules) == 0 {
+		return
+	}
 
 	// Determine the scope-level target (cluster or namespace)
 	var scopeExternalID, scopeConfigType string
@@ -438,6 +443,12 @@ func (r *rbacExtractor) collectNamedResources(rules []rbacRule, bindingNamespace
 }
 
 func (r *rbacExtractor) addAccess(subjectAlias, targetExternalID, targetConfigType, roleAlias, userAlias, groupAlias string) {
+	key := subjectAlias + "|" + targetExternalID + "|" + roleAlias
+	if _, seen := r.seenAccess[key]; seen {
+		return
+	}
+	r.seenAccess[key] = struct{}{}
+
 	access := v1.ExternalConfigAccess{
 		ID: generateRBACID(subjectAlias, targetExternalID, roleAlias).String(),
 		ConfigExternalID: v1.ExternalID{

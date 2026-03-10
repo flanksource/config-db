@@ -75,7 +75,7 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 	}
 
 	// Upsert: insert new records, restore soft-deleted ones
-	if len(accesses) > 0 {
+	if len(items) > 0 {
 		var newRows []struct {
 			ID              string
 			ConfigID        uuid.UUID

@@ -344,6 +344,48 @@ var _ = Describe("RBACExtractor", func() {
 
 			Expect(extractor.getRoles()).To(HaveLen(1))
 		})
+
+		It("deduplicates access entries from overlapping rules", func() {
+			clusterName := "test-cluster"
+			scraperID := uuid.New()
+
+			// Two rules both grant access to the same named resource "pod-a"
+			role := makeRole("overlap", "ns", []rbacRuleSpec{
+				{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}, ResourceNames: []string{"pod-a"}},
+				{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"list"}, ResourceNames: []string{"pod-a"}},
+			})
+			binding := makeRoleBinding("binding", "ns", "Role", "overlap", []subject{
+				{Kind: "User", Name: "user1"},
+			})
+
+			extractor := testRBACExtractor(clusterName, &scraperID)
+			extractor.processRole(role)
+			extractor.processRoleBinding(binding)
+
+			access := extractor.getAccess()
+			Expect(access).To(HaveLen(2), "namespace + pod-a = 2 entries, no duplicates")
+		})
+	})
+
+	Describe("UnresolvedRoleRef", func() {
+		It("produces no access entries when the referenced role was not scraped", func() {
+			clusterName := "test-cluster"
+			scraperID := uuid.New()
+
+			// Binding references "missing-role" which was never processed
+			binding := makeClusterRoleBinding("orphan-binding", "ClusterRole", "missing-role", []subject{
+				{Kind: "User", Name: "user1"},
+			})
+
+			extractor := testRBACExtractor(clusterName, &scraperID)
+			extractor.processRoleBinding(binding)
+
+			access := extractor.getAccess()
+			Expect(access).To(BeEmpty(), "unresolved role should not produce access entries")
+
+			users := extractor.getUsers()
+			Expect(users).To(BeEmpty(), "unresolved role should not produce user entries")
+		})
 	})
 
 	Describe("CRDResourceResolution", func() {
