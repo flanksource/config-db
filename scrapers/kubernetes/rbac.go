@@ -27,23 +27,15 @@ type rbacExtractor struct {
 	groups      map[uuid.UUID]models.ExternalGroup
 	access      []v1.ExternalConfigAccess
 
-	// Maps for lookups
-	roleRules      map[string][]rbacRule   // key: kind/namespace/name -> rules
-	objectsByKind  map[string][]*objectRef // key: kind -> list of objects
-	resourceToKind map[string]string       // plural resource name -> Kind (e.g., "pods" -> "Pod")
+	roleRules      map[string][]rbacRule // key: kind/namespace/name -> rules
+	resourceToKind map[string]string     // plural resource name -> Kind (e.g., "pods" -> "Pod")
 }
 
 type rbacRule struct {
-	APIGroups []string
-	Resources []string
-	Verbs     []string
-}
-
-type objectRef struct {
-	obj       *unstructured.Unstructured
-	kind      string
-	namespace string
-	name      string
+	APIGroups     []string
+	Resources     []string
+	Verbs         []string
+	ResourceNames []string
 }
 
 // builtinResourceKinds maps plural resource names to their Kind for core Kubernetes resources.
@@ -175,25 +167,7 @@ func newRBACExtractorWithResourceMap(clusterName string, scraperID *uuid.UUID, r
 		users:          make(map[uuid.UUID]models.ExternalUser),
 		groups:         make(map[uuid.UUID]models.ExternalGroup),
 		roleRules:      make(map[string][]rbacRule),
-		objectsByKind:  make(map[string][]*objectRef),
 		resourceToKind: resourceToKind,
-	}
-}
-
-// indexObjects builds lookup maps for all scraped objects.
-func (r *rbacExtractor) indexObjects(objs []*unstructured.Unstructured) {
-	if r == nil {
-		return
-	}
-	for _, obj := range objs {
-		kind := obj.GetKind()
-
-		r.objectsByKind[kind] = append(r.objectsByKind[kind], &objectRef{
-			obj:       obj,
-			kind:      kind,
-			namespace: obj.GetNamespace(),
-			name:      obj.GetName(),
-		})
 	}
 }
 
@@ -274,6 +248,14 @@ func (r *rbacExtractor) parseRules(obj *unstructured.Unstructured) []rbacRule {
 			}
 		}
 
+		if resourceNames, ok := ruleMap["resourceNames"].([]any); ok {
+			for _, rn := range resourceNames {
+				if s, ok := rn.(string); ok {
+					rule.ResourceNames = append(rule.ResourceNames, s)
+				}
+			}
+		}
+
 		rules = append(rules, rule)
 	}
 
@@ -289,6 +271,7 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 		return
 	}
 
+	isClusterWide := kind == "ClusterRoleBinding"
 	bindingNamespace := obj.GetNamespace()
 
 	// Get roleRef
@@ -309,12 +292,21 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 
 	// Lookup the role's rules
 	roleKey := r.objectKey(roleKind, roleNamespace, roleName)
-	rules, hasRules := r.roleRules[roleKey]
+	rules := r.roleRules[roleKey]
 
-	// Find all target resources based on the rules
-	targetResources := r.findTargetResources(rules, bindingNamespace, kind == "ClusterRoleBinding")
+	// Determine the scope-level target (cluster or namespace)
+	var scopeExternalID, scopeConfigType string
+	if isClusterWide {
+		scopeExternalID = "Kubernetes/Cluster/" + r.clusterName
+		scopeConfigType = ConfigTypePrefix + "Cluster"
+	} else {
+		scopeExternalID = KubernetesAlias(r.clusterName, "Namespace", "", bindingNamespace)
+		scopeConfigType = ConfigTypePrefix + "Namespace"
+	}
 
-	// Compute the role alias once for the binding
+	// Collect explicitly named resources from rules
+	namedResources := r.collectNamedResources(rules, bindingNamespace, isClusterWide)
+
 	roleAlias := KubernetesAlias(r.clusterName, roleKind, roleNamespace, roleName)
 
 	// Get subjects
@@ -388,63 +380,81 @@ func (r *rbacExtractor) processRoleBinding(obj *unstructured.Unstructured) {
 			}
 		}
 
-		// If we have rules and target resources, create ConfigAccess for each resource
-		if hasRules && len(targetResources) > 0 {
-			for _, target := range targetResources {
-				subjectAlias := userAlias
-				if subjectAlias == "" {
-					subjectAlias = groupAlias
-				}
-				targetExternalID := KubernetesAlias(r.clusterName, target.kind, target.namespace, target.name)
+		subjectAlias := userAlias
+		if subjectAlias == "" {
+			subjectAlias = groupAlias
+		}
+		if subjectAlias == "" {
+			continue
+		}
 
-				access := v1.ExternalConfigAccess{
-					ID: generateRBACID(subjectAlias, targetExternalID, roleAlias).String(),
-					ConfigExternalID: v1.ExternalID{
-						ExternalID: targetExternalID,
-						ConfigType: GetConfigTypeForKind(target.kind),
-					},
-					ExternalRoleAliases: []string{roleAlias},
-				}
+		// Always create access for the scope (cluster or namespace)
+		r.addAccess(subjectAlias, scopeExternalID, scopeConfigType, roleAlias, userAlias, groupAlias)
 
-				if userAlias != "" {
-					access.ExternalUserAliases = []string{userAlias}
-				}
-				if groupAlias != "" {
-					access.ExternalGroupAliases = []string{groupAlias}
-				}
-
-				r.access = append(r.access, access)
-			}
+		// Create access for each explicitly named resource
+		for _, nr := range namedResources {
+			r.addAccess(subjectAlias, nr.externalID, nr.configType, roleAlias, userAlias, groupAlias)
 		}
 	}
 }
 
-// findTargetResources finds all resources that match the given RBAC rules.
-func (r *rbacExtractor) findTargetResources(rules []rbacRule, bindingNamespace string, isClusterWide bool) []*objectRef {
-	var targets []*objectRef
+type namedResource struct {
+	externalID string
+	configType string
+}
+
+// collectNamedResources extracts explicitly named resources from RBAC rules.
+func (r *rbacExtractor) collectNamedResources(rules []rbacRule, bindingNamespace string, isClusterWide bool) []namedResource {
+	var resources []namedResource
 
 	for _, rule := range rules {
-		for _, resourceType := range rule.Resources {
-			if resourceType == "*" {
-				continue
-			}
+		if len(rule.ResourceNames) == 0 {
+			continue
+		}
 
+		for _, resourceType := range rule.Resources {
 			kind, ok := r.resourceToKind[strings.ToLower(resourceType)]
 			if !ok {
 				continue
 			}
 
-			for _, objRef := range r.objectsByKind[kind] {
-				// For namespace-scoped bindings, only include resources in the same namespace
-				if !isClusterWide && objRef.namespace != bindingNamespace {
-					continue
-				}
-				targets = append(targets, objRef)
+			// For cluster-scoped bindings, named resources have no namespace
+			// For namespace-scoped bindings, named resources are in the binding's namespace
+			namespace := ""
+			if !isClusterWide {
+				namespace = bindingNamespace
+			}
+
+			for _, name := range rule.ResourceNames {
+				resources = append(resources, namedResource{
+					externalID: KubernetesAlias(r.clusterName, kind, namespace, name),
+					configType: GetConfigTypeForKind(kind),
+				})
 			}
 		}
 	}
 
-	return targets
+	return resources
+}
+
+func (r *rbacExtractor) addAccess(subjectAlias, targetExternalID, targetConfigType, roleAlias, userAlias, groupAlias string) {
+	access := v1.ExternalConfigAccess{
+		ID: generateRBACID(subjectAlias, targetExternalID, roleAlias).String(),
+		ConfigExternalID: v1.ExternalID{
+			ExternalID: targetExternalID,
+			ConfigType: targetConfigType,
+		},
+		ExternalRoleAliases: []string{roleAlias},
+	}
+
+	if userAlias != "" {
+		access.ExternalUserAliases = []string{userAlias}
+	}
+	if groupAlias != "" {
+		access.ExternalGroupAliases = []string{groupAlias}
+	}
+
+	r.access = append(r.access, access)
 }
 
 // GetConfigTypeForKind returns the config type for a given Kubernetes kind

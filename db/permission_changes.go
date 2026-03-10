@@ -48,12 +48,8 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 		}
 	}()
 
-	if err := tx.Exec(fmt.Sprintf(`CREATE TEMP TABLE %s (LIKE config_access INCLUDING ALL) ON COMMIT DROP`, tempTable)).Error; err != nil {
-		tx.Rollback()
-		return result, fmt.Errorf("failed to create temp table: %w", err)
-	}
-
 	seen := make(map[string]struct{})
+	var items []dutyModels.ConfigAccess
 	for _, ca := range accesses {
 		if ca.ID == "" {
 			hid, err := deterministicAccessID(ca.ToConfigAccess())
@@ -69,12 +65,13 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 		}
 		seen[ca.ID] = struct{}{}
 
-		configAccess := ca.ToConfigAccess()
-		if err := tx.Table(tempTable).Create(&configAccess).Error; err != nil {
-			tx.Rollback()
-			return result, fmt.Errorf("failed to insert into temp table: %w", err)
-		}
-		result.saved++
+		items = append(items, ca.ToConfigAccess())
+	}
+	result.saved = len(items)
+
+	if err := createTempAndInsert(tx, tempTable, "config_access", items); err != nil {
+		tx.Rollback()
+		return result, fmt.Errorf("failed to setup temp config access: %w", err)
 	}
 
 	// Upsert: insert new records, restore soft-deleted ones
