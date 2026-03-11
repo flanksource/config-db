@@ -1,6 +1,7 @@
 package scrapers
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -52,6 +53,14 @@ var _ = Describe("e2e extraction fixtures", func() {
 			Expect(yaml.Unmarshal(data, &fixture)).To(Succeed())
 			Expect(fixture.Spec).ToNot(BeNil(), "e2e fixture %s must have a spec field", name)
 			Expect(fixture.Assertions).ToNot(BeEmpty(), "fixture %s has no assertions", name)
+
+			// Validate spec has no unknown fields
+			specJSON, err := json.Marshal(fixture.Spec)
+			Expect(err).ToNot(HaveOccurred())
+			decoder := json.NewDecoder(bytes.NewReader(specJSON))
+			decoder.DisallowUnknownFields()
+			var specValidation v1.ScraperSpec
+			Expect(decoder.Decode(&specValidation)).To(Succeed(), "spec in %s contains unknown fields", name)
 
 			// Build ScrapeConfig YAML from spec
 			scrapeConfigYAML := buildScrapeConfigYAML(name, fixture.Spec)
