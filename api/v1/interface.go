@@ -10,8 +10,9 @@ import (
 
 	"github.com/flanksource/clicky"
 	"github.com/flanksource/clicky/api"
+	"github.com/flanksource/clicky/api/icons"
 	"github.com/flanksource/commons/collections/set"
-"github.com/flanksource/commons/logger"
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
@@ -169,6 +170,54 @@ func (c ChangeResult) String() string {
 	}
 
 	return fmt.Sprintf("{%s}, {%s/%s}", c.ConfigID, c.ChangeType, c.ExternalChangeID)
+}
+
+func (c ChangeResult) Pretty() api.Text {
+	t := clicky.Text("")
+	switch c.Action {
+	case MoveUp:
+		t = t.Add(icons.ArrowUp).Append("move-up", "text-bold text-blue-500")
+	case Move:
+		t = t.Add(icons.ArrowDown).Append("move-down", "text-bold text-blue-500")
+	case CopyUp:
+		t = t.Add(icons.Add).Append("copy-up", "text-bold text-green-500")
+	case Copy:
+		t = t.Add(icons.Add).Append("copy", "text-bold text-green-500")
+	case Delete:
+		t = t.Add(icons.Delete).Append("delete", "text-bold text-red-500")
+	case Ignore:
+		t = t.Add(icons.Edit).Append("update", "text-bold text-yellow-500")
+	default:
+		t = t.Append(string(c.Action), "text-bold")
+	}
+
+	// first print details about the config item being changed or referenced
+	if c.ConfigType != "" {
+		t = t.Append(c.ConfigType).Append("/", "text-muted")
+	}
+	if c.ConfigID != "" {
+		t = t.Append(" config_id: ", "text-muted").Append(c.ConfigID)
+	}
+	if c.ExternalChangeID != "" {
+		t = t.Append(" change_id: ", "text-muted").Append(c.ExternalChangeID)
+	}
+	if c.ExternalID != "" {
+		t = t.Append(" external_id: ", "text-muted").Append(c.ExternalID)
+	}
+
+	if len(c.Details) > 0 {
+		t = t.Append(" details: ", "text-muted").Append(lo.Keys(c.Details))
+	}
+
+	if c.Summary != "" {
+		t = t.Append(" summary: ", "text-muted").Append(c.Summary)
+	}
+
+	if c.Target != nil && !c.Target.IsEmpty() {
+		t = t.Append(" target: ", "text-muted").Append(c.Target)
+	}
+
+	return t
 }
 
 func (result AnalysisResult) String() string {
@@ -1239,7 +1288,6 @@ func BuildLogOutput(rawLogs string) LogOutput {
 	}
 	return LogOutput{lines: strings.Split(trimmed, "\n")}
 }
-
 
 func (s ScrapeResult) IsMetadataOnly() bool {
 	return s.Config == nil
