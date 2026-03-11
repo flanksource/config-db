@@ -564,7 +564,7 @@ func applyConfigRefDefaults(configMap map[string]any, result *ExtractedConfig) {
 		defaultExternalID.ConfigType = v
 	}
 
-	hasDefault := defaultConfigID != uuid.Nil || !defaultExternalID.IsEmpty()
+	hasDefault := defaultConfigID != uuid.Nil || defaultExternalID.ExternalID != "" || defaultExternalID.ConfigType != ""
 	if !hasDefault {
 		return
 	}

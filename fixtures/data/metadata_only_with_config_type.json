@@ -1,0 +1,13 @@
+{
+  "external_id": "db-instance-1",
+  "changes": [
+    {
+      "external_change_id": "chg-010",
+      "config_type": "Aurora",
+      "change_type": "ParameterChange",
+      "action": "Updated",
+      "summary": "max_connections changed from 100 to 200",
+      "severity": "low"
+    }
+  ]
+}

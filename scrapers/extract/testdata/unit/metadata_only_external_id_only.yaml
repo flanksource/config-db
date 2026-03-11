@@ -1,0 +1,22 @@
+input:
+  external_id: db-instance-1
+  changes:
+    - external_change_id: chg-001
+      change_type: ParameterChange
+      action: Updated
+      summary: "max_connections changed from 100 to 200"
+      severity: low
+    - config_type: Aurora
+      external_id: other-db
+      external_change_id: chg-002
+      change_type: Failover
+      action: Failover
+      summary: "failover to replica"
+assertions:
+  - config == null
+  - size(changes) == 2
+  - changes[0].external_id == 'db-instance-1'
+  - changes[0].config_type == ''
+  - changes[1].external_id == 'other-db'
+  - changes[1].config_type == 'Aurora'
+  - summary.changes.scraped == 2

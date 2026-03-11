@@ -1,0 +1,21 @@
+{
+  "external_id": "db-instance-1",
+  "changes": [
+    {
+      "external_change_id": "chg-030",
+      "change_type": "ParameterChange",
+      "action": "Updated",
+      "summary": "local param change",
+      "severity": "low"
+    },
+    {
+      "external_id": "db-instance-2",
+      "config_type": "Aurora",
+      "external_change_id": "chg-031",
+      "change_type": "Failover",
+      "action": "Failover",
+      "summary": "failover to replica",
+      "severity": "high"
+    }
+  ]
+}
