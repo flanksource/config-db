@@ -219,7 +219,7 @@ func ExtractConfigChangesFromConfig(resolver Resolver, scraperID *uuid.UUID, con
 	validateConfigRefs(&result)
 
 	if resolver != nil {
-		if err := SyncEntities(resolver, scraperID, &result); err != nil {
+		if err := SyncEntities(resolver, scraperID, configMap, &result); err != nil {
 			return result, err
 		}
 		if err := ResolveAccess(resolver, scraperID, &result); err != nil {
@@ -230,9 +230,59 @@ func ExtractConfigChangesFromConfig(resolver Resolver, scraperID *uuid.UUID, con
 	return result, nil
 }
 
+func resolveUserGroupAliases(r Resolver, configMap map[string]any, result *ExtractedConfig) {
+	rawUG, _ := findKey(configMap, "user_groups", "external_user_groups")
+	rawItems := toMapSlice(rawUG)
+
+	for i := range result.ExternalUserGroups {
+		if i >= len(rawItems) {
+			break
+		}
+		ug := &result.ExternalUserGroups[i]
+		raw := rawItems[i]
+
+		if ug.ExternalUserID == uuid.Nil {
+			if alias, ok := raw["user"]; ok {
+				aliases := toStringSlice(alias)
+				if id, err := r.FindUserIDByAliases(aliases); err == nil && id != nil {
+					ug.ExternalUserID = *id
+				} else if len(aliases) > 0 {
+					newID := uuid.New()
+					ug.ExternalUserID = newID
+					result.ExternalUsers = append(result.ExternalUsers, models.ExternalUser{
+						ID:      newID,
+						Name:    aliases[0],
+						Aliases: aliases,
+					})
+				}
+			}
+		}
+
+		if ug.ExternalGroupID == uuid.Nil {
+			if alias, ok := raw["group"]; ok {
+				aliases := toStringSlice(alias)
+				if id, err := r.FindGroupIDByAliases(aliases); err == nil && id != nil {
+					ug.ExternalGroupID = *id
+				} else if len(aliases) > 0 {
+					newID := uuid.New()
+					ug.ExternalGroupID = newID
+					result.ExternalGroups = append(result.ExternalGroups, models.ExternalGroup{
+						ID:      newID,
+						Name:    aliases[0],
+						Aliases: aliases,
+					})
+				}
+			}
+		}
+	}
+}
+
 // SyncEntities resolves entity IDs and maps user groups.
 // Call this BEFORE persisting entities to DB.
-func SyncEntities(r Resolver, scraperID *uuid.UUID, result *ExtractedConfig) error {
+func SyncEntities(r Resolver, scraperID *uuid.UUID, configMap map[string]any, result *ExtractedConfig) error {
+	if configMap != nil {
+		resolveUserGroupAliases(r, configMap, result)
+	}
 	resolvedUsers, userIDMap, err := r.SyncExternalUsers(result.ExternalUsers, scraperID)
 	if err != nil {
 		return fmt.Errorf("sync external users: %w", err)
