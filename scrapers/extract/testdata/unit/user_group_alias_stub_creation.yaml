@@ -1,0 +1,8 @@
+input:
+  user_groups:
+    - user: unknown-user
+      group: unknown-group
+assertions:
+  - size(external_user_groups) == 1
+  - size(external_users) >= 1
+  - size(external_groups) >= 1

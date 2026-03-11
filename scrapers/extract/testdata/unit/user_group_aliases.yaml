@@ -1,0 +1,13 @@
+input:
+  user_groups:
+    - user: alice
+      group: devs
+pre_populate:
+  users:
+    alice: "00000000-0000-0000-0000-000000000001"
+  groups:
+    devs: "00000000-0000-0000-0000-000000000002"
+assertions:
+  - size(external_user_groups) == 1
+  - external_user_groups[0].external_user_id == '00000000-0000-0000-0000-000000000001'
+  - external_user_groups[0].external_group_id == '00000000-0000-0000-0000-000000000002'

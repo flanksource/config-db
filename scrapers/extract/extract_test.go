@@ -67,7 +67,7 @@ var _ = Describe("Extraction fixtures", func() {
 			result, err := ExtractConfigChangesFromConfig(nil, nil, fixture.Input)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(SyncEntities(resolver, &scraperID, &result)).To(Succeed())
+			Expect(SyncEntities(resolver, &scraperID, fixture.Input, &result)).To(Succeed())
 			Expect(ResolveAccess(resolver, &scraperID, &result)).To(Succeed())
 
 			env := resultToEnv(result)

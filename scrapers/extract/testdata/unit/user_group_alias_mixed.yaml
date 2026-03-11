@@ -1,0 +1,21 @@
+input:
+  users:
+    - name: Alice
+      id: "aaaa0000-0000-0000-0000-000000000001"
+      aliases: [alice]
+  groups:
+    - name: Devs
+      id: "bbbb0000-0000-0000-0000-000000000001"
+      aliases: [devs]
+  user_groups:
+    - external_user_id: "aaaa0000-0000-0000-0000-000000000001"
+      external_group_id: "bbbb0000-0000-0000-0000-000000000001"
+    - user: alice
+      group: devs
+pre_populate:
+  users:
+    alice: "00000000-0000-0000-0000-000000000001"
+  groups:
+    devs: "00000000-0000-0000-0000-000000000002"
+assertions:
+  - size(external_user_groups) == 2
