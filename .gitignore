@@ -49,3 +49,4 @@ out.*
 tmp.y*ml
 specs/*.md
 .shell/
+.claude/

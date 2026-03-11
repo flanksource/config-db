@@ -1,0 +1,12 @@
+{
+  "external_id": "db-instance-1",
+  "changes": [
+    {
+      "external_change_id": "chg-020",
+      "change_type": "ScaleUp",
+      "action": "Resize",
+      "summary": "instance class db.t3.medium -> db.t3.large",
+      "severity": "medium"
+    }
+  ]
+}

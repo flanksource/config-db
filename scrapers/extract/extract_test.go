@@ -33,7 +33,7 @@ type extractionFixture struct {
 }
 
 var _ = Describe("Extraction fixtures", func() {
-	fixtures, err := filepath.Glob("testdata/*.yaml")
+	fixtures, err := filepath.Glob("testdata/unit/*.yaml")
 	if err != nil {
 		panic(err)
 	}
@@ -76,6 +76,9 @@ var _ = Describe("Extraction fixtures", func() {
 				if _, ok := env[key]; !ok {
 					env[key] = []any{}
 				}
+			}
+			if _, ok := env["config"]; !ok {
+				env["config"] = nil
 			}
 			ctx := result.Pretty().String()
 			for _, expr := range fixture.Assertions {
