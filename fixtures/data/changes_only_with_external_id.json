@@ -1,0 +1,16 @@
+{
+  "external_id": "env-botswana-ctrl",
+  "config_type": "TestApp::Environment",
+  "changes": [
+    {
+      "external_change_id": "check-1/cycle-a",
+      "change_type": "CycleRun01",
+      "summary": "Level 01: healthy (2m)"
+    },
+    {
+      "external_change_id": "check-1/cycle-b",
+      "change_type": "CycleRun02",
+      "summary": "Level 02: healthy (3m)"
+    }
+  ]
+}

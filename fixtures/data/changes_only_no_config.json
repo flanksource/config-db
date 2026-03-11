@@ -1,0 +1,33 @@
+{
+  "id": "env-botswana",
+  "scraper_id": "all",
+  "config_type": "TestApp::Environment",
+  "changes": [
+    {
+      "external_change_id": "check-1/cycle-a",
+      "scraper_id": "all",
+      "change_type": "CycleRun01",
+      "summary": "Level 01: healthy (2m)",
+      "severity": "",
+      "created_at": "2026-03-10T17:20:01Z",
+      "details": {
+        "level": 1,
+        "cycleId": "cycle-a",
+        "duration": "2m"
+      }
+    },
+    {
+      "external_change_id": "check-1/cycle-b",
+      "scraper_id": "all",
+      "change_type": "CycleRun02",
+      "summary": "Level 02: healthy (3m)",
+      "severity": "",
+      "created_at": "2026-03-10T17:25:01Z",
+      "details": {
+        "level": 2,
+        "cycleId": "cycle-b",
+        "duration": "3m"
+      }
+    }
+  ]
+}

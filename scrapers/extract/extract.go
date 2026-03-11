@@ -557,7 +557,7 @@ func applyConfigRefDefaults(configMap map[string]any, result *ExtractedConfig) {
 			defaultConfigID = parsed
 		}
 	}
-	if v, ok := findStringKey(configMap, "external_id"); ok {
+	if v, ok := findStringKey(configMap, "external_id", "id"); ok {
 		defaultExternalID.ExternalID = v
 	}
 	if v, ok := findStringKey(configMap, "type", "config_type"); ok {
