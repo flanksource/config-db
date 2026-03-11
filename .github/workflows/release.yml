@@ -15,8 +15,8 @@ jobs:
       release-version: ${{ steps.semantic.outputs.release-version }}
       new-release-published: ${{ steps.semantic.outputs.new-release-published }}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: codfish/semantic-release-action@6c65402abb31a48c3f7396d7d099da015be67c2b # v4.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: codfish/semantic-release-action@6abd188d2458e2fd6c99073454f6cc49196362e8 # v5.0.0
         id: semantic
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -25,12 +25,12 @@ jobs:
     needs: semantic-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: "16"
       - name: Install Go
@@ -51,7 +51,7 @@ jobs:
         env:
           VERSION: v${{ needs.semantic-release.outputs.release-version }}
       - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@81c65b7cd4de9b2570615ce3aad67a41de5b1a13 # 2.11.2
+        uses: svenstaro/upload-release-action@b98a3b12e86552593f3e4e577ca8a62aa2f3f22b # 2.11.4
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ./.release/*
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
         with:
           egress-policy: audit
 
@@ -81,10 +81,10 @@ jobs:
           difference=$((final_space - initial_space))
           echo "Disk space difference (in KB): $difference"
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Publish to DockerHub Registry
-        uses: elgohr/Publish-Docker-Github-Action@1d95820b6952cab6e48a2454ff6ca9804bf65f31 # v5
+        uses: elgohr/Publish-Docker-Github-Action@78a4b2c353689dd3ead6418c6ae227c1cdaece2e # v5
         with:
           name: flanksource/config-db
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -94,7 +94,7 @@ jobs:
           tags: "latest,v${{ needs.semantic-release.outputs.release-version }}"
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v5
         with:
           aws-access-key-id: ${{ secrets.ECR_AWS_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.ECR_AWS_SECRET_ACCESS_KEY }}
@@ -121,22 +121,22 @@ jobs:
     needs: [semantic-release, docker]
     if: needs.semantic-release.outputs.new-release-published == 'true'
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set version
         # Always use git tags as semantic release can fail due to rate limit
         run: |
           git fetch --prune --unshallow
           echo "RELEASE_VERSION=$(git describe --abbrev=0 --tags | sed -e 's/^v//')" >> $GITHUB_ENV
       - name: Update chart version
-        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
+        uses: mikefarah/yq@5a7e72a743649b1b3a47d1a1d8214f3453173c51 # v4.45.1
         with:
           cmd: yq -i e '.version = "${{ env.RELEASE_VERSION }}"' chart/Chart.yaml
       - name: Update app version
-        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
+        uses: mikefarah/yq@5a7e72a743649b1b3a47d1a1d8214f3453173c51 # v4.45.1
         with:
           cmd: yq -i e '.appVersion = "${{ env.RELEASE_VERSION }}"' chart/values.yaml
       - name: Update image tags
-        uses: mikefarah/yq@0ecdce24e83f0fa127940334be98c86b07b0c488 # v4.45.1
+        uses: mikefarah/yq@5a7e72a743649b1b3a47d1a1d8214f3453173c51 # v4.45.1
         with:
           cmd: yq -i e '.image.tag = "v${{ env.RELEASE_VERSION }}"' chart/values.yaml
       - name: Set up Helm
@@ -147,7 +147,7 @@ jobs:
         run: |
           helm package ./chart
       - name: Upload helm chart artifact
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: helm-chart
           path: config-db-*.tgz
