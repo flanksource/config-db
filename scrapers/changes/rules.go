@@ -4,9 +4,11 @@ import (
 	_ "embed"
 	"fmt"
 
+	"github.com/flanksource/clicky"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/samber/lo"
@@ -32,40 +34,40 @@ type changeRule struct {
 }
 
 // matches the rule with a config using the filter
-func (t *changeRule) match(result *v1.ScrapeResult) (bool, error) {
+func (t *changeRule) match(configEnv map[string]any) (bool, error) {
 	if t.Filter == "" {
 		return true, nil
 	}
 
-	env := map[string]any{
-		"config":      result.ConfigMap(),
-		"config_type": result.Type,
-	}
-
-	return gomplate.RunTemplateBool(env, gomplate.Template{Expression: t.Filter})
+	return gomplate.RunTemplateBool(configEnv, gomplate.Template{Expression: t.Filter})
 }
 
-func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) error {
+// process returns (matched, error)
+func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, configEnv map[string]any) (bool, error) {
 	env := change.AsMap()
 
 	// The "change" and "patch" variables are deprecated.
 	// For backwards compatibility, we set them to the current change and patch.
-	//
 	change.FlushMap() // To prevent recursion
 
 	env["change"] = change.AsMap()
 	env["patch"] = change.PatchesMap()
 	env["last_scrape_summary"] = ctx.LastScrapeSummary()
+	for k, v := range configEnv {
+		env[k] = v
+	}
 
 	ok, err := gomplate.RunTemplateBool(env, gomplate.Template{Expression: t.Rule})
 	if err != nil {
-		return fmt.Errorf("failed to evaluate change mapping rule (%s): %w", lo.Ellipsis(t.Rule, 30), err)
-	} else if !ok {
-		return nil
+		return false, fmt.Errorf("failed to evaluate change mapping rule (%s): %w", lo.Ellipsis(t.Rule, 30), err)
 	}
 
-	if ctx.PropertyOn(false, "log.rule.expr") {
-		logger.Infof("result for expr=%s with env=%v is %v", t.Rule, env, ok)
+	if ctx.PropertyOn(false, "log.rule.expr") && !ok {
+		ctx.Tracef("%s => %v (%v)", t.Rule, env, ok)
+	}
+
+	if !ok {
+		return false, nil
 	}
 
 	if t.Type != "" {
@@ -83,7 +85,7 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) err
 	if t.Summary != "" {
 		summary, err := gomplate.RunTemplate(env, gomplate.Template{Template: t.Summary})
 		if err != nil {
-			return fmt.Errorf("failed to evaluate summary template %s: %w", t.Summary, err)
+			return true, fmt.Errorf("failed to evaluate summary template %s: %w", t.Summary, err)
 		}
 
 		change.Summary = summary
@@ -92,10 +94,12 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) err
 	if t.ConfigID != "" {
 		configID, err := gomplate.RunTemplate(env, gomplate.Template{Expression: t.ConfigID})
 		if err != nil {
-			return fmt.Errorf("failed to evaluate config_id expression %s: %w", t.ConfigID, err)
+			return true, fmt.Errorf("failed to evaluate config_id expression %s: %w", t.ConfigID, err)
 		}
 		if configID != "" {
 			change.ExternalID = configID
+		} else {
+			return true, fmt.Errorf("evaluated config_id is empty for expression: %s", t.ConfigID)
 		}
 	}
 
@@ -114,8 +118,37 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult) err
 	if t.Target != nil {
 		change.Target = t.Target
 	}
+	if ctx.PropertyOn(false, "scraper.log.transforms") {
+		ctx.Tracef("%s --> %s", change.Pretty().ANSI(), clicky.MustFormat(configEnv))
+	}
 
-	return nil
+	return true, nil
+}
+
+var changeFieldOverlap = map[string]bool{
+	"external_id": true,
+	"source":      true,
+	"created_at":  true,
+}
+
+func configItemEnv(ci *models.ConfigItem, result *v1.ScrapeResult) map[string]any {
+	if ci == nil {
+		return map[string]any{
+			"config":      result.ConfigMap(),
+			"config_type": result.Type,
+		}
+	}
+
+	raw := ci.AsMap()
+	env := make(map[string]any, len(raw))
+	for k, v := range raw {
+		if changeFieldOverlap[k] {
+			env["config_"+k] = v
+		} else {
+			env[k] = v
+		}
+	}
+	return env
 }
 
 var Rules []changeRule
@@ -130,7 +163,7 @@ func init() {
 
 // ProcessRules modifies the scraped changes in-place
 // using the change rules.
-func ProcessRules(ctx api.ScrapeContext, result *v1.ScrapeResult, rules ...v1.ChangeMapping) error {
+func ProcessRules(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.ConfigItem, rules ...v1.ChangeMapping) error {
 	if len(result.Changes) == 0 {
 		return nil
 	}
@@ -156,20 +189,52 @@ func ProcessRules(ctx api.ScrapeContext, result *v1.ScrapeResult, rules ...v1.Ch
 			Target:       r.Target,
 		})
 	}
+	configEnv := configItemEnv(ci, result)
+	logTransforms := ctx.PropertyOn(false, "log.transforms") && ctx.IsDebug()
 	for _, rule := range allRules {
-		if match, err := rule.match(result); err != nil {
+		if match, err := rule.match(configEnv); err != nil {
 			errors = append(errors, oops.Wrapf(err, "failed to match filter"))
 			continue
 		} else if !match {
+			if logTransforms {
+				ctx.Logger.Debugf("rule filter did not match config %s/%s (filter=%s)", result.Type, result.Name, lo.Ellipsis(rule.Filter, 50))
+			}
 			continue
 		}
 
+		if logTransforms {
+			ctx.Logger.Tracef("rule filter matched config %s/%s (filter=%s) applying to %d changes", result.Type, result.Name, lo.Ellipsis(rule.Filter, 50), len(result.Changes))
+		}
+
+		var ruleErr error
+		var matched int
 		for i := range result.Changes {
-			if err := rule.process(ctx, &result.Changes[i]); err != nil {
-				errors = append(errors, err)
+			ok, err := rule.process(ctx, &result.Changes[i], configEnv)
+			if err != nil {
+				ruleErr = err
+				break
 			}
+			if ok {
+				matched++
+			}
+		}
+		if ruleErr != nil {
+			errors = append(errors, ruleErr)
+		}
+		if logTransforms {
+			ctx.Logger.Tracef("rule (%s) matched %d/%d changes → type=%s severity=%s action=%s",
+				lo.Ellipsis(rule.Rule, 50), matched, len(result.Changes), rule.Type, rule.Severity, rule.Action)
 		}
 	}
 
-	return oops.Join(errors...)
+	seen := make(map[string]struct{})
+	var unique []error
+	for _, e := range errors {
+		msg := e.Error()
+		if _, ok := seen[msg]; !ok {
+			seen[msg] = struct{}{}
+			unique = append(unique, e)
+		}
+	}
+	return oops.Join(unique...)
 }

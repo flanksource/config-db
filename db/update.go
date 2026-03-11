@@ -289,7 +289,8 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 
 	logExclusions := ctx.PropertyOn(false, "log.exclusions")
 
-	if err := changes.ProcessRules(ctx, result, result.BaseScraper.Transform.Change.Mapping...); err != nil {
+
+	if err := changes.ProcessRules(ctx, result, ci, result.BaseScraper.Transform.Change.Mapping...); err != nil {
 		ctx.JobHistory().AddError(fmt.Sprintf("error running change mapping transformation: %v", err))
 	}
 

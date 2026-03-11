@@ -105,7 +105,13 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		// Determine since time: always bounded by maxAge, capped to LastRun when more recent
 		maxAge := resolveMaxAge(config, ctx)
 		cutoff := time.Now().Add(-maxAge)
-		since := effectiveSince(maxAge, ctx.ScrapeConfig().Status.LastRun.Timestamp.Time)
+		incremental := ctx.PropertyOn(true, "azure.devops.incremental")
+		since := cutoff
+		if incremental {
+			since = effectiveSince(maxAge, ctx.ScrapeConfig().Status.LastRun.Timestamp.Time)
+		} else {
+			ctx.Logger.V(3).Infof("azure.devops.incremental=false, performing full scan (maxAge=%s)", maxAge)
+		}
 
 		for _, project := range projects {
 			if err := ctx.Err(); err != nil {
@@ -150,7 +156,7 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					if err := ctx.Err(); err != nil {
 						return nil // context cancelled, stop silently
 					}
-					pipelineResults := ado.scrapePipeline(entityCtx, client, config, project, pipeline, since, cutoff, cacheTTL, approvalsByRunID)
+					pipelineResults := ado.scrapePipeline(entityCtx, client, config, project, pipeline, since, cutoff, cacheTTL, incremental, approvalsByRunID)
 					mu.Lock()
 					projectResults = append(projectResults, pipelineResults...)
 					mu.Unlock()
@@ -189,6 +195,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 	since time.Time,
 	cutoff time.Time,
 	cacheTTL time.Duration,
+	incremental bool,
 	approvalsByRunID map[int][]PipelineApproval,
 ) v1.ScrapeResults {
 
@@ -362,7 +369,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		}
 
 		// Skip terminal runs already stored in DB (FR-2 / FR-5)
-		if terminalRunCache.has(externalChangeID) {
+		if incremental && terminalRunCache.has(externalChangeID) {
 			ctx.Logger.V(5).Infof("skipping terminal run %s", externalChangeID)
 			continue
 		}
@@ -531,13 +538,13 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		changes := p.Runs
 		p.Runs = nil
 
-		var config any
+		var configData any
 		var format string
 		if pipelineDef.YamlContent != "" {
-			config = pipelineDef.YamlContent
+			configData = pipelineDef.YamlContent
 			format = "yaml"
 		} else {
-			config = buildPipelineConfig(p)
+			configData = buildPipelineConfig(p)
 		}
 
 		var properties types.Properties
@@ -555,8 +562,9 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		}
 
 		results = append(results, v1.ScrapeResult{
+			BaseScraper:      config.BaseScraper,
 			ConfigClass:      "Deployment",
-			Config:           config,
+			Config:           configData,
 			Format:           format,
 			Type:             PipelineType,
 			ID:               id,
