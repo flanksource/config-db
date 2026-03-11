@@ -1,0 +1,21 @@
+spec:
+  full: true
+  file:
+    - type: TestApp::Environment
+      id: $.id
+      paths:
+        - fixtures/data/changes_only_no_config.json
+pre_populate:
+  configs:
+    - config_class: TestApp::Environment
+      type: TestApp::Environment
+      external_id: ["env-botswana"]
+      config: '{"name":"env-botswana","region":"africa"}'
+assertions:
+  - config == null
+  - size(changes) == 2
+  - changes[0].change_type == 'CycleRun01'
+  - changes[0].external_id == 'env-botswana'
+  - changes[0].config_type == 'TestApp::Environment'
+  - changes[1].change_type == 'CycleRun02'
+  - summary.changes.scraped == 2
