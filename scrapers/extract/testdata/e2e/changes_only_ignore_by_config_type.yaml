@@ -1,0 +1,26 @@
+spec:
+  full: true
+  file:
+    - type: TestApp::Environment
+      id: $.external_id
+      paths:
+        - fixtures/data/changes_only_ignore_by_config_type.json
+      transform:
+        changes:
+          mapping:
+            - filter: config_type == 'TestApp::Environment' && change_type == 'CycleRun02'
+              action: ignore
+pre_populate:
+  configs:
+    - config_class: TestApp::Environment
+      type: TestApp::Environment
+      external_id: ["env-botswana-ctype"]
+      config: '{"name":"env-botswana","region":"africa"}'
+assertions:
+  - config == null
+  - size(changes) == 2
+  - changes[0].change_type == 'CycleRun01'
+  - changes[1].change_type == 'CycleRun02'
+  - changes[1].action == 'ignore'
+  - summary.changes.scraped == 2
+  - summary.changes.saved == 1
