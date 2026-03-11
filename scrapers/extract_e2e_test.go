@@ -57,7 +57,7 @@ var _ = Describe("e2e extraction fixtures", func() {
 			scrapeConfigYAML := buildScrapeConfigYAML(name, fixture.Spec)
 			tmpFile, err := os.CreateTemp("", "e2e-fixture-*.yaml")
 			Expect(err).ToNot(HaveOccurred())
-			defer os.Remove(tmpFile.Name())
+			defer func() { _ = os.Remove(tmpFile.Name()) }()
 			_, err = tmpFile.Write(scrapeConfigYAML)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(tmpFile.Close()).To(Succeed())
