@@ -46,7 +46,12 @@ var Run = &cobra.Command{
 	Short: "Run scrapers and return",
 	Run: func(cmd *cobra.Command, configFiles []string) {
 		var logBuf bytes.Buffer
-		harCollector := har.NewCollector(har.DefaultConfig())
+		var harCollector *har.Collector
+
+		if logger.IsTraceEnabled() {
+			logger.Tracef("Enabling HAR collection")
+			harCollector = har.NewCollector(har.DefaultConfig())
+		}
 
 		clicky.Flags.UseFlags()
 
@@ -61,6 +66,12 @@ var Run = &cobra.Command{
 		scraperConfigs, err := v1.ParseConfigs(configFiles...)
 		if err != nil {
 			logger.Fatalf(err.Error())
+		}
+
+		if logger.IsTraceEnabled() {
+			for _, sc := range scraperConfigs {
+				logger.Tracef("Scraper %s:\n%s", sc.Name, logger.Pretty(sc.Spec))
+			}
 		}
 
 		dutyCtx := context.New()

@@ -63,8 +63,10 @@ func (r RetentionSpec) Merge(other RetentionSpec) RetentionSpec {
 
 // ScraperSpec defines the desired state of Config scraper
 type ScraperSpec struct {
-	LogLevel       string           `json:"logLevel,omitempty"`
-	Schedule       string           `json:"schedule,omitempty"`
+	// LogLevel sets the log level for the scraper. Supported values are "trace", "debug", "info" Default is "info".
+	LogLevel       string           `json:"logLevel,omitempty" yaml:"logLevel,omitempty"`
+	// Schedule is a cron expression for when to run the scraper. Example: `@every 1m`, `0 */6 * * *` (every 6 hours)
+	Schedule       string           `json:"schedule,omitempty" yaml:"schedule,omitempty"`
 	GCP            []GCP            `json:"gcp,omitempty" yaml:"gcp,omitempty"`
 	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
 	File           []File           `json:"file,omitempty" yaml:"file,omitempty"`
@@ -77,13 +79,13 @@ type ScraperSpec struct {
 	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
 	Slack          []Slack          `json:"slack,omitempty" yaml:"slack,omitempty"`
 	Trivy          []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
-	Terraform      []Terraform      `json:"terraform,omitempty" yaml:"trivy,omitempty"`
-	HTTP           []HTTP           `json:"http,omitempty"`
-	Clickhouse     []Clickhouse     `json:"clickhouse,omitempty"`
-	Logs           []Logs           `json:"logs,omitempty"`
-	PubSub         []PubSub         `json:"pubsub,omitempty"`
+	Terraform      []Terraform      `json:"terraform,omitempty" yaml:"terraform,omitempty"`
+	HTTP           []HTTP           `json:"http,omitempty" yaml:"http,omitempty"`
+	Clickhouse     []Clickhouse     `json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
+	Logs           []Logs           `json:"logs,omitempty" yaml:"logs,omitempty"`
+	PubSub         []PubSub         `json:"pubsub,omitempty" yaml:"pubsub,omitempty"`
 	Exec           []Exec           `json:"exec,omitempty" yaml:"exec,omitempty"`
-	System         bool             `json:"system,omitempty"`
+	System         bool             `json:"system,omitempty" yaml:"system,omitempty"`
 
 	// CRDSync when set to true, will create (or update) the corresponding database record
 	// for a config item of the following types

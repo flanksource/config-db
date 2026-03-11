@@ -306,7 +306,7 @@ var _ = Describe("TestProcessRules", Ordered, func() {
 		// }
 
 		It(tt.name, func() {
-			err := ProcessRules(api.NewScrapeContext(DefaultContext), &tt.input, tt.rules...)
+			err := ProcessRules(api.NewScrapeContext(DefaultContext), &tt.input, nil, tt.rules...)
 			if tt.err {
 				Expect(err).ToNot(BeNil())
 			} else {

@@ -332,6 +332,7 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 		}
 	}
 
+	result.BaseScraper = config.BaseScraper
 	result.ConfigClass = "Deployment"
 	result.Config = map[string]any{
 		"id":           def.ID,
