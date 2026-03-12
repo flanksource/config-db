@@ -23,7 +23,7 @@ func NewDBResolver(ctx api.ScrapeContext) *DBResolver {
 
 func (d *DBResolver) SyncExternalUsers(users []dutyModels.ExternalUser, scraperID *uuid.UUID) ([]dutyModels.ExternalUser, map[uuid.UUID]uuid.UUID, error) {
 	now := time.Now()
-	resolved, _, idMap, err := resolveExternalUsers(d.ctx, users, scraperID, now)
+	resolved, _, err := resolveExternalUsers(d.ctx, users, scraperID, now)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -32,12 +32,12 @@ func (d *DBResolver) SyncExternalUsers(users []dutyModels.ExternalUser, scraperI
 			ExternalUserCache.Set(alias, u.ID, cache.DefaultExpiration)
 		}
 	}
-	return resolved, idMap, nil
+	return resolved, nil, nil
 }
 
 func (d *DBResolver) SyncExternalGroups(groups []dutyModels.ExternalGroup, scraperID *uuid.UUID) ([]dutyModels.ExternalGroup, map[uuid.UUID]uuid.UUID, error) {
 	now := time.Now()
-	resolved, _, idMap, err := resolveExternalGroups(d.ctx, groups, scraperID, now)
+	resolved, _, err := resolveExternalGroups(d.ctx, groups, scraperID, now)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -46,12 +46,12 @@ func (d *DBResolver) SyncExternalGroups(groups []dutyModels.ExternalGroup, scrap
 			ExternalGroupCache.Set(alias, g.ID, cache.DefaultExpiration)
 		}
 	}
-	return resolved, idMap, nil
+	return resolved, nil, nil
 }
 
 func (d *DBResolver) SyncExternalRoles(roles []dutyModels.ExternalRole, scraperID *uuid.UUID) ([]dutyModels.ExternalRole, error) {
 	now := time.Now()
-	resolved, _, _, err := resolveExternalRoles(d.ctx, roles, scraperID, now)
+	resolved, _, err := resolveExternalRoles(d.ctx, roles, scraperID, now)
 	if err != nil {
 		return nil, err
 	}
