@@ -1,0 +1,12 @@
+{
+  "id": "merge-bridge-org",
+  "external_users": [
+    {
+      "name": "Bridge User",
+      "account_id": "org-merge",
+      "user_type": "human",
+      "email": "bridge@example.com",
+      "aliases": ["alias-b", "alias-c"]
+    }
+  ]
+}

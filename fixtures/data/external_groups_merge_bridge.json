@@ -1,0 +1,11 @@
+{
+  "id": "merge-bridge-groups-org",
+  "external_groups": [
+    {
+      "name": "Bridge Group",
+      "account_id": "org-merge",
+      "group_type": "security",
+      "aliases": ["grp-alias-b", "grp-alias-c"]
+    }
+  ]
+}

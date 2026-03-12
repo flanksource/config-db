@@ -51,7 +51,7 @@ func (d *DBResolver) SyncExternalGroups(groups []dutyModels.ExternalGroup, scrap
 
 func (d *DBResolver) SyncExternalRoles(roles []dutyModels.ExternalRole, scraperID *uuid.UUID) ([]dutyModels.ExternalRole, error) {
 	now := time.Now()
-	resolved, _, err := resolveExternalRoles(d.ctx, roles, scraperID, now)
+	resolved, _, _, err := resolveExternalRoles(d.ctx, roles, scraperID, now)
 	if err != nil {
 		return nil, err
 	}

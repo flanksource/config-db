@@ -1,0 +1,14 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_users_merge_batch_transitive.json
+assertions:
+  # 3 users in batch with transitive alias chain: A(1,2) B(2,3) C(3,4)
+  # All share aliases transitively, should merge into 1
+  - size(db.external_users(scraper_id)) == 1
+  - db.external_users(scraper_id)[0].aliases.contains("chain-1")
+  - db.external_users(scraper_id)[0].aliases.contains("chain-4")

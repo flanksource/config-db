@@ -1,0 +1,23 @@
+{
+  "id": "transitive-merge-org",
+  "external_users": [
+    {
+      "name": "User A",
+      "account_id": "org-transitive",
+      "user_type": "human",
+      "aliases": ["chain-1", "chain-2"]
+    },
+    {
+      "name": "User B",
+      "account_id": "org-transitive",
+      "user_type": "human",
+      "aliases": ["chain-2", "chain-3"]
+    },
+    {
+      "name": "User C",
+      "account_id": "org-transitive",
+      "user_type": "human",
+      "aliases": ["chain-3", "chain-4"]
+    }
+  ]
+}
