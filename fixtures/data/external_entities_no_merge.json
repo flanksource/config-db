@@ -1,0 +1,17 @@
+{
+  "id": "no-merge-org",
+  "external_users": [
+    {
+      "name": "Distinct User A",
+      "account_id": "org-no-merge",
+      "user_type": "human",
+      "aliases": ["distinct-a1", "distinct-a2"]
+    },
+    {
+      "name": "Distinct User B",
+      "account_id": "org-no-merge",
+      "user_type": "human",
+      "aliases": ["distinct-b1", "distinct-b2"]
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 package db
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
-	"gorm.io/gorm"
 )
 
 var CACHE_TIMEOUT = properties.Duration(time.Hour*24, "external.cache.timeout")
@@ -37,20 +35,6 @@ var ExternalGroupCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 type externalEntityWithID interface {
 	dutyModels.ExternalUser | dutyModels.ExternalRole | dutyModels.ExternalGroup
 	TableName() string
-}
-
-// getEntityID extracts the ID from an external entity
-func getEntityID[T externalEntityWithID](entity *T) uuid.UUID {
-	switch e := any(entity).(type) {
-	case *dutyModels.ExternalUser:
-		return e.ID
-	case *dutyModels.ExternalRole:
-		return e.ID
-	case *dutyModels.ExternalGroup:
-		return e.ID
-	default:
-		return uuid.Nil
-	}
 }
 
 // getEntityCache returns the appropriate cache for an external entity type
@@ -107,41 +91,54 @@ func WarmExternalEntityCaches(ctx context.Context) {
 // findExternalEntityIDByAliases looks up an external entity ID by aliases.
 // It first checks the cache, then queries the DB. Returns the ID if found, nil otherwise.
 func findExternalEntityIDByAliases[T externalEntityWithID](ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
+	ids, err := findAllExternalEntityIDsByAliases[T](ctx, aliases)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return lo.ToPtr(ids[0]), nil
+}
+
+// findAllExternalEntityIDsByAliases returns all distinct entity IDs that share any alias with the given set.
+func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeContext, aliases []string) ([]uuid.UUID, error) {
 	aliasCache := getEntityCache[T]()
+	seen := make(map[uuid.UUID]bool)
 
 	for _, alias := range aliases {
 		if cachedID, ok := aliasCache.Get(alias); ok {
-			id, valid := cachedID.(uuid.UUID)
-			if !valid {
-				continue
+			if id, valid := cachedID.(uuid.UUID); valid {
+				seen[id] = true
 			}
-			return lo.ToPtr(id), nil
 		}
 	}
 
-	// Query DB for any matching alias
-	for _, alias := range aliases {
-		var entity T
-		err := ctx.DB().
-			Select("id").
-			Where("? = ANY(aliases)", alias).
-			Where("deleted_at IS NULL").
-			First(&entity).Error
+	var zero T
+	var dbIDs []uuid.UUID
+	if err := ctx.DB().Table(zero.TableName()).
+		Select("DISTINCT id").
+		Where("aliases && ?", pq.StringArray(aliases)).
+		Where("deleted_at IS NULL").
+		Pluck("id", &dbIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to query %s by aliases: %w", zero.TableName(), err)
+	}
 
-		if err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("failed to query %s by alias: %w", entity.TableName(), err)
-			}
-			continue
-		}
+	for _, id := range dbIDs {
+		seen[id] = true
+	}
 
-		// Found in DB, populate cache for all aliases and return
-		id := getEntityID(&entity)
+	result := make([]uuid.UUID, 0, len(seen))
+	for id := range seen {
+		result = append(result, id)
+	}
+
+	// Populate cache
+	for _, id := range result {
 		for _, a := range aliases {
 			aliasCache.Set(a, id, cache.DefaultExpiration)
 		}
-		return lo.ToPtr(id), nil
 	}
 
-	return nil, nil
+	return result, nil
 }

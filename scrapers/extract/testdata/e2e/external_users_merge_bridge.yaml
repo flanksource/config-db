@@ -1,0 +1,26 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_users_merge_bridge.json
+pre_populate:
+  external_users:
+    - name: "User A"
+      aliases: ["alias-a", "alias-b"]
+      user_type: human
+      account_id: org-merge
+    - name: "User C"
+      aliases: ["alias-c", "alias-d"]
+      user_type: human
+      account_id: org-merge
+assertions:
+  # Bridge user shares alias-b with User A and alias-c with User C
+  # After merge: 1 surviving user with all aliases, 1 soft-deleted
+  - size(db.external_users(scraper_id)) == 1
+  - db.external_users(scraper_id)[0].aliases.contains("alias-a")
+  - db.external_users(scraper_id)[0].aliases.contains("alias-b")
+  - db.external_users(scraper_id)[0].aliases.contains("alias-c")
+  - db.external_users(scraper_id)[0].aliases.contains("alias-d")

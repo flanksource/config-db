@@ -1,0 +1,11 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_entities_no_merge.json
+assertions:
+  # 2 users with completely disjoint aliases should stay separate
+  - size(db.external_users(scraper_id)) == 2

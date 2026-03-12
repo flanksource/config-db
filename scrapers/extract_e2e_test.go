@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
-	dutymodels "github.com/flanksource/duty/models"
 	"github.com/flanksource/gomplate/v3"
+	dutymodels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
+	k8sTypes "k8s.io/apimachinery/pkg/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
@@ -25,14 +28,40 @@ type e2ePrePopulateConfig struct {
 	Config      string   `yaml:"config"`
 }
 
+type e2ePrePopulateExternalUser struct {
+	Name      string   `yaml:"name"`
+	Aliases   []string `yaml:"aliases"`
+	Email     string   `yaml:"email,omitempty"`
+	UserType  string   `yaml:"user_type,omitempty"`
+	AccountID string   `yaml:"account_id,omitempty"`
+}
+
+type e2ePrePopulateExternalGroup struct {
+	Name      string   `yaml:"name"`
+	Aliases   []string `yaml:"aliases"`
+	GroupType string   `yaml:"group_type,omitempty"`
+	AccountID string   `yaml:"account_id,omitempty"`
+}
+
+type e2ePrePopulateExternalRole struct {
+	Name        string   `yaml:"name"`
+	Aliases     []string `yaml:"aliases"`
+	RoleType    string   `yaml:"role_type,omitempty"`
+	AccountID   string   `yaml:"account_id,omitempty"`
+	Description string   `yaml:"description,omitempty"`
+}
+
 type e2ePrePopulate struct {
-	Configs []e2ePrePopulateConfig `yaml:"configs"`
+	Configs        []e2ePrePopulateConfig      `yaml:"configs"`
+	ExternalUsers  []e2ePrePopulateExternalUser  `yaml:"external_users"`
+	ExternalGroups []e2ePrePopulateExternalGroup `yaml:"external_groups"`
+	ExternalRoles  []e2ePrePopulateExternalRole  `yaml:"external_roles"`
 }
 
 type e2eFixture struct {
-	Spec        map[string]any  `yaml:"spec"`
-	PrePopulate e2ePrePopulate  `yaml:"pre_populate"`
-	Assertions  []string        `yaml:"assertions"`
+	Spec        map[string]any `yaml:"spec"`
+	PrePopulate e2ePrePopulate `yaml:"pre_populate"`
+	Assertions  []string       `yaml:"assertions"`
 }
 
 var _ = Describe("e2e extraction fixtures", func() {
@@ -45,7 +74,6 @@ var _ = Describe("e2e extraction fixtures", func() {
 		name := filepath.Base(fixturePath)
 
 		It("e2e fixture: "+name, func() {
-			// At test time CWD is repo root (BeforeSuite does os.Chdir(".."))
 			data, err := os.ReadFile("scrapers/" + fixturePath)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -54,7 +82,6 @@ var _ = Describe("e2e extraction fixtures", func() {
 			Expect(fixture.Spec).ToNot(BeNil(), "e2e fixture %s must have a spec field", name)
 			Expect(fixture.Assertions).ToNot(BeEmpty(), "fixture %s has no assertions", name)
 
-			// Validate spec has no unknown fields
 			specJSON, err := json.Marshal(fixture.Spec)
 			Expect(err).ToNot(HaveOccurred())
 			decoder := json.NewDecoder(bytes.NewReader(specJSON))
@@ -62,7 +89,6 @@ var _ = Describe("e2e extraction fixtures", func() {
 			var specValidation v1.ScraperSpec
 			Expect(decoder.Decode(&specValidation)).To(Succeed(), "spec in %s contains unknown fields", name)
 
-			// Build ScrapeConfig YAML from spec
 			scrapeConfigYAML := buildScrapeConfigYAML(name, fixture.Spec)
 			tmpFile, err := os.CreateTemp("", "e2e-fixture-*.yaml")
 			Expect(err).ToNot(HaveOccurred())
@@ -76,10 +102,10 @@ var _ = Describe("e2e extraction fixtures", func() {
 			Expect(configs).ToNot(BeEmpty())
 			config := configs[0]
 
-			// Pre-populate configs in DB
 			var createdItems []string
 			scraperModel, err := db.PersistScrapeConfigFromFile(DefaultContext, config)
 			Expect(err).ToNot(HaveOccurred())
+			config.SetUID(k8sTypes.UID(scraperModel.ID.String()))
 
 			for _, preConfig := range fixture.PrePopulate.Configs {
 				ci := &models.ConfigItem{
@@ -94,16 +120,63 @@ var _ = Describe("e2e extraction fixtures", func() {
 				createdItems = append(createdItems, ci.ID)
 			}
 
-			// Cleanup after test
+			// Pre-populate external entities
+			now := time.Now()
+			for _, u := range fixture.PrePopulate.ExternalUsers {
+				eu := dutymodels.ExternalUser{
+					ID:        uuid.New(),
+					Name:      u.Name,
+					Aliases:   pq.StringArray(u.Aliases),
+					UserType:  u.UserType,
+					Tenant:    u.AccountID,
+					Email:     lo.Ternary(u.Email != "", &u.Email, nil),
+					ScraperID: scraperModel.ID,
+					CreatedAt: now,
+					UpdatedAt: &now,
+				}
+				Expect(DefaultContext.DB().Create(&eu).Error).ToNot(HaveOccurred())
+			}
+			for _, g := range fixture.PrePopulate.ExternalGroups {
+				eg := dutymodels.ExternalGroup{
+					ID:        uuid.New(),
+					Name:      g.Name,
+					Aliases:   pq.StringArray(g.Aliases),
+					GroupType: g.GroupType,
+					Tenant:    g.AccountID,
+					ScraperID: scraperModel.ID,
+					CreatedAt: now,
+					UpdatedAt: &now,
+				}
+				Expect(DefaultContext.DB().Create(&eg).Error).ToNot(HaveOccurred())
+			}
+			for _, r := range fixture.PrePopulate.ExternalRoles {
+				er := dutymodels.ExternalRole{
+					ID:          uuid.New(),
+					Name:        r.Name,
+					Aliases:     pq.StringArray(r.Aliases),
+					RoleType:    r.RoleType,
+					Tenant:      r.AccountID,
+					Description: r.Description,
+					ScraperID:   &scraperModel.ID,
+					CreatedAt:   now,
+					UpdatedAt:   &now,
+				}
+				Expect(DefaultContext.DB().Create(&er).Error).ToNot(HaveOccurred())
+			}
+
 			defer func() {
 				for _, id := range createdItems {
 					DefaultContext.DB().Where("config_id = ?", id).Delete(&models.ConfigChange{})
 					DefaultContext.DB().Delete(&models.ConfigItem{}, "id = ?", id)
 				}
+				// Clean up external entities for this scraper
+				DefaultContext.DB().Exec("DELETE FROM external_user_groups WHERE external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM external_users WHERE scraper_id = ?", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM external_groups WHERE scraper_id = ?", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM external_roles WHERE scraper_id = ?", scraperModel.ID)
 				DefaultContext.DB().Where("id = ?", scraperModel.ID).Delete(&dutymodels.ConfigScraper{})
 			}()
 
-			// Run scraper
 			scraperCtx := ctx.WithScrapeConfig(&config)
 			scraperCtx, err = scraperCtx.InitTempCache()
 			Expect(err).ToNot(HaveOccurred())
@@ -114,11 +187,11 @@ var _ = Describe("e2e extraction fixtures", func() {
 			summary, err := db.SaveResults(scraperCtx, results)
 			Expect(err).ToNot(HaveOccurred())
 
-			// Build CEL env by aggregating all results
 			env := buildE2EEnv(results, summary)
+			env["scraper_id"] = scraperModel.ID.String()
 
 			for _, expr := range fixture.Assertions {
-				ok, err := gomplate.RunTemplateBool(env, gomplate.Template{Expression: expr})
+				ok, err := DefaultContext.RunTemplateBool(gomplate.Template{Expression: expr}, env)
 				Expect(err).ToNot(HaveOccurred(), "CEL error in %s: %s", name, expr)
 				Expect(ok).To(BeTrue(), "assertion failed in %s: %s\nenv: %v", name, expr, env)
 			}
@@ -150,7 +223,6 @@ func buildE2EEnv(results []v1.ScrapeResult, summary v1.ScrapeSummary) map[string
 		"config": nil,
 	}
 
-	// Marshal changes to map form for CEL
 	changesRaw, _ := json.Marshal(allChanges)
 	var changesSlice []any
 	_ = json.Unmarshal(changesRaw, &changesSlice)
@@ -163,7 +235,6 @@ func buildE2EEnv(results []v1.ScrapeResult, summary v1.ScrapeSummary) map[string
 		env[key] = []any{}
 	}
 
-	// Build summary compatible with ExtractionSummary shape used by lightweight fixtures
 	totals := summary.Totals()
 	env["summary"] = map[string]any{
 		"changes": map[string]any{

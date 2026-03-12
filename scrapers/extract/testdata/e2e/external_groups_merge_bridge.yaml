@@ -1,0 +1,23 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_groups_merge_bridge.json
+pre_populate:
+  external_groups:
+    - name: "Group A"
+      aliases: ["grp-alias-a", "grp-alias-b"]
+      group_type: security
+      account_id: org-merge
+    - name: "Group C"
+      aliases: ["grp-alias-c", "grp-alias-d"]
+      group_type: security
+      account_id: org-merge
+assertions:
+  # Bridge group shares grp-alias-b with Group A and grp-alias-c with Group C
+  - size(db.external_groups(scraper_id)) == 1
+  - db.external_groups(scraper_id)[0].aliases.contains("grp-alias-a")
+  - db.external_groups(scraper_id)[0].aliases.contains("grp-alias-d")

@@ -33,30 +33,36 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 
 	now := time.Now()
 
-	resolvedUsers, skippedUsers, userIDMap, err := resolveExternalUsers(ctx, extract.externalUsers, scraperID, now)
+	resolvedUsers, skippedUsers, userMerges, err := resolveExternalUsers(ctx, extract.externalUsers, scraperID, now)
 	if err != nil {
 		return result, nil, err
 	}
 	result.Users.Skipped = skippedUsers
 
-	resolvedGroups, skippedGroups, groupIDMap, err := resolveExternalGroups(ctx, extract.externalGroups, scraperID, now)
+	resolvedGroups, skippedGroups, groupMerges, err := resolveExternalGroups(ctx, extract.externalGroups, scraperID, now)
 	if err != nil {
 		return result, nil, err
 	}
 	result.Groups.Skipped = skippedGroups
 
-	resolvedRoles, skippedRoles, err := resolveExternalRoles(ctx, extract.externalRoles, scraperID, now)
+	resolvedRoles, skippedRoles, roleMerges, err := resolveExternalRoles(ctx, extract.externalRoles, scraperID, now)
 	if err != nil {
 		return result, nil, err
 	}
 	result.Roles.Skipped = skippedRoles
 
+	// Combine all merges into a single idMap for user group resolution
+	idMap := make(map[uuid.UUID]uuid.UUID)
+	for k, v := range userMerges {
+		idMap[k] = v
+	}
+
 	var resolvedUserGroups []dutyModels.ExternalUserGroup
 	for _, ug := range extract.externalUserGroups {
-		if savedID, ok := userIDMap[ug.ExternalUserID]; ok {
+		if savedID, ok := userMerges[ug.ExternalUserID]; ok {
 			ug.ExternalUserID = savedID
 		}
-		if savedID, ok := groupIDMap[ug.ExternalGroupID]; ok {
+		if savedID, ok := groupMerges[ug.ExternalGroupID]; ok {
 			ug.ExternalGroupID = savedID
 		}
 		if ug.ExternalUserID == uuid.Nil || ug.ExternalGroupID == uuid.Nil {
@@ -66,15 +72,18 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 		resolvedUserGroups = append(resolvedUserGroups, ug)
 	}
 
-	counts, err := upsertExternalEntities(ctx, resolvedUsers, resolvedGroups, resolvedRoles, resolvedUserGroups, scraperID)
+	counts, err := upsertExternalEntities(ctx, resolvedUsers, resolvedGroups, resolvedRoles, resolvedUserGroups, scraperID, userMerges, groupMerges, roleMerges)
 	if err != nil {
 		return result, nil, err
 	}
 
 	// Populate caches only after transaction has committed successfully.
-	// When scraperID is nil, upsertExternalEntities skips insertion,
-	// so we must not cache IDs that don't exist in the DB.
 	if scraperID != nil {
+		// Evict loser IDs from caches
+		for loserID := range userMerges {
+			ExternalUserIDCache.Delete(loserID.String())
+		}
+
 		for _, u := range resolvedUsers {
 			ExternalUserIDCache.Set(u.ID.String(), u.ID, cache.DefaultExpiration)
 			for _, alias := range u.Aliases {
@@ -99,172 +108,190 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	result.Groups.Deleted = counts.groupsDeleted
 	result.Roles.Saved = counts.rolesSaved
 	result.Roles.Deleted = counts.rolesDeleted
-	return result, userIDMap, nil
+	return result, idMap, nil
 }
 
 func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalUser, int, map[uuid.UUID]uuid.UUID, error) {
-	var resolved []dutyModels.ExternalUser
+	var valid []dutyModels.ExternalUser
 	var skipped int
-	idMap := make(map[uuid.UUID]uuid.UUID)
-	seen := make(map[uuid.UUID]int) // id -> index in resolved slice
 
-	for _, u := range users {
+	for i := range users {
+		u := &users[i]
 		u.ScraperID = lo.Ternary(u.ScraperID == uuid.Nil, lo.FromPtr(scraperID), u.ScraperID)
-		originalID := u.ID
-
 		if u.ID == uuid.Nil && len(u.Aliases) == 0 {
 			ctx.Logger.Warnf("skipping external user %q with no ID and no aliases", u.Name)
 			skipped++
 			continue
 		}
-
-		if len(u.Aliases) > 0 {
-			sort.Strings(u.Aliases)
-			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, u.Aliases)
-			if err != nil {
-				return nil, 0, nil, ctx.Oops().With("aliases", u.Aliases).Wrapf(err, "failed to find external user by aliases")
-			}
-			if existingID != nil {
-				if u.ID != uuid.Nil && u.ID != *existingID {
-					u.Aliases = append(u.Aliases, u.ID.String())
-				}
-				u.ID = *existingID
-			} else if u.ID == uuid.Nil {
-				hid, err := hash.DeterministicUUID(u.Aliases)
-				if err != nil {
-					return nil, 0, nil, ctx.Oops().With("user", u.Name).Wrapf(err, "failed to generate id for external user")
-				}
-				u.ID = hid
-			}
+		if u.ID != uuid.Nil {
+			u.Aliases = appendUnique(u.Aliases, u.ID.String())
 		}
-
+		if u.ID == uuid.Nil {
+			sort.Strings(u.Aliases)
+			hid, err := hash.DeterministicUUID(u.Aliases)
+			if err != nil {
+				return nil, 0, nil, ctx.Oops().With("user", u.Name).Wrapf(err, "failed to generate id for external user")
+			}
+			u.ID = hid
+		}
 		if u.CreatedAt.IsZero() {
 			u.CreatedAt = now
 		}
 		u.UpdatedAt = &now
-
-		// Deduplicate by resolved ID — merge aliases into first occurrence
-		if idx, exists := seen[u.ID]; exists {
-			for _, alias := range u.Aliases {
-				if !slices.Contains(resolved[idx].Aliases, alias) {
-					resolved[idx].Aliases = append(resolved[idx].Aliases, alias)
-				}
-			}
-		} else {
-			seen[u.ID] = len(resolved)
-			resolved = append(resolved, u)
-		}
-
-		if originalID != uuid.Nil && originalID != u.ID {
-			idMap[originalID] = u.ID
-		}
+		valid = append(valid, *u)
 	}
-	return resolved, skipped, idMap, nil
+
+	acc := entityAccessors[dutyModels.ExternalUser]{
+		GetID:        func(u dutyModels.ExternalUser) uuid.UUID { return u.ID },
+		SetID:        func(u *dutyModels.ExternalUser, id uuid.UUID) { u.ID = id },
+		GetAliases:   func(u dutyModels.ExternalUser) []string { return u.Aliases },
+		SetAliases:   func(u *dutyModels.ExternalUser, a []string) { u.Aliases = a },
+		GetUpdatedAt: func(u dutyModels.ExternalUser) *time.Time { return u.UpdatedAt },
+		MergeScalar: func(winner *dutyModels.ExternalUser, loser dutyModels.ExternalUser) {
+			if loser.Name != "" {
+				winner.Name = loser.Name
+			}
+			if loser.Email != nil {
+				winner.Email = loser.Email
+			}
+			if loser.Tenant != "" {
+				winner.Tenant = loser.Tenant
+			}
+			if loser.UserType != "" {
+				winner.UserType = loser.UserType
+			}
+		},
+	}
+
+	merged, dbMerges, err := mergeByOverlappingAliases(ctx, valid, acc, func(aliases []string) ([]uuid.UUID, error) {
+		return findAllExternalEntityIDsByAliases[dutyModels.ExternalUser](ctx, aliases)
+	})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+
+	return merged, skipped, dbMerges, nil
 }
 
 func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGroup, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalGroup, int, map[uuid.UUID]uuid.UUID, error) {
-	var resolved []dutyModels.ExternalGroup
+	var valid []dutyModels.ExternalGroup
 	var skipped int
-	idMap := make(map[uuid.UUID]uuid.UUID)
-	seen := make(map[uuid.UUID]int)
 
-	for _, g := range groups {
+	for i := range groups {
+		g := &groups[i]
 		g.ScraperID = lo.Ternary(g.ScraperID == uuid.Nil, lo.FromPtr(scraperID), g.ScraperID)
-		originalID := g.ID
-
 		if g.ID == uuid.Nil && len(g.Aliases) == 0 {
 			ctx.Logger.Warnf("skipping external group %q with no ID and no aliases", g.Name)
 			skipped++
 			continue
 		}
-
-		if len(g.Aliases) > 0 {
-			sort.Strings(g.Aliases)
-			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalGroup](ctx, g.Aliases)
-			if err != nil {
-				return nil, 0, nil, ctx.Oops().With("aliases", g.Aliases).Wrapf(err, "failed to find external group by aliases")
-			}
-			if existingID != nil {
-				g.ID = *existingID
-			} else if g.ID == uuid.Nil {
-				hid, err := hash.DeterministicUUID(g.Aliases)
-				if err != nil {
-					return nil, 0, nil, ctx.Oops().With("group", g.Name).Wrapf(err, "failed to generate id for external group")
-				}
-				g.ID = hid
-			}
+		if g.ID != uuid.Nil {
+			g.Aliases = appendUnique(g.Aliases, g.ID.String())
 		}
-
+		if g.ID == uuid.Nil {
+			sort.Strings(g.Aliases)
+			hid, err := hash.DeterministicUUID(g.Aliases)
+			if err != nil {
+				return nil, 0, nil, ctx.Oops().With("group", g.Name).Wrapf(err, "failed to generate id for external group")
+			}
+			g.ID = hid
+		}
 		if g.CreatedAt.IsZero() {
 			g.CreatedAt = now
 		}
 		g.UpdatedAt = &now
-
-		if idx, exists := seen[g.ID]; exists {
-			for _, alias := range g.Aliases {
-				if !slices.Contains(resolved[idx].Aliases, alias) {
-					resolved[idx].Aliases = append(resolved[idx].Aliases, alias)
-				}
-			}
-		} else {
-			seen[g.ID] = len(resolved)
-			resolved = append(resolved, g)
-			if originalID != uuid.Nil && originalID != g.ID {
-				idMap[originalID] = g.ID
-			}
-		}
+		valid = append(valid, *g)
 	}
-	return resolved, skipped, idMap, nil
+
+	acc := entityAccessors[dutyModels.ExternalGroup]{
+		GetID:        func(g dutyModels.ExternalGroup) uuid.UUID { return g.ID },
+		SetID:        func(g *dutyModels.ExternalGroup, id uuid.UUID) { g.ID = id },
+		GetAliases:   func(g dutyModels.ExternalGroup) []string { return g.Aliases },
+		SetAliases:   func(g *dutyModels.ExternalGroup, a []string) { g.Aliases = a },
+		GetUpdatedAt: func(g dutyModels.ExternalGroup) *time.Time { return g.UpdatedAt },
+		MergeScalar: func(winner *dutyModels.ExternalGroup, loser dutyModels.ExternalGroup) {
+			if loser.Name != "" {
+				winner.Name = loser.Name
+			}
+			if loser.Tenant != "" {
+				winner.Tenant = loser.Tenant
+			}
+			if loser.GroupType != "" {
+				winner.GroupType = loser.GroupType
+			}
+		},
+	}
+
+	merged, dbMerges, err := mergeByOverlappingAliases(ctx, valid, acc, func(aliases []string) ([]uuid.UUID, error) {
+		return findAllExternalEntityIDsByAliases[dutyModels.ExternalGroup](ctx, aliases)
+	})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+
+	return merged, skipped, dbMerges, nil
 }
 
-func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalRole, int, error) {
-	var resolved []dutyModels.ExternalRole
+func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalRole, int, map[uuid.UUID]uuid.UUID, error) {
+	var valid []dutyModels.ExternalRole
 	var skipped int
-	seen := make(map[uuid.UUID]int)
 
-	for _, r := range roles {
+	for i := range roles {
+		r := &roles[i]
 		r.ScraperID = lo.Ternary(r.ScraperID == nil, scraperID, r.ScraperID)
-
 		if r.ID == uuid.Nil && len(r.Aliases) == 0 {
 			ctx.Logger.Warnf("skipping external role %q with no ID and no aliases", r.Name)
 			skipped++
 			continue
 		}
-
-		if len(r.Aliases) > 0 {
-			sort.Strings(r.Aliases)
-			existingID, err := findExternalEntityIDByAliases[dutyModels.ExternalRole](ctx, r.Aliases)
-			if err != nil {
-				return nil, 0, ctx.Oops().With("aliases", r.Aliases).Wrapf(err, "failed to find external role by aliases")
-			}
-			if existingID != nil {
-				r.ID = *existingID
-			} else if r.ID == uuid.Nil {
-				hid, err := hash.DeterministicUUID(r.Aliases)
-				if err != nil {
-					return nil, 0, ctx.Oops().With("role", r.Name).Wrapf(err, "failed to generate id for external role")
-				}
-				r.ID = hid
-			}
+		if r.ID != uuid.Nil {
+			r.Aliases = appendUnique(r.Aliases, r.ID.String())
 		}
-
+		if r.ID == uuid.Nil {
+			sort.Strings(r.Aliases)
+			hid, err := hash.DeterministicUUID(r.Aliases)
+			if err != nil {
+				return nil, 0, nil, ctx.Oops().With("role", r.Name).Wrapf(err, "failed to generate id for external role")
+			}
+			r.ID = hid
+		}
 		if r.CreatedAt.IsZero() {
 			r.CreatedAt = now
 		}
 		r.UpdatedAt = &now
-
-		if idx, exists := seen[r.ID]; exists {
-			for _, alias := range r.Aliases {
-				if !slices.Contains(resolved[idx].Aliases, alias) {
-					resolved[idx].Aliases = append(resolved[idx].Aliases, alias)
-				}
-			}
-		} else {
-			seen[r.ID] = len(resolved)
-			resolved = append(resolved, r)
-		}
+		valid = append(valid, *r)
 	}
-	return resolved, skipped, nil
+
+	acc := entityAccessors[dutyModels.ExternalRole]{
+		GetID:        func(r dutyModels.ExternalRole) uuid.UUID { return r.ID },
+		SetID:        func(r *dutyModels.ExternalRole, id uuid.UUID) { r.ID = id },
+		GetAliases:   func(r dutyModels.ExternalRole) []string { return r.Aliases },
+		SetAliases:   func(r *dutyModels.ExternalRole, a []string) { r.Aliases = a },
+		GetUpdatedAt: func(r dutyModels.ExternalRole) *time.Time { return r.UpdatedAt },
+		MergeScalar: func(winner *dutyModels.ExternalRole, loser dutyModels.ExternalRole) {
+			if loser.Name != "" {
+				winner.Name = loser.Name
+			}
+			if loser.Tenant != "" {
+				winner.Tenant = loser.Tenant
+			}
+			if loser.RoleType != "" {
+				winner.RoleType = loser.RoleType
+			}
+			if loser.Description != "" {
+				winner.Description = loser.Description
+			}
+		},
+	}
+
+	merged, dbMerges, err := mergeByOverlappingAliases(ctx, valid, acc, func(aliases []string) ([]uuid.UUID, error) {
+		return findAllExternalEntityIDsByAliases[dutyModels.ExternalRole](ctx, aliases)
+	})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+
+	return merged, skipped, dbMerges, nil
 }
 
 type upsertCounts struct {
@@ -280,6 +307,7 @@ func upsertExternalEntities(
 	roles []dutyModels.ExternalRole,
 	userGroups []dutyModels.ExternalUserGroup,
 	scraperID *uuid.UUID,
+	userMerges, groupMerges, roleMerges map[uuid.UUID]uuid.UUID,
 ) (upsertCounts, error) {
 	var counts upsertCounts
 	if scraperID == nil {
@@ -331,6 +359,26 @@ func upsertExternalEntities(
 		if err := createTempAndInsert(tx, tempUserGroups, "external_user_groups", userGroups); err != nil {
 			tx.Rollback()
 			return counts, fmt.Errorf("failed to setup temp user groups: %w", err)
+		}
+	}
+
+	// Apply merges: remap FKs and soft-delete losers before upserting
+	if len(userMerges) > 0 {
+		if err := mergeAwayExternalUsers(tx, userMerges); err != nil {
+			tx.Rollback()
+			return counts, fmt.Errorf("failed to merge external users: %w", err)
+		}
+	}
+	if len(groupMerges) > 0 {
+		if err := mergeAwayExternalGroups(tx, groupMerges); err != nil {
+			tx.Rollback()
+			return counts, fmt.Errorf("failed to merge external groups: %w", err)
+		}
+	}
+	if len(roleMerges) > 0 {
+		if err := mergeAwayExternalRoles(tx, roleMerges); err != nil {
+			tx.Rollback()
+			return counts, fmt.Errorf("failed to merge external roles: %w", err)
 		}
 	}
 
@@ -442,32 +490,56 @@ func upsertExternalEntities(
 }
 
 // ensureExternalUserFromAliases creates a minimal external user from aliases if none exists.
+// If multiple existing users match the aliases, they are merged first.
 func ensureExternalUserFromAliases(ctx api.ScrapeContext, aliases []string, scraperID *uuid.UUID) error {
 	sort.Strings(aliases)
-	id, err := hash.DeterministicUUID(aliases)
+
+	existingIDs, err := findAllExternalEntityIDsByAliases[dutyModels.ExternalUser](ctx, aliases)
 	if err != nil {
-		return fmt.Errorf("failed to generate deterministic UUID: %w", err)
+		return fmt.Errorf("failed to find existing users by aliases: %w", err)
 	}
+
+	if len(existingIDs) > 1 {
+		merges := make(map[uuid.UUID]uuid.UUID, len(existingIDs)-1)
+		for _, loser := range existingIDs[1:] {
+			merges[loser] = existingIDs[0]
+		}
+		tx := ctx.DB().Begin()
+		if tx.Error != nil {
+			return fmt.Errorf("failed to begin merge transaction: %w", tx.Error)
+		}
+		if err := mergeAwayExternalUsers(tx, merges); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to merge users: %w", err)
+		}
+		if err := tx.Commit().Error; err != nil {
+			return fmt.Errorf("failed to commit merge: %w", err)
+		}
+	}
+
+	var id uuid.UUID
+	if len(existingIDs) > 0 {
+		id = existingIDs[0]
+	} else {
+		id, err = hash.DeterministicUUID(aliases)
+		if err != nil {
+			return fmt.Errorf("failed to generate deterministic UUID: %w", err)
+		}
+	}
+
 	now := time.Now()
-	user := dutyModels.ExternalUser{
-		ID:        id,
-		Aliases:   aliases,
-		ScraperID: lo.FromPtr(scraperID),
-		CreatedAt: now,
-		UpdatedAt: &now,
-	}
 	if err := ctx.DB().Exec(`
 		INSERT INTO external_users (id, aliases, scraper_id, account_id, created_at, updated_at)
 		VALUES (?, ?, ?, '', ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			aliases = NULLIF(ARRAY(SELECT DISTINCT unnest FROM unnest(external_users.aliases || EXCLUDED.aliases) ORDER BY 1), '{}'::text[]),
 			updated_at = EXCLUDED.updated_at, deleted_at = NULL
-	`, user.ID, pq.StringArray(user.Aliases), user.ScraperID, user.CreatedAt, user.UpdatedAt).Error; err != nil {
+	`, id, pq.StringArray(aliases), lo.FromPtr(scraperID), now, now).Error; err != nil {
 		return fmt.Errorf("failed to upsert external user: %w", err)
 	}
-	ExternalUserIDCache.Set(user.ID.String(), user.ID, cache.DefaultExpiration)
+	ExternalUserIDCache.Set(id.String(), id, cache.DefaultExpiration)
 	for _, alias := range aliases {
-		ExternalUserCache.Set(alias, user.ID, cache.DefaultExpiration)
+		ExternalUserCache.Set(alias, id, cache.DefaultExpiration)
 	}
 	return nil
 }
