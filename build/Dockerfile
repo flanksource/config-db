@@ -1,11 +1,14 @@
-FROM rust:bookworm@sha256:29fe4376919e25b7587a1063d7b521d9db735fc137d3cf30ae41eb326d209471 AS rust-builder
+FROM rust:bookworm@sha256:29fe4376919e25b7587a1063d7b521d9db735fc137d3cf30ae41eb326d209471 AS rust-builder-base
+COPY external/diffgen/ /app/external/diffgen
+RUN cd /app/external/diffgen/ && cargo fetch
 
+FROM rust-builder-base AS rust-builder
 WORKDIR /app
 COPY Makefile /app
 COPY external/diffgen /app/external/diffgen
 RUN make rust-diffgen
 
-FROM golang:1.25-bookworm@sha256:ee420c17fa013f71eca6b35c3547b854c838d4f26056a34eb6171bba5bf8ece4 AS builder
+FROM golang:1.25.8-bookworm@sha256:7af46e70d2017aef0b4ce2422afbcf39af0511a61993103e948b61011233ec42 AS builder-base
 WORKDIR /app
 
 ARG VERSION
@@ -14,21 +17,27 @@ COPY go.mod /app/go.mod
 COPY go.sum /app/go.sum
 RUN go mod download
 
+FROM builder-base AS builder
+
 COPY ./ ./
 
 COPY --from=rust-builder /app/external/diffgen/target ./external/diffgen/target
 
 RUN make build-prod
 
-FROM flanksource/base-image:v0.0.7@sha256:c3cda640ca7033a89e52c7f27776edfc95f825ece4b49de3b9c5af981d34a44e
+FROM flanksource/base-image:0.7.1@sha256:6cd9b69c841cb338a301a6cc8ff0b1a8d516ab2335ba01f09d4a9a2ff2e79f93
+
 WORKDIR /app
 
 COPY --from=builder /app/.bin/config-db /app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-RUN mkdir /opt/database && groupadd --gid 1000 catalog && \
-  useradd catalog --uid 1000 -g catalog -m -d /var/lib/catalog && \
+
+RUN mkdir -p /opt/database && \
+  (groupmod -n catalog ubuntu 2>/dev/null || groupadd --gid 1000 catalog) && \
+  (usermod -l catalog -d /var/lib/catalog -m ubuntu 2>/dev/null || useradd catalog --uid 1000 -g catalog -m -d /var/lib/catalog) && \
   chown -R 1000:1000 /opt/database && chown -R 1000:1000 /app
+
 
 USER catalog:catalog
 
