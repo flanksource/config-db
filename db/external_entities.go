@@ -268,7 +268,7 @@ func upsertExternalEntities(
 			LoserID  uuid.UUID `gorm:"column:loser_id"`
 			WinnerID uuid.UUID `gorm:"column:winner_id"`
 		}
-		if err := tx.Raw("SELECT * FROM merge_and_upsert_external_users(?)", tempUsers).Scan(&merges).Error; err != nil {
+		if err := tx.Raw("SELECT * FROM merge_and_upsert_external_users(?::TEXT)", tempUsers).Scan(&merges).Error; err != nil {
 			tx.Rollback()
 			return counts, nil, fmt.Errorf("failed to merge and upsert external users: %w", err)
 		}
@@ -283,7 +283,7 @@ func upsertExternalEntities(
 			LoserID  uuid.UUID `gorm:"column:loser_id"`
 			WinnerID uuid.UUID `gorm:"column:winner_id"`
 		}
-		if err := tx.Raw("SELECT * FROM merge_and_upsert_external_groups(?)", tempGroups).Scan(&merges).Error; err != nil {
+		if err := tx.Raw("SELECT * FROM merge_and_upsert_external_groups(?::TEXT)", tempGroups).Scan(&merges).Error; err != nil {
 			tx.Rollback()
 			return counts, nil, fmt.Errorf("failed to merge and upsert external groups: %w", err)
 		}
@@ -298,7 +298,7 @@ func upsertExternalEntities(
 			LoserID  uuid.UUID `gorm:"column:loser_id"`
 			WinnerID uuid.UUID `gorm:"column:winner_id"`
 		}
-		if err := tx.Raw("SELECT * FROM merge_and_upsert_external_roles(?)", tempRoles).Scan(&merges).Error; err != nil {
+		if err := tx.Raw("SELECT * FROM merge_and_upsert_external_roles(?::TEXT)", tempRoles).Scan(&merges).Error; err != nil {
 			tx.Rollback()
 			return counts, nil, fmt.Errorf("failed to merge and upsert external roles: %w", err)
 		}
@@ -395,7 +395,7 @@ func ensureExternalUserFromAliases(ctx api.ScrapeContext, aliases []string, scra
 		LoserID  uuid.UUID `gorm:"column:loser_id"`
 		WinnerID uuid.UUID `gorm:"column:winner_id"`
 	}
-	if err := tx.Raw("SELECT * FROM merge_and_upsert_external_users(?)", tempTable).Scan(&merges).Error; err != nil {
+	if err := tx.Raw("SELECT * FROM merge_and_upsert_external_users(?::TEXT)", tempTable).Scan(&merges).Error; err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to merge and upsert: %w", err)
 	}

@@ -413,9 +413,15 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 				}
 			}
 
-			// Link ingress to to target service
+			// Link ingress to target service
 			for _, rule := range ingress.Spec.Rules {
+				if rule.HTTP == nil {
+					continue
+				}
 				for _, path := range rule.HTTP.Paths {
+					if path.Backend.Service == nil {
+						continue
+					}
 					if service := path.Backend.Service.Name; service != "" {
 						relationships = append(relationships, v1.RelationshipResult{
 							ConfigID:     string(obj.GetUID()),
