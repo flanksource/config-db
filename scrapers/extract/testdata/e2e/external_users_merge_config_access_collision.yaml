@@ -1,0 +1,38 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_users_merge_bridge.json
+pre_populate:
+  configs:
+    - config_class: Organization
+      type: Organization
+      external_id: ["merge-bridge-org"]
+      config: '{"name":"Merge Bridge Org"}'
+  external_users:
+    - name: "User A"
+      aliases: ["alias-a", "alias-b"]
+      user_type: human
+      account_id: org-merge
+    - name: "User C"
+      aliases: ["alias-c", "alias-d"]
+      user_type: human
+      account_id: org-merge
+  config_access:
+    - id: "user-access-winner"
+      config_external_id: "merge-bridge-org"
+      external_user_aliases: ["alias-a"]
+      source: fixture
+      created_at_offset_mins: -120
+    - id: "user-access-loser"
+      config_external_id: "merge-bridge-org"
+      external_user_aliases: ["alias-d"]
+      source: fixture
+      created_at_offset_mins: -60
+assertions:
+  - size(db.external_users(scraper_id)) == 1
+  - size(db.config_access(scraper_id)) == 1
+  - db.config_access(scraper_id)[0].external_user_id == db.external_users(scraper_id)[0].id

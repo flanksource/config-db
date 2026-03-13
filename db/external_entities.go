@@ -201,6 +201,25 @@ type upsertCounts struct {
 	rolesSaved, rolesDeleted   int
 }
 
+func remapExternalUserGroups(userGroups []dutyModels.ExternalUserGroup, userIDMap, groupIDMap map[uuid.UUID]uuid.UUID) []dutyModels.ExternalUserGroup {
+	if len(userGroups) == 0 || (len(userIDMap) == 0 && len(groupIDMap) == 0) {
+		return userGroups
+	}
+
+	remapped := make([]dutyModels.ExternalUserGroup, len(userGroups))
+	for i, ug := range userGroups {
+		if winner, ok := userIDMap[ug.ExternalUserID]; ok {
+			ug.ExternalUserID = winner
+		}
+		if winner, ok := groupIDMap[ug.ExternalGroupID]; ok {
+			ug.ExternalGroupID = winner
+		}
+		remapped[i] = ug
+	}
+
+	return remapped
+}
+
 func upsertExternalEntities(
 	ctx api.ScrapeContext,
 	users []dutyModels.ExternalUser,
@@ -210,10 +229,11 @@ func upsertExternalEntities(
 	scraperID *uuid.UUID,
 ) (upsertCounts, map[uuid.UUID]uuid.UUID, error) {
 	var counts upsertCounts
-	idMap := make(map[uuid.UUID]uuid.UUID)
+	userIDMap := make(map[uuid.UUID]uuid.UUID)
+	groupIDMap := make(map[uuid.UUID]uuid.UUID)
 
 	if scraperID == nil {
-		return counts, idMap, nil
+		return counts, userIDMap, nil
 	}
 
 	suffix := sanitizeForTempTable(scraperID.String())
@@ -255,13 +275,6 @@ func upsertExternalEntities(
 		}
 	}
 
-	if len(userGroups) > 0 {
-		if err := createTempAndInsert(tx, tempUserGroups, "external_user_groups", userGroups); err != nil {
-			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to setup temp user groups: %w", err)
-		}
-	}
-
 	// Call stored procedures that handle merge + upsert atomically
 	if len(users) > 0 {
 		var merges []struct {
@@ -273,7 +286,7 @@ func upsertExternalEntities(
 			return counts, nil, fmt.Errorf("failed to merge and upsert external users: %w", err)
 		}
 		for _, m := range merges {
-			idMap[m.LoserID] = m.WinnerID
+			userIDMap[m.LoserID] = m.WinnerID
 		}
 		counts.usersSaved = len(users)
 	}
@@ -288,7 +301,7 @@ func upsertExternalEntities(
 			return counts, nil, fmt.Errorf("failed to merge and upsert external groups: %w", err)
 		}
 		for _, m := range merges {
-			idMap[m.LoserID] = m.WinnerID
+			groupIDMap[m.LoserID] = m.WinnerID
 		}
 		counts.groupsSaved = len(groups)
 	}
@@ -302,17 +315,14 @@ func upsertExternalEntities(
 			tx.Rollback()
 			return counts, nil, fmt.Errorf("failed to merge and upsert external roles: %w", err)
 		}
-		for _, m := range merges {
-			idMap[m.LoserID] = m.WinnerID
-		}
 		counts.rolesSaved = len(roles)
 	}
 
-	// Remap user group FKs based on merge results before upserting
-	if len(userGroups) > 0 && len(idMap) > 0 {
-		for loser, winner := range idMap {
-			tx.Exec(fmt.Sprintf(`UPDATE %s SET external_user_id = ? WHERE external_user_id = ?`, tempUserGroups), winner, loser)
-			tx.Exec(fmt.Sprintf(`UPDATE %s SET external_group_id = ? WHERE external_group_id = ?`, tempUserGroups), winner, loser)
+	if len(userGroups) > 0 {
+		remappedUserGroups := remapExternalUserGroups(userGroups, userIDMap, groupIDMap)
+		if err := createTempAndInsert(tx, tempUserGroups, "external_user_groups", remappedUserGroups); err != nil {
+			tx.Rollback()
+			return counts, nil, fmt.Errorf("failed to setup temp user groups: %w", err)
 		}
 	}
 
@@ -359,7 +369,7 @@ func upsertExternalEntities(
 		return counts, nil, fmt.Errorf("failed to commit external entities transaction: %w", err)
 	}
 
-	return counts, idMap, nil
+	return counts, userIDMap, nil
 }
 
 func ensureExternalUserFromAliases(ctx api.ScrapeContext, aliases []string, scraperID *uuid.UUID) error {
