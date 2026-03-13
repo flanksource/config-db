@@ -5,7 +5,7 @@ COPY Makefile /app
 COPY external/diffgen /app/external/diffgen
 RUN make rust-diffgen
 
-FROM golang:1.25-bookworm@sha256:ee420c17fa013f71eca6b35c3547b854c838d4f26056a34eb6171bba5bf8ece4 AS builder
+FROM golang:1.25.8-bookworm@sha256:2630d37044ad6b9c5acfc343918cefefa508b2a853f1a316ceda8600b6dd12c7 as builder
 WORKDIR /app
 
 ARG VERSION
@@ -20,7 +20,8 @@ COPY --from=rust-builder /app/external/diffgen/target ./external/diffgen/target
 
 RUN make build-prod
 
-FROM flanksource/base-image:v0.0.7@sha256:c3cda640ca7033a89e52c7f27776edfc95f825ece4b49de3b9c5af981d34a44e
+FROM flanksource/base-image:0.7.1@sha256:6cd9b69c841cb338a301a6cc8ff0b1a8d516ab2335ba01f09d4a9a2ff2e79f93
+
 WORKDIR /app
 
 COPY --from=builder /app/.bin/config-db /app
