@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"time"
 
+	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	. "github.com/onsi/ginkgo/v2"
@@ -388,6 +389,205 @@ var _ = Describe("RBACExtractor", func() {
 		})
 	})
 
+	Describe("Exclusions", func() {
+		var (
+			clusterName = "test-cluster"
+			scraperID   = uuid.New()
+		)
+
+		Context("role exclusion by exact name", func() {
+			It("excludes the role and cascades to binding subjects", func() {
+				exclusions := v1.ScraperExclusion{
+					ExternalRoles: []string{"system:controller:job-controller"},
+				}
+
+				role := makeClusterRole("system:controller:job-controller", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
+				})
+				binding := makeClusterRoleBinding("job-controller-binding", "ClusterRole", "system:controller:job-controller", []subject{
+					{Kind: "ServiceAccount", Name: "job-controller", Namespace: "kube-system"},
+				})
+
+				extractor := testRBACExtractorWithExclusions(clusterName, &scraperID, exclusions)
+				extractor.processRole(role)
+				extractor.processRoleBinding(binding)
+
+				Expect(extractor.getRoles()).To(BeEmpty())
+				Expect(extractor.getUsers()).To(BeEmpty())
+				Expect(extractor.getAccess()).To(BeEmpty())
+			})
+		})
+
+		Context("role exclusion by wildcard", func() {
+			It("excludes multiple roles matching the pattern", func() {
+				exclusions := v1.ScraperExclusion{
+					ExternalRoles: []string{"system:controller:*"},
+				}
+
+				role1 := makeClusterRole("system:controller:job-controller", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
+				})
+				role2 := makeClusterRole("system:controller:deployment-controller", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
+				})
+				validRole := makeClusterRole("admin", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"*"}},
+				})
+				binding1 := makeClusterRoleBinding("b1", "ClusterRole", "system:controller:job-controller", []subject{
+					{Kind: "ServiceAccount", Name: "job-controller", Namespace: "kube-system"},
+				})
+				binding2 := makeClusterRoleBinding("b2", "ClusterRole", "system:controller:deployment-controller", []subject{
+					{Kind: "ServiceAccount", Name: "deployment-controller", Namespace: "kube-system"},
+				})
+				binding3 := makeClusterRoleBinding("b3", "ClusterRole", "admin", []subject{
+					{Kind: "User", Name: "admin@example.com"},
+				})
+
+				extractor := testRBACExtractorWithExclusions(clusterName, &scraperID, exclusions)
+				extractor.processRole(role1)
+				extractor.processRole(role2)
+				extractor.processRole(validRole)
+				extractor.processRoleBinding(binding1)
+				extractor.processRoleBinding(binding2)
+				extractor.processRoleBinding(binding3)
+
+				roles := extractor.getRoles()
+				Expect(roles).To(HaveLen(1))
+				Expect(roles[0].Name).To(Equal("admin"))
+
+				users := extractor.getUsers()
+				Expect(users).To(HaveLen(1))
+				Expect(users[0].Name).To(Equal("admin@example.com"))
+
+				access := extractor.getAccess()
+				Expect(access).To(HaveLen(1))
+			})
+		})
+
+		Context("SA referenced by both ignored and non-ignored roles", func() {
+			It("keeps the SA with only non-ignored access entries", func() {
+				exclusions := v1.ScraperExclusion{
+					ExternalRoles: []string{"system:controller:*"},
+				}
+
+				ignoredRole := makeClusterRole("system:controller:foo", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
+				})
+				validRole := makeClusterRole("pod-reader", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
+				})
+				ignoredBinding := makeClusterRoleBinding("b-ignored", "ClusterRole", "system:controller:foo", []subject{
+					{Kind: "ServiceAccount", Name: "shared-sa", Namespace: "default"},
+				})
+				validBinding := makeClusterRoleBinding("b-valid", "ClusterRole", "pod-reader", []subject{
+					{Kind: "ServiceAccount", Name: "shared-sa", Namespace: "default"},
+				})
+
+				extractor := testRBACExtractorWithExclusions(clusterName, &scraperID, exclusions)
+				extractor.processRole(ignoredRole)
+				extractor.processRole(validRole)
+				extractor.processRoleBinding(ignoredBinding)
+				extractor.processRoleBinding(validBinding)
+
+				roles := extractor.getRoles()
+				Expect(roles).To(HaveLen(1))
+				Expect(roles[0].Name).To(Equal("pod-reader"))
+
+				users := extractor.getUsers()
+				Expect(users).To(HaveLen(1))
+				Expect(users[0].Name).To(Equal("shared-sa"))
+
+				access := extractor.getAccess()
+				Expect(access).To(HaveLen(1))
+
+				expectedRoleAlias := KubernetesAlias(clusterName, "ClusterRole", "", "pod-reader")
+				Expect(access[0].ExternalRoleAliases).To(Equal([]string{expectedRoleAlias}))
+			})
+		})
+
+		Context("SA only referenced by ignored roles", func() {
+			It("prunes the SA from results", func() {
+				exclusions := v1.ScraperExclusion{
+					ExternalRoles: []string{"system:controller:*"},
+				}
+
+				role := makeClusterRole("system:controller:foo", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
+				})
+				binding := makeClusterRoleBinding("b1", "ClusterRole", "system:controller:foo", []subject{
+					{Kind: "ServiceAccount", Name: "orphan-sa", Namespace: "kube-system"},
+				})
+
+				extractor := testRBACExtractorWithExclusions(clusterName, &scraperID, exclusions)
+				extractor.processRole(role)
+				extractor.processRoleBinding(binding)
+
+				result := extractor.results(v1.BaseScraper{})
+				Expect(result.ExternalRoles).To(BeEmpty())
+				Expect(result.ExternalUsers).To(BeEmpty())
+				Expect(result.ConfigAccess).To(BeEmpty())
+			})
+		})
+
+		Context("user exclusion pattern", func() {
+			It("excludes matching users and their access entries", func() {
+				exclusions := v1.ScraperExclusion{
+					ExternalUsers: []string{"system:kube-*"},
+				}
+
+				role := makeClusterRole("view", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
+				})
+				binding := makeClusterRoleBinding("b1", "ClusterRole", "view", []subject{
+					{Kind: "User", Name: "system:kube-controller-manager"},
+					{Kind: "User", Name: "admin@example.com"},
+				})
+
+				extractor := testRBACExtractorWithExclusions(clusterName, &scraperID, exclusions)
+				extractor.processRole(role)
+				extractor.processRoleBinding(binding)
+
+				users := extractor.getUsers()
+				Expect(users).To(HaveLen(1))
+				Expect(users[0].Name).To(Equal("admin@example.com"))
+
+				access := extractor.getAccess()
+				Expect(access).To(HaveLen(1))
+				expectedUserAlias := KubernetesAlias(clusterName, "User", "", "admin@example.com")
+				Expect(access[0].ExternalUserAliases).To(Equal([]string{expectedUserAlias}))
+			})
+		})
+
+		Context("group exclusion pattern", func() {
+			It("excludes matching groups and their access entries", func() {
+				exclusions := v1.ScraperExclusion{
+					ExternalGroups: []string{"system:*"},
+				}
+
+				role := makeClusterRole("view", []rbacRuleSpec{
+					{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
+				})
+				binding := makeClusterRoleBinding("b1", "ClusterRole", "view", []subject{
+					{Kind: "Group", Name: "system:authenticated"},
+					{Kind: "Group", Name: "developers"},
+				})
+
+				extractor := testRBACExtractorWithExclusions(clusterName, &scraperID, exclusions)
+				extractor.processRole(role)
+				extractor.processRoleBinding(binding)
+
+				groups := extractor.getGroups()
+				Expect(groups).To(HaveLen(1))
+				Expect(groups[0].Name).To(Equal("developers"))
+
+				access := extractor.getAccess()
+				Expect(access).To(HaveLen(1))
+				expectedGroupAlias := KubernetesAlias(clusterName, "Group", "", "developers")
+				Expect(access[0].ExternalGroupAliases).To(Equal([]string{expectedGroupAlias}))
+			})
+		})
+	})
+
 	Describe("CRDResourceResolution", func() {
 		It("resolves custom resource types with resourceNames", func() {
 			clusterName := "test-cluster"
@@ -406,7 +606,7 @@ var _ = Describe("RBACExtractor", func() {
 				{Kind: "User", Name: "ops@example.com"},
 			})
 
-			extractor := newRBACExtractorWithResourceMap(clusterName, &scraperID, resourceMap)
+			extractor := newRBACExtractorWithResourceMap(clusterName, &scraperID, resourceMap, v1.ScraperExclusion{})
 			extractor.processRole(role)
 			extractor.processRoleBinding(binding)
 
@@ -440,7 +640,15 @@ func testRBACExtractor(clusterName string, scraperID *uuid.UUID) *rbacExtractor 
 	for k, v := range builtinResourceKinds {
 		resourceMap[k] = v
 	}
-	return newRBACExtractorWithResourceMap(clusterName, scraperID, resourceMap)
+	return newRBACExtractorWithResourceMap(clusterName, scraperID, resourceMap, v1.ScraperExclusion{})
+}
+
+func testRBACExtractorWithExclusions(clusterName string, scraperID *uuid.UUID, exclusions v1.ScraperExclusion) *rbacExtractor {
+	resourceMap := make(map[string]string, len(builtinResourceKinds))
+	for k, v := range builtinResourceKinds {
+		resourceMap[k] = v
+	}
+	return newRBACExtractorWithResourceMap(clusterName, scraperID, resourceMap, exclusions)
 }
 
 type subject struct {

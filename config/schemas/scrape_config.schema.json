@@ -77,6 +77,10 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
+        },
         "connection": {
           "type": "string",
           "description": "ConnectionName of the connection. It'll be used to populate the endpoint, accessKey and secretKey."
@@ -333,6 +337,10 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
+        },
         "connection": {
           "type": "string"
         },
@@ -494,6 +502,10 @@
           },
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "connection": {
           "type": "string"
@@ -810,6 +822,10 @@
           },
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "awsS3": {
           "$ref": "#/$defs/AWSS3"
@@ -1192,6 +1208,10 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
+        },
         "script": {
           "type": "string",
           "description": "Script is an inline script to run"
@@ -1397,6 +1417,10 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
+        },
         "url": {
           "type": "string"
         },
@@ -1497,6 +1521,10 @@
           },
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "connection": {
           "type": "string"
@@ -1793,6 +1821,10 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
+        },
         "repositories": {
           "items": {
             "$ref": "#/$defs/GitHubRepository"
@@ -1900,6 +1932,10 @@
           },
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "owner": {
           "type": "string"
@@ -2049,6 +2085,10 @@
           },
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "connection": {
           "type": "string"
@@ -2227,6 +2267,10 @@
           },
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "connection": {
           "type": "string"
@@ -2461,6 +2505,10 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
+        },
         "connection": {
           "type": "string"
         },
@@ -2679,6 +2727,10 @@
           },
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "loki": {
           "$ref": "#/$defs/LokiConfig",
@@ -3126,6 +3178,10 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
+        },
         "sqs": {
           "$ref": "#/$defs/SQSConfig"
         },
@@ -3452,6 +3508,10 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
+        },
         "connection": {
           "type": "string",
           "description": "Connection is either the name of the connection to lookup\nor the connection string itself."
@@ -3550,6 +3610,31 @@
       "additionalProperties": false,
       "type": "object",
       "description": "ScrapeConfigStatus defines the observed state of ScrapeConfig"
+    },
+    "ScraperExclusion": {
+      "properties": {
+        "externalRoles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "externalUsers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "externalGroups": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ScraperExclusion specifies patterns for excluding external entities by name.\nPatterns support wildcards via collections.MatchItems (e.g. \"system:controller:*\")."
     },
     "ScraperSpec": {
       "properties": {
@@ -3794,6 +3879,10 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
+        },
         "token": {
           "$ref": "#/$defs/EnvVar",
           "description": "Slack token"
@@ -4000,6 +4089,10 @@
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
         },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
+        },
         "state": {
           "$ref": "#/$defs/TerraformStateSource"
         }
@@ -4175,6 +4268,10 @@
           },
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "version": {
           "type": "string",

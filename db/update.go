@@ -1271,6 +1271,54 @@ func NewExtractResult() *extractResult {
 	}
 }
 
+// applyExternalEntityExclusions removes external entities from a ScrapeResult
+// whose names match the given exclusion patterns.
+// This provides a generic exclusion layer for all scrapers (SQL, file, etc.).
+// The Kubernetes scraper applies exclusions earlier during extraction for performance,
+// but this function acts as a catch-all for any scraper that returns external entities.
+func applyExternalEntityExclusions(result *v1.ScrapeResult, exclusions v1.ScraperExclusion) {
+	if len(exclusions.ExternalRoles) > 0 && len(result.ExternalRoles) > 0 {
+		result.ExternalRoles = lo.Filter(result.ExternalRoles, func(r dutyModels.ExternalRole, _ int) bool {
+			return !collections.MatchItems(r.Name, exclusions.ExternalRoles...)
+		})
+	}
+
+	if len(exclusions.ExternalUsers) > 0 && len(result.ExternalUsers) > 0 {
+		result.ExternalUsers = lo.Filter(result.ExternalUsers, func(u dutyModels.ExternalUser, _ int) bool {
+			return !collections.MatchItems(u.Name, exclusions.ExternalUsers...)
+		})
+	}
+
+	if len(exclusions.ExternalGroups) > 0 && len(result.ExternalGroups) > 0 {
+		result.ExternalGroups = lo.Filter(result.ExternalGroups, func(g dutyModels.ExternalGroup, _ int) bool {
+			return !collections.MatchItems(g.Name, exclusions.ExternalGroups...)
+		})
+	}
+
+	if len(exclusions.ExternalUsers) > 0 || len(exclusions.ExternalGroups) > 0 || len(exclusions.ExternalRoles) > 0 {
+		if len(result.ConfigAccess) > 0 {
+			result.ConfigAccess = lo.Filter(result.ConfigAccess, func(a v1.ExternalConfigAccess, _ int) bool {
+				for _, alias := range a.ExternalUserAliases {
+					if collections.MatchItems(alias, exclusions.ExternalUsers...) {
+						return false
+					}
+				}
+				for _, alias := range a.ExternalRoleAliases {
+					if collections.MatchItems(alias, exclusions.ExternalRoles...) {
+						return false
+					}
+				}
+				for _, alias := range a.ExternalGroupAliases {
+					if collections.MatchItems(alias, exclusions.ExternalGroups...) {
+						return false
+					}
+				}
+				return true
+			})
+		}
+	}
+}
+
 func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (*extractResult, error) {
 	var (
 		extractResult         = NewExtractResult()
@@ -1281,6 +1329,11 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 	for _, result := range results {
 		var ci *models.ConfigItem
 		var err error
+
+		exclusions := result.BaseScraper.Exclude
+		if !exclusions.IsEmpty() {
+			applyExternalEntityExclusions(&result, exclusions)
+		}
 
 		if len(result.ExternalUsers) > 0 {
 			extractResult.externalUsers = append(extractResult.externalUsers, result.ExternalUsers...)

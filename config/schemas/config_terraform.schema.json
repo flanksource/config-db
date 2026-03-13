@@ -433,6 +433,31 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "ScraperExclusion": {
+      "properties": {
+        "externalRoles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "externalUsers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "externalGroups": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ScraperExclusion specifies patterns for excluding external entities by name.\nPatterns support wildcards via collections.MatchItems (e.g. \"system:controller:*\")."
+    },
     "SecretKeySelector": {
       "properties": {
         "name": {
@@ -547,6 +572,10 @@
           },
           "type": "array",
           "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "excludeResources": {
+          "$ref": "#/$defs/ScraperExclusion",
+          "description": "Exclude specifies patterns for excluding external entities."
         },
         "state": {
           "$ref": "#/$defs/TerraformStateSource"
