@@ -10,15 +10,15 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
-	"github.com/flanksource/gomplate/v3"
 	dutymodels "github.com/flanksource/duty/models"
+	"github.com/flanksource/gomplate/v3"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	k8sTypes "k8s.io/apimachinery/pkg/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
+	k8sTypes "k8s.io/apimachinery/pkg/types"
 )
 
 type e2ePrePopulateConfig struct {
@@ -51,11 +51,32 @@ type e2ePrePopulateExternalRole struct {
 	Description string   `yaml:"description,omitempty"`
 }
 
+type e2ePrePopulateConfigAccess struct {
+	ID                   string   `yaml:"id"`
+	ConfigExternalID     string   `yaml:"config_external_id"`
+	ExternalUserAliases  []string `yaml:"external_user_aliases,omitempty"`
+	ExternalGroupAliases []string `yaml:"external_group_aliases,omitempty"`
+	ExternalRoleAliases  []string `yaml:"external_role_aliases,omitempty"`
+	Source               string   `yaml:"source,omitempty"`
+	CreatedAtOffsetMins  int      `yaml:"created_at_offset_mins,omitempty"`
+}
+
+type e2ePrePopulateConfigAccessLog struct {
+	ConfigExternalID    string         `yaml:"config_external_id"`
+	ExternalUserAliases []string       `yaml:"external_user_aliases"`
+	Count               int            `yaml:"count,omitempty"`
+	MFA                 *bool          `yaml:"mfa,omitempty"`
+	Properties          map[string]any `yaml:"properties,omitempty"`
+	CreatedAtOffsetMins int            `yaml:"created_at_offset_mins,omitempty"`
+}
+
 type e2ePrePopulate struct {
-	Configs        []e2ePrePopulateConfig      `yaml:"configs"`
-	ExternalUsers  []e2ePrePopulateExternalUser  `yaml:"external_users"`
-	ExternalGroups []e2ePrePopulateExternalGroup `yaml:"external_groups"`
-	ExternalRoles  []e2ePrePopulateExternalRole  `yaml:"external_roles"`
+	Configs          []e2ePrePopulateConfig          `yaml:"configs"`
+	ExternalUsers    []e2ePrePopulateExternalUser    `yaml:"external_users"`
+	ExternalGroups   []e2ePrePopulateExternalGroup   `yaml:"external_groups"`
+	ExternalRoles    []e2ePrePopulateExternalRole    `yaml:"external_roles"`
+	ConfigAccess     []e2ePrePopulateConfigAccess    `yaml:"config_access"`
+	ConfigAccessLogs []e2ePrePopulateConfigAccessLog `yaml:"config_access_logs"`
 }
 
 type e2eFixture struct {
@@ -103,6 +124,7 @@ var _ = Describe("e2e extraction fixtures", func() {
 			config := configs[0]
 
 			var createdItems []string
+			configIDByExternalID := make(map[string]uuid.UUID)
 			scraperModel, err := db.PersistScrapeConfigFromFile(DefaultContext, config)
 			Expect(err).ToNot(HaveOccurred())
 			config.SetUID(k8sTypes.UID(scraperModel.ID.String()))
@@ -118,10 +140,16 @@ var _ = Describe("e2e extraction fixtures", func() {
 				}
 				Expect(DefaultContext.DB().Create(ci).Error).ToNot(HaveOccurred())
 				createdItems = append(createdItems, ci.ID)
+				for _, externalID := range preConfig.ExternalID {
+					configIDByExternalID[externalID] = uuid.MustParse(ci.ID)
+				}
 			}
 
 			// Pre-populate external entities
 			now := time.Now()
+			userIDByAlias := make(map[string]uuid.UUID)
+			groupIDByAlias := make(map[string]uuid.UUID)
+			roleIDByAlias := make(map[string]uuid.UUID)
 			for _, u := range fixture.PrePopulate.ExternalUsers {
 				eu := dutymodels.ExternalUser{
 					ID:        uuid.New(),
@@ -135,6 +163,9 @@ var _ = Describe("e2e extraction fixtures", func() {
 					UpdatedAt: &now,
 				}
 				Expect(DefaultContext.DB().Create(&eu).Error).ToNot(HaveOccurred())
+				for _, alias := range u.Aliases {
+					userIDByAlias[alias] = eu.ID
+				}
 			}
 			for _, g := range fixture.PrePopulate.ExternalGroups {
 				eg := dutymodels.ExternalGroup{
@@ -148,6 +179,9 @@ var _ = Describe("e2e extraction fixtures", func() {
 					UpdatedAt: &now,
 				}
 				Expect(DefaultContext.DB().Create(&eg).Error).ToNot(HaveOccurred())
+				for _, alias := range g.Aliases {
+					groupIDByAlias[alias] = eg.ID
+				}
 			}
 			for _, r := range fixture.PrePopulate.ExternalRoles {
 				er := dutymodels.ExternalRole{
@@ -162,9 +196,60 @@ var _ = Describe("e2e extraction fixtures", func() {
 					UpdatedAt:   &now,
 				}
 				Expect(DefaultContext.DB().Create(&er).Error).ToNot(HaveOccurred())
+				for _, alias := range r.Aliases {
+					roleIDByAlias[alias] = er.ID
+				}
+			}
+
+			for _, ca := range fixture.PrePopulate.ConfigAccess {
+				row := dutymodels.ConfigAccess{
+					ID:        ca.ID,
+					ConfigID:  configIDByExternalID[ca.ConfigExternalID],
+					ScraperID: &scraperModel.ID,
+					CreatedAt: now.Add(time.Duration(ca.CreatedAtOffsetMins) * time.Minute),
+				}
+				if len(ca.ExternalUserAliases) > 0 {
+					id, ok := userIDByAlias[ca.ExternalUserAliases[0]]
+					Expect(ok).To(BeTrue(), "missing pre-populated external user alias %s", ca.ExternalUserAliases[0])
+					row.ExternalUserID = &id
+				}
+				if len(ca.ExternalGroupAliases) > 0 {
+					id, ok := groupIDByAlias[ca.ExternalGroupAliases[0]]
+					Expect(ok).To(BeTrue(), "missing pre-populated external group alias %s", ca.ExternalGroupAliases[0])
+					row.ExternalGroupID = &id
+				}
+				if len(ca.ExternalRoleAliases) > 0 {
+					id, ok := roleIDByAlias[ca.ExternalRoleAliases[0]]
+					Expect(ok).To(BeTrue(), "missing pre-populated external role alias %s", ca.ExternalRoleAliases[0])
+					row.ExternalRoleID = &id
+				}
+				if ca.Source != "" {
+					row.Source = lo.ToPtr(ca.Source)
+				}
+				Expect(DefaultContext.DB().Create(&row).Error).ToNot(HaveOccurred())
+			}
+
+			for _, log := range fixture.PrePopulate.ConfigAccessLogs {
+				id, ok := userIDByAlias[log.ExternalUserAliases[0]]
+				Expect(ok).To(BeTrue(), "missing pre-populated external user alias %s", log.ExternalUserAliases[0])
+				count := log.Count
+				row := dutymodels.ConfigAccessLog{
+					ConfigID:       configIDByExternalID[log.ConfigExternalID],
+					ExternalUserID: id,
+					ScraperID:      scraperModel.ID,
+					CreatedAt:      now.Add(time.Duration(log.CreatedAtOffsetMins) * time.Minute),
+					Count:          &count,
+					Properties:     log.Properties,
+				}
+				if log.MFA != nil {
+					row.MFA = *log.MFA
+				}
+				Expect(DefaultContext.DB().Create(&row).Error).ToNot(HaveOccurred())
 			}
 
 			defer func() {
+				DefaultContext.DB().Exec("DELETE FROM config_access_logs WHERE scraper_id = ?", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM config_access WHERE scraper_id = ?", scraperModel.ID)
 				for _, id := range createdItems {
 					DefaultContext.DB().Where("config_id = ?", id).Delete(&models.ConfigChange{})
 					DefaultContext.DB().Delete(&models.ConfigItem{}, "id = ?", id)
