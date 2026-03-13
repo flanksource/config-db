@@ -16,8 +16,11 @@ import (
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/duty/job"
+	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/sethvargo/go-retry"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -48,6 +51,8 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			if err != nil {
 				return fmt.Errorf("failed to load plugins: %w", err)
 			}
+
+			start := time.Now()
 
 			config := config.DeepCopy()
 			config.BaseScraper = config.BaseScraper.ApplyPlugins(plugins...)
@@ -191,6 +196,21 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 					"scraper", sc.ScraperID(),
 					"kind", obj.GetKind(),
 				).Record(time.Duration(lag.Milliseconds()))
+			}
+
+			source := sc.ScrapeConfig().GetAnnotations()["source"]
+			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
+			if source == models.SourceCRD && agentID == uuid.Nil.String() {
+				lastRun := v1.LastRunStatus{
+					Success:   jobCtx.History.SuccessCount,
+					Error:     jobCtx.History.ErrorCount,
+					Timestamp: metav1.Time{Time: start},
+					Errors:    jobCtx.History.Errors,
+				}
+
+				if err := updateCRDStatus(jobCtx.Context, sc.ScrapeConfig(), lastRun); err != nil {
+					return fmt.Errorf("error patching crd status: %w", err)
+				}
 			}
 
 			return nil
