@@ -1,17 +1,17 @@
 module github.com/flanksource/config-db
 
-go 1.25.1
+go 1.25.6
 
 require (
 	github.com/flanksource/artifacts v1.0.21
 	github.com/flanksource/clicky v1.19.0
 	github.com/flanksource/commons v1.48.0
 	github.com/flanksource/deps v1.0.24
-	github.com/flanksource/duty v1.0.1215
+	github.com/flanksource/duty v1.0.1218
 	github.com/flanksource/gomplate/v3 v3.24.71
 	github.com/flanksource/is-healthy v1.0.84
 	github.com/flanksource/ketall v1.1.9
-	github.com/flanksource/kopper v1.0.13
+	github.com/flanksource/kopper v1.0.18
 )
 
 require (
@@ -505,7 +505,7 @@ require (
 
 // replace github.com/flanksource/deps => ../deps
 
-// replace github.com/flanksource/duty => ../duty
+replace github.com/flanksource/duty => ../duty
 
 // replace github.com/flanksource/gomplate => ../gomplate
 
