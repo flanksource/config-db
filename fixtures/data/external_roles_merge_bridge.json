@@ -1,0 +1,11 @@
+{
+  "id": "merge-bridge-roles-org",
+  "external_roles": [
+    {
+      "name": "Bridge Role",
+      "account_id": "org-merge",
+      "role_type": "security",
+      "aliases": ["role-alias-b", "role-alias-c"]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_groups_merge_bridge.json
+pre_populate:
+  configs:
+    - config_class: Organization
+      type: Organization
+      external_id: ["merge-bridge-groups-org"]
+      config: '{"name":"Merge Bridge Groups Org"}'
+  external_groups:
+    - name: "Group A"
+      aliases: ["grp-alias-a", "grp-alias-b"]
+      group_type: security
+      account_id: org-merge
+    - name: "Group C"
+      aliases: ["grp-alias-c", "grp-alias-d"]
+      group_type: security
+      account_id: org-merge
+  config_access:
+    - id: "group-access-winner"
+      config_external_id: "merge-bridge-groups-org"
+      external_group_aliases: ["grp-alias-a"]
+      source: fixture
+      created_at_offset_mins: -120
+    - id: "group-access-loser"
+      config_external_id: "merge-bridge-groups-org"
+      external_group_aliases: ["grp-alias-d"]
+      source: fixture
+      created_at_offset_mins: -60
+assertions:
+  - size(db.external_groups(scraper_id)) == 1
+  - size(db.config_access(scraper_id)) == 1
+  - db.config_access(scraper_id)[0].external_group_id == db.external_groups(scraper_id)[0].id

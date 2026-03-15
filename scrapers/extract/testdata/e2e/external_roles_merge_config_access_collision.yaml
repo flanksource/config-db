@@ -1,0 +1,38 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_roles_merge_bridge.json
+pre_populate:
+  configs:
+    - config_class: Organization
+      type: Organization
+      external_id: ["merge-bridge-roles-org"]
+      config: '{"name":"Merge Bridge Roles Org"}'
+  external_roles:
+    - name: "Role A"
+      aliases: ["role-alias-a", "role-alias-b"]
+      role_type: security
+      account_id: org-merge
+    - name: "Role C"
+      aliases: ["role-alias-c", "role-alias-d"]
+      role_type: security
+      account_id: org-merge
+  config_access:
+    - id: "role-access-winner"
+      config_external_id: "merge-bridge-roles-org"
+      external_role_aliases: ["role-alias-a"]
+      source: fixture
+      created_at_offset_mins: -120
+    - id: "role-access-loser"
+      config_external_id: "merge-bridge-roles-org"
+      external_role_aliases: ["role-alias-d"]
+      source: fixture
+      created_at_offset_mins: -60
+assertions:
+  - size(db.external_roles(scraper_id)) == 1
+  - size(db.config_access(scraper_id)) == 1
+  - db.config_access(scraper_id)[0].external_role_id == db.external_roles(scraper_id)[0].id
