@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
@@ -275,15 +276,16 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, watchResource
 		return nil, false, fmt.Errorf("failed to create queue: %w", err)
 	}
 
-	factory := informers.NewSharedInformerFactory(k8s, 0)
+	dynamicClient, err := k8s.GetDynamicClient()
+	if err != nil {
+		return nil, false, fmt.Errorf("error creating dynamic client: %w", err)
+	}
+	factory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 0)
 
 	cacheValue := &informerCacheData{queue: queue}
 	for _, wr := range watchResources {
 		stopper := make(chan struct{})
-		informer, err := getInformer(factory, wr.ApiVersion, wr.Kind)
-		if err != nil {
-			return nil, false, err
-		}
+		informer := getInformer(factory, wr.ApiVersion, wr.Kind)
 		cacheValue.group = append(cacheValue.group, informerGroup{
 			informer:      informer,
 			stopper:       stopper,
@@ -327,7 +329,7 @@ func (t *SharedInformerManager) stop(ctx api.ScrapeContext, scraperID string, cu
 	}
 }
 
-func getInformer(factory informers.SharedInformerFactory, apiVersion, kind string) (informers.GenericInformer, error) {
+func getInformer(factory dynamicinformer.DynamicSharedInformerFactory, apiVersion, kind string) informers.GenericInformer {
 	gvk := schema.FromAPIVersionAndKind(apiVersion, kind)
 	gvr := schema.GroupVersionResource{
 		Group:    gvk.Group,
