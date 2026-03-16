@@ -251,6 +251,14 @@ jobs:
         uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install deps
+        uses: flanksource/deps@v1.0.24
+        with:
+          tools: |
+            etcd@v3.5.23
+            kube-apiserver@v1.34.0
+            kubectl@v1.34.0
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v4
         with:
           path: |
@@ -260,5 +268,7 @@ jobs:
           key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
           restore-keys: |
             cache-
+      - name: Setup envtest
+        run: make envtest
       - name: Test
         run: make test-load
