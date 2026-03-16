@@ -240,7 +240,6 @@ jobs:
         run: make test-fast
 
   test-load:
-    if: false # disabled for now
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
