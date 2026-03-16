@@ -317,7 +317,6 @@ func bufferIncrementalStatus(scraperID string, status v1.IncrementalStatus) ([]v
 
 	shouldUpdate := true
 	if len(statuses) >= 5 || time.Since(lastSave) > 5*time.Minute {
-		shouldUpdate = true
 		crdIncrementalStatuses.Delete(scraperID)
 	} else {
 		crdIncrementalStatuses.Store(scraperID, statuses)
