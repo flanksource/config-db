@@ -9,7 +9,7 @@ require (
 	github.com/flanksource/deps v1.0.24
 	github.com/flanksource/duty v1.0.1221
 	github.com/flanksource/gomplate/v3 v3.24.73
-	github.com/flanksource/is-healthy v1.0.84
+	github.com/flanksource/is-healthy v1.0.85
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.18
 )
