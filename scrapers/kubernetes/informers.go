@@ -352,6 +352,16 @@ func logToJobHistory(ctx context.Context, job string, scraperID *uuid.UUID, err 
 }
 
 func KindToResource(kind string) string {
+	// WARNING: Naive pluralization. This breaks for irregular plurals:
+	//   Ingress        -> "ingresss"       (correct: "ingresses")
+	//   NetworkPolicy  -> "networkpolicys"  (correct: "networkpolicies")
+	//   Endpoints      -> "endpointss"      (correct: "endpoints")
+	//   StorageClass   -> "storageclasss"   (correct: "storageclasses")
+	//   IPAddress      -> "ipaddresss"      (correct: "ipaddresses")
+	//
+	// The dynamic informer will silently 404 on the wrong resource name
+	// and retry in a loop forever. If a watch resource isn't producing events,
+	// check that KindToResource returns the correct plural for that kind.
 	return strings.ToLower(kind) + "s"
 }
 
