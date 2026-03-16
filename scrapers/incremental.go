@@ -3,6 +3,7 @@ package scrapers
 import (
 	gocontext "context"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -27,6 +28,8 @@ import (
 var (
 	consumeLagBuckets           = []float64{500, 1_000, 3_000, 5_000, 10_000, 15_000, 30_000, 60_000, 100_000, 150_000, 300_000, 600_000}
 	involvedObjectsFetchBuckets = []float64{500, 1_000, 3_000, 5_000, 10_000, 15_000, 30_000, 60_000, 100_000, 150_000, 300_000, 600_000}
+
+	crdStatusLastUpdated sync.Map // scraperID -> time.Time
 )
 
 func consumeKubernetesWatchJobKey(id string) string {
@@ -179,9 +182,36 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			// a way that no two objects in a batch have the same id.
 
 			objs = dedup(objs)
-			if err := consumeResources(jobCtx, *sc.ScrapeConfig(), *config, objs, deletedObjects); err != nil {
-				jobCtx.History.AddErrorf("failed to consume resources: %v", err)
-				return err
+			consumeErr := consumeResources(jobCtx, *sc.ScrapeConfig(), *config, objs, deletedObjects)
+			if consumeErr != nil {
+				jobCtx.History.AddErrorf("failed to consume resources: %v", consumeErr)
+			}
+			source := sc.ScrapeConfig().GetAnnotations()["source"]
+			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
+			if source == models.SourceCRD && agentID == uuid.Nil.String() {
+				scraperID := sc.ScraperID()
+				shouldUpdate := true
+				if last, ok := crdStatusLastUpdated.Load(scraperID); ok {
+					shouldUpdate = time.Since(last.(time.Time)) >= sc.Properties().Duration("crd.incremental.rate-limit", 1*time.Minute)
+				}
+
+				if shouldUpdate {
+					lastRun := v1.LastRunStatus{
+						Success:   jobCtx.History.SuccessCount,
+						Error:     jobCtx.History.ErrorCount,
+						Timestamp: metav1.Time{Time: start},
+						Errors:    jobCtx.History.Errors,
+					}
+
+					if err := updateCRDStatus(jobCtx.Context, sc.ScrapeConfig(), lastRun); err != nil {
+						return fmt.Errorf("error patching crd status: %w", err)
+					}
+					crdStatusLastUpdated.Store(scraperID, time.Now())
+				}
+			}
+
+			if consumeErr != nil {
+				return consumeErr
 			}
 
 			for _, obj := range objs {
@@ -196,21 +226,6 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 					"scraper", sc.ScraperID(),
 					"kind", obj.GetKind(),
 				).Record(time.Duration(lag.Milliseconds()))
-			}
-
-			source := sc.ScrapeConfig().GetAnnotations()["source"]
-			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
-			if source == models.SourceCRD && agentID == uuid.Nil.String() {
-				lastRun := v1.LastRunStatus{
-					Success:   jobCtx.History.SuccessCount,
-					Error:     jobCtx.History.ErrorCount,
-					Timestamp: metav1.Time{Time: start},
-					Errors:    jobCtx.History.Errors,
-				}
-
-				if err := updateCRDStatus(jobCtx.Context, sc.ScrapeConfig(), lastRun); err != nil {
-					return fmt.Errorf("error patching crd status: %w", err)
-				}
 			}
 
 			return nil
