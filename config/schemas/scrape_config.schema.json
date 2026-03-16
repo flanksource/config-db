@@ -2124,6 +2124,30 @@
         "key"
       ]
     },
+    "IncrementalStatus": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "success": {
+          "type": "integer"
+        },
+        "error": {
+          "type": "integer"
+        },
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/Time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "JSONStringMap": {
       "additionalProperties": {
         "type": "string"
@@ -3545,6 +3569,9 @@
         },
         "lastRun": {
           "$ref": "#/$defs/LastRunStatus"
+        },
+        "incremental": {
+          "$ref": "#/$defs/IncrementalStatus"
         }
       },
       "additionalProperties": false,
@@ -3554,10 +3581,12 @@
     "ScraperSpec": {
       "properties": {
         "logLevel": {
-          "type": "string"
+          "type": "string",
+          "description": "LogLevel sets the log level for the scraper. Supported values are \"trace\", \"debug\", \"info\" Default is \"info\"."
         },
         "schedule": {
-          "type": "string"
+          "type": "string",
+          "description": "Schedule is a cron expression for when to run the scraper. Example: `@every 1m`, `0 */6 * * *` (every 6 hours)"
         },
         "gcp": {
           "items": {

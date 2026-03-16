@@ -9865,6 +9865,8 @@ spec:
                   type: object
                 type: array
               logLevel:
+                description: LogLevel sets the log level for the scraper. Supported
+                  values are "trace", "debug", "info" Default is "info".
                 type: string
               logs:
                 items:
@@ -11739,6 +11741,8 @@ spec:
                     type: array
                 type: object
               schedule:
+                description: 'Schedule is a cron expression for when to run the scraper.
+                  Example: `@every 1m`, `0 */6 * * *` (every 6 hours)'
                 type: string
               slack:
                 items:
@@ -14464,6 +14468,22 @@ spec:
           status:
             description: ScrapeConfigStatus defines the observed state of ScrapeConfig
             properties:
+              incremental:
+                properties:
+                  count:
+                    type: integer
+                  error:
+                    type: integer
+                  errors:
+                    items:
+                      type: string
+                    type: array
+                  success:
+                    type: integer
+                  timestamp:
+                    format: date-time
+                    type: string
+                type: object
               lastRun:
                 properties:
                   error:
