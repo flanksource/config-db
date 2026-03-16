@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/aws/smithy-go/ptr"
@@ -22,7 +23,10 @@ func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<-
 	defer close(c)
 
 	ctx.Logger.V(3).Infof("Looking up events from %v", input.StartTime)
-	CloudTrail := cloudtrail.NewFromConfig(*ctx.Session, getEndpointResolver[cloudtrail.Options](config))
+	CloudTrail := cloudtrail.NewFromConfig(*ctx.Session, getEndpointResolver[cloudtrail.Options](config), func(o *cloudtrail.Options) {
+		o.RetryMaxAttempts = 5
+		o.RetryMode = aws.RetryModeAdaptive
+	})
 
 	var total int
 	for {
