@@ -295,3 +295,10 @@ rust-generate-header:
 	cargo install cbindgen
 	cd external/diffgen
 	cbindgen . -o libdiffgen.h --lang c
+
+.PHONY: bench
+bench:
+	go test ./scrapers/kubernetes/ -bench='^Benchmark(EventProcessing|CacheMemory|Deserialization)' \
+		-benchmem -run='^$$' \
+		-count=3 \
+		-benchtime=2s -v
