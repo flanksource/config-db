@@ -2,6 +2,7 @@ package scrapers
 
 import (
 	gocontext "context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,20 +11,28 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/collections/syncmap"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/utils/kube"
 	"github.com/flanksource/duty/job"
+	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/sethvargo/go-retry"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 var (
 	consumeLagBuckets           = []float64{500, 1_000, 3_000, 5_000, 10_000, 15_000, 30_000, 60_000, 100_000, 150_000, 300_000, 600_000}
 	involvedObjectsFetchBuckets = []float64{500, 1_000, 3_000, 5_000, 10_000, 15_000, 30_000, 60_000, 100_000, 150_000, 300_000, 600_000}
+
+	// ScraperID -> incremental statuses
+	crdIncrementalStatuses = syncmap.New[string, []v1.IncrementalStatus]()
+	crdIncrementalLastSave = syncmap.New[string, time.Time]()
 )
 
 func consumeKubernetesWatchJobKey(id string) string {
@@ -48,6 +57,8 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			if err != nil {
 				return fmt.Errorf("failed to load plugins: %w", err)
 			}
+
+			start := time.Now()
 
 			config := config.DeepCopy()
 			config.BaseScraper = config.BaseScraper.ApplyPlugins(plugins...)
@@ -174,9 +185,37 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 			// a way that no two objects in a batch have the same id.
 
 			objs = dedup(objs)
-			if err := consumeResources(jobCtx, *sc.ScrapeConfig(), *config, objs, deletedObjects); err != nil {
-				jobCtx.History.AddErrorf("failed to consume resources: %v", err)
-				return err
+			consumeErr := consumeResources(jobCtx, *sc.ScrapeConfig(), *config, objs, deletedObjects)
+			if consumeErr != nil {
+				jobCtx.History.AddErrorf("failed to consume resources: %v", consumeErr)
+			}
+			source := sc.ScrapeConfig().GetAnnotations()["source"]
+			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
+			if source == models.SourceCRD && agentID == uuid.Nil.String() {
+				scraperID := sc.ScraperID()
+				incrmentalStatus := v1.IncrementalStatus{
+					Success:   jobCtx.History.SuccessCount,
+					Error:     jobCtx.History.ErrorCount,
+					Timestamp: metav1.Time{Time: start},
+					Errors:    jobCtx.History.Errors,
+				}
+
+				statuses, shouldUpdate := bufferIncrementalStatus(scraperID, incrmentalStatus)
+				if shouldUpdate {
+					if err := updateCRDIncrementalStatus(jobCtx.Context, sc.ScrapeConfig(), statuses); err != nil {
+						patchErr := fmt.Errorf("error patching crd status: %w", err)
+						if consumeErr != nil {
+							return errors.Join(consumeErr, patchErr)
+						}
+						return patchErr
+					}
+					crdIncrementalLastSave.Store(scraperID, time.Now())
+					crdIncrementalStatuses.Delete(scraperID)
+				}
+			}
+
+			if consumeErr != nil {
+				return consumeErr
 			}
 
 			for _, obj := range objs {
@@ -260,6 +299,33 @@ func processObjects(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 	}
 
 	return results, nil
+}
+
+// bufferIncrementalStatus accumulates incremental statuses for a scraper,
+// flushing when the buffer reaches 5 entries or 5 minutes have elapsed.
+func bufferIncrementalStatus(scraperID string, status v1.IncrementalStatus) ([]v1.IncrementalStatus, bool) {
+	statuses, found := crdIncrementalStatuses.Load(scraperID)
+	if found {
+		statuses = append(statuses, status)
+	} else {
+		statuses = []v1.IncrementalStatus{status}
+	}
+	lastSave, lastSaveFound := crdIncrementalLastSave.Load(scraperID)
+	if !lastSaveFound {
+		// First time saving
+		crdIncrementalStatuses.Store(scraperID, statuses)
+		return statuses, true
+	}
+
+	var shouldUpdate bool
+	if len(statuses) >= 5 || time.Since(lastSave) > 5*time.Minute {
+		shouldUpdate = true
+	} else {
+		crdIncrementalStatuses.Store(scraperID, statuses)
+		shouldUpdate = false
+	}
+
+	return statuses, shouldUpdate
 }
 
 func dedup(objs []*unstructured.Unstructured) []*unstructured.Unstructured {

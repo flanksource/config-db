@@ -35,10 +35,19 @@ type LastRunStatus struct {
 	Timestamp metav1.Time `json:"timestamp,omitempty"`
 }
 
+type IncrementalStatus struct {
+	Count     int         `json:"count,omitempty"`
+	Success   int         `json:"success,omitempty"`
+	Error     int         `json:"error,omitempty"`
+	Errors    []string    `json:"errors,omitempty"`
+	Timestamp metav1.Time `json:"timestamp,omitempty"`
+}
+
 // ScrapeConfigStatus defines the observed state of ScrapeConfig
 type ScrapeConfigStatus struct {
-	ObservedGeneration int64         `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
-	LastRun            LastRunStatus `json:"lastRun,omitempty"`
+	ObservedGeneration int64             `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
+	LastRun            LastRunStatus     `json:"lastRun,omitempty"`
+	Incremental        IncrementalStatus `json:"incremental,omitempty"`
 }
 
 var ScrapeConfigReconciler kopper.Reconciler[ScrapeConfig, *ScrapeConfig]

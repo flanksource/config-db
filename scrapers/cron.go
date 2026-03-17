@@ -280,6 +280,31 @@ func updateCRDStatus(ctx context.Context, obj *v1.ScrapeConfig, lastRun v1.LastR
 	return nil
 }
 
+func updateCRDIncrementalStatus(ctx context.Context, obj *v1.ScrapeConfig, incrementalStatuses []v1.IncrementalStatus) error {
+	var latest v1.ScrapeConfig
+	objectKey := types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}
+	if err := v1.ScrapeConfigReconciler.Get(ctx, objectKey, &latest); err != nil {
+		return fmt.Errorf("failed to get latest ScrapeConfig: %w", err)
+	}
+
+	patch := client.MergeFrom(latest.DeepCopy())
+	for _, incremental := range incrementalStatuses {
+		latest.Status.Incremental.Count += 1
+		latest.Status.Incremental.Success += incremental.Success
+		latest.Status.Incremental.Error += incremental.Error
+		// Latest first
+		latest.Status.Incremental.Errors = append(incremental.Errors, latest.Status.Incremental.Errors...)
+		latest.Status.Incremental.Timestamp = incremental.Timestamp
+	}
+	latest.Status.Incremental.Errors = lo.Slice(latest.Status.Incremental.Errors, 0, 10)
+
+	if err := v1.ScrapeConfigReconciler.Status().Patch(ctx, &latest, patch); err != nil {
+		return fmt.Errorf("error patching crd status: %w", err)
+	}
+
+	return nil
+}
+
 func scheduleScraperJob(sc api.ScrapeContext) error {
 	j := newScraperJob(sc)
 
