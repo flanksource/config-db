@@ -304,12 +304,9 @@ func processObjects(ctx api.ScrapeContext, config v1.Kubernetes, objs []*unstruc
 // bufferIncrementalStatus accumulates incremental statuses for a scraper,
 // flushing when the buffer reaches 5 entries or 5 minutes have elapsed.
 func bufferIncrementalStatus(scraperID string, status v1.IncrementalStatus) ([]v1.IncrementalStatus, bool) {
-	statuses, found := crdIncrementalStatuses.Load(scraperID)
-	if found {
-		statuses = append(statuses, status)
-	} else {
-		statuses = []v1.IncrementalStatus{status}
-	}
+	statuses, _ := crdIncrementalStatuses.Load(scraperID)
+	statuses = append(statuses, status)
+
 	lastSave, lastSaveFound := crdIncrementalLastSave.Load(scraperID)
 	if !lastSaveFound {
 		// First time saving
@@ -317,15 +314,11 @@ func bufferIncrementalStatus(scraperID string, status v1.IncrementalStatus) ([]v
 		return statuses, true
 	}
 
-	var shouldUpdate bool
-	if len(statuses) >= 5 || time.Since(lastSave) > 5*time.Minute {
-		shouldUpdate = true
-	} else {
+	if len(statuses) < 5 && time.Since(lastSave) < 5*time.Minute {
 		crdIncrementalStatuses.Store(scraperID, statuses)
-		shouldUpdate = false
+		return statuses, false
 	}
-
-	return statuses, shouldUpdate
+	return statuses, true
 }
 
 func dedup(objs []*unstructured.Unstructured) []*unstructured.Unstructured {

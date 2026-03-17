@@ -272,6 +272,7 @@ func updateCRDStatus(ctx context.Context, obj *v1.ScrapeConfig, lastRun v1.LastR
 
 	patch := client.MergeFrom(latest.DeepCopy())
 	latest.Status.LastRun = lastRun
+	latest.Status.Incremental = nil
 
 	if err := v1.ScrapeConfigReconciler.Status().Patch(ctx, &latest, patch); err != nil {
 		return fmt.Errorf("error patching crd status: %w", err)
@@ -288,6 +289,9 @@ func updateCRDIncrementalStatus(ctx context.Context, obj *v1.ScrapeConfig, incre
 	}
 
 	patch := client.MergeFrom(latest.DeepCopy())
+	if latest.Status.Incremental == nil {
+		latest.Status.Incremental = &v1.IncrementalStatus{}
+	}
 	for _, incremental := range incrementalStatuses {
 		latest.Status.Incremental.Count += 1
 		latest.Status.Incremental.Success += incremental.Success
