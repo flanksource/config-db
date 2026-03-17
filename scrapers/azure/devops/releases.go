@@ -53,7 +53,7 @@ func approvalSummary(approvals []ReleaseApproval) []map[string]any {
 //
 //	path="\" name="Deploy" → "Deploy"
 func releaseDisplayName(def ReleaseDefinition) string {
-	folder := strings.Trim(def.Path, `\`)
+	folder := strings.ReplaceAll(strings.Trim(def.Path, `\`), `\`, "/")
 	if folder == "" {
 		return def.Name
 	}
@@ -94,11 +94,15 @@ func (ado AzureDevopsScraper) scrapeReleases(
 			ctx.Logger.V(3).Infof("skipping release %q (no match)", def.Name)
 			continue
 		}
+		defJSON, err := releaseClient.GetReleaseDefinition(ctx, project.Name, def.ID)
+		if err != nil {
+			return results.Errorf(err, "failed to get release definition %d", def.ID)
+		}
 		releases, err := releaseClient.GetReleases(ctx, project.Name, def.ID)
 		if err != nil {
 			return results.Errorf(err, "failed to get releases for definition %d in project %s", def.ID, project.Name)
 		}
-		result := buildReleaseResult(ctx, config, project, def, releases, cutoff)
+		result := buildReleaseResult(ctx, config, project, def, defJSON, releases, cutoff)
 		results = append(results, result)
 	}
 	return results
@@ -245,7 +249,7 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 	return out
 }
 
-func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Project, def ReleaseDefinition, releases []Release, cutoff time.Time) v1.ScrapeResult {
+func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Project, def ReleaseDefinition, defJSON map[string]any, releases []Release, cutoff time.Time) v1.ScrapeResult {
 	var result v1.ScrapeResult
 
 	configExternalID := v1.ExternalID{
@@ -296,9 +300,13 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 				details["postDeployApprovals"] = post
 			}
 
+			if len(env.DeploySteps) > 0 {
+				details["deploySteps"] = env.DeploySteps
+			}
+
 			createdAt := release.CreatedOn
 			result.Changes = append(result.Changes, v1.ChangeResult{
-				ChangeType:       changeType,
+				ChangeType:       env.Name,
 				CreatedAt:        &createdAt,
 				CreatedBy:        createdBy,
 				ExternalID:       fmt.Sprintf("%s/%d", project.Name, def.ID),
@@ -334,12 +342,16 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 
 	result.BaseScraper = config.BaseScraper
 	result.ConfigClass = "Deployment"
-	result.Config = map[string]any{
-		"id":           def.ID,
-		"name":         def.Name,
-		"path":         def.Path,
-		"project":      project.Name,
-		"organization": config.Organization,
+	if defJSON != nil {
+		result.Config = defJSON
+	} else {
+		result.Config = map[string]any{
+			"id":           def.ID,
+			"name":         def.Name,
+			"path":         def.Path,
+			"project":      project.Name,
+			"organization": config.Organization,
+		}
 	}
 	result.Type = ReleaseType
 	result.ID = fmt.Sprintf("%s/%d", project.Name, def.ID)

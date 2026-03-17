@@ -291,7 +291,7 @@ var _ = Describe("releaseDisplayName", func() {
 		},
 		Entry("root path", `\`, "Deploy", "Deploy"),
 		Entry("single folder", `\Production`, "Deploy", "Production / Deploy"),
-		Entry("nested folders", `\Production\EU`, "Deploy", `Production\EU / Deploy`),
+		Entry("nested folders", `\Production\EU`, "Deploy", "Production/EU / Deploy"),
 		Entry("empty path", "", "Deploy", "Deploy"),
 	)
 })
@@ -364,7 +364,7 @@ var _ = Describe("buildReleaseResult", func() {
 
 		cutoff := releaseCreatedAt.Add(-time.Minute)
 		config := v1.AzureDevops{Organization: "myorg"}
-		result := buildReleaseResult(testCtx(), config, project, def, releases, cutoff)
+		result := buildReleaseResult(testCtx(), config, project, def, nil, releases, cutoff)
 
 		Expect(result.ID).To(Equal("MyProject/7"))
 		Expect(result.Changes).To(HaveLen(3))
@@ -373,9 +373,9 @@ var _ = Describe("buildReleaseResult", func() {
 		Expect(result.Changes[0].ConfigType).To(Equal(ReleaseType))
 		Expect(result.Changes[0].Source).To(Equal("AzureDevops/release/MyProject/7"))
 
-		Expect(result.Changes[0].ChangeType).To(Equal(ChangeTypeSucceeded))
+		Expect(result.Changes[0].ChangeType).To(Equal("Staging"))
 		Expect(result.Changes[1].ChangeType).To(Equal(ChangeTypeApproved))
-		Expect(result.Changes[2].ChangeType).To(Equal(ChangeTypeInProgress))
+		Expect(result.Changes[2].ChangeType).To(Equal("Prod"))
 
 		pre, ok := result.Changes[0].Details["preDeployApprovals"].([]map[string]any)
 		Expect(ok).To(BeTrue())

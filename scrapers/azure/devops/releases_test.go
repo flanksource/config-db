@@ -313,6 +313,7 @@ var _ = Describe("buildReleaseResult", func() {
 			v1.AzureDevops{Organization: "test-org", Permissions: &v1.AzureDevopsPermissions{Enabled: true}},
 			Project{Name: "MyProject"},
 			def,
+			nil,
 			[]Release{release},
 			cutoff,
 		)
@@ -344,6 +345,7 @@ var _ = Describe("buildReleaseResult", func() {
 			v1.AzureDevops{Organization: "test-org", Permissions: &v1.AzureDevopsPermissions{Enabled: true}},
 			Project{Name: "MyProject"},
 			def,
+			nil,
 			[]Release{release},
 			cutoff,
 		)
@@ -373,6 +375,7 @@ var _ = Describe("buildReleaseResult", func() {
 			v1.AzureDevops{Organization: "test-org"},
 			Project{Name: "MyProject"},
 			def,
+			nil,
 			[]Release{release},
 			cutoff,
 		)
@@ -396,12 +399,72 @@ var _ = Describe("buildReleaseResult", func() {
 			v1.AzureDevops{Organization: "org"},
 			Project{Name: "MyProject"},
 			def,
+			nil,
 			[]Release{release},
 			cutoff,
 		)
 
 		Expect(result.Changes).To(BeEmpty())
 		Expect(result.ConfigAccessLogs).To(BeEmpty())
+	})
+
+	It("uses environment name as ChangeType and includes deploySteps in details", func() {
+		createdOn := time.Now().Add(-1 * time.Hour)
+		cutoff := createdOn.Add(-1 * time.Hour)
+		queuedOn := createdOn.Add(5 * time.Minute)
+
+		def := makeDef(1, "Deploy", `\`)
+		env := ReleaseEnvironment{
+			ID: 10, Name: "Production", Status: "succeeded",
+			DeploySteps: []DeployStep{
+				{ID: 1, Status: "succeeded", Attempt: 1, QueuedOn: &queuedOn},
+			},
+		}
+		release := makeRelease(100, nil, []ReleaseEnvironment{env}, createdOn)
+
+		result := buildReleaseResult(
+			testCtx(),
+			v1.AzureDevops{Organization: "org"},
+			Project{Name: "MyProject"},
+			def,
+			nil,
+			[]Release{release},
+			cutoff,
+		)
+
+		Expect(result.Changes).To(HaveLen(1))
+		Expect(result.Changes[0].ChangeType).To(Equal("Production"))
+		Expect(result.Changes[0].Details["status"]).To(Equal("succeeded"))
+		Expect(result.Changes[0].Details["deploySteps"]).ToNot(BeNil())
+	})
+
+	It("uses defJSON as config when provided", func() {
+		createdOn := time.Now().Add(-1 * time.Hour)
+		cutoff := createdOn.Add(-1 * time.Hour)
+
+		def := makeDef(1, "Deploy", `\`)
+		release := makeRelease(100, nil, []ReleaseEnvironment{
+			{ID: 10, Name: "Staging", Status: "succeeded"},
+		}, createdOn)
+
+		defJSON := map[string]any{
+			"id":           1,
+			"name":         "Deploy",
+			"environments": []any{"env1"},
+			"triggers":     []any{"trigger1"},
+		}
+
+		result := buildReleaseResult(
+			testCtx(),
+			v1.AzureDevops{Organization: "org"},
+			Project{Name: "MyProject"},
+			def,
+			defJSON,
+			[]Release{release},
+			cutoff,
+		)
+
+		Expect(result.Config).To(Equal(defJSON))
 	})
 })
 

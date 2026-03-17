@@ -960,6 +960,17 @@ type ReleaseApproval struct {
 	Comments     string       `json:"comments,omitempty"`
 }
 
+type DeployStep struct {
+	ID              int          `json:"id"`
+	Status          string       `json:"status"`
+	OperationStatus string       `json:"operationStatus"`
+	Attempt         int          `json:"attempt"`
+	RequestedBy     *IdentityRef `json:"requestedBy,omitempty"`
+	RequestedFor    *IdentityRef `json:"requestedFor,omitempty"`
+	QueuedOn        *time.Time   `json:"queuedOn,omitempty"`
+	LastModifiedOn  *time.Time   `json:"lastModifiedOn,omitempty"`
+}
+
 type ReleaseEnvironment struct {
 	ID                  int               `json:"id"`
 	Name                string            `json:"name"`
@@ -969,6 +980,7 @@ type ReleaseEnvironment struct {
 	ModifiedOn          time.Time         `json:"modifiedOn"`
 	PreDeployApprovals  []ReleaseApproval `json:"preDeployApprovals,omitempty"`
 	PostDeployApprovals []ReleaseApproval `json:"postDeployApprovals,omitempty"`
+	DeploySteps         []DeployStep      `json:"deploySteps,omitempty"`
 }
 
 type Release struct {
@@ -1012,4 +1024,15 @@ func (ado *AzureDevopsReleaseClient) GetReleases(ctx context.Context, project st
 		return nil, fmt.Errorf("failed to get releases: %w", err)
 	}
 	return response.Value, nil
+}
+
+// GetReleaseDefinition fetches the full release definition JSON for use as config.
+func (ado *AzureDevopsReleaseClient) GetReleaseDefinition(ctx context.Context, project string, definitionID int) (map[string]any, error) {
+	response, _, err := get[map[string]any](ado.Client, ctx,
+		fmt.Sprintf("/%s/_apis/release/definitions/%d", project, definitionID),
+		"api-version", "7.1")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get release definition %d: %w", definitionID, err)
+	}
+	return *response, nil
 }
