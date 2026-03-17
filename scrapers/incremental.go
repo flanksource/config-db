@@ -210,6 +210,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 						return patchErr
 					}
 					crdIncrementalLastSave.Store(scraperID, time.Now())
+					crdIncrementalStatuses.Delete(scraperID)
 				}
 			}
 
@@ -312,12 +313,13 @@ func bufferIncrementalStatus(scraperID string, status v1.IncrementalStatus) ([]v
 	lastSave, lastSaveFound := crdIncrementalLastSave.Load(scraperID)
 	if !lastSaveFound {
 		// First time saving
+		crdIncrementalStatuses.Store(scraperID, statuses)
 		return statuses, true
 	}
 
-	shouldUpdate := true
+	var shouldUpdate bool
 	if len(statuses) >= 5 || time.Since(lastSave) > 5*time.Minute {
-		crdIncrementalStatuses.Delete(scraperID)
+		shouldUpdate = true
 	} else {
 		crdIncrementalStatuses.Store(scraperID, statuses)
 		shouldUpdate = false
