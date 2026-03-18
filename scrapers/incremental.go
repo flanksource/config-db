@@ -310,7 +310,6 @@ func bufferIncrementalStatus(scraperID string, status v1.IncrementalStatus) ([]v
 	lastSave, lastSaveFound := crdIncrementalLastSave.Load(scraperID)
 	if !lastSaveFound {
 		// First time saving
-		crdIncrementalStatuses.Store(scraperID, statuses)
 		return statuses, true
 	}
 
