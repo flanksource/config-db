@@ -24,6 +24,7 @@ import (
 type e2ePrePopulateConfig struct {
 	ConfigClass string   `yaml:"config_class"`
 	Type        string   `yaml:"type"`
+	Name        string   `yaml:"name"`
 	ExternalID  []string `yaml:"external_id"`
 	Config      string   `yaml:"config"`
 }
@@ -134,6 +135,7 @@ var _ = Describe("e2e extraction fixtures", func() {
 					ID:          uuid.NewString(),
 					ConfigClass: preConfig.ConfigClass,
 					Type:        preConfig.Type,
+					Name:        lo.ToPtr(preConfig.Name),
 					ExternalID:  preConfig.ExternalID,
 					ScraperID:   &scraperModel.ID,
 					Config:      lo.ToPtr(preConfig.Config),
@@ -248,6 +250,7 @@ var _ = Describe("e2e extraction fixtures", func() {
 			}
 
 			defer func() {
+				DefaultContext.DB().Exec("DELETE FROM config_relationships WHERE config_id IN (SELECT id FROM config_items WHERE scraper_id = ?) OR related_id IN (SELECT id FROM config_items WHERE scraper_id = ?)", scraperModel.ID, scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM config_access_logs WHERE scraper_id = ?", scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM config_access WHERE scraper_id = ?", scraperModel.ID)
 				for _, id := range createdItems {
@@ -259,6 +262,8 @@ var _ = Describe("e2e extraction fixtures", func() {
 				DefaultContext.DB().Exec("DELETE FROM external_users WHERE scraper_id = ?", scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM external_groups WHERE scraper_id = ?", scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM external_roles WHERE scraper_id = ?", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM config_changes WHERE config_id IN (SELECT id FROM config_items WHERE scraper_id = ?)", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM config_items WHERE scraper_id = ?", scraperModel.ID)
 				DefaultContext.DB().Where("id = ?", scraperModel.ID).Delete(&dutymodels.ConfigScraper{})
 			}()
 
@@ -274,6 +279,19 @@ var _ = Describe("e2e extraction fixtures", func() {
 
 			env := buildE2EEnv(results, summary)
 			env["scraper_id"] = scraperModel.ID.String()
+
+			var rels []models.ConfigRelationship
+			DefaultContext.DB().Where(
+				"config_id IN (SELECT id FROM config_items WHERE scraper_id = ?) OR related_id IN (SELECT id FROM config_items WHERE scraper_id = ?)",
+				scraperModel.ID, scraperModel.ID,
+			).Find(&rels)
+			relsJSON, _ := json.Marshal(rels)
+			var relsSlice []any
+			_ = json.Unmarshal(relsJSON, &relsSlice)
+			if relsSlice == nil {
+				relsSlice = []any{}
+			}
+			env["relationships"] = relsSlice
 
 			for _, expr := range fixture.Assertions {
 				ok, err := DefaultContext.RunTemplateBool(gomplate.Template{Expression: expr}, env)

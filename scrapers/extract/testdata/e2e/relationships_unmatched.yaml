@@ -1,0 +1,13 @@
+spec:
+  full: true
+  file:
+    - type: App::Service
+      id: $.external_id
+      paths:
+        - fixtures/data/relationships_unmatched.json
+      transform:
+        relationship:
+          - expr: |
+              [{"type": "App::Deployment", "name": config.backend_ref}].toJSON()
+assertions:
+  - size(relationships) == 0

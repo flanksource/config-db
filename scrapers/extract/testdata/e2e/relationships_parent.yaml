@@ -1,0 +1,22 @@
+spec:
+  full: true
+  file:
+    - type: App::Service
+      id: $.external_id
+      paths:
+        - fixtures/data/relationships_basic.json
+      transform:
+        relationship:
+          - parent: true
+            expr: |
+              [{"type": "App::Deployment", "name": config.backend_ref}].toJSON()
+pre_populate:
+  configs:
+    - config_class: Deployment
+      type: App::Deployment
+      name: deploy-web-frontend
+      external_id: ["deploy-web-frontend"]
+      config: '{"name":"deploy-web-frontend","replicas":3}'
+assertions:
+  - size(relationships) == 1
+  - relationships[0].relation == ''

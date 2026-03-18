@@ -438,6 +438,60 @@ var _ = Describe("buildReleaseResult", func() {
 		Expect(result.Changes[0].Details["deploySteps"]).ToNot(BeNil())
 	})
 
+	It("includes reason, triggerReason, variables, and artifacts in details", func() {
+		createdOn := time.Now().Add(-1 * time.Hour)
+		cutoff := createdOn.Add(-1 * time.Hour)
+
+		def := makeDef(1, "Deploy", `\`)
+		env := ReleaseEnvironment{
+			ID: 10, Name: "Production", Status: "succeeded",
+			TriggerReason: "After successful deployment of Staging",
+			Variables: map[string]ConfigurationVariable{
+				"envVar": {Value: "envVal"},
+			},
+		}
+		release := Release{
+			ID: 100, Name: "Release-1", CreatedOn: createdOn,
+			Reason:      "continuousIntegration",
+			Description: "CI triggered release",
+			Variables: map[string]ConfigurationVariable{
+				"releaseVar": {Value: "relVal"},
+				"secret":     {Value: "hidden", IsSecret: true},
+			},
+			Artifacts: []ReleaseArtifact{{
+				Type: "Build", Alias: "_build", IsPrimary: true,
+				DefinitionReference: map[string]ArtifactSourceRef{
+					"definition": {Name: "my-pipeline"},
+					"version":    {Name: "20240101.1"},
+					"branch":     {Name: "refs/heads/main"},
+				},
+			}},
+			Environments: []ReleaseEnvironment{env},
+		}
+
+		result := buildReleaseResult(
+			testCtx(),
+			v1.AzureDevops{Organization: "org"},
+			Project{Name: "MyProject"},
+			def, nil, []Release{release}, cutoff,
+		)
+
+		Expect(result.Changes).To(HaveLen(1))
+		details := result.Changes[0].Details
+		Expect(details["reason"]).To(Equal("continuousIntegration"))
+		Expect(details["description"]).To(Equal("CI triggered release"))
+		Expect(details["triggerReason"]).To(Equal("After successful deployment of Staging"))
+		Expect(details["variables"]).To(Equal(map[string]string{"releaseVar": "relVal"}))
+		Expect(details["environmentVariables"]).To(Equal(map[string]string{"envVar": "envVal"}))
+
+		artifacts := details["artifacts"].([]map[string]any)
+		Expect(artifacts).To(HaveLen(1))
+		Expect(artifacts[0]["definition"]).To(Equal("my-pipeline"))
+		Expect(artifacts[0]["version"]).To(Equal("20240101.1"))
+		Expect(artifacts[0]["branch"]).To(Equal("refs/heads/main"))
+		Expect(artifacts[0]["isPrimary"]).To(BeTrue())
+	})
+
 	It("uses defJSON as config when provided", func() {
 		createdOn := time.Now().Add(-1 * time.Hour)
 		cutoff := createdOn.Add(-1 * time.Hour)
@@ -465,6 +519,68 @@ var _ = Describe("buildReleaseResult", func() {
 		)
 
 		Expect(result.Config).To(Equal(defJSON))
+	})
+})
+
+var _ = Describe("flattenVariables", func() {
+	It("returns nil for empty map", func() {
+		Expect(flattenVariables(nil)).To(BeNil())
+		Expect(flattenVariables(map[string]ConfigurationVariable{})).To(BeNil())
+	})
+
+	It("filters out secret variables", func() {
+		vars := map[string]ConfigurationVariable{
+			"env":    {Value: "prod"},
+			"secret": {Value: "hunter2", IsSecret: true},
+			"region": {Value: "us-east-1"},
+		}
+		result := flattenVariables(vars)
+		Expect(result).To(Equal(map[string]string{"env": "prod", "region": "us-east-1"}))
+	})
+
+	It("returns nil when all variables are secret", func() {
+		vars := map[string]ConfigurationVariable{
+			"password": {Value: "secret", IsSecret: true},
+		}
+		Expect(flattenVariables(vars)).To(BeNil())
+	})
+})
+
+var _ = Describe("summarizeArtifacts", func() {
+	It("extracts definition, version, and branch from definitionReference", func() {
+		artifacts := []ReleaseArtifact{{
+			Type:      "Build",
+			Alias:     "_my-build",
+			IsPrimary: true,
+			DefinitionReference: map[string]ArtifactSourceRef{
+				"definition": {ID: "42", Name: "my-pipeline"},
+				"version":    {ID: "123", Name: "20240101.1"},
+				"branch":     {ID: "", Name: "refs/heads/main"},
+			},
+		}}
+		result := summarizeArtifacts(artifacts)
+		Expect(result).To(HaveLen(1))
+		Expect(result[0]).To(Equal(map[string]any{
+			"type":       "Build",
+			"alias":      "_my-build",
+			"isPrimary":  true,
+			"definition": "my-pipeline",
+			"version":    "20240101.1",
+			"branch":     "refs/heads/main",
+		}))
+	})
+
+	It("omits empty definitionReference fields", func() {
+		artifacts := []ReleaseArtifact{{
+			Type:  "Git",
+			Alias: "_repo",
+		}}
+		result := summarizeArtifacts(artifacts)
+		Expect(result).To(HaveLen(1))
+		Expect(result[0]).To(Equal(map[string]any{
+			"type":  "Git",
+			"alias": "_repo",
+		}))
 	})
 })
 
