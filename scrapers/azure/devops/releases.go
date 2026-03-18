@@ -303,6 +303,24 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 			if len(env.DeploySteps) > 0 {
 				details["deploySteps"] = env.DeploySteps
 			}
+			if release.Reason != "" {
+				details["reason"] = release.Reason
+			}
+			if release.Description != "" {
+				details["description"] = release.Description
+			}
+			if env.TriggerReason != "" {
+				details["triggerReason"] = env.TriggerReason
+			}
+			if vars := flattenVariables(release.Variables); len(vars) > 0 {
+				details["variables"] = vars
+			}
+			if envVars := flattenVariables(env.Variables); len(envVars) > 0 {
+				details["environmentVariables"] = envVars
+			}
+			if len(release.Artifacts) > 0 {
+				details["artifacts"] = summarizeArtifacts(release.Artifacts)
+			}
 
 			createdAt := release.CreatedOn
 			result.Changes = append(result.Changes, v1.ChangeResult{
@@ -358,4 +376,44 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 	result.Name = releaseDisplayName(def)
 	result.Aliases = []string{fmt.Sprintf("%s/release/%d", project.Name, def.ID)}
 	return result
+}
+
+func flattenVariables(vars map[string]ConfigurationVariable) map[string]string {
+	if len(vars) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(vars))
+	for k, v := range vars {
+		if !v.IsSecret {
+			out[k] = v.Value
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func summarizeArtifacts(artifacts []ReleaseArtifact) []map[string]any {
+	var out []map[string]any
+	for _, a := range artifacts {
+		entry := map[string]any{
+			"type":  a.Type,
+			"alias": a.Alias,
+		}
+		if ref, ok := a.DefinitionReference["definition"]; ok && ref.Name != "" {
+			entry["definition"] = ref.Name
+		}
+		if ref, ok := a.DefinitionReference["version"]; ok && ref.Name != "" {
+			entry["version"] = ref.Name
+		}
+		if ref, ok := a.DefinitionReference["branch"]; ok && ref.Name != "" {
+			entry["branch"] = ref.Name
+		}
+		if a.IsPrimary {
+			entry["isPrimary"] = true
+		}
+		out = append(out, entry)
+	}
+	return out
 }

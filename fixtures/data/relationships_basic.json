@@ -1,0 +1,6 @@
+{
+  "external_id": "svc-web-frontend",
+  "name": "web-frontend",
+  "type": "Service",
+  "backend_ref": "deploy-web-frontend"
+}

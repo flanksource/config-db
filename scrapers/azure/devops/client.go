@@ -971,26 +971,50 @@ type DeployStep struct {
 	LastModifiedOn  *time.Time   `json:"lastModifiedOn,omitempty"`
 }
 
+type ConfigurationVariable struct {
+	Value    string `json:"value"`
+	IsSecret bool   `json:"isSecret,omitempty"`
+}
+
+type ArtifactSourceRef struct {
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+}
+
+type ReleaseArtifact struct {
+	SourceID            string                       `json:"sourceId,omitempty"`
+	Type                string                       `json:"type,omitempty"`
+	Alias               string                       `json:"alias,omitempty"`
+	IsPrimary           bool                         `json:"isPrimary,omitempty"`
+	DefinitionReference map[string]ArtifactSourceRef `json:"definitionReference,omitempty"`
+}
+
 type ReleaseEnvironment struct {
-	ID                  int               `json:"id"`
-	Name                string            `json:"name"`
-	Status              string            `json:"status"`
-	Rank                int               `json:"rank"`
-	CreatedOn           time.Time         `json:"createdOn"`
-	ModifiedOn          time.Time         `json:"modifiedOn"`
-	PreDeployApprovals  []ReleaseApproval `json:"preDeployApprovals,omitempty"`
-	PostDeployApprovals []ReleaseApproval `json:"postDeployApprovals,omitempty"`
-	DeploySteps         []DeployStep      `json:"deploySteps,omitempty"`
+	ID                  int                              `json:"id"`
+	Name                string                           `json:"name"`
+	Status              string                           `json:"status"`
+	Rank                int                              `json:"rank"`
+	TriggerReason       string                           `json:"triggerReason,omitempty"`
+	Variables           map[string]ConfigurationVariable `json:"variables,omitempty"`
+	CreatedOn           time.Time                        `json:"createdOn"`
+	ModifiedOn          time.Time                        `json:"modifiedOn"`
+	PreDeployApprovals  []ReleaseApproval                `json:"preDeployApprovals,omitempty"`
+	PostDeployApprovals []ReleaseApproval                `json:"postDeployApprovals,omitempty"`
+	DeploySteps         []DeployStep                     `json:"deploySteps,omitempty"`
 }
 
 type Release struct {
-	ID           int                  `json:"id"`
-	Name         string               `json:"name"`
-	Status       string               `json:"status"`
-	CreatedOn    time.Time            `json:"createdOn"`
-	CreatedBy    *IdentityRef         `json:"createdBy,omitempty"`
-	Environments []ReleaseEnvironment `json:"environments,omitempty"`
-	Links        map[string]Link      `json:"_links,omitempty"`
+	ID           int                              `json:"id"`
+	Name         string                           `json:"name"`
+	Status       string                           `json:"status"`
+	Reason       string                           `json:"reason,omitempty"`
+	Description  string                           `json:"description,omitempty"`
+	CreatedOn    time.Time                        `json:"createdOn"`
+	CreatedBy    *IdentityRef                     `json:"createdBy,omitempty"`
+	Variables    map[string]ConfigurationVariable `json:"variables,omitempty"`
+	Artifacts    []ReleaseArtifact                `json:"artifacts,omitempty"`
+	Environments []ReleaseEnvironment             `json:"environments,omitempty"`
+	Links        map[string]Link                  `json:"_links,omitempty"`
 }
 
 type Releases struct {

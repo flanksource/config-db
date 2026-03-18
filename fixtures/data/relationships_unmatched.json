@@ -1,0 +1,6 @@
+{
+  "external_id": "svc-orphan",
+  "name": "orphan-service",
+  "type": "Service",
+  "backend_ref": "deploy-does-not-exist"
+}
