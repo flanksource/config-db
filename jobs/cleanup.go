@@ -13,7 +13,6 @@ import (
 	"github.com/flanksource/duty/job"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
-	"github.com/samber/lo"
 )
 
 const (
@@ -137,11 +136,6 @@ var SoftDeleteAgentStaleItems = &job.Job{
 		}
 		ctx.Logger.V(3).Infof("soft deleting stale config items for %d scrapers from agents", len(scrapersFromAgents))
 
-		staleItemAge := scrapers.DefaultStaleTimeout
-		if p, exists := ctx.Properties()["config.retention.agent.stale_item_age"]; exists {
-			staleItemAge = p
-		}
-
 		for _, scraper := range scrapersFromAgents {
 			var scraperV1 v1.ScrapeConfig
 			if err := json.Unmarshal([]byte(scraper.Spec), &scraperV1); err != nil {
@@ -149,8 +143,7 @@ var SoftDeleteAgentStaleItems = &job.Job{
 				continue
 			}
 
-			scraperStaleItemAge := lo.CoalesceOrEmpty(scraperV1.Spec.Retention.StaleItemAge, staleItemAge)
-			if deleted, err := scrapers.DeleteStaleConfigItems(ctx.Context, scraperStaleItemAge, scraper.ID); err != nil {
+			if deleted, err := scrapers.DeleteStaleConfigItems(ctx.Context, scraperV1.Spec.Retention.StaleItemAge, scraper.ID); err != nil {
 				ctx.History.AddErrorf("failed to delete stale config items of agent (scraper_id=%s): %v", scraper.ID, err)
 				continue
 			} else {

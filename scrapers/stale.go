@@ -12,14 +12,15 @@ import (
 )
 
 var (
-	DefaultStaleTimeout = "24h"
+	DefaultStaleTimeout = time.Hour * 24
 )
 
 func DeleteStaleConfigItems(ctx context.Context, staleTimeout string, scraperID uuid.UUID) (int64, error) {
 	var staleDuration time.Duration
+	var minStaleDuration time.Duration
 	if val := ctx.Value(contextKeyScrapeStart); val != nil {
 		if start, ok := val.(time.Time); ok {
-			staleDuration = time.Since(start)
+			minStaleDuration = time.Since(start)
 		}
 	}
 
@@ -27,18 +28,16 @@ func DeleteStaleConfigItems(ctx context.Context, staleTimeout string, scraperID 
 	case "keep":
 		return 0, nil
 	case "":
-		if defaultVal, exists := ctx.Properties()["config.retention.stale_item_age"]; exists {
-			staleTimeout = defaultVal
+		staleDuration = ctx.Properties().Duration("config.retention.stale_item_age", DefaultStaleTimeout)
+	default:
+		if parsed, err := duration.ParseDuration(staleTimeout); err != nil {
+			return 0, fmt.Errorf("failed to parse stale timeout %s: %w", staleTimeout, err)
 		} else {
-			staleTimeout = DefaultStaleTimeout
+			staleDuration = time.Duration(parsed)
 		}
 	}
-
-	if parsed, err := duration.ParseDuration(staleTimeout); err != nil {
-		return 0, fmt.Errorf("failed to parse stale timeout %s: %w", staleTimeout, err)
-	} else if time.Duration(parsed) > staleDuration {
-		// Use which ever is greater
-		staleDuration = time.Duration(parsed)
+	if staleDuration < minStaleDuration {
+		staleDuration = minStaleDuration
 	}
 
 	deleteQuery := `

@@ -18,8 +18,9 @@ import (
 // The omitempty tags are removed to provide a consistent JSON structure
 // for template and scripting operations.
 type LogResult struct {
-	Metadata map[string]any  `json:"metadata"`
-	Logs     []*logs.LogLine `json:"logs"`
+	Metadata map[string]any   `json:"metadata"`
+	Logs     []*logs.LogLine  `json:"logs"`
+	Groups   []*logs.LogGroup `json:"groups"`
 }
 
 type LogsScraper struct{}
