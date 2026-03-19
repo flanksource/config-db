@@ -138,10 +138,6 @@ fmt:
 vet: ## Run go vet against code.
 	go vet ./...
 
-.PHONY: modernize
-modernize: modernize-tool ## Run modernize against code.
-	$(MODERNIZE) ./...
-
 .PHONY: compress
 compress: .bin/upx
 	upx -5 ./.bin/$(NAME)_linux_amd64 ./.bin/$(NAME)_linux_arm64 ./.bin/$(NAME)_darwin_amd64 ./.bin/$(NAME)_darwin_arm64 ./.bin/$(NAME).exe
@@ -219,12 +215,11 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
-MODERNIZE ?= $(LOCALBIN)/modernize
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
 CONTROLLER_TOOLS_VERSION ?= v0.19.0
-GOLANGCI_LINT_VERSION ?= v2.7.2
+GOLANGCI_LINT_VERSION ?= v2.11.3
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 
@@ -281,11 +276,6 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 	test -s $(LOCALBIN)/golangci-lint && $(LOCALBIN)/golangci-lint version --short 2>/dev/null | grep -q $(subst v,,$(GOLANGCI_LINT_VERSION)) || \
 	GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
-.PHONY: modernize-tool
-modernize-tool: $(MODERNIZE) ## Download modernize locally if necessary.
-$(MODERNIZE): $(LOCALBIN)
-	test -s $(LOCALBIN)/modernize || GOBIN=$(LOCALBIN) go install golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest
-
 .PHONY: rust-diffgen
 rust-diffgen:
 	cd external/diffgen && cargo build --release
@@ -302,3 +292,7 @@ bench:
 		-benchmem -run='^$$' \
 		-count=3 \
 		-benchtime=2s -v
+
+.PHONY: modernize
+modernize:
+	go fix ./...
