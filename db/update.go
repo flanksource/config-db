@@ -1328,8 +1328,9 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 				return nil, fmt.Errorf("config item %s has no external id", ci)
 			}
 
-			parentExternalKey := configExternalKey{externalID: ci.ExternalID[0], parentType: ci.Type}
-			parentTypeToConfigMap[parentExternalKey] = ci.ID
+			for _, extID := range ci.ExternalID {
+				parentTypeToConfigMap[configExternalKey{externalID: extID, parentType: ci.Type}] = ci.ID
+			}
 
 			existing := &models.ConfigItem{}
 			if ci.ID != "" {
