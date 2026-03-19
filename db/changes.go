@@ -8,6 +8,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty/context"
+	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 )
 
@@ -87,7 +88,7 @@ func GetWorkflowRunCount(ctx api.ScrapeContext, workflowID string) (int64, error
 			"config_id = (?)",
 			ctx.DB().Table("config_items").
 				Select("id").
-				Where("(external_id_v2 = ? OR aliases @> ARRAY[?]::text[] OR external_id @> ARRAY[?]::text[])", externalID, externalID, externalID),
+				Where("(external_id_v2 = ? OR aliases @> ? OR external_id @> ?)", externalID, pq.StringArray{externalID}, pq.StringArray{externalID}),
 		).
 		Count(&count).
 		Error

@@ -4,6 +4,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
+	"github.com/lib/pq"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -26,15 +27,12 @@ var _ = Describe("ExternalID.Find", func() {
 		sql := stmt.SQL.String()
 
 		Expect(sql).To(ContainSubstring("external_id_v2 ="))
-		Expect(sql).To(ContainSubstring("aliases @> ARRAY"))
-		Expect(sql).To(ContainSubstring("external_id @> ARRAY"))
+		Expect(sql).To(ContainSubstring("aliases @>"))
+		Expect(sql).To(ContainSubstring("external_id @>"))
 
-		exactCount := 0
-		for _, v := range stmt.Vars {
-			if s, ok := v.(string); ok && s == ext.ExternalID {
-				exactCount++
-			}
-		}
-		Expect(exactCount).To(BeNumerically(">=", 3))
+		Expect(len(stmt.Vars)).To(BeNumerically(">=", 3))
+		Expect(stmt.Vars[0]).To(Equal(ext.ExternalID))
+		Expect(stmt.Vars[1]).To(Equal(pq.StringArray{ext.ExternalID}))
+		Expect(stmt.Vars[2]).To(Equal(pq.StringArray{ext.ExternalID}))
 	})
 })

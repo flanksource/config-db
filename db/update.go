@@ -24,6 +24,7 @@ import (
 	"github.com/flanksource/gomplate/v3"
 	"github.com/flanksource/is-healthy/events"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
@@ -68,7 +69,7 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	tx := ctx.DB().Model(&configs).
 		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 		Where("type = ?", change.ConfigType).
-		Where("(external_id_v2 = ? OR aliases @> ARRAY[?]::text[] OR external_id @> ARRAY[?]::text[])", externalID, externalID, externalID).
+		Where("(external_id_v2 = ? OR aliases @> ? OR external_id @> ?)", externalID, pq.StringArray{externalID}, pq.StringArray{externalID}).
 		Update("deleted_at", deletedAt)
 
 	if tx.Error != nil {

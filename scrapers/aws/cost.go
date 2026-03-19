@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/lib/pq"
 	athena "github.com/uber/athenadriver/go"
 )
 
@@ -172,8 +173,8 @@ func (awsCost CostScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			tx := gormDB.Exec(`
                 UPDATE config_items SET cost_per_minute = ?, cost_total_1d = ?, cost_total_7d = ?, cost_total_30d = ?
                 WHERE external_id_v2 = ?
-                    OR aliases @> ARRAY[?]::text[]
-                    OR external_id @> ARRAY[?]::text[]`, row.Cost1h/60, row.Cost1d, row.Cost7d, row.Cost30d, externalID, externalID, externalID)
+                    OR aliases @> ?
+                    OR external_id @> ?`, row.Cost1h/60, row.Cost1d, row.Cost7d, row.Cost30d, externalID, pq.StringArray{externalID}, pq.StringArray{externalID})
 
 			if tx.Error != nil {
 				logger.Errorf("Error updating costs for config_item: %v", err)
@@ -195,10 +196,10 @@ func (awsCost CostScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
             WHERE type = 'AWS::::Account'
               AND (
                   external_id_v2 = ?
-                  OR aliases @> ARRAY[?]::text[]
-                  OR external_id @> ARRAY[?]::text[]
+                  OR aliases @> ?
+                  OR external_id @> ?
               )`,
-			accountTotal1h/60, accountTotal1d, accountTotal7d, accountTotal30d, accountID, accountID, accountID,
+			accountTotal1h/60, accountTotal1d, accountTotal7d, accountTotal30d, accountID, pq.StringArray{accountID}, pq.StringArray{accountID},
 		).Error
 		if err != nil {
 			logger.Errorf("Error updating costs for account: %v", err)

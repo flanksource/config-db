@@ -17,6 +17,7 @@ import (
 	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
 	"github.com/samber/lo"
 	"gorm.io/gorm/clause"
@@ -36,7 +37,7 @@ func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.Config
 		Select("id", "config_class", "type", "config", "created_at", "updated_at", "deleted_at").
 		Limit(1).
 		Where("type = ?", extType).
-		Where("(external_id_v2 = ? OR aliases @> ARRAY[?]::text[] OR external_id @> ARRAY[?]::text[])", externalID, externalID, externalID).
+		Where("(external_id_v2 = ? OR aliases @> ? OR external_id @> ?)", externalID, pq.StringArray{externalID}, pq.StringArray{externalID}).
 		Find(&ci)
 	if tx.RowsAffected == 0 {
 		return nil, nil

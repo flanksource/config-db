@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/config-db/utils"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"gorm.io/gorm"
 )
@@ -229,7 +230,7 @@ func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
 		Limit(1).
 		Order("updated_at DESC").
 		Where("deleted_at IS NULL").
-		Where("(external_id_v2 = ? OR aliases @> ARRAY[?]::text[] OR external_id @> ARRAY[?]::text[])", externalID, externalID, externalID)
+		Where("(external_id_v2 = ? OR aliases @> ? OR external_id @> ?)", externalID, pq.StringArray{externalID}, pq.StringArray{externalID})
 	if e.ConfigType != "" {
 		query = query.Where("type = ?", e.ConfigType)
 	}
