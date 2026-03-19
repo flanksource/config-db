@@ -14,6 +14,10 @@ jobs:
     name: Benchmark
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      BENCH_SIZES: 250,1000
+      BENCH_PPROF_TARGET: BenchSaveResultsUpdateChanged/N=1000$
+      BENCH_PPROF_TIME: 1x
     steps:
       - name: Install Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
@@ -88,13 +92,46 @@ jobs:
           cd .bench/base
           # benchstat recommends >= 10 runs for stronger significance.
           # We use -count=6 to keep PR runtime reasonable.
-          go test -run=^$ -bench=. -count=6 -timeout 20m ./bench | tee "$GITHUB_WORKSPACE/bench-base.txt"
+          CONFIG_DB_BENCH_SIZES="${BENCH_SIZES}" \
+            go test -run=^$ -bench=. -count=6 -timeout 20m ./bench | tee "$GITHUB_WORKSPACE/bench-base.txt"
 
       - name: Benchmark head
         run: |
           # benchstat recommends >= 10 runs for stronger significance.
           # We use -count=6 to keep PR runtime reasonable.
-          go test -run=^$ -bench=. -count=6 -timeout 20m ./bench | tee bench-head.txt
+          CONFIG_DB_BENCH_SIZES="${BENCH_SIZES}" \
+            go test -run=^$ -bench=. -count=6 -timeout 20m ./bench | tee bench-head.txt
+
+      - name: Profile benchmark base (pprof)
+        run: |
+          cd .bench/base
+          CONFIG_DB_BENCH_SIZES="${BENCH_SIZES}" \
+            go test -run=^$ -bench="${BENCH_PPROF_TARGET}" -benchtime="${BENCH_PPROF_TIME}" -count=1 -timeout 20m \
+            -cpuprofile "$GITHUB_WORKSPACE/bench-base-cpu.pprof" \
+            -memprofile "$GITHUB_WORKSPACE/bench-base-mem.pprof" \
+            ./bench | tee "$GITHUB_WORKSPACE/bench-base-pprof.txt"
+
+      - name: Profile benchmark head (pprof)
+        run: |
+          CONFIG_DB_BENCH_SIZES="${BENCH_SIZES}" \
+            go test -run=^$ -bench="${BENCH_PPROF_TARGET}" -benchtime="${BENCH_PPROF_TIME}" -count=1 -timeout 20m \
+            -cpuprofile bench-head-cpu.pprof \
+            -memprofile bench-head-mem.pprof \
+            ./bench | tee bench-head-pprof.txt
+
+      - name: Generate pprof diffs
+        run: |
+          if ! go tool pprof -top -nodecount=80 -diff_base bench-base-cpu.pprof bench-head-cpu.pprof > pprof-cpu-diff.txt 2>&1; then
+            echo "pprof CPU diff command failed" >> pprof-cpu-diff.txt
+          fi
+
+          if ! go tool pprof -top -nodecount=100 -sample_index=alloc_space -diff_base bench-base-mem.pprof bench-head-mem.pprof > pprof-alloc-space-diff.txt 2>&1; then
+            echo "pprof alloc_space diff command failed" >> pprof-alloc-space-diff.txt
+          fi
+
+          if ! go tool pprof -top -nodecount=100 -sample_index=alloc_objects -diff_base bench-base-mem.pprof bench-head-mem.pprof > pprof-alloc-objects-diff.txt 2>&1; then
+            echo "pprof alloc_objects diff command failed" >> pprof-alloc-objects-diff.txt
+          fi
 
       - name: Compare
         run: |
@@ -120,6 +157,38 @@ jobs:
             echo '```'
             echo ""
             echo '</details>'
+            echo ""
+            echo "## pprof diff (targeted benchmark)"
+            echo ""
+            echo "Target: \`${BENCH_PPROF_TARGET}\`"
+            echo "Benchtime: \`${BENCH_PPROF_TIME}\`"
+            echo ""
+            echo '<details>'
+            echo '<summary>CPU diff (head vs base)</summary>'
+            echo ""
+            echo '```text'
+            cat pprof-cpu-diff.txt
+            echo '```'
+            echo ""
+            echo '</details>'
+            echo ""
+            echo '<details>'
+            echo '<summary>Memory alloc_space diff (head vs base)</summary>'
+            echo ""
+            echo '```text'
+            cat pprof-alloc-space-diff.txt
+            echo '```'
+            echo ""
+            echo '</details>'
+            echo ""
+            echo '<details>'
+            echo '<summary>Memory alloc_objects diff (head vs base)</summary>'
+            echo ""
+            echo '```text'
+            cat pprof-alloc-objects-diff.txt
+            echo '```'
+            echo ""
+            echo '</details>'
           } > bench-report.md
 
       - name: Upload artifacts
@@ -129,7 +198,16 @@ jobs:
           path: |
             bench-base.txt
             bench-head.txt
+            bench-base-pprof.txt
+            bench-head-pprof.txt
+            bench-base-cpu.pprof
+            bench-head-cpu.pprof
+            bench-base-mem.pprof
+            bench-head-mem.pprof
             benchstat.txt
+            pprof-cpu-diff.txt
+            pprof-alloc-space-diff.txt
+            pprof-alloc-objects-diff.txt
             bench-report.md
           retention-days: 14
 

@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-var defaultBenchSizes = []int{250, 1000}
+var defaultBenchSizes = []int{1000, 10_000}
 
 func BenchmarkBenchSaveResultsSeed(b *testing.B) {
 	scraperID := getBenchScraperID(b)
@@ -143,9 +143,6 @@ func newBenchScrapeContext(tb testing.TB) api.ScrapeContext {
 
 func benchSizes() []int {
 	raw := strings.TrimSpace(os.Getenv("CONFIG_DB_BENCH_SIZES"))
-	if raw == "" {
-		raw = strings.TrimSpace(os.Getenv("DUTY_BENCH_SIZES"))
-	}
 	if raw == "" {
 		return defaultBenchSizes
 	}
