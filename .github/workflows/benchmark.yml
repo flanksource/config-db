@@ -1,0 +1,170 @@
+on:
+  pull_request:
+
+name: Benchmark
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  bench:
+    if: ${{ !github.event.pull_request.head.repo.fork }}
+    name: Benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
+        with:
+          go-version: 1.25.x
+          cache: false
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Post "benchmark running" comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- benchstat-report -->';
+            const body = [
+              marker,
+              'Benchmark run in progress.',
+              '',
+              `Base: \`${{ github.event.pull_request.base.sha }}\``,
+              `Head: \`${{ github.event.pull_request.head.sha }}\``,
+              '',
+              'This comment will be updated when benchmarks complete.',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+
+            const existing = comments.find(c => (c.body || '').includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Install benchstat
+        run: |
+          GOBIN="$PWD/.bin" go install golang.org/x/perf/cmd/benchstat@latest
+          echo "$PWD/.bin" >> "$GITHUB_PATH"
+
+      - name: Prepare base worktree
+        run: |
+          mkdir -p .bench
+          git worktree add .bench/base "${{ github.event.pull_request.base.sha }}"
+
+          # Run the benchmark suite from HEAD for both base and head commits.
+          # This ensures benchmark definitions are identical across both runs.
+          if [ -d .bench/base/bench ]; then
+            mv .bench/base/bench .bench/base/bench.base
+          fi
+          cp -R bench .bench/base/bench
+
+      - name: Benchmark base
+        run: |
+          cd .bench/base
+          # benchstat recommends >= 10 runs for stronger significance.
+          # We use -count=6 to keep PR runtime reasonable.
+          go test -run=^$ -bench=. -count=6 -timeout 20m ./bench | tee "$GITHUB_WORKSPACE/bench-base.txt"
+
+      - name: Benchmark head
+        run: |
+          # benchstat recommends >= 10 runs for stronger significance.
+          # We use -count=6 to keep PR runtime reasonable.
+          go test -run=^$ -bench=. -count=6 -timeout 20m ./bench | tee bench-head.txt
+
+      - name: Compare
+        run: |
+          benchstat bench-base.txt bench-head.txt > benchstat.txt
+
+          # Generate summary (do not fail this step; checked later with threshold)
+          python3 .github/scripts/benchstat-summary.py benchstat.txt > bench-summary.md || true
+
+          {
+            echo "<!-- benchstat-report -->"
+            echo "## Benchstat"
+            echo ""
+            echo "Base: \`${{ github.event.pull_request.base.sha }}\`"
+            echo "Head: \`${{ github.event.pull_request.head.sha }}\`"
+            echo ""
+            cat bench-summary.md
+            echo ""
+            echo '<details>'
+            echo '<summary>Full benchstat output</summary>'
+            echo ""
+            echo '```text'
+            cat benchstat.txt
+            echo '```'
+            echo ""
+            echo '</details>'
+          } > bench-report.md
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: benchmark-results
+          path: |
+            bench-base.txt
+            bench-head.txt
+            benchstat.txt
+            bench-report.md
+          retention-days: 14
+
+      - name: Post report to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('bench-report.md', 'utf8');
+            const marker = '<!-- benchstat-report -->';
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+
+            const existing = comments.find(c => (c.body || '').includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Check for regressions
+        run: python3 .github/scripts/benchstat-summary.py --threshold 5 benchstat.txt > /dev/null
