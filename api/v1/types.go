@@ -229,7 +229,7 @@ func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
 		Limit(1).
 		Order("updated_at DESC").
 		Where("deleted_at IS NULL").
-		Where("(external_id_v2 = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", externalID, externalID, externalID)
+		Where("(external_id_v2 = ? OR aliases @> ARRAY[?]::text[] OR external_id @> ARRAY[?]::text[])", externalID, externalID, externalID)
 	if e.ConfigType != "" {
 		query = query.Where("type = ?", e.ConfigType)
 	}

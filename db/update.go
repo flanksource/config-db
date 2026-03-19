@@ -68,7 +68,7 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	tx := ctx.DB().Model(&configs).
 		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 		Where("type = ?", change.ConfigType).
-		Where("(external_id_v2 = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", externalID, externalID, externalID).
+		Where("(external_id_v2 = ? OR aliases @> ARRAY[?]::text[] OR external_id @> ARRAY[?]::text[])", externalID, externalID, externalID).
 		Update("deleted_at", deletedAt)
 
 	if tx.Error != nil {

@@ -36,7 +36,7 @@ func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.Config
 		Select("id", "config_class", "type", "config", "created_at", "updated_at", "deleted_at").
 		Limit(1).
 		Where("type = ?", extType).
-		Where("(external_id_v2 = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", externalID, externalID, externalID).
+		Where("(external_id_v2 = ? OR aliases @> ARRAY[?]::text[] OR external_id @> ARRAY[?]::text[])", externalID, externalID, externalID).
 		Find(&ci)
 	if tx.RowsAffected == 0 {
 		return nil, nil

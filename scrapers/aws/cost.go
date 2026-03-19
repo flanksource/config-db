@@ -172,8 +172,8 @@ func (awsCost CostScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			tx := gormDB.Exec(`
                 UPDATE config_items SET cost_per_minute = ?, cost_total_1d = ?, cost_total_7d = ?, cost_total_30d = ?
                 WHERE external_id_v2 = ?
-                    OR ? = ANY(COALESCE(aliases, '{}'::text[]))
-                    OR ? = ANY(COALESCE(external_id, '{}'::text[]))`, row.Cost1h/60, row.Cost1d, row.Cost7d, row.Cost30d, externalID, externalID, externalID)
+                    OR aliases @> ARRAY[?]::text[]
+                    OR external_id @> ARRAY[?]::text[]`, row.Cost1h/60, row.Cost1d, row.Cost7d, row.Cost30d, externalID, externalID, externalID)
 
 			if tx.Error != nil {
 				logger.Errorf("Error updating costs for config_item: %v", err)
@@ -195,8 +195,8 @@ func (awsCost CostScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
             WHERE type = 'AWS::::Account'
               AND (
                   external_id_v2 = ?
-                  OR ? = ANY(COALESCE(aliases, '{}'::text[]))
-                  OR ? = ANY(COALESCE(external_id, '{}'::text[]))
+                  OR aliases @> ARRAY[?]::text[]
+                  OR external_id @> ARRAY[?]::text[]
               )`,
 			accountTotal1h/60, accountTotal1d, accountTotal7d, accountTotal30d, accountID, accountID, accountID,
 		).Error

@@ -87,7 +87,7 @@ func GetWorkflowRunCount(ctx api.ScrapeContext, workflowID string) (int64, error
 			"config_id = (?)",
 			ctx.DB().Table("config_items").
 				Select("id").
-				Where("(external_id_v2 = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", externalID, externalID, externalID),
+				Where("(external_id_v2 = ? OR aliases @> ARRAY[?]::text[] OR external_id @> ARRAY[?]::text[])", externalID, externalID, externalID),
 		).
 		Count(&count).
 		Error

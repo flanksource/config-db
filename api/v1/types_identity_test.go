@@ -26,8 +26,8 @@ var _ = Describe("ExternalID.Find", func() {
 		sql := stmt.SQL.String()
 
 		Expect(sql).To(ContainSubstring("external_id_v2 ="))
-		Expect(sql).To(ContainSubstring("ANY(COALESCE(aliases"))
-		Expect(sql).To(ContainSubstring("ANY(COALESCE(external_id"))
+		Expect(sql).To(ContainSubstring("aliases @> ARRAY"))
+		Expect(sql).To(ContainSubstring("external_id @> ARRAY"))
 
 		exactCount := 0
 		for _, v := range stmt.Vars {
