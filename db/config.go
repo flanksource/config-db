@@ -28,7 +28,7 @@ import (
 
 // GetConfigItem returns a single config item result
 func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.ConfigItem, error) {
-	normalizedExternalID := strings.ToLower(strings.TrimSpace(extID))
+	externalID := strings.TrimSpace(extID)
 	ci := models.ConfigItem{}
 	// Compatibility lookup order: canonical external_id_v2 first, then aliases,
 	// then legacy external_id[] for rows/callers still using the old identity format.
@@ -36,7 +36,7 @@ func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.Config
 		Select("id", "config_class", "type", "config", "created_at", "updated_at", "deleted_at").
 		Limit(1).
 		Where("type = ?", extType).
-		Where("(LOWER(external_id_v2) = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", normalizedExternalID, normalizedExternalID, normalizedExternalID).
+		Where("(external_id_v2 = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", externalID, externalID, externalID).
 		Find(&ci)
 	if tx.RowsAffected == 0 {
 		return nil, nil
@@ -132,13 +132,13 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 	}
 
 	// Canonical identity comes from result.ID.
-	canonical := strings.ToLower(strings.TrimSpace(result.ID))
+	canonical := strings.TrimSpace(result.ID)
 
 	// Aliases are the non-canonical identifiers provided by the scraper.
 	aliases := make([]string, 0, len(result.Aliases))
 	seenAliases := make(map[string]struct{}, len(result.Aliases))
 	for _, alias := range result.Aliases {
-		normalizedAlias := strings.ToLower(strings.TrimSpace(alias))
+		normalizedAlias := strings.TrimSpace(alias)
 		if normalizedAlias == "" || normalizedAlias == canonical {
 			continue
 		}

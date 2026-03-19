@@ -61,14 +61,14 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 		deletedAt = gorm.Expr("NOW()")
 	}
 
-	normalizedExternalID := strings.ToLower(strings.TrimSpace(change.ExternalID))
+	externalID := strings.TrimSpace(change.ExternalID)
 	configs := []models.ConfigItem{}
 	// Compatibility lookup order: canonical external_id_v2 first, then aliases,
 	// then legacy external_id[] for rows/callers still using the old identity format.
 	tx := ctx.DB().Model(&configs).
 		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 		Where("type = ?", change.ConfigType).
-		Where("(LOWER(external_id_v2) = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", normalizedExternalID, normalizedExternalID, normalizedExternalID).
+		Where("(external_id_v2 = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", externalID, externalID, externalID).
 		Update("deleted_at", deletedAt)
 
 	if tx.Error != nil {

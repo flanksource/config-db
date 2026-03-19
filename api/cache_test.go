@@ -18,19 +18,19 @@ var _ = Describe("TempCache", func() {
 		cache := NewTempCache()
 
 		scraperID := uuid.New()
-		canonical := "aws::ec2::instance/i-123"
+		canonical := "AWS::EC2::Instance/i-123"
 		item := models.ConfigItem{
 			ID:           "config-1",
 			Type:         "AWS::EC2::Instance",
 			ScraperID:    &scraperID,
 			ExternalIDV2: &canonical,
-			Aliases:      pq.StringArray{"alias-one", "alias-two"},
-			ExternalID:   pq.StringArray{"legacy-one", "alias-two"},
+			Aliases:      pq.StringArray{"Alias-One", "Alias-Two"},
+			ExternalID:   pq.StringArray{"Legacy-One", "Alias-Two"},
 		}
 
 		cache.Insert(item)
 
-		for _, externalID := range []string{"AWS::EC2::INSTANCE/I-123", "ALIAS-ONE", "LEGACY-ONE"} {
+		for _, externalID := range []string{"AWS::EC2::Instance/i-123", "Alias-One", "Legacy-One"} {
 			found, err := cache.Find(ctx, v1.ExternalID{ConfigType: item.Type, ExternalID: externalID, ScraperID: scraperID.String()})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).ToNot(BeNil())
@@ -52,7 +52,7 @@ var _ = Describe("TempCache", func() {
 
 		cache.Insert(legacyOnly)
 
-		found, err := cache.Find(ctx, v1.ExternalID{ConfigType: legacyOnly.Type, ExternalID: "LEGACY-ONLY-ID", ScraperID: scraperID.String()})
+		found, err := cache.Find(ctx, v1.ExternalID{ConfigType: legacyOnly.Type, ExternalID: "legacy-only-id", ScraperID: scraperID.String()})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).ToNot(BeNil())
 		Expect(found.ID).To(Equal(legacyOnly.ID))

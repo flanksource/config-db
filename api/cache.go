@@ -105,7 +105,7 @@ func (t *TempCache) Insert(item models.ConfigItem) {
 	seenExternalIDs := make(map[string]struct{}, cap(normalizedExternalIDs))
 
 	addExternalID := func(externalID string) {
-		normalized := strings.ToLower(strings.TrimSpace(externalID))
+		normalized := strings.TrimSpace(externalID)
 		if normalized == "" {
 			return
 		}

@@ -78,7 +78,7 @@ func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*mode
 }
 
 func GetWorkflowRunCount(ctx api.ScrapeContext, workflowID string) (int64, error) {
-	normalizedWorkflowID := strings.ToLower(strings.TrimSpace(workflowID))
+	externalID := strings.TrimSpace(workflowID)
 	// Compatibility lookup order: canonical external_id_v2 first, then aliases,
 	// then legacy external_id[] for rows/callers still using the old identity format.
 	var count int64
@@ -87,7 +87,7 @@ func GetWorkflowRunCount(ctx api.ScrapeContext, workflowID string) (int64, error
 			"config_id = (?)",
 			ctx.DB().Table("config_items").
 				Select("id").
-				Where("(LOWER(external_id_v2) = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", normalizedWorkflowID, normalizedWorkflowID, normalizedWorkflowID),
+				Where("(external_id_v2 = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", externalID, externalID, externalID),
 		).
 		Count(&count).
 		Error

@@ -168,12 +168,12 @@ func (awsCost CostScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		for _, row := range rows {
 			// Compatibility lookup order: canonical external_id_v2 first, then aliases,
 			// then legacy external_id[] for rows/callers still using the old identity format.
-			normalizedExternalID := strings.ToLower(fmt.Sprintf("%s/%s", row.ProductCode, row.ResourceID))
+			externalID := fmt.Sprintf("%s/%s", row.ProductCode, row.ResourceID)
 			tx := gormDB.Exec(`
                 UPDATE config_items SET cost_per_minute = ?, cost_total_1d = ?, cost_total_7d = ?, cost_total_30d = ?
-                WHERE LOWER(external_id_v2) = ?
+                WHERE external_id_v2 = ?
                     OR ? = ANY(COALESCE(aliases, '{}'::text[]))
-                    OR ? = ANY(COALESCE(external_id, '{}'::text[]))`, row.Cost1h/60, row.Cost1d, row.Cost7d, row.Cost30d, normalizedExternalID, normalizedExternalID, normalizedExternalID)
+                    OR ? = ANY(COALESCE(external_id, '{}'::text[]))`, row.Cost1h/60, row.Cost1d, row.Cost7d, row.Cost30d, externalID, externalID, externalID)
 
 			if tx.Error != nil {
 				logger.Errorf("Error updating costs for config_item: %v", err)
@@ -190,16 +190,15 @@ func (awsCost CostScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			logger.Infof("Updated cost for AWS Resource: %s/%s", row.ProductCode, row.ResourceID)
 		}
 
-		normalizedAccountID := strings.ToLower(accountID)
 		err = gormDB.Exec(`
             UPDATE config_items SET cost_per_minute = ?, cost_total_1d = ?, cost_total_7d = ?, cost_total_30d = ?
             WHERE type = 'AWS::::Account'
               AND (
-                  LOWER(external_id_v2) = ?
+                  external_id_v2 = ?
                   OR ? = ANY(COALESCE(aliases, '{}'::text[]))
                   OR ? = ANY(COALESCE(external_id, '{}'::text[]))
               )`,
-			accountTotal1h/60, accountTotal1d, accountTotal7d, accountTotal30d, normalizedAccountID, normalizedAccountID, normalizedAccountID,
+			accountTotal1h/60, accountTotal1d, accountTotal7d, accountTotal30d, accountID, accountID, accountID,
 		).Error
 		if err != nil {
 			logger.Errorf("Error updating costs for account: %v", err)

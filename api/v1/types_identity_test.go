@@ -1,8 +1,6 @@
 package v1
 
 import (
-	"strings"
-
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
@@ -27,16 +25,16 @@ var _ = Describe("ExternalID.Find", func() {
 		stmt := ext.Find(db.Table("config_items")).Find(&[]map[string]any{}).Statement
 		sql := stmt.SQL.String()
 
-		Expect(sql).To(ContainSubstring("LOWER(external_id_v2) ="))
+		Expect(sql).To(ContainSubstring("external_id_v2 ="))
 		Expect(sql).To(ContainSubstring("ANY(COALESCE(aliases"))
 		Expect(sql).To(ContainSubstring("ANY(COALESCE(external_id"))
 
-		normalizedCount := 0
+		exactCount := 0
 		for _, v := range stmt.Vars {
-			if s, ok := v.(string); ok && s == strings.ToLower(ext.ExternalID) {
-				normalizedCount++
+			if s, ok := v.(string); ok && s == ext.ExternalID {
+				exactCount++
 			}
 		}
-		Expect(normalizedCount).To(BeNumerically(">=", 3))
+		Expect(exactCount).To(BeNumerically(">=", 3))
 	})
 })

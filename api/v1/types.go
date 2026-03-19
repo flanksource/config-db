@@ -222,14 +222,14 @@ func (e ExternalID) GetKubernetesUID() string {
 }
 
 func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
-	normalizedExternalID := strings.ToLower(strings.TrimSpace(e.ExternalID))
+	externalID := strings.TrimSpace(e.ExternalID)
 	// Compatibility lookup order: canonical external_id_v2 first, then aliases,
 	// then legacy external_id[] for rows/callers still using the old identity format.
 	query := db.
 		Limit(1).
 		Order("updated_at DESC").
 		Where("deleted_at IS NULL").
-		Where("(LOWER(external_id_v2) = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", normalizedExternalID, normalizedExternalID, normalizedExternalID)
+		Where("(external_id_v2 = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", externalID, externalID, externalID)
 	if e.ConfigType != "" {
 		query = query.Where("type = ?", e.ConfigType)
 	}
@@ -243,7 +243,7 @@ func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
 }
 
 func (e ExternalID) Key() string {
-	return strings.ToLower(fmt.Sprintf("%s%s%s", e.ConfigType, e.ExternalID, e.ScraperID))
+	return fmt.Sprintf("%s%s%s", e.ConfigType, e.ExternalID, e.ScraperID)
 }
 
 func (e ExternalID) Pretty() api.Text {
