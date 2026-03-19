@@ -138,7 +138,7 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 		updates["delete_reason"] = gorm.Expr("NULL")
 	}
 
-	changeResult, err := generateConfigChange(ctx, *ci, *existing)
+	changeResult, err := generateDiffChange(ctx, *ci, *existing)
 	if err != nil {
 		ctx.Errorf("[%s] failed to check for changes: %v", ci, err)
 	} else if changeResult != nil {
@@ -352,13 +352,15 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			}
 		}
 
-		if change.ConfigID == "" && change.GetExternalID().IsEmpty() && ci != nil {
-			change.ConfigID = ci.ID
-		} else if !change.GetExternalID().IsEmpty() {
-			if ci, err := ctx.TempCache().FindExternalID(ctx, change.GetExternalID()); err != nil {
-				return nil, nil, changeSummary, fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
-			} else if ci != "" {
-				change.ConfigID = ci
+		if change.ConfigID == "" {
+			if change.GetExternalID().IsEmpty() && ci != nil {
+				change.ConfigID = ci.ID
+			} else if !change.GetExternalID().IsEmpty() {
+				if ci, err := ctx.TempCache().FindExternalID(ctx, change.GetExternalID()); err != nil {
+					return nil, nil, changeSummary, fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
+				} else if ci != "" {
+					change.ConfigID = ci
+				}
 			}
 		}
 
@@ -1035,9 +1037,9 @@ func updateLastScrapedTime(ctx api.ScrapeContext, ids []string) error {
 	return nil
 }
 
-// generateConfigChange calculates the diff (git style) and patches between the
-// given 2 config items and returns a ConfigChange object if there are any changes.
-func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem) (*v1.ChangeResult, error) {
+// generateDiffChange calculates the diff (git style) and patches between the
+// given 2 config items and returns a ChangeResult if there are any changes.
+func generateDiffChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem) (*v1.ChangeResult, error) {
 	if changeTypExclusion, ok := lo.FromPtr(newConf.Labels)[v1.AnnotationIgnoreChangeByType]; ok {
 		if collections.MatchItems(v1.ChangeTypeDiff, strings.Split(changeTypExclusion, ",")...) {
 			if ctx.PropertyOn(false, "log.exclusions") {
@@ -1101,6 +1103,7 @@ func generateConfigChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem
 	return &v1.ChangeResult{
 		ConfigType: newConf.Type,
 		ChangeType: v1.ChangeTypeDiff,
+		ConfigID:   newConf.ID,
 		ExternalID: newConf.ExternalID[0],
 		Diff:       &diff,
 		Patches:    string(patch),
