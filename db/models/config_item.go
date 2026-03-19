@@ -17,10 +17,16 @@ import (
 // ConfigItem represents the config item database table
 // Deprecated: Use models.ConfigItem from duty.
 type ConfigItem struct {
-	ID            string                `gorm:"primaryKey;unique_index;not null;column:id;default:generate_ulid()" json:"id"  `
-	ScraperID     *uuid.UUID            `gorm:"column:scraper_id;default:null" json:"scraper_id,omitempty"`
-	ConfigClass   string                `gorm:"column:config_class;default:''" json:"config_class"  `
-	ExternalID    pq.StringArray        `gorm:"column:external_id;type:[]text" json:"external_id,omitempty"  `
+	ID          string     `gorm:"primaryKey;unique_index;not null;column:id;default:generate_ulid()" json:"id"  `
+	ScraperID   *uuid.UUID `gorm:"column:scraper_id;default:null" json:"scraper_id,omitempty"`
+	ConfigClass string     `gorm:"column:config_class;default:''" json:"config_class"  `
+	// ExternalID is the legacy identity array kept for compatibility with older readers.
+	// New writes should use ExternalIDV2 (canonical) and Aliases.
+	ExternalID pq.StringArray `gorm:"column:external_id;type:[]text" json:"external_id,omitempty"  `
+	// ExternalIDV2 is the canonical external identity.
+	ExternalIDV2 *string `gorm:"column:external_id_v2;default:null" json:"external_id_v2,omitempty"`
+	// Aliases are non-canonical external identifiers for matching.
+	Aliases       pq.StringArray        `gorm:"column:aliases;type:text[]" json:"aliases,omitempty"`
 	Type          string                `gorm:"column:type" json:"type,omitempty"  `
 	Status        *string               `gorm:"column:status;default:null" json:"status,omitempty"  `
 	Ready         bool                  `json:"ready,omitempty"  `
@@ -96,6 +102,8 @@ func (ci *ConfigItem) AsMap() map[string]any {
 		"scraper_id":      lo.FromPtr(ci.ScraperID),
 		"config_class":    ci.ConfigClass,
 		"external_id":     ci.ExternalID,
+		"external_id_v2":  lo.FromPtr(ci.ExternalIDV2),
+		"aliases":         ci.Aliases,
 		"type":            ci.Type,
 		"status":          lo.FromPtr(ci.Status),
 		"ready":           ci.Ready,

@@ -2,6 +2,8 @@ package system
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/flanksource/config-db/api"
@@ -113,10 +115,8 @@ func scrapeJobHistories(ctx api.ScrapeContext) v1.ScrapeResults {
 			health = models.HealthUnknown
 		}
 
-		id := jh.Name
-		if jh.ResourceID != "" {
-			id += "/" + jh.ResourceID
-		}
+		name := jobHistoryLegacyExternalID(jh)
+		canonicalExternalID := jobHistoryCanonicalExternalID(jh)
 
 		errors := jh.Errors
 		if v, ok := jh.Details["errors"]; ok {
@@ -130,10 +130,11 @@ func scrapeJobHistories(ctx api.ScrapeContext) v1.ScrapeResults {
 			"error_count":   jh.ErrorCount,
 			"errors":        errors,
 			"resource_type": jh.ResourceType,
+			"resource_id":   jh.ResourceID,
 		}
 		results = append(results, v1.ScrapeResult{
-			ID:          id,
-			Name:        id,
+			ID:          canonicalExternalID,
+			Name:        name,
 			ConfigClass: "Job",
 			Type:        "MissionControl::Job",
 			Status:      lo.Capitalize(jh.Status),
@@ -143,6 +144,31 @@ func scrapeJobHistories(ctx api.ScrapeContext) v1.ScrapeResults {
 	}
 
 	return results
+}
+
+func normalizeJobIdentityPart(value, fallback string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		normalized = fallback
+	}
+	return url.PathEscape(normalized)
+}
+
+func jobHistoryCanonicalExternalID(jh models.JobHistory) string {
+	return fmt.Sprintf(
+		"mission-control/job/%s/%s/%s",
+		normalizeJobIdentityPart(jh.ResourceType, "none"),
+		normalizeJobIdentityPart(jh.Name, "unnamed"),
+		normalizeJobIdentityPart(jh.ResourceID, "global"),
+	)
+}
+
+func jobHistoryLegacyExternalID(jh models.JobHistory) string {
+	id := jh.Name
+	if jh.ResourceID != "" {
+		id += "/" + jh.ResourceID
+	}
+	return id
 }
 
 // scrapeAccessEntities returns a single metadata-only ScrapeResult that carries

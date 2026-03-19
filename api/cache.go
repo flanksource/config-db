@@ -97,7 +97,34 @@ func (t *TempCache) Insert(item models.ConfigItem) {
 	if scraperID == uuid.Nil.String() {
 		scraperID = t.GetScraperID()
 	}
+
+	// Transitional compatibility: index canonical id (external_id_v2), aliases,
+	// and legacy external_id[] to keep lookups working for not-yet-migrated rows/callers.
+	// Ideal end state: index only external_id_v2 and aliases, and remove legacy fallback.
+	normalizedExternalIDs := make([]string, 0, len(item.ExternalID)+len(item.Aliases)+1)
+	seenExternalIDs := make(map[string]struct{}, cap(normalizedExternalIDs))
+
+	addExternalID := func(externalID string) {
+		normalized := strings.ToLower(strings.TrimSpace(externalID))
+		if normalized == "" {
+			return
+		}
+		if _, exists := seenExternalIDs[normalized]; exists {
+			return
+		}
+		seenExternalIDs[normalized] = struct{}{}
+		normalizedExternalIDs = append(normalizedExternalIDs, normalized)
+	}
+
+	addExternalID(lo.FromPtr(item.ExternalIDV2))
+	for _, alias := range item.Aliases {
+		addExternalID(alias)
+	}
 	for _, extID := range item.ExternalID {
+		addExternalID(extID)
+	}
+
+	for _, extID := range normalizedExternalIDs {
 		key := v1.ExternalID{ConfigType: item.Type, ExternalID: extID, ScraperID: scraperID}.Key()
 		t.aliases.Store(key, item.ID)
 

@@ -24,7 +24,6 @@ import (
 	"github.com/flanksource/gomplate/v3"
 	"github.com/flanksource/is-healthy/events"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
@@ -62,10 +61,14 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 		deletedAt = gorm.Expr("NOW()")
 	}
 
+	normalizedExternalID := strings.ToLower(strings.TrimSpace(change.ExternalID))
 	configs := []models.ConfigItem{}
+	// Compatibility lookup order: canonical external_id_v2 first, then aliases,
+	// then legacy external_id[] for rows/callers still using the old identity format.
 	tx := ctx.DB().Model(&configs).
 		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
-		Where("type = ? and external_id  @> ?", change.ConfigType, pq.StringArray{change.ExternalID}).
+		Where("type = ?", change.ConfigType).
+		Where("(LOWER(external_id_v2) = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", normalizedExternalID, normalizedExternalID, normalizedExternalID).
 		Update("deleted_at", deletedAt)
 
 	if tx.Error != nil {
@@ -206,7 +209,16 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 		updates["created_at"] = ci.CreatedAt
 	}
 
-	// Order of externalID matters
+	if !stringEqual(ci.ExternalIDV2, existing.ExternalIDV2) {
+		updates["external_id_v2"] = ci.ExternalIDV2
+	}
+
+	if !slices.Equal(ci.Aliases, existing.Aliases) {
+		updates["aliases"] = ci.Aliases
+	}
+
+	// Keep legacy external_id[] updates for compatibility while readers migrate to
+	// external_id_v2 (canonical) + aliases. Order in external_id[] still matters.
 	if !slices.Equal(ci.ExternalID, existing.ExternalID) {
 		updates["external_id"] = ci.ExternalID
 	}
@@ -288,7 +300,6 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 	logUnmatched := ctx.PropertyOn(true, "log.changes.unmatched")
 
 	logExclusions := ctx.PropertyOn(false, "log.exclusions")
-
 
 	if err := changes.ProcessRules(ctx, result, ci, result.BaseScraper.Transform.Change.Mapping...); err != nil {
 		ctx.JobHistory().AddError(fmt.Sprintf("error running change mapping transformation: %v", err))

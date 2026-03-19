@@ -17,7 +17,6 @@ import (
 	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/ohler55/ojg/oj"
 	"github.com/samber/lo"
 	"gorm.io/gorm/clause"
@@ -29,11 +28,16 @@ import (
 
 // GetConfigItem returns a single config item result
 func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.ConfigItem, error) {
+	normalizedExternalID := strings.ToLower(strings.TrimSpace(extID))
 	ci := models.ConfigItem{}
+	// Compatibility lookup order: canonical external_id_v2 first, then aliases,
+	// then legacy external_id[] for rows/callers still using the old identity format.
 	tx := ctx.DB().
 		Select("id", "config_class", "type", "config", "created_at", "updated_at", "deleted_at").
 		Limit(1).
-		Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{strings.ToLower(extID)})
+		Where("type = ?", extType).
+		Where("(LOWER(external_id_v2) = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", normalizedExternalID, normalizedExternalID, normalizedExternalID).
+		Find(&ci)
 	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
@@ -127,27 +131,47 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		})
 	}
 
-	// Lowercase + unique  all external ids for easy matching
-	externalIDs := append([]string{result.ID}, result.Aliases...)
-	externalIDs = lo.Uniq(externalIDs)
-	externalIDs = lo.Map(externalIDs, func(s string, _ int) string { return strings.ToLower(s) })
+	// Canonical identity comes from result.ID.
+	canonical := strings.ToLower(strings.TrimSpace(result.ID))
+
+	// Aliases are the non-canonical identifiers provided by the scraper.
+	aliases := make([]string, 0, len(result.Aliases))
+	seenAliases := make(map[string]struct{}, len(result.Aliases))
+	for _, alias := range result.Aliases {
+		normalizedAlias := strings.ToLower(strings.TrimSpace(alias))
+		if normalizedAlias == "" || normalizedAlias == canonical {
+			continue
+		}
+		if _, seen := seenAliases[normalizedAlias]; seen {
+			continue
+		}
+
+		seenAliases[normalizedAlias] = struct{}{}
+		aliases = append(aliases, normalizedAlias)
+	}
+
+	// Keep legacy external_id[] populated for compatibility while identity migrates to
+	// external_id_v2 (canonical) + aliases.
+	externalIDs := append([]string{canonical}, aliases...)
 	externalIDs = lo.Filter(externalIDs, func(s string, _ int) bool { return s != "" })
 
 	ci := &models.ConfigItem{
-		ExternalID:  externalIDs,
-		ID:          utils.Deref(result.ConfigID),
-		ConfigClass: result.ConfigClass,
-		Type:        result.Type,
-		Name:        &result.Name,
-		Source:      &result.Source,
-		Labels:      (*types.JSONStringMap)(&result.Labels),
-		Properties:  &result.Properties,
-		Config:      &dataStr,
-		Ready:       result.Ready,
-		Parents:     result.Parents,
-		Health:      lo.ToPtr(dutyModels.HealthUnknown),
-		Children:    result.Children,
-		ScraperID:   ctx.ScrapeConfig().GetPersistedID(),
+		ExternalID:   externalIDs,
+		ExternalIDV2: &canonical,
+		Aliases:      aliases,
+		ID:           utils.Deref(result.ConfigID),
+		ConfigClass:  result.ConfigClass,
+		Type:         result.Type,
+		Name:         &result.Name,
+		Source:       &result.Source,
+		Labels:       (*types.JSONStringMap)(&result.Labels),
+		Properties:   &result.Properties,
+		Config:       &dataStr,
+		Ready:        result.Ready,
+		Parents:      result.Parents,
+		Health:       lo.ToPtr(dutyModels.HealthUnknown),
+		Children:     result.Children,
+		ScraperID:    ctx.ScrapeConfig().GetPersistedID(),
 	}
 
 	if result.ScraperLess || slices.Contains(v1.ScraperLessTypes, ci.Type) {

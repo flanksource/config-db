@@ -64,9 +64,11 @@ func (r RetentionSpec) Merge(other RetentionSpec) RetentionSpec {
 // ScraperSpec defines the desired state of Config scraper
 type ScraperSpec struct {
 	// LogLevel sets the log level for the scraper. Supported values are "trace", "debug", "info" Default is "info".
-	LogLevel       string           `json:"logLevel,omitempty" yaml:"logLevel,omitempty"`
+	LogLevel string `json:"logLevel,omitempty" yaml:"logLevel,omitempty"`
+
 	// Schedule is a cron expression for when to run the scraper. Example: `@every 1m`, `0 */6 * * *` (every 6 hours)
-	Schedule       string           `json:"schedule,omitempty" yaml:"schedule,omitempty"`
+	Schedule string `json:"schedule,omitempty" yaml:"schedule,omitempty"`
+
 	GCP            []GCP            `json:"gcp,omitempty" yaml:"gcp,omitempty"`
 	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
 	File           []File           `json:"file,omitempty" yaml:"file,omitempty"`
@@ -220,7 +222,14 @@ func (e ExternalID) GetKubernetesUID() string {
 }
 
 func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
-	query := db.Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("? = ANY(external_id)", strings.ToLower(e.ExternalID))
+	normalizedExternalID := strings.ToLower(strings.TrimSpace(e.ExternalID))
+	// Compatibility lookup order: canonical external_id_v2 first, then aliases,
+	// then legacy external_id[] for rows/callers still using the old identity format.
+	query := db.
+		Limit(1).
+		Order("updated_at DESC").
+		Where("deleted_at IS NULL").
+		Where("(LOWER(external_id_v2) = ? OR ? = ANY(COALESCE(aliases, '{}'::text[])) OR ? = ANY(COALESCE(external_id, '{}'::text[])))", normalizedExternalID, normalizedExternalID, normalizedExternalID)
 	if e.ConfigType != "" {
 		query = query.Where("type = ?", e.ConfigType)
 	}
