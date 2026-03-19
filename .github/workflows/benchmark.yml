@@ -15,10 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      BENCH_SIZES: 250,1000
-      BENCH_PPROF_TARGET: BenchSaveResultsUpdateChanged
-      BENCH_PPROF_SIZES: 3000
-      BENCH_PPROF_TIME: 3x
+      BENCH_SIZES: 1000
     steps:
       - name: Install Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
@@ -103,32 +100,6 @@ jobs:
           CONFIG_DB_BENCH_SIZES="${BENCH_SIZES}" \
             go test -run=^$ -bench=. -count=6 -timeout 20m ./bench | tee bench-head.txt
 
-      - name: Profile benchmark base (pprof)
-        run: |
-          cd .bench/base
-          CONFIG_DB_BENCH_SIZES="${BENCH_PPROF_SIZES}" \
-            go test -run=^$ -bench="${BENCH_PPROF_TARGET}" -benchtime="${BENCH_PPROF_TIME}" -count=1 -timeout 30m \
-            -cpuprofile "$GITHUB_WORKSPACE/bench-base-cpu.pprof" \
-            -memprofile "$GITHUB_WORKSPACE/bench-base-mem.pprof" \
-            ./bench | tee "$GITHUB_WORKSPACE/bench-base-pprof.txt"
-
-      - name: Profile benchmark head (pprof)
-        run: |
-          CONFIG_DB_BENCH_SIZES="${BENCH_PPROF_SIZES}" \
-            go test -run=^$ -bench="${BENCH_PPROF_TARGET}" -benchtime="${BENCH_PPROF_TIME}" -count=1 -timeout 30m \
-            -cpuprofile bench-head-cpu.pprof \
-            -memprofile bench-head-mem.pprof \
-            ./bench | tee bench-head-pprof.txt
-
-      - name: Generate pprof diffs and hotspots
-        run: |
-          TOP=5 ./.github/scripts/generate-pprof-hotspots.sh \
-            bench-base-cpu.pprof \
-            bench-head-cpu.pprof \
-            bench-base-mem.pprof \
-            bench-head-mem.pprof \
-            .
-
       - name: Compare
         run: |
           benchstat bench-base.txt bench-head.txt > benchstat.txt
@@ -153,50 +124,6 @@ jobs:
             echo '```'
             echo ""
             echo '</details>'
-            echo ""
-            echo "## pprof diff (targeted benchmark)"
-            echo ""
-            echo "Target regex: \`${BENCH_PPROF_TARGET}\`"
-            echo "Benchtime: \`${BENCH_PPROF_TIME}\`"
-            echo "Sizes: \`${BENCH_PPROF_SIZES}\`"
-            echo ""
-            echo "### CPU hotspots (project code, sorted by cumulative delta)"
-            cat pprof-cpu-hotspots.md
-            echo ""
-            echo "### Memory hotspots (alloc_space, project code, sorted by cumulative delta)"
-            cat pprof-mem-hotspots.md
-            echo ""
-            echo '<details>'
-            echo '<summary>CPU hotspot line-level diff</summary>'
-            echo ""
-            cat pprof-cpu-hot-lines.txt
-            echo ""
-            echo '</details>'
-            echo ""
-            echo '<details>'
-            echo '<summary>Memory hotspot line-level diff (alloc_space)</summary>'
-            echo ""
-            cat pprof-mem-hot-lines.txt
-            echo ""
-            echo '</details>'
-            echo ""
-            echo '<details>'
-            echo '<summary>Raw CPU diff output</summary>'
-            echo ""
-            echo '```text'
-            cat pprof-cpu-diff-cum.txt
-            echo '```'
-            echo ""
-            echo '</details>'
-            echo ""
-            echo '<details>'
-            echo '<summary>Raw memory diff output (alloc_space)</summary>'
-            echo ""
-            echo '```text'
-            cat pprof-alloc-space-diff-cum.txt
-            echo '```'
-            echo ""
-            echo '</details>'
           } > bench-report.md
 
       - name: Upload artifacts
@@ -206,24 +133,7 @@ jobs:
           path: |
             bench-base.txt
             bench-head.txt
-            bench-base-pprof.txt
-            bench-head-pprof.txt
-            bench-base-cpu.pprof
-            bench-head-cpu.pprof
-            bench-base-mem.pprof
-            bench-head-mem.pprof
             benchstat.txt
-            pprof-cpu-diff.txt
-            pprof-cpu-diff-cum.txt
-            pprof-alloc-space-diff.txt
-            pprof-alloc-space-diff-cum.txt
-            pprof-alloc-objects-diff.txt
-            pprof-cpu-hot-functions.txt
-            pprof-mem-hot-functions.txt
-            pprof-cpu-hotspots.md
-            pprof-mem-hotspots.md
-            pprof-cpu-hot-lines.txt
-            pprof-mem-hot-lines.txt
             bench-report.md
           retention-days: 14
 
