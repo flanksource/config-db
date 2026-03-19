@@ -122,11 +122,11 @@ func BenchmarkBenchSaveResultsUpdateChanged(b *testing.B) {
 func getBenchScraperID(tb testing.TB) uuid.UUID {
 	tb.Helper()
 	sc := ensureBenchScrapeConfig(tb)
-	id := sc.GetPersistedID()
-	if id == nil {
-		tb.Fatalf("benchmark scrape config has no persisted ID")
+	if id := sc.GetPersistedID(); id != nil {
+		return *id
 	}
-	return *id
+	tb.Fatalf("benchmark scrape config has no persisted ID")
+	return uuid.Nil
 }
 
 func newBenchScrapeContext(tb testing.TB) api.ScrapeContext {
