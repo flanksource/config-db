@@ -219,8 +219,12 @@ func (e ExternalID) GetKubernetesUID() string {
 	return ""
 }
 
+func NormalizeExternalID(externalID string) string {
+	return strings.ToLower(strings.TrimSpace(externalID))
+}
+
 func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
-	query := db.Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("? = ANY(external_id)", strings.ToLower(e.ExternalID))
+	query := db.Limit(1).Order("updated_at DESC").Where("deleted_at IS NULL").Where("? = ANY(external_id)", NormalizeExternalID(e.ExternalID))
 	if e.ConfigType != "" {
 		query = query.Where("type = ?", e.ConfigType)
 	}
@@ -234,7 +238,7 @@ func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
 }
 
 func (e ExternalID) Key() string {
-	return strings.ToLower(fmt.Sprintf("%s%s%s", e.ConfigType, e.ExternalID, e.ScraperID))
+	return strings.ToLower(fmt.Sprintf("%s%s%s", e.ConfigType, NormalizeExternalID(e.ExternalID), e.ScraperID))
 }
 
 func (e ExternalID) Pretty() api.Text {

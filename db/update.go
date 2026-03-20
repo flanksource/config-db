@@ -65,7 +65,7 @@ func deleteChangeHandler(ctx api.ScrapeContext, change v1.ChangeResult) error {
 	configs := []models.ConfigItem{}
 	tx := ctx.DB().Model(&configs).
 		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
-		Where("type = ? and external_id  @> ?", change.ConfigType, pq.StringArray{change.ExternalID}).
+		Where("type = ? and external_id  @> ?", change.ConfigType, pq.StringArray{v1.NormalizeExternalID(change.ExternalID)}).
 		Update("deleted_at", deletedAt)
 
 	if tx.Error != nil {
