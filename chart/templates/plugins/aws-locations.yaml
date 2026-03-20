@@ -27,7 +27,7 @@ spec:
 
     - type: AWS::EC2::Subnet
       values:
-        - subnet://aws/{{.tags.account}}/{{.tags.region}}/{{.labels.network}}/{{.id}}
+        - subnet://aws/$(.tags.account)/$(.tags.region)/$(.labels.network)/$(.id)
 
     - type: AWS::EC2::Instance
       values:
