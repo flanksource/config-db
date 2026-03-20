@@ -577,7 +577,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			Name:             p.Name,
 			Changes:          changes,
 			Properties:       properties,
-			Aliases:          []string{pipelineConfigExternalID, fmt.Sprintf("%s/%s/%d", config.Organization, project.Name, pipeline.ID)},
+			Aliases:          nil,
 			ConfigAccess:     configAccess,
 			ConfigAccessLogs: accessLogs,
 		})

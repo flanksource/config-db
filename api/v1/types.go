@@ -238,7 +238,7 @@ func (e ExternalID) Find(db *gorm.DB) *gorm.DB {
 }
 
 func (e ExternalID) Key() string {
-	return strings.ToLower(fmt.Sprintf("%s%s%s", e.ConfigType, NormalizeExternalID(e.ExternalID), e.ScraperID))
+	return strings.ToLower(fmt.Sprintf("%s|%s|%s", e.ConfigType, NormalizeExternalID(e.ExternalID), e.ScraperID))
 }
 
 func (e ExternalID) Pretty() api.Text {

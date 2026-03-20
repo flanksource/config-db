@@ -379,7 +379,7 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 	result.Type = ReleaseType
 	result.ID = releaseID
 	result.Name = releaseDisplayName(def)
-	result.Aliases = []string{releaseID, fmt.Sprintf("%s/%s/release/%d", config.Organization, project.Name, def.ID)}
+	result.Aliases = nil
 	return result
 }
 
