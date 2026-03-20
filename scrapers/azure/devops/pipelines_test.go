@@ -366,12 +366,12 @@ var _ = Describe("buildReleaseResult", func() {
 		config := v1.AzureDevops{Organization: "myorg"}
 		result := buildReleaseResult(testCtx(), config, project, def, nil, releases, cutoff)
 
-		Expect(result.ID).To(Equal("MyProject/7"))
+		Expect(result.ID).To(Equal("azuredevops://myorg/MyProject/release/7"))
 		Expect(result.Changes).To(HaveLen(3))
 
-		Expect(result.Changes[0].ExternalID).To(Equal("MyProject/7"))
+		Expect(result.Changes[0].ExternalID).To(Equal("azuredevops://myorg/MyProject/release/7"))
 		Expect(result.Changes[0].ConfigType).To(Equal(ReleaseType))
-		Expect(result.Changes[0].Source).To(Equal("AzureDevops/release/MyProject/7"))
+		Expect(result.Changes[0].Source).To(Equal("AzureDevops/release/azuredevops://myorg/MyProject/release/7"))
 
 		Expect(result.Changes[0].ChangeType).To(Equal("Staging"))
 		Expect(result.Changes[1].ChangeType).To(Equal(ChangeTypeApproved))

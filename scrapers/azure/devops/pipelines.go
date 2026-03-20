@@ -23,6 +23,10 @@ const (
 	ReleaseType  = "AzureDevops::Release"
 )
 
+func pipelineExternalID(organization, project string, pipelineID int) string {
+	return fmt.Sprintf("azuredevops://%s/%s/pipeline/%d", organization, project, pipelineID)
+}
+
 // permissionCache stores the last time permissions were fetched for each pipeline
 var permissionCache = struct {
 	sync.RWMutex
@@ -230,6 +234,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 	var accessLogs []v1.ExternalConfigAccessLog
 	var configAccess []v1.ExternalConfigAccess
+	pipelineConfigExternalID := pipelineExternalID(config.Organization, project.Name, pipeline.ID)
 
 	// Fetch pipeline permissions if enabled and interval has passed
 	if config.Permissions != nil && config.Permissions.Enabled {
@@ -292,7 +297,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 									GroupType: "AzureDevOps",
 								})
 								configAccess = append(configAccess, v1.ExternalConfigAccess{
-									ConfigExternalID:     v1.ExternalID{ConfigType: PipelineType, ExternalID: fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},
+									ConfigExternalID:     v1.ExternalID{ConfigType: PipelineType, ExternalID: pipelineConfigExternalID},
 									ExternalGroupAliases: []string{identity.Descriptor},
 								})
 							} else {
@@ -307,7 +312,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 									UserType: "AzureDevOps",
 								})
 								configAccess = append(configAccess, v1.ExternalConfigAccess{
-									ConfigExternalID:    v1.ExternalID{ConfigType: PipelineType, ExternalID: fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},
+									ConfigExternalID:    v1.ExternalID{ConfigType: PipelineType, ExternalID: pipelineConfigExternalID},
 									ExternalUserAliases: []string{email},
 								})
 							}
@@ -465,7 +470,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 						ExternalUserAliases: user.Aliases,
 						ConfigExternalID: v1.ExternalID{
 							ConfigType: PipelineType,
-							ExternalID: fmt.Sprintf("%s/%d", project.Name, pipeline.ID),
+							ExternalID: pipelineConfigExternalID,
 						},
 					})
 				}
@@ -490,7 +495,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 							ExternalUserAliases: user.Aliases,
 							ConfigExternalID: v1.ExternalID{
 								ConfigType: PipelineType,
-								ExternalID: fmt.Sprintf("%s/%d", project.Name, pipeline.ID),
+								ExternalID: pipelineConfigExternalID,
 							},
 						})
 					}
@@ -572,7 +577,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			Name:             p.Name,
 			Changes:          changes,
 			Properties:       properties,
-			Aliases:          []string{fmt.Sprintf("%s/%d", project.Name, pipeline.ID)},
+			Aliases:          []string{pipelineConfigExternalID, fmt.Sprintf("%s/%s/%d", config.Organization, project.Name, pipeline.ID)},
 			ConfigAccess:     configAccess,
 			ConfigAccessLogs: accessLogs,
 		})
