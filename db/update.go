@@ -1337,8 +1337,15 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 					return nil, fmt.Errorf("unable to lookup existing config(%s): %w", ci, err)
 				}
 			} else {
-				if existing, err = ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: ci.Type, ExternalID: ci.ExternalID[0]}); err != nil {
-					return nil, fmt.Errorf("unable to lookup external id(%s): %w", ci, err)
+				// We don't have a UUID for the config yet, so we need to look it up by external ID.
+				for _, extID := range ci.ExternalID {
+					ext := v1.ExternalID{ConfigType: ci.Type, ExternalID: extID}
+					if c, err := ctx.TempCache().Find(ctx, ext); err != nil {
+						return nil, fmt.Errorf("unable to lookup external id(%s): %w", ext, err)
+					} else if c != nil && c.ID != "" {
+						existing = c
+						break
+					}
 				}
 			}
 

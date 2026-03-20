@@ -87,6 +87,10 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 
 // +kubebuilder:object:generate=false
 type ChangeResult struct {
+	// ID of the config this change is for
+	ConfigID string `json:"configID,omitempty"`
+
+	// (ExternalID, ConfigType) to identify the config this change is for in absence of ConfigID
 	ExternalID string `json:"external_id"`
 	ConfigType string `json:"config_type"`
 
@@ -106,8 +110,6 @@ type ChangeResult struct {
 	CreatedAt        *time.Time     `json:"created_at"`
 	Details          map[string]any `json:"details"`
 	Diff             *string        `json:"diff,omitempty"`
-
-	ConfigID string `json:"configID,omitempty"`
 
 	// UpdateExisting indicates whether to update an existing change
 	UpdateExisting bool `json:"update_existing"`
