@@ -13,3 +13,13 @@ So, external_id -> config lookup must always include the type.
 ## Caching
 
 External ID lookups are cached using TempCache (@api/cache.go)
+
+## Adding new scrapers / aliases (checklist)
+
+- Always set `result.ID` to a stable provider-unique value (UID/ARN/resource ID).
+- Treat aliases as type-scoped keys: unique within `result.Type`, not globally.
+- Avoid name-only aliases (`name`, `displayName`, `hostname`) unless strongly scoped (account/region/cluster/org) and preferably include a unique token.
+- Avoid nullable template segments that can generate malformed aliases (e.g. trailing `/`).
+- Assume normalization: aliases are lowercased on persist; avoid case-only or whitespace-only distinctions.
+- Remember persisted `config_items.external_id[]` is effectively `[result.ID] + aliases` (deduped/lowercased), including aliases from `transform.aliases` and scrape plugins.
+- Before shipping, run a duplicate check on active rows by `(type, lower(trim(ext_id)))`.
