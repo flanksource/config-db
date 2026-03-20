@@ -22,4 +22,7 @@ External ID lookups are cached using TempCache (@api/cache.go)
 - Avoid nullable template segments that can generate malformed aliases (e.g. trailing `/`).
 - Assume normalization: aliases are lowercased on persist; avoid case-only or whitespace-only distinctions.
 - Remember persisted `config_items.external_id[]` is effectively `[result.ID] + aliases` (deduped/lowercased), including aliases from `transform.aliases` and scrape plugins.
+- Do NOT add `result.ID` to `result.Aliases`; it is automatically prepended (see `db/config.go`).
+- Do NOT hand-craft format strings for external IDs when a dedicated helper function exists (e.g., `releaseExternalID()`, `pipelineExternalID()`). Use the helper.
+- Do NOT add "shorter forms" of the ID as aliases unless something explicitly looks them up. Extra aliases increase match surface and create backward-compat debt.
 - Before shipping, run a duplicate check on active rows by `(type, lower(trim(ext_id)))`.
