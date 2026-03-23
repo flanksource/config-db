@@ -835,7 +835,11 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 
 	var uniqueAvailabilityZoneIDs = map[string]struct{}{}
 	for _, az := range azDescribeOutput.AvailabilityZones {
+		availabilityZoneAlias := awsAvailabilityZoneAlias(lo.FromPtr(az.RegionName), lo.FromPtr(az.ZoneName))
 		*results = append(*results, v1.ScrapeResult{
+			// AZ names (e.g. eu-west-1a) are account-scoped labels and can map to
+			// different physical zones in different accounts. Prefix the account so
+			// AWS::AvailabilityZone IDs are unique per account.
 			ID:          fmt.Sprintf("%s-%s", *ctx.Caller.Account, lo.FromPtr(az.ZoneName)),
 			Type:        v1.AWSAvailabilityZone,
 			BaseScraper: config.BaseScraper,
@@ -843,7 +847,7 @@ func (aws Scraper) availabilityZones(ctx *AWSContext, config v1.AWS, results *v1
 			ConfigClass: "AvailabilityZone",
 			Tags:        v1.JSONStringMap{"region": lo.FromPtr(az.RegionName)},
 			Labels:      map[string]string{"az-id": lo.FromPtr(az.ZoneId)},
-			Aliases:     []string{lo.FromPtr(az.ZoneName)},
+			Aliases:     []string{lo.FromPtr(az.ZoneName), availabilityZoneAlias},
 			Name:        lo.FromPtr(az.ZoneName),
 			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSRegion, ExternalID: lo.FromPtr(az.RegionName)}},
 			RelationshipResults: []v1.RelationshipResult{{
@@ -980,10 +984,14 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 			ConfigClass: "User",
 			Labels:      labels,
 			Name:        *user.UserName,
-			Aliases:     []string{*user.UserId, *user.UserName},
-			Ignore:      []string{"arn", "userId", "createDate", "userName"},
-			ID:          *user.Arn, // UserId is not often referenced
-			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
+			Aliases: []string{
+				*user.UserId,
+				*user.Arn,
+				awsIAMUserAlias(lo.FromPtr(ctx.Caller.Account), lo.FromPtr(user.UserName)),
+			},
+			Ignore:  []string{"arn", "userId", "createDate", "userName"},
+			ID:      *user.Arn, // UserId is not often referenced
+			Parents: []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -1646,10 +1654,11 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 		})
 
 		labels := make(map[string]string)
+		zoneID := strings.ReplaceAll(*zone.Id, "/hostedzone/", "")
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSZone,
 			BaseScraper: config.BaseScraper,
-			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSZone, strings.ReplaceAll(*zone.Id, "/hostedzone/", ""), nil)},
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSZone, zoneID, nil)},
 			Config: map[string]interface{}{
 				"Id":     *zone.Id,
 				"Name":   *zone.Name,
@@ -1661,9 +1670,13 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 			ConfigClass: "DNSZone",
 			Name:        *zone.Name,
 			Labels:      labels,
-			Aliases:     []string{*zone.Id, *zone.Name, "AmazonRoute53/arn:aws:route53:::hostedzone/" + *zone.Id},
-			ID:          strings.ReplaceAll(*zone.Id, "/hostedzone/", ""),
-			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
+			Aliases: []string{
+				*zone.Id,
+				"AmazonRoute53/arn:aws:route53:::hostedzone/" + *zone.Id,
+				awsRoute53HostedZoneAlias(lo.FromPtr(ctx.Caller.Account), lo.FromPtr(zone.Name)),
+			},
+			ID:      zoneID,
+			Parents: []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -1683,6 +1696,10 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 	}
 
 	for _, lb := range loadbalancers.LoadBalancerDescriptions {
+		az := lb.AvailabilityZones[0]
+		region := az[:len(az)-1]
+		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, lo.FromPtr(ctx.Caller.Account), *lb.LoadBalancerName)
+
 		var relationships []v1.RelationshipResult
 		for _, instance := range lb.Instances {
 			relationships = append(relationships, v1.RelationshipResult{
@@ -1691,7 +1708,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 					ConfigType: v1.AWSEC2Instance,
 				},
 				RelatedExternalID: v1.ExternalID{
-					ExternalID: *lb.LoadBalancerName,
+					ExternalID: arn,
 					ConfigType: v1.AWSLoadBalancer,
 				},
 				Relationship: "LoadBalancerInstance",
@@ -1711,7 +1728,7 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 						clusterName := strings.ReplaceAll(*tag.Key, clusterPrefix, "")
 						relationships = append(relationships, v1.RelationshipResult{
 							ConfigExternalID: v1.ExternalID{
-								ExternalID: *lb.LoadBalancerName,
+								ExternalID: arn,
 								ConfigType: v1.AWSLoadBalancer,
 							},
 							RelatedExternalID: v1.ExternalID{
@@ -1725,25 +1742,26 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			}
 		}
 
-		az := lb.AvailabilityZones[0]
-		region := az[:len(az)-1]
 		labels := make(map[string]string)
 		tags := v1.Tags{}
 		tags.Append("zone", az)
 		tags.Append("region", region)
-		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, lo.FromPtr(ctx.Caller.Account), *lb.LoadBalancerName)
 		*results = append(*results, v1.ScrapeResult{
-			Type:                v1.AWSLoadBalancer,
-			CreatedAt:           lb.CreatedTime,
-			Ignore:              []string{"createdTime"},
-			BaseScraper:         config.BaseScraper,
-			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSLoadBalancer, lo.FromPtr(lb.LoadBalancerName), nil)},
-			Config:              lb,
-			ConfigClass:         "LoadBalancer",
-			Name:                *lb.LoadBalancerName,
-			Labels:              labels,
-			Tags:                tags.AsMap(),
-			Aliases:             []string{"AWSELB/" + arn, lo.FromPtr(lb.CanonicalHostedZoneName), *lb.LoadBalancerName},
+			Type:        v1.AWSLoadBalancer,
+			CreatedAt:   lb.CreatedTime,
+			Ignore:      []string{"createdTime"},
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSLoadBalancer, lo.FromPtr(lb.LoadBalancerName), nil)},
+			Config:      lb,
+			ConfigClass: "LoadBalancer",
+			Name:        *lb.LoadBalancerName,
+			Labels:      labels,
+			Tags:        tags.AsMap(),
+			Aliases: []string{
+				"AWSELB/" + arn,
+				awsClassicLoadBalancerAlias(lo.FromPtr(ctx.Caller.Account), region, lo.FromPtr(lb.LoadBalancerName)),
+				awsClassicLoadBalancerCanonicalZoneAlias(lo.FromPtr(ctx.Caller.Account), region, lo.FromPtr(lb.CanonicalHostedZoneName)),
+			},
 			ID:                  arn,
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSEC2VPC, ExternalID: lo.FromPtr(lb.VPCId)}},
 			RelationshipResults: relationships,
@@ -1891,9 +1909,12 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 			ConfigClass: "Role",
 			Labels:      labels,
 			Name:        *role.RoleName,
-			Aliases:     []string{*role.RoleName, *role.Arn},
-			ID:          *role.RoleId,
-			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
+			Aliases: []string{
+				*role.Arn,
+				awsIAMRoleAlias(lo.FromPtr(ctx.Caller.Account), lo.FromPtr(role.RoleName)),
+			},
+			ID:      *role.RoleId,
+			Parents: []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
 		})
 	}
 }
@@ -1947,15 +1968,18 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 		}
 
 		*results = append(*results, v1.ScrapeResult{
-			Type:                v1.AWSIAMInstanceProfile,
-			CreatedAt:           profile.CreateDate,
-			BaseScraper:         config.BaseScraper,
-			Properties:          []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMInstanceProfile, lo.FromPtr(profile.Arn), nil)},
-			Config:              profileObj.String(),
-			Labels:              labels,
-			ConfigClass:         "Profile",
-			Name:                *profile.InstanceProfileName,
-			Aliases:             []string{*profile.InstanceProfileName, *profile.Arn},
+			Type:        v1.AWSIAMInstanceProfile,
+			CreatedAt:   profile.CreateDate,
+			BaseScraper: config.BaseScraper,
+			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSIAMInstanceProfile, lo.FromPtr(profile.Arn), nil)},
+			Config:      profileObj.String(),
+			Labels:      labels,
+			ConfigClass: "Profile",
+			Name:        *profile.InstanceProfileName,
+			Aliases: []string{
+				*profile.Arn,
+				awsIAMInstanceProfileAlias(lo.FromPtr(ctx.Caller.Account), lo.FromPtr(profile.InstanceProfileName)),
+			},
 			ID:                  *profile.InstanceProfileId,
 			RelationshipResults: relationships,
 			Parents:             []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
@@ -2281,4 +2305,35 @@ func parseAssumeRolePolicyDoc(ctx *AWSContext, encodedDoc string) (map[string]an
 	var policyDoc map[string]any
 	err = json.Unmarshal(c.Bytes(), &policyDoc)
 	return policyDoc, err
+}
+
+func awsIAMUserAlias(accountID, userName string) string {
+	return fmt.Sprintf("aws://iam-user/%s/%s", accountID, userName)
+}
+
+func awsIAMRoleAlias(accountID, roleName string) string {
+	return fmt.Sprintf("aws://iam-role/%s/%s", accountID, roleName)
+}
+
+func awsIAMInstanceProfileAlias(accountID, profileName string) string {
+	return fmt.Sprintf("aws://iam-instance-profile/%s/%s", accountID, profileName)
+}
+
+func awsAvailabilityZoneAlias(region, zoneName string) string {
+	return fmt.Sprintf("aws://availability-zone/%s/%s", region, zoneName)
+}
+
+func awsRoute53HostedZoneAlias(accountID, zoneName string) string {
+	return fmt.Sprintf("aws://route53-hosted-zone/%s/%s", accountID, zoneName)
+}
+
+func awsClassicLoadBalancerAlias(accountID, region, loadBalancerName string) string {
+	return fmt.Sprintf("aws://classic-load-balancer/%s/%s/%s", accountID, region, loadBalancerName)
+}
+
+func awsClassicLoadBalancerCanonicalZoneAlias(accountID, region, canonicalHostedZoneName string) string {
+	if canonicalHostedZoneName == "" {
+		return ""
+	}
+	return fmt.Sprintf("aws://classic-load-balancer-canonical-zone/%s/%s/%s", accountID, region, canonicalHostedZoneName)
 }

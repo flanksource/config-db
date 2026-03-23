@@ -541,7 +541,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		if val, err := extractLocation(ctx, env, e.Transform.Aliases); err != nil {
 			return results, fmt.Errorf("failed to extract aliases: %w", err)
 		} else {
-			results[i].Aliases = append(results[i].Aliases, val...)
+			results[i].Aliases = append(results[i].Aliases, sanitizeExtractedAliases(val)...)
 		}
 	}
 
@@ -599,6 +599,31 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 	}
 
 	return output, nil
+}
+
+// sanitizeExtractedAliases normalizes template-generated aliases before they are
+// persisted into config_items.external_id.
+//
+// Why: transform aliases are free-form templates. When a placeholder is empty
+// (e.g. missing name), templates can produce malformed IDs that end with a
+// trailing separator (".../"). Those values create broad, collision-prone
+// aliases across many resources and can violate uniqueness migration checks.
+func sanitizeExtractedAliases(aliases []string) []string {
+	sanitized := make([]string, 0, len(aliases))
+	for _, alias := range aliases {
+		alias = strings.TrimSpace(alias)
+		if alias == "" {
+			continue
+		}
+
+		if strings.HasSuffix(alias, "/") {
+			continue
+		}
+
+		sanitized = append(sanitized, alias)
+	}
+
+	return lo.Uniq(sanitized)
 }
 
 func hasExternalEntities(config any) bool {

@@ -73,6 +73,10 @@ var releaseEnvStatusToChangeType = map[string]string{
 	"scheduled":          ChangeTypeInProgress,
 }
 
+func releaseExternalID(organization, project string, definitionID int) string {
+	return fmt.Sprintf("azuredevops://%s/%s/release/%d", organization, project, definitionID)
+}
+
 func (ado AzureDevopsScraper) scrapeReleases(
 	ctx api.ScrapeContext,
 	releaseClient *AzureDevopsReleaseClient,
@@ -252,9 +256,10 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Project, def ReleaseDefinition, defJSON map[string]any, releases []Release, cutoff time.Time) v1.ScrapeResult {
 	var result v1.ScrapeResult
 
+	releaseID := releaseExternalID(config.Organization, project.Name, def.ID)
 	configExternalID := v1.ExternalID{
 		ConfigType: ReleaseType,
-		ExternalID: fmt.Sprintf("%s/%d", project.Name, def.ID),
+		ExternalID: releaseID,
 	}
 
 	for _, release := range releases {
@@ -327,7 +332,7 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 				ChangeType:       env.Name,
 				CreatedAt:        &createdAt,
 				CreatedBy:        createdBy,
-				ExternalID:       fmt.Sprintf("%s/%d", project.Name, def.ID),
+				ExternalID:       releaseID,
 				ConfigType:       ReleaseType,
 				Source:           "AzureDevops/release/" + configExternalID.ExternalID,
 				Summary:          fmt.Sprintf("%s / %s", release.Name, env.Name),
@@ -372,9 +377,9 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 		}
 	}
 	result.Type = ReleaseType
-	result.ID = fmt.Sprintf("%s/%d", project.Name, def.ID)
+	result.ID = releaseID
 	result.Name = releaseDisplayName(def)
-	result.Aliases = []string{fmt.Sprintf("%s/release/%d", project.Name, def.ID)}
+	result.Aliases = nil
 	return result
 }
 

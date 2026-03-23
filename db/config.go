@@ -3,7 +3,6 @@ package db
 import (
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -33,7 +32,7 @@ func GetConfigItem(ctx api.ScrapeContext, extType, extID string) (*models.Config
 	tx := ctx.DB().
 		Select("id", "config_class", "type", "config", "created_at", "updated_at", "deleted_at").
 		Limit(1).
-		Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{strings.ToLower(extID)})
+		Find(&ci, "type = ? and external_id  @> ?", extType, pq.StringArray{v1.NormalizeExternalID(extID)})
 	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
@@ -130,7 +129,7 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 	// Lowercase + unique  all external ids for easy matching
 	externalIDs := append([]string{result.ID}, result.Aliases...)
 	externalIDs = lo.Uniq(externalIDs)
-	externalIDs = lo.Map(externalIDs, func(s string, _ int) string { return strings.ToLower(s) })
+	externalIDs = lo.Map(externalIDs, func(s string, _ int) string { return v1.NormalizeExternalID(s) })
 	externalIDs = lo.Filter(externalIDs, func(s string, _ int) bool { return s != "" })
 
 	ci := &models.ConfigItem{
