@@ -3,10 +3,10 @@ kind: ScrapeConfig
 metadata:
   name: github
 spec:
-  schedule: "@every 6h"
+  schedule: '@every 6h'
   github:
     - security: true
       openssf: true
       repositories:
         - owner: flanksource
-          repo: canary-checker
+          repo: duty
