@@ -19,7 +19,7 @@ func getAnalysis(ctx api.ScrapeContext, analysis models.ConfigAnalysis) (*models
 }
 
 func CreateAnalysis(ctx api.ScrapeContext, analysis models.ConfigAnalysis) error {
-	// get analysis by config_id, and summary
+	// get analysis by config_id and analyzer
 	existingAnalysis, err := getAnalysis(ctx, analysis)
 	if err != nil {
 		return err
@@ -27,11 +27,20 @@ func CreateAnalysis(ctx api.ScrapeContext, analysis models.ConfigAnalysis) error
 
 	if existingAnalysis != nil {
 		analysis.ID = existingAnalysis.ID
-		return ctx.DB().Model(&analysis).Updates(map[string]interface{}{
-			"last_observed": gorm.Expr("now()"),
-			"message":       analysis.Message,
-			"status":        analysis.Status,
-		}).Error
+
+		return ctx.DB().Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&models.ConfigAnalysis{}).
+				Where("id = ?", existingAnalysis.ID).
+				Select("*").
+				Omit("id", "first_observed", "is_pushed", "last_observed").
+				Updates(analysis).Error; err != nil {
+				return err
+			}
+
+			return tx.Model(&models.ConfigAnalysis{}).
+				Where("id = ?", existingAnalysis.ID).
+				UpdateColumn("last_observed", gorm.Expr("now()")).Error
+		})
 	}
 
 	return ctx.DB().Create(&analysis).Error
