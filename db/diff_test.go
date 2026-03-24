@@ -17,11 +17,6 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
-func TestDB(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "DB Suite")
-}
-
 func readTestFile(path string) string {
 	f, err := os.ReadFile(path)
 	ExpectWithOffset(1, err).ToNot(HaveOccurred(), "failed to open file (path=%s)", path)
