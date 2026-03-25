@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/models"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -78,9 +79,19 @@ var _ = Describe("GitHubScraper", func() {
 
 			openssfCheckNames := make(map[string]bool)
 			for _, a := range analyses {
-				if a.AnalysisResult != nil && a.AnalysisResult.Source == "OpenSSF Scorecard" {
-					openssfCheckNames[a.AnalysisResult.Analyzer] = true
+				if a.AnalysisResult == nil || a.AnalysisResult.Source != "OpenSSF Scorecard" {
+					continue
 				}
+
+				openssfCheckNames[a.AnalysisResult.Analyzer] = true
+				Expect(a.AnalysisResult.Status).To(Equal(models.AnalysisStatusOpen))
+				Expect(a.AnalysisResult.Status).ToNot(Equal("resolved"))
+				Expect(a.AnalysisResult.Status).ToNot(Equal("failing"))
+				Expect(a.AnalysisResult.Status).ToNot(Equal("passing"))
+				Expect(a.AnalysisResult.Analysis).To(HaveKey("score"))
+				score, ok := a.AnalysisResult.Analysis["score"].(int)
+				Expect(ok).To(BeTrue(), "expected OpenSSF score to be an int")
+				Expect(score).To(BeNumerically("<", 10))
 			}
 			Expect(openssfCheckNames).ToNot(BeEmpty(),
 				"dedup validation requires at least one OpenSSF check to be meaningful")

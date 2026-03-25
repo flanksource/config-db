@@ -22,9 +22,6 @@ const (
 	OpenSSFScorecardAPIBase = "https://api.securityscorecards.dev"
 	scorecardCacheTTL       = 24 * time.Hour
 	maxRetries              = 3
-
-	scorecardStatusFailing = "failing"
-	scorecardStatusPassing = "passing"
 )
 
 var LastScorecardScrapeTime = sync.Map{}
@@ -150,19 +147,17 @@ func isRetryable(err error) bool {
 
 func createScorecardAnalyses(_ api.ScrapeContext, results *v1.ScrapeResults, configID string, _ v1.GitHubRepository, scorecard *ScorecardResponse) {
 	for _, check := range scorecard.Checks {
+		if check.Score == 10 {
+			continue
+		}
+
 		a := results.Analysis(check.Name, ConfigTypeRepository, configID)
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = mapCheckScoreToSeverity(check.Score)
 		a.Source = "OpenSSF Scorecard"
 		a.Summary = check.Reason
+		a.Status = models.AnalysisStatusOpen
 		a.FirstObserved = &scorecard.Date
-		a.LastObserved = &scorecard.Date
-
-		if check.Score < 10 {
-			a.Status = scorecardStatusFailing
-		} else {
-			a.Status = scorecardStatusPassing
-		}
 
 		for _, detail := range check.Details {
 			a.Message(detail)
