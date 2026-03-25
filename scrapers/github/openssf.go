@@ -147,17 +147,14 @@ func isRetryable(err error) bool {
 
 func createScorecardAnalyses(_ api.ScrapeContext, results *v1.ScrapeResults, configID string, _ v1.GitHubRepository, scorecard *ScorecardResponse) {
 	for _, check := range scorecard.Checks {
-		if check.Score == 10 {
-			continue
-		}
-
 		a := results.Analysis(check.Name, ConfigTypeRepository, configID)
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = mapCheckScoreToSeverity(check.Score)
 		a.Source = "OpenSSF Scorecard"
 		a.Summary = check.Reason
-		a.Status = models.AnalysisStatusOpen
+		a.Status = statusFromScore(check.Score)
 		a.FirstObserved = &scorecard.Date
+		a.LastObserved = &scorecard.Date
 
 		for _, detail := range check.Details {
 			a.Message(detail)
@@ -175,6 +172,14 @@ func createScorecardAnalyses(_ api.ScrapeContext, results *v1.ScrapeResults, con
 			},
 		}
 	}
+}
+
+func statusFromScore(score int) string {
+	if score == 10 {
+		return models.AnalysisStatusResolved
+	}
+
+	return models.AnalysisStatusOpen
 }
 
 func calculateScorecardHealthStatus(scorecard *ScorecardResponse) health.HealthStatus {
