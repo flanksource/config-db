@@ -43,13 +43,5 @@ func CreateAnalysis(ctx api.ScrapeContext, analysis models.ConfigAnalysis) error
 		})
 	}
 
-	return ctx.DB().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&analysis).Error; err != nil {
-			return err
-		}
-
-		return tx.Model(&models.ConfigAnalysis{}).
-			Where("id = ?", analysis.ID).
-			UpdateColumn("last_observed", gorm.Expr("now()")).Error
-	})
+	return ctx.DB().Create(&analysis).Error
 }

@@ -90,33 +90,4 @@ var _ = Describe("CreateAnalysis", Ordered, func() {
 		Expect(got.LastObserved).ToNot(BeNil())
 		Expect(got.LastObserved.Truncate(time.Second)).ToNot(BeTemporally("==", attemptedLastObserved))
 	})
-
-	It("uses current time for last_observed on create", func() {
-		now := time.Now().UTC()
-		attemptedLastObserved := now.Add(-48 * time.Hour).Truncate(time.Second)
-		firstObserved := now.Add(-72 * time.Hour).Truncate(time.Second)
-
-		analysis := models.ConfigAnalysis{
-			ID:            uuid.New(),
-			ConfigID:      configID,
-			Analyzer:      "create-last-observed",
-			Message:       "message",
-			Summary:       "summary",
-			Status:        models.AnalysisStatusOpen,
-			Severity:      models.SeverityMedium,
-			AnalysisType:  models.AnalysisTypeSecurity,
-			Analysis:      types.JSONMap{"version": "1"},
-			Source:        "source",
-			FirstObserved: &firstObserved,
-			LastObserved:  &attemptedLastObserved,
-		}
-		Expect(CreateAnalysis(ctx, analysis)).ToNot(HaveOccurred())
-
-		var got models.ConfigAnalysis
-		Expect(ctx.DB().Where("config_id = ? AND analyzer = ?", configID, "create-last-observed").First(&got).Error).ToNot(HaveOccurred())
-		Expect(got.LastObserved).ToNot(BeNil())
-		Expect(got.LastObserved.Truncate(time.Second)).ToNot(BeTemporally("==", attemptedLastObserved))
-		Expect(*got.LastObserved).To(BeTemporally(">=", now.Add(-5*time.Second)))
-		Expect(*got.LastObserved).To(BeTemporally("<=", time.Now().UTC().Add(5*time.Second)))
-	})
 })
