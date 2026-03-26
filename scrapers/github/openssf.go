@@ -22,12 +22,14 @@ const (
 	OpenSSFScorecardAPIBase = "https://api.securityscorecards.dev"
 	scorecardCacheTTL       = 24 * time.Hour
 	maxRetries              = 3
-
-	scorecardStatusFailing = "failing"
-	scorecardStatusPassing = "passing"
 )
 
-var LastScorecardScrapeTime = sync.Map{}
+type scorecardCacheEntry struct {
+	fetchedAt time.Time
+	scorecard *ScorecardResponse
+}
+
+var scorecardCache = sync.Map{}
 
 type ScorecardResponse struct {
 	Date      time.Time     `json:"date"`
@@ -63,10 +65,10 @@ type Documentation struct {
 func scrapeOpenSSFScorecard(ctx api.ScrapeContext, repoConfig v1.GitHubRepository) (*ScorecardResponse, error) {
 	repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
 
-	if lastScrape, ok := LastScorecardScrapeTime.Load(repoFullName); ok {
-		if t, ok := lastScrape.(time.Time); ok && time.Since(t) < scorecardCacheTTL {
-			ctx.Debugf("skipping OpenSSF for %s: cached within TTL", repoFullName)
-			return nil, nil
+	if cached, ok := scorecardCache.Load(repoFullName); ok {
+		if entry, ok := cached.(scorecardCacheEntry); ok && time.Since(entry.fetchedAt) < scorecardCacheTTL {
+			ctx.Debugf("returning cached OpenSSF scorecard for %s (age: %s)", repoFullName, time.Since(entry.fetchedAt).Round(time.Second))
+			return entry.scorecard, nil
 		}
 	}
 
@@ -75,7 +77,7 @@ func scrapeOpenSSFScorecard(ctx api.ScrapeContext, repoConfig v1.GitHubRepositor
 		return nil, err
 	}
 
-	LastScorecardScrapeTime.Store(repoFullName, time.Now())
+	scorecardCache.Store(repoFullName, scorecardCacheEntry{fetchedAt: time.Now(), scorecard: scorecard})
 	return scorecard, nil
 }
 
@@ -84,7 +86,7 @@ func fetchScorecard(ctx context.Context, owner, repo string) (*ScorecardResponse
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 
 	var lastErr error
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		if attempt > 0 {
 			timer := time.NewTimer(time.Duration(attempt*attempt) * time.Second)
 			select {
@@ -122,13 +124,8 @@ func fetchScorecard(ctx context.Context, owner, repo string) (*ScorecardResponse
 			return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
 		}
 
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
-		}
-
 		var scorecard ScorecardResponse
-		if err := json.Unmarshal(body, &scorecard); err != nil {
+		if err := json.NewDecoder(resp.Body).Decode(&scorecard); err != nil {
 			return nil, fmt.Errorf("failed to parse response: %w", err)
 		}
 		return &scorecard, nil
@@ -155,14 +152,9 @@ func createScorecardAnalyses(_ api.ScrapeContext, results *v1.ScrapeResults, con
 		a.Severity = mapCheckScoreToSeverity(check.Score)
 		a.Source = "OpenSSF Scorecard"
 		a.Summary = check.Reason
+		a.Status = statusFromScore(check.Score)
 		a.FirstObserved = &scorecard.Date
 		a.LastObserved = &scorecard.Date
-
-		if check.Score < 10 {
-			a.Status = scorecardStatusFailing
-		} else {
-			a.Status = scorecardStatusPassing
-		}
 
 		for _, detail := range check.Details {
 			a.Message(detail)
@@ -180,6 +172,14 @@ func createScorecardAnalyses(_ api.ScrapeContext, results *v1.ScrapeResults, con
 			},
 		}
 	}
+}
+
+func statusFromScore(score int) string {
+	if score == 10 {
+		return models.AnalysisStatusResolved
+	}
+
+	return models.AnalysisStatusOpen
 }
 
 func calculateScorecardHealthStatus(scorecard *ScorecardResponse) health.HealthStatus {
