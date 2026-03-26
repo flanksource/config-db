@@ -62,6 +62,30 @@ type Documentation struct {
 	Short string `json:"short"`
 }
 
+// checkRiskLevel maps OpenSSF Scorecard check names to their inherent risk severity.
+// Source: https://github.com/ossf/scorecard/blob/main/docs/checks.md
+var checkRiskLevel = map[string]models.Severity{
+	"Binary-Artifacts":       models.SeverityHigh,
+	"Branch-Protection":      models.SeverityHigh,
+	"CI-Tests":               models.SeverityLow,
+	"CII-Best-Practices":     models.SeverityLow,
+	"Code-Review":            models.SeverityHigh,
+	"Contributors":           models.SeverityLow,
+	"Dangerous-Workflow":     models.SeverityCritical,
+	"Dependency-Update-Tool": models.SeverityHigh,
+	"Fuzzing":                models.SeverityMedium,
+	"License":                models.SeverityLow,
+	"Maintained":             models.SeverityHigh,
+	"Packaging":              models.SeverityMedium,
+	"Pinned-Dependencies":    models.SeverityMedium,
+	"SAST":                   models.SeverityMedium,
+	"Security-Policy":        models.SeverityMedium,
+	"Signed-Releases":        models.SeverityHigh,
+	"Token-Permissions":      models.SeverityHigh,
+	"Vulnerabilities":        models.SeverityHigh,
+	"Webhooks":               models.SeverityCritical,
+}
+
 func scrapeOpenSSFScorecard(ctx api.ScrapeContext, repoConfig v1.GitHubRepository) (*ScorecardResponse, error) {
 	repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
 
@@ -145,11 +169,16 @@ func isRetryable(err error) bool {
 	return strings.Contains(err.Error(), "server error") || strings.Contains(err.Error(), "connection")
 }
 
-func createScorecardAnalyses(_ api.ScrapeContext, results *v1.ScrapeResults, configID string, _ v1.GitHubRepository, scorecard *ScorecardResponse) {
+func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, configID string, _ v1.GitHubRepository, scorecard *ScorecardResponse) {
 	for _, check := range scorecard.Checks {
 		a := results.Analysis(check.Name, ConfigTypeRepository, configID)
 		a.AnalysisType = models.AnalysisTypeSecurity
-		a.Severity = mapCheckScoreToSeverity(check.Score)
+		if sev, ok := checkRiskLevel[check.Name]; ok {
+			a.Severity = sev
+		} else {
+			ctx.Warnf("unknown OpenSSF check %q, defaulting severity to info", check.Name)
+			a.Severity = models.SeverityInfo
+		}
 		a.Source = "OpenSSF Scorecard"
 		a.Summary = check.Reason
 		a.Status = statusFromScore(check.Score)
@@ -185,9 +214,14 @@ func statusFromScore(score int) string {
 func calculateScorecardHealthStatus(scorecard *ScorecardResponse) health.HealthStatus {
 	status := health.HealthStatus{Ready: true}
 
-	criticalChecks := []string{"Code-Review", "SAST", "Token-Permissions", "Dangerous-Workflow", "Branch-Protection"}
-	var failedCritical []string
+	var criticalChecks []string
+	for name, sev := range checkRiskLevel {
+		if sev == models.SeverityCritical || sev == models.SeverityHigh {
+			criticalChecks = append(criticalChecks, name)
+		}
+	}
 
+	var failedCritical []string
 	for _, check := range scorecard.Checks {
 		for _, critical := range criticalChecks {
 			if check.Score == 0 && check.Name == critical {
@@ -214,15 +248,4 @@ func calculateScorecardHealthStatus(scorecard *ScorecardResponse) health.HealthS
 	}
 
 	return status
-}
-
-func mapCheckScoreToSeverity(score int) models.Severity {
-	if score <= 3 {
-		return models.SeverityCritical
-	} else if score <= 6 {
-		return models.SeverityHigh
-	} else if score <= 9 {
-		return models.SeverityMedium
-	}
-	return models.SeverityLow
 }
