@@ -1,6 +1,7 @@
 package github
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -48,32 +49,37 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 
 	var maxAlertTime time.Time
 
+	var errs []error
+
 	dependabotAlerts, _, err := client.GetDependabotAlerts(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Dependabot alerts: %w", err)
+		errs = append(errs, fmt.Errorf("dependabot: %w", err))
+	} else {
+		alerts.dependabot = dependabotAlerts
 	}
-	alerts.dependabot = dependabotAlerts
 
 	codeScanAlerts, _, err := client.GetCodeScanningAlerts(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get code scanning alerts: %w", err)
+		errs = append(errs, fmt.Errorf("code scanning: %w", err))
+	} else {
+		alerts.codeScanning = codeScanAlerts
 	}
-	alerts.codeScanning = codeScanAlerts
 
 	secretAlerts, _, err := client.GetSecretScanningAlerts(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get secret scanning alerts: %w", err)
+		errs = append(errs, fmt.Errorf("secret scanning: %w", err))
+	} else {
+		alerts.secretScanning = secretAlerts
 	}
-	alerts.secretScanning = secretAlerts
 
-	for _, alert := range dependabotAlerts {
+	for _, alert := range alerts.dependabot {
 		countAlertSeverity(&alerts.counts, alert.SecurityAdvisory.GetSeverity())
 		if alert.UpdatedAt != nil && alert.UpdatedAt.After(maxAlertTime) {
 			maxAlertTime = alert.UpdatedAt.Time
 		}
 	}
 
-	for _, alert := range codeScanAlerts {
+	for _, alert := range alerts.codeScanning {
 		countAlertSeverity(&alerts.counts, alert.Rule.GetSeverity())
 		if alert.UpdatedAt != nil && alert.UpdatedAt.After(maxAlertTime) {
 			maxAlertTime = alert.UpdatedAt.Time
@@ -82,7 +88,7 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 
 	// Secret scanning alerts don't have a severity field in the GitHub API,
 	// so we default to counting them as high severity.
-	for _, alert := range secretAlerts {
+	for _, alert := range alerts.secretScanning {
 		alerts.counts.high++
 		if alert.UpdatedAt != nil && alert.UpdatedAt.After(maxAlertTime) {
 			maxAlertTime = alert.UpdatedAt.Time
@@ -94,9 +100,9 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 	}
 
 	ctx.Logger.V(2).Infof("fetched alerts for %s: dependabot=%d, code-scan=%d, secrets=%d",
-		repoFullName, len(dependabotAlerts), len(codeScanAlerts), len(secretAlerts))
+		repoFullName, len(alerts.dependabot), len(alerts.codeScanning), len(alerts.secretScanning))
 
-	return alerts, nil
+	return alerts, errors.Join(errs...)
 }
 
 func countAlertSeverity(counts *alertCounts, severity string) {

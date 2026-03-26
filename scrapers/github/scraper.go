@@ -67,7 +67,6 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				alerts, err = scrapeSecurityAlerts(ctx, client, config, repoFullName)
 				if err != nil {
 					results.Errorf(err, "failed to scrape security alerts for %s", repoFullName)
-					continue
 				}
 			}
 
@@ -75,7 +74,7 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			if config.OpenSSF {
 				scorecard, err = scrapeOpenSSFScorecard(ctx, repoConfig)
 				if err != nil {
-					ctx.Warnf("failed to fetch OpenSSF scorecard for %s: %v", repoFullName, err)
+					results.Errorf(err, "failed to fetch OpenSSF scorecard for %s", repoFullName)
 				}
 			}
 
