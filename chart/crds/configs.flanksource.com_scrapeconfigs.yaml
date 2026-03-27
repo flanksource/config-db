@@ -229,6 +229,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -1209,6 +1211,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -1811,6 +1815,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -2559,6 +2565,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -3971,6 +3979,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -4532,6 +4542,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -5171,6 +5183,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -5752,6 +5766,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -6371,6 +6387,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -7365,6 +7383,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -8487,6 +8507,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -9434,6 +9456,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -10079,6 +10103,14 @@ spec:
                       description: FieldMapping defines how source log fields map
                         to canonical LogLine fields
                       properties:
+                        dedupBy:
+                          items:
+                            type: string
+                          type: array
+                        groupBy:
+                          items:
+                            type: string
+                          type: array
                         host:
                           items:
                             type: string
@@ -10499,6 +10531,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -11057,6 +11091,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -11724,6 +11760,11 @@ spec:
                           type: string
                       type: object
                     type: array
+                  staleAnalysisAge:
+                    description: |-
+                      StaleAnalysisAge is the duration after which an analysis that is no longer observed by the scraper
+                      is marked as resolved. Defaults to 48h. Use "keep" to disable auto-resolution.
+                    type: string
                   staleItemAge:
                     type: string
                   types:
@@ -11860,6 +11901,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -12727,6 +12770,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -13257,6 +13302,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch
@@ -14032,6 +14079,8 @@ spec:
                           tooltip:
                             type: string
                           type:
+                            description: 'Type controls how the UI renders the property
+                              value: url, badge, currency, text, age, hidden.'
                             type: string
                           unit:
                             description: e.g. milliseconds, bytes, millicores, epoch

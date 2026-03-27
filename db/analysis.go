@@ -104,7 +104,7 @@ var DefaultAnalysisMaxAge = 48 * time.Hour
 // resolveAnalysisMaxAge returns the effective retention duration for analysis resolution.
 // It checks (in order): per-scraper AnalysisAge config → global property → hardcoded default.
 func resolveAnalysisMaxAge(ctx api.ScrapeContext) (time.Duration, bool, error) {
-	configured := ctx.ScrapeConfig().Spec.Retention.AnalysisAge
+	configured := ctx.ScrapeConfig().Spec.Retention.StaleAnalysisAge
 	switch configured {
 	case "keep":
 		return 0, false, nil

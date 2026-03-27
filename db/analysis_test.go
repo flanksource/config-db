@@ -113,7 +113,7 @@ var _ = Describe("analysis resolution", Ordered, func() {
 				},
 				Spec: v1.ScraperSpec{
 					// Use a very short retention so we can test resolution without long sleeps
-					Retention: v1.RetentionSpec{AnalysisAge: "1s"},
+					Retention: v1.RetentionSpec{StaleAnalysisAge: "1s"},
 				},
 			})
 
@@ -223,7 +223,7 @@ var _ = Describe("analysis resolution", Ordered, func() {
 					UID:       k8stypes.UID(scraperID.String()),
 				},
 				Spec: v1.ScraperSpec{
-					Retention: v1.RetentionSpec{AnalysisAge: "1h"},
+					Retention: v1.RetentionSpec{StaleAnalysisAge: "1h"},
 				},
 			})
 
@@ -331,7 +331,7 @@ var _ = Describe("analysis resolution", Ordered, func() {
 					UID:       k8stypes.UID(scraperID.String()),
 				},
 				Spec: v1.ScraperSpec{
-					Retention: v1.RetentionSpec{AnalysisAge: "keep"},
+					Retention: v1.RetentionSpec{StaleAnalysisAge: "keep"},
 				},
 			})
 

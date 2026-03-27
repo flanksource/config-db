@@ -219,6 +219,9 @@
     },
     "ConfigProperties": {
       "properties": {
+        "type": {
+          "type": "string"
+        },
         "label": {
           "type": "string"
         },
@@ -229,9 +232,6 @@
           "type": "string"
         },
         "icon": {
-          "type": "string"
-        },
-        "type": {
           "type": "string"
         },
         "color": {
