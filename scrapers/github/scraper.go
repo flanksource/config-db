@@ -3,6 +3,7 @@ package github
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/flanksource/config-db/api"
@@ -326,14 +327,14 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 		a.Message(alert.GetMostRecentInstance().GetMessage().GetText())
 		a.Analysis = alertToMap(alert)
 
-		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
-			a.Properties = append(a.Properties, &types.Property{
-				Name:  "URL",
-				Text:  htmlURL,
-				Type:  "url",
-				Links: []types.Link{{URL: htmlURL, Type: "url"}},
-			})
-		}
+		repoFullName := strings.TrimPrefix(configID, "github/")
+		codeScanningURL := fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", repoFullName, alert.GetNumber())
+		a.Properties = append(a.Properties, &types.Property{
+			Name:  "URL",
+			Text:  codeScanningURL,
+			Type:  "url",
+			Links: []types.Link{{URL: codeScanningURL, Type: "url"}},
+		})
 		if tool := alert.GetTool(); tool != nil {
 			toolText := tool.GetName()
 			if ver := tool.GetVersion(); ver != "" {
