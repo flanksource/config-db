@@ -50,6 +50,9 @@ type RetentionSpec struct {
 	Changes      []ChangeRetentionSpec `json:"changes,omitempty"`
 	Types        []TypeRetentionSpec   `json:"types,omitempty"`
 	StaleItemAge string                `json:"staleItemAge,omitempty"`
+	// AnalysisAge is the duration after which an analysis that is no longer observed by the scraper
+	// is marked as resolved. Defaults to 48h. Use "keep" to disable auto-resolution.
+	AnalysisAge  string                `json:"analysisAge,omitempty"`
 }
 
 func (r RetentionSpec) Merge(other RetentionSpec) RetentionSpec {
@@ -57,6 +60,9 @@ func (r RetentionSpec) Merge(other RetentionSpec) RetentionSpec {
 	r.Types = append(r.Types, other.Types...)
 	if r.StaleItemAge == "" && other.StaleItemAge != "" {
 		r.StaleItemAge = other.StaleItemAge
+	}
+	if r.AnalysisAge == "" && other.AnalysisAge != "" {
+		r.AnalysisAge = other.AnalysisAge
 	}
 	return r
 }

@@ -38,7 +38,6 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	pkgChanges "github.com/flanksource/config-db/changes"
 	"github.com/flanksource/config-db/db/models"
-	"github.com/flanksource/config-db/db/ulid"
 	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/config-db/utils"
 )
@@ -400,66 +399,6 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 	return newOnes, updates, changeSummary, nil
 }
 
-func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
-	var ci *models.ConfigItem
-	var err error
-
-	if result.AnalysisResult.ExternalID != "" {
-		ci, err = ctx.TempCache().Find(ctx, v1.ExternalID{
-			ConfigType: result.AnalysisResult.ConfigType,
-			ExternalID: result.AnalysisResult.ExternalID,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	if ci == nil {
-		for _, extID := range result.AnalysisResult.ExternalConfigs {
-			ci, err = ctx.TempCache().Find(ctx, extID)
-			if err != nil {
-				return err
-			}
-			if ci != nil {
-				break
-			}
-		}
-	}
-
-	if ci == nil {
-		if ctx.PropertyOn(false, "log.missing") {
-			ctx.Debugf("unable to find config item for analysis: (source=%s, externalID=%s, externalConfigs=%v, analysis: %+v)", result.AnalysisResult.Source, result.AnalysisResult.ExternalID, result.AnalysisResult.ExternalConfigs, result.AnalysisResult)
-		}
-		return nil
-	}
-
-	analysis := result.AnalysisResult.ToConfigAnalysis()
-	analysis.ConfigID = uuid.MustParse(ci.ID)
-	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
-	analysis.ScraperID = ctx.ScrapeConfig().GetPersistedID()
-	if analysis.Status == "" {
-		analysis.Status = dutyModels.AnalysisStatusOpen
-	}
-
-	return CreateAnalysis(ctx, analysis)
-}
-
-func GetCurrentDBTime(ctx api.ScrapeContext) (time.Time, error) {
-	var now time.Time
-	err := ctx.DB().Raw(`SELECT CURRENT_TIMESTAMP`).Scan(&now).Error
-	return now, err
-}
-
-// UpdateAnalysisStatusBefore updates the status of config analyses that were last observed before the specified time.
-func UpdateAnalysisStatusBefore(ctx api.ScrapeContext, before time.Time, scraperID, status string) error {
-	return ctx.DB().
-		Model(&dutyModels.ConfigAnalysis{}).
-		Where("last_observed <= ? AND first_observed <= ?", before, before).
-		Where("scraper_id = ?", scraperID).
-		Update("status", status).
-		Error
-}
-
 // validateExistingUsers checks which external user IDs exist in the database
 // Returns a set of existing user IDs for efficient lookup
 func ValidateExistingUsers(ctx api.ScrapeContext, userIDs []string) (map[uuid.UUID]struct{}, error) {
@@ -601,11 +540,6 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	if len(results) == 0 {
 		return summary, nil
-	}
-
-	startTime, err := GetCurrentDBTime(ctx)
-	if err != nil {
-		return summary, ctx.Oops().Wrapf(err, "unable to get current db time")
 	}
 
 	scraperID := ctx.ScrapeConfig().GetPersistedID()
@@ -943,7 +877,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	for _, result := range results {
 		if result.AnalysisResult != nil {
 			if err := upsertAnalysis(ctx, &result); err != nil {
-				return summary, ctx.Oops().Wrapf(err, "failed to analysis (%s)", result)
+				return summary, ctx.Oops().Wrapf(err, "failed to upsert analysis (%s)", result)
 			}
 		}
 
@@ -963,10 +897,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		return summary, ctx.Oops().Wrapf(err, "failed to form relationships")
 	}
 
-	if !startTime.IsZero() && ctx.ScrapeConfig().GetPersistedID() != nil {
-		// Any analysis that weren't observed again will be marked as resolved
-		if err := UpdateAnalysisStatusBefore(ctx, startTime, string(ctx.ScrapeConfig().GetUID()), dutyModels.AnalysisStatusResolved); err != nil {
-			ctx.Errorf("failed to mark analysis before %v as healthy: %v", startTime, err)
+	if ctx.ScrapeConfig().GetPersistedID() != nil {
+		// Resolve analysis that haven't been observed within the configured retention window
+		if maxAge, ok, err := resolveAnalysisMaxAge(ctx); err != nil {
+			ctx.JobHistory().AddErrorf("invalid analysis retention config: %v", err)
+		} else if ok {
+			if err := UpdateAnalysisStatusByAge(ctx, maxAge, string(ctx.ScrapeConfig().GetUID()), dutyModels.AnalysisStatusResolved); err != nil {
+				ctx.Errorf("failed to mark stale analysis as resolved: %v", err)
+			}
 		}
 	}
 
