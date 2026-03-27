@@ -65,7 +65,6 @@ func NewGitHubClient(ctx api.ScrapeContext, config v1.GitHub, owner, repo string
 type AlertListOptions struct {
 	State     string
 	Severity  string
-	Page      int
 	PerPage   int
 	CreatedAt string
 }
@@ -78,7 +77,8 @@ func isNotFound(err error) bool {
 	return errors.As(err, &errResp) && errResp.Response != nil && errResp.Response.StatusCode == gohttp.StatusNotFound
 }
 
-func (c *GitHubClient) GetDependabotAlerts(ctx context.Context, opts AlertListOptions) ([]*github.DependabotAlert, *github.Response, error) {
+func (c *GitHubClient) GetDependabotAlerts(ctx context.Context, opts AlertListOptions) ([]*github.DependabotAlert, error) {
+	var allAlerts []*github.DependabotAlert
 	reqOpts := &github.ListAlertsOptions{
 		ListCursorOptions: github.ListCursorOptions{First: opts.PerPage},
 	}
@@ -88,47 +88,70 @@ func (c *GitHubClient) GetDependabotAlerts(ctx context.Context, opts AlertListOp
 	if opts.Severity != "" {
 		reqOpts.Severity = &opts.Severity
 	}
-	alerts, resp, err := c.Client.Dependabot.ListRepoAlerts(ctx, c.owner, c.repo, reqOpts)
-	if err != nil {
-		if isNotFound(err) {
-			return nil, resp, nil
+	for {
+		alerts, resp, err := c.Client.Dependabot.ListRepoAlerts(ctx, c.owner, c.repo, reqOpts)
+		if err != nil {
+			if isNotFound(err) {
+				return allAlerts, nil
+			}
+			return nil, fmt.Errorf("failed to fetch Dependabot alerts: %w", err)
 		}
-		return nil, resp, fmt.Errorf("failed to fetch Dependabot alerts: %w", err)
+		allAlerts = append(allAlerts, alerts...)
+		if resp.Cursor == "" {
+			break
+		}
+		reqOpts.ListCursorOptions.Cursor = resp.Cursor
 	}
-	return alerts, resp, nil
+	return allAlerts, nil
 }
 
-func (c *GitHubClient) GetCodeScanningAlerts(ctx context.Context, opts AlertListOptions) ([]*github.Alert, *github.Response, error) {
+func (c *GitHubClient) GetCodeScanningAlerts(ctx context.Context, opts AlertListOptions) ([]*github.Alert, error) {
+	var allAlerts []*github.Alert
 	reqOpts := &github.AlertListOptions{
-		State:       opts.State,
-		ListOptions: github.ListOptions{Page: opts.Page, PerPage: opts.PerPage},
+		State:             opts.State,
+		ListCursorOptions: github.ListCursorOptions{First: opts.PerPage},
 	}
 	if opts.Severity != "" {
 		reqOpts.Severity = opts.Severity
 	}
-	alerts, resp, err := c.Client.CodeScanning.ListAlertsForRepo(ctx, c.owner, c.repo, reqOpts)
-	if err != nil {
-		if isNotFound(err) {
-			return nil, resp, nil
+	for {
+		alerts, resp, err := c.Client.CodeScanning.ListAlertsForRepo(ctx, c.owner, c.repo, reqOpts)
+		if err != nil {
+			if isNotFound(err) {
+				return allAlerts, nil
+			}
+			return nil, fmt.Errorf("failed to fetch code scanning alerts: %w", err)
 		}
-		return nil, resp, fmt.Errorf("failed to fetch code scanning alerts: %w", err)
+		allAlerts = append(allAlerts, alerts...)
+		if resp.Cursor == "" {
+			break
+		}
+		reqOpts.ListCursorOptions.Cursor = resp.Cursor
 	}
-	return alerts, resp, nil
+	return allAlerts, nil
 }
 
-func (c *GitHubClient) GetSecretScanningAlerts(ctx context.Context, opts AlertListOptions) ([]*github.SecretScanningAlert, *github.Response, error) {
+func (c *GitHubClient) GetSecretScanningAlerts(ctx context.Context, opts AlertListOptions) ([]*github.SecretScanningAlert, error) {
+	var allAlerts []*github.SecretScanningAlert
 	reqOpts := &github.SecretScanningAlertListOptions{
-		State:       opts.State,
-		ListOptions: github.ListOptions{Page: opts.Page, PerPage: opts.PerPage},
+		State:             opts.State,
+		ListCursorOptions: github.ListCursorOptions{First: opts.PerPage},
 	}
-	alerts, resp, err := c.Client.SecretScanning.ListAlertsForRepo(ctx, c.owner, c.repo, reqOpts)
-	if err != nil {
-		if isNotFound(err) {
-			return nil, resp, nil
+	for {
+		alerts, resp, err := c.Client.SecretScanning.ListAlertsForRepo(ctx, c.owner, c.repo, reqOpts)
+		if err != nil {
+			if isNotFound(err) {
+				return allAlerts, nil
+			}
+			return nil, fmt.Errorf("failed to fetch secret scanning alerts: %w", err)
 		}
-		return nil, resp, fmt.Errorf("failed to fetch secret scanning alerts: %w", err)
+		allAlerts = append(allAlerts, alerts...)
+		if resp.Cursor == "" {
+			break
+		}
+		reqOpts.ListCursorOptions.Cursor = resp.Cursor
 	}
-	return alerts, resp, nil
+	return allAlerts, nil
 }
 
 func (c *GitHubClient) ShouldPauseForRateLimit(ctx context.Context) (bool, time.Duration, error) {
