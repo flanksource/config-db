@@ -50,6 +50,9 @@ type RetentionSpec struct {
 	Changes      []ChangeRetentionSpec `json:"changes,omitempty"`
 	Types        []TypeRetentionSpec   `json:"types,omitempty"`
 	StaleItemAge string                `json:"staleItemAge,omitempty"`
+	// StaleAnalysisAge is the duration after which an analysis that is no longer observed by the scraper
+	// is marked as resolved. Defaults to 48h. Use "keep" to disable auto-resolution.
+	StaleAnalysisAge string `json:"staleAnalysisAge,omitempty"`
 }
 
 func (r RetentionSpec) Merge(other RetentionSpec) RetentionSpec {
@@ -58,13 +61,17 @@ func (r RetentionSpec) Merge(other RetentionSpec) RetentionSpec {
 	if r.StaleItemAge == "" && other.StaleItemAge != "" {
 		r.StaleItemAge = other.StaleItemAge
 	}
+	if r.StaleAnalysisAge == "" && other.StaleAnalysisAge != "" {
+		r.StaleAnalysisAge = other.StaleAnalysisAge
+	}
 	return r
 }
 
 // ScraperSpec defines the desired state of Config scraper
 type ScraperSpec struct {
 	// LogLevel sets the log level for the scraper. Supported values are "trace", "debug", "info" Default is "info".
-	LogLevel       string           `json:"logLevel,omitempty" yaml:"logLevel,omitempty"`
+	LogLevel string `json:"logLevel,omitempty" yaml:"logLevel,omitempty"`
+
 	// Schedule is a cron expression for when to run the scraper. Example: `@every 1m`, `0 */6 * * *` (every 6 hours)
 	Schedule       string           `json:"schedule,omitempty" yaml:"schedule,omitempty"`
 	GCP            []GCP            `json:"gcp,omitempty" yaml:"gcp,omitempty"`

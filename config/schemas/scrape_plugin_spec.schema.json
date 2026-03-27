@@ -66,6 +66,9 @@
     },
     "ConfigProperties": {
       "properties": {
+        "type": {
+          "type": "string"
+        },
         "label": {
           "type": "string"
         },
@@ -76,9 +79,6 @@
           "type": "string"
         },
         "icon": {
-          "type": "string"
-        },
-        "type": {
           "type": "string"
         },
         "color": {
@@ -287,6 +287,10 @@
         },
         "staleItemAge": {
           "type": "string"
+        },
+        "staleAnalysisAge": {
+          "type": "string",
+          "description": "StaleAnalysisAge is the duration after which an analysis that is no longer observed by the scraper\nis marked as resolved. Defaults to 48h. Use \"keep\" to disable auto-resolution."
         }
       },
       "additionalProperties": false,

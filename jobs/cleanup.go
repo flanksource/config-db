@@ -52,6 +52,7 @@ var CleanupConfigAnalysis = &job.Job{
             UPDATE config_analysis
             SET status = 'closed'
             WHERE (NOW() - last_observed) > INTERVAL '1 day' * ?
+            AND status = 'resolved'
         `, properties.Int(7, "config_analysis.set_status_closed_days")).Error; err != nil {
 			return err
 		}
