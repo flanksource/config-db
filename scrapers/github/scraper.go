@@ -184,6 +184,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = mapGitHubSeverity(alert.SecurityAdvisory.GetSeverity())
 		a.Source = "GitHub Dependabot"
+		a.Analyzer = alert.GetDependency().GetPackage().GetEcosystem()
 		a.Summary = alert.SecurityAdvisory.GetSummary()
 		a.Status = alert.GetState()
 		if t := alert.CreatedAt.GetTime(); t != nil {
@@ -245,6 +246,52 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 				Type: "badge",
 			})
 		}
+		for _, cwe := range alert.SecurityAdvisory.CWEs {
+			if cweID := cwe.GetCWEID(); cweID != "" {
+				cweURL := fmt.Sprintf("https://cwe.mitre.org/data/definitions/%s.html", cweID[4:]) // strip "CWE-" prefix
+				a.Properties = append(a.Properties, &types.Property{
+					Name:  cweID,
+					Text:  fmt.Sprintf("%s: %s", cweID, cwe.GetName()),
+					Type:  "badge",
+					Links: []types.Link{{URL: cweURL, Type: "url"}},
+				})
+			}
+		}
+		if dep := alert.GetDependency(); dep != nil {
+			if pkg := dep.GetPackage(); pkg != nil {
+				a.Properties = append(a.Properties, &types.Property{
+					Name: "Package",
+					Text: fmt.Sprintf("%s (%s)", pkg.GetName(), pkg.GetEcosystem()),
+					Type: "badge",
+				})
+			}
+			if scope := dep.GetScope(); scope != "" {
+				a.Properties = append(a.Properties, &types.Property{
+					Name: "Dependency Scope",
+					Text: scope,
+					Type: "badge",
+				})
+			}
+		}
+		if vuln := alert.GetSecurityVulnerability(); vuln != nil {
+			if versionRange := vuln.GetVulnerableVersionRange(); versionRange != "" {
+				a.Properties = append(a.Properties, &types.Property{
+					Name: "Vulnerable Versions",
+					Text: versionRange,
+					Type: "badge",
+				})
+			}
+			if patched := vuln.GetFirstPatchedVersion(); patched != nil {
+				if ver := patched.GetIdentifier(); ver != "" {
+					a.Properties = append(a.Properties, &types.Property{
+						Name:  "Patched Version",
+						Text:  ver,
+						Type:  "badge",
+						Color: "bg-green-100 border-green-200 text-green-800",
+					})
+				}
+			}
+		}
 	}
 
 	for _, alert := range alerts.codeScanning {
@@ -263,6 +310,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = mapGitHubSeverity(alert.Rule.GetSeverity())
 		a.Source = "GitHub Code Scanning"
+		a.Analyzer = alert.Rule.GetID()
 		a.Summary = alert.Rule.GetDescription()
 		a.Status = alert.GetState()
 		if alert.CreatedAt != nil {
@@ -283,6 +331,17 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 				Links: []types.Link{{URL: htmlURL, Type: "url"}},
 			})
 		}
+		if tool := alert.GetTool(); tool != nil {
+			toolText := tool.GetName()
+			if ver := tool.GetVersion(); ver != "" {
+				toolText = fmt.Sprintf("%s %s", toolText, ver)
+			}
+			a.Properties = append(a.Properties, &types.Property{
+				Name: "Tool",
+				Text: toolText,
+				Type: "badge",
+			})
+		}
 	}
 
 	for _, alert := range alerts.secretScanning {
@@ -296,6 +355,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = models.SeverityHigh
 		a.Source = "GitHub Secret Scanning"
+		a.Analyzer = alert.GetSecretType()
 		a.Summary = fmt.Sprintf("Exposed %s secret", alert.GetSecretType())
 		a.Status = alert.GetState()
 		if alert.CreatedAt != nil {
