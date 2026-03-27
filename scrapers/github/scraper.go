@@ -2,7 +2,6 @@ package github
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/flanksource/config-db/api"
@@ -16,8 +15,6 @@ import (
 const (
 	ConfigTypeRepository = "GitHub::Repository"
 )
-
-var LastAlertScrapeTime = sync.Map{}
 
 type GithubScraper struct{}
 
