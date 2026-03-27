@@ -65,6 +65,7 @@ func NewGitHubClient(ctx api.ScrapeContext, config v1.GitHub, owner, repo string
 type AlertListOptions struct {
 	State     string
 	Severity  string
+  Page     int
 	PerPage   int
 	CreatedAt string
 }

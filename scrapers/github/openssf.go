@@ -15,6 +15,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
 )
 
@@ -31,8 +32,35 @@ type scorecardCacheEntry struct {
 
 var scorecardCache = sync.Map{}
 
+// flexDateFormats lists all time formats the OpenSSF Scorecard API has been
+// observed to return for the "date" field, in preference order.
+var flexDateFormats = []string{
+	time.RFC3339,
+	time.RFC3339Nano,
+	"2006-01-02", // date-only, returned by older scorecard versions
+}
+
+// FlexTime is a time.Time that can unmarshal both RFC3339 and date-only
+// ("2006-01-02") JSON strings to handle variation across OpenSSF scorecard
+// API versions.
+type FlexTime struct {
+	time.Time
+}
+
+func (ft *FlexTime) UnmarshalJSON(data []byte) error {
+	// JSON strings are quoted; strip the quotes.
+	s := strings.Trim(string(data), `"`)
+	for _, format := range flexDateFormats {
+		if t, err := time.Parse(format, s); err == nil {
+			ft.Time = t
+			return nil
+		}
+	}
+	return fmt.Errorf("cannot parse %q as a time (tried RFC3339, RFC3339Nano, date-only)", s)
+}
+
 type ScorecardResponse struct {
-	Date      time.Time     `json:"date"`
+	Date      FlexTime      `json:"date"`
 	Repo      RepoInfo      `json:"repo"`
 	Scorecard ScorecardInfo `json:"scorecard"`
 	Score     float64       `json:"score"`
@@ -182,8 +210,9 @@ func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, c
 		a.Source = "OpenSSF Scorecard"
 		a.Summary = check.Reason
 		a.Status = statusFromScore(check.Score)
-		a.FirstObserved = &scorecard.Date
-		a.LastObserved = &scorecard.Date
+		observedAt := scorecard.Date.Time
+		a.FirstObserved = &observedAt
+		a.LastObserved = &observedAt
 
 		for _, detail := range check.Details {
 			a.Message(detail)
@@ -199,6 +228,24 @@ func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, c
 				"url":   check.Documentation.URL,
 				"short": check.Documentation.Short,
 			},
+		}
+
+		scoreVal := int64(check.Score)
+		maxScore := int64(10)
+		a.Properties = append(a.Properties, &types.Property{
+			Name:  "Score",
+			Value: &scoreVal,
+			Max:   &maxScore,
+			Type:  "badge",
+			Color: badgeColor(scoreVal, maxScore),
+		})
+		if check.Documentation.URL != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "Documentation",
+				Text:  check.Documentation.Short,
+				Type:  "url",
+				Links: []types.Link{{URL: check.Documentation.URL, Type: "documentation"}},
+			})
 		}
 	}
 }

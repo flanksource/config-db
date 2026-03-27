@@ -2,7 +2,6 @@ package github
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/flanksource/config-db/api"
@@ -16,8 +15,6 @@ import (
 const (
 	ConfigTypeRepository = "GitHub::Repository"
 )
-
-var LastAlertScrapeTime = sync.Map{}
 
 type GithubScraper struct{}
 
@@ -193,7 +190,58 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, confi
 			a.LastObserved = t
 		}
 		a.Message(alert.SecurityAdvisory.GetDescription())
-		a.Analysis = map[string]any{"url": alert.GetHTMLURL()}
+
+		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "URL",
+				Text:  htmlURL,
+				Type:  "url",
+				Links: []types.Link{{URL: htmlURL, Type: "url"}},
+			})
+		}
+		if cve := alert.SecurityAdvisory.GetCVEID(); cve != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "CVE ID",
+				Text:  cve,
+				Type:  "badge",
+				Links: []types.Link{{URL: "https://nvd.nist.gov/vuln/detail/" + cve, Type: "url"}},
+			})
+		}
+		if ghsa := alert.SecurityAdvisory.GetGHSAID(); ghsa != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "GHSA ID",
+				Text:  ghsa,
+				Type:  "badge",
+				Links: []types.Link{{URL: "https://github.com/advisories/" + ghsa, Type: "url"}},
+			})
+		}
+		if cvss := alert.SecurityAdvisory.GetCVSS(); cvss != nil {
+			if score := cvss.GetScore(); score != nil {
+				scoreInt := int64(*score * 10)
+				maxScore := int64(100)
+				a.Properties = append(a.Properties, &types.Property{
+					Name:  "CVSS Score",
+					Value: &scoreInt,
+					Max:   &maxScore,
+					Type:  "badge",
+					Color: badgeColorInverted(scoreInt, maxScore),
+				})
+			}
+			if vector := cvss.GetVectorString(); vector != "" {
+				a.Properties = append(a.Properties, &types.Property{
+					Name: "CVSS Vector",
+					Text: vector,
+					Type: "badge",
+				})
+			}
+		}
+		if epss := alert.SecurityAdvisory.GetEPSS(); epss != nil {
+			a.Properties = append(a.Properties, &types.Property{
+				Name: "EPSS Score",
+				Text: fmt.Sprintf("%.3f%% (%gth percentile)", epss.Percentage*100, epss.Percentile*100),
+				Type: "badge",
+			})
+		}
 	}
 
 	for _, alert := range alerts.codeScanning {
@@ -220,7 +268,15 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, confi
 			a.LastObserved = &t
 		}
 		a.Message(alert.GetMostRecentInstance().GetMessage().GetText())
-		a.Analysis = map[string]any{"url": alert.GetHTMLURL()}
+
+		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "URL",
+				Text:  htmlURL,
+				Type:  "url",
+				Links: []types.Link{{URL: htmlURL, Type: "url"}},
+			})
+		}
 	}
 
 	for _, alert := range alerts.secretScanning {
@@ -241,7 +297,53 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, confi
 			t := alert.UpdatedAt.Time
 			a.LastObserved = &t
 		}
-		a.Analysis = map[string]any{"url": alert.GetHTMLURL()}
+
+		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "URL",
+				Text:  htmlURL,
+				Type:  "url",
+				Links: []types.Link{{URL: htmlURL, Type: "url"}},
+			})
+		}
+	}
+}
+
+// badgeColor returns muted Tailwind classes for a "higher is better" ratio.
+// Used for scores like OpenSSF where a high value is good.
+func badgeColor(value, max int64) string {
+	if max <= 0 {
+		return ""
+	}
+	ratio := float64(value) / float64(max) * 100
+	switch {
+	case ratio > 80:
+		return "bg-green-100 border-green-200 text-green-800"
+	case ratio > 50:
+		return "bg-yellow-100 border-yellow-200 text-yellow-800"
+	case ratio > 30:
+		return "bg-orange-100 border-orange-200 text-orange-800"
+	default:
+		return "bg-red-100 border-red-200 text-red-800"
+	}
+}
+
+// badgeColorInverted returns muted Tailwind classes for a "lower is better" ratio.
+// Used for scores like CVSS where a high value means higher risk.
+func badgeColorInverted(value, max int64) string {
+	if max <= 0 {
+		return ""
+	}
+	ratio := float64(value) / float64(max) * 100
+	switch {
+	case ratio > 80:
+		return "bg-red-100 border-red-200 text-red-800"
+	case ratio > 50:
+		return "bg-orange-100 border-orange-200 text-orange-800"
+	case ratio > 30:
+		return "bg-yellow-100 border-yellow-200 text-yellow-800"
+	default:
+		return "bg-green-100 border-green-200 text-green-800"
 	}
 }
 

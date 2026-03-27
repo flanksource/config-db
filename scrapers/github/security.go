@@ -3,7 +3,6 @@ package github
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -39,15 +38,6 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 		PerPage: 100,
 	}
 
-	if lastTime, ok := LastAlertScrapeTime.Load(repoFullName); ok {
-		if since, ok := lastTime.(time.Time); ok {
-			opts.CreatedAt = since.Format(time.RFC3339)
-			ctx.Logger.V(3).Infof("fetching alerts for %s since %v (incremental)", repoFullName, since)
-		}
-	}
-
-	var maxAlertTime time.Time
-
 	var errs []error
 
 	dependabotAlerts, err := client.GetDependabotAlerts(ctx, opts)
@@ -73,29 +63,16 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 
 	for _, alert := range alerts.dependabot {
 		countAlertSeverity(&alerts.counts, alert.SecurityAdvisory.GetSeverity())
-		if alert.UpdatedAt != nil && alert.UpdatedAt.After(maxAlertTime) {
-			maxAlertTime = alert.UpdatedAt.Time
-		}
 	}
 
 	for _, alert := range alerts.codeScanning {
 		countAlertSeverity(&alerts.counts, alert.Rule.GetSeverity())
-		if alert.UpdatedAt != nil && alert.UpdatedAt.After(maxAlertTime) {
-			maxAlertTime = alert.UpdatedAt.Time
-		}
 	}
 
 	// Secret scanning alerts don't have a severity field in the GitHub API,
 	// so we default to counting them as high severity.
-	for _, alert := range alerts.secretScanning {
+	for range alerts.secretScanning {
 		alerts.counts.high++
-		if alert.UpdatedAt != nil && alert.UpdatedAt.After(maxAlertTime) {
-			maxAlertTime = alert.UpdatedAt.Time
-		}
-	}
-
-	if !maxAlertTime.IsZero() {
-		LastAlertScrapeTime.Store(repoFullName, maxAlertTime)
 	}
 
 	ctx.Logger.V(2).Infof("fetched alerts for %s: dependabot=%d, code-scan=%d, secrets=%d",
