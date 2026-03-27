@@ -1,6 +1,7 @@
 package github
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -194,6 +195,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			a.LastObserved = t
 		}
 		a.Message(alert.SecurityAdvisory.GetDescription())
+		a.Analysis = alertToMap(alert)
 
 		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
 			a.Properties = append(a.Properties, &types.Property{
@@ -322,6 +324,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			a.LastObserved = &t
 		}
 		a.Message(alert.GetMostRecentInstance().GetMessage().GetText())
+		a.Analysis = alertToMap(alert)
 
 		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
 			a.Properties = append(a.Properties, &types.Property{
@@ -366,6 +369,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			t := alert.UpdatedAt.Time
 			a.LastObserved = &t
 		}
+		a.Analysis = alertToMap(alert)
 
 		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
 			a.Properties = append(a.Properties, &types.Property{
@@ -376,6 +380,19 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			})
 		}
 	}
+}
+
+// alertToMap converts any struct to a map[string]any via JSON marshaling.
+func alertToMap(v any) map[string]any {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil
+	}
+	return m
 }
 
 // badgeColor returns muted Tailwind classes for a "higher is better" ratio.
