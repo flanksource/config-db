@@ -200,6 +200,7 @@ func isRetryable(err error) bool {
 func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, configID string, _ v1.GitHubRepository, scorecard *ScorecardResponse) {
 	for _, check := range scorecard.Checks {
 		a := results.Analysis(check.Name, ConfigTypeRepository, configID)
+		a.ExternalAnalysisID = fmt.Sprintf("%s::openssf/%s", configID, check.Name)
 		a.AnalysisType = models.AnalysisTypeSecurity
 		if sev, ok := checkRiskLevel[check.Name]; ok {
 			a.Severity = sev

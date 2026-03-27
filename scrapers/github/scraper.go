@@ -178,6 +178,9 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, confi
 			fmt.Sprintf("dependabot/%d", alert.GetNumber()),
 			ConfigTypeRepository, configID,
 		)
+		if externalAnalysisID := alert.GetURL(); externalAnalysisID != "" {
+			a.ExternalAnalysisID = externalAnalysisID
+		}
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = mapGitHubSeverity(alert.SecurityAdvisory.GetSeverity())
 		a.Source = "GitHub Dependabot"
@@ -254,6 +257,9 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, confi
 			fmt.Sprintf("code-scanning/%d", alert.GetNumber()),
 			ConfigTypeRepository, configID,
 		)
+		if externalAnalysisID := alert.GetURL(); externalAnalysisID != "" {
+			a.ExternalAnalysisID = externalAnalysisID
+		}
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = mapGitHubSeverity(alert.Rule.GetSeverity())
 		a.Source = "GitHub Code Scanning"
@@ -284,6 +290,9 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, confi
 			fmt.Sprintf("secret-scanning/%d", alert.GetNumber()),
 			ConfigTypeRepository, configID,
 		)
+		if externalAnalysisID := alert.GetURL(); externalAnalysisID != "" {
+			a.ExternalAnalysisID = externalAnalysisID
+		}
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = models.SeverityHigh
 		a.Source = "GitHub Secret Scanning"

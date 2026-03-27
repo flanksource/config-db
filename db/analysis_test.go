@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/flanksource/config-db/api"
@@ -41,7 +42,7 @@ var _ = Describe("CreateAnalysis", Ordered, func() {
 		lastObserved := firstObserved.Add(10 * time.Minute)
 		attemptedLastObserved := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second)
 
-		analysisID := GenerateAnalysisID("ext-analysis-1")
+		analysisID := GenerateAnalysisID(fmt.Sprintf("%s::%s", configID, "demo-analyzer"))
 
 		initial := models.ConfigAnalysis{
 			ID:            analysisID,
@@ -148,7 +149,7 @@ var _ = Describe("analysis resolution", Ordered, func() {
 				{
 					AnalysisResult: &v1.AnalysisResult{
 						ExternalID:         "i-analysis-resolution",
-						ExternalAnalysisID: "analyzer-a-finding",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-a"),
 						ConfigType:         "EC2::Instance",
 						Analyzer:           "analyzer-a",
 						Summary:            "analysis a",
@@ -161,7 +162,7 @@ var _ = Describe("analysis resolution", Ordered, func() {
 				{
 					AnalysisResult: &v1.AnalysisResult{
 						ExternalID:         "i-analysis-resolution",
-						ExternalAnalysisID: "analyzer-b-finding",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-b"),
 						ConfigType:         "EC2::Instance",
 						Analyzer:           "analyzer-b",
 						Summary:            "analysis b",
@@ -183,7 +184,7 @@ var _ = Describe("analysis resolution", Ordered, func() {
 				{
 					AnalysisResult: &v1.AnalysisResult{
 						ExternalID:         "i-analysis-resolution",
-						ExternalAnalysisID: "analyzer-a-finding",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-a"),
 						ConfigType:         "EC2::Instance",
 						Analyzer:           "analyzer-a",
 						Summary:            "analysis a updated",
@@ -261,7 +262,7 @@ var _ = Describe("analysis resolution", Ordered, func() {
 				{
 					AnalysisResult: &v1.AnalysisResult{
 						ExternalID:         "i-retention-window",
-						ExternalAnalysisID: "analyzer-x-finding",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-x"),
 						ConfigType:         "EC2::Instance",
 						Analyzer:           "analyzer-x",
 						Summary:            "analysis x",
@@ -274,7 +275,7 @@ var _ = Describe("analysis resolution", Ordered, func() {
 				{
 					AnalysisResult: &v1.AnalysisResult{
 						ExternalID:         "i-retention-window",
-						ExternalAnalysisID: "analyzer-y-finding",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-y"),
 						ConfigType:         "EC2::Instance",
 						Analyzer:           "analyzer-y",
 						Summary:            "analysis y",
@@ -294,7 +295,7 @@ var _ = Describe("analysis resolution", Ordered, func() {
 				{
 					AnalysisResult: &v1.AnalysisResult{
 						ExternalID:         "i-retention-window",
-						ExternalAnalysisID: "analyzer-x-finding",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-x"),
 						ConfigType:         "EC2::Instance",
 						Analyzer:           "analyzer-x",
 						Summary:            "analysis x updated",
@@ -372,7 +373,7 @@ var _ = Describe("analysis resolution", Ordered, func() {
 				{
 					AnalysisResult: &v1.AnalysisResult{
 						ExternalID:         "i-keep-test",
-						ExternalAnalysisID: "analyzer-keep-finding",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-keep"),
 						ConfigType:         "EC2::Instance",
 						Analyzer:           "analyzer-keep",
 						Summary:            "analysis keep",

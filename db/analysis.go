@@ -95,11 +95,16 @@ func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 	analysis := result.AnalysisResult.ToConfigAnalysis()
 	analysis.ConfigID = uuid.MustParse(ci.ID)
 
-	if result.AnalysisResult.ExternalAnalysisID == "" {
-		return fmt.Errorf("analysis for %s/%s: ExternalAnalysisID is required", result.AnalysisResult.ConfigType, result.AnalysisResult.ExternalID)
+	externalAnalysisID := result.AnalysisResult.ExternalAnalysisID
+	if externalAnalysisID == "" {
+		// Backward-compatible default:
+		// Before ExternalAnalysisID existed, analysis rows were matched by (config_id, analyzer).
+		// Deriving the ID from this same pair preserves the previous behavior while allowing
+		// scrapers to progressively adopt source-native external IDs.
+		externalAnalysisID = fmt.Sprintf("%s::%s", analysis.ConfigID, analysis.Analyzer)
 	}
 
-	analysis.ID = GenerateAnalysisID(result.AnalysisResult.ExternalAnalysisID)
+	analysis.ID = GenerateAnalysisID(externalAnalysisID)
 	analysis.ScraperID = ctx.ScrapeConfig().GetPersistedID()
 	if analysis.Status == "" {
 		analysis.Status = models.AnalysisStatusOpen
