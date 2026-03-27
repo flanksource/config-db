@@ -234,13 +234,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 					Color: badgeColorInverted(scoreInt, maxScore),
 				})
 			}
-			if vector := cvss.GetVectorString(); vector != "" {
-				a.Properties = append(a.Properties, &types.Property{
-					Name: "CVSS Vector",
-					Text: vector,
-					Type: "badge",
-				})
-			}
+
 		}
 		if epss := alert.SecurityAdvisory.GetEPSS(); epss != nil {
 			a.Properties = append(a.Properties, &types.Property{
@@ -378,6 +372,44 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 				Text:  htmlURL,
 				Type:  "url",
 				Links: []types.Link{{URL: htmlURL, Type: "url"}},
+			})
+		}
+		if displayName := alert.GetSecretTypeDisplayName(); displayName != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name: "Secret Type",
+				Text: displayName,
+				Type: "badge",
+			})
+		}
+		if validity := alert.GetValidity(); validity != "" {
+			color := ""
+			switch validity {
+			case "active":
+				color = "bg-red-100 border-red-200 text-red-800"
+			case "inactive":
+				color = "bg-green-100 border-green-200 text-green-800"
+			}
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "Validity",
+				Text:  validity,
+				Type:  "badge",
+				Color: color,
+			})
+		}
+		if alert.GetPubliclyLeaked() {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "Publicly Leaked",
+				Text:  "yes",
+				Type:  "badge",
+				Color: "bg-red-100 border-red-200 text-red-800",
+			})
+		}
+		if alert.GetPushProtectionBypassed() {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "Push Protection Bypassed",
+				Text:  "yes",
+				Type:  "badge",
+				Color: "bg-orange-100 border-orange-200 text-orange-800",
 			})
 		}
 	}
