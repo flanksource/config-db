@@ -56,6 +56,7 @@ type AnalysisResult struct {
 	ConfigType      string              `json:"config_type,omitempty"`
 	Summary         string              `json:"summary,omitempty"`
 	Analysis        map[string]any      `json:"analysis,omitempty"`
+	Properties      types.Properties    `json:"properties,omitempty"`
 	AnalysisType    models.AnalysisType `json:"analysis_type,omitempty"`
 	Severity        models.Severity     `json:"severity,omitempty"`
 	Source          string              `json:"source,omitempty"`
@@ -71,7 +72,7 @@ type AnalysisResult struct {
 // ToConfigAnalysis converts this analysis result to a config analysis
 // db model.
 func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
-	return models.ConfigAnalysis{
+	ca := models.ConfigAnalysis{
 		Analyzer:      t.Analyzer,
 		Message:       strings.Join(t.Messages, "<br><br>"),
 		Severity:      t.Severity,
@@ -83,6 +84,11 @@ func (t *AnalysisResult) ToConfigAnalysis() models.ConfigAnalysis {
 		FirstObserved: t.FirstObserved,
 		LastObserved:  t.LastObserved,
 	}
+	if len(t.Properties) > 0 {
+		props := t.Properties
+		ca.Properties = &props
+	}
+	return ca
 }
 
 // +kubebuilder:object:generate=false
