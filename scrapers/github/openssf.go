@@ -15,6 +15,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/flanksource/is-healthy/pkg/health"
 )
 
@@ -199,6 +200,24 @@ func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, c
 				"url":   check.Documentation.URL,
 				"short": check.Documentation.Short,
 			},
+		}
+
+		scoreVal := int64(check.Score)
+		maxScore := int64(10)
+		a.Properties = append(a.Properties, &types.Property{
+			Name:  "Score",
+			Value: &scoreVal,
+			Max:   &maxScore,
+			Type:  "badge",
+			Color: badgeColor(scoreVal, maxScore),
+		})
+		if check.Documentation.URL != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "Documentation",
+				Text:  check.Documentation.Short,
+				Type:  "url",
+				Links: []types.Link{{URL: check.Documentation.URL, Type: "documentation"}},
+			})
 		}
 	}
 }
