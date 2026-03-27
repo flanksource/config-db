@@ -63,11 +63,10 @@ func NewGitHubClient(ctx api.ScrapeContext, config v1.GitHub, owner, repo string
 
 // AlertListOptions contains options for listing security alerts
 type AlertListOptions struct {
-	State     string
-	Severity  string
-	Page      int
-	PerPage   int
-	CreatedAt string
+	State    string
+	Severity string
+	Page     int
+	PerPage  int
 }
 
 // isNotFound returns true if the error is a GitHub 404 response.
