@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
@@ -219,17 +220,7 @@ func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, e
 			a.Message(detail)
 		}
 
-		a.Analysis = map[string]any{
-			"check_name": check.Name,
-			"score":      check.Score,
-			"max_score":  10,
-			"reason":     check.Reason,
-			"details":    check.Details,
-			"documentation": map[string]string{
-				"url":   check.Documentation.URL,
-				"short": check.Documentation.Short,
-			},
-		}
+		a.Analysis, _ = collections.ToJSONMap(check)
 
 		scoreVal := int64(check.Score)
 		maxScore := int64(10)

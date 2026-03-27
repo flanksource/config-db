@@ -1,11 +1,11 @@
 package github
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
@@ -196,7 +196,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			a.LastObserved = t
 		}
 		a.Message(alert.SecurityAdvisory.GetDescription())
-		a.Analysis = alertToMap(alert)
+		a.Analysis, _ = collections.ToJSONMap(alert)
 
 		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
 			a.Properties = append(a.Properties, &types.Property{
@@ -236,21 +236,18 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			}
 
 		}
-		if epss := alert.SecurityAdvisory.GetEPSS(); epss != nil {
-			a.Properties = append(a.Properties, &types.Property{
-				Name: "EPSS Score",
-				Text: fmt.Sprintf("%.3f%% (%gth percentile)", epss.Percentage*100, epss.Percentile*100),
-				Type: "badge",
-			})
-		}
 		for _, cwe := range alert.SecurityAdvisory.CWEs {
 			if cweID := cwe.GetCWEID(); cweID != "" {
-				cweURL := fmt.Sprintf("https://cwe.mitre.org/data/definitions/%s.html", cweID[4:]) // strip "CWE-" prefix
+				var links []types.Link
+				if strings.HasPrefix(cweID, "CWE-") && len(cweID) > 4 {
+					cweURL := fmt.Sprintf("https://cwe.mitre.org/data/definitions/%s.html", cweID[4:])
+					links = []types.Link{{URL: cweURL, Type: "url"}}
+				}
 				a.Properties = append(a.Properties, &types.Property{
 					Name:  cweID,
 					Text:  fmt.Sprintf("%s: %s", cweID, cwe.GetName()),
 					Type:  "badge",
-					Links: []types.Link{{URL: cweURL, Type: "url"}},
+					Links: links,
 				})
 			}
 		}
@@ -319,9 +316,9 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			a.LastObserved = &t
 		}
 		a.Message(alert.GetMostRecentInstance().GetMessage().GetText())
-		a.Analysis = alertToMap(alert)
+		a.Analysis, _ = collections.ToJSONMap(alert)
 
-		repoFullName := strings.TrimPrefix(configID, "github/")
+		repoFullName := strings.TrimPrefix(externalConfigID, "github/")
 		codeScanningURL := fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", repoFullName, alert.GetNumber())
 		a.Properties = append(a.Properties, &types.Property{
 			Name:  "URL",
@@ -364,7 +361,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			t := alert.UpdatedAt.Time
 			a.LastObserved = &t
 		}
-		a.Analysis = alertToMap(alert)
+		a.Analysis, _ = collections.ToJSONMap(alert)
 
 		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
 			a.Properties = append(a.Properties, &types.Property{
@@ -413,19 +410,6 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			})
 		}
 	}
-}
-
-// alertToMap converts any struct to a map[string]any via JSON marshaling.
-func alertToMap(v any) map[string]any {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil
-	}
-	var m map[string]any
-	if err := json.Unmarshal(b, &m); err != nil {
-		return nil
-	}
-	return m
 }
 
 // badgeColor returns muted Tailwind classes for a "higher is better" ratio.
