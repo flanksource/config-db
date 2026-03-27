@@ -29,7 +29,7 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 	alerts := &allAlerts{}
 
 	filters := config.SecurityFilters
-	var stateFilter string
+	stateFilter := "open"
 	if len(filters.State) > 0 {
 		stateFilter = filters.State[0]
 	}
