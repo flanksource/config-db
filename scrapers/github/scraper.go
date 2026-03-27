@@ -310,7 +310,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			a.ExternalAnalysisID = externalAnalysisID
 		}
 		a.AnalysisType = models.AnalysisTypeSecurity
-		a.Severity = mapGitHubSeverity(alert.Rule.GetSeverity())
+		a.Severity = mapGitHubSeverity(alert.Rule.GetSecuritySeverityLevel())
 		a.Source = "GitHub Code Scanning"
 		a.Analyzer = alert.Rule.GetID()
 		a.Summary = alert.Rule.GetDescription()
