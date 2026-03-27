@@ -119,6 +119,28 @@ func resolveAnalysisMaxAge(ctx api.ScrapeContext) (time.Duration, bool, error) {
 	}
 }
 
+// runAnalysisRetentionPass resolves stale config analyses for the current scraper.
+// It is safe to call even when the scraper returns zero results.
+func runAnalysisRetentionPass(ctx api.ScrapeContext) {
+	scraperID := ctx.ScrapeConfig().GetPersistedID()
+	if scraperID == nil {
+		return
+	}
+
+	maxAge, ok, err := resolveAnalysisMaxAge(ctx)
+	if err != nil {
+		ctx.JobHistory().AddErrorf("invalid analysis retention config: %v", err)
+		return
+	}
+	if !ok {
+		return
+	}
+
+	if err := UpdateAnalysisStatusByAge(ctx, maxAge, scraperID.String(), models.AnalysisStatusResolved); err != nil {
+		ctx.Errorf("failed to mark stale analysis as resolved: %v", err)
+	}
+}
+
 // UpdateAnalysisStatusByAge resolves config analyses belonging to the given scraper
 // that have not been observed within maxAge.
 func UpdateAnalysisStatusByAge(ctx api.ScrapeContext, maxAge time.Duration, scraperID, status string) error {

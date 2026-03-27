@@ -539,6 +539,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	var summary = v1.NewScrapeSummary()
 
 	if len(results) == 0 {
+		runAnalysisRetentionPass(ctx)
 		return summary, nil
 	}
 
@@ -897,16 +898,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		return summary, ctx.Oops().Wrapf(err, "failed to form relationships")
 	}
 
-	if ctx.ScrapeConfig().GetPersistedID() != nil {
-		// Resolve analysis that haven't been observed within the configured retention window
-		if maxAge, ok, err := resolveAnalysisMaxAge(ctx); err != nil {
-			ctx.JobHistory().AddErrorf("invalid analysis retention config: %v", err)
-		} else if ok {
-			if err := UpdateAnalysisStatusByAge(ctx, maxAge, string(ctx.ScrapeConfig().GetUID()), dutyModels.AnalysisStatusResolved); err != nil {
-				ctx.Errorf("failed to mark stale analysis as resolved: %v", err)
-			}
-		}
-	}
+	runAnalysisRetentionPass(ctx)
 
 	scraperId := ctx.ScraperID()
 	for kind, v := range summary.ConfigTypes {
