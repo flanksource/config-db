@@ -50,3 +50,4 @@ tmp.y*ml
 specs/*.md
 .shell/
 .claude/
+gh-api-data/

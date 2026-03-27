@@ -9,15 +9,24 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	cModels "github.com/flanksource/config-db/db/models"
-	"github.com/flanksource/config-db/db/ulid"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-func getAnalysis(ctx api.ScrapeContext, analysis models.ConfigAnalysis) (*models.ConfigAnalysis, error) {
-	existing := models.ConfigAnalysis{}
-	err := ctx.DB().First(&existing, "config_id = ? AND analyzer = ?", analysis.ConfigID, analysis.Analyzer).Error
+// analysisNamespace is a fixed UUIDv5 namespace for generating deterministic analysis IDs.
+var analysisNamespace = uuid.MustParse("a4e3b7c1-5f8a-4b2d-9e6c-1d7f8a3b5c9e")
+
+// GenerateAnalysisID creates a deterministic UUID from an analyzer-provided
+// external identifier. The analyzer is responsible for ensuring this identifier
+// is unique across its findings.
+func GenerateAnalysisID(externalAnalysisID string) uuid.UUID {
+	return uuid.NewSHA1(analysisNamespace, []byte(externalAnalysisID))
+}
+
+func getAnalysisByID(ctx api.ScrapeContext, id uuid.UUID) (*models.ConfigAnalysis, error) {
+	var existing models.ConfigAnalysis
+	err := ctx.DB().First(&existing, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -26,15 +35,12 @@ func getAnalysis(ctx api.ScrapeContext, analysis models.ConfigAnalysis) (*models
 }
 
 func CreateAnalysis(ctx api.ScrapeContext, analysis models.ConfigAnalysis) error {
-	// get analysis by config_id and analyzer
-	existingAnalysis, err := getAnalysis(ctx, analysis)
+	existingAnalysis, err := getAnalysisByID(ctx, analysis.ID)
 	if err != nil {
 		return err
 	}
 
 	if existingAnalysis != nil {
-		analysis.ID = existingAnalysis.ID
-
 		return ctx.DB().Transaction(func(tx *gorm.DB) error {
 			if err := tx.Model(&models.ConfigAnalysis{}).
 				Where("id = ?", existingAnalysis.ID).
@@ -88,7 +94,12 @@ func upsertAnalysis(ctx api.ScrapeContext, result *v1.ScrapeResult) error {
 
 	analysis := result.AnalysisResult.ToConfigAnalysis()
 	analysis.ConfigID = uuid.MustParse(ci.ID)
-	analysis.ID = uuid.MustParse(ulid.MustNew().AsUUID())
+
+	if result.AnalysisResult.ExternalAnalysisID == "" {
+		return fmt.Errorf("analysis for %s/%s: ExternalAnalysisID is required", result.AnalysisResult.ConfigType, result.AnalysisResult.ExternalID)
+	}
+
+	analysis.ID = GenerateAnalysisID(result.AnalysisResult.ExternalAnalysisID)
 	analysis.ScraperID = ctx.ScrapeConfig().GetPersistedID()
 	if analysis.Status == "" {
 		analysis.Status = models.AnalysisStatusOpen
