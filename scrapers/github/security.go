@@ -35,27 +35,26 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 
 	opts := AlertListOptions{
 		State:   stateFilter,
-		Page:    1,
 		PerPage: 100,
 	}
 
 	var errs []error
 
-	dependabotAlerts, _, err := client.GetDependabotAlerts(ctx, opts)
+	dependabotAlerts, err := client.GetDependabotAlerts(ctx, opts)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("dependabot: %w", err))
 	} else {
 		alerts.dependabot = dependabotAlerts
 	}
 
-	codeScanAlerts, _, err := client.GetCodeScanningAlerts(ctx, opts)
+	codeScanAlerts, err := client.GetCodeScanningAlerts(ctx, opts)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("code scanning: %w", err))
 	} else {
 		alerts.codeScanning = codeScanAlerts
 	}
 
-	secretAlerts, _, err := client.GetSecretScanningAlerts(ctx, opts)
+	secretAlerts, err := client.GetSecretScanningAlerts(ctx, opts)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("secret scanning: %w", err))
 	} else {
