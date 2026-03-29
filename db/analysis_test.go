@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/flanksource/config-db/api"
@@ -41,8 +42,10 @@ var _ = Describe("CreateAnalysis", Ordered, func() {
 		lastObserved := firstObserved.Add(10 * time.Minute)
 		attemptedLastObserved := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second)
 
+		analysisID := GenerateAnalysisID(fmt.Sprintf("%s::%s", configID, "demo-analyzer"))
+
 		initial := models.ConfigAnalysis{
-			ID:            uuid.New(),
+			ID:            analysisID,
 			ConfigID:      configID,
 			Analyzer:      "demo-analyzer",
 			Message:       "old message",
@@ -59,7 +62,7 @@ var _ = Describe("CreateAnalysis", Ordered, func() {
 		Expect(CreateAnalysis(ctx, initial)).ToNot(HaveOccurred())
 
 		updated := models.ConfigAnalysis{
-			ID:           uuid.New(),
+			ID:           analysisID,
 			ConfigID:     configID,
 			Analyzer:     "demo-analyzer",
 			Message:      "new message",
@@ -75,9 +78,9 @@ var _ = Describe("CreateAnalysis", Ordered, func() {
 		Expect(CreateAnalysis(ctx, updated)).ToNot(HaveOccurred())
 
 		var got models.ConfigAnalysis
-		Expect(ctx.DB().Where("config_id = ? AND analyzer = ?", configID, "demo-analyzer").First(&got).Error).ToNot(HaveOccurred())
+		Expect(ctx.DB().Where("id = ?", analysisID).First(&got).Error).ToNot(HaveOccurred())
 
-		Expect(got.ID).To(Equal(initial.ID))
+		Expect(got.ID).To(Equal(analysisID))
 		Expect(got.Message).To(Equal(updated.Message))
 		Expect(got.Summary).To(Equal(updated.Summary))
 		Expect(got.Status).To(Equal(updated.Status))
@@ -145,26 +148,28 @@ var _ = Describe("analysis resolution", Ordered, func() {
 			firstBatch := []v1.ScrapeResult{
 				{
 					AnalysisResult: &v1.AnalysisResult{
-						ExternalID:   "i-analysis-resolution",
-						ConfigType:   "EC2::Instance",
-						Analyzer:     "analyzer-a",
-						Summary:      "analysis a",
-						Messages:     []string{"message a"},
-						Severity:     models.SeverityLow,
-						AnalysisType: models.AnalysisTypeSecurity,
-						Source:       "test",
+						ExternalID:         "i-analysis-resolution",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-a"),
+						ConfigType:         "EC2::Instance",
+						Analyzer:           "analyzer-a",
+						Summary:            "analysis a",
+						Messages:           []string{"message a"},
+						Severity:           models.SeverityLow,
+						AnalysisType:       models.AnalysisTypeSecurity,
+						Source:             "test",
 					},
 				},
 				{
 					AnalysisResult: &v1.AnalysisResult{
-						ExternalID:   "i-analysis-resolution",
-						ConfigType:   "EC2::Instance",
-						Analyzer:     "analyzer-b",
-						Summary:      "analysis b",
-						Messages:     []string{"message b"},
-						Severity:     models.SeverityHigh,
-						AnalysisType: models.AnalysisTypeSecurity,
-						Source:       "test",
+						ExternalID:         "i-analysis-resolution",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-b"),
+						ConfigType:         "EC2::Instance",
+						Analyzer:           "analyzer-b",
+						Summary:            "analysis b",
+						Messages:           []string{"message b"},
+						Severity:           models.SeverityHigh,
+						AnalysisType:       models.AnalysisTypeSecurity,
+						Source:             "test",
 					},
 				},
 			}
@@ -178,14 +183,15 @@ var _ = Describe("analysis resolution", Ordered, func() {
 			secondBatch := []v1.ScrapeResult{
 				{
 					AnalysisResult: &v1.AnalysisResult{
-						ExternalID:   "i-analysis-resolution",
-						ConfigType:   "EC2::Instance",
-						Analyzer:     "analyzer-a",
-						Summary:      "analysis a updated",
-						Messages:     []string{"message a updated"},
-						Severity:     models.SeverityMedium,
-						AnalysisType: models.AnalysisTypeSecurity,
-						Source:       "test",
+						ExternalID:         "i-analysis-resolution",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-a"),
+						ConfigType:         "EC2::Instance",
+						Analyzer:           "analyzer-a",
+						Summary:            "analysis a updated",
+						Messages:           []string{"message a updated"},
+						Severity:           models.SeverityMedium,
+						AnalysisType:       models.AnalysisTypeSecurity,
+						Source:             "test",
 					},
 				},
 			}
@@ -255,26 +261,28 @@ var _ = Describe("analysis resolution", Ordered, func() {
 			firstBatch := []v1.ScrapeResult{
 				{
 					AnalysisResult: &v1.AnalysisResult{
-						ExternalID:   "i-retention-window",
-						ConfigType:   "EC2::Instance",
-						Analyzer:     "analyzer-x",
-						Summary:      "analysis x",
-						Messages:     []string{"message x"},
-						Severity:     models.SeverityLow,
-						AnalysisType: models.AnalysisTypeSecurity,
-						Source:       "test",
+						ExternalID:         "i-retention-window",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-x"),
+						ConfigType:         "EC2::Instance",
+						Analyzer:           "analyzer-x",
+						Summary:            "analysis x",
+						Messages:           []string{"message x"},
+						Severity:           models.SeverityLow,
+						AnalysisType:       models.AnalysisTypeSecurity,
+						Source:             "test",
 					},
 				},
 				{
 					AnalysisResult: &v1.AnalysisResult{
-						ExternalID:   "i-retention-window",
-						ConfigType:   "EC2::Instance",
-						Analyzer:     "analyzer-y",
-						Summary:      "analysis y",
-						Messages:     []string{"message y"},
-						Severity:     models.SeverityHigh,
-						AnalysisType: models.AnalysisTypeSecurity,
-						Source:       "test",
+						ExternalID:         "i-retention-window",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-y"),
+						ConfigType:         "EC2::Instance",
+						Analyzer:           "analyzer-y",
+						Summary:            "analysis y",
+						Messages:           []string{"message y"},
+						Severity:           models.SeverityHigh,
+						AnalysisType:       models.AnalysisTypeSecurity,
+						Source:             "test",
 					},
 				},
 			}
@@ -286,14 +294,15 @@ var _ = Describe("analysis resolution", Ordered, func() {
 			secondBatch := []v1.ScrapeResult{
 				{
 					AnalysisResult: &v1.AnalysisResult{
-						ExternalID:   "i-retention-window",
-						ConfigType:   "EC2::Instance",
-						Analyzer:     "analyzer-x",
-						Summary:      "analysis x updated",
-						Messages:     []string{"message x updated"},
-						Severity:     models.SeverityMedium,
-						AnalysisType: models.AnalysisTypeSecurity,
-						Source:       "test",
+						ExternalID:         "i-retention-window",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-x"),
+						ConfigType:         "EC2::Instance",
+						Analyzer:           "analyzer-x",
+						Summary:            "analysis x updated",
+						Messages:           []string{"message x updated"},
+						Severity:           models.SeverityMedium,
+						AnalysisType:       models.AnalysisTypeSecurity,
+						Source:             "test",
 					},
 				},
 			}
@@ -363,14 +372,15 @@ var _ = Describe("analysis resolution", Ordered, func() {
 			firstBatch := []v1.ScrapeResult{
 				{
 					AnalysisResult: &v1.AnalysisResult{
-						ExternalID:   "i-keep-test",
-						ConfigType:   "EC2::Instance",
-						Analyzer:     "analyzer-keep",
-						Summary:      "analysis keep",
-						Messages:     []string{"message keep"},
-						Severity:     models.SeverityLow,
-						AnalysisType: models.AnalysisTypeSecurity,
-						Source:       "test",
+						ExternalID:         "i-keep-test",
+						ExternalAnalysisID: fmt.Sprintf("%s::%s", configID, "analyzer-keep"),
+						ConfigType:         "EC2::Instance",
+						Analyzer:           "analyzer-keep",
+						Summary:            "analysis keep",
+						Messages:           []string{"message keep"},
+						Severity:           models.SeverityLow,
+						AnalysisType:       models.AnalysisTypeSecurity,
+						Source:             "test",
 					},
 				},
 			}

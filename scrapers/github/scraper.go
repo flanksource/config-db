@@ -57,7 +57,7 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				continue
 			}
 
-			configID := fmt.Sprintf("github/%s", repoFullName)
+			externalConfigID := fmt.Sprintf("github/%s", repoFullName)
 
 			var alerts *allAlerts
 			if config.Security {
@@ -87,11 +87,11 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 
 			if alerts != nil {
-				createAlertAnalyses(ctx, &results, configID, alerts, openssfCheckNames)
+				createAlertAnalyses(ctx, &results, externalConfigID, alerts, openssfCheckNames)
 			}
 
 			if scorecard != nil {
-				createScorecardAnalyses(ctx, &results, configID, repoConfig, scorecard)
+				createScorecardAnalyses(ctx, &results, externalConfigID, repoConfig, scorecard)
 			}
 		}
 	}
@@ -101,7 +101,7 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubRepository, alerts *allAlerts, scorecard *ScorecardResponse) v1.ScrapeResult {
 	repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
-	configID := fmt.Sprintf("github/%s", repoFullName)
+	externalConfigID := fmt.Sprintf("github/%s", repoFullName)
 
 	var properties []*types.Property
 	properties = append(properties, &types.Property{
@@ -129,7 +129,7 @@ func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubReposito
 
 	result := v1.ScrapeResult{
 		Type:        ConfigTypeRepository,
-		ID:          configID,
+		ID:          externalConfigID,
 		Name:        repoFullName,
 		ConfigClass: "Repository",
 		Config:      sanitizeRepository(repo),
@@ -172,12 +172,15 @@ func scorecardProperties(owner, repo string, scorecard *ScorecardResponse) []*ty
 	}
 }
 
-func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, configID string, alerts *allAlerts, openssfCheckNames map[string]bool) {
+func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, externalConfigID string, alerts *allAlerts, openssfCheckNames map[string]bool) {
 	for _, alert := range alerts.dependabot {
 		a := results.Analysis(
 			fmt.Sprintf("dependabot/%d", alert.GetNumber()),
-			ConfigTypeRepository, configID,
+			ConfigTypeRepository, externalConfigID,
 		)
+		if externalAnalysisID := alert.GetURL(); externalAnalysisID != "" {
+			a.ExternalAnalysisID = externalAnalysisID
+		}
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = mapGitHubSeverity(alert.SecurityAdvisory.GetSeverity())
 		a.Source = "GitHub Dependabot"
@@ -252,8 +255,11 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, confi
 
 		a := results.Analysis(
 			fmt.Sprintf("code-scanning/%d", alert.GetNumber()),
-			ConfigTypeRepository, configID,
+			ConfigTypeRepository, externalConfigID,
 		)
+		if externalAnalysisID := alert.GetURL(); externalAnalysisID != "" {
+			a.ExternalAnalysisID = externalAnalysisID
+		}
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = mapGitHubSeverity(alert.Rule.GetSeverity())
 		a.Source = "GitHub Code Scanning"
@@ -282,8 +288,11 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, confi
 	for _, alert := range alerts.secretScanning {
 		a := results.Analysis(
 			fmt.Sprintf("secret-scanning/%d", alert.GetNumber()),
-			ConfigTypeRepository, configID,
+			ConfigTypeRepository, externalConfigID,
 		)
+		if externalAnalysisID := alert.GetURL(); externalAnalysisID != "" {
+			a.ExternalAnalysisID = externalAnalysisID
+		}
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = models.SeverityHigh
 		a.Source = "GitHub Secret Scanning"
