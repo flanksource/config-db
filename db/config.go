@@ -59,6 +59,13 @@ func FindConfigIDsByRelationshipSelector(ctx context.Context, selector duty.Rela
 	return query.FindConfigIDsByResourceSelector(ctx, 0, selector.ToResourceSelector())
 }
 
+func FindConfigsByRelationshipSelector(ctx context.Context, selector duty.RelationshipSelector) ([]dutyModels.ConfigItem, error) {
+	if selector.IsEmpty() {
+		return nil, nil
+	}
+	return query.FindConfigsByResourceSelector(ctx, 0, selector.ToResourceSelector())
+}
+
 // FindConfigIDsByNamespaceNameClass returns the uuid of config items which matches the given type, name & namespace
 func FindConfigIDsByNamespaceNameClass(ctx context.Context, cluster, namespace, name, configClass string) ([]uuid.UUID, error) {
 	rs := types.ResourceSelector{
