@@ -178,12 +178,20 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				}
 			}
 
+			if len(config.Repositories) > 0 {
+				projectResults = append(projectResults, ado.scrapeRepositories(ctx, client, config, project)...)
+			}
+
 			// Assign deduped entities only to the first result to avoid duplicates
 			if len(projectResults) > 0 {
 				projectResults[0].ExternalUsers = entityCtx.Users()
 				projectResults[0].ExternalGroups = entityCtx.Groups()
 			}
 			results = append(results, projectResults...)
+		}
+
+		if config.AuditLog != nil && config.AuditLog.Enabled {
+			results = append(results, ado.scrapeAuditLog(ctx, config)...)
 		}
 	}
 	return results

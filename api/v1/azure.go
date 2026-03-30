@@ -19,6 +19,18 @@ type AzureDevops struct {
 	MaxAge string `yaml:"maxAge,omitempty" json:"maxAge,omitempty"`
 	// Releases filters classic release pipelines to scrape by name or glob
 	Releases []string `yaml:"releases,omitempty" json:"releases,omitempty"`
+	// Repositories filters Git repositories to scrape by name or glob
+	Repositories []string `yaml:"repositories,omitempty" json:"repositories,omitempty"`
+	// AuditLog configures fetching organization-level audit log entries as config changes
+	AuditLog *AzureDevopsAuditLog `yaml:"auditLog,omitempty" json:"auditLog,omitempty"`
+}
+
+// AzureDevopsAuditLog configures audit log fetching for Azure DevOps
+type AzureDevopsAuditLog struct {
+	// Enabled enables fetching audit log entries
+	Enabled bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	// Exclusions is a list of actionId prefixes to exclude (e.g. "AuditLog.AccessLog")
+	Exclusions []string `yaml:"exclusions,omitempty" json:"exclusions,omitempty"`
 }
 
 // AzureDevopsPermissions configures permission fetching for Azure DevOps pipelines

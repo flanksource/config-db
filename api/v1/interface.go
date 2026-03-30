@@ -709,6 +709,36 @@ func (t RelationshipResult) WithRelated(id string, ext ExternalID) RelationshipR
 	return t
 }
 
+func (r RelationshipResult) Pretty() api.Text {
+	t := clicky.Text("")
+	if !r.ConfigExternalID.IsEmpty() {
+		t = t.Add(r.ConfigExternalID.Pretty())
+	} else if r.ConfigID != "" {
+		t = t.Append(r.ConfigID, "text-sm")
+	}
+	t = t.Append(" → ", "text-muted")
+	if !r.RelatedExternalID.IsEmpty() {
+		t = t.Add(r.RelatedExternalID.Pretty())
+	} else if r.RelatedConfigID != "" {
+		t = t.Append(r.RelatedConfigID, "text-sm")
+	}
+	if r.Relationship != "" {
+		t = t.Append(" ("+r.Relationship+")", "text-muted")
+	}
+	return t
+}
+
+func (r RelationshipResults) Pretty() api.Text {
+	t := clicky.Text("")
+	for i, rel := range r {
+		if i > 0 {
+			t = t.NewLine()
+		}
+		t = t.Append("  ").Add(rel.Pretty())
+	}
+	return t
+}
+
 func (r RelationshipResult) String() string {
 	s := ""
 	if r.ConfigID != "" {
@@ -913,6 +943,107 @@ type ConfigExternalKey struct {
 	ScraperID  string
 }
 
+func (k ConfigExternalKey) Pretty() api.Text {
+	return clicky.Text(k.Type, "text-muted").Append("/").Append(k.ExternalID)
+}
+
+// +kubebuilder:object:generate=false
+type ScrapeResultResolved struct {
+	Action        string
+	Parents       []ResolvedConfigRef
+	Relationships []ResolvedRelationshipRef
+	Logs          ScrapeResultLogs
+}
+
+// +kubebuilder:object:generate=false
+type ScrapeResultLogs []logger.BufferedLogEntry
+
+// ResolvedConfigRef tracks a parent lookup result.
+// +kubebuilder:object:generate=false
+type ResolvedConfigRef struct {
+	Query ConfigExternalKey
+	// ID is the resolved config item ID, empty if unmatched
+	ID   string
+	Name string
+}
+
+// ResolvedRelationshipRef tracks a relationship lookup result.
+// +kubebuilder:object:generate=false
+type ResolvedRelationshipRef struct {
+	Query       RelationshipResult
+	ConfigName  string
+	RelatedName string
+	Matched     bool
+}
+
+func (r ResolvedConfigRef) Pretty() api.Text {
+	t := r.Query.Pretty()
+	if r.ID != "" {
+		t = t.Append(" → ", "text-muted").Append(r.Name)
+	} else {
+		t = t.Append(" → ", "text-muted").Append("unmatched", "text-red-500")
+	}
+	return t
+}
+
+func (r ResolvedRelationshipRef) Pretty() api.Text {
+	t := clicky.Text("")
+	if !r.Query.ConfigExternalID.IsEmpty() {
+		t = t.Add(r.Query.ConfigExternalID.Pretty())
+	} else if r.Query.ConfigID != "" {
+		t = t.Append(r.Query.ConfigID, "text-sm")
+	}
+	if r.ConfigName != "" {
+		t = t.Append(" (", "text-muted").Append(r.ConfigName).Append(")", "text-muted")
+	}
+	t = t.Append(" → ", "text-muted")
+	if !r.Query.RelatedExternalID.IsEmpty() {
+		t = t.Add(r.Query.RelatedExternalID.Pretty())
+	} else if r.Query.RelatedConfigID != "" {
+		t = t.Append(r.Query.RelatedConfigID, "text-sm")
+	}
+	if r.RelatedName != "" {
+		t = t.Append(" (", "text-muted").Append(r.RelatedName).Append(")", "text-muted")
+	}
+	if !r.Matched {
+		t = t.Append(" unmatched", "text-red-500")
+	}
+	return t
+}
+
+func (r ScrapeResultResolved) Pretty() api.Text {
+	t := clicky.Text("")
+	if r.Action != "" {
+		t = t.Append(r.Action, "badge")
+	}
+	if len(r.Parents) > 0 {
+		t = t.NewLine().Append("Parents: ", "text-gray-500 font-medium")
+		for _, p := range r.Parents {
+			t = t.NewLine().Append("  ").Add(p.Pretty())
+		}
+	}
+	if len(r.Relationships) > 0 {
+		t = t.NewLine().Append("Relationships: ", "text-gray-500 font-medium")
+		for _, rel := range r.Relationships {
+			t = t.NewLine().Append("  ").Add(rel.Pretty())
+		}
+	}
+	if len(r.Logs) > 0 {
+		t = t.NewLine().Add(r.Logs.Pretty())
+	}
+	return t
+}
+
+func (l ScrapeResultLogs) Pretty() api.Text {
+	t := clicky.Text("Logs: ", "text-gray-500 font-medium")
+	var lines []string
+	for _, entry := range l {
+		lines = append(lines, fmt.Sprintf("[%s] %s", entry.Level, entry.Message))
+	}
+	t = t.NewLine().Append(clicky.CodeBlock("", strings.Join(lines, "\n")))
+	return t
+}
+
 type DirectedRelationship struct {
 	Selector duty.RelationshipSelector
 	Parent   bool
@@ -993,6 +1124,10 @@ type ScrapeResult struct {
 
 	// Only for GCP Scraper
 	GCPStructPB *structpb.Struct `json:"-"`
+
+	// Resolved is populated by the save pipeline with resolved parents,
+	// relationships, action status, and per-result logs.
+	Resolved *ScrapeResultResolved `json:"-"`
 }
 
 func (s ScrapeResult) Debug() api.Text {
@@ -1164,10 +1299,39 @@ func (s *ScrapeResult) Pretty() api.Text {
 	return t
 }
 
+// matchingRelationships returns relationships that were resolved from the given selector.
+func (s ScrapeResult) matchingRelationships(dr DirectedRelationship) RelationshipResults {
+	var matches RelationshipResults
+	for _, r := range s.RelationshipResults {
+		if dr.Parent {
+			if r.RelatedExternalID.ExternalID == s.ID && r.RelatedExternalID.ConfigType == s.Type {
+				matches = append(matches, r)
+			}
+		} else {
+			if r.ConfigExternalID.ExternalID == s.ID && r.ConfigExternalID.ConfigType == s.Type {
+				matches = append(matches, r)
+			}
+		}
+	}
+	return matches
+}
+
 func buildDetails(s ScrapeResult) api.Text {
 	t := clicky.Text("")
 	if s.ID != "" {
 		t = t.Append("ID: ", "text-gray-500 font-medium").Append(s.ID)
+	}
+	if len(s.Aliases) > 0 {
+		t = t.NewLine().Append("Aliases: ", "text-gray-500 font-medium").Append(strings.Join(s.Aliases, ", "))
+	}
+	if len(s.Locations) > 0 {
+		t = t.NewLine().Append("Locations: ", "text-gray-500 font-medium").Append(strings.Join(s.Locations, ", "))
+	}
+	if s.Description != "" {
+		t = t.NewLine().Append("Description: ", "text-gray-500 font-medium").Append(s.Description)
+	}
+	if s.Source != "" {
+		t = t.NewLine().Append("Source: ", "text-gray-500 font-medium").Append(s.Source)
 	}
 	if s.Error != nil {
 		t = t.NewLine().Append("Error: ", "text-red-500 font-medium").Append(s.Error.Error())
@@ -1177,6 +1341,53 @@ func buildDetails(s ScrapeResult) api.Text {
 	}
 	if len(s.Tags) > 0 {
 		t = t.NewLine().Append("Tags: ", "text-gray-500 font-medium").Append(clicky.Map(s.Tags, "badge"))
+	}
+	if s.Resolved != nil {
+		t = t.NewLine().Add(s.Resolved.Pretty())
+	} else {
+
+		if len(s.Children) > 0 {
+			t = t.NewLine().Append("Children: ", "text-gray-500 font-medium")
+			for _, c := range s.Children {
+				t = t.Add(c.Pretty()).Append(" ", "")
+			}
+		}
+		if len(s.RelationshipResults) > 0 && len(s.RelationshipSelectors) == 0 {
+			t = t.NewLine().Append("Relationships: ", "text-gray-500 font-medium")
+			t = t.NewLine().Add(s.RelationshipResults.Pretty())
+		}
+	}
+	if len(s.RelationshipSelectors) > 0 {
+		t = t.NewLine().Append("Relationship Selectors: ", "text-gray-500 font-medium")
+		for _, rs := range s.RelationshipSelectors {
+			sel := rs.Selector
+			parts := []string{}
+			if sel.Type != "" {
+				parts = append(parts, "type="+sel.Type)
+			}
+			if sel.Name != "" {
+				parts = append(parts, "name="+sel.Name)
+			}
+			if sel.ExternalID != "" {
+				parts = append(parts, "externalID="+sel.ExternalID)
+			}
+			if len(sel.Labels) > 0 {
+				parts = append(parts, fmt.Sprintf("labels=%v", sel.Labels))
+			}
+			dir := "related"
+			if rs.Parent {
+				dir = "parent"
+			}
+			t = t.NewLine().Append(fmt.Sprintf("  [%s] %s", dir, strings.Join(parts, ", ")), "text-sm")
+			matches := s.matchingRelationships(rs)
+			if len(matches) > 0 {
+				for _, r := range matches {
+					t = t.NewLine().Append("    → ").Add(r.Pretty())
+				}
+			} else {
+				t = t.NewLine().Append("    → ", "").Append("(no matches)", "text-muted")
+			}
+		}
 	}
 	if s.Config != nil {
 		var data any
@@ -1192,7 +1403,7 @@ func buildDetails(s ScrapeResult) api.Text {
 		if err != nil {
 			yamlBytes = []byte(fmt.Sprintf("%v", s.Config))
 		}
-		t = t.NewLine().Append(clicky.CodeBlock("yaml", string(yamlBytes)))
+		t = t.NewLine().Append(clicky.Collapsed("Config", clicky.CodeBlock("yaml", string(yamlBytes))))
 	}
 	return t
 }

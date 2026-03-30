@@ -789,10 +789,10 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 		if expr, ok := e.Tags[k]; ok {
 			tag, err := getString(expr, input.Config, v)
 			if err != nil {
-				if ctx.IsTrace() {
-					ctx.Debugf("[%s] failed to extract tag %s for %s", k, expr, debugConfig(input.Config))
+				if ctx.PropertyOn(false, "scraper.tag.missing") || ctx.Logger.V(4).Enabled() {
+					ctx.Tracef("[%s] failed to extract tag %s for %s", k, expr, debugConfig(input.Config))
 				} else if ctx.IsDebug() {
-					ctx.Debugf("[%s] failed to extract tag %s", k, expr)
+					ctx.Tracef("[%s] failed to extract tag %s", k, expr)
 				}
 				if v != "" {
 					tags[k] = v
@@ -813,8 +813,8 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 	for k, v := range e.Labels {
 		label, err := getString(v, input.Config, "")
 		if err != nil {
-			if ctx.IsDebug() {
-				ctx.Debugf("failed to extract label %s (%s) for %s", k, v, debugConfig(input.Config))
+			if ctx.PropertyOn(false, "scraper.label.missing") || ctx.Logger.V(4).Enabled() {
+				ctx.Tracef("failed to extract label %s (%s) for %s", k, v, debugConfig(input.Config))
 			}
 		} else if label != "" {
 			input.Labels[k] = label

@@ -178,7 +178,7 @@ build-slim:
 
 .PHONY: build-prod
 build-prod:
-	go build -o ./.bin/$(NAME) -ldflags '$(LDFLAGS)' -tags rustdiffgen .
+	go build -v -o ./.bin/$(NAME) -ldflags '$(LDFLAGS)' -tags rustdiffgen .
 
 .PHONY: build-prod
 build-debug:

@@ -61,6 +61,30 @@ type Repository struct {
 	DefaultBranch string `json:"defaultBranch,omitempty"`
 }
 
+type GitRepository struct {
+	ID            string      `json:"id"`
+	Name          string      `json:"name"`
+	URL           string      `json:"url"`
+	RemoteURL     string      `json:"remoteUrl"`
+	SSHURL        string      `json:"sshUrl"`
+	WebURL        string      `json:"webUrl"`
+	DefaultBranch string      `json:"defaultBranch"`
+	Size          int64       `json:"size"`
+	IsDisabled    bool        `json:"isDisabled"`
+	IsFork        bool        `json:"isFork"`
+	Project       *ProjectRef `json:"project,omitempty"`
+}
+
+type ProjectRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type GitRepositories struct {
+	Count int             `json:"count"`
+	Value []GitRepository `json:"value"`
+}
+
 func (p Pipeline) GetLabels() map[string]string {
 	return map[string]string{}
 }
@@ -246,6 +270,14 @@ func (ado *AzureDevopsClient) GetProjects(ctx context.Context) ([]Project, error
 		return nil, err
 	}
 	return projects.Value, nil
+}
+
+func (ado *AzureDevopsClient) GetRepositories(ctx context.Context, project string) ([]GitRepository, error) {
+	repos, _, err := get[GitRepositories](ado.Client, ctx, fmt.Sprintf("/%s/_apis/git/repositories", project), "api-version", "7.1")
+	if err != nil {
+		return nil, err
+	}
+	return repos.Value, nil
 }
 
 // Timeline represents the timeline of a build

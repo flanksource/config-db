@@ -121,7 +121,7 @@ func mapEqual(a, b map[string]any) bool {
 	return true
 }
 
-func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.ScrapeResult, ci, existing *models.ConfigItem) (bool, []*models.ConfigChange, error) {
+func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result *v1.ScrapeResult, ci, existing *models.ConfigItem) (bool, []*models.ConfigChange, error) {
 	ci.ID = existing.ID
 	updates := make(map[string]any)
 	changes := make([]*models.ConfigChange, 0)
@@ -148,7 +148,7 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result v1.Scrape
 
 		}
 		result.Changes = []v1.ChangeResult{*changeResult}
-		if newChanges, _, _, err := extractChanges(ctx, &result, ci); err != nil {
+		if newChanges, _, _, err := extractChanges(ctx, result, ci); err != nil {
 			return false, nil, err
 		} else {
 			changes = append(changes, newChanges...)
@@ -575,11 +575,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	entityResult, userIDMap, err := syncExternalEntities(ctx, extractResult, scraperID)
 	if err != nil {
-		return summary, ctx.Oops().Wrapf(err, "failed to sync external entities")
+		summary.AddWarning("ExternalEntities", fmt.Sprintf("failed to sync external entities: %v", err))
+	} else {
+		summary.ExternalUsers = entityResult.Users
+		summary.ExternalGroups = entityResult.Groups
+		summary.ExternalRoles = entityResult.Roles
 	}
-	summary.ExternalUsers = entityResult.Users
-	summary.ExternalGroups = entityResult.Groups
-	summary.ExternalRoles = entityResult.Roles
 
 	// Remap stale ExternalUserIDs after entity sync has resolved canonical IDs
 	for i := range extractResult.configAccesses {
@@ -598,13 +599,16 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	summary.ConfigAccess.Scraped = len(extractResult.configAccesses)
+	missingConfigs := map[string]int{}
 	var resolvedAccesses []v1.ExternalConfigAccess
 	for i := range extractResult.configAccesses {
 		configAccess := &extractResult.configAccesses[i]
 		if configAccess.ExternalUserID == nil && len(configAccess.ExternalUserAliases) > 0 {
 			id, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, configAccess.ExternalUserAliases)
 			if err != nil {
-				return summary, ctx.Oops().With("aliases", configAccess.ExternalUserAliases).Wrapf(err, "failed to find user for config access")
+				summary.AddWarning("ConfigAccess", fmt.Sprintf("failed to find user for config access (aliases=%v): %v", configAccess.ExternalUserAliases, err))
+				summary.ConfigAccess.Skipped++
+				continue
 			}
 			configAccess.ExternalUserID = id
 		}
@@ -612,7 +616,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if configAccess.ExternalRoleID == nil && len(configAccess.ExternalRoleAliases) > 0 {
 			id, err := findExternalEntityIDByAliases[dutyModels.ExternalRole](ctx, configAccess.ExternalRoleAliases)
 			if err != nil {
-				return summary, ctx.Oops().With("aliases", configAccess.ExternalRoleAliases).Wrapf(err, "failed to find role for config access")
+				summary.AddWarning("ConfigAccess", fmt.Sprintf("failed to find role for config access (aliases=%v): %v", configAccess.ExternalRoleAliases, err))
+				summary.ConfigAccess.Skipped++
+				continue
 			}
 			configAccess.ExternalRoleID = id
 		}
@@ -620,7 +626,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if configAccess.ExternalGroupID == nil && len(configAccess.ExternalGroupAliases) > 0 {
 			id, err := findExternalEntityIDByAliases[dutyModels.ExternalGroup](ctx, configAccess.ExternalGroupAliases)
 			if err != nil {
-				return summary, ctx.Oops().With("aliases", configAccess.ExternalGroupAliases).Wrapf(err, "failed to find group for config access")
+				summary.AddWarning("ConfigAccess", fmt.Sprintf("failed to find group for config access (aliases=%v): %v", configAccess.ExternalGroupAliases, err))
+				summary.ConfigAccess.Skipped++
+				continue
 			}
 			configAccess.ExternalGroupID = id
 		}
@@ -635,12 +643,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if configAccess.ConfigID == uuid.Nil && configAccess.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, configAccess.ConfigExternalID)
 			if err != nil {
-				return summary, ctx.Oops().With("config_type", configAccess.ConfigExternalID.ConfigType, "external_id", configAccess.ConfigExternalID.ExternalID).Wrapf(err, "failed to find config for config access")
+				summary.AddWarning("ConfigAccess", fmt.Sprintf("failed to find config for config access (type=%s external_id=%s): %v", configAccess.ConfigExternalID.ConfigType, configAccess.ConfigExternalID.ExternalID, err))
+				summary.ConfigAccess.Skipped++
+				continue
 			} else if config == "" {
-				ctx.Logger.V(2).Infof("config access doesn't have an associated config (type=%s external_id=%s)",
-					configAccess.ConfigExternalID.ConfigType,
-					configAccess.ConfigExternalID.ExternalID,
-				)
+				missingConfigs[configAccess.ConfigExternalID.Key()]++
 				summary.ConfigAccess.Skipped++
 				continue
 			}
@@ -659,29 +666,34 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		resolvedAccesses = append(resolvedAccesses, *configAccess)
 	}
 
+	for key, count := range missingConfigs {
+		ctx.Logger.V(2).Infof("config access references unknown config %s (scraper=%s, count=%d)", key, ctx.ScrapeConfig().Name, count)
+	}
+
 	if len(resolvedAccesses) > 0 {
 		permResult, err := upsertConfigAccess(ctx, resolvedAccesses, scraperID)
 		if err != nil {
-			return summary, ctx.Oops().Wrapf(err, "failed to upsert config access")
+			summary.AddWarning("ConfigAccess", fmt.Sprintf("failed to upsert config access: %v", err))
+		} else {
+			summary.ConfigAccess.Saved += permResult.saved
+			extractResult.newChanges = append(extractResult.newChanges, permResult.added...)
+			extractResult.newChanges = append(extractResult.newChanges, permResult.removed...)
+			summary.ConfigAccess.Deleted += len(permResult.removed)
 		}
-		summary.ConfigAccess.Saved += permResult.saved
-		extractResult.newChanges = append(extractResult.newChanges, permResult.added...)
-		extractResult.newChanges = append(extractResult.newChanges, permResult.removed...)
-		summary.ConfigAccess.Deleted += len(permResult.removed)
 	}
 
 	summary.AccessLogs.Scraped = len(extractResult.configAccessLogs)
+	missingAccessLogConfigs := map[string]int{}
 	var resolvedAccessLogs []dutyModels.ConfigAccessLog
 	for _, accessLog := range extractResult.configAccessLogs {
 		if accessLog.ConfigID == uuid.Nil && accessLog.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, accessLog.ConfigExternalID)
 			if err != nil {
-				return summary, ctx.Oops().Wrapf(err, "failed to find config for access log")
+				summary.AddWarning("AccessLogs", fmt.Sprintf("failed to find config for access log (type=%s external_id=%s): %v", accessLog.ConfigExternalID.ConfigType, accessLog.ConfigExternalID.ExternalID, err))
+				summary.AccessLogs.Skipped++
+				continue
 			} else if config == "" {
-				ctx.Logger.V(2).Infof("access log doesn't have an associated config (type=%s external_id=%s)",
-					accessLog.ConfigExternalID.ConfigType,
-					accessLog.ConfigExternalID.ExternalID,
-				)
+				missingAccessLogConfigs[accessLog.ConfigExternalID.Key()]++
 				summary.AccessLogs.Skipped++
 				continue
 			}
@@ -692,7 +704,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if accessLog.ExternalUserID == uuid.Nil && len(accessLog.ExternalUserAliases) > 0 {
 			id, err := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, accessLog.ExternalUserAliases)
 			if err != nil {
-				return summary, ctx.Oops().Wrapf(err, "failed to find user for access log")
+				summary.AddWarning("AccessLogs", fmt.Sprintf("failed to find user for access log (aliases=%v): %v", accessLog.ExternalUserAliases, err))
+				summary.AccessLogs.Skipped++
+				continue
 			}
 			if id != nil {
 				accessLog.ExternalUserID = *id
@@ -729,6 +743,10 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		resolvedAccessLogs = append(resolvedAccessLogs, accessLog.ConfigAccessLog)
 	}
 
+	for key, count := range missingAccessLogConfigs {
+		ctx.Logger.V(2).Infof("access log references unknown config %s (scraper=%s, count=%d)", key, ctx.ScrapeConfig().Name, count)
+	}
+
 	// Deduplicate by (config_id, external_user_id, scraper_id) to avoid
 	// "ON CONFLICT DO UPDATE cannot affect row a second time" errors.
 	type accessLogKey struct {
@@ -749,9 +767,10 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	if err := SaveConfigAccessLogs(ctx, resolvedAccessLogs); err != nil {
-		return summary, ctx.Oops().Wrapf(err, "failed to save access logs")
+		summary.AddWarning("AccessLogs", fmt.Sprintf("failed to save access logs: %v", err))
+	} else {
+		summary.AccessLogs.Saved = len(resolvedAccessLogs)
 	}
-	summary.AccessLogs.Saved = len(resolvedAccessLogs)
 
 	// updatedConfigIDs are configs that were not new in this scrape.
 	// We keep track of them so that we can update their last scraped time.
@@ -768,8 +787,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if updated {
 			summary.AddUpdated(updateArg.Existing.Type)
 			ctx.TempCache().Insert(*updateArg.New)
+			if updateArg.Result.Resolved != nil {
+				updateArg.Result.Resolved.Action = "updated"
+			}
 		} else {
 			summary.AddUnchanged(updateArg.Existing.Type)
+			if updateArg.Result.Resolved != nil {
+				updateArg.Result.Resolved.Action = "unchanged"
+			}
 		}
 
 		if len(diffChanges) != 0 {
@@ -865,33 +890,44 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	var (
-		// Keep note of the all the relationships in each of the results
-		// so we can create them once the all the configs are saved.
-		relationshipToForm []v1.RelationshipResult
-
-		// resultsWithRelationshipSelectors is a list of scraped results that have
-		// relationship selectors. These selectors are stored here to be processed
-		// once the all the scraped results are saved.
+		relationshipToForm               []relationshipWithOrigin
 		resultsWithRelationshipSelectors []v1.ScrapeResult
 	)
 
-	for _, result := range results {
+	for i := range results {
+		result := &results[i]
 		if result.AnalysisResult != nil {
-			if err := upsertAnalysis(ctx, &result); err != nil {
+			if err := upsertAnalysis(ctx, result); err != nil {
 				return summary, ctx.Oops().Wrapf(err, "failed to upsert analysis (%s)", result)
 			}
 		}
 
-		relationshipToForm = append(relationshipToForm, result.RelationshipResults...)
+		for _, rel := range result.RelationshipResults {
+			relationshipToForm = append(relationshipToForm, relationshipWithOrigin{
+				Relationship: rel,
+				Origin:       result,
+			})
+		}
 		if len(result.RelationshipSelectors) != 0 {
-			resultsWithRelationshipSelectors = append(resultsWithRelationshipSelectors, result)
+			resultsWithRelationshipSelectors = append(resultsWithRelationshipSelectors, *result)
 		}
 	}
 
 	if res, err := relationshipSelectorToResults(ctx.DutyContext(), resultsWithRelationshipSelectors); err != nil {
 		return summary, ctx.Oops().Wrapf(err, "failed to get relationship results from relationship selectors")
 	} else {
-		relationshipToForm = append(relationshipToForm, res...)
+		for _, r := range res {
+			relationshipToForm = append(relationshipToForm, relationshipWithOrigin{Relationship: r})
+		}
+
+		for i := range results {
+			for _, r := range res {
+				if (r.ConfigExternalID.ExternalID == results[i].ID && r.ConfigExternalID.ConfigType == results[i].Type) ||
+					(r.RelatedExternalID.ExternalID == results[i].ID && r.RelatedExternalID.ConfigType == results[i].Type) {
+					results[i].RelationshipResults = append(results[i].RelationshipResults, r)
+				}
+			}
+		}
 	}
 
 	if err := relationshipResultHandler(ctx, relationshipToForm); err != nil {
@@ -1046,15 +1082,19 @@ func relationshipSelectorToResults(ctx dutyContext.Context, inputs []v1.ScrapeRe
 
 	for _, input := range inputs {
 		for _, directedRelationship := range input.RelationshipSelectors {
-			linkedConfigIDs, err := FindConfigIDsByRelationshipSelector(ctx, directedRelationship.Selector)
+			linkedConfigs, err := FindConfigsByRelationshipSelector(ctx, directedRelationship.Selector)
 			if err != nil {
 				return nil, fmt.Errorf("failed to find config items by relationship selector: %w", err)
 			}
 
-			for _, id := range linkedConfigIDs {
+			for _, config := range linkedConfigs {
 				rel := v1.RelationshipResult{
 					ConfigExternalID: v1.ExternalID{ExternalID: input.ID, ConfigType: input.Type},
-					RelatedConfigID:  id.String(),
+					RelatedConfigID:  config.ID.String(),
+					RelatedExternalID: v1.ExternalID{
+						ExternalID: lo.CoalesceOrEmpty(config.ExternalID...),
+						ConfigType: lo.FromPtr(config.Type),
+					},
 				}
 
 				if directedRelationship.Parent {
@@ -1070,15 +1110,22 @@ func relationshipSelectorToResults(ctx dutyContext.Context, inputs []v1.ScrapeRe
 	return relationships, nil
 }
 
-func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.RelationshipResults) error {
+type relationshipWithOrigin struct {
+	Relationship v1.RelationshipResult
+	Origin       *v1.ScrapeResult
+}
+
+func relationshipResultHandler(ctx api.ScrapeContext, relationships []relationshipWithOrigin) error {
 	ctx.Logger.V(5).Infof("saving %d relationships", len(relationships))
 	logMissing := ctx.PropertyOn(false, "log.missing")
+	logRelationships := ctx.PropertyOn(false, "log.relationships")
 
+	var matched, unmatched int
 	var configItemRelationships []models.ConfigRelationship
-	for _, relationship := range relationships {
-		var err error
+	for _, rel := range relationships {
+		relationship := rel.Relationship
 
-		var configID string
+		var configID, configName string
 		if relationship.ConfigID != "" {
 			configItem, err := ctx.TempCache().Get(ctx, relationship.ConfigID)
 			if err != nil {
@@ -1086,26 +1133,38 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 				continue
 			}
 			if configItem == nil {
-				if logMissing {
+				unmatched++
+				if logRelationships {
+					ctx.Logger.Infof("relationship: config %s not found", relationship.ConfigID)
+				} else if logMissing {
 					ctx.Logger.Tracef("config item: %s not found in db for relation", relationship.RelatedConfigID)
 				}
+				appendResolvedRelationship(rel.Origin, relationship, "", "", false)
 				continue
 			}
 			configID = configItem.ID
-
+			configName = lo.FromPtr(configItem.Name)
 		} else {
-			configID, err = ctx.TempCache().FindExternalID(ctx, relationship.ConfigExternalID)
+			configItem, err := ctx.TempCache().Find(ctx, relationship.ConfigExternalID)
 			if err != nil {
 				ctx.Errorf("error fetching config item(id=%s): %v", relationship.ConfigExternalID, err)
 				continue
 			}
-			if configID == "" && logMissing {
-				ctx.Logger.Tracef("%s: parent config (%s) not found", relationship.ConfigExternalID, cUtils.Coalesce(relationship.RelatedConfigID, relationship.RelatedExternalID.String()))
+			if configItem == nil {
+				unmatched++
+				if logRelationships {
+					ctx.Logger.Infof("relationship: config %s not found (related=%s)", relationship.ConfigExternalID, cUtils.Coalesce(relationship.RelatedConfigID, relationship.RelatedExternalID.String()))
+				} else if logMissing {
+					ctx.Logger.Tracef("%s: parent config (%s) not found", relationship.ConfigExternalID, cUtils.Coalesce(relationship.RelatedConfigID, relationship.RelatedExternalID.String()))
+				}
+				appendResolvedRelationship(rel.Origin, relationship, "", "", false)
 				continue
 			}
+			configID = configItem.ID
+			configName = lo.FromPtr(configItem.Name)
 		}
 
-		var relatedID string
+		var relatedID, relatedName string
 		if relationship.RelatedConfigID != "" {
 			relatedCI, err := ctx.TempCache().Get(ctx, relationship.RelatedConfigID)
 			if err != nil {
@@ -1113,31 +1172,45 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 				continue
 			}
 			if relatedCI == nil {
-				if logMissing {
+				unmatched++
+				if logRelationships {
+					ctx.Logger.Infof("relationship: related config %s not found (config=%s)", relationship.RelatedConfigID, configID)
+				} else if logMissing {
 					ctx.Logger.Tracef("related config item: %s not found in db for relation", relationship.RelatedConfigID)
 				}
+				appendResolvedRelationship(rel.Origin, relationship, configName, "", false)
 				continue
 			}
 			relatedID = relatedCI.ID
+			relatedName = lo.FromPtr(relatedCI.Name)
 		} else {
-			relatedID, err = ctx.TempCache().FindExternalID(ctx, relationship.RelatedExternalID)
+			relatedCI, err := ctx.TempCache().Find(ctx, relationship.RelatedExternalID)
 			if err != nil {
 				ctx.Errorf("error fetching external config item(id=%s): %v", relationship.RelatedExternalID, err)
 				continue
 			}
-			if relatedID == "" && logMissing {
-				ctx.Logger.Tracef("%s: related config (%s) not found", configID, relationship.RelatedExternalID)
+			if relatedCI == nil {
+				unmatched++
+				if logRelationships {
+					ctx.Logger.Infof("relationship: related config %s not found (config=%s)", relationship.RelatedExternalID, configID)
+				} else if logMissing {
+					ctx.Logger.Tracef("%s: related config (%s) not found", configID, relationship.RelatedExternalID)
+				}
+				appendResolvedRelationship(rel.Origin, relationship, configName, "", false)
 				continue
 			}
+			relatedID = relatedCI.ID
+			relatedName = lo.FromPtr(relatedCI.Name)
 		}
 
-		// The configs in the relationships might not be found for various reasons.
-		// - the related configs might have been excluded in the scrape config
-		// - the config might have been deleted
 		if relatedID == "" || configID == "" {
+			unmatched++
+			appendResolvedRelationship(rel.Origin, relationship, configName, relatedName, false)
 			continue
 		}
 
+		matched++
+		appendResolvedRelationship(rel.Origin, relationship, configName, relatedName, true)
 		configItemRelationships = append(configItemRelationships, models.ConfigRelationship{
 			ConfigID:  configID,
 			RelatedID: relatedID,
@@ -1145,11 +1218,27 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships v1.Relations
 		})
 	}
 
+	if logRelationships {
+		ctx.Logger.Infof("relationships: %d matched, %d unmatched (of %d total)", matched, unmatched, len(relationships))
+	}
+
 	return UpdateConfigRelatonships(ctx, configItemRelationships)
 }
 
+func appendResolvedRelationship(origin *v1.ScrapeResult, rel v1.RelationshipResult, configName, relatedName string, matched bool) {
+	if origin == nil || origin.Resolved == nil {
+		return
+	}
+	origin.Resolved.Relationships = append(origin.Resolved.Relationships, v1.ResolvedRelationshipRef{
+		Query:       rel,
+		ConfigName:  configName,
+		RelatedName: relatedName,
+		Matched:     matched,
+	})
+}
+
 type updateConfigArgs struct {
-	Result   v1.ScrapeResult
+	Result   *v1.ScrapeResult
 	Existing *models.ConfigItem
 	New      *models.ConfigItem
 }
@@ -1210,7 +1299,10 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 		parentTypeToConfigMap = make(map[configExternalKey]string)
 	)
 
-	for _, result := range results {
+	for i := range results {
+		result := &results[i]
+		result.Resolved = &v1.ScrapeResultResolved{}
+
 		var ci *models.ConfigItem
 		var err error
 
@@ -1246,9 +1338,7 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 		}
 
 		if result.ID != "" {
-			// A result that only contains changes (example a result created by Cloudtrail scraper)
-			// doesn't have any id.
-			ci, err = NewConfigItemFromResult(ctx, result)
+			ci, err = NewConfigItemFromResult(ctx, *result)
 			if err != nil {
 				return nil, fmt.Errorf("unable to create config item(%s): %w", result, err)
 			}
@@ -1282,11 +1372,9 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 			allConfigs = append(allConfigs, ci)
 			if result.Config != nil {
 				if existing == nil || existing.ID == "" {
+					result.Resolved.Action = "inserted"
 					extractResult.newConfigs = append(extractResult.newConfigs, ci)
 				} else {
-					// In case, we are not able to derive the path & parent_id
-					// by forming a tree, we need to use the existing one
-					// otherwise they'll be updated to empty values
 					ci.ParentID = existing.ParentID
 					ci.Path = existing.Path
 
@@ -1300,17 +1388,15 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 
 			for _, l := range result.Locations {
 				extractResult.locations = append(extractResult.locations, dutyModels.ConfigLocation{
-					ID:       uuid.MustParse(ci.ID), // NOTE: NewConfigItemFromResult generates a valid UUID so we can use MustParse
+					ID:       uuid.MustParse(ci.ID),
 					Location: l,
 				})
 			}
 
-			// Pre-populate TempCache so extractChanges can resolve ExternalIDs for
-			// config items that are new in this batch (not yet written to DB).
 			ctx.TempCache().Insert(*ci)
 		}
 
-		if toCreate, toUpdate, changeSummary, err := extractChanges(ctx, &result, ci); err != nil {
+		if toCreate, toUpdate, changeSummary, err := extractChanges(ctx, result, ci); err != nil {
 			return nil, err
 		} else {
 			if !changeSummary.IsEmpty() {
@@ -1337,7 +1423,21 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 	// This is because, on the first run, we don't have any configs at all in the DB.
 	// So, all the parent lookups will return empty result and no parent will be set.
 	// This way, we can first look for the parents within the result set.
-	if err := setConfigProbableParents(ctx, parentTypeToConfigMap, allConfigs); err != nil {
+	// Build a map from config item ID to the originating ScrapeResult for resolved feedback
+	resultsByConfigID := make(map[string]*v1.ScrapeResult, len(results))
+	for i := range results {
+		if results[i].ID != "" {
+			// Key by the config item ID (which is derived from ExternalID during NewConfigItemFromResult)
+			for _, ci := range allConfigs {
+				if len(ci.ExternalID) > 0 && ci.ExternalID[0] == results[i].ID {
+					resultsByConfigID[ci.ID] = &results[i]
+					break
+				}
+			}
+		}
+	}
+
+	if err := setConfigProbableParents(ctx, parentTypeToConfigMap, allConfigs, resultsByConfigID); err != nil {
 		return nil, fmt.Errorf("unable to set parents: %w", err)
 	}
 
@@ -1393,39 +1493,60 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 	return extractResult, nil
 }
 
-func setConfigProbableParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem) error {
+func setConfigProbableParents(ctx api.ScrapeContext, parentTypeToConfigMap map[configExternalKey]string, allConfigs []*models.ConfigItem, resultsByConfigID map[string]*v1.ScrapeResult) error {
 	for _, ci := range allConfigs {
 		if len(ci.Parents) == 0 {
-			continue // these are root items.
+			continue
 		}
 
-		// Set probable parents in order of importance
+		scrapeResult := resultsByConfigID[ci.ID]
+
 		for _, parent := range ci.Parents {
 			if parent.ExternalID == "" || parent.Type == "" {
 				continue
 			}
 
+			query := v1.ConfigExternalKey{ExternalID: parent.ExternalID, Type: parent.Type, ScraperID: parent.ScraperID}
+
 			if parentID, found := parentTypeToConfigMap[configExternalKey{
 				externalID: parent.ExternalID,
 				parentType: parent.Type,
 			}]; found {
-				// Ignore self parent reference
 				if ci.ID == parentID {
 					continue
 				}
 				ci.ProbableParents = append(ci.ProbableParents, parentID)
+				if scrapeResult != nil && scrapeResult.Resolved != nil {
+					ref := v1.ResolvedConfigRef{Query: query, ID: parentID}
+					if parentCI, _ := ctx.TempCache().Get(ctx, parentID); parentCI != nil {
+						ref.Name = lo.FromPtr(parentCI.Name)
+					}
+					scrapeResult.Resolved.Parents = append(scrapeResult.Resolved.Parents, ref)
+				}
 				continue
 			}
 
 			if foundParent, err := ctx.TempCache().Find(ctx, v1.ExternalID{ConfigType: parent.Type, ExternalID: parent.ExternalID, ScraperID: parent.ScraperID}); err != nil {
 				return err
 			} else if foundParent != nil {
-				// Ignore self parent reference
 				if ci.ID == foundParent.ID {
 					continue
 				}
 				ci.ProbableParents = append(ci.ProbableParents, foundParent.ID)
+				if scrapeResult != nil && scrapeResult.Resolved != nil {
+					scrapeResult.Resolved.Parents = append(scrapeResult.Resolved.Parents, v1.ResolvedConfigRef{
+						Query: query,
+						ID:    foundParent.ID,
+						Name:  lo.FromPtr(foundParent.Name),
+					})
+				}
 				continue
+			}
+
+			if scrapeResult != nil && scrapeResult.Resolved != nil {
+				scrapeResult.Resolved.Parents = append(scrapeResult.Resolved.Parents, v1.ResolvedConfigRef{
+					Query: query,
+				})
 			}
 		}
 	}
