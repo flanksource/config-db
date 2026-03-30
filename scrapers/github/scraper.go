@@ -2,8 +2,10 @@ package github
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
@@ -184,6 +186,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = mapGitHubSeverity(alert.SecurityAdvisory.GetSeverity())
 		a.Source = "GitHub Dependabot"
+		a.Analyzer = alert.GetDependency().GetPackage().GetEcosystem()
 		a.Summary = alert.SecurityAdvisory.GetSummary()
 		a.Status = alert.GetState()
 		if t := alert.CreatedAt.GetTime(); t != nil {
@@ -193,6 +196,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			a.LastObserved = t
 		}
 		a.Message(alert.SecurityAdvisory.GetDescription())
+		a.Analysis, _ = collections.ToJSONMap(alert)
 
 		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
 			a.Properties = append(a.Properties, &types.Property{
@@ -230,20 +234,57 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 					Color: badgeColorInverted(scoreInt, maxScore),
 				})
 			}
-			if vector := cvss.GetVectorString(); vector != "" {
+
+		}
+		for _, cwe := range alert.SecurityAdvisory.CWEs {
+			if cweID := cwe.GetCWEID(); cweID != "" {
+				var links []types.Link
+				if strings.HasPrefix(cweID, "CWE-") && len(cweID) > 4 {
+					cweURL := fmt.Sprintf("https://cwe.mitre.org/data/definitions/%s.html", cweID[4:])
+					links = []types.Link{{URL: cweURL, Type: "url"}}
+				}
 				a.Properties = append(a.Properties, &types.Property{
-					Name: "CVSS Vector",
-					Text: vector,
+					Name:  cweID,
+					Text:  fmt.Sprintf("%s: %s", cweID, cwe.GetName()),
+					Type:  "badge",
+					Links: links,
+				})
+			}
+		}
+		if dep := alert.GetDependency(); dep != nil {
+			if pkg := dep.GetPackage(); pkg != nil {
+				a.Properties = append(a.Properties, &types.Property{
+					Name: "Package",
+					Text: fmt.Sprintf("%s (%s)", pkg.GetName(), pkg.GetEcosystem()),
+					Type: "badge",
+				})
+			}
+			if scope := dep.GetScope(); scope != "" {
+				a.Properties = append(a.Properties, &types.Property{
+					Name: "Dependency Scope",
+					Text: scope,
 					Type: "badge",
 				})
 			}
 		}
-		if epss := alert.SecurityAdvisory.GetEPSS(); epss != nil {
-			a.Properties = append(a.Properties, &types.Property{
-				Name: "EPSS Score",
-				Text: fmt.Sprintf("%.3f%% (%gth percentile)", epss.Percentage*100, epss.Percentile*100),
-				Type: "badge",
-			})
+		if vuln := alert.GetSecurityVulnerability(); vuln != nil {
+			if versionRange := vuln.GetVulnerableVersionRange(); versionRange != "" {
+				a.Properties = append(a.Properties, &types.Property{
+					Name: "Vulnerable Versions",
+					Text: versionRange,
+					Type: "badge",
+				})
+			}
+			if patched := vuln.GetFirstPatchedVersion(); patched != nil {
+				if ver := patched.GetIdentifier(); ver != "" {
+					a.Properties = append(a.Properties, &types.Property{
+						Name:  "Patched Version",
+						Text:  ver,
+						Type:  "badge",
+						Color: "bg-green-100 border-green-200 text-green-800",
+					})
+				}
+			}
 		}
 	}
 
@@ -261,8 +302,9 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			a.ExternalAnalysisID = externalAnalysisID
 		}
 		a.AnalysisType = models.AnalysisTypeSecurity
-		a.Severity = mapGitHubSeverity(alert.Rule.GetSeverity())
+		a.Severity = mapGitHubSeverity(alert.Rule.GetSecuritySeverityLevel())
 		a.Source = "GitHub Code Scanning"
+		a.Analyzer = alert.Rule.GetID()
 		a.Summary = alert.Rule.GetDescription()
 		a.Status = alert.GetState()
 		if alert.CreatedAt != nil {
@@ -274,13 +316,25 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			a.LastObserved = &t
 		}
 		a.Message(alert.GetMostRecentInstance().GetMessage().GetText())
+		a.Analysis, _ = collections.ToJSONMap(alert)
 
-		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
+		repoFullName := strings.TrimPrefix(externalConfigID, "github/")
+		codeScanningURL := fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", repoFullName, alert.GetNumber())
+		a.Properties = append(a.Properties, &types.Property{
+			Name:  "URL",
+			Text:  codeScanningURL,
+			Type:  "url",
+			Links: []types.Link{{URL: codeScanningURL, Type: "url"}},
+		})
+		if tool := alert.GetTool(); tool != nil {
+			toolText := tool.GetName()
+			if ver := tool.GetVersion(); ver != "" {
+				toolText = fmt.Sprintf("%s %s", toolText, ver)
+			}
 			a.Properties = append(a.Properties, &types.Property{
-				Name:  "URL",
-				Text:  htmlURL,
-				Type:  "url",
-				Links: []types.Link{{URL: htmlURL, Type: "url"}},
+				Name: "Tool",
+				Text: toolText,
+				Type: "badge",
 			})
 		}
 	}
@@ -296,6 +350,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 		a.AnalysisType = models.AnalysisTypeSecurity
 		a.Severity = models.SeverityHigh
 		a.Source = "GitHub Secret Scanning"
+		a.Analyzer = alert.GetSecretType()
 		a.Summary = fmt.Sprintf("Exposed %s secret", alert.GetSecretType())
 		a.Status = alert.GetState()
 		if alert.CreatedAt != nil {
@@ -306,6 +361,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			t := alert.UpdatedAt.Time
 			a.LastObserved = &t
 		}
+		a.Analysis, _ = collections.ToJSONMap(alert)
 
 		if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
 			a.Properties = append(a.Properties, &types.Property{
@@ -313,6 +369,44 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 				Text:  htmlURL,
 				Type:  "url",
 				Links: []types.Link{{URL: htmlURL, Type: "url"}},
+			})
+		}
+		if displayName := alert.GetSecretTypeDisplayName(); displayName != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name: "Secret Type",
+				Text: displayName,
+				Type: "badge",
+			})
+		}
+		if validity := alert.GetValidity(); validity != "" {
+			color := ""
+			switch validity {
+			case "active":
+				color = "bg-red-100 border-red-200 text-red-800"
+			case "inactive":
+				color = "bg-green-100 border-green-200 text-green-800"
+			}
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "Validity",
+				Text:  validity,
+				Type:  "badge",
+				Color: color,
+			})
+		}
+		if alert.GetPubliclyLeaked() {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "Publicly Leaked",
+				Text:  "yes",
+				Type:  "badge",
+				Color: "bg-red-100 border-red-200 text-red-800",
+			})
+		}
+		if alert.GetPushProtectionBypassed() {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "Push Protection Bypassed",
+				Text:  "yes",
+				Type:  "badge",
+				Color: "bg-orange-100 border-orange-200 text-orange-800",
 			})
 		}
 	}
