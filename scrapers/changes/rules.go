@@ -136,6 +136,7 @@ func configItemEnv(ci *models.ConfigItem, result *v1.ScrapeResult) map[string]an
 		return map[string]any{
 			"config":      result.ConfigMap(),
 			"config_type": result.Type,
+			"name":        result.Name,
 		}
 	}
 
