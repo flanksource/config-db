@@ -184,6 +184,36 @@ func (c ChangeResult) String() string {
 	return fmt.Sprintf("{%s}, {%s/%s}", c.ConfigID, c.ChangeType, c.ExternalChangeID)
 }
 
+func (c ChangeResult) Columns() []api.ColumnDef {
+	return []api.ColumnDef{
+		clicky.Column("ChangeType").Build(),
+		clicky.Column("Summary").Build(),
+		clicky.Column("Source").Build(),
+		clicky.Column("CreatedBy").Build(),
+		clicky.Column("Severity").Build(),
+		clicky.Column("CreatedAt").Build(),
+	}
+}
+
+func (c ChangeResult) Row() map[string]any {
+	createdAt := ""
+	if c.CreatedAt != nil {
+		createdAt = c.CreatedAt.Format(time.RFC3339)
+	}
+	createdBy := ""
+	if c.CreatedBy != nil {
+		createdBy = *c.CreatedBy
+	}
+	return map[string]any{
+		"ChangeType": clicky.Text(c.ChangeType),
+		"Summary":    clicky.Text(c.Summary),
+		"Source":     clicky.Text(c.Source),
+		"Severity":   clicky.Text(c.Severity),
+		"CreatedAt":  clicky.Text(createdAt),
+		"CreatedBy":  clicky.Text(createdBy),
+	}
+}
+
 func (c ChangeResult) Pretty() api.Text {
 	t := clicky.Text("")
 	switch c.Action {
@@ -1388,6 +1418,10 @@ func buildDetails(s ScrapeResult) api.Text {
 				t = t.NewLine().Append("    → ", "").Append("(no matches)", "text-muted")
 			}
 		}
+	}
+	if len(s.Changes) > 0 {
+		changesTable := api.NewTableFrom(s.Changes)
+		t = t.NewLine().Append(clicky.Collapsed(fmt.Sprintf("Changes (%d)", len(s.Changes)), &changesTable))
 	}
 	if s.Config != nil {
 		var data any

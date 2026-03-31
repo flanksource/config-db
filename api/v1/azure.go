@@ -35,11 +35,18 @@ type AzureDevopsAuditLog struct {
 
 // AzureDevopsPermissions configures permission fetching for Azure DevOps pipelines
 type AzureDevopsPermissions struct {
-	// Enabled enables fetching pipeline permissions
+	// Enabled enables fetching pipeline and repository permissions
 	Enabled bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 	// RateLimit specifies how often to refresh permissions (e.g., "6h", "24h")
 	// Defaults to "24h" if not set
 	RateLimit string `yaml:"rateLimit,omitempty" json:"rateLimit,omitempty"`
+	// Groups enables fetching organization-level group membership
+	Groups bool `yaml:"groups,omitempty" json:"groups,omitempty"`
+	// Roles maps role names to Git permission names.
+	// Each identity is assigned the role whose required permissions are all present.
+	// Permission names: Read, Contribute, ForcePush, CreateBranch, CreateTag, ManageNotes,
+	// CreateRepository, DeleteRepository, RenameRepository, ManagePermissions, PolicyExempt
+	Roles map[string][]string `yaml:"roles,omitempty" json:"roles,omitempty"`
 }
 
 type Entra struct {

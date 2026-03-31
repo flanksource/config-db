@@ -812,6 +812,23 @@ const (
 // BuildSecurityNamespaceID is the GUID for the Build security namespace
 const BuildSecurityNamespaceID = "33344d9c-fc72-4d6f-aba5-fa317101a7e9"
 
+// GitSecurityNamespaceID is the GUID for the Git Repositories security namespace
+const GitSecurityNamespaceID = "2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87"
+
+const (
+	GitPermissionRead         = 2
+	GitPermissionContribute   = 4
+	GitPermissionForcePush    = 8
+	GitPermissionCreateBranch = 16
+	GitPermissionCreateTag    = 32
+	GitPermissionManageNotes  = 64
+	GitPermissionCreateRepo   = 256
+	GitPermissionDeleteRepo   = 512
+	GitPermissionRenameRepo   = 1024
+	GitPermissionManagePerms  = 8192
+	GitPermissionPolicyExempt = 32768
+)
+
 // GetPipelinePermissions gets ACL permissions for a pipeline
 func (ado *AzureDevopsClient) GetPipelinePermissions(ctx context.Context, project string, projectID string, pipelineID int) ([]AccessControlList, error) {
 	token := fmt.Sprintf("%s/%d", projectID, pipelineID)
@@ -821,6 +838,108 @@ func (ado *AzureDevopsClient) GetPipelinePermissions(ctx context.Context, projec
 		return nil, fmt.Errorf("failed to get pipeline permissions: %w", err)
 	}
 	return acls.Value, nil
+}
+
+func (ado *AzureDevopsClient) GetRepositoryPermissions(ctx context.Context, projectID, repoID string) ([]AccessControlList, error) {
+	token := fmt.Sprintf("repoV2/%s/%s", projectID, repoID)
+	acls, _, err := get[AccessControlLists](ado.Client, ctx, fmt.Sprintf("/_apis/accesscontrollists/%s", GitSecurityNamespaceID),
+		"api-version", "7.1", "token", token, "includeExtendedInfo", "true")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repository permissions: %w", err)
+	}
+	return acls.Value, nil
+}
+
+type GitPermissionInfo struct {
+	IdentityDescriptor string
+	IdentityType       string // "user", "group"
+	Permissions        []string
+}
+
+var gitPermissionBits = []struct {
+	Bit  int
+	Name string
+}{
+	{GitPermissionRead, "Read"},
+	{GitPermissionContribute, "Contribute"},
+	{GitPermissionForcePush, "ForcePush"},
+	{GitPermissionCreateBranch, "CreateBranch"},
+	{GitPermissionCreateTag, "CreateTag"},
+	{GitPermissionManageNotes, "ManageNotes"},
+	{GitPermissionCreateRepo, "CreateRepository"},
+	{GitPermissionDeleteRepo, "DeleteRepository"},
+	{GitPermissionRenameRepo, "RenameRepository"},
+	{GitPermissionManagePerms, "ManagePermissions"},
+	{GitPermissionPolicyExempt, "PolicyExempt"},
+}
+
+func ParseGitPermissions(acls []AccessControlList) []GitPermissionInfo {
+	var perms []GitPermissionInfo
+	for _, acl := range acls {
+		for descriptor, ace := range acl.AcesDictionary {
+			effectiveAllow := ace.Allow
+			if ace.ExtendedInfo != nil {
+				effectiveAllow = ace.ExtendedInfo.EffectiveAllow
+			}
+			var permissions []string
+			for _, bit := range gitPermissionBits {
+				if (effectiveAllow & bit.Bit) != 0 {
+					permissions = append(permissions, bit.Name)
+				}
+			}
+			if len(permissions) == 0 {
+				continue
+			}
+			identityType := "user"
+			if len(descriptor) > 5 && descriptor[0:5] == "vssgp" {
+				identityType = "group"
+			}
+			perms = append(perms, GitPermissionInfo{
+				IdentityDescriptor: descriptor,
+				IdentityType:       identityType,
+				Permissions:        permissions,
+			})
+		}
+	}
+	return perms
+}
+
+// ResolveGitRoles maps a set of permissions to role names based on the configured role mapping.
+// An identity is assigned a role if it has ANY of the permissions listed for that role.
+// Falls back to individual "Git::{Permission}" roles when no role mapping is configured.
+func ResolveGitRoles(permissions []string, roleMapping map[string][]string) []string {
+	if len(roleMapping) == 0 {
+		roles := make([]string, len(permissions))
+		for i, p := range permissions {
+			roles[i] = "Git::" + p
+		}
+		return roles
+	}
+
+	permSet := make(map[string]bool, len(permissions))
+	for _, p := range permissions {
+		permSet[p] = true
+	}
+
+	var matched []string
+	for roleName, rolePerms := range roleMapping {
+		for _, perm := range rolePerms {
+			if permSet[perm] {
+				matched = append(matched, roleName)
+				break
+			}
+		}
+	}
+
+	if len(matched) == 0 {
+		roles := make([]string, len(permissions))
+		for i, p := range permissions {
+			roles[i] = "Git::" + p
+		}
+		return roles
+	}
+
+	return matched
 }
 
 // PermissionInfo represents a resolved permission entry
@@ -946,6 +1065,76 @@ type PipelineRole struct {
 	Type       string `json:"type"`
 	Name       string `json:"name"`
 	Authorized bool   `json:"authorized"`
+}
+
+// GraphGroup represents an Azure DevOps group from the Graph API
+type GraphGroup struct {
+	Descriptor    string `json:"descriptor"`
+	DisplayName   string `json:"displayName"`
+	Description   string `json:"description,omitempty"`
+	PrincipalName string `json:"principalName"`
+	Origin        string `json:"origin"`
+	OriginID      string `json:"originId"`
+	Domain        string `json:"domain,omitempty"`
+	MailAddress   string `json:"mailAddress,omitempty"`
+}
+
+type GraphGroups struct {
+	Count int          `json:"count"`
+	Value []GraphGroup `json:"value"`
+}
+
+type GraphMembership struct {
+	ContainerDescriptor string `json:"containerDescriptor"`
+	MemberDescriptor    string `json:"memberDescriptor"`
+}
+
+type GraphMemberships struct {
+	Count int               `json:"count"`
+	Value []GraphMembership `json:"value"`
+}
+
+func (ado *AzureDevopsClient) vsspsClient() *commonsHTTP.Client {
+	return commonsHTTP.NewClient().
+		BaseURL(fmt.Sprintf("https://vssps.dev.azure.com/%s", ado.Organization)).
+		Auth(ado.Organization, ado.token)
+}
+
+func (ado *AzureDevopsClient) GetGroups(ctx context.Context) ([]GraphGroup, error) {
+	client := ado.vsspsClient()
+	var all []GraphGroup
+	continuationToken := ""
+
+	for {
+		params := []string{"api-version", "7.1-preview.1"}
+		if continuationToken != "" {
+			params = append(params, "continuationToken", continuationToken)
+		}
+
+		groups, resp, err := get[GraphGroups](client, ctx, "/_apis/graph/groups", params...)
+		if err != nil {
+			return all, fmt.Errorf("failed to list groups: %w", err)
+		}
+		all = append(all, groups.Value...)
+
+		continuationToken = resp.Header.Get("X-MS-ContinuationToken")
+		if continuationToken == "" {
+			break
+		}
+	}
+
+	return all, nil
+}
+
+func (ado *AzureDevopsClient) GetGroupMembers(ctx context.Context, groupDescriptor string) ([]GraphMembership, error) {
+	client := ado.vsspsClient()
+	memberships, _, err := get[GraphMemberships](client, ctx,
+		fmt.Sprintf("/_apis/graph/Memberships/%s", groupDescriptor),
+		"api-version", "7.1-preview.1", "direction", "Down")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group members: %w", err)
+	}
+	return memberships.Value, nil
 }
 
 // AzureDevopsReleaseClient talks to vsrm.dev.azure.com for classic release pipelines.

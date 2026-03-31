@@ -160,7 +160,6 @@ type runHTMLOutput struct {
 	SaveSummary        *v1.ScrapeSummary            `json:"-"`
 	Configs            []v1.ScrapeResult            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
-	Changes            []models.ConfigChange        `pretty:"table"`
 	Relationships      []models.ConfigRelationship  `pretty:"table"`
 	ExternalRoles      []models.ExternalRole        `pretty:"table"`
 	ExternalUsers      []models.ExternalUser        `pretty:"table"`
@@ -225,7 +224,6 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 		Counts:             v1.BuildCounts(all),
 		Configs:            all.Configs,
 		Analysis:           all.Analysis,
-		Changes:            all.Changes,
 		Relationships:      all.Relationships,
 		ExternalRoles:      all.ExternalRoles,
 		ExternalUsers:      all.ExternalUsers,

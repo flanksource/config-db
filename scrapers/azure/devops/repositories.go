@@ -4,9 +4,13 @@ import (
 	"fmt"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const RepositoryType = "AzureDevops::Repository"
@@ -59,7 +63,7 @@ func (ado AzureDevopsScraper) scrapeRepositories(
 			})
 		}
 
-		results = append(results, v1.ScrapeResult{
+		result := v1.ScrapeResult{
 			BaseScraper: config.BaseScraper,
 			ConfigClass: "Repository",
 			Config:      configData,
@@ -67,8 +71,130 @@ func (ado AzureDevopsScraper) scrapeRepositories(
 			ID:          id,
 			Name:        repo.Name,
 			Properties:  properties,
-		})
+		}
+
+		if config.Permissions != nil && config.Permissions.Enabled {
+			repoKey := fmt.Sprintf("repo/%s/%s/%s", config.Organization, project.Name, repo.ID)
+			if shouldFetchPermissions(repoKey, parsePermissionsInterval(config.Permissions.RateLimit)) {
+				result.ConfigAccess, result.ExternalRoles = ado.fetchRepoPermissions(ctx, client, config, project, repo, id)
+				markPermissionsFetched(repoKey)
+			}
+		}
+
+		results = append(results, result)
 	}
 
 	return results
+}
+
+func (ado AzureDevopsScraper) fetchRepoPermissions(
+	ctx api.ScrapeContext,
+	client *AzureDevopsClient,
+	config v1.AzureDevops,
+	project Project,
+	repo GitRepository,
+	repoExternalID string,
+) ([]v1.ExternalConfigAccess, []dutyModels.ExternalRole) {
+	acls, err := client.GetRepositoryPermissions(ctx, project.ID, repo.ID)
+	if err != nil {
+		ctx.Logger.Warnf("failed to get permissions for repo %s/%s: %v", project.Name, repo.Name, err)
+		return nil, nil
+	}
+
+	gitPerms := ParseGitPermissions(acls)
+	if len(gitPerms) == 0 {
+		return nil, nil
+	}
+
+	var descriptors []string
+	for _, p := range gitPerms {
+		descriptors = append(descriptors, p.IdentityDescriptor)
+	}
+
+	identities, err := client.GetIdentitiesByDescriptor(ctx, descriptors)
+	if err != nil {
+		ctx.Logger.Warnf("failed to resolve identities for repo %s/%s: %v", project.Name, repo.Name, err)
+		return nil, nil
+	}
+
+	identityMap := make(map[string]ResolvedIdentity, len(identities))
+	for _, id := range identities {
+		identityMap[id.Descriptor] = id
+	}
+
+	var roleMapping map[string][]string
+	if config.Permissions != nil {
+		roleMapping = config.Permissions.Roles
+	}
+
+	roleIDs := make(map[string]uuid.UUID)
+	var roles []dutyModels.ExternalRole
+	var configAccess []v1.ExternalConfigAccess
+
+	for _, perm := range gitPerms {
+		identity, ok := identityMap[perm.IdentityDescriptor]
+		if !ok {
+			continue
+		}
+
+		email := emailFromIdentity(identity)
+		if identity.ProviderDisplayName == "" && email == "" {
+			continue
+		}
+
+		if identity.IsContainer {
+			ctx.AddGroup(dutyModels.ExternalGroup{
+				Name:      identity.ProviderDisplayName,
+				Aliases:   pq.StringArray{identity.Descriptor, identity.SubjectDescriptor},
+				Tenant:    config.Organization,
+				GroupType: "AzureDevOps",
+			})
+		} else {
+			ctx.AddUser(dutyModels.ExternalUser{
+				Name:     identity.ProviderDisplayName,
+				Email:    &email,
+				Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
+				Tenant:   config.Organization,
+				UserType: "AzureDevOps",
+			})
+		}
+
+		resolvedRoles := ResolveGitRoles(perm.Permissions, roleMapping)
+
+		for _, roleName := range resolvedRoles {
+			if _, exists := roleIDs[roleName]; !exists {
+				roleID, err := hash.DeterministicUUID(pq.StringArray{roleName})
+				if err != nil {
+					continue
+				}
+				roleIDs[roleName] = roleID
+				roles = append(roles, dutyModels.ExternalRole{
+					ID:       roleID,
+					Name:     roleName,
+					RoleType: "AzureDevOps",
+					Tenant:   config.Organization,
+				})
+			}
+
+			access := v1.ExternalConfigAccess{
+				ConfigExternalID:    v1.ExternalID{ConfigType: RepositoryType, ExternalID: repoExternalID},
+				ExternalRoleAliases: []string{roleName},
+			}
+			if identity.IsContainer {
+				access.ExternalGroupAliases = []string{identity.Descriptor}
+			} else {
+				access.ExternalUserAliases = []string{email}
+			}
+			configAccess = append(configAccess, access)
+		}
+	}
+
+	return configAccess, roles
+}
+
+func emailFromIdentity(identity ResolvedIdentity) string {
+	if mail, ok := identity.Properties["Mail"]; ok && mail.Value != "" {
+		return mail.Value
+	}
+	return identity.ProviderDisplayName
 }
