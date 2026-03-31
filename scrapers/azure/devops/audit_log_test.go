@@ -154,7 +154,13 @@ var _ = Describe("dataInt", func() {
 		Expect(ok).To(BeFalse())
 	})
 
-	It("returns false for string value", func() {
+	It("handles string-encoded int from audit log", func() {
+		v, ok := dataInt(map[string]any{"x": "13"}, "x")
+		Expect(ok).To(BeTrue())
+		Expect(v).To(Equal(13))
+	})
+
+	It("returns false for non-numeric string value", func() {
 		_, ok := dataInt(map[string]any{"x": "not-a-number"}, "x")
 		Expect(ok).To(BeFalse())
 	})

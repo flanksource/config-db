@@ -193,6 +193,14 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		if config.AuditLog != nil && config.AuditLog.Enabled {
 			results = append(results, ado.scrapeAuditLog(ctx, config)...)
 		}
+
+		if config.Permissions != nil && config.Permissions.Groups {
+			groupsKey := "groups/" + config.Organization
+			if shouldFetchPermissions(groupsKey, parsePermissionsInterval(config.Permissions.RateLimit)) {
+				results = append(results, ado.scrapeGroups(ctx, client, config)...)
+				markPermissionsFetched(groupsKey)
+			}
+		}
 	}
 	return results
 }

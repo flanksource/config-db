@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -128,6 +129,9 @@ func dataInt(data map[string]any, key string) (int, bool) {
 		return int(n), true
 	case int:
 		return n, true
+	case string:
+		i, err := strconv.Atoi(n)
+		return i, err == nil
 	case json.Number:
 		i, err := n.Int64()
 		return int(i), err == nil
