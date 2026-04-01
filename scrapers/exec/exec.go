@@ -50,14 +50,14 @@ func (e ExecScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 
-		parsedResults := parseOutput(config, execDetails.Stdout)
+		parsedResults := ParseOutput(config.BaseScraper, execDetails.Stdout)
 		results = append(results, parsedResults...)
 	}
 
 	return results
 }
 
-func parseOutput(config v1.Exec, stdout string) v1.ScrapeResults {
+func ParseOutput(config v1.BaseScraper, stdout string) v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
 	if stdout == "" {
@@ -67,30 +67,30 @@ func parseOutput(config v1.Exec, stdout string) v1.ScrapeResults {
 	// Try parsing as JSON first
 	var jsonData any
 	if err := json.Unmarshal([]byte(stdout), &jsonData); err == nil {
-		return createResultsFromJSON(config, jsonData)
+		return CreateResultsFromJSON(config, jsonData)
 	}
 
 	// Try parsing as YAML
 	jsonBytes, err := yaml.YAMLToJSON([]byte(stdout))
 	if err == nil {
 		if err := json.Unmarshal(jsonBytes, &jsonData); err == nil {
-			return createResultsFromJSON(config, jsonData)
+			return CreateResultsFromJSON(config, jsonData)
 		}
 	}
 
 	// If parsing fails, treat as plain text and create single result
-	result := v1.NewScrapeResult(config.BaseScraper)
+	result := v1.NewScrapeResult(config)
 	return v1.ScrapeResults{result.Success(stdout)}
 }
 
-func createResultsFromJSON(config v1.Exec, data any) v1.ScrapeResults {
+func CreateResultsFromJSON(config v1.BaseScraper, data any) v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 
 	switch typed := data.(type) {
 	case []any:
 		// Array of items - create one result per item
 		for _, item := range typed {
-			result := v1.NewScrapeResult(config.BaseScraper)
+			result := v1.NewScrapeResult(config)
 			jsonStr, err := json.Marshal(item)
 			if err != nil {
 				results = append(results, result.Errorf("failed to marshal item: %v", err))
@@ -100,7 +100,7 @@ func createResultsFromJSON(config v1.Exec, data any) v1.ScrapeResults {
 		}
 	case map[string]any:
 		// Single object - create one result
-		result := v1.NewScrapeResult(config.BaseScraper)
+		result := v1.NewScrapeResult(config)
 		jsonStr, err := json.Marshal(typed)
 		if err != nil {
 			results = append(results, result.Errorf("failed to marshal object: %v", err))
@@ -109,7 +109,7 @@ func createResultsFromJSON(config v1.Exec, data any) v1.ScrapeResults {
 		}
 	default:
 		// Scalar value - create one result
-		result := v1.NewScrapeResult(config.BaseScraper)
+		result := v1.NewScrapeResult(config)
 		jsonStr, err := json.Marshal(typed)
 		if err != nil {
 			results = append(results, result.Errorf("failed to marshal value: %v", err))

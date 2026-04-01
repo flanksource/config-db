@@ -1519,7 +1519,7 @@ func (l LogOutput) Pretty() api.Text {
 	for _, line := range l.lines[1:] {
 		t = t.NewLine().Append(colorLogLine(line))
 	}
-	return t
+	return clicky.Text("").Append(clicky.Collapsed(fmt.Sprintf("Logs (%d lines)", len(l.lines)), t))
 }
 
 func colorLogLine(line string) api.Text {

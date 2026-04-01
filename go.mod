@@ -1,6 +1,6 @@
 module github.com/flanksource/config-db
 
-go 1.25.6
+go 1.26.1
 
 require (
 	github.com/flanksource/artifacts v1.0.21

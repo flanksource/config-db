@@ -51,3 +51,4 @@ specs/*.md
 .shell/
 .claude/
 gh-api-data/
+screenshots/

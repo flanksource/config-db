@@ -31,6 +31,7 @@ var AllScraperConfigs = map[string]any{
 	"sql":            SQL{},
 	"terraform":      Terraform{},
 	"trivy":          Trivy{},
+	"playwright":     Playwright{},
 }
 
 type ChangeRetentionSpec struct {
@@ -92,6 +93,7 @@ type ScraperSpec struct {
 	Logs           []Logs           `json:"logs,omitempty" yaml:"logs,omitempty"`
 	PubSub         []PubSub         `json:"pubsub,omitempty" yaml:"pubsub,omitempty"`
 	Exec           []Exec           `json:"exec,omitempty" yaml:"exec,omitempty"`
+	Playwright     []Playwright     `json:"playwright,omitempty" yaml:"playwright,omitempty"`
 	System         bool             `json:"system,omitempty" yaml:"system,omitempty"`
 
 	// CRDSync when set to true, will create (or update) the corresponding database record
@@ -176,6 +178,10 @@ func (c ScraperSpec) ApplyPlugin(plugins []ScrapePluginSpec) ScraperSpec {
 
 	for i := range spec.Exec {
 		spec.Exec[i].BaseScraper = spec.Exec[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.Playwright {
+		spec.Playwright[i].BaseScraper = spec.Playwright[i].BaseScraper.ApplyPlugins(plugins...)
 	}
 
 	return *spec
