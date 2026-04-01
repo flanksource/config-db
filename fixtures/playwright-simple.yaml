@@ -1,0 +1,30 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: playwright-simple
+spec:
+  schedule: "@every 1h"
+  playwright:
+    - type: Playwright::Page
+      id: $.url
+      name: $.title
+      har: true
+      script: |
+        #!/usr/bin/env node
+        const { chromium } = require('playwright');
+        (async () => {
+          const browser = await chromium.launch();
+          const contextOpts = {};
+          if (process.env.PW_HAR_PATH) {
+            contextOpts.recordHar = { path: process.env.PW_HAR_PATH, mode: 'full' };
+          }
+          const context = await browser.newContext(contextOpts);
+          const page = await context.newPage();
+          await page.goto('https://www.google.com/finance/');
+          await page.waitForLoadState('networkidle');
+          const title = await page.title();
+          const url = page.url();
+          await context.close();
+          await browser.close();
+          console.log(JSON.stringify({ url, title }));
+        })();

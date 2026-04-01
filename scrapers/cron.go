@@ -76,6 +76,7 @@ func InitSemaphoreWeights(sc context.Context) {
 			"sql":            semaphore.NewWeighted(int64(sc.Properties().Int("scraper.sql.concurrency", 10))),
 			"terraform":      semaphore.NewWeighted(int64(sc.Properties().Int("scraper.terraform.concurrency", 10))),
 			"trivy":          semaphore.NewWeighted(int64(sc.Properties().Int("scraper.trivy.concurrency", 1))),
+			"playwright":     semaphore.NewWeighted(int64(sc.Properties().Int("scraper.playwright.concurrency", 2))),
 		}
 	}
 }

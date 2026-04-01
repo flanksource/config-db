@@ -135,6 +135,9 @@ func (t *ScrapeConfig) Type() string {
 	if len(t.Spec.Exec) != 0 {
 		return "exec"
 	}
+	if len(t.Spec.Playwright) != 0 {
+		return "playwright"
+	}
 	return ""
 }
 
