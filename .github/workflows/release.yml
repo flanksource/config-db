@@ -36,7 +36,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
         with:
-          go-version: v1.25.x
+          go-version: v1.26.x
       - uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v4
         with:
           path: |

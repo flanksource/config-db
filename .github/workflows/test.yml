@@ -13,7 +13,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
         with:
-          go-version: 1.25.x
+          go-version: 1.26.x
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
@@ -71,7 +71,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
         with:
-          go-version: 1.25.x
+          go-version: 1.26.x
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
@@ -108,7 +108,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
         with:
-          go-version: 1.25.x
+          go-version: 1.26.x
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@a0b538fa0b742a6aa35d6e2c169b4bd06d225a98 # v1
       - name: Checkout code
@@ -210,7 +210,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
         with:
-          go-version: 1.25.x
+          go-version: 1.26.x
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
@@ -246,7 +246,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
         with:
-          go-version: 1.25.x
+          go-version: 1.26.x
       - name: Setup kubernetes cluster
         uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2
       - name: Checkout code
