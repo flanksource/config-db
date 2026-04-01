@@ -5,6 +5,7 @@ import (
 	"github.com/flanksource/config-db/scrapers/clickhouse"
 	"github.com/flanksource/config-db/scrapers/exec"
 	"github.com/flanksource/config-db/scrapers/http"
+	"github.com/flanksource/config-db/scrapers/playwright"
 	"github.com/flanksource/config-db/scrapers/logs"
 	"github.com/flanksource/config-db/scrapers/playwright"
 	"github.com/flanksource/config-db/scrapers/slack"
