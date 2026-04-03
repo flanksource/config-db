@@ -82,7 +82,11 @@ func (s *ScrapeSummary) Pretty() api.Text {
 		t = t.NewLine()
 	}
 
-	appendEntity := func(label string, e EntitySummary) {
+	type entitySummaryLike interface {
+		IsEmpty() bool
+		fmt.Stringer
+	}
+	appendEntity := func(label string, e entitySummaryLike) {
 		if e.IsEmpty() {
 			return
 		}

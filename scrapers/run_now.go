@@ -1,13 +1,18 @@
 package scrapers
 
 import (
+	gocontext "context"
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	dutyAPI "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/models"
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -15,6 +20,12 @@ import (
 )
 
 const runNowTimeout = 30 * time.Minute
+
+type runNowResponse struct {
+	JobHistoryID  string `json:"job_history_id,omitempty"`
+	RunArtifactID string `json:"run_artifact_id,omitempty"`
+	Status        string `json:"status,omitempty"`
+}
 
 func RunNowHandler(c echo.Context) error {
 	id := c.Param("id")
@@ -32,10 +43,19 @@ func RunNowHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to transform config scraper model", err)
 	}
 
-	resultCh := make(chan error, 1)
-	go func() {
-		defer close(resultCh)
+	isAsync, _ := strconv.ParseBool(c.QueryParam("async"))
+	if isAsync {
+		return runNowAsync(c, baseCtx, *scraper, configScraper)
+	}
+	return runNowSync(c, baseCtx, configScraper)
+}
 
+func runNowSync(c echo.Context, baseCtx context.Context, configScraper v1.ScrapeConfig) error {
+	resultCh := make(chan struct {
+		resp runNowResponse
+		err  error
+	}, 1)
+	go func() {
 		ctx, cancel := context.New().
 			WithDB(baseCtx.DB(), baseCtx.Pool()).
 			WithSubject(baseCtx.Subject()).
@@ -47,23 +67,98 @@ func RunNowHandler(c echo.Context) error {
 		j.JitterDisable = true
 		j.Run()
 
-		var runErr error
 		if j.LastJob == nil {
-			runErr = fmt.Errorf("scraper run completed without job history")
-		} else {
-			runErr = j.LastJob.AsError()
+			resultCh <- struct {
+				resp runNowResponse
+				err  error
+			}{err: fmt.Errorf("scraper run completed without job history")}
+			return
 		}
-		resultCh <- runErr
+
+		resultCh <- struct {
+			resp runNowResponse
+			err  error
+		}{
+			resp: responseFromHistory(j.LastJob),
+			err:  j.LastJob.AsError(),
+		}
 	}()
 
 	select {
-	case err := <-resultCh:
-		if err != nil {
-			return dutyAPI.WriteError(c, err)
+	case result := <-resultCh:
+		if result.err != nil {
+			return dutyAPI.WriteError(c, result.err)
 		}
-		return dutyAPI.WriteSuccess(c, nil)
-
+		return dutyAPI.WriteSuccess(c, result.resp)
 	case <-c.Request().Context().Done():
 		return c.Request().Context().Err()
 	}
+}
+
+func runNowAsync(c echo.Context, baseCtx context.Context, scraper models.ConfigScraper, configScraper v1.ScrapeConfig) error {
+	startedAt := time.Now().UTC()
+	go func() {
+		ctx, cancel := context.New().
+			WithDB(baseCtx.DB(), baseCtx.Pool()).
+			WithSubject(baseCtx.Subject()).
+			WithTimeout(runNowTimeout)
+		defer cancel()
+
+		scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(&configScraper)
+		j := newScraperJob(scrapeCtx)
+		j.JitterDisable = true
+		j.Run()
+	}()
+
+	history, err := waitForStartedJobHistory(c.Request().Context(), baseCtx, scraper.ID.String(), startedAt, 10*time.Second)
+	if err != nil {
+		return dutyAPI.WriteError(c, err)
+	}
+
+	resp := responseFromHistory(history)
+	if resp.Status == "" {
+		resp.Status = models.StatusRunning
+	}
+	return dutyAPI.WriteSuccess(c, resp)
+}
+
+func waitForStartedJobHistory(reqCtx gocontext.Context, baseCtx context.Context, scraperID string, startedAt time.Time, timeout time.Duration) (*models.JobHistory, error) {
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		var history models.JobHistory
+		err := baseCtx.DB().
+			Where("resource_id = ? AND name = ? AND time_start >= ?", scraperID, scrapeJobName, startedAt.Add(-1*time.Second)).
+			Order("time_start DESC").
+			First(&history).Error
+
+		if err == nil {
+			return &history, nil
+		}
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+
+		select {
+		case <-reqCtx.Done():
+			return nil, reqCtx.Err()
+		case <-deadline.C:
+			return nil, fmt.Errorf("timed out waiting for job history")
+		case <-ticker.C:
+		}
+	}
+}
+
+func responseFromHistory(history *models.JobHistory) runNowResponse {
+	resp := runNowResponse{
+		JobHistoryID: history.ID.String(),
+		Status:       history.Status,
+	}
+	if raw, ok := history.Details["run_artifact_id"].(string); ok {
+		resp.RunArtifactID = raw
+	}
+	return resp
 }

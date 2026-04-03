@@ -114,6 +114,15 @@ func (ctx ScrapeContext) LastScrapeSummary() v1.ScrapeSummary {
 	return copied
 }
 
+// ScraperTemplateEnv exposes scraper-level template inputs. This is for
+// request-shaping config such as URLs and query payloads, not per-item
+// transform execution.
+func (ctx ScrapeContext) ScraperTemplateEnv() map[string]any {
+	return map[string]any{
+		"last_scrape_summary": ctx.LastScrapeSummary().AsMap(),
+	}
+}
+
 func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 	return ScrapeContext{
 		Context:           ctx.Context.WithValue(key, val),
@@ -155,6 +164,17 @@ func (ctx ScrapeContext) WithTimeout(timeout time.Duration) (c ScrapeContext, ca
 
 func (ctx ScrapeContext) WithJobHistory(jobHistory *models.JobHistory) ScrapeContext {
 	ctx.jobHistory = jobHistory
+	return ctx
+}
+
+// WithLogger assigns a run-scoped logger to this scrape context without
+// mutating the global logger singleton. This allows concurrent scraper runs to
+// emit to independent sinks (e.g. per-run buffers) while preserving all other
+// duty context wiring (db/pool/kubernetes/namespace).
+func (ctx ScrapeContext) WithLogger(log logger.Logger) ScrapeContext {
+	wrapped := ctx.Context.Wrap(ctx.Context)
+	wrapped.Context.Logger = log
+	ctx.Context = wrapped
 	return ctx
 }
 

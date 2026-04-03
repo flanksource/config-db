@@ -93,15 +93,18 @@ func mapAuditEntryToConfig(org string, entry AuditLogEntry) (externalID, configT
 	switch entry.Area {
 	case "Pipelines":
 		if id, ok := dataInt(entry.Data, "PipelineId"); ok && project != "" {
-			return pipelineExternalID(org, project, id), PipelineType
+			return PipelineExternalID(org, project, id), PipelineType
 		}
 	case "Release":
 		if id, ok := dataInt(entry.Data, "PipelineId"); ok && project != "" {
-			return releaseExternalID(org, project, id), ReleaseType
+			return ReleaseExternalID(org, project, id), ReleaseType
+		}
+		if id, ok := dataInt(entry.Data, "ReleaseDefinitionId"); ok && project != "" {
+			return ReleaseExternalID(org, project, id), ReleaseType
 		}
 	case "Git", "Policy", "Permissions":
 		if repoID, ok := entry.Data["RepoId"].(string); ok && project != "" {
-			return repositoryExternalID(org, project, repoID), RepositoryType
+			return RepositoryExternalID(org, project, repoID), RepositoryType
 		}
 		if repoID, ok := entry.Data["RepositoryIdFromToken"].(string); ok {
 			p := project
@@ -111,7 +114,7 @@ func mapAuditEntryToConfig(org string, entry AuditLogEntry) (externalID, configT
 				}
 			}
 			if p != "" {
-				return repositoryExternalID(org, p, repoID), RepositoryType
+				return RepositoryExternalID(org, p, repoID), RepositoryType
 			}
 		}
 	}

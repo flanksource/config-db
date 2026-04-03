@@ -19,7 +19,6 @@ require (
 	cloud.google.com/go/bigquery v1.76.0
 	cloud.google.com/go/securitycenter v1.42.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/advisor/armadvisor v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
@@ -125,6 +124,7 @@ require (
 	cloud.google.com/go/pubsub/v2 v2.3.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys v0.10.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.1 // indirect
@@ -514,7 +514,7 @@ require (
 // replace github.com/flanksource/deps => ../deps
 // replace github.com/flanksource/duty => ../duty
 
-// replace github.com/flanksource/gomplate => ../gomplate
+// replace github.com/flanksource/gomplate/v3 => ../gomplate
 // replace github.com/flanksource/ketall => ../ketall
 // replace github.com/flanksource/postq => ../postq
 // replace github.com/flanksource/is-healthy => ../is-healthy

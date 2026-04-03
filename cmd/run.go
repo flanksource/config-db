@@ -5,11 +5,18 @@ import (
 	gocontext "context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path"
+	"runtime"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/flanksource/clicky"
@@ -20,11 +27,13 @@ import (
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/cmd/scrapeui"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty"
 	dutyapi "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/job"
 	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/shutdown"
@@ -41,6 +50,8 @@ var outputDir string
 var debugPort int
 var export bool
 var save bool
+var uiEnabled bool
+var uiPort int
 
 // Run ...
 var Run = &cobra.Command{
@@ -127,32 +138,137 @@ var Run = &cobra.Command{
 			}
 		}
 
+		var uiServer *scrapeui.Server
+		if uiEnabled {
+			names := make([]string, len(scraperConfigs))
+			specs := make([]any, len(scraperConfigs))
+			for i, sc := range scraperConfigs {
+				names[i] = sc.Name
+				specs[i] = sc.Spec
+			}
+			var scrapeSpec any = specs
+			if len(specs) == 1 {
+				scrapeSpec = specs[0]
+			}
+			uiServer = startScrapeUI(names, scrapeSpec, &logBuf)
+		}
+
 		var hasErrors bool
 		var allResults v1.ScrapeResults
 		var lastSummary *v1.ScrapeSummary
+		var lastSnapshotPair *v1.ScrapeSnapshotPair
 		for i := range scraperConfigs {
+			if uiServer != nil {
+				uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperRunning, nil, nil, nil)
+			}
+
 			scrapeCtx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
 				WithTimeout(dutyCtx.Properties().Duration("scraper.timeout", 4*time.Hour))
 			defer cancelTimeout()
 			shutdown.AddHook(func() { defer cancel() })
 
+			if save && dutyapi.DefaultConfig.ConnectionString != "" {
+				prev := scrapers.GetLastScrapeSummary(dutyCtx, string(scraperConfigs[i].GetUID()))
+				scrapeCtx = scrapeCtx.WithLastScrapeSummary(prev)
+				if uiServer != nil {
+					uiServer.SetLastScrapeSummary(prev)
+				}
+			}
 			scrapeCtx = scrapeCtx.WithHARCollector(harCollector)
 
-			results, summary, err := scrapeAndStore(scrapeCtx)
+			results, summary, snapshotPair, err := scrapeAndStore(scrapeCtx)
 			if err != nil {
 				hasErrors = true
 				logger.Errorf("error scraping config: (name=%s) %+v", scraperConfigs[i].Name, err)
+				if uiServer != nil {
+					uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperError, results, summary, err)
+				}
+			} else if uiServer != nil {
+				uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperComplete, results, summary, nil)
 			}
+			if uiServer != nil && snapshotPair != nil {
+				uiServer.SetSnapshots(scraperConfigs[i].Name, snapshotPair)
+			}
+
+			scraperUID := string(scraperConfigs[i].GetUID())
+			if scraperUID == "" {
+				if id, err := hash.DeterministicUUID(pq.StringArray{scraperConfigs[i].Namespace, scraperConfigs[i].Name}); err == nil {
+					scraperUID = id.String()
+				}
+			}
+			if save && dutyapi.DefaultConfig.ConnectionString != "" && summary != nil {
+				history := models.NewJobHistory(logger.StandardLogger(), "scraper", job.ResourceTypeScraper, scraperUID)
+				history.Start()
+				history.SuccessCount = len(results)
+				history.AddDetails("scrape_summary", *summary)
+				if hasErrors {
+					history.AddError(err.Error())
+				}
+				history.End()
+				if persistErr := history.Persist(dutyCtx.DB()); persistErr != nil {
+					logger.Warnf("failed to persist job history: %v", persistErr)
+				}
+				scrapers.ScraperSummaryCache.Store(scraperUID, *summary)
+			}
+
+			if uiServer != nil && summary != nil {
+				uiServer.SetLastScrapeSummary(*summary)
+			}
+
 			allResults = append(allResults, results...)
 			if summary != nil {
 				lastSummary = summary
+			}
+			if snapshotPair != nil {
+				lastSnapshotPair = snapshotPair
 			}
 		}
 
 		// Restore stderr-only logging before rendering
 		logger.Use(os.Stderr)
 
-		printOutput(allResults, lastSummary, harCollector, logBuf.String())
+		if uiServer != nil {
+			if harCollector != nil {
+				uiServer.SetHAR(harCollector.Entries())
+			}
+
+			props := make(map[string]scrapeui.PropertyInfo)
+			for k, v := range dutyCtx.Properties().SupportedProperties() {
+				props[k] = scrapeui.PropertyInfo{
+					Value:   v.Value,
+					Default: v.Default,
+					Type:    v.Type,
+				}
+			}
+			scraperLogLevel := ""
+			for _, sc := range scraperConfigs {
+				if sc.Spec.LogLevel != "" {
+					scraperLogLevel = sc.Spec.LogLevel
+					break
+				}
+			}
+			globalLevel := "info"
+			if logger.IsTraceEnabled() {
+				globalLevel = "trace"
+			}
+			uiServer.SetProperties(props, scrapeui.LogLevelInfo{
+				Scraper: scraperLogLevel,
+				Global:  globalLevel,
+			})
+
+			uiServer.SetDone()
+		}
+
+		if uiServer == nil {
+			printOutput(allResults, lastSummary, lastSnapshotPair, harCollector, logBuf.String())
+		}
+
+		if uiServer != nil {
+			sig := make(chan os.Signal, 1)
+			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+			<-sig
+			return
+		}
 
 		if hasErrors {
 			os.Exit(1)
@@ -165,39 +281,75 @@ var Run = &cobra.Command{
 type runHTMLOutput struct {
 	Counts             v1.CountsGrid                `json:"-"`
 	SaveSummary        *v1.ScrapeSummary            `json:"-"`
+	Snapshots          *v1.ScrapeSnapshotPair       `json:"snapshots,omitempty"`
 	Configs            []v1.ScrapeResult            `pretty:"table"`
-	Changes            []changeWithScreenshot       `pretty:"table"`
+	Changes            []changeWithScreenshot        `pretty:"table"`
 	Artifacts          []models.Artifact            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
-	Relationships      []models.ConfigRelationship  `pretty:"table"`
-	ExternalRoles      []models.ExternalRole        `pretty:"table"`
+	Relationships      []scrapeui.UIRelationship        `pretty:"table"`
+	ConfigMeta         map[string]scrapeui.ConfigMeta  `json:",omitempty"`
+	ExternalRoles      []models.ExternalRole           `pretty:"table"`
 	ExternalUsers      []models.ExternalUser        `pretty:"table"`
 	ExternalGroups     []models.ExternalGroup       `pretty:"table"`
-	ExternalUserGroups []models.ExternalUserGroup   `pretty:"table"`
+	ExternalUserGroups []v1.ExternalUserGroup       `pretty:"table"`
 	ConfigAccess       []v1.ExternalConfigAccess    `pretty:"table"`
 	ConfigAccessLogs   []v1.ExternalConfigAccessLog `pretty:"table"`
 	Logs               v1.LogOutput                 `json:"-"`
 	HTTPTraffic        []har.Entry                  `json:"har,omitempty"`
 }
 
-func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary, error) {
+func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary, *v1.ScrapeSnapshotPair, error) {
 	ctx, err := ctx.InitTempCache()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+
+	// Capture the pre-scrape global DB state so we can diff against the
+	// post-scrape snapshot later. Only meaningful when a DB is configured;
+	// otherwise we skip both captures entirely. Snapshot capture is
+	// observability, so we log-and-continue on failure rather than aborting
+	// the scrape itself.
+	dbConnected := save && dutyapi.DefaultConfig.ConnectionString != ""
+	runStart := time.Now()
+	var beforeSnapshot *v1.ScrapeSnapshot
+	if dbConnected {
+		beforeSnapshot, err = db.CaptureScrapeSnapshot(ctx, runStart)
+		if err != nil {
+			logger.Warnf("failed to capture pre-scrape snapshot: %v", err)
+		}
+	}
+	// beforeOnlyPair returns a partial snapshot pair with just the Before
+	// snapshot populated. Used on early-exit error paths so the Snapshot tab
+	// still shows the pre-scrape DB state even when the scrape itself failed
+	// (e.g. the token expired before we could fetch anything).
+	beforeOnlyPair := func() *v1.ScrapeSnapshotPair {
+		if beforeSnapshot == nil {
+			return nil
+		}
+		return &v1.ScrapeSnapshotPair{Before: beforeSnapshot}
 	}
 
 	timer := timer.NewMemoryTimer()
 	results, err := scrapers.Run(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, beforeOnlyPair(), err
 	}
 
+	// Collect any per-result scrape errors but do NOT short-circuit: a
+	// partial failure (one paginated endpoint rate-limited, one tenant with
+	// a permission gap) should still persist everything that did succeed.
+	// The scrape error is combined with any later save error below and
+	// returned to the caller, which surfaces both to the scrapeui via the
+	// red error banner and still gets a populated snapshot pair.
+	var scrapeErr error
 	scrapeResults := v1.ScrapeResults(results)
 	if scrapeResults.HasErr() {
-		for _, e := range scrapeResults.Errors() {
+		errs := scrapeResults.Errors()
+		for _, e := range errs {
 			logger.Errorf("scrape error: %s", e)
 		}
-		return results, nil, fmt.Errorf("scrape completed with %d error(s)", len(scrapeResults.Errors()))
+		joined := strings.Join(errs, "\n---\n")
+		scrapeErr = fmt.Errorf("scrape completed with %d error(s):\n%s", len(errs), joined)
 	}
 
 	logger.Infof("Scraped %d resources (%s)", len(results), timer.End())
@@ -205,26 +357,44 @@ func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary
 	if outputDir != "" {
 		for _, result := range results {
 			if err := exportResource(result, outputDir); err != nil {
-				return results, nil, fmt.Errorf("failed to export results: %w", err)
+				return results, nil, beforeOnlyPair(), errors.Join(scrapeErr, fmt.Errorf("failed to export results: %w", err))
 			}
 		}
 		logger.Infof("Exported %d resources to %s (%s)", len(results), outputDir, timer.End())
 	}
 
-	if save && dutyapi.DefaultConfig.ConnectionString != "" {
-		summary, err := db.SaveResults(ctx, results)
-		if err != nil {
-			return results, nil, fmt.Errorf("failed to save results to db: %w", err)
+	if dbConnected {
+		summary, saveErr := db.SaveResults(ctx, results)
+		if saveErr != nil {
+			return results, nil, beforeOnlyPair(), errors.Join(scrapeErr, fmt.Errorf("failed to save results to db: %w", saveErr))
 		}
 		logger.Infof("Exported %d resources to DB: %s (%s)", len(results), summary.PrettyShort(), timer.End())
-		return results, &summary, nil
+
+		afterSnapshot, captureErr := db.CaptureScrapeSnapshot(ctx, runStart)
+		if captureErr != nil {
+			logger.Warnf("failed to capture post-scrape snapshot: %v", captureErr)
+		}
+		snapshotPair := &v1.ScrapeSnapshotPair{
+			Before: beforeSnapshot,
+			After:  afterSnapshot,
+			Diff:   v1.DiffSnapshots(beforeSnapshot, afterSnapshot),
+		}
+		// Log both the diff (what changed) and the After totals (final DB
+		// state). On idempotent re-scrapes the diff is empty, but the After
+		// counts are still useful for confirming the DB is populated.
+		logger.Infof("Scrape snapshot diff: %s", snapshotPair.Diff.PrettyShort())
+		if afterSnapshot != nil {
+			logger.Infof("Scrape snapshot after: %s", afterSnapshot.PrettyShort())
+		}
+
+		return results, &summary, snapshotPair, scrapeErr
 	}
 
-	return results, nil, nil
+	return results, nil, beforeOnlyPair(), scrapeErr
 }
 
 type changeWithScreenshot struct {
-	models.ConfigChange
+	v1.ChangeResult
 }
 
 func (c changeWithScreenshot) Columns() []clickyapi.ColumnDef {
@@ -239,20 +409,24 @@ func (c changeWithScreenshot) Columns() []clickyapi.ColumnDef {
 }
 
 func (c changeWithScreenshot) Row() map[string]any {
-	row := c.ConfigChange.Row()
-	row["ConfigType"] = clicky.Text(c.ConfigType)
-	row["ExternalID"] = clicky.Text(c.ExternalID)
-	return row
+	return map[string]any{
+		"ConfigType": clicky.Text(c.ConfigType),
+		"ExternalID": clicky.Text(c.ExternalID),
+		"ChangeType": clicky.Text(c.ChangeType),
+		"Summary":    clicky.Text(c.Summary),
+		"Severity":   clicky.Text(c.Severity),
+		"CreatedAt":  c.CreatedAt,
+	}
 }
 
 func (c changeWithScreenshot) RowDetail() clickyapi.Textable {
-	base := c.ConfigChange.RowDetail()
-
-	if c.Details == nil {
-		return base
+	base := clicky.Text("")
+	if c.Summary != "" {
+		base = base.Append(c.Summary)
 	}
-	var details map[string]any
-	if err := json.Unmarshal(c.Details, &details); err != nil {
+
+	details := c.Details
+	if len(details) == 0 {
 		return base
 	}
 
@@ -291,10 +465,7 @@ func (c changeWithScreenshot) RowDetail() clickyapi.Textable {
 	if imgs == "" {
 		return base
 	}
-	if base != nil {
-		return screenshotDetail{html: base.HTML() + imgs}
-	}
-	return screenshotDetail{html: imgs}
+	return screenshotDetail{html: base.HTML() + imgs}
 }
 
 type screenshotDetail struct{ html string }
@@ -305,7 +476,7 @@ func (s screenshotDetail) HTML() string       { return s.html }
 func (s screenshotDetail) Markdown() string   { return "[screenshot]" }
 func (s screenshotDetail) StaticHTML() string { return s.html }
 
-func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollector *har.Collector, logs string) {
+func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, snapshots *v1.ScrapeSnapshotPair, harCollector *har.Collector, logs string) {
 	if outputDir != "" {
 		return
 	}
@@ -315,16 +486,12 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 	var artifacts []models.Artifact
 	for _, c := range all.Changes {
 		changes = append(changes, changeWithScreenshot{c})
-		if c.Details == nil {
-			continue
-		}
-		var details map[string]any
-		if err := json.Unmarshal(c.Details, &details); err != nil {
+		if len(c.Details) == 0 {
 			continue
 		}
 
 		var artMaps []map[string]any
-		if arr, ok := details["artifacts"].([]any); ok {
+		if arr, ok := c.Details["artifacts"].([]any); ok {
 			for _, item := range arr {
 				if m, ok := item.(map[string]any); ok {
 					artMaps = append(artMaps, m)
@@ -358,13 +525,15 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 		}
 	}
 
+	relationships := scrapeui.BuildUIRelationships(results)
 	output := runHTMLOutput{
 		Counts:             v1.BuildCounts(all),
 		Configs:            all.Configs,
 		Changes:            changes,
 		Artifacts:          artifacts,
 		Analysis:           all.Analysis,
-		Relationships:      all.Relationships,
+		Relationships:      relationships,
+		ConfigMeta:         scrapeui.BuildConfigMeta(results, relationships),
 		ExternalRoles:      all.ExternalRoles,
 		ExternalUsers:      all.ExternalUsers,
 		ExternalGroups:     all.ExternalGroups,
@@ -375,6 +544,7 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 		Logs:               v1.BuildLogOutput(logs),
 	}
 	output.SaveSummary = summary
+	output.Snapshots = snapshots
 	clicky.MustPrint(output)
 }
 
@@ -458,11 +628,53 @@ func ensureScraper(ctx context.Context, sc *v1.ScrapeConfig) error {
 	return nil
 }
 
+func startScrapeUI(scraperNames []string, scrapeSpec any, logBuf *bytes.Buffer) *scrapeui.Server {
+	srv := scrapeui.NewServer(scraperNames, scrapeSpec, logBuf)
+	bi := GetBuildInfo()
+	srv.SetBuildInfo(scrapeui.BuildInfo{Version: bi.Version, Commit: bi.Commit, Date: bi.Date})
+	addr := fmt.Sprintf("localhost:%d", uiPort)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil && uiPort != 0 {
+		logger.Warnf("Port %d in use, picking a free port", uiPort)
+		listener, err = net.Listen("tcp", "localhost:0")
+	}
+	if err != nil {
+		logger.Errorf("Failed to start scrape UI server: %v", err)
+		return nil
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	url := fmt.Sprintf("http://localhost:%d", port)
+
+	go http.Serve(listener, srv.Handler()) //nolint:errcheck
+
+	time.Sleep(100 * time.Millisecond)
+	logger.Infof("Scrape UI at %s", url)
+	openBrowser(url)
+	return srv
+}
+
+func openBrowser(url string) {
+	var cmd string
+	var args []string
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "start"}
+	case "darwin":
+		cmd = "open"
+	default:
+		cmd = "xdg-open"
+	}
+	args = append(args, url)
+	_ = exec.Command(cmd, args...).Start()
+}
+
 func init() {
 	Run.Flags().BoolVar(&save, "save", false, "Save scraped configurations to the database")
 	Run.Flags().BoolVar(&export, "export", true, "Export scraped configurations to files in the output directory and/or pretty print them")
 	Run.Flags().StringVarP(&outputDir, "output-dir", "o", "", "The output folder for configurations")
 	Run.Flags().IntVar(&debugPort, "debug-port", -1, "Start an HTTP server to use the /debug routes, Use -1 to disable and 0 to pick a free port")
+	Run.Flags().BoolVar(&uiEnabled, "ui", false, "Open a browser dashboard showing real-time scrape progress")
+	Run.Flags().IntVar(&uiPort, "ui-port", 9001, "Port for the UI server (0 to pick a free port)")
 	clicky.BindAllFlags(Run.Flags())
-
 }

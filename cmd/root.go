@@ -34,6 +34,30 @@ var (
 	date    = "unknown"
 )
 
+// BuildInfo holds the build-time version, git commit and build date injected
+// via -ldflags.
+type BuildInfo struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Date    string `json:"date"`
+}
+
+// GetBuildInfo returns the raw build-time identifiers. Unlike the mutated
+// `version` string used by the `version` subcommand, this always returns the
+// original three fields so downstream consumers (e.g. the scrape UI) can
+// format them however they like.
+func GetBuildInfo() BuildInfo {
+	return BuildInfo{
+		Version: rawVersion,
+		Commit:  commit,
+		Date:    date,
+	}
+}
+
+// rawVersion preserves the original ldflag-injected version before init()
+// rewrites it to include commit+date for the version subcommand.
+var rawVersion = version
+
 var (
 	// Telemetry flag vars
 	otelcollectorURL string
@@ -127,5 +151,5 @@ func init() {
 		},
 	})
 
-	Root.AddCommand(Run, Analyze, Serve, GoOffline, Operator)
+	Root.AddCommand(Run, Analyze, Serve, GoOffline, Operator, UI)
 }

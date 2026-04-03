@@ -1,10 +1,15 @@
 package scrapers
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"os"
 	"time"
 
 	"github.com/flanksource/commons/collections/syncmap"
+	"github.com/flanksource/commons/har"
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -27,10 +32,45 @@ var TempCacheStore syncmap.SyncMap[string, *api.TempCache]
 type ScrapeOutput struct {
 	Total            int // all configs & changes
 	Summary          v1.ScrapeSummary
+	Results          v1.ScrapeResults
+	SnapshotPair     *v1.ScrapeSnapshotPair
+	HAR              []har.Entry
+	Logs             string
 	RateLimitResetAt *time.Time
 }
 
-func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
+type RunScraperOptions struct {
+	CaptureHAR       bool
+	CaptureSnapshots bool
+	CaptureLogs      bool
+}
+
+type RunScraperOption func(*RunScraperOptions)
+
+func WithCaptureHAR(enabled bool) RunScraperOption {
+	return func(o *RunScraperOptions) { o.CaptureHAR = enabled }
+}
+
+func WithCaptureSnapshots(enabled bool) RunScraperOption {
+	return func(o *RunScraperOptions) { o.CaptureSnapshots = enabled }
+}
+
+func WithCaptureLogs(enabled bool) RunScraperOption {
+	return func(o *RunScraperOptions) { o.CaptureLogs = enabled }
+}
+
+func buildRunScraperOptions(opts ...RunScraperOption) RunScraperOptions {
+	cfg := RunScraperOptions{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	return cfg
+}
+
+func RunScraper(ctx api.ScrapeContext, opts ...RunScraperOption) (*ScrapeOutput, error) {
+	runOpts := buildRunScraperOptions(opts...)
 	var timer = timer.NewMemoryTimer()
 	ctx, err := ctx.InitTempCache()
 	if err != nil {
@@ -38,10 +78,28 @@ func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 	}
 	TempCacheStore.Store(ctx.ScraperID(), ctx.TempCache())
 
-	ctx = ctx.WithValue(contextKeyScrapeStart, time.Now())
+	runStart := time.Now()
+	ctx = ctx.WithValue(contextKeyScrapeStart, runStart)
 	ctx.Context = ctx.
 		WithName(fmt.Sprintf("%s/%s", ctx.ScrapeConfig().Namespace, ctx.ScrapeConfig().Name)).
 		WithNamespace(ctx.ScrapeConfig().Namespace)
+
+	var runLogs *bytes.Buffer
+	if runOpts.CaptureLogs {
+		runLogs = &bytes.Buffer{}
+		runLogger := logger.NewWithWriter(io.MultiWriter(os.Stderr, runLogs))
+		runLogger.SetLogLevel(ctx.Logger.GetLevel())
+		ctx = ctx.WithLogger(runLogger)
+	}
+
+	var beforeSnapshot *v1.ScrapeSnapshot
+	if runOpts.CaptureSnapshots {
+		if snap, snapErr := db.CaptureScrapeSnapshot(ctx, runStart); snapErr != nil {
+			ctx.Logger.V(2).Infof("failed to capture pre-scrape snapshot: %v", snapErr)
+		} else {
+			beforeSnapshot = snap
+		}
+	}
 
 	results, scraperErr := Run(ctx)
 	if scraperErr != nil {
@@ -51,7 +109,16 @@ func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 	if v1.ScrapeResults(results).IsRateLimited() {
 		resetAt := v1.ScrapeResults(results).GetRateLimitResetAt()
 		ctx.Logger.Warnf("Scrape rate limited, skipping save/retention (reset at %v)", resetAt)
-		return &ScrapeOutput{RateLimitResetAt: resetAt}, nil
+		out := &ScrapeOutput{RateLimitResetAt: resetAt, Results: results}
+		if runLogs != nil {
+			out.Logs = runLogs.String()
+		}
+		if runOpts.CaptureHAR {
+			if collector := ctx.HARCollector(); collector != nil {
+				out.HAR = collector.Entries()
+			}
+		}
+		return out, nil
 	}
 
 	savedResult, err := db.SaveResults(ctx, results)
@@ -63,12 +130,36 @@ func RunScraper(ctx api.ScrapeContext) (*ScrapeOutput, error) {
 		return nil, fmt.Errorf("failed to update stale config items: %w", err)
 	}
 
+	var snapshotPair *v1.ScrapeSnapshotPair
+	if runOpts.CaptureSnapshots {
+		if afterSnapshot, snapErr := db.CaptureScrapeSnapshot(ctx, runStart); snapErr != nil {
+			ctx.Logger.V(2).Infof("failed to capture post-scrape snapshot: %v", snapErr)
+		} else {
+			snapshotPair = &v1.ScrapeSnapshotPair{
+				Before: beforeSnapshot,
+				After:  afterSnapshot,
+				Diff:   v1.DiffSnapshots(beforeSnapshot, afterSnapshot),
+			}
+		}
+	}
+
 	ctx.Logger.Debugf("Completed scrape with %s in %s", savedResult.PrettyShort(), timer.End())
 
-	return &ScrapeOutput{
-		Total:   len(results),
-		Summary: savedResult,
-	}, nil
+	out := &ScrapeOutput{
+		Total:        len(results),
+		Summary:      savedResult,
+		Results:      results,
+		SnapshotPair: snapshotPair,
+	}
+	if runLogs != nil {
+		out.Logs = runLogs.String()
+	}
+	if runOpts.CaptureHAR {
+		if collector := ctx.HARCollector(); collector != nil {
+			out.HAR = collector.Entries()
+		}
+	}
+	return out, nil
 }
 
 func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) error {
@@ -159,7 +250,7 @@ func processScrapeResult(ctx api.ScrapeContext, result v1.ScrapeResult) v1.Scrap
 	}
 
 	if ctx.ScrapeConfig().Spec.Full {
-		scraped = extract.ExtractFullMode(ctx.ScrapeConfig().GetPersistedID(), scraped)
+		scraped = extract.ExtractFullMode(ctx, ctx.ScrapeConfig().GetPersistedID(), scraped)
 	}
 
 	return scraped

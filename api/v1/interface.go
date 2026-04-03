@@ -132,6 +132,11 @@ type ChangeResult struct {
 	// selector for resolving target config items.
 	Target *duty.RelationshipSelectorTemplate `json:"-"`
 
+	// Resolved is the final state of the change after transformation by the
+	// change mapping pipeline. The original ChangeResult fields represent the
+	// scraper input; Resolved represents the pipeline output.
+	Resolved *models.ConfigChange `json:"resolved,omitempty"`
+
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
 }
@@ -278,27 +283,48 @@ func (result *AnalysisResult) Message(msg string) *AnalysisResult {
 type AnalysisResults []AnalysisResult
 
 // +kubebuilder:object:generate=false
-type EntitySummary struct {
-	Scraped int `json:"scraped,omitempty"`
-	Saved   int `json:"saved,omitempty"`
-	Skipped int `json:"skipped,omitempty"`
-	Deleted int `json:"deleted,omitempty"`
+// EntitySummary is the per-kind summary of external entities produced by a
+// scrape and/or save cycle. Beyond the count fields, it also carries the
+// resolved (post-merge canonical) entities themselves so UI and downstream
+// consumers read them from a single authoritative location instead of having
+// to dedupe across individual ScrapeResults.
+//
+// The type parameter is the element type of the entity slice (e.g.
+// models.ExternalUser). Summaries that only track counts (config_access,
+// access_logs) use EntitySummary[struct{}] and leave Entities nil.
+type EntitySummary[T any] struct {
+	Scraped          int        `json:"scraped,omitempty"`
+	Saved            int        `json:"saved,omitempty"`
+	Skipped          int        `json:"skipped,omitempty"`
+	Deleted          int        `json:"deleted,omitempty"`
+	ForeignKeyErrors int        `json:"foreign_key_errors,omitempty"`
+	LastCreatedAt    *time.Time `json:"last_created_at,omitempty"`
+	// Entities holds the post-merge canonical entities for this kind. Only
+	// populated for user/group/role summaries; nil for count-only summaries.
+	Entities []T `json:"entities,omitempty"`
 }
 
-func (e EntitySummary) IsEmpty() bool {
-	return e.Scraped == 0 && e.Saved == 0 && e.Skipped == 0 && e.Deleted == 0
+func (e EntitySummary[T]) IsEmpty() bool {
+	return e.Scraped == 0 && e.Saved == 0 && e.Skipped == 0 && e.Deleted == 0 && e.ForeignKeyErrors == 0 && e.LastCreatedAt == nil && len(e.Entities) == 0
 }
 
-func (e EntitySummary) Merge(other EntitySummary) EntitySummary {
-	return EntitySummary{
-		Scraped: e.Scraped + other.Scraped,
-		Saved:   e.Saved + other.Saved,
-		Skipped: e.Skipped + other.Skipped,
-		Deleted: e.Deleted + other.Deleted,
+func (e EntitySummary[T]) Merge(other EntitySummary[T]) EntitySummary[T] {
+	merged := EntitySummary[T]{
+		Scraped:          e.Scraped + other.Scraped,
+		Saved:            e.Saved + other.Saved,
+		Skipped:          e.Skipped + other.Skipped,
+		Deleted:          e.Deleted + other.Deleted,
+		ForeignKeyErrors: e.ForeignKeyErrors + other.ForeignKeyErrors,
+		Entities:         append(append([]T{}, e.Entities...), other.Entities...),
+		LastCreatedAt:    e.LastCreatedAt,
 	}
+	if other.LastCreatedAt != nil && (merged.LastCreatedAt == nil || other.LastCreatedAt.After(*merged.LastCreatedAt)) {
+		merged.LastCreatedAt = other.LastCreatedAt
+	}
+	return merged
 }
 
-func (e EntitySummary) Pretty() api.Text {
+func (e EntitySummary[T]) Pretty() api.Text {
 	t := clicky.Text("")
 	if e.Scraped > 0 {
 		t = t.Appendf("%d", e.Scraped).AddText(" scraped", "muted")
@@ -312,25 +338,73 @@ func (e EntitySummary) Pretty() api.Text {
 	if e.Deleted > 0 {
 		t = t.Space().Appendf("%d", e.Deleted).AddText(" deleted", "error")
 	}
+	if e.ForeignKeyErrors > 0 {
+		t = t.Space().Appendf("%d", e.ForeignKeyErrors).AddText(" fk errors", "error")
+	}
 	return t
 }
 
-func (e EntitySummary) String() string {
+func (e EntitySummary[T]) String() string {
 	return e.Pretty().String()
+}
+
+// Warning captures the full context of a failed extraction or transformation.
+// +kubebuilder:object:generate=false
+type Warning struct {
+	Input  any    `json:"input,omitempty"`
+	Output any    `json:"output,omitempty"`
+	Result any    `json:"result,omitempty"`
+	Expr   string `json:"expr,omitempty"`
+	Error  string `json:"error,omitempty"`
+	Count  int    `json:"count,omitempty"`
+}
+
+func warningCount(w Warning) int {
+	if w.Count > 0 {
+		return w.Count
+	}
+	return 1
 }
 
 // +kubebuilder:object:generate=false
 type ScrapeSummary struct {
-	ConfigTypes    map[string]ConfigTypeScrapeSummary `json:"config_types,omitempty"`
-	ExternalUsers  EntitySummary                      `json:"external_users,omitempty"`
-	ExternalGroups EntitySummary                      `json:"external_groups,omitempty"`
-	ExternalRoles  EntitySummary                      `json:"external_roles,omitempty"`
-	ConfigAccess   EntitySummary                      `json:"config_access,omitempty"`
-	AccessLogs     EntitySummary                      `json:"access_logs,omitempty"`
+	ConfigTypes     map[string]ConfigTypeScrapeSummary `json:"config_types,omitempty"`
+	OrphanedChanges []ChangeResult                     `json:"orphaned_changes,omitempty"`
+	FKErrorChanges  []ChangeResult                     `json:"fk_error_changes,omitempty"`
+	// ExternalUsers/Groups/Roles carry both counts and the post-merge
+	// canonical entities. This is the single source of truth for the UI's
+	// flat /users, /groups, /roles listings: individual ScrapeResults
+	// contribute aliases during scraping, SaveResults resolves them to
+	// canonical IDs via the SQL merge, and the resolved entities are
+	// published here instead of fanning them out per-result.
+	ExternalUsers  EntitySummary[models.ExternalUser]  `json:"external_users,omitempty"`
+	ExternalGroups EntitySummary[models.ExternalGroup] `json:"external_groups,omitempty"`
+	ExternalRoles  EntitySummary[models.ExternalRole]  `json:"external_roles,omitempty"`
+	ConfigAccess   EntitySummary[struct{}]             `json:"config_access,omitempty"`
+	AccessLogs     EntitySummary[struct{}]             `json:"access_logs,omitempty"`
+	Warnings       []Warning                           `json:"warnings,omitempty"`
+	State          map[string]any                      `json:"state,omitempty"`
+
+	warningIndex map[string]int `json:"-"`
 }
 
 func NewScrapeSummary() ScrapeSummary {
 	return ScrapeSummary{ConfigTypes: make(map[string]ConfigTypeScrapeSummary)}
+}
+
+// AsMap returns the summary keyed by json tags so template/CEL envs can
+// reference fields by their documented snake_case names — Go's text/template
+// ignores json tags and would otherwise make paths like .access_logs.last_created_at unreachable.
+func (s ScrapeSummary) AsMap() map[string]any {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return map[string]any{}
+	}
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return map[string]any{}
+	}
+	return out
 }
 
 func (summary ScrapeSummary) HasUpdates() bool {
@@ -432,14 +506,22 @@ func (a ConfigTypeScrapeSummary) Merge(b ConfigTypeScrapeSummary) ConfigTypeScra
 	if b.Change != nil {
 		change.Merge(*b.Change)
 	}
-	return ConfigTypeScrapeSummary{
-		Added:     a.Added + b.Added,
-		Updated:   a.Updated + b.Updated,
-		Unchanged: a.Unchanged + b.Unchanged,
-		Changes:   a.Changes + b.Changes,
-		Deduped:   a.Deduped + b.Deduped,
-		Change:    change,
+	merged := ConfigTypeScrapeSummary{
+		Added:      a.Added + b.Added,
+		Updated:    a.Updated + b.Updated,
+		Unchanged:  a.Unchanged + b.Unchanged,
+		Changes:    a.Changes + b.Changes,
+		Deduped:    a.Deduped + b.Deduped,
+		Change:     change,
+		AccessLogs: a.AccessLogs.Merge(b.AccessLogs),
 	}
+	for _, warning := range a.Warnings {
+		merged.AddWarning(warning)
+	}
+	for _, warning := range b.Warnings {
+		merged.AddWarning(warning)
+	}
+	return merged
 }
 
 func (s ScrapeSummary) Totals() ConfigTypeScrapeSummary {
@@ -495,8 +577,20 @@ func (t *ScrapeSummary) AddUnchanged(configType string) {
 func (t *ScrapeSummary) AddWarning(configType, warning string) {
 	t.initConfigTypes()
 	v := t.ConfigTypes[configType]
-	v.Warnings = append(v.Warnings, warning)
+	v.AddWarning(warning)
 	t.ConfigTypes[configType] = v
+}
+
+func (t *ScrapeSummary) AddScrapeWarning(w Warning) {
+	t.initWarningIndex()
+	count := warningCount(w)
+	if idx, ok := t.warningIndex[w.Error]; ok {
+		t.Warnings[idx].Count += count
+		return
+	}
+	w.Count = count
+	t.warningIndex[w.Error] = len(t.Warnings)
+	t.Warnings = append(t.Warnings, w)
 }
 
 func (t *ScrapeSummary) AddChanges(configType string, count int) {
@@ -527,6 +621,25 @@ func (s *ScrapeSummary) Merge(other ScrapeSummary) {
 	s.ExternalRoles = s.ExternalRoles.Merge(other.ExternalRoles)
 	s.ConfigAccess = s.ConfigAccess.Merge(other.ConfigAccess)
 	s.AccessLogs = s.AccessLogs.Merge(other.AccessLogs)
+	for _, w := range other.Warnings {
+		s.AddScrapeWarning(w)
+	}
+}
+
+func (t *ScrapeSummary) initWarningIndex() {
+	if t.warningIndex != nil {
+		return
+	}
+	t.warningIndex = make(map[string]int, len(t.Warnings))
+	for i := range t.Warnings {
+		if _, ok := t.warningIndex[t.Warnings[i].Error]; ok {
+			continue
+		}
+		if t.Warnings[i].Count == 0 {
+			t.Warnings[i].Count = 1
+		}
+		t.warningIndex[t.Warnings[i].Error] = i
+	}
 }
 
 // +kubebuilder:object:generate=false
@@ -662,13 +775,16 @@ func (t *ChangeSummaryByType) Merge(typ string, b ChangeSummary) {
 
 // +kubebuilder:object:generate=false
 type ConfigTypeScrapeSummary struct {
-	Added     int            `json:"added,omitempty"`
-	Updated   int            `json:"updated,omitempty"`
-	Unchanged int            `json:"unchanged,omitempty"`
-	Changes   int            `json:"changes,omitempty"`
-	Deduped   int            `json:"deduped,omitempty"`
-	Change    *ChangeSummary `json:"change,omitempty"`
-	Warnings  []string       `json:"warnings,omitempty"`
+	Added      int                     `json:"added,omitempty"`
+	Updated    int                     `json:"updated,omitempty"`
+	Unchanged  int                     `json:"unchanged,omitempty"`
+	Changes    int                     `json:"changes,omitempty"`
+	Deduped    int                     `json:"deduped,omitempty"`
+	Change     *ChangeSummary          `json:"change,omitempty"`
+	Warnings   []string                `json:"warnings,omitempty"`
+	AccessLogs EntitySummary[struct{}] `json:"access_logs,omitempty"`
+
+	warningIndex map[string]int `json:"-"`
 }
 
 // +kubebuilder:object:generate=false
@@ -682,6 +798,28 @@ func (t ScrapeResults) HasErr() bool {
 	}
 
 	return false
+}
+
+func (s *ConfigTypeScrapeSummary) initWarningIndex() {
+	if s.warningIndex != nil {
+		return
+	}
+	s.warningIndex = make(map[string]int, len(s.Warnings))
+	for i := range s.Warnings {
+		if _, ok := s.warningIndex[s.Warnings[i]]; ok {
+			continue
+		}
+		s.warningIndex[s.Warnings[i]] = i
+	}
+}
+
+func (s *ConfigTypeScrapeSummary) AddWarning(warning string) {
+	s.initWarningIndex()
+	if _, ok := s.warningIndex[warning]; ok {
+		return
+	}
+	s.warningIndex[warning] = len(s.Warnings)
+	s.Warnings = append(s.Warnings, warning)
 }
 
 func (t ScrapeResults) Errors() []string {
@@ -1136,12 +1274,18 @@ type ScrapeResult struct {
 	// knowing the external ids of the item to be linked.
 	RelationshipSelectors []DirectedRelationship `json:"-"`
 
-	ExternalRoles      []models.ExternalRole      `json:"-"`
-	ExternalUsers      []models.ExternalUser      `json:"-"`
-	ExternalGroups     []models.ExternalGroup     `json:"-"`
-	ExternalUserGroups []models.ExternalUserGroup `json:"-"`
-	ConfigAccess       []ExternalConfigAccess     `json:"-"`
-	ConfigAccessLogs   []ExternalConfigAccessLog  `json:"-"`
+	ExternalRoles      []models.ExternalRole     `json:"-"`
+	ExternalUsers      []models.ExternalUser     `json:"-"`
+	ExternalGroups     []models.ExternalGroup    `json:"-"`
+	ExternalUserGroups []ExternalUserGroup       `json:"-"`
+	ConfigAccess       []ExternalConfigAccess    `json:"-"`
+	ConfigAccessLogs   []ExternalConfigAccessLog `json:"-"`
+	Warnings           []Warning                 `json:"-"`
+
+	// Transform context captured for diagnostics.
+	TransformInput  any    `json:"-"`
+	TransformOutput any    `json:"-"`
+	TransformExpr   string `json:"-"`
 
 	RateLimitResetAt *time.Time `json:"-"`
 
@@ -1283,10 +1427,23 @@ func (s *ScrapeResult) Pretty() api.Text {
 	}
 	t := clicky.Text("")
 	if s.ConfigClass != "" {
-		t = t.Append(s.ConfigClass+"/", "text-muted")
+		t = t.Append(s.ConfigClass, "text-muted")
 	}
-	if s.Name != "" {
-		t = t.Append(s.Name)
+	// Prefer Name; fall back through ID and the first alias so that log lines
+	// like "Scraped Azure::Group/" (when the scraper produced a result with
+	// an empty name field) still carry a useful identifier.
+	label := s.Name
+	if label == "" {
+		label = s.ID
+	}
+	if label == "" && len(s.Aliases) > 0 {
+		label = s.Aliases[0]
+	}
+	if label != "" {
+		if s.ConfigClass != "" {
+			t = t.Append("/", "text-muted")
+		}
+		t = t.Append(label)
 	}
 
 	if len(s.Changes) > 0 {
@@ -1609,6 +1766,24 @@ func (e ExternalConfigAccessLog) Row() map[string]any {
 	return row
 }
 
+// ExternalUserGroup is a scraper-emitted membership entry. The scraper may
+// describe the user and group either by canonical UUID (when it has authoritative
+// IDs, e.g. AAD with Azure object UUIDs) or purely by alias (when it only has
+// descriptor-level identifiers, e.g. ADO descriptors). SaveResults resolves
+// alias-only entries to canonical UUIDs at insert time, mirroring how
+// ExternalConfigAccess.ExternalUserAliases is resolved.
+//
+// At least one of (ExternalUserID, ExternalUserAliases) and one of
+// (ExternalGroupID, ExternalGroupAliases) must be set.
+//
+// +kubebuilder:object:generate=false
+type ExternalUserGroup struct {
+	ExternalUserID       *uuid.UUID `json:"external_user_id,omitempty"`
+	ExternalGroupID      *uuid.UUID `json:"external_group_id,omitempty"`
+	ExternalUserAliases  []string   `json:"external_user_aliases,omitempty"`
+	ExternalGroupAliases []string   `json:"external_group_aliases,omitempty"`
+}
+
 // +kubebuilder:object:generate=false
 type ExternalConfigAccess struct {
 	ID            string     `json:"id"`
@@ -1822,12 +1997,12 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 type FullScrapeResults struct {
 	Configs            []ScrapeResult              `json:"configs,omitempty"`
 	Analysis           []models.ConfigAnalysis     `json:"analysis,omitempty"`
-	Changes            []models.ConfigChange       `json:"changes,omitempty"`
+	Changes            []ChangeResult              `json:"changes,omitempty"`
 	Relationships      []models.ConfigRelationship `json:"relationships,omitempty"`
 	ExternalRoles      []models.ExternalRole       `json:"external_roles,omitempty"`
 	ExternalUsers      []models.ExternalUser       `json:"external_users,omitempty"`
 	ExternalGroups     []models.ExternalGroup      `json:"external_groups,omitempty"`
-	ExternalUserGroups []models.ExternalUserGroup  `json:"external_user_groups,omitempty"`
+	ExternalUserGroups []ExternalUserGroup         `json:"external_user_groups,omitempty"`
 	ConfigAccess       []ExternalConfigAccess      `json:"config_access,omitempty"`
 	ConfigAccessLogs   []ExternalConfigAccessLog   `json:"config_access_logs,omitempty"`
 }
@@ -1844,27 +2019,7 @@ func MergeScrapeResults(results ...ScrapeResults) FullScrapeResults {
 				full.Analysis = append(full.Analysis, r.AnalysisResult.ToConfigAnalysis())
 			}
 
-			for _, change := range r.Changes {
-				configChange := models.ConfigChange{
-					ChangeType:        change.ChangeType,
-					Severity:          models.Severity(change.Severity),
-					Source:            change.Source,
-					Summary:           change.Summary,
-					CreatedAt:         change.CreatedAt,
-					ExternalChangeID:  lo.ToPtr(change.ExternalChangeID),
-					ExternalID:        change.ExternalID,
-					ConfigType:        change.ConfigType,
-					Diff:              lo.FromPtr(change.Diff),
-					Patches:           change.Patches,
-					ExternalCreatedBy: change.CreatedBy,
-				}
-				if change.Details != nil {
-					if detailsJSON, err := json.Marshal(change.Details); err == nil {
-						configChange.Details = detailsJSON
-					}
-				}
-				full.Changes = append(full.Changes, configChange)
-			}
+			full.Changes = append(full.Changes, r.Changes...)
 
 			for _, rel := range r.RelationshipResults {
 				full.Relationships = append(full.Relationships, models.ConfigRelationship{

@@ -1,12 +1,25 @@
 package devops
 
 import (
-	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/lib/pq"
 )
+
+// uniqueAliases returns the input slice with empty strings and duplicates removed.
+func uniqueAliases(items ...string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, item := range items {
+		if item == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		out = append(out, item)
+	}
+	return out
+}
 
 func (ado AzureDevopsScraper) scrapeGroups(
 	ctx api.ScrapeContext,
@@ -22,23 +35,56 @@ func (ado AzureDevopsScraper) scrapeGroups(
 
 	ctx.Logger.V(3).Infof("[%s] found %d groups", config.Organization, len(groups))
 
-	var (
-		externalGroups     []dutyModels.ExternalGroup
-		externalUsers      []dutyModels.ExternalUser
-		externalUserGroups []dutyModels.ExternalUserGroup
-	)
+	// Deduplicate locally by descriptor (the only stable identifier the ADO API
+	// gives us). The emitted ExternalUser/ExternalGroup records intentionally
+	// have no `ID` set: identities seen here are reconciled by alias overlap in
+	// the SQL merge against the AAD scraper's authoritative records, and the
+	// AAD-supplied ID wins.
+	groupByDescriptor := map[string]dutyModels.ExternalGroup{}
+	userByDescriptor := map[string]dutyModels.ExternalUser{}
+	membershipSeen := map[string]bool{}
+	var externalUserGroups []v1.ExternalUserGroup
+
+	addGroup := func(descriptor string, g dutyModels.ExternalGroup) {
+		if existing, ok := groupByDescriptor[descriptor]; ok {
+			g.Aliases = pq.StringArray(uniqueAliases(append([]string(existing.Aliases), g.Aliases...)...))
+			if g.Name == "" {
+				g.Name = existing.Name
+			}
+		}
+		groupByDescriptor[descriptor] = g
+	}
+
+	addUser := func(descriptor string, u dutyModels.ExternalUser) {
+		if existing, ok := userByDescriptor[descriptor]; ok {
+			u.Aliases = pq.StringArray(uniqueAliases(append([]string(existing.Aliases), u.Aliases...)...))
+			if u.Name == "" {
+				u.Name = existing.Name
+			}
+			if u.Email == nil || *u.Email == "" {
+				u.Email = existing.Email
+			}
+		}
+		userByDescriptor[descriptor] = u
+	}
+
+	addMembership := func(userAliases, groupAliases []string) {
+		key := joinForKey(userAliases) + "||" + joinForKey(groupAliases)
+		if membershipSeen[key] {
+			return
+		}
+		membershipSeen[key] = true
+		externalUserGroups = append(externalUserGroups, v1.ExternalUserGroup{
+			ExternalUserAliases:  userAliases,
+			ExternalGroupAliases: groupAliases,
+		})
+	}
 
 	for _, group := range groups {
-		groupID, err := hash.DeterministicUUID(pq.StringArray{group.Descriptor})
-		if err != nil {
-			ctx.Logger.Errorf("failed to create group ID for %s: %v", group.DisplayName, err)
-			continue
-		}
-
-		externalGroups = append(externalGroups, dutyModels.ExternalGroup{
-			ID:        groupID,
+		groupAliases := uniqueAliases(append(DescriptorAliases(group.Descriptor), group.PrincipalName, group.Descriptor)...)
+		addGroup(group.Descriptor, dutyModels.ExternalGroup{
 			Name:      group.DisplayName,
-			Aliases:   pq.StringArray{group.Descriptor, group.PrincipalName},
+			Aliases:   pq.StringArray(groupAliases),
 			Tenant:    config.Organization,
 			GroupType: "AzureDevOps",
 		})
@@ -69,49 +115,60 @@ func (ado AzureDevopsScraper) scrapeGroups(
 				continue
 			}
 			if identity.IsContainer {
-				nestedGroupID, err := hash.DeterministicUUID(pq.StringArray{identity.Descriptor})
-				if err != nil {
-					continue
-				}
-				externalGroups = append(externalGroups, dutyModels.ExternalGroup{
-					ID:        nestedGroupID,
+				// Nested group — record it. Group-in-group is represented by adding
+				// the nested group's direct users to this parent group when that group
+				// is processed in the outer loop.
+				nestedAliases := uniqueAliases(
+					append(
+						append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor, identity.Descriptor),
+						DescriptorAliases(identity.SubjectDescriptor)...,
+					)...,
+				)
+				addGroup(identity.Descriptor, dutyModels.ExternalGroup{
 					Name:      identity.ProviderDisplayName,
-					Aliases:   pq.StringArray{identity.Descriptor, identity.SubjectDescriptor},
+					Aliases:   pq.StringArray(nestedAliases),
 					Tenant:    config.Organization,
 					GroupType: "AzureDevOps",
 				})
-			} else {
-				email := ""
-				if mail, ok := identity.Properties["Mail"]; ok {
-					email = mail.Value
-				}
-				if email == "" && identity.ProviderDisplayName == "" {
-					continue
-				}
-				if email == "" {
-					email = identity.ProviderDisplayName
-				}
-
-				userID, err := hash.DeterministicUUID(pq.StringArray{identity.Descriptor})
-				if err != nil {
-					continue
-				}
-
-				externalUsers = append(externalUsers, dutyModels.ExternalUser{
-					ID:       userID,
-					Name:     identity.ProviderDisplayName,
-					Email:    &email,
-					Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
-					Tenant:   config.Organization,
-					UserType: "AzureDevOps",
-				})
-
-				externalUserGroups = append(externalUserGroups, dutyModels.ExternalUserGroup{
-					ExternalUserID:  userID,
-					ExternalGroupID: groupID,
-				})
+				continue
 			}
+
+			name := ResolvedIdentityName(identity, "")
+			email := ""
+			if mail, ok := identity.Properties["Mail"]; ok {
+				email = mail.Value
+			}
+			if email == "" && name == "" {
+				continue
+			}
+			if email == "" {
+				email = name
+			}
+
+			userAliases := uniqueAliases(
+				email,
+				identity.Descriptor,
+				identity.SubjectDescriptor,
+			)
+			addUser(identity.Descriptor, dutyModels.ExternalUser{
+				Name:     name,
+				Email:    &email,
+				Aliases:  pq.StringArray(userAliases),
+				Tenant:   config.Organization,
+				UserType: "AzureDevOps",
+			})
+
+			addMembership(userAliases, groupAliases)
 		}
+	}
+
+	externalGroups := make([]dutyModels.ExternalGroup, 0, len(groupByDescriptor))
+	for _, g := range groupByDescriptor {
+		externalGroups = append(externalGroups, g)
+	}
+	externalUsers := make([]dutyModels.ExternalUser, 0, len(userByDescriptor))
+	for _, u := range userByDescriptor {
+		externalUsers = append(externalUsers, u)
 	}
 
 	return v1.ScrapeResults{{
@@ -120,4 +177,18 @@ func (ado AzureDevopsScraper) scrapeGroups(
 		ExternalUsers:      externalUsers,
 		ExternalUserGroups: externalUserGroups,
 	}}
+}
+
+// joinForKey is a stable string join used as a map key for deduping membership
+// entries by alias content. The separator '\x00' is impossible inside ADO
+// descriptors and emails, so it cannot collide with alias content.
+func joinForKey(parts []string) string {
+	out := ""
+	for i, p := range parts {
+		if i > 0 {
+			out += "\x00"
+		}
+		out += p
+	}
+	return out
 }
