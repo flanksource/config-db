@@ -2,7 +2,11 @@ package exec
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 
+	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/shell"
 	"sigs.k8s.io/yaml"
 
@@ -30,6 +34,13 @@ func (e ExecScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 		if config.Connections != nil {
 			execConfig.Connections = *config.Connections
+		}
+
+		if len(config.Query) > 0 {
+			if err := runQueries(ctx, config.Query, execConfig.BaseDir); err != nil {
+				results = append(results, v1.NewScrapeResult(config.BaseScraper).Errorf("running queries: %v", err))
+				continue
+			}
 		}
 
 		execDetails, err := shell.Run(ctx.DutyContext(), execConfig)

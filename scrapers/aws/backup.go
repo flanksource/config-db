@@ -26,6 +26,14 @@ func (aws Scraper) awsBackups(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 
 	backupClient := backup.NewFromConfig(*ctx.Session, getEndpointResolver[backup.Options](config))
 
+	if err := aws.scrapeBackupVaults(ctx, config, backupClient, results); err != nil {
+		results.Errorf(err, "failed to scrape backup vaults")
+	}
+
+	if err := aws.scrapeBackupPlans(ctx, config, backupClient, results); err != nil {
+		results.Errorf(err, "failed to scrape backup plans")
+	}
+
 	if err := aws.scrapeRecoveryPoints(ctx, config, backupClient, results); err != nil {
 		results.Errorf(err, "failed to scrape recovery points")
 	}
@@ -43,9 +51,107 @@ func resourceTypeToConfigType(resourceType string) string {
 	switch resourceType {
 	case "RDS":
 		return v1.AWSRDSInstance
+	case "EBS":
+		return v1.AWSEBSVolume
+	case "EC2":
+		return v1.AWSEC2Instance
+	case "EFS":
+		return v1.AWSEFSFileSystem
+	case "S3":
+		return v1.AWSS3Bucket
+	case "DynamoDB":
+		return v1.AWSDynamoDBTable
+	}
+	return ""
+}
+
+func (aws Scraper) scrapeBackupVaults(ctx *AWSContext, config v1.AWS, client *backup.Client, results *v1.ScrapeResults) error {
+	ctx.Logger.V(3).Infof("scraping backup vaults")
+
+	paginator := backup.NewListBackupVaultsPaginator(client, &backup.ListBackupVaultsInput{})
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("listing backup vaults: %w", err)
+		}
+
+		for _, vault := range output.BackupVaultList {
+			arn := lo.FromPtr(vault.BackupVaultArn)
+			name := lo.FromPtr(vault.BackupVaultName)
+
+			*results = append(*results, v1.ScrapeResult{
+				Type:        v1.AWSBackupVault,
+				ConfigClass: "Backup",
+				BaseScraper: config.BaseScraper,
+				Config:      vault,
+				Name:        name,
+				ID:          name,
+				Aliases:     []string{arn},
+				Tags:        v1.JSONStringMap{"region": ctx.Session.Region},
+			})
+		}
 	}
 
-	return ""
+	return nil
+}
+
+func (aws Scraper) scrapeBackupPlans(ctx *AWSContext, config v1.AWS, client *backup.Client, results *v1.ScrapeResults) error {
+	ctx.Logger.V(3).Infof("scraping backup plans")
+
+	paginator := backup.NewListBackupPlansPaginator(client, &backup.ListBackupPlansInput{})
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("listing backup plans: %w", err)
+		}
+
+		for _, plan := range output.BackupPlansList {
+			arn := lo.FromPtr(plan.BackupPlanArn)
+			planID := lo.FromPtr(plan.BackupPlanId)
+			name := lo.FromPtr(plan.BackupPlanName)
+
+			// Get full plan details including rules
+			detail, err := client.GetBackupPlan(ctx, &backup.GetBackupPlanInput{
+				BackupPlanId: plan.BackupPlanId,
+			})
+
+			var planConfig any = plan
+			var relationships v1.RelationshipResults
+			if err == nil && detail.BackupPlan != nil {
+				planConfig = detail.BackupPlan
+				// Create relationships to target vaults
+				for _, rule := range detail.BackupPlan.Rules {
+					if rule.TargetBackupVaultName != nil {
+						relationships = append(relationships, v1.RelationshipResult{
+							ConfigExternalID: v1.ExternalID{
+								ExternalID: planID,
+								ConfigType: v1.AWSBackupPlan,
+							},
+							RelatedExternalID: v1.ExternalID{
+								ExternalID: *rule.TargetBackupVaultName,
+								ConfigType: v1.AWSBackupVault,
+							},
+							Relationship: "BackupPlanVault",
+						})
+					}
+				}
+			}
+
+			*results = append(*results, v1.ScrapeResult{
+				Type:                v1.AWSBackupPlan,
+				ConfigClass:         "Backup",
+				BaseScraper:         config.BaseScraper,
+				Config:              planConfig,
+				Name:                name,
+				ID:                  planID,
+				Aliases:             []string{arn},
+				Tags:                v1.JSONStringMap{"region": ctx.Session.Region},
+				RelationshipResults: relationships,
+			})
+		}
+	}
+
+	return nil
 }
 
 func (aws Scraper) scrapeBackupJobs(ctx *AWSContext, config v1.AWS, client *backup.Client, results *v1.ScrapeResults) error {
@@ -78,6 +184,7 @@ func (aws Scraper) scrapeBackupJobs(ctx *AWSContext, config v1.AWS, client *back
 				Source:           SourceAWSBackup,
 				Summary:          fmt.Sprintf("%s %s backup %s", lo.FromPtr(job.ResourceType), lo.FromPtr(job.ResourceName), strings.ToLower(string(job.State))),
 				CreatedAt:        job.CreationDate,
+				ScraperID:        "all",
 				Details: map[string]any{
 					"job":    job,
 					"status": lo.PascalCase(string(job.State)),
@@ -85,23 +192,13 @@ func (aws Scraper) scrapeBackupJobs(ctx *AWSContext, config v1.AWS, client *back
 			}
 
 			switch job.State {
-			case backupTypes.BackupJobStateCreated:
+			case backupTypes.BackupJobStateCreated, backupTypes.BackupJobStatePending, backupTypes.BackupJobStateRunning, backupTypes.BackupJobStateCompleted:
 				changeResult.Severity = string(models.SeverityInfo)
-			case backupTypes.BackupJobStatePending:
-				changeResult.Severity = string(models.SeverityInfo)
-			case backupTypes.BackupJobStateRunning:
-				changeResult.Severity = string(models.SeverityInfo)
-			case backupTypes.BackupJobStateAborting:
+			case backupTypes.BackupJobStateAborting, backupTypes.BackupJobStateAborted:
 				changeResult.Severity = string(models.SeverityLow)
-			case backupTypes.BackupJobStateAborted:
-				changeResult.Severity = string(models.SeverityLow)
-			case backupTypes.BackupJobStateCompleted:
-				changeResult.Severity = string(models.SeverityInfo)
 			case backupTypes.BackupJobStateFailed:
 				changeResult.Severity = string(models.SeverityHigh)
-			case backupTypes.BackupJobStateExpired:
-				changeResult.Severity = string(models.SeverityMedium)
-			case backupTypes.BackupJobStatePartial:
+			case backupTypes.BackupJobStateExpired, backupTypes.BackupJobStatePartial:
 				changeResult.Severity = string(models.SeverityMedium)
 			}
 
@@ -137,12 +234,13 @@ func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *bac
 		for _, job := range output.RestoreJobs {
 			changeResult := v1.ChangeResult{
 				ConfigType:       resourceTypeToConfigType(lo.FromPtr(job.ResourceType)),
-				Source:           "AWS Backup",
+				Source:           SourceAWSBackup,
 				ExternalChangeID: lo.FromPtr(job.RestoreJobId),
 				ChangeType:       fmt.Sprintf("Restore%s", lo.PascalCase(string(job.Status))),
 				Severity:         string(models.SeverityInfo),
 				Summary:          fmt.Sprintf("%s restore %s", lo.FromPtr(job.ResourceType), strings.ToLower(string(job.Status))),
 				CreatedAt:        job.CreationDate,
+				ScraperID:        "all",
 				Details: map[string]any{
 					"job":    job,
 					"status": lo.PascalCase(string(job.Status)),
@@ -154,16 +252,9 @@ func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *bac
 				changeResult.Severity = string(models.SeverityMedium)
 			case backupTypes.RestoreJobStatusFailed:
 				changeResult.Severity = string(models.SeverityHigh)
-			case backupTypes.RestoreJobStatusPending:
-				changeResult.Severity = string(models.SeverityInfo)
-			case backupTypes.RestoreJobStatusRunning:
-				changeResult.Severity = string(models.SeverityInfo)
-			case backupTypes.RestoreJobStatusCompleted:
-				changeResult.Severity = string(models.SeverityInfo)
 			}
 
 			changeResult.ExternalID = lo.FromPtr(job.CreatedResourceArn)
-			changeResult.ConfigType = resourceTypeToConfigType(lo.FromPtr(job.ResourceType))
 			changes = append(changes, changeResult)
 		}
 	}
@@ -215,12 +306,13 @@ func (aws Scraper) scrapeRecoveryPointsForVault(ctx *AWSContext, config v1.AWS, 
 			changeResult := v1.ChangeResult{
 				ConfigType:       resourceTypeToConfigType(lo.FromPtr(recoveryPoint.ResourceType)),
 				ExternalID:       lo.FromPtr(recoveryPoint.ResourceArn),
-				Source:           "AWS Backup",
+				Source:           SourceAWSBackup,
 				ExternalChangeID: lo.FromPtr(recoveryPoint.RecoveryPointArn) + "-" + string(recoveryPoint.Status),
 				ChangeType:       fmt.Sprintf("RecoveryPoint%s", lo.PascalCase(string(recoveryPoint.Status))),
 				Severity:         string(models.SeverityInfo),
 				Summary:          fmt.Sprintf("Recovery point %s in vault %s", strings.ToLower(string(recoveryPoint.Status)), lo.FromPtr(vault.BackupVaultName)),
 				CreatedAt:        recoveryPoint.CreationDate,
+				ScraperID:        "all",
 				Details: map[string]any{
 					"recoveryPoint": recoveryPoint,
 					"status":        lo.PascalCase(string(recoveryPoint.Status)),

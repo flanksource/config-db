@@ -86,6 +86,8 @@ func NewConfigChangeFromV1(result v1.ScrapeResult, change v1.ChangeResult) *Conf
 
 func (c ConfigChange) Columns() []api.ColumnDef {
 	return []api.ColumnDef{
+		clicky.Column("ConfigType").Build(),
+		clicky.Column("ExternalID").Build(),
 		clicky.Column("ChangeType").Build(),
 		clicky.Column("Summary").Build(),
 		clicky.Column("Source").Build(),
@@ -97,6 +99,8 @@ func (c ConfigChange) Columns() []api.ColumnDef {
 
 func (c ConfigChange) Row() map[string]any {
 	row := map[string]any{
+		"ConfigType": clicky.Text(c.ConfigType),
+		"ExternalID": clicky.Text(c.ExternalID),
 		"ChangeType": clicky.Text(c.ChangeType),
 		"Summary":    clicky.Text(c.Summary),
 		"Source":     clicky.Text(c.Source),

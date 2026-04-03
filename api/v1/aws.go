@@ -75,6 +75,10 @@ const (
 	AWSIAMInstanceProfile  = "AWS::IAM::InstanceProfile"
 	AWSEC2AMI              = "AWS::EC2::AMI"
 	AWSEC2DHCPOptions      = "AWS::EC2::DHCPOptions"
+	AWSBackupVault         = "AWS::Backup::BackupVault"
+	AWSBackupPlan          = "AWS::Backup::BackupPlan"
+	AWSEFSFileSystem       = "AWS::EFS::FileSystem"
+	AWSDynamoDBTable       = "AWS::DynamoDB::Table"
 )
 
 var defaultAWSExclusions = []string{"ECSTaskDefinition"}

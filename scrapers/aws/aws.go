@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -1193,10 +1194,15 @@ func (aws Scraper) rdsEvents(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 
 				changeType, status, severity := rdsChangeType(source.Type, event.EventCategories[0], message)
 
+				externalID := sourceID
+				if source.Type == rdsTypes.SourceTypeDbSnapshot || source.Type == rdsTypes.SourceTypeDbClusterSnapshot {
+					externalID = extractDBInstanceFromSnapshot(sourceID)
+				}
+
 				changeResult := v1.ChangeResult{
 					ExternalChangeID: eventID,
 					ConfigType:       v1.AWSRDSInstance,
-					ExternalID:       lo.FromPtr(event.SourceIdentifier),
+					ExternalID:       externalID,
 					ChangeType:       changeType,
 					Summary:          message,
 					Severity:         string(severity),
@@ -1221,6 +1227,16 @@ func (aws Scraper) rdsEvents(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	result.Changes = changes
 	*results = append(*results, *result)
 	return nil
+}
+
+var snapshotDateSuffix = regexp.MustCompile(`-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}$`)
+
+func extractDBInstanceFromSnapshot(snapshotID string) string {
+	id := strings.TrimPrefix(snapshotID, "rds:")
+	if loc := snapshotDateSuffix.FindStringIndex(id); loc != nil {
+		return id[:loc[0]]
+	}
+	return id
 }
 
 func rdsChangeType(sourceType rdsTypes.SourceType, category, message string) (string, string, models.Severity) {

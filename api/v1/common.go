@@ -19,6 +19,14 @@ import (
 // List of types which should not have scraper_id
 var ScraperLessTypes = []string{AWSRegion, AWSAvailabilityZone}
 
+// ConfigQuery defines a query that exports config items as JSON files for use in scripts.
+type ConfigQuery struct {
+	// Path is the file path to write the query results to (relative to script working dir).
+	Path string `json:"path" yaml:"path"`
+	// Inline ResourceSelector fields for querying config items.
+	types.ResourceSelector `json:",inline" yaml:",inline"`
+}
+
 // ConfigFieldExclusion defines fields with JSONPath that needs to
 // be removed from the config.
 type ConfigFieldExclusion struct {

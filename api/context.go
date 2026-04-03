@@ -231,6 +231,7 @@ func (ctx ScrapeContext) AsDebugRun(level string) ScrapeContext {
 
 func (ctx ScrapeContext) WithHARCollector(collector *har.Collector) ScrapeContext {
 	ctx.harCollector = collector
+	ctx.Context = ctx.Context.WithHARCollector(collector)
 	return ctx
 }
 

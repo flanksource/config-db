@@ -2,6 +2,7 @@ package api
 
 import (
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/artifact"
 	"github.com/flanksource/duty/upstream"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -13,6 +14,7 @@ var (
 	Namespace            string
 
 	UpstreamConfig upstream.UpstreamConfig
+	BlobStore      artifact.BlobStore
 )
 
 const MissionControlConfigTypePrefix = "MissionControl::"

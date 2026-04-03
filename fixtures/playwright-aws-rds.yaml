@@ -1,0 +1,125 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: aws-rds-console-screenshots
+  annotations:
+    playwright.keep: "true"
+spec:
+  schedule: "@every 6h"
+  playwright:
+    - type: AWS::RDS::DBInstance
+      id: $.instanceId
+      name: $.instanceId
+      trace:
+        har: true
+        domains:
+          - "!*global.console.aws.amazon.com*"
+          - "!*uxc.*.api.aws*"
+          - "!*.prod.pl.panorama.console*"
+          - "!*recommendations.widget.console.aws.amazon.com*"
+          - "!*telemetry.console.api.aws*"
+        video: on-error
+      login:
+        aws:
+          #          connection: connection://aws/production
+          login: playwright
+          region:
+            - eu-west-1
+          sessionDuration: 3600
+      headless: true
+      timeout: 300
+      script: |
+        const { boot } = require('./playwright-boot');
+
+        let ctx: any;
+        async function main() {
+          ctx = await boot();
+          const { page, log, screenshot, appendChange, writeOutput, close } = ctx;
+          const region = process.env.AWS_REGION || 'eu-west-1';
+
+          await ctx.checkLogin(`https://${region}.console.aws.amazon.com/console/home?region=${region}`);
+
+          const rdsUrl = `https://${region}.console.aws.amazon.com/rds/home?region=${region}#databases:`;
+          log(`navigating to RDS list: ${rdsUrl}`);
+          await page.goto(rdsUrl, { waitUntil: 'domcontentloaded' });
+          await page.waitForSelector('a[href*="#database:id="]', { timeout: 30000 });
+
+          const instances: string[] = await page.evaluate(() => {
+            const links = document.querySelectorAll('a[href*="#database:id="]');
+            return Array.from(links).map(a => {
+              const match = (a.getAttribute('href') || '').match(/id=([^&;]+)/);
+              return match ? match[1] : '';
+            }).filter(Boolean);
+          });
+
+          await screenshot('rds_list', { watermark: `RDS instances in ${region}` });
+          log(`found ${instances.length} RDS instances: ${instances.join(', ')}`);
+
+          for (const id of instances) {
+            const dbUrl = `https://${region}.console.aws.amazon.com/rds/home?region=${region}#database:id=${id};is-cluster=false;tab=configuration`;
+            log(`navigating to ${id} configuration tab`);
+
+            // Navigate to about:blank first to force a full page reload (AWS uses hash routing)
+            await page.goto('about:blank');
+            await page.goto(dbUrl, { waitUntil: 'domcontentloaded' });
+
+            // Wait for this specific instance name to appear in the page heading
+            await page.waitForFunction(
+              (name: string) => {
+                const el = document.querySelectorAll('h1[data-awsui-analytics-label] > span[class*="awsui_heading-text"]')[0];
+                return el?.textContent?.includes(name);
+              },
+              id,
+              { timeout: 30000 }
+            );
+            // Wait for configuration tab content to render
+            await page.waitForSelector('[role="tabpanel"] table', { timeout: 15000 }).catch(() => {});
+
+            const configPath = await screenshot(`${id}-configuration`, { watermark: `${id} — Configuration` });
+            appendChange({
+              change_type: 'RDSConsoleScreenshot',
+              id: `rds-config-${id}`,
+              config_type: 'AWS::RDS::DBInstance',
+              config_id: id,
+              summary: `Configuration screenshot for ${id}`,
+              screenshot: configPath,
+            });
+
+            // Navigate to Maintenance & backups tab
+            const backupsUrl = `https://${region}.console.aws.amazon.com/rds/home?region=${region}#database:id=${id};is-cluster=false;tab=maintenance-and-backups`;
+            await page.goto('about:blank');
+            await page.goto(backupsUrl, { waitUntil: 'domcontentloaded' });
+            await page.waitForFunction(
+              (name: string) => {
+                const el = document.querySelectorAll('h1[data-awsui-analytics-label] > span[class*="awsui_heading-text"]')[0];
+                return el?.textContent?.includes(name);
+              },
+              id,
+              { timeout: 30000 }
+            );
+            await page.waitForSelector('[role="tabpanel"] table', { timeout: 15000 }).catch(() => {});
+
+            const backupsPath = await screenshot(`${id}-backups`, { watermark: `${id} — Maintenance & Backups` });
+            appendChange({
+              change_type: 'RDSConsoleScreenshot',
+              id: `rds-backups-${id}`,
+              config_type: 'AWS::RDS::DBInstance',
+              config_id: id,
+              summary: `Maintenance & backups screenshot for ${id}`,
+              screenshot: backupsPath,
+            });
+
+          }
+
+          writeOutput(null);
+          await close();
+        }
+
+        main().catch(async (e) => {
+          process.stderr.write(e.stack + '\n');
+          if (ctx) {
+            await ctx.screenshot('error').catch(() => {});
+            await ctx.close({ error: true });
+          }
+          process.exit(1);
+        });

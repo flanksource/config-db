@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	gocontext "context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,11 +12,11 @@ import (
 	"path"
 	"time"
 
-	"encoding/json"
-
 	"github.com/flanksource/clicky"
+	clickyapi "github.com/flanksource/clicky/api"
 	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/hash"
+	"github.com/google/uuid"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
@@ -83,6 +85,9 @@ var Run = &cobra.Command{
 
 			dutyCtx = c
 			db.WarmExternalEntityCaches(dutyCtx)
+			if blobs, err := dutyCtx.Blobs(); err == nil {
+				api.BlobStore = blobs
+			}
 		}
 
 		if debugPort >= 0 {
@@ -159,6 +164,8 @@ type runHTMLOutput struct {
 	Counts             v1.CountsGrid                `json:"-"`
 	SaveSummary        *v1.ScrapeSummary            `json:"-"`
 	Configs            []v1.ScrapeResult            `pretty:"table"`
+	Changes            []changeWithScreenshot        `pretty:"table"`
+	Artifacts          []models.Artifact            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
 	Relationships      []models.ConfigRelationship  `pretty:"table"`
 	ExternalRoles      []models.ExternalRole        `pretty:"table"`
@@ -214,15 +221,143 @@ func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary
 	return results, nil, nil
 }
 
+type changeWithScreenshot struct {
+	models.ConfigChange
+}
+
+func (c changeWithScreenshot) Columns() []clickyapi.ColumnDef {
+	return []clickyapi.ColumnDef{
+		clicky.Column("ConfigType").Build(),
+		clicky.Column("ExternalID").Build(),
+		clicky.Column("ChangeType").Build(),
+		clicky.Column("Summary").Build(),
+		clicky.Column("Severity").Build(),
+		clicky.Column("CreatedAt").Build(),
+	}
+}
+
+func (c changeWithScreenshot) Row() map[string]any {
+	row := c.ConfigChange.Row()
+	row["ConfigType"] = clicky.Text(c.ConfigType)
+	row["ExternalID"] = clicky.Text(c.ExternalID)
+	return row
+}
+
+func (c changeWithScreenshot) RowDetail() clickyapi.Textable {
+	base := c.ConfigChange.RowDetail()
+
+	if c.Details == nil {
+		return base
+	}
+	var details map[string]any
+	if err := json.Unmarshal(c.Details, &details); err != nil {
+		return base
+	}
+
+	var imgs string
+	if arr, ok := details["artifacts"].([]any); ok {
+		for _, item := range arr {
+			art, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			artID, _ := art["artifactId"].(string)
+			if artID == "" || api.BlobStore == nil {
+				continue
+			}
+			id, err := uuid.Parse(artID)
+			if err != nil {
+				continue
+			}
+			artifactData, err := api.BlobStore.Read(id)
+			if err != nil || artifactData == nil || artifactData.Content == nil {
+				continue
+			}
+			data, _ := io.ReadAll(artifactData.Content)
+			artifactData.Content.Close()
+			if len(data) == 0 {
+				continue
+			}
+			b64 := base64.StdEncoding.EncodeToString(data)
+			imgs += fmt.Sprintf(
+				`<img src="data:image/png;base64,%s" style="max-width:100%%;border-radius:4px;margin:4px 0" />`,
+				b64,
+			)
+		}
+	}
+
+	if imgs == "" {
+		return base
+	}
+	if base != nil {
+		return screenshotDetail{html: base.HTML() + imgs}
+	}
+	return screenshotDetail{html: imgs}
+}
+
+type screenshotDetail struct{ html string }
+
+func (s screenshotDetail) String() string    { return "[screenshot]" }
+func (s screenshotDetail) ANSI() string      { return "[screenshot]" }
+func (s screenshotDetail) HTML() string      { return s.html }
+func (s screenshotDetail) Markdown() string  { return "[screenshot]" }
+func (s screenshotDetail) StaticHTML() string { return s.html }
+
 func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollector *har.Collector, logs string) {
 	if outputDir != "" {
 		return
 	}
 
 	all := v1.MergeScrapeResults(results)
+	var changes []changeWithScreenshot
+	var artifacts []models.Artifact
+	for _, c := range all.Changes {
+		changes = append(changes, changeWithScreenshot{c})
+		if c.Details == nil {
+			continue
+		}
+		var details map[string]any
+		if err := json.Unmarshal(c.Details, &details); err != nil {
+			continue
+		}
+
+		var artMaps []map[string]any
+		if arr, ok := details["artifacts"].([]any); ok {
+			for _, item := range arr {
+				if m, ok := item.(map[string]any); ok {
+					artMaps = append(artMaps, m)
+				}
+			}
+		}
+
+		for _, art := range artMaps {
+			a := models.Artifact{
+				Filename: fmt.Sprintf("%v", art["name"]),
+				Checksum: fmt.Sprintf("%v", art["sha"]),
+			}
+			if size, ok := art["size"].(float64); ok {
+				a.Size = int64(size)
+			}
+			if artID, ok := art["artifactId"].(string); ok && artID != "" && api.BlobStore != nil {
+				if id, err := uuid.Parse(artID); err == nil {
+					if artifactData, err := api.BlobStore.Read(id); err == nil && artifactData != nil && artifactData.Content != nil {
+						if data, err := io.ReadAll(artifactData.Content); err == nil {
+							a.ContentType = "image/png"
+							a.SetContent(data, "gzip", 0) //nolint:errcheck
+						}
+						artifactData.Content.Close()
+					}
+				}
+			}
+			artifacts = append(artifacts, a)
+		}
+	}
+
 	output := runHTMLOutput{
 		Counts:             v1.BuildCounts(all),
 		Configs:            all.Configs,
+		Changes:            changes,
+		Artifacts:          artifacts,
 		Analysis:           all.Analysis,
 		Relationships:      all.Relationships,
 		ExternalRoles:      all.ExternalRoles,
