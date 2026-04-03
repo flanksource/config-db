@@ -18,6 +18,7 @@ import (
 	clickyapi "github.com/flanksource/clicky/api"
 	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/hash"
+	"github.com/google/uuid"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
