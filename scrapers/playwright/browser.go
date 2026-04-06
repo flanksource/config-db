@@ -86,7 +86,14 @@ func findChromiumBinary() (string, error) {
 	case "darwin":
 		return filepath.Join(base, "chrome-mac-arm64", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"), nil
 	case "linux":
-		return filepath.Join(base, "chrome-linux", "chrome"), nil
+		// Playwright installs to chrome-linux64/ on 64-bit Linux
+		for _, dir := range []string{"chrome-linux64", "chrome-linux"} {
+			p := filepath.Join(base, dir, "chrome")
+			if _, err := os.Stat(p); err == nil {
+				return p, nil
+			}
+		}
+		return "", fmt.Errorf("chromium binary not found in %s", base)
 	default:
 		return "", fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
