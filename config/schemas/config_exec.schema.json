@@ -227,6 +227,65 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "ConfigQuery": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path is the file path to write the query results to (relative to script working dir)."
+        },
+        "agent": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "cache": {
+          "type": "string"
+        },
+        "search": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "includeDeleted": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "tagSelector": {
+          "type": "string"
+        },
+        "labelSelector": {
+          "type": "string"
+        },
+        "fieldSelector": {
+          "type": "string"
+        },
+        "health": {
+          "type": "string"
+        },
+        "types": {
+          "$ref": "#/$defs/Items"
+        },
+        "statuses": {
+          "$ref": "#/$defs/Items"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "description": "ConfigQuery defines a query that exports config items as JSON files for use in scripts."
+    },
     "EKSConnection": {
       "properties": {
         "connection": {
@@ -389,6 +448,13 @@
           "type": "array",
           "description": "Environment variables"
         },
+        "query": {
+          "items": {
+            "$ref": "#/$defs/ConfigQuery"
+          },
+          "type": "array",
+          "description": "Query exports config items as JSON files for use in scripts."
+        },
         "artifacts": {
           "items": {
             "$ref": "#/$defs/Artifact"
@@ -443,6 +509,9 @@
           "$ref": "#/$defs/RuntimeSetup"
         },
         "powershell": {
+          "$ref": "#/$defs/RuntimeSetup"
+        },
+        "playwright": {
           "$ref": "#/$defs/RuntimeSetup"
         }
       },
@@ -552,6 +621,12 @@
       "required": [
         "key"
       ]
+    },
+    "Items": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
     },
     "JSONStringMap": {
       "additionalProperties": {

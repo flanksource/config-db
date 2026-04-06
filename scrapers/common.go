@@ -5,9 +5,8 @@ import (
 	"github.com/flanksource/config-db/scrapers/clickhouse"
 	"github.com/flanksource/config-db/scrapers/exec"
 	"github.com/flanksource/config-db/scrapers/http"
-	"github.com/flanksource/config-db/scrapers/playwright"
 	"github.com/flanksource/config-db/scrapers/logs"
-	playwrightScraper "github.com/flanksource/config-db/scrapers/playwright"
+	"github.com/flanksource/config-db/scrapers/playwright"
 	"github.com/flanksource/config-db/scrapers/slack"
 	"github.com/flanksource/config-db/scrapers/system"
 	"github.com/flanksource/config-db/scrapers/terraform"
@@ -39,7 +38,7 @@ var All = []api.Scraper{
 	http.Scraper{},
 	terraform.Scraper{},
 	system.Scraper{},
-	playwright.PlaywrightScraper{},
+	playwright.Scraper{},
 }
 
 func GetAuthValues(ctx api.ScrapeContext, auth *v1.Authentication) (*v1.Authentication, error) {

@@ -94,6 +94,29 @@ func ParseOutput(config v1.BaseScraper, stdout string) v1.ScrapeResults {
 	return v1.ScrapeResults{result.Success(stdout)}
 }
 
+func runQueries(ctx api.ScrapeContext, queries []v1.ConfigQuery, workDir string) error {
+	for _, q := range queries {
+		items, err := query.FindConfigsByResourceSelector(ctx.Context, 0, q.ResourceSelector)
+		if err != nil {
+			return fmt.Errorf("query for %s: %w", q.Path, err)
+		}
+
+		data, err := json.Marshal(items)
+		if err != nil {
+			return fmt.Errorf("marshaling results for %s: %w", q.Path, err)
+		}
+
+		outPath := filepath.Join(workDir, q.Path)
+		os.MkdirAll(filepath.Dir(outPath), 0755) //nolint:errcheck
+		if err := os.WriteFile(outPath, data, 0644); err != nil {
+			return fmt.Errorf("writing results to %s: %w", q.Path, err)
+		}
+
+		ctx.Logger.V(2).Infof("query exported %d items to %s", len(items), outPath)
+	}
+	return nil
+}
+
 func CreateResultsFromJSON(config v1.BaseScraper, data any) v1.ScrapeResults {
 	results := v1.ScrapeResults{}
 

@@ -36,8 +36,8 @@ var _ = Describe("ParseGitPermissions", func() {
 	It("identifies user vs group by descriptor prefix", func() {
 		acls := []AccessControlList{{
 			AcesDictionary: map[string]AccessControlEntry{
-				"vssgp.group-desc":                             {Allow: GitPermissionRead},
-				"Microsoft.TeamFoundation.Identity;user-desc":  {Allow: GitPermissionRead},
+				"vssgp.group-desc": {Allow: GitPermissionRead},
+				"Microsoft.TeamFoundation.Identity;user-desc": {Allow: GitPermissionRead},
 			},
 		}}
 

@@ -25,8 +25,8 @@ type rbacExtractor struct {
 	roles       map[uuid.UUID]models.ExternalRole
 	users       map[uuid.UUID]models.ExternalUser
 	groups      map[uuid.UUID]models.ExternalGroup
-	access     []v1.ExternalConfigAccess
-	seenAccess map[string]struct{} // dedup key for access entries
+	access      []v1.ExternalConfigAccess
+	seenAccess  map[string]struct{} // dedup key for access entries
 
 	roleRules      map[string][]rbacRule // key: kind/namespace/name -> rules
 	resourceToKind map[string]string     // plural resource name -> Kind (e.g., "pods" -> "Pod")
