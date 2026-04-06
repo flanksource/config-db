@@ -1675,13 +1675,28 @@ func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) erro
 
 func linkArtifactsToChanges(ctx api.ScrapeContext, changes []*models.ConfigChange) {
 	for _, change := range changes {
-		if change.Details == nil || change.ID == "" {
+		if change.Details == nil {
 			continue
 		}
 		artifacts, ok := change.Details["artifacts"].([]any)
 		if !ok {
 			continue
 		}
+
+		// Resolve the actual change ID from the DB (ON CONFLICT may have used an existing row)
+		changeID := change.ID
+		if change.ExternalChangeID != nil && *change.ExternalChangeID != "" {
+			var dbChange models.ConfigChange
+			if err := ctx.DB().Select("id").
+				Where("config_id = ? AND external_change_id = ?", change.ConfigID, *change.ExternalChangeID).
+				First(&dbChange).Error; err == nil {
+				changeID = dbChange.ID
+			}
+		}
+		if changeID == "" {
+			continue
+		}
+
 		for _, item := range artifacts {
 			art, ok := item.(map[string]any)
 			if !ok {
@@ -1693,8 +1708,8 @@ func linkArtifactsToChanges(ctx api.ScrapeContext, changes []*models.ConfigChang
 			}
 			if err := ctx.DB().Model(&dutyModels.Artifact{}).
 				Where("id = ?", artID).
-				Update("config_change_id", change.ID).Error; err != nil {
-				ctx.Logger.V(2).Infof("failed to link artifact %s to change %s: %v", artID, change.ID, err)
+				Update("config_change_id", changeID).Error; err != nil {
+				ctx.Logger.V(2).Infof("failed to link artifact %s to change %s: %v", artID, changeID, err)
 			}
 		}
 	}

@@ -16,7 +16,6 @@ import (
 	clickyapi "github.com/flanksource/clicky/api"
 	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/hash"
-	"github.com/google/uuid"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
@@ -29,6 +28,7 @@ import (
 	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/shutdown"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
 	"github.com/spf13/cobra"
@@ -164,7 +164,7 @@ type runHTMLOutput struct {
 	Counts             v1.CountsGrid                `json:"-"`
 	SaveSummary        *v1.ScrapeSummary            `json:"-"`
 	Configs            []v1.ScrapeResult            `pretty:"table"`
-	Changes            []changeWithScreenshot        `pretty:"table"`
+	Changes            []changeWithScreenshot       `pretty:"table"`
 	Artifacts          []models.Artifact            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
 	Relationships      []models.ConfigRelationship  `pretty:"table"`
@@ -297,10 +297,10 @@ func (c changeWithScreenshot) RowDetail() clickyapi.Textable {
 
 type screenshotDetail struct{ html string }
 
-func (s screenshotDetail) String() string    { return "[screenshot]" }
-func (s screenshotDetail) ANSI() string      { return "[screenshot]" }
-func (s screenshotDetail) HTML() string      { return s.html }
-func (s screenshotDetail) Markdown() string  { return "[screenshot]" }
+func (s screenshotDetail) String() string     { return "[screenshot]" }
+func (s screenshotDetail) ANSI() string       { return "[screenshot]" }
+func (s screenshotDetail) HTML() string       { return s.html }
+func (s screenshotDetail) Markdown() string   { return "[screenshot]" }
 func (s screenshotDetail) StaticHTML() string { return s.html }
 
 func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollector *har.Collector, logs string) {
