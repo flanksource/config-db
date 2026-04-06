@@ -55,12 +55,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Playwright browsers
         run: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          bunx playwright install --with-deps chromium
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          $HOME/.local/bin/bunx playwright install --with-deps chromium
       - name: Test
-        run: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          go test -tags e2e -v -count=1 -timeout 180s ./scrapers/playwright/
+        run: go test -tags e2e -v -count=1 -timeout 180s ./scrapers/playwright/
 
   e2e:
     runs-on: ubuntu-latest
