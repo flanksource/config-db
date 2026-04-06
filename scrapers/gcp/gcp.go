@@ -14,7 +14,6 @@ import (
 	uuidV5 "github.com/gofrs/uuid/v5"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
-	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -50,12 +49,12 @@ func NewGCPContext(ctx api.ScrapeContext, gcpConfig v1.GCP) (*GCPContext, error)
 	}
 
 	if creds != "" {
-		c, err := google.CredentialsFromJSON(ctx, []byte(creds), "https://www.googleapis.com/auth/cloud-platform")
+		gcpConfig.GCPConnection.Credentials = &types.EnvVar{ValueStatic: creds}
+		tokenSource, err := gcpConfig.GCPConnection.TokenSource(ctx.Context, "https://www.googleapis.com/auth/cloud-platform")
 		if err != nil {
 			return nil, fmt.Errorf("error getting credentials from json: %w", err)
 		}
-		opts = append(opts, option.WithCredentials(c))
-
+		opts = append(opts, option.WithTokenSource(tokenSource))
 	}
 
 	return &GCPContext{
