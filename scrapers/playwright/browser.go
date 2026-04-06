@@ -51,10 +51,10 @@ type Browser struct {
 	WorkDir        string // root working dir for all artifacts
 	ScreenshotsDir string
 	QueryDir       string // directory for config query JSON exports
-	TraceDir       string // persistent trace output dir (only when trace=true)
 	StorageState   string // path to Playwright storageState JSON file
 	Headless       bool
-	trace          bool
+	trace          bool // when true, enable HAR/video recording and persist artifacts
+	keep           bool // when true, skip cleanup on Close (but don't enable tracing)
 	traceConfig    *v1.PlaywrightTrace
 	logger         logger.Logger
 	ownsDir        bool // true if we created the dir and should clean it up
@@ -84,7 +84,13 @@ func findChromiumBinary() (string, error) {
 	base := filepath.Join(cacheDir, latestChromium)
 	switch runtime.GOOS {
 	case "darwin":
-		return filepath.Join(base, "chrome-mac-arm64", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"), nil
+		for _, dir := range []string{"chrome-mac-arm64", "chrome-mac"} {
+			p := filepath.Join(base, dir, "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing")
+			if _, err := os.Stat(p); err == nil {
+				return p, nil
+			}
+		}
+		return "", fmt.Errorf("chromium binary not found in %s", base)
 	case "linux":
 		// Playwright installs to chrome-linux64/ on 64-bit Linux
 		for _, dir := range []string{"chrome-linux64", "chrome-linux"} {
@@ -117,9 +123,15 @@ func NewBrowser(opts BrowserOptions) (*Browser, error) {
 		name = "playwright"
 	}
 
-	// Single working dir for all artifacts
-	workDir := filepath.Join(base, name, time.Now().Format("20060102-150405"))
-	os.MkdirAll(workDir, 0755) //nolint:errcheck
+	// Single working dir for all artifacts — use MkdirTemp to avoid collisions
+	runBase := filepath.Join(base, name)
+	if err := os.MkdirAll(runBase, 0755); err != nil {
+		return nil, fmt.Errorf("creating playwright run base: %w", err)
+	}
+	workDir, err := os.MkdirTemp(runBase, time.Now().Format("20060102-150405")+"-")
+	if err != nil {
+		return nil, fmt.Errorf("creating playwright work dir: %w", err)
+	}
 
 	dataDir := opts.UserDataDir
 	ownsDir := false
@@ -139,16 +151,15 @@ func NewBrowser(opts BrowserOptions) (*Browser, error) {
 		Headless:       opts.Headless,
 		logger:         log,
 		ownsDir:        ownsDir,
-		trace:          opts.Trace || opts.Keep,
+		trace:          opts.Trace,
+		keep:           opts.Keep,
 		traceConfig:    opts.TraceConfig,
 	}
 	os.MkdirAll(b.ScreenshotsDir, 0755) //nolint:errcheck
 	os.MkdirAll(b.QueryDir, 0755)       //nolint:errcheck
 
 	if opts.Trace {
-		b.TraceDir = filepath.Join(name + "-" + time.Now().Format("20060102-150405"))
-		os.MkdirAll(b.TraceDir, 0755) //nolint:errcheck
-		log.Infof("trace mode: artifacts will be saved to %s", b.TraceDir)
+		log.Infof("trace mode: artifacts will be saved to %s", workDir)
 	}
 
 	log.V(2).Infof("working dir: %s (keep=%v)", workDir, opts.Keep || opts.Trace)
@@ -354,7 +365,7 @@ func (b *Browser) Run(script string, env []string, timeout time.Duration) (*Resu
 	result.ScriptOutput = string(output)
 
 	if b.trace {
-		b.logger.Infof("trace artifacts saved to %s", b.TraceDir)
+		b.logger.Infof("trace artifacts saved to %s", b.WorkDir)
 	}
 
 	if scriptErr != nil {
@@ -456,14 +467,10 @@ func checkLoginError(ctx context.Context, finalURL string) error {
 }
 
 func (b *Browser) Close() {
-	if b.trace {
-		return // preserve all artifacts in trace mode
+	if b.trace || b.keep {
+		return // preserve all artifacts in trace/keep mode
 	}
-	if b.ownsDir {
-		os.RemoveAll(b.DataDir) //nolint:errcheck
-	}
-	os.RemoveAll(b.ScreenshotsDir) //nolint:errcheck
-	os.RemoveAll(b.QueryDir)       //nolint:errcheck
+	os.RemoveAll(b.WorkDir) //nolint:errcheck
 }
 
 func writeScript(script string) (string, func(), error) {

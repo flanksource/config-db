@@ -147,7 +147,7 @@ async function boot() {
       };
     }
     changes.push(change);
-    log(`change: ${change.change_type} ${change.configID || change.external_id || ''}`);
+    log(`change: ${change.change_type} ${change.config_id || change.external_id || ''}`);
   };
 
   const writeOutput = (data: any) => {

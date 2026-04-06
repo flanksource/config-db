@@ -95,7 +95,12 @@ func getAWSConsoleLoginURL(ctx api.ScrapeContext, login v1.PlaywrightAWSLogin, d
 		awsFederationEndpoint, duration, url.QueryEscape(string(sessionJSON)))
 
 	ctx.Logger.V(3).Infof("requesting signin token from federation endpoint")
-	resp, err := http.Get(signinTokenURL) //nolint:gosec
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequestWithContext(ctx.Context, http.MethodGet, signinTokenURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating signin token request: %w", err)
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("getting signin token: %w", err)
 	}

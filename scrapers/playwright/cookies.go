@@ -64,9 +64,11 @@ func writeStorageState(data []byte) (string, error) {
 func buildStorageStateFromHeaders(headers string, connURL string) (string, error) {
 	domain := ""
 	if connURL != "" {
-		if u, err := url.Parse(connURL); err == nil {
-			domain = u.Hostname()
+		u, err := url.Parse(connURL)
+		if err != nil {
+			return "", fmt.Errorf("parsing connection URL %q: %w", connURL, err)
 		}
+		domain = u.Hostname()
 	}
 
 	var cookies []playwrightCookie
@@ -105,6 +107,10 @@ func buildStorageStateFromHeaders(headers string, connURL string) (string, error
 				SameSite: "Lax",
 			})
 		}
+	}
+
+	if len(cookies) == 0 {
+		return "", fmt.Errorf("no cookies found in headers")
 	}
 
 	state := playwrightStorageState{

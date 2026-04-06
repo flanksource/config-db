@@ -85,7 +85,9 @@ var Run = &cobra.Command{
 
 			dutyCtx = c
 			db.WarmExternalEntityCaches(dutyCtx)
-			if blobs, err := dutyCtx.Blobs(); err == nil {
+			if blobs, err := dutyCtx.Blobs(); err != nil {
+				logger.Warnf("failed to initialize blob store: %v", err)
+			} else {
 				api.BlobStore = blobs
 			}
 		}
@@ -273,9 +275,9 @@ func (c changeWithScreenshot) RowDetail() clickyapi.Textable {
 			if err != nil || artifactData == nil || artifactData.Content == nil {
 				continue
 			}
-			data, _ := io.ReadAll(artifactData.Content)
+			data, err := io.ReadAll(artifactData.Content)
 			artifactData.Content.Close() //nolint:errcheck
-			if len(data) == 0 {
+			if err != nil || len(data) == 0 {
 				continue
 			}
 			b64 := base64.StdEncoding.EncodeToString(data)
@@ -331,9 +333,11 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 		}
 
 		for _, art := range artMaps {
+			filename, _ := art["name"].(string)
+			checksum, _ := art["sha"].(string)
 			a := models.Artifact{
-				Filename: fmt.Sprintf("%v", art["name"]),
-				Checksum: fmt.Sprintf("%v", art["sha"]),
+				Filename: filename,
+				Checksum: checksum,
 			}
 			if size, ok := art["size"].(float64); ok {
 				a.Size = int64(size)
@@ -341,11 +345,12 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 			if artID, ok := art["artifactId"].(string); ok && artID != "" && api.BlobStore != nil {
 				if id, err := uuid.Parse(artID); err == nil {
 					if artifactData, err := api.BlobStore.Read(id); err == nil && artifactData != nil && artifactData.Content != nil {
-						if data, err := io.ReadAll(artifactData.Content); err == nil {
+						data, readErr := io.ReadAll(artifactData.Content)
+						artifactData.Content.Close() //nolint:errcheck
+						if readErr == nil && len(data) > 0 {
 							a.ContentType = "image/png"
 							a.SetContent(data, "gzip", 0) //nolint:errcheck
 						}
-						artifactData.Content.Close() //nolint:errcheck
 					}
 				}
 			}

@@ -57,7 +57,7 @@ jobs:
         run: |
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           ln -sf $HOME/.local/bin/bun $HOME/.local/bin/bunx
-          bunx playwright install --with-deps chromium
+          bunx playwright@1.52.0 install --with-deps chromium
       - name: Test
         run: go test -tags e2e -v -count=1 -timeout 180s ./scrapers/playwright/
 

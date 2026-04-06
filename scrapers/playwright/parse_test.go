@@ -3,6 +3,7 @@
 package playwright
 
 import (
+	"context"
 	"os/exec"
 	"testing"
 	"time"
@@ -100,7 +101,9 @@ var _ = Describe("Browser E2E", Ordered, func() {
 		_, err := exec.LookPath("bun")
 		Expect(err).ToNot(HaveOccurred(), "bun must be installed")
 
-		cmd := exec.Command("bunx", "playwright", "install", "chromium")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "bunx", "playwright", "install", "chromium")
 		out, err := cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred(), "chromium install failed: "+string(out))
 
@@ -127,8 +130,8 @@ var _ = Describe("Browser E2E", Ordered, func() {
 const { boot } = require('./playwright-boot');
 async function main() {
   const { page, log, screenshot, writeOutput, close } = await boot();
-  await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeout: 15000 });
-  await screenshot('google');
+  await page.goto('data:text/html,<h1>Hello Playwright</h1>', { waitUntil: 'domcontentloaded', timeout: 15000 });
+  await screenshot('test-page');
   writeOutput({ url: page.url(), title: await page.title() });
   await close();
 }
@@ -136,7 +139,7 @@ main().catch(e => { process.stderr.write(e.stack + '\n'); process.exit(1); });
 `
 		result, err := b.Run(script, nil, 60*time.Second)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(result.ScriptOutput).To(ContainSubstring("google"))
+		Expect(result.ScriptOutput).To(ContainSubstring("Hello Playwright"))
 		Expect(result.Screenshots).ToNot(BeEmpty())
 	})
 
