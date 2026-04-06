@@ -1,0 +1,75 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: azure-group-members
+  annotations:
+    playwright.userDataDir: /tmp/playwright-azure
+spec:
+  schedule: "@every 6h"
+  playwright:
+    - type: Azure::Group::MemberScreenshot
+      id: $.groupId
+      name: $.groupName
+      trace:
+        har: true
+        domains:
+          - "*.azure.com"
+          - "*.microsoft.com"
+        video: on-error
+      login:
+        browser:
+          connection: connection://default/my-azure
+          headless: false
+      timeout: 600
+      query:
+        - path: groups.json
+          types:
+            - Azure::Group
+      script: |
+        const { boot } = require('./playwright-boot');
+        const fs = require('fs');
+
+        let ctx: any;
+        async function main() {
+          ctx = await boot();
+          const { page, queryDir, log, screenshot, appendChange, writeOutput, checkLogin, close } = ctx;
+
+          const groups = JSON.parse(fs.readFileSync(`${queryDir}/groups.json`, 'utf-8'));
+          log(`loaded ${groups.length} Azure::Group config items`);
+
+          await checkLogin('https://portal.azure.com/');
+
+          for (const group of groups) {
+            const config = typeof group.config === 'string' ? JSON.parse(group.config) : group.config;
+            const groupId = config?.id || group.external_id?.[0] || group.id;
+            const groupName = group.name || groupId;
+
+            const url = `https://portal.azure.com/#view/Microsoft_AAD_IAM/GroupDetailsMenuBlade/~/Members/groupId/${groupId}/menuId/`;
+            log(`navigating to group: ${groupName} (${groupId})`);
+
+            await page.goto(url, { waitUntil: 'domcontentloaded' });
+            await page.waitForSelector('[class*="member"], [data-automationid="ListCell"]', { timeout: 30000 }).catch(() => {});
+
+            const path = await screenshot(groupName, { watermark: `${groupName} — Members` });
+            appendChange({
+              change_type: 'GroupMemberScreenshot',
+              id: `group-members-${groupId}`,
+              config_id: group.id,
+              summary: `Member list screenshot for ${groupName}`,
+              screenshot: path,
+            });
+
+          }
+
+          writeOutput(null);
+          await close();
+        }
+
+        main().catch(async (e) => {
+          process.stderr.write(e.stack + '\n');
+          if (ctx) {
+            await ctx.screenshot('error').catch(() => {});
+            await ctx.close({ error: true });
+          }
+          process.exit(1);
+        });

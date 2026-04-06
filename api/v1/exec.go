@@ -21,6 +21,9 @@ type Exec struct {
 	// Environment variables
 	Env []types.EnvVar `json:"env,omitempty" yaml:"env,omitempty"`
 
+	// Query exports config items as JSON files for use in scripts.
+	Query []ConfigQuery `json:"query,omitempty" yaml:"query,omitempty"`
+
 	// Artifacts to collect after execution
 	Artifacts []shell.Artifact `json:"artifacts,omitempty" yaml:"artifacts,omitempty" template:"true"`
 

@@ -52,3 +52,7 @@ specs/*.md
 .claude/
 gh-api-data/
 screenshots/
+.config-db-playwright/
+.htpasswd
+.facet/
+*.har

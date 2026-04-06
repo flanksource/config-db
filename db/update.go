@@ -851,6 +851,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
+	// Link artifacts to their config changes
+	linkArtifactsToChanges(ctx, newChanges)
+
 	for _, dedup := range deduped {
 		var createdAt any = dedup.Change.CreatedAt
 		if dedup.Change.CreatedAt.IsZero() {
@@ -1668,4 +1671,46 @@ func setConfigPaths(ctx api.ScrapeContext, allConfigs []*models.ConfigItem) erro
 		}
 	}
 	return nil
+}
+
+func linkArtifactsToChanges(ctx api.ScrapeContext, changes []*models.ConfigChange) {
+	for _, change := range changes {
+		if change.Details == nil {
+			continue
+		}
+		artifacts, ok := change.Details["artifacts"].([]any)
+		if !ok {
+			continue
+		}
+
+		// Resolve the actual change ID from the DB (ON CONFLICT may have used an existing row)
+		changeID := change.ID
+		if change.ExternalChangeID != nil && *change.ExternalChangeID != "" {
+			var dbChange models.ConfigChange
+			if err := ctx.DB().Select("id").
+				Where("config_id = ? AND external_change_id = ?", change.ConfigID, *change.ExternalChangeID).
+				First(&dbChange).Error; err == nil {
+				changeID = dbChange.ID
+			}
+		}
+		if changeID == "" {
+			continue
+		}
+
+		for _, item := range artifacts {
+			art, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			artID, ok := art["artifactId"].(string)
+			if !ok || artID == "" {
+				continue
+			}
+			if err := ctx.DB().Model(&dutyModels.Artifact{}).
+				Where("id = ?", artID).
+				Update("config_change_id", changeID).Error; err != nil {
+				ctx.Logger.V(2).Infof("failed to link artifact %s to change %s: %v", artID, changeID, err)
+			}
+		}
+	}
 }

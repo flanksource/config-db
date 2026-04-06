@@ -2,7 +2,11 @@ package exec
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 
+	"github.com/flanksource/duty/query"
 	"github.com/flanksource/duty/shell"
 	"sigs.k8s.io/yaml"
 
@@ -30,6 +34,13 @@ func (e ExecScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 		if config.Connections != nil {
 			execConfig.Connections = *config.Connections
+		}
+
+		if len(config.Query) > 0 {
+			if err := runQueries(ctx, config.Query, execConfig.BaseDir); err != nil {
+				results = append(results, v1.NewScrapeResult(config.BaseScraper).Errorf("running queries: %v", err))
+				continue
+			}
 		}
 
 		execDetails, err := shell.Run(ctx.DutyContext(), execConfig)
@@ -81,6 +92,29 @@ func ParseOutput(config v1.BaseScraper, stdout string) v1.ScrapeResults {
 	// If parsing fails, treat as plain text and create single result
 	result := v1.NewScrapeResult(config)
 	return v1.ScrapeResults{result.Success(stdout)}
+}
+
+func runQueries(ctx api.ScrapeContext, queries []v1.ConfigQuery, workDir string) error {
+	for _, q := range queries {
+		items, err := query.FindConfigsByResourceSelector(ctx.Context, 0, q.ResourceSelector)
+		if err != nil {
+			return fmt.Errorf("query for %s: %w", q.Path, err)
+		}
+
+		data, err := json.Marshal(items)
+		if err != nil {
+			return fmt.Errorf("marshaling results for %s: %w", q.Path, err)
+		}
+
+		outPath := filepath.Join(workDir, q.Path)
+		os.MkdirAll(filepath.Dir(outPath), 0755) //nolint:errcheck
+		if err := os.WriteFile(outPath, data, 0644); err != nil {
+			return fmt.Errorf("writing results to %s: %w", q.Path, err)
+		}
+
+		ctx.Logger.V(2).Infof("query exported %d items to %s", len(items), outPath)
+	}
+	return nil
 }
 
 func CreateResultsFromJSON(config v1.BaseScraper, data any) v1.ScrapeResults {

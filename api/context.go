@@ -231,6 +231,7 @@ func (ctx ScrapeContext) AsDebugRun(level string) ScrapeContext {
 
 func (ctx ScrapeContext) WithHARCollector(collector *har.Collector) ScrapeContext {
 	ctx.harCollector = collector
+	ctx.Context = ctx.Context.WithHARCollector(collector)
 	return ctx
 }
 
@@ -245,7 +246,7 @@ func (ctx ScrapeContext) WithEntities() ScrapeContext {
 	return ctx
 }
 
-func (ctx ScrapeContext) AddUser(user models.ExternalUser)   { ctx.users.Upsert(user) }
+func (ctx ScrapeContext) AddUser(user models.ExternalUser)    { ctx.users.Upsert(user) }
 func (ctx ScrapeContext) AddGroup(group models.ExternalGroup) { ctx.groups.Upsert(group) }
 func (ctx ScrapeContext) AddRole(role models.ExternalRole)    { ctx.roles.Upsert(role) }
 func (ctx ScrapeContext) Users() []models.ExternalUser        { return ctx.users.Items() }

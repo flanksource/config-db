@@ -45,8 +45,8 @@ type IncrementalStatus struct {
 
 // ScrapeConfigStatus defines the observed state of ScrapeConfig
 type ScrapeConfigStatus struct {
-	ObservedGeneration int64             `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
-	LastRun            LastRunStatus     `json:"lastRun,omitempty"`
+	ObservedGeneration int64              `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
+	LastRun            LastRunStatus      `json:"lastRun,omitempty"`
 	Incremental        *IncrementalStatus `json:"incremental,omitempty"`
 }
 

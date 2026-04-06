@@ -402,8 +402,8 @@ func BenchmarkCacheMemory(b *testing.B) {
 func BenchmarkDeserialization(b *testing.B) {
 	// Pre-generate JSON blobs from typed objects so both paths decode identical bytes.
 	type jsonBlob struct {
-		data   []byte
-		isPod  bool // true = Pod, false = Event
+		data  []byte
+		isPod bool // true = Pod, false = Event
 	}
 
 	blobs := make([]jsonBlob, 0, benchNumPods+benchNumEvents)
