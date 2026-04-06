@@ -59,9 +59,7 @@ jobs:
           ln -sf $HOME/.local/bin/bun $HOME/.local/bin/bunx
           bunx playwright@1.52.0 install --with-deps chromium
       - name: Test
-        run: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          go test -tags e2e -v -count=1 -timeout 180s ./scrapers/playwright/
+        run: go test -tags e2e -v -count=1 -timeout 180s ./scrapers/playwright/
 
   e2e:
     runs-on: ubuntu-latest
