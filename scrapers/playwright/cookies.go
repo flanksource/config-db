@@ -52,7 +52,7 @@ func writeStorageState(data []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	if _, err := f.Write(data); err != nil {
 		os.Remove(f.Name()) //nolint:errcheck

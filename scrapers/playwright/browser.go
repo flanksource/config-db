@@ -410,7 +410,7 @@ func checkLoginError(ctx context.Context, finalURL string) error {
 		Title string `json:"title"`
 		HTTP  int    `json:"http"`
 	}
-	chromedp.Run(ctx, chromedp.Evaluate(`(() => { //nolint:errcheck
+	_ = chromedp.Run(ctx, chromedp.Evaluate(`(() => {
 		const title = (document.title || '').toLowerCase();
 		const errorKeywords = ['error', 'invalid', 'denied', 'unauthorized', 'forbidden', 'expired', 'sign in', 'log in'];
 		const isError = errorKeywords.some(k => title.includes(k));

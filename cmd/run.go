@@ -274,7 +274,7 @@ func (c changeWithScreenshot) RowDetail() clickyapi.Textable {
 				continue
 			}
 			data, _ := io.ReadAll(artifactData.Content)
-			artifactData.Content.Close()
+			artifactData.Content.Close() //nolint:errcheck
 			if len(data) == 0 {
 				continue
 			}
@@ -345,7 +345,7 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 							a.ContentType = "image/png"
 							a.SetContent(data, "gzip", 0) //nolint:errcheck
 						}
-						artifactData.Content.Close()
+						artifactData.Content.Close() //nolint:errcheck
 					}
 				}
 			}
