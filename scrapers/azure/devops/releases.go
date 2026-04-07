@@ -73,7 +73,7 @@ var releaseEnvStatusToChangeType = map[string]string{
 	"scheduled":          ChangeTypeInProgress,
 }
 
-func releaseExternalID(organization, project string, definitionID int) string {
+func ReleaseExternalID(organization, project string, definitionID int) string {
 	return fmt.Sprintf("azuredevops://%s/%s/release/%d", organization, project, definitionID)
 }
 
@@ -256,7 +256,7 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Project, def ReleaseDefinition, defJSON map[string]any, releases []Release, cutoff time.Time) v1.ScrapeResult {
 	var result v1.ScrapeResult
 
-	releaseID := releaseExternalID(config.Organization, project.Name, def.ID)
+	releaseID := ReleaseExternalID(config.Organization, project.Name, def.ID)
 	configExternalID := v1.ExternalID{
 		ConfigType: ReleaseType,
 		ExternalID: releaseID,

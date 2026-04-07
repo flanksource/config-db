@@ -7,7 +7,6 @@ import (
 
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/commons/duration"
-	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyModels "github.com/flanksource/duty/models"
@@ -23,7 +22,7 @@ const (
 	ReleaseType  = "AzureDevops::Release"
 )
 
-func pipelineExternalID(organization, project string, pipelineID int) string {
+func PipelineExternalID(organization, project string, pipelineID int) string {
 	return fmt.Sprintf("azuredevops://%s/%s/pipeline/%d", organization, project, pipelineID)
 }
 
@@ -250,7 +249,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 	var accessLogs []v1.ExternalConfigAccessLog
 	var configAccess []v1.ExternalConfigAccess
-	pipelineConfigExternalID := pipelineExternalID(config.Organization, project.Name, pipeline.ID)
+	pipelineConfigExternalID := PipelineExternalID(config.Organization, project.Name, pipeline.ID)
 
 	// Fetch pipeline permissions if enabled and interval has passed
 	if config.Permissions != nil && config.Permissions.Enabled {
@@ -276,10 +275,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 						ctx.Logger.V(4).Infof("failed to resolve identities for %s/%s: %v", project.Name, pipeline.Name, err)
 						permissionsFetched = false
 					} else {
-						identityMap := make(map[string]ResolvedIdentity, len(identities))
-						for _, id := range identities {
-							identityMap[id.Descriptor] = id
-						}
+						identityMap := BuildIdentityMap(identities)
 						for _, perm := range permissions {
 							if !perm.CanQueue && !perm.CanAdmin {
 								continue
@@ -294,34 +290,36 @@ func (ado AzureDevopsScraper) scrapePipeline(
 									email = mailProp.Value
 								}
 							}
+							name := ResolvedIdentityName(identity, project.Name)
 							ctx.Logger.V(4).Infof("resolved identity descriptor=%s subject=%s name=%q email=%q isContainer=%v isActive=%v",
-								identity.Descriptor, identity.SubjectDescriptor, identity.ProviderDisplayName, email, identity.IsContainer, identity.IsActive)
-							// Skip service identities (e.g. build service accounts)
-							if identity.ProviderDisplayName == "" && email == "" {
+								identity.Descriptor, identity.SubjectDescriptor, name, email, identity.IsContainer, identity.IsActive)
+							if name == "" && email == "" {
 								continue
 							}
 							if identity.IsContainer {
-								groupID, err := hash.DeterministicUUID(pq.StringArray{identity.Descriptor})
+								groupID, err := DescriptorID(identity.Descriptor)
 								if err != nil {
 									continue
 								}
+								aliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
+								aliases = append(aliases, DescriptorAliases(identity.SubjectDescriptor)...)
 								ctx.AddGroup(dutyModels.ExternalGroup{
 									ID:        groupID,
-									Name:      identity.ProviderDisplayName,
-									Aliases:   pq.StringArray{identity.Descriptor, identity.SubjectDescriptor},
+									Name:      name,
+									Aliases:   pq.StringArray(aliases),
 									Tenant:    config.Organization,
 									GroupType: "AzureDevOps",
 								})
 								configAccess = append(configAccess, v1.ExternalConfigAccess{
 									ConfigExternalID:     v1.ExternalID{ConfigType: PipelineType, ExternalID: pipelineConfigExternalID},
-									ExternalGroupAliases: []string{identity.Descriptor},
+									ExternalGroupAliases: DescriptorAliases(identity.Descriptor),
 								})
 							} else {
 								if email == "" {
-									email = identity.ProviderDisplayName
+									email = name
 								}
 								ctx.AddUser(dutyModels.ExternalUser{
-									Name:     identity.ProviderDisplayName,
+									Name:     name,
 									Email:    &email,
 									Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
 									Tenant:   config.Organization,
@@ -539,9 +537,9 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			ChangeType:       changeType,
 			CreatedAt:        &createdAt,
 			Severity:         severity,
-			ExternalID:       id,
+			ExternalID:       pipelineConfigExternalID,
 			ConfigType:       PipelineType,
-			Source:           "AzureDevops/pipeline/" + id,
+			Source:           "AzureDevops/pipeline/" + pipelineConfigExternalID,
 			Summary:          summary,
 			Details:          runDetails.ToJSON(),
 			ExternalChangeID: externalChangeID,
@@ -551,7 +549,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		}
 
 		localPipeline.Runs = append(localPipeline.Runs, changeResult)
-		localPipeline.Runs = append(localPipeline.Runs, pipelineApprovalChanges(approvals, id, changeResult.Source, externalChangeID)...)
+		localPipeline.Runs = append(localPipeline.Runs, pipelineApprovalChanges(approvals, pipelineConfigExternalID, changeResult.Source, externalChangeID)...)
 		uniquePipelines[id] = localPipeline
 	}
 
@@ -582,18 +580,23 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			})
 		}
 
+		var aliases []string
+		if id != pipelineConfigExternalID {
+			aliases = []string{id}
+		}
+
 		results = append(results, v1.ScrapeResult{
 			BaseScraper:      config.BaseScraper,
 			ConfigClass:      "Deployment",
 			Config:           configData,
 			Format:           format,
 			Type:             PipelineType,
-			ID:               id,
+			ID:               pipelineConfigExternalID,
 			Labels:           p.GetLabels(),
 			Name:             p.Name,
 			Changes:          changes,
 			Properties:       properties,
-			Aliases:          nil,
+			Aliases:          aliases,
 			ConfigAccess:     configAccess,
 			ConfigAccessLogs: accessLogs,
 		})

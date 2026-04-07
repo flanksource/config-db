@@ -1,7 +1,6 @@
 package devops
 
 import (
-	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyModels "github.com/flanksource/duty/models"
@@ -29,16 +28,17 @@ func (ado AzureDevopsScraper) scrapeGroups(
 	)
 
 	for _, group := range groups {
-		groupID, err := hash.DeterministicUUID(pq.StringArray{group.Descriptor})
+		groupID, err := DescriptorID(group.Descriptor)
 		if err != nil {
 			ctx.Logger.Errorf("failed to create group ID for %s: %v", group.DisplayName, err)
 			continue
 		}
 
+		aliases := append(DescriptorAliases(group.Descriptor), group.PrincipalName)
 		externalGroups = append(externalGroups, dutyModels.ExternalGroup{
 			ID:        groupID,
 			Name:      group.DisplayName,
-			Aliases:   pq.StringArray{group.Descriptor, group.PrincipalName},
+			Aliases:   pq.StringArray(aliases),
 			Tenant:    config.Organization,
 			GroupType: "AzureDevOps",
 		})
@@ -69,37 +69,40 @@ func (ado AzureDevopsScraper) scrapeGroups(
 				continue
 			}
 			if identity.IsContainer {
-				nestedGroupID, err := hash.DeterministicUUID(pq.StringArray{identity.Descriptor})
+				nestedGroupID, err := DescriptorID(identity.Descriptor)
 				if err != nil {
 					continue
 				}
+				nestedAliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
+				nestedAliases = append(nestedAliases, DescriptorAliases(identity.SubjectDescriptor)...)
 				externalGroups = append(externalGroups, dutyModels.ExternalGroup{
 					ID:        nestedGroupID,
 					Name:      identity.ProviderDisplayName,
-					Aliases:   pq.StringArray{identity.Descriptor, identity.SubjectDescriptor},
+					Aliases:   pq.StringArray(nestedAliases),
 					Tenant:    config.Organization,
 					GroupType: "AzureDevOps",
 				})
 			} else {
+				name := ResolvedIdentityName(identity, "")
 				email := ""
 				if mail, ok := identity.Properties["Mail"]; ok {
 					email = mail.Value
 				}
-				if email == "" && identity.ProviderDisplayName == "" {
+				if email == "" && name == "" {
 					continue
 				}
 				if email == "" {
-					email = identity.ProviderDisplayName
+					email = name
 				}
 
-				userID, err := hash.DeterministicUUID(pq.StringArray{identity.Descriptor})
+				userID, err := DescriptorID(identity.Descriptor)
 				if err != nil {
 					continue
 				}
 
 				externalUsers = append(externalUsers, dutyModels.ExternalUser{
 					ID:       userID,
-					Name:     identity.ProviderDisplayName,
+					Name:     name,
 					Email:    &email,
 					Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
 					Tenant:   config.Organization,

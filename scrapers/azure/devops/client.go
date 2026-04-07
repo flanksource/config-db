@@ -2,6 +2,7 @@ package devops
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -9,7 +10,10 @@ import (
 	"time"
 
 	commonsHTTP "github.com/flanksource/commons/http"
+	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -891,8 +895,10 @@ func ParseGitPermissions(acls []AccessControlList) []GitPermissionInfo {
 				continue
 			}
 			identityType := "user"
-			if len(descriptor) > 5 && descriptor[0:5] == "vssgp" {
+			if strings.HasPrefix(descriptor, vssgpPrefix) {
 				identityType = "group"
+			} else if strings.HasPrefix(descriptor, tfIdentityPrefix) {
+				identityType = "unknown"
 			}
 			perms = append(perms, GitPermissionInfo{
 				IdentityDescriptor: descriptor,
@@ -975,14 +981,12 @@ func ParsePermissions(acls []AccessControlList) []PermissionInfo {
 				CanAdmin:           (effectiveAllow & BuildPermissionAdministerBuildPermissions) != 0,
 			}
 
-			// Parse identity type from descriptor
-			// Format: Microsoft.TeamFoundation.Identity;S-1-9-... or vssgp.Uy0xLT...
-			if len(descriptor) > 5 {
-				if descriptor[0:5] == "vssgp" {
-					perm.IdentityType = "group"
-				} else {
-					perm.IdentityType = "user"
-				}
+			if strings.HasPrefix(descriptor, vssgpPrefix) {
+				perm.IdentityType = "group"
+			} else if strings.HasPrefix(descriptor, tfIdentityPrefix) {
+				perm.IdentityType = "unknown"
+			} else {
+				perm.IdentityType = "user"
 			}
 
 			permissions = append(permissions, perm)
@@ -1016,9 +1020,20 @@ type ResolvedIdentities struct {
 	Value []ResolvedIdentity `json:"value"`
 }
 
-// GetIdentitiesByDescriptor resolves identity descriptors to full identity info
+// GetIdentitiesByDescriptor resolves identity descriptors to full identity info.
+// System/service descriptors (svc., s2s.) are filtered out as they cannot be resolved.
 func (ado *AzureDevopsClient) GetIdentitiesByDescriptor(ctx context.Context, descriptors []string) ([]ResolvedIdentity, error) {
 	if len(descriptors) == 0 {
+		return nil, nil
+	}
+
+	var resolvable []string
+	for _, d := range descriptors {
+		if !strings.HasPrefix(d, "svc.") && !strings.HasPrefix(d, "s2s.") {
+			resolvable = append(resolvable, d)
+		}
+	}
+	if len(resolvable) == 0 {
 		return nil, nil
 	}
 
@@ -1026,9 +1041,12 @@ func (ado *AzureDevopsClient) GetIdentitiesByDescriptor(ctx context.Context, des
 		BaseURL(fmt.Sprintf("https://vssps.dev.azure.com/%s", ado.Organization)).
 		Auth(ado.Organization, ado.token)
 
-	identities, _, err := get[ResolvedIdentities](vsspsClient, ctx, "/_apis/identities",
-		"api-version", "7.1", "descriptors", joinDescriptors(descriptors))
+	identities, resp, err := get[ResolvedIdentities](vsspsClient, ctx, "/_apis/identities",
+		"api-version", "7.1", "descriptors", joinDescriptors(resolvable))
 	if err != nil {
+		if resp != nil && resp.StatusCode == 404 {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to resolve identities: %w", err)
 	}
 	return identities.Value, nil
@@ -1043,6 +1061,141 @@ func joinDescriptors(descriptors []string) string {
 		result += d
 	}
 	return result
+}
+
+const tfIdentityPrefix = "Microsoft.TeamFoundation.Identity;"
+const vssgpPrefix = "vssgp."
+
+// DescriptorToSID extracts the SID from either descriptor format.
+// "vssgp.BASE64" -> decoded SID, "Microsoft.TeamFoundation.Identity;SID" -> SID
+func DescriptorToSID(descriptor string) string {
+	if strings.HasPrefix(descriptor, tfIdentityPrefix) {
+		return descriptor[len(tfIdentityPrefix):]
+	}
+	if strings.HasPrefix(descriptor, vssgpPrefix) {
+		b, err := base64.StdEncoding.DecodeString(descriptor[len(vssgpPrefix):])
+		if err != nil {
+			b, err = base64.RawStdEncoding.DecodeString(descriptor[len(vssgpPrefix):])
+			if err != nil {
+				return ""
+			}
+		}
+		return string(b)
+	}
+	return ""
+}
+
+// SIDToTFIdentity converts a SID to the Microsoft.TeamFoundation.Identity; form.
+func SIDToTFIdentity(sid string) string {
+	if sid == "" {
+		return ""
+	}
+	return tfIdentityPrefix + sid
+}
+
+// SIDToVssgp converts a SID to the vssgp. form.
+func SIDToVssgp(sid string) string {
+	if sid == "" {
+		return ""
+	}
+	return vssgpPrefix + base64.RawStdEncoding.EncodeToString([]byte(sid))
+}
+
+// NormalizeDescriptor returns the canonical vssgp. form of a descriptor.
+// Both "vssgp.X" and "Microsoft.TeamFoundation.Identity;SID" normalize to the same "vssgp.X".
+// Non-identity descriptors are returned as-is.
+func NormalizeDescriptor(descriptor string) string {
+	sid := DescriptorToSID(descriptor)
+	if sid == "" {
+		return descriptor
+	}
+	return SIDToVssgp(sid)
+}
+
+// DescriptorID generates a deterministic UUID from any descriptor form.
+// Normalizes to vssgp. form first so the same identity always gets the same ID.
+func DescriptorID(descriptor string) (uuid.UUID, error) {
+	return hash.DeterministicUUID(pq.StringArray{NormalizeDescriptor(descriptor)})
+}
+
+// DescriptorAliases returns both descriptor forms (vssgp. and Microsoft.TeamFoundation.Identity;)
+// given either form as input.
+func DescriptorAliases(descriptor string) []string {
+	sid := DescriptorToSID(descriptor)
+	if sid == "" {
+		return []string{descriptor}
+	}
+	return []string{SIDToVssgp(sid), SIDToTFIdentity(sid)}
+}
+
+// BuildIdentityMap creates a lookup map that maps any descriptor form (vssgp., TF identity, or SubjectDescriptor)
+// to the resolved identity. This handles the case where ACE keys use one form but the API returns another.
+func BuildIdentityMap(identities []ResolvedIdentity) map[string]ResolvedIdentity {
+	m := make(map[string]ResolvedIdentity, len(identities)*3)
+	for _, id := range identities {
+		m[id.Descriptor] = id
+		if id.SubjectDescriptor != "" {
+			m[id.SubjectDescriptor] = id
+		}
+		for _, alias := range DescriptorAliases(id.Descriptor) {
+			m[alias] = id
+		}
+		if id.SubjectDescriptor != "" {
+			for _, alias := range DescriptorAliases(id.SubjectDescriptor) {
+				m[alias] = id
+			}
+		}
+	}
+	return m
+}
+
+func isUUIDLike(s string) bool {
+	return len(s) == 36 && s[8] == '-' && s[13] == '-' && s[18] == '-' && s[23] == '-'
+}
+
+// serviceIdentityLabel extracts the type and replaces the resource GUID with projectName if available.
+func serviceIdentityLabel(payload string, projectName string) string {
+	parts := strings.SplitN(payload, ":", 3)
+	if len(parts) != 3 {
+		return ""
+	}
+	label := projectName
+	if label == "" {
+		label = parts[2]
+	}
+	return parts[1] + " Service (" + label + ")"
+}
+
+// ResolvedIdentityName returns the best display name for a resolved identity.
+// projectName is used to replace GUIDs in service identity names (e.g. "Build Service (OIPA)").
+func ResolvedIdentityName(identity ResolvedIdentity, projectName string) string {
+	name := identity.ProviderDisplayName
+	if name != "" && !isUUIDLike(name) {
+		return name
+	}
+
+	for _, desc := range []string{identity.Descriptor, identity.SubjectDescriptor} {
+		if strings.HasPrefix(desc, "Microsoft.TeamFoundation.ServiceIdentity;") {
+			if label := serviceIdentityLabel(desc[len("Microsoft.TeamFoundation.ServiceIdentity;"):], projectName); label != "" {
+				return label
+			}
+		}
+		if strings.HasPrefix(desc, "svc.") {
+			if b, err := base64.RawStdEncoding.DecodeString(desc[4:]); err == nil {
+				if label := serviceIdentityLabel(string(b), projectName); label != "" {
+					return label
+				}
+			}
+		}
+	}
+
+	if name != "" && strings.Contains(name, "@") {
+		return "Service Principal (" + name + ")"
+	}
+	if isUUIDLike(name) {
+		return "Service Account (" + name + ")"
+	}
+	return name
 }
 
 // GetPipelineSecurityRoles gets the build definition security roles (who can queue, admin, etc.)

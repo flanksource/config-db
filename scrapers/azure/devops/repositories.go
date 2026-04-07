@@ -15,7 +15,7 @@ import (
 
 const RepositoryType = "AzureDevops::Repository"
 
-func repositoryExternalID(organization, project, repoID string) string {
+func RepositoryExternalID(organization, project, repoID string) string {
 	return fmt.Sprintf("azuredevops://%s/%s/repository/%s", organization, project, repoID)
 }
 
@@ -40,7 +40,7 @@ func (ado AzureDevopsScraper) scrapeRepositories(
 			continue
 		}
 
-		id := repositoryExternalID(config.Organization, project.Name, repo.ID)
+		id := RepositoryExternalID(config.Organization, project.Name, repo.ID)
 
 		configData := map[string]any{
 			"id":            repo.ID,
@@ -117,10 +117,7 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 		return nil, nil
 	}
 
-	identityMap := make(map[string]ResolvedIdentity, len(identities))
-	for _, id := range identities {
-		identityMap[id.Descriptor] = id
-	}
+	identityMap := BuildIdentityMap(identities)
 
 	var roleMapping map[string][]string
 	if config.Permissions != nil {
@@ -137,21 +134,29 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 			continue
 		}
 
+		name := ResolvedIdentityName(identity, project.Name)
 		email := emailFromIdentity(identity)
-		if identity.ProviderDisplayName == "" && email == "" {
+		if name == "" && email == "" {
 			continue
 		}
 
 		if identity.IsContainer {
+			groupID, err := DescriptorID(identity.Descriptor)
+			if err != nil {
+				continue
+			}
+			aliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
+			aliases = append(aliases, DescriptorAliases(identity.SubjectDescriptor)...)
 			ctx.AddGroup(dutyModels.ExternalGroup{
-				Name:      identity.ProviderDisplayName,
-				Aliases:   pq.StringArray{identity.Descriptor, identity.SubjectDescriptor},
+				ID:        groupID,
+				Name:      name,
+				Aliases:   pq.StringArray(aliases),
 				Tenant:    config.Organization,
 				GroupType: "AzureDevOps",
 			})
 		} else {
 			ctx.AddUser(dutyModels.ExternalUser{
-				Name:     identity.ProviderDisplayName,
+				Name:     name,
 				Email:    &email,
 				Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
 				Tenant:   config.Organization,
@@ -181,7 +186,7 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 				ExternalRoleAliases: []string{roleName},
 			}
 			if identity.IsContainer {
-				access.ExternalGroupAliases = []string{identity.Descriptor}
+				access.ExternalGroupAliases = DescriptorAliases(identity.Descriptor)
 			} else {
 				access.ExternalUserAliases = []string{email}
 			}
