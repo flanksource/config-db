@@ -520,7 +520,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			Config:           configData,
 			Format:           format,
 			Type:             PipelineType,
-			ID:               id,
+			ID:               pipelineConfigExternalID,
 			Labels:           p.GetLabels(),
 			Name:             p.Name,
 			Changes:          changes,
