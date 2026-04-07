@@ -217,13 +217,13 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
                 data={a}
                 summary={
                   <div class="flex flex-wrap items-center gap-1.5">
-                    {a.external_user_aliases?.map((u, j) => (
+                    {(a.external_user_aliases?.length ? a.external_user_aliases : a.external_user_id ? [a.external_user_id] : []).map((u, j) => (
                       <span key={j} class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">user: {resolve(lookups.users, u)}</span>
                     ))}
-                    {a.external_role_aliases?.map((r, j) => (
+                    {(a.external_role_aliases?.length ? a.external_role_aliases : a.external_role_id ? [a.external_role_id] : []).map((r, j) => (
                       <span key={j} class="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">role: {resolve(lookups.roles, r)}</span>
                     ))}
-                    {a.external_group_aliases?.map((g, j) => (
+                    {(a.external_group_aliases?.length ? a.external_group_aliases : a.external_group_id ? [a.external_group_id] : []).map((g, j) => (
                       <span key={j} class="px-1.5 py-0.5 rounded bg-green-100 text-green-700">group: {resolve(lookups.groups, g)}</span>
                     ))}
                     {a.created_at && <span class="text-gray-400 ml-auto">{a.created_at}</span>}
