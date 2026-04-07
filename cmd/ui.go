@@ -9,14 +9,14 @@ import (
 	"syscall"
 	"time"
 
+	"encoding/json"
+
 	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/cmd/scrapeui"
 	"github.com/flanksource/duty/models"
 	"github.com/spf13/cobra"
-
-	"encoding/json"
 )
 
 // jsonResults matches the JSON shape produced by `config-db run --json`.
@@ -26,7 +26,7 @@ type jsonResults struct {
 	Changes            []models.ConfigChange
 	Artifacts          []models.Artifact
 	Analysis           []models.ConfigAnalysis
-	Relationships      []models.ConfigRelationship
+	Relationships      []scrapeui.UIRelationship
 	ExternalRoles      []models.ExternalRole
 	ExternalUsers      []models.ExternalUser
 	ExternalGroups     []models.ExternalGroup
@@ -56,7 +56,6 @@ var UI = &cobra.Command{
 				Configs:            results.Configs,
 				Changes:            results.Changes,
 				Analysis:           results.Analysis,
-				Relationships:      results.Relationships,
 				ExternalRoles:      results.ExternalRoles,
 				ExternalUsers:      results.ExternalUsers,
 				ExternalGroups:     results.ExternalGroups,
@@ -64,7 +63,8 @@ var UI = &cobra.Command{
 				ConfigAccess:       results.ConfigAccess,
 				ConfigAccessLogs:   results.ConfigAccessLogs,
 			},
-			HAR: results.HAR,
+			Relationships: results.Relationships,
+			HAR:           results.HAR,
 		}
 
 		srv := scrapeui.NewStaticServer(snap)
