@@ -215,7 +215,7 @@ type runHTMLOutput struct {
 	Changes            []changeWithScreenshot       `pretty:"table"`
 	Artifacts          []models.Artifact            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
-	Relationships      []models.ConfigRelationship  `pretty:"table"`
+	Relationships      []scrapeui.UIRelationship    `pretty:"table"`
 	ExternalRoles      []models.ExternalRole        `pretty:"table"`
 	ExternalUsers      []models.ExternalUser        `pretty:"table"`
 	ExternalGroups     []models.ExternalGroup       `pretty:"table"`
@@ -410,7 +410,7 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 		Changes:            changes,
 		Artifacts:          artifacts,
 		Analysis:           all.Analysis,
-		Relationships:      all.Relationships,
+		Relationships:      scrapeui.BuildUIRelationships(results),
 		ExternalRoles:      all.ExternalRoles,
 		ExternalUsers:      all.ExternalUsers,
 		ExternalGroups:     all.ExternalGroups,

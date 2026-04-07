@@ -49,14 +49,32 @@ type TypeSummary struct {
 	Changes   int `json:"changes"`
 }
 
+// UIRelationship is a frontend-friendly relationship that uses
+// external IDs and resolved names instead of internal DB UUIDs.
+type UIRelationship struct {
+	ConfigExternalID  string `json:"config_id"`
+	RelatedExternalID string `json:"related_id"`
+	Relation          string `json:"relation"`
+	ConfigName        string `json:"config_name,omitempty"`
+	RelatedName       string `json:"related_name,omitempty"`
+}
+
+// ConfigMeta carries resolved metadata (parents, locations) per config external ID.
+type ConfigMeta struct {
+	Parents  []string `json:"parents,omitempty"`
+	Location string   `json:"location,omitempty"`
+}
+
 type Snapshot struct {
-	Scrapers    []ScraperProgress    `json:"scrapers"`
-	Results     v1.FullScrapeResults `json:"results"`
-	Counts      Counts               `json:"counts"`
-	SaveSummary *SaveSummary         `json:"save_summary,omitempty"`
-	ScrapeSpec  any                  `json:"scrape_spec,omitempty"`
-	HAR         []har.Entry          `json:"har,omitempty"`
-	Logs        string               `json:"logs"`
-	Done        bool                 `json:"done"`
-	StartedAt   int64                `json:"started_at"`
+	Scrapers      []ScraperProgress        `json:"scrapers"`
+	Results       v1.FullScrapeResults     `json:"results"`
+	Relationships []UIRelationship         `json:"relationships,omitempty"`
+	ConfigMeta    map[string]ConfigMeta    `json:"config_meta,omitempty"`
+	Counts        Counts                   `json:"counts"`
+	SaveSummary   *SaveSummary             `json:"save_summary,omitempty"`
+	ScrapeSpec    any                      `json:"scrape_spec,omitempty"`
+	HAR           []har.Entry              `json:"har,omitempty"`
+	Logs          string                   `json:"logs"`
+	Done          bool                     `json:"done"`
+	StartedAt     int64                    `json:"started_at"`
 }
