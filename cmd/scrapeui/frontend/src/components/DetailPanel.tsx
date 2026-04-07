@@ -85,8 +85,21 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
           icon={healthIcon(item.health)}
           class={`text-xl ${healthColor(item.health)}`}
         />
-        <div>
-          <h2 class="text-lg font-semibold text-gray-900">{item.name || item.id}</h2>
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <h2 class="text-lg font-semibold text-gray-900">{item.name || item.id}</h2>
+            <button
+              class="text-gray-300 hover:text-blue-500 transition-colors"
+              title="Copy link to this config"
+              onClick={() => {
+                const url = new URL(location.href);
+                url.hash = `tab=configs&id=${encodeURIComponent(item.id)}`;
+                navigator.clipboard.writeText(url.toString());
+              }}
+            >
+              <iconify-icon icon="codicon:link" class="text-sm" />
+            </button>
+          </div>
           <div class="flex items-center gap-2 text-sm text-gray-500">
             <span>{item.config_type}</span>
             {item.config_class && <span>({item.config_class})</span>}
@@ -165,13 +178,17 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
               const targetName = isOutgoing
                 ? (rel.related_name || lookups.configs.get(targetId) || targetId)
                 : (rel.config_name || lookups.configs.get(targetId) || targetId);
+              const resolvedLabel = lookups.configs.get(targetId);
+              const targetType = resolvedLabel?.match(/\(([^)]+)\)$/)?.[1];
               return (
                 <div key={i} class="flex items-center gap-2 px-2 py-1.5 text-xs bg-teal-50 border border-teal-200 rounded">
                   <iconify-icon
                     icon={isOutgoing ? 'codicon:arrow-right' : 'codicon:arrow-left'}
                     class="text-teal-500 shrink-0"
                   />
-                  <span class="text-teal-700 font-medium">{rel.relation}</span>
+                  {(targetType || rel.relation) && (
+                    <span class="text-teal-700 font-medium">{targetType || rel.relation}</span>
+                  )}
                   <span class="text-gray-600 truncate">{targetName}</span>
                   <span class="text-gray-400 ml-auto shrink-0">{isOutgoing ? 'outgoing' : 'incoming'}</span>
                 </div>
