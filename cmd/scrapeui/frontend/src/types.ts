@@ -91,6 +91,9 @@ export interface ExternalUserGroup {
 export interface ExternalConfigAccess {
   id: string;
   external_config_id?: any;
+  external_user_id?: string;
+  external_role_id?: string;
+  external_group_id?: string;
   external_user_aliases?: string[];
   external_role_aliases?: string[];
   external_group_aliases?: string[];
