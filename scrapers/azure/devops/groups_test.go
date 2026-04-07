@@ -98,15 +98,25 @@ var _ = Describe("BuildIdentityMap", func() {
 })
 
 var _ = Describe("ResolveGitRoles", func() {
-	It("falls back to Git:: prefixed permissions when no role mapping", func() {
-		roles := ResolveGitRoles([]string{"Read", "Contribute"}, nil)
-		Expect(roles).To(ConsistOf("Git::Read", "Git::Contribute"))
+	It("uses default roles when no mapping configured", func() {
+		roles := ResolveGitRoles([]string{"Read"}, nil)
+		Expect(roles).To(ConsistOf("Viewer"))
 	})
 
-	It("matches role when identity has all required permissions", func() {
+	It("maps Contribute to Developer via defaults", func() {
+		roles := ResolveGitRoles([]string{"Contribute", "CreateBranch"}, nil)
+		Expect(roles).To(ConsistOf("Developer"))
+	})
+
+	It("maps ManagePermissions to Admin via defaults", func() {
+		roles := ResolveGitRoles([]string{"ManagePermissions"}, nil)
+		Expect(roles).To(ConsistOf("Admin"))
+	})
+
+	It("matches custom role mapping", func() {
 		mapping := map[string][]string{
-			"Developer": {"Read", "Contribute", "CreateBranch"},
-			"Reader":    {"Read"},
+			"Developer": {"Git:Read", "Git:Contribute", "Git:CreateBranch"},
+			"Reader":    {"Git:Read"},
 		}
 		roles := ResolveGitRoles([]string{"Read", "Contribute", "CreateBranch", "CreateTag"}, mapping)
 		Expect(roles).To(ConsistOf("Developer", "Reader"))
@@ -114,17 +124,119 @@ var _ = Describe("ResolveGitRoles", func() {
 
 	It("matches role when identity has any of the listed permissions", func() {
 		mapping := map[string][]string{
-			"Admin": {"ManagePermissions", "DeleteRepository"},
+			"Admin": {"Git:ManagePermissions", "Git:DeleteRepository"},
 		}
 		roles := ResolveGitRoles([]string{"Read", "ManagePermissions"}, mapping)
 		Expect(roles).To(ConsistOf("Admin"))
 	})
 
-	It("falls back when no roles match", func() {
+	It("returns empty when no roles match custom mapping", func() {
 		mapping := map[string][]string{
-			"Admin": {"ManagePermissions", "DeleteRepository"},
+			"Admin": {"Git:ManagePermissions", "Git:DeleteRepository"},
 		}
 		roles := ResolveGitRoles([]string{"Read"}, mapping)
-		Expect(roles).To(ConsistOf("Git::Read"))
+		Expect(roles).To(BeEmpty())
+	})
+})
+
+var _ = Describe("ParseBuildPermissions", func() {
+	It("extracts permissions from effective allow bits", func() {
+		acls := []AccessControlList{{
+			AcesDictionary: map[string]AccessControlEntry{
+				"vssgp.test-group": {
+					Allow: BuildPermissionQueueBuilds | BuildPermissionViewBuilds,
+					ExtendedInfo: &AccessControlExtendedInfo{
+						EffectiveAllow: BuildPermissionQueueBuilds | BuildPermissionViewBuilds | BuildPermissionStopBuilds,
+					},
+				},
+			},
+		}}
+
+		perms := ParseBuildPermissions(acls)
+		Expect(perms).To(HaveLen(1))
+		Expect(perms[0].IdentityType).To(Equal("group"))
+		Expect(perms[0].Permissions).To(ConsistOf("ViewBuilds", "QueueBuilds", "StopBuilds"))
+	})
+
+	It("skips entries with no permissions", func() {
+		acls := []AccessControlList{{
+			AcesDictionary: map[string]AccessControlEntry{
+				"user.test": {Allow: 0},
+			},
+		}}
+		Expect(ParseBuildPermissions(acls)).To(BeEmpty())
+	})
+
+	It("identifies user vs group by descriptor prefix", func() {
+		acls := []AccessControlList{{
+			AcesDictionary: map[string]AccessControlEntry{
+				"vssgp.group-desc":                                 {Allow: BuildPermissionViewBuilds},
+				"Microsoft.TeamFoundation.Identity;user-desc":      {Allow: BuildPermissionViewBuilds},
+				"aad.user-desc":                                    {Allow: BuildPermissionViewBuilds},
+			},
+		}}
+
+		perms := ParseBuildPermissions(acls)
+		Expect(perms).To(HaveLen(3))
+		types := map[string]bool{}
+		for _, p := range perms {
+			types[p.IdentityType] = true
+		}
+		Expect(types).To(HaveKey("group"))
+		Expect(types).To(HaveKey("unknown"))
+		Expect(types).To(HaveKey("user"))
+	})
+})
+
+var _ = Describe("ParseReleasePermissions", func() {
+	It("extracts permissions from effective allow bits", func() {
+		acls := []AccessControlList{{
+			AcesDictionary: map[string]AccessControlEntry{
+				"aad.user-1": {
+					ExtendedInfo: &AccessControlExtendedInfo{
+						EffectiveAllow: ReleasePermissionManageDeployments | ReleasePermissionCreateReleases | ReleasePermissionViewReleases,
+					},
+				},
+			},
+		}}
+
+		perms := ParseReleasePermissions(acls)
+		Expect(perms).To(HaveLen(1))
+		Expect(perms[0].Permissions).To(ConsistOf("ManageDeployments", "ViewReleases", "CreateReleases"))
+	})
+})
+
+var _ = Describe("ResolveRoles", func() {
+	It("uses default roles with Pipeline prefix", func() {
+		roles := ResolveRoles("Pipeline", []string{"QueueBuilds", "ViewBuilds"}, nil)
+		Expect(roles).To(ConsistOf("Viewer", "Developer"))
+	})
+
+	It("uses default roles with Release prefix", func() {
+		roles := ResolveRoles("Release", []string{"ManageDeployments", "ManageReleases"}, nil)
+		Expect(roles).To(ConsistOf("Releaser"))
+	})
+
+	It("maps Admin permissions across types via defaults", func() {
+		roles := ResolveRoles("Pipeline", []string{"AdministerBuildPermissions"}, nil)
+		Expect(roles).To(ConsistOf("Admin"))
+	})
+
+	It("filters by prefix in custom mapping", func() {
+		mapping := map[string][]string{
+			"Ops": {"Pipeline:QueueBuilds", "Release:ManageDeployments"},
+		}
+		roles := ResolveRoles("Pipeline", []string{"QueueBuilds"}, mapping)
+		Expect(roles).To(ConsistOf("Ops"))
+
+		roles = ResolveRoles("Git", []string{"Read"}, mapping)
+		Expect(roles).To(BeEmpty())
+	})
+
+	It("returns empty when no permissions match", func() {
+		roles := ResolveRoles("Pipeline", []string{"ViewBuilds"}, map[string][]string{
+			"Admin": {"Pipeline:AdministerBuildPermissions"},
+		})
+		Expect(roles).To(BeEmpty())
 	})
 })

@@ -910,42 +910,9 @@ func ParseGitPermissions(acls []AccessControlList) []GitPermissionInfo {
 	return perms
 }
 
-// ResolveGitRoles maps a set of permissions to role names based on the configured role mapping.
-// An identity is assigned a role if it has ANY of the permissions listed for that role.
-// Falls back to individual "Git::{Permission}" roles when no role mapping is configured.
+// ResolveGitRoles is a convenience wrapper for ResolveRoles with the "Git" prefix.
 func ResolveGitRoles(permissions []string, roleMapping map[string][]string) []string {
-	if len(roleMapping) == 0 {
-		roles := make([]string, len(permissions))
-		for i, p := range permissions {
-			roles[i] = "Git::" + p
-		}
-		return roles
-	}
-
-	permSet := make(map[string]bool, len(permissions))
-	for _, p := range permissions {
-		permSet[p] = true
-	}
-
-	var matched []string
-	for roleName, rolePerms := range roleMapping {
-		for _, perm := range rolePerms {
-			if permSet[perm] {
-				matched = append(matched, roleName)
-				break
-			}
-		}
-	}
-
-	if len(matched) == 0 {
-		roles := make([]string, len(permissions))
-		for i, p := range permissions {
-			roles[i] = "Git::" + p
-		}
-		return roles
-	}
-
-	return matched
+	return ResolveRoles("Git", permissions, roleMapping)
 }
 
 // PermissionInfo represents a resolved permission entry
@@ -994,6 +961,196 @@ func ParsePermissions(acls []AccessControlList) []PermissionInfo {
 	}
 
 	return permissions
+}
+
+var buildPermissionBits = []struct {
+	Bit  int
+	Name string
+}{
+	{BuildPermissionViewBuilds, "ViewBuilds"},
+	{BuildPermissionEditBuildPipeline, "EditBuildPipeline"},
+	{BuildPermissionDeleteBuilds, "DeleteBuilds"},
+	{BuildPermissionQueueBuilds, "QueueBuilds"},
+	{BuildPermissionStopBuilds, "StopBuilds"},
+	{BuildPermissionAdministerBuildPermissions, "AdministerBuildPermissions"},
+}
+
+func ParseBuildPermissions(acls []AccessControlList) []GitPermissionInfo {
+	var perms []GitPermissionInfo
+	for _, acl := range acls {
+		for descriptor, ace := range acl.AcesDictionary {
+			effectiveAllow := ace.Allow
+			if ace.ExtendedInfo != nil {
+				effectiveAllow = ace.ExtendedInfo.EffectiveAllow
+			}
+			var permissions []string
+			for _, bit := range buildPermissionBits {
+				if (effectiveAllow & bit.Bit) != 0 {
+					permissions = append(permissions, bit.Name)
+				}
+			}
+			if len(permissions) == 0 {
+				continue
+			}
+			identityType := "user"
+			if strings.HasPrefix(descriptor, vssgpPrefix) {
+				identityType = "group"
+			} else if strings.HasPrefix(descriptor, tfIdentityPrefix) {
+				identityType = "unknown"
+			}
+			perms = append(perms, GitPermissionInfo{
+				IdentityDescriptor: descriptor,
+				IdentityType:       identityType,
+				Permissions:        permissions,
+			})
+		}
+	}
+	return perms
+}
+
+// ReleaseSecurityNamespaceID is the GUID for the ReleaseManagement security namespace
+const ReleaseSecurityNamespaceID = "c788c23e-1b46-4162-8f5e-d7585343b5de"
+
+const (
+	ReleasePermissionViewReleaseDefinition              = 1
+	ReleasePermissionEditReleaseDefinition              = 2
+	ReleasePermissionDeleteReleaseDefinition            = 4
+	ReleasePermissionManageDeployments                  = 8
+	ReleasePermissionManageReleaseApprovers             = 16
+	ReleasePermissionManageReleases                     = 32
+	ReleasePermissionViewReleases                       = 64
+	ReleasePermissionCreateReleases                     = 128
+	ReleasePermissionEditReleaseEnvironment             = 256
+	ReleasePermissionDeleteReleaseEnvironment           = 512
+	ReleasePermissionAdministerReleasePermissions       = 1024
+	ReleasePermissionDeleteReleases                     = 2048
+	ReleasePermissionManageDefinitionReleaseApprovers   = 4096
+)
+
+var releasePermissionBits = []struct {
+	Bit  int
+	Name string
+}{
+	{ReleasePermissionViewReleaseDefinition, "ViewReleaseDefinition"},
+	{ReleasePermissionEditReleaseDefinition, "EditReleaseDefinition"},
+	{ReleasePermissionDeleteReleaseDefinition, "DeleteReleaseDefinition"},
+	{ReleasePermissionManageDeployments, "ManageDeployments"},
+	{ReleasePermissionManageReleaseApprovers, "ManageReleaseApprovers"},
+	{ReleasePermissionManageReleases, "ManageReleases"},
+	{ReleasePermissionViewReleases, "ViewReleases"},
+	{ReleasePermissionCreateReleases, "CreateReleases"},
+	{ReleasePermissionEditReleaseEnvironment, "EditReleaseEnvironment"},
+	{ReleasePermissionDeleteReleaseEnvironment, "DeleteReleaseEnvironment"},
+	{ReleasePermissionAdministerReleasePermissions, "AdministerReleasePermissions"},
+	{ReleasePermissionDeleteReleases, "DeleteReleases"},
+	{ReleasePermissionManageDefinitionReleaseApprovers, "ManageDefinitionReleaseApprovers"},
+}
+
+func ParseReleasePermissions(acls []AccessControlList) []GitPermissionInfo {
+	var perms []GitPermissionInfo
+	for _, acl := range acls {
+		for descriptor, ace := range acl.AcesDictionary {
+			effectiveAllow := ace.Allow
+			if ace.ExtendedInfo != nil {
+				effectiveAllow = ace.ExtendedInfo.EffectiveAllow
+			}
+			var permissions []string
+			for _, bit := range releasePermissionBits {
+				if (effectiveAllow & bit.Bit) != 0 {
+					permissions = append(permissions, bit.Name)
+				}
+			}
+			if len(permissions) == 0 {
+				continue
+			}
+			identityType := "user"
+			if strings.HasPrefix(descriptor, vssgpPrefix) {
+				identityType = "group"
+			} else if strings.HasPrefix(descriptor, tfIdentityPrefix) {
+				identityType = "unknown"
+			}
+			perms = append(perms, GitPermissionInfo{
+				IdentityDescriptor: descriptor,
+				IdentityType:       identityType,
+				Permissions:        permissions,
+			})
+		}
+	}
+	return perms
+}
+
+func (ado *AzureDevopsClient) GetReleasePermissions(ctx context.Context, projectID string, definitionID int) ([]AccessControlList, error) {
+	token := fmt.Sprintf("%s/%d", projectID, definitionID)
+	acls, _, err := get[AccessControlLists](ado.Client, ctx, fmt.Sprintf("/_apis/accesscontrollists/%s", ReleaseSecurityNamespaceID),
+		"api-version", "7.1", "token", token, "includeExtendedInfo", "true")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get release permissions: %w", err)
+	}
+	return acls.Value, nil
+}
+
+var DefaultRoles = map[string][]string{
+	"Viewer": {
+		"Git:Read",
+		"Pipeline:ViewBuilds",
+		"Release:ViewReleases",
+		"Release:ViewReleaseDefinition",
+	},
+	"Developer": {
+		"Git:Contribute",
+		"Git:CreateBranch",
+		"Git:CreateTag",
+		"Pipeline:QueueBuilds",
+		"Pipeline:EditBuildPipeline",
+		"Release:CreateReleases",
+	},
+	"Admin": {
+		"Git:ManagePermissions",
+		"Git:DeleteRepository",
+		"Git:ForcePush",
+		"Pipeline:AdministerBuildPermissions",
+		"Pipeline:DeleteBuilds",
+		"Release:AdministerReleasePermissions",
+		"Release:DeleteReleases",
+		"Release:DeleteReleaseDefinition",
+	},
+	"Releaser": {
+		"Release:ManageDeployments",
+		"Release:ManageReleases",
+		"Release:ManageReleaseApprovers",
+		"Release:EditReleaseEnvironment",
+	},
+}
+
+// ResolveRoles maps permissions to role names using a prefixed role mapping.
+// It filters roleMapping to entries with the given prefix (e.g. "Git", "Pipeline", "Release"),
+// then matches if the identity has ANY of the permissions for that role.
+// Uses DefaultRoles when roleMapping is empty.
+func ResolveRoles(prefix string, permissions []string, roleMapping map[string][]string) []string {
+	if len(roleMapping) == 0 {
+		roleMapping = DefaultRoles
+	}
+
+	permSet := make(map[string]bool, len(permissions))
+	for _, p := range permissions {
+		permSet[p] = true
+	}
+
+	pfx := prefix + ":"
+	var matched []string
+	for roleName, rolePerms := range roleMapping {
+		for _, rp := range rolePerms {
+			if !strings.HasPrefix(rp, pfx) {
+				continue
+			}
+			perm := rp[len(pfx):]
+			if permSet[perm] {
+				matched = append(matched, roleName)
+				break
+			}
+		}
+	}
+	return matched
 }
 
 // ResolvedIdentity represents a resolved Azure DevOps identity

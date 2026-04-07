@@ -9,9 +9,11 @@ import (
 	"github.com/flanksource/commons/duration"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/scrapers/azure"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
@@ -173,7 +175,7 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				if err != nil {
 					return results.Errorf(err, "failed to create release client for %s", config.Organization)
 				} else {
-					projectResults = append(projectResults, ado.scrapeReleases(entityCtx, releaseClient, config, project, cutoff)...)
+					projectResults = append(projectResults, ado.scrapeReleases(entityCtx, client, releaseClient, config, project, cutoff)...)
 				}
 			}
 
@@ -249,94 +251,17 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 	var accessLogs []v1.ExternalConfigAccessLog
 	var configAccess []v1.ExternalConfigAccess
+	var pipelineRoles []dutyModels.ExternalRole
 	pipelineConfigExternalID := PipelineExternalID(config.Organization, project.Name, pipeline.ID)
 
 	// Fetch pipeline permissions if enabled and interval has passed
 	if config.Permissions != nil && config.Permissions.Enabled {
 		pipelineKey := fmt.Sprintf("%s/%s/%d", config.Organization, project.Name, pipeline.ID)
 		if shouldFetchPermissions(pipelineKey, parsePermissionsInterval(config.Permissions.RateLimit)) {
-			ctx.Logger.V(3).Infof("fetching permissions for %s/%s", project.Name, pipeline.Name)
-			permissionsFetched := true
-			acls, err := client.GetPipelinePermissions(ctx, project.Name, project.ID, pipeline.ID)
-			if err != nil {
-				ctx.Logger.V(4).Infof("failed to get permissions for %s/%s: %v", project.Name, pipeline.Name, err)
-				permissionsFetched = false
-			} else if len(acls) > 0 {
-				permissions := ParsePermissions(acls)
-				var descriptorsToResolve []string
-				for _, perm := range permissions {
-					if perm.CanQueue || perm.CanAdmin {
-						descriptorsToResolve = append(descriptorsToResolve, perm.IdentityDescriptor)
-					}
-				}
-				if len(descriptorsToResolve) > 0 {
-					identities, err := client.GetIdentitiesByDescriptor(ctx, descriptorsToResolve)
-					if err != nil {
-						ctx.Logger.V(4).Infof("failed to resolve identities for %s/%s: %v", project.Name, pipeline.Name, err)
-						permissionsFetched = false
-					} else {
-						identityMap := BuildIdentityMap(identities)
-						for _, perm := range permissions {
-							if !perm.CanQueue && !perm.CanAdmin {
-								continue
-							}
-							identity, ok := identityMap[perm.IdentityDescriptor]
-							if !ok {
-								continue
-							}
-							var email string
-							if props := identity.Properties; props != nil {
-								if mailProp, ok := props["Mail"]; ok {
-									email = mailProp.Value
-								}
-							}
-							name := ResolvedIdentityName(identity, project.Name)
-							ctx.Logger.V(4).Infof("resolved identity descriptor=%s subject=%s name=%q email=%q isContainer=%v isActive=%v",
-								identity.Descriptor, identity.SubjectDescriptor, name, email, identity.IsContainer, identity.IsActive)
-							if name == "" && email == "" {
-								continue
-							}
-							if identity.IsContainer {
-								groupID, err := DescriptorID(identity.Descriptor)
-								if err != nil {
-									continue
-								}
-								aliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
-								aliases = append(aliases, DescriptorAliases(identity.SubjectDescriptor)...)
-								ctx.AddGroup(dutyModels.ExternalGroup{
-									ID:        groupID,
-									Name:      name,
-									Aliases:   pq.StringArray(aliases),
-									Tenant:    config.Organization,
-									GroupType: "AzureDevOps",
-								})
-								configAccess = append(configAccess, v1.ExternalConfigAccess{
-									ConfigExternalID:     v1.ExternalID{ConfigType: PipelineType, ExternalID: pipelineConfigExternalID},
-									ExternalGroupAliases: DescriptorAliases(identity.Descriptor),
-								})
-							} else {
-								if email == "" {
-									email = name
-								}
-								ctx.AddUser(dutyModels.ExternalUser{
-									Name:     name,
-									Email:    &email,
-									Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
-									Tenant:   config.Organization,
-									UserType: "AzureDevOps",
-								})
-								configAccess = append(configAccess, v1.ExternalConfigAccess{
-									ConfigExternalID:    v1.ExternalID{ConfigType: PipelineType, ExternalID: pipelineConfigExternalID},
-									ExternalUserAliases: []string{email},
-								})
-							}
-						}
-					}
-				}
-			}
-			if permissionsFetched {
-				markPermissionsFetched(pipelineKey)
-			}
+			ca, roles := ado.fetchPipelinePermissions(ctx, client, config, project, pipeline.ID, pipelineConfigExternalID)
+			configAccess = ca
+			pipelineRoles = roles
+			markPermissionsFetched(pipelineKey)
 		} else {
 			ctx.Logger.V(4).Infof("skipping permissions fetch for %s/%s (interval not reached)", project.Name, pipeline.Name)
 		}
@@ -599,9 +524,112 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			Aliases:          aliases,
 			ConfigAccess:     configAccess,
 			ConfigAccessLogs: accessLogs,
+			ExternalRoles:   pipelineRoles,
 		})
 	}
 	return results
+}
+
+func (ado AzureDevopsScraper) fetchPipelinePermissions(
+	ctx api.ScrapeContext,
+	client *AzureDevopsClient,
+	config v1.AzureDevops,
+	project Project,
+	pipelineID int,
+	pipelineConfigExternalID string,
+) ([]v1.ExternalConfigAccess, []dutyModels.ExternalRole) {
+	acls, err := client.GetPipelinePermissions(ctx, project.Name, project.ID, pipelineID)
+	if err != nil {
+		ctx.Logger.V(4).Infof("failed to get pipeline permissions for %s/%d: %v", project.Name, pipelineID, err)
+		return nil, nil
+	}
+
+	perms := ParseBuildPermissions(acls)
+	if len(perms) == 0 {
+		return nil, nil
+	}
+
+	var descriptors []string
+	for _, p := range perms {
+		descriptors = append(descriptors, p.IdentityDescriptor)
+	}
+
+	identities, err := client.GetIdentitiesByDescriptor(ctx, descriptors)
+	if err != nil {
+		ctx.Logger.V(4).Infof("failed to resolve identities for pipeline %s/%d: %v", project.Name, pipelineID, err)
+		return nil, nil
+	}
+
+	identityMap := BuildIdentityMap(identities)
+
+	roleIDs := make(map[string]uuid.UUID)
+	var roles []dutyModels.ExternalRole
+	var configAccess []v1.ExternalConfigAccess
+
+	for _, perm := range perms {
+		identity, ok := identityMap[perm.IdentityDescriptor]
+		if !ok {
+			continue
+		}
+
+		name := ResolvedIdentityName(identity, project.Name)
+		email := emailFromIdentity(identity)
+		if name == "" && email == "" {
+			continue
+		}
+
+		if identity.IsContainer {
+			groupID, err := DescriptorID(identity.Descriptor)
+			if err != nil {
+				continue
+			}
+			aliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
+			aliases = append(aliases, DescriptorAliases(identity.SubjectDescriptor)...)
+			ctx.AddGroup(dutyModels.ExternalGroup{
+				ID:        groupID,
+				Name:      name,
+				Aliases:   pq.StringArray(aliases),
+				Tenant:    config.Organization,
+				GroupType: "AzureDevOps",
+			})
+		} else {
+			ctx.AddUser(dutyModels.ExternalUser{
+				Name:     name,
+				Email:    &email,
+				Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
+				Tenant:   config.Organization,
+				UserType: "AzureDevOps",
+			})
+		}
+
+		resolvedRoles := ResolveRoles("Pipeline", perm.Permissions, config.Permissions.Roles)
+		for _, roleName := range resolvedRoles {
+			if _, exists := roleIDs[roleName]; !exists {
+				roleID := azure.RoleID(ctx.ScraperID(), roleName)
+				roleIDs[roleName] = roleID
+				roles = append(roles, dutyModels.ExternalRole{
+					ID:       roleID,
+					Name:     roleName,
+					RoleType: "AzureDevOps",
+					Tenant:   config.Organization,
+				})
+			}
+
+			roleID := roleIDs[roleName]
+			access := v1.ExternalConfigAccess{
+				ConfigExternalID: v1.ExternalID{ConfigType: PipelineType, ExternalID: pipelineConfigExternalID},
+				ExternalRoleID:   &roleID,
+			}
+			if identity.IsContainer {
+				access.ExternalGroupAliases = DescriptorAliases(identity.Descriptor)
+			} else {
+				access.ExternalUserAliases = []string{email}
+			}
+			configAccess = append(configAccess, access)
+		}
+	}
+
+	return configAccess, roles
 }
 
 // hasPendingApprovals returns true if any approval step is neither approved nor rejected.

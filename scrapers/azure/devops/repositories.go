@@ -119,11 +119,6 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 
 	identityMap := BuildIdentityMap(identities)
 
-	var roleMapping map[string][]string
-	if config.Permissions != nil {
-		roleMapping = config.Permissions.Roles
-	}
-
 	roleIDs := make(map[string]uuid.UUID)
 	var roles []dutyModels.ExternalRole
 	var configAccess []v1.ExternalConfigAccess
@@ -164,7 +159,7 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 			})
 		}
 
-		resolvedRoles := ResolveGitRoles(perm.Permissions, roleMapping)
+		resolvedRoles := ResolveRoles("Git", perm.Permissions, config.Permissions.Roles)
 
 		for _, roleName := range resolvedRoles {
 			if _, exists := roleIDs[roleName]; !exists {
