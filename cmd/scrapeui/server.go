@@ -13,16 +13,18 @@ import (
 )
 
 type Server struct {
-	mu         sync.RWMutex
-	scrapers   []ScraperProgress
-	results    v1.FullScrapeResults
-	summary    *SaveSummary
-	har        []har.Entry
-	scrapeSpec any
-	logBuf     *bytes.Buffer
-	done       bool
-	startedAt  int64
-	updated    chan struct{}
+	mu            sync.RWMutex
+	scrapers      []ScraperProgress
+	results       v1.FullScrapeResults
+	relationships []UIRelationship
+	configMeta    map[string]ConfigMeta
+	summary       *SaveSummary
+	har           []har.Entry
+	scrapeSpec    any
+	logBuf        *bytes.Buffer
+	done          bool
+	startedAt     int64
+	updated       chan struct{}
 }
 
 func NewServer(scraperNames []string, scrapeSpec any, logBuf *bytes.Buffer) *Server {
@@ -65,6 +67,13 @@ func (s *Server) UpdateScraper(name string, status ScraperStatus, results []v1.S
 			s.scrapers[i].Error = err.Error()
 		}
 		if results != nil {
+			s.relationships = append(s.relationships, BuildUIRelationships(results)...)
+			for k, v := range BuildConfigMeta(results) {
+				if s.configMeta == nil {
+					s.configMeta = map[string]ConfigMeta{}
+				}
+				s.configMeta[k] = v
+			}
 			merged := MergeResults(results)
 			s.scrapers[i].ResultCount = len(merged.Configs)
 			s.results.Configs = append(s.results.Configs, merged.Configs...)
@@ -95,17 +104,24 @@ func (s *Server) SetHAR(entries []har.Entry) {
 
 func NewStaticServer(snap Snapshot) *Server {
 	snap.Done = true
-	snap.Counts = BuildCounts(snap.Results)
+	// Build UI relationships from DB-resolved relationships
+	uiRels := snap.Relationships
+	if len(uiRels) == 0 {
+		uiRels = BuildUIRelationshipsFromDB(snap.Results.Relationships, snap.Results.Configs)
+	}
+	snap.Counts = BuildCounts(snap.Results, uiRels)
 	if snap.StartedAt == 0 {
 		snap.StartedAt = time.Now().UnixMilli()
 	}
 	return &Server{
-		scrapers:  snap.Scrapers,
-		results:   snap.Results,
-		har:       snap.HAR,
-		done:      true,
-		startedAt: snap.StartedAt,
-		updated:   make(chan struct{}, 1),
+		scrapers:      snap.Scrapers,
+		results:       snap.Results,
+		relationships: uiRels,
+		configMeta:    snap.ConfigMeta,
+		har:           snap.HAR,
+		done:          true,
+		startedAt:     snap.StartedAt,
+		updated:       make(chan struct{}, 1),
 	}
 }
 
@@ -129,15 +145,17 @@ func (s *Server) snapshot() Snapshot {
 		logs = s.logBuf.String()
 	}
 	return Snapshot{
-		Scrapers:    s.scrapers,
-		Results:     s.results,
-		Counts:      BuildCounts(s.results),
-		SaveSummary: s.summary,
-		ScrapeSpec:  s.scrapeSpec,
-		HAR:         s.har,
-		Logs:        logs,
-		Done:        s.done,
-		StartedAt:   s.startedAt,
+		Scrapers:      s.scrapers,
+		Results:       s.results,
+		Relationships: s.relationships,
+		ConfigMeta:    s.configMeta,
+		Counts:        BuildCounts(s.results, s.relationships),
+		SaveSummary:   s.summary,
+		ScrapeSpec:    s.scrapeSpec,
+		HAR:           s.har,
+		Logs:          logs,
+		Done:          s.done,
+		StartedAt:     s.startedAt,
 	}
 }
 

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'preact/hooks';
 import type { ExternalConfigAccess, ExternalConfigAccessLog } from '../types';
 import { useSort, SortIcon } from '../hooks/useSort';
-import { type Lookups, resolveConfigId, resolve } from '../utils';
+import { type Lookups, resolveConfigId, resolve, matchesSearch } from '../utils';
 
 interface Entity {
   id: string;
@@ -18,6 +18,7 @@ interface Props {
   access?: ExternalConfigAccess[];
   accessLogs?: ExternalConfigAccessLog[];
   lookups: Lookups;
+  search?: string;
 }
 
 function entityAliases(e: Entity): string[] {
@@ -42,9 +43,13 @@ const COLS: { key: string; label: string; cls: string }[] = [
   { key: 'account_id', label: 'Account', cls: 'px-3 py-2' },
 ];
 
-export function EntityTable({ title, kind, entities, access, accessLogs, lookups }: Props) {
+export function EntityTable({ title, kind, entities, access, accessLogs, lookups, search }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { sorted, sort, toggle } = useSort(entities, 'name');
+  const filtered = useMemo(() => {
+    if (!search) return entities;
+    return entities.filter(e => matchesSearch(search, e.name, ...(e.aliases || [])));
+  }, [entities, search]);
+  const { sorted, sort, toggle } = useSort(filtered, 'name');
 
   const selected = useMemo(
     () => entities.find(e => e.id === selectedId) || null,

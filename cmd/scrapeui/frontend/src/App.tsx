@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import type { Snapshot, ScrapeResult, Tab } from './types';
-import { groupByType, filterItems, collectTypes, formatDuration, buildLookups } from './utils';
+import { groupByType, filterItems, collectTypes, formatDuration, buildLookups, globalSearch } from './utils';
 import { SplitPane } from './components/SplitPane';
 import { ScraperList } from './components/ScraperList';
 import { Summary } from './components/Summary';
@@ -35,6 +35,7 @@ export function App() {
   const [filters, setFilters] = useState<Filters>({ health: new Set(), type: new Set() });
   const [tab, setTab] = useState<Tab>('spec');
   const [elapsed, setElapsed] = useState(0);
+  const [search, setSearch] = useState('');
   const doneRef = useRef(false);
   const startRef = useRef(0);
   const logsRef = useRef<HTMLDivElement>(null);
@@ -95,7 +96,21 @@ export function App() {
   }, [snapshot?.logs, tab]);
 
   const configs = snapshot?.results?.configs || [];
-  const filtered = useMemo(() => filterItems(configs, filters.health, filters.type), [configs, filters]);
+  const filtered = useMemo(() => {
+    let items = filterItems(configs, filters.health, filters.type);
+    if (search) {
+      const lq = search.toLowerCase();
+      items = items.filter(c =>
+        c.name?.toLowerCase().includes(lq) ||
+        c.config_type?.toLowerCase().includes(lq) ||
+        c.aliases?.some(a => a.toLowerCase().includes(lq)) ||
+        Object.entries(c.labels || {}).some(([k, v]) => k.toLowerCase().includes(lq) || v.toLowerCase().includes(lq)) ||
+        Object.entries(c.tags || {}).some(([k, v]) => k.toLowerCase().includes(lq) || v.toLowerCase().includes(lq)) ||
+        JSON.stringify(c.config)?.toLowerCase().includes(lq)
+      );
+    }
+    return items;
+  }, [configs, filters, search]);
   const groups = useMemo(() => groupByType(filtered), [filtered]);
   const types = useMemo(() => collectTypes(configs), [configs]);
   const healthValues = useMemo(() => {
@@ -106,18 +121,20 @@ export function App() {
 
   const counts: Record<string, number> = snapshot?.counts as any || {};
 
+  const zero = () => ({ changes: 0, access: 0, accessLogs: 0, analysis: 0, relationships: 0 });
+
   const configCounts = useMemo(() => {
-    const m = new Map<string, { changes: number; access: number; accessLogs: number; analysis: number }>();
+    const m = new Map<string, ReturnType<typeof zero>>();
     const changes = snapshot?.results?.changes || [];
     const access = snapshot?.results?.config_access || [];
     const logs = snapshot?.results?.config_access_logs || [];
-    const analysis = snapshot?.results?.analysis || [];
+    const relationships = snapshot?.relationships || [];
 
     for (const ch of changes) {
       if (!ch.source) continue;
       for (const cfg of configs) {
         if (ch.source.includes(cfg.id)) {
-          const c = m.get(cfg.id) || { changes: 0, access: 0, accessLogs: 0, analysis: 0 };
+          const c = m.get(cfg.id) || zero();
           c.changes++;
           m.set(cfg.id, c);
         }
@@ -128,7 +145,7 @@ export function App() {
       if (!extId) continue;
       for (const cfg of configs) {
         if (cfg.id === extId) {
-          const c = m.get(cfg.id) || { changes: 0, access: 0, accessLogs: 0, analysis: 0 };
+          const c = m.get(cfg.id) || zero();
           c.access++;
           m.set(cfg.id, c);
         }
@@ -139,17 +156,33 @@ export function App() {
       if (!extId) continue;
       for (const cfg of configs) {
         if (cfg.id === extId) {
-          const c = m.get(cfg.id) || { changes: 0, access: 0, accessLogs: 0, analysis: 0 };
+          const c = m.get(cfg.id) || zero();
           c.accessLogs++;
           m.set(cfg.id, c);
         }
       }
     }
-    // Analysis doesn't have a direct config link in the current data model
+    for (const rel of relationships) {
+      if (rel.config_id) {
+        const c = m.get(rel.config_id) || zero();
+        c.relationships++;
+        m.set(rel.config_id, c);
+      }
+      if (rel.related_id && rel.related_id !== rel.config_id) {
+        const c = m.get(rel.related_id) || zero();
+        c.relationships++;
+        m.set(rel.related_id, c);
+      }
+    }
     return m;
   }, [snapshot?.results, configs]);
 
   const lookups = useMemo(() => buildLookups(snapshot?.results), [snapshot?.results]);
+
+  const searchCounts = useMemo(
+    () => globalSearch(search, snapshot?.results, snapshot?.har, snapshot?.logs),
+    [search, snapshot?.results, snapshot?.har, snapshot?.logs],
+  );
 
   return (
     <div class="bg-gray-100 h-screen flex flex-col">
@@ -184,9 +217,10 @@ export function App() {
             t.key === 'logs' ? (snapshot?.logs ? 1 : 0) : 0
           );
           const isActive = tab === t.key;
+          const searchHits = search ? (searchCounts[t.key] || 0) : 0;
 
           // Hide tabs with no data (except configs, logs, spec)
-          if (!count && !isActive && !['configs', 'logs', 'spec'].includes(t.key)) return null;
+          if (!count && !isActive && !searchHits && !['configs', 'logs', 'spec'].includes(t.key)) return null;
 
           return (
             <button
@@ -200,12 +234,35 @@ export function App() {
             >
               <iconify-icon icon={t.icon} />
               {t.label}
-              {count > 0 && (
+              {count > 0 && !search && (
                 <span class="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{count}</span>
+              )}
+              {search && searchHits > 0 && (
+                <span class="text-xs px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">{searchHits}</span>
               )}
             </button>
           );
         })}
+        <div class="ml-auto flex items-center">
+          <div class="relative">
+            <iconify-icon icon="codicon:search" class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+            <input
+              type="text"
+              placeholder="Search across all tabs..."
+              value={search}
+              onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
+              class="pl-7 pr-7 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 w-64"
+            />
+            {search && (
+              <button
+                class="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                onClick={() => setSearch('')}
+              >
+                <iconify-icon icon="codicon:close" class="text-sm" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Content */}
@@ -245,7 +302,7 @@ export function App() {
                   )}
                 </>
               }
-              right={<DetailPanel item={selected} changes={snapshot?.results?.changes} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} />}
+              right={<DetailPanel item={selected} changes={snapshot?.results?.changes} relationships={snapshot?.relationships} configMeta={snapshot?.config_meta} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} />}
             />
           </div>
         )}
@@ -262,13 +319,13 @@ export function App() {
           </div>
         )}
 
-        {tab === 'har' && <HARPanel entries={snapshot?.har || []} />}
+        {tab === 'har' && <HARPanel entries={snapshot?.har || []} search={search} />}
 
-        {tab === 'users' && <EntityTable title="Users" kind="user" entities={snapshot?.results?.external_users || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} />}
-        {tab === 'groups' && <EntityTable title="Groups" kind="group" entities={snapshot?.results?.external_groups || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} />}
-        {tab === 'roles' && <EntityTable title="Roles" kind="role" entities={snapshot?.results?.external_roles || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} />}
-        {tab === 'access' && <AccessTable entries={snapshot?.results?.config_access || []} lookups={lookups} />}
-        {tab === 'access_logs' && <AccessLogTable entries={snapshot?.results?.config_access_logs || []} lookups={lookups} />}
+        {tab === 'users' && <EntityTable title="Users" kind="user" entities={snapshot?.results?.external_users || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} search={search} />}
+        {tab === 'groups' && <EntityTable title="Groups" kind="group" entities={snapshot?.results?.external_groups || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} search={search} />}
+        {tab === 'roles' && <EntityTable title="Roles" kind="role" entities={snapshot?.results?.external_roles || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} search={search} />}
+        {tab === 'access' && <AccessTable entries={snapshot?.results?.config_access || []} lookups={lookups} search={search} />}
+        {tab === 'access_logs' && <AccessLogTable entries={snapshot?.results?.config_access_logs || []} lookups={lookups} search={search} />}
         {tab === 'spec' && <ScrapeConfigPanel spec={snapshot?.scrape_spec} />}
       </div>
     </div>

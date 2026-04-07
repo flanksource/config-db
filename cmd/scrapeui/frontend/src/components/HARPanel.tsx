@@ -1,11 +1,12 @@
-import { useState } from 'preact/hooks';
+import { useState, useMemo } from 'preact/hooks';
 import type { HAREntry } from '../types';
-import { statusColor } from '../utils';
+import { statusColor, matchesSearch } from '../utils';
 import { useSort, SortIcon } from '../hooks/useSort';
 import { JsonView } from './JsonView';
 
 interface Props {
   entries: HAREntry[];
+  search?: string;
 }
 
 function tryParseJson(text: string): any | null {
@@ -104,8 +105,14 @@ const COLS: { key: string; label: string; cls: string }[] = [
   { key: 'response.content.mimeType', label: 'Type', cls: 'px-2 py-2 w-40' },
 ];
 
-export function HARPanel({ entries }: Props) {
-  const { sorted, sort, toggle } = useSort(entries, 'time');
+export function HARPanel({ entries, search }: Props) {
+  const filtered = useMemo(() => {
+    if (!search) return entries;
+    return entries.filter(e =>
+      matchesSearch(search, e.request.url, e.request.method, e.request.postData?.text, e.response.content?.text)
+    );
+  }, [entries, search]);
+  const { sorted, sort, toggle } = useSort(filtered, 'time');
 
   if (!entries || entries.length === 0) {
     return <div class="p-8 text-center text-gray-400 text-sm">No HTTP traffic captured</div>;

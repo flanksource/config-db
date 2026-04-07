@@ -1,10 +1,12 @@
+import { useMemo } from 'preact/hooks';
 import type { ExternalConfigAccess } from '../types';
 import { useSort, SortIcon } from '../hooks/useSort';
-import { type Lookups, resolveConfigId, resolve } from '../utils';
+import { type Lookups, resolveConfigId, resolve, matchesSearch } from '../utils';
 
 interface Props {
   entries: ExternalConfigAccess[];
   lookups: Lookups;
+  search?: string;
 }
 
 const COLS: { key: string; label: string; cls: string }[] = [
@@ -16,8 +18,18 @@ const COLS: { key: string; label: string; cls: string }[] = [
   { key: 'last_reviewed_at', label: 'Last Reviewed', cls: 'px-3 py-2' },
 ];
 
-export function AccessTable({ entries, lookups }: Props) {
-  const { sorted, sort, toggle } = useSort(entries);
+export function AccessTable({ entries, lookups, search }: Props) {
+  const filtered = useMemo(() => {
+    if (!search) return entries;
+    return entries.filter(e =>
+      matchesSearch(search,
+        ...(e.external_user_aliases || []),
+        ...(e.external_role_aliases || []),
+        ...(e.external_group_aliases || []),
+      )
+    );
+  }, [entries, search]);
+  const { sorted, sort, toggle } = useSort(filtered);
 
   if (!entries || entries.length === 0) {
     return <div class="p-8 text-center text-gray-400 text-sm">No config access records</div>;
