@@ -1,10 +1,12 @@
+import { useMemo } from 'preact/hooks';
 import type { ExternalConfigAccessLog } from '../types';
 import { useSort, SortIcon } from '../hooks/useSort';
-import { type Lookups, resolveConfigId, resolve } from '../utils';
+import { type Lookups, resolveConfigId, resolve, matchesSearch } from '../utils';
 
 interface Props {
   entries: ExternalConfigAccessLog[];
   lookups: Lookups;
+  search?: string;
 }
 
 const COLS: { key: string; label: string; cls: string }[] = [
@@ -15,8 +17,12 @@ const COLS: { key: string; label: string; cls: string }[] = [
   { key: 'created_at', label: 'Timestamp', cls: 'px-3 py-2' },
 ];
 
-export function AccessLogTable({ entries, lookups }: Props) {
-  const { sorted, sort, toggle } = useSort(entries);
+export function AccessLogTable({ entries, lookups, search }: Props) {
+  const filtered = useMemo(() => {
+    if (!search) return entries;
+    return entries.filter(e => matchesSearch(search, ...(e.external_user_aliases || [])));
+  }, [entries, search]);
+  const { sorted, sort, toggle } = useSort(filtered);
 
   if (!entries || entries.length === 0) {
     return <div class="p-8 text-center text-gray-400 text-sm">No access log entries</div>;
