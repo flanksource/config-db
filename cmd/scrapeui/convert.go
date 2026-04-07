@@ -30,37 +30,42 @@ func BuildUIRelationships(results []v1.ScrapeResult) []UIRelationship {
 	}
 
 	var out []UIRelationship
+	seen := map[string]bool{}
+	addRel := func(rel UIRelationship) {
+		key := rel.ConfigExternalID + "|" + rel.RelatedExternalID + "|" + rel.Relation
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		if rel.ConfigName == "" {
+			rel.ConfigName = nameByExternalID[rel.ConfigExternalID]
+		}
+		if rel.RelatedName == "" {
+			rel.RelatedName = nameByExternalID[rel.RelatedExternalID]
+		}
+		out = append(out, rel)
+	}
 	for _, r := range results {
+		// From Resolved.Relationships (populated by relationshipResultHandler for direct rels)
 		if r.Resolved != nil {
 			for _, ref := range r.Resolved.Relationships {
-				rel := UIRelationship{
+				addRel(UIRelationship{
 					ConfigExternalID:  externalIDOrFallback(ref.Query.ConfigExternalID.ExternalID, ref.Query.ConfigID, r.ID),
 					RelatedExternalID: externalIDOrFallback(ref.Query.RelatedExternalID.ExternalID, ref.Query.RelatedConfigID, ""),
 					Relation:          ref.Query.Relationship,
 					ConfigName:        ref.ConfigName,
 					RelatedName:       ref.RelatedName,
-				}
-				if rel.ConfigName == "" {
-					rel.ConfigName = nameByExternalID[rel.ConfigExternalID]
-				}
-				if rel.RelatedName == "" {
-					rel.RelatedName = nameByExternalID[rel.RelatedExternalID]
-				}
-				out = append(out, rel)
+				})
 			}
-			continue
 		}
 
-		// Use RelationshipResults directly (pre-DB-save)
+		// From RelationshipResults (populated by selector resolution in saveResults)
 		for _, rr := range r.RelationshipResults {
-			rel := UIRelationship{
+			addRel(UIRelationship{
 				ConfigExternalID:  externalIDOrFallback(rr.ConfigExternalID.ExternalID, rr.ConfigID, r.ID),
 				RelatedExternalID: externalIDOrFallback(rr.RelatedExternalID.ExternalID, rr.RelatedConfigID, ""),
 				Relation:          rr.Relationship,
-			}
-			rel.ConfigName = nameByExternalID[rel.ConfigExternalID]
-			rel.RelatedName = nameByExternalID[rel.RelatedExternalID]
-			out = append(out, rel)
+			})
 		}
 
 		// Resolve RelationshipSelectors in-memory against scraped configs
@@ -78,7 +83,7 @@ func BuildUIRelationships(results []v1.ScrapeResult) []UIRelationship {
 					rel.RelatedExternalID = match.ID
 					rel.RelatedName = match.Name
 				}
-				out = append(out, rel)
+				addRel(rel)
 			}
 		}
 	}
@@ -171,10 +176,9 @@ func BuildUIRelationshipsFromDB(rels []models.ConfigRelationship, configs []v1.S
 	return out
 }
 
-// BuildConfigMeta extracts resolved parent paths and locations from scrape results.
-// It resolves parent external IDs to display names using the config list.
-func BuildConfigMeta(results []v1.ScrapeResult) map[string]ConfigMeta {
-	// Build name index for resolving parent references
+// BuildConfigMeta extracts resolved parent paths and locations from scrape results,
+// supplemented by parent relationships from the UIRelationship list.
+func BuildConfigMeta(results []v1.ScrapeResult, relationships []UIRelationship) map[string]ConfigMeta {
 	nameByExtID := map[string]string{}
 	for _, r := range results {
 		if r.Name != "" {
@@ -217,7 +221,44 @@ func BuildConfigMeta(results []v1.ScrapeResult) map[string]ConfigMeta {
 			meta[r.ID] = m
 		}
 	}
+
+	addParentsFromRelationships(meta, relationships)
 	return meta
+}
+
+// BuildConfigMetaFromRelationships derives parent metadata from UIRelationships alone.
+func BuildConfigMetaFromRelationships(rels []UIRelationship) map[string]ConfigMeta {
+	meta := map[string]ConfigMeta{}
+	addParentsFromRelationships(meta, rels)
+	return meta
+}
+
+// addParentsFromRelationships supplements meta with parents from UIRelationships.
+// Convention: config_id = parent, related_id = child.
+func addParentsFromRelationships(meta map[string]ConfigMeta, rels []UIRelationship) {
+	for _, rel := range rels {
+		if rel.RelatedExternalID == "" {
+			continue
+		}
+		parentName := rel.ConfigName
+		if parentName == "" {
+			parentName = rel.ConfigExternalID
+		}
+		if parentName == "" {
+			continue
+		}
+		m := meta[rel.RelatedExternalID]
+		for _, p := range m.Parents {
+			if p == parentName {
+				parentName = ""
+				break
+			}
+		}
+		if parentName != "" {
+			m.Parents = append(m.Parents, parentName)
+			meta[rel.RelatedExternalID] = m
+		}
+	}
 }
 
 func ConvertSaveSummary(s *v1.ScrapeSummary) *SaveSummary {

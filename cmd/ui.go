@@ -27,6 +27,7 @@ type jsonResults struct {
 	Artifacts          []models.Artifact
 	Analysis           []models.ConfigAnalysis
 	Relationships      []scrapeui.UIRelationship
+	ConfigMeta         map[string]scrapeui.ConfigMeta
 	ExternalRoles      []models.ExternalRole
 	ExternalUsers      []models.ExternalUser
 	ExternalGroups     []models.ExternalGroup
@@ -64,6 +65,7 @@ var UI = &cobra.Command{
 				ConfigAccessLogs:   results.ConfigAccessLogs,
 			},
 			Relationships: results.Relationships,
+			ConfigMeta:    results.ConfigMeta,
 			HAR:           results.HAR,
 		}
 
