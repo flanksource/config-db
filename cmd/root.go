@@ -127,5 +127,5 @@ func init() {
 		},
 	})
 
-	Root.AddCommand(Run, Analyze, Serve, GoOffline, Operator)
+	Root.AddCommand(Run, Analyze, Serve, GoOffline, Operator, UI)
 }

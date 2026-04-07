@@ -7,9 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path"
+	"runtime"
+	"syscall"
 	"time"
 
 	"github.com/flanksource/clicky"
@@ -20,6 +25,7 @@ import (
 	"github.com/flanksource/commons/timer"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/cmd/scrapeui"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/duty"
@@ -41,6 +47,8 @@ var outputDir string
 var debugPort int
 var export bool
 var save bool
+var uiEnabled bool
+var uiPort int
 
 // Run ...
 var Run = &cobra.Command{
@@ -127,10 +135,29 @@ var Run = &cobra.Command{
 			}
 		}
 
+		var uiServer *scrapeui.Server
+		if uiEnabled {
+			names := make([]string, len(scraperConfigs))
+			specs := make([]any, len(scraperConfigs))
+			for i, sc := range scraperConfigs {
+				names[i] = sc.Name
+				specs[i] = sc.Spec
+			}
+			var scrapeSpec any = specs
+			if len(specs) == 1 {
+				scrapeSpec = specs[0]
+			}
+			uiServer = startScrapeUI(names, scrapeSpec, &logBuf)
+		}
+
 		var hasErrors bool
 		var allResults v1.ScrapeResults
 		var lastSummary *v1.ScrapeSummary
 		for i := range scraperConfigs {
+			if uiServer != nil {
+				uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperRunning, nil, nil, nil)
+			}
+
 			scrapeCtx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
 				WithTimeout(dutyCtx.Properties().Duration("scraper.timeout", 4*time.Hour))
 			defer cancelTimeout()
@@ -142,6 +169,11 @@ var Run = &cobra.Command{
 			if err != nil {
 				hasErrors = true
 				logger.Errorf("error scraping config: (name=%s) %+v", scraperConfigs[i].Name, err)
+				if uiServer != nil {
+					uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperError, results, summary, err)
+				}
+			} else if uiServer != nil {
+				uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperComplete, results, summary, nil)
 			}
 			allResults = append(allResults, results...)
 			if summary != nil {
@@ -152,7 +184,21 @@ var Run = &cobra.Command{
 		// Restore stderr-only logging before rendering
 		logger.Use(os.Stderr)
 
+		if uiServer != nil {
+			if harCollector != nil {
+				uiServer.SetHAR(harCollector.Entries())
+			}
+			uiServer.SetDone()
+		}
+
 		printOutput(allResults, lastSummary, harCollector, logBuf.String())
+
+		if uiServer != nil {
+			sig := make(chan os.Signal, 1)
+			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+			<-sig
+			return
+		}
 
 		if hasErrors {
 			os.Exit(1)
@@ -458,11 +504,51 @@ func ensureScraper(ctx context.Context, sc *v1.ScrapeConfig) error {
 	return nil
 }
 
+func startScrapeUI(scraperNames []string, scrapeSpec any, logBuf *bytes.Buffer) *scrapeui.Server {
+	srv := scrapeui.NewServer(scraperNames, scrapeSpec, logBuf)
+	addr := fmt.Sprintf("localhost:%d", uiPort)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil && uiPort != 0 {
+		logger.Warnf("Port %d in use, picking a free port", uiPort)
+		listener, err = net.Listen("tcp", "localhost:0")
+	}
+	if err != nil {
+		logger.Errorf("Failed to start scrape UI server: %v", err)
+		return nil
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	url := fmt.Sprintf("http://localhost:%d", port)
+
+	go http.Serve(listener, srv.Handler()) //nolint:errcheck
+
+	time.Sleep(100 * time.Millisecond)
+	logger.Infof("Scrape UI at %s", url)
+	openBrowser(url)
+	return srv
+}
+
+func openBrowser(url string) {
+	var cmd string
+	var args []string
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "start"}
+	case "darwin":
+		cmd = "open"
+	default:
+		cmd = "xdg-open"
+	}
+	args = append(args, url)
+	_ = exec.Command(cmd, args...).Start()
+}
+
 func init() {
 	Run.Flags().BoolVar(&save, "save", false, "Save scraped configurations to the database")
 	Run.Flags().BoolVar(&export, "export", true, "Export scraped configurations to files in the output directory and/or pretty print them")
 	Run.Flags().StringVarP(&outputDir, "output-dir", "o", "", "The output folder for configurations")
 	Run.Flags().IntVar(&debugPort, "debug-port", -1, "Start an HTTP server to use the /debug routes, Use -1 to disable and 0 to pick a free port")
+	Run.Flags().BoolVar(&uiEnabled, "ui", false, "Open a browser dashboard showing real-time scrape progress")
+	Run.Flags().IntVar(&uiPort, "ui-port", 9001, "Port for the UI server (0 to pick a free port)")
 	clicky.BindAllFlags(Run.Flags())
-
 }
