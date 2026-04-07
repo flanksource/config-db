@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	duty "github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 )
 
@@ -19,8 +20,8 @@ func MergeResults(results []v1.ScrapeResult) v1.FullScrapeResults {
 // BuildUIRelationships creates frontend-friendly relationships from scrape results.
 // It uses external IDs and resolved names (from Resolved.Relationships) so the
 // frontend can match relationships to config items by external ID.
+// It also resolves RelationshipSelectors in-memory against the scraped configs.
 func BuildUIRelationships(results []v1.ScrapeResult) []UIRelationship {
-	// Build external ID → name index from configs
 	nameByExternalID := map[string]string{}
 	for _, r := range results {
 		if r.Name != "" {
@@ -50,7 +51,7 @@ func BuildUIRelationships(results []v1.ScrapeResult) []UIRelationship {
 			continue
 		}
 
-		// Fallback: use RelationshipResults directly (pre-DB-save)
+		// Use RelationshipResults directly (pre-DB-save)
 		for _, rr := range r.RelationshipResults {
 			rel := UIRelationship{
 				ConfigExternalID:  externalIDOrFallback(rr.ConfigExternalID.ExternalID, rr.ConfigID, r.ID),
@@ -61,8 +62,65 @@ func BuildUIRelationships(results []v1.ScrapeResult) []UIRelationship {
 			rel.RelatedName = nameByExternalID[rel.RelatedExternalID]
 			out = append(out, rel)
 		}
+
+		// Resolve RelationshipSelectors in-memory against scraped configs
+		for _, dr := range r.RelationshipSelectors {
+			for _, match := range matchSelector(dr.Selector, results) {
+				rel := UIRelationship{Relation: dr.Selector.Type}
+				if dr.Parent {
+					rel.ConfigExternalID = match.ID
+					rel.ConfigName = match.Name
+					rel.RelatedExternalID = r.ID
+					rel.RelatedName = r.Name
+				} else {
+					rel.ConfigExternalID = r.ID
+					rel.ConfigName = r.Name
+					rel.RelatedExternalID = match.ID
+					rel.RelatedName = match.Name
+				}
+				out = append(out, rel)
+			}
+		}
 	}
 	return out
+}
+
+// matchSelector finds configs matching a RelationshipSelector in-memory.
+func matchSelector(sel duty.RelationshipSelector, configs []v1.ScrapeResult) []v1.ScrapeResult {
+	var matches []v1.ScrapeResult
+	for _, c := range configs {
+		if sel.Type != "" && c.Type != sel.Type {
+			continue
+		}
+		if sel.Name != "" && c.Name != sel.Name {
+			continue
+		}
+		if sel.ExternalID != "" && c.ID != sel.ExternalID {
+			continue
+		}
+		if sel.Namespace != "" {
+			ns, _ := c.Tags["namespace"]
+			if ns != sel.Namespace {
+				continue
+			}
+		}
+		if len(sel.Labels) > 0 {
+			if !matchLabels(sel.Labels, c.Labels) {
+				continue
+			}
+		}
+		matches = append(matches, c)
+	}
+	return matches
+}
+
+func matchLabels(required, actual map[string]string) bool {
+	for k, v := range required {
+		if actual[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 func externalIDOrFallback(externalID, configID, fallback string) string {
