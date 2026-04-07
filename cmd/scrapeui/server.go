@@ -68,7 +68,7 @@ func (s *Server) UpdateScraper(name string, status ScraperStatus, results []v1.S
 		}
 		if results != nil {
 			s.relationships = append(s.relationships, BuildUIRelationships(results)...)
-			for k, v := range BuildConfigMeta(results) {
+			for k, v := range BuildConfigMeta(results, s.relationships) {
 				if s.configMeta == nil {
 					s.configMeta = map[string]ConfigMeta{}
 				}
@@ -104,10 +104,13 @@ func (s *Server) SetHAR(entries []har.Entry) {
 
 func NewStaticServer(snap Snapshot) *Server {
 	snap.Done = true
-	// Build UI relationships from DB-resolved relationships
 	uiRels := snap.Relationships
 	if len(uiRels) == 0 {
 		uiRels = BuildUIRelationshipsFromDB(snap.Results.Relationships, snap.Results.Configs)
+	}
+	configMeta := snap.ConfigMeta
+	if len(configMeta) == 0 && len(uiRels) > 0 {
+		configMeta = BuildConfigMetaFromRelationships(uiRels)
 	}
 	snap.Counts = BuildCounts(snap.Results, uiRels)
 	if snap.StartedAt == 0 {
@@ -117,7 +120,7 @@ func NewStaticServer(snap Snapshot) *Server {
 		scrapers:      snap.Scrapers,
 		results:       snap.Results,
 		relationships: uiRels,
-		configMeta:    snap.ConfigMeta,
+		configMeta:    configMeta,
 		har:           snap.HAR,
 		done:          true,
 		startedAt:     snap.StartedAt,

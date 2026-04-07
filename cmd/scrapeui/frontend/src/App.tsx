@@ -26,6 +26,26 @@ const TAB_DEFS: { key: Tab; label: string; icon: string; countKey?: string }[] =
   { key: 'spec', label: 'Spec', icon: 'codicon:file-code' },
 ];
 
+function parseHash(): { tab?: Tab; id?: string; q?: string } {
+  const params = new URLSearchParams(location.hash.slice(1));
+  return {
+    tab: (params.get('tab') as Tab) || undefined,
+    id: params.get('id') || undefined,
+    q: params.get('q') || undefined,
+  };
+}
+
+function writeHash(tab: Tab, id?: string, q?: string) {
+  const params = new URLSearchParams();
+  params.set('tab', tab);
+  if (id) params.set('id', id);
+  if (q) params.set('q', q);
+  const next = '#' + params.toString();
+  if (location.hash !== next) history.replaceState(null, '', next);
+}
+
+const INITIAL_HASH = parseHash();
+
 export function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [done, setDone] = useState(false);
@@ -33,9 +53,10 @@ export function App() {
   const [selected, setSelected] = useState<ScrapeResult | null>(null);
   const [expandAll, setExpandAll] = useState<boolean | null>(null);
   const [filters, setFilters] = useState<Filters>({ health: new Set(), type: new Set() });
-  const [tab, setTab] = useState<Tab>('spec');
+  const [tab, setTab] = useState<Tab>(INITIAL_HASH.tab || 'spec');
   const [elapsed, setElapsed] = useState(0);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(INITIAL_HASH.q || '');
+  const pendingId = useRef<string | undefined>(INITIAL_HASH.id);
   const doneRef = useRef(false);
   const startRef = useRef(0);
   const logsRef = useRef<HTMLDivElement>(null);
@@ -83,7 +104,7 @@ export function App() {
     } else {
       setStatus('Scraping...');
     }
-    if ((snap.results?.configs?.length ?? 0) > 0 && tabRef.current === 'spec') {
+    if ((snap.results?.configs?.length ?? 0) > 0 && tabRef.current === 'spec' && !INITIAL_HASH.tab) {
       setTab('configs');
     }
   }
@@ -96,6 +117,38 @@ export function App() {
   }, [snapshot?.logs, tab]);
 
   const configs = snapshot?.results?.configs || [];
+
+  // Sync URL hash
+  useEffect(() => {
+    writeHash(tab, selected?.id, search || undefined);
+  }, [tab, selected?.id, search]);
+
+  // Restore selection from URL when configs load
+  useEffect(() => {
+    if (!pendingId.current || !configs.length) return;
+    const match = configs.find(c => c.id === pendingId.current);
+    if (match) {
+      setSelected(match);
+      pendingId.current = undefined;
+    }
+  }, [configs]);
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const onHashChange = () => {
+      const h = parseHash();
+      if (h.tab && h.tab !== tabRef.current) setTab(h.tab);
+      if (h.q !== undefined) setSearch(h.q);
+      if (h.id) {
+        const match = configs.find(c => c.id === h.id);
+        if (match) setSelected(match);
+      } else {
+        setSelected(null);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [configs]);
   const filtered = useMemo(() => {
     let items = filterItems(configs, filters.health, filters.type);
     if (search) {
@@ -243,7 +296,7 @@ export function App() {
             </button>
           );
         })}
-        <div class="ml-auto flex items-center">
+        <div class="ml-auto flex items-center gap-2">
           <div class="relative">
             <iconify-icon icon="codicon:search" class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
             <input
@@ -262,6 +315,17 @@ export function App() {
               </button>
             )}
           </div>
+          <button
+            class="text-gray-400 hover:text-blue-600 p-1 rounded transition-colors"
+            title="Copy link to current view"
+            onClick={() => {
+              navigator.clipboard.writeText(location.href);
+              const btn = document.activeElement as HTMLElement;
+              btn?.blur();
+            }}
+          >
+            <iconify-icon icon="codicon:link" class="text-base" />
+          </button>
         </div>
       </div>
 
