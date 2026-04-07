@@ -21,8 +21,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/utils"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
@@ -60,6 +63,11 @@ const (
 	IncludeVirtualMachines     = "virtualMachines"
 	IncludeVirtualNetworks     = "virtualNetworks"
 )
+
+func RoleID(scraperID string, roleName string) uuid.UUID {
+	id, _ := hash.DeterministicUUID(pq.StringArray{scraperID, roleName})
+	return id
+}
 
 // activityLogLastRecordTime keeps track of the time of the last activity log per subscription.
 var activityLogLastRecordTime = sync.Map{}

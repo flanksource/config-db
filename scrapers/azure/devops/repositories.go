@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/flanksource/commons/collections"
-	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/scrapers/azure"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
@@ -168,10 +168,7 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 
 		for _, roleName := range resolvedRoles {
 			if _, exists := roleIDs[roleName]; !exists {
-				roleID, err := hash.DeterministicUUID(pq.StringArray{roleName})
-				if err != nil {
-					continue
-				}
+				roleID := azure.RoleID(ctx.ScraperID(), roleName)
 				roleIDs[roleName] = roleID
 				roles = append(roles, dutyModels.ExternalRole{
 					ID:       roleID,
@@ -181,9 +178,10 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 				})
 			}
 
+			roleID := roleIDs[roleName]
 			access := v1.ExternalConfigAccess{
-				ConfigExternalID:    v1.ExternalID{ConfigType: RepositoryType, ExternalID: repoExternalID},
-				ExternalRoleAliases: []string{roleName},
+				ConfigExternalID: v1.ExternalID{ConfigType: RepositoryType, ExternalID: repoExternalID},
+				ExternalRoleID:   &roleID,
 			}
 			if identity.IsContainer {
 				access.ExternalGroupAliases = DescriptorAliases(identity.Descriptor)

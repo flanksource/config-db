@@ -633,9 +633,22 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			configAccess.ExternalGroupID = id
 		}
 
-		if configAccess.ExternalUserID == nil &&
-			configAccess.ExternalRoleID == nil &&
-			configAccess.ExternalGroupID == nil {
+		// A valid config_access requires a principal (user or group) and a role
+		if configAccess.ExternalUserID == nil && configAccess.ExternalGroupID == nil {
+			summary.ConfigAccess.Skipped++
+			continue
+		}
+
+		if configAccess.ExternalRoleID == nil && len(configAccess.ExternalRoleAliases) == 0 {
+			ctx.Logger.Warnf("skipping config access: missing role (config=%s user=%v group=%v)",
+				configAccess.ConfigExternalID.Pretty().ANSI(),
+				configAccess.ExternalUserAliases, configAccess.ExternalGroupAliases)
+			summary.ConfigAccess.Skipped++
+			continue
+		}
+		if configAccess.ExternalRoleID == nil {
+			ctx.Logger.Warnf("skipping config access: role not found (aliases=%v config=%s)",
+				configAccess.ExternalRoleAliases, configAccess.ConfigExternalID.Pretty().ANSI())
 			summary.ConfigAccess.Skipped++
 			continue
 		}
@@ -643,11 +656,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if configAccess.ConfigID == uuid.Nil && configAccess.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, configAccess.ConfigExternalID)
 			if err != nil {
-				summary.AddWarning("ConfigAccess", fmt.Sprintf("failed to find config for config access (type=%s external_id=%s): %v", configAccess.ConfigExternalID.ConfigType, configAccess.ConfigExternalID.ExternalID, err))
+				summary.AddWarning("ConfigAccess", fmt.Sprintf("failed to find config (%s) for config access : %v", configAccess.ConfigExternalID.Pretty().ANSI(), err))
 				summary.ConfigAccess.Skipped++
 				continue
 			} else if config == "" {
-				missingConfigs[configAccess.ConfigExternalID.Key()]++
+				missingConfigs[configAccess.ConfigExternalID.Pretty().ANSI()]++
 				summary.ConfigAccess.Skipped++
 				continue
 			}
@@ -676,6 +689,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			summary.AddWarning("ConfigAccess", fmt.Sprintf("failed to upsert config access: %v", err))
 		} else {
 			summary.ConfigAccess.Saved += permResult.saved
+			summary.ConfigAccess.ForeignKeyErrors += permResult.foreignKeyErrors
 			extractResult.newChanges = append(extractResult.newChanges, permResult.added...)
 			extractResult.newChanges = append(extractResult.newChanges, permResult.removed...)
 			summary.ConfigAccess.Deleted += len(permResult.removed)

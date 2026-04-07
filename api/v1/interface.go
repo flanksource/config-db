@@ -279,22 +279,24 @@ type AnalysisResults []AnalysisResult
 
 // +kubebuilder:object:generate=false
 type EntitySummary struct {
-	Scraped int `json:"scraped,omitempty"`
-	Saved   int `json:"saved,omitempty"`
-	Skipped int `json:"skipped,omitempty"`
-	Deleted int `json:"deleted,omitempty"`
+	Scraped          int `json:"scraped,omitempty"`
+	Saved            int `json:"saved,omitempty"`
+	Skipped          int `json:"skipped,omitempty"`
+	Deleted          int `json:"deleted,omitempty"`
+	ForeignKeyErrors int `json:"foreign_key_errors,omitempty"`
 }
 
 func (e EntitySummary) IsEmpty() bool {
-	return e.Scraped == 0 && e.Saved == 0 && e.Skipped == 0 && e.Deleted == 0
+	return e.Scraped == 0 && e.Saved == 0 && e.Skipped == 0 && e.Deleted == 0 && e.ForeignKeyErrors == 0
 }
 
 func (e EntitySummary) Merge(other EntitySummary) EntitySummary {
 	return EntitySummary{
-		Scraped: e.Scraped + other.Scraped,
-		Saved:   e.Saved + other.Saved,
-		Skipped: e.Skipped + other.Skipped,
-		Deleted: e.Deleted + other.Deleted,
+		Scraped:          e.Scraped + other.Scraped,
+		Saved:            e.Saved + other.Saved,
+		Skipped:          e.Skipped + other.Skipped,
+		Deleted:          e.Deleted + other.Deleted,
+		ForeignKeyErrors: e.ForeignKeyErrors + other.ForeignKeyErrors,
 	}
 }
 
@@ -311,6 +313,9 @@ func (e EntitySummary) Pretty() api.Text {
 	}
 	if e.Deleted > 0 {
 		t = t.Space().Appendf("%d", e.Deleted).AddText(" deleted", "error")
+	}
+	if e.ForeignKeyErrors > 0 {
+		t = t.Space().Appendf("%d", e.ForeignKeyErrors).AddText(" fk errors", "error")
 	}
 	return t
 }
