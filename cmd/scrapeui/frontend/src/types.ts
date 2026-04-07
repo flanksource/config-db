@@ -23,6 +23,13 @@ export interface ScrapeResult {
   description?: string;
   source?: string;
   aliases?: string[];
+  locations?: string[];
+  parents?: string[];
+  created_at?: string;
+  deleted_at?: string;
+  delete_reason?: string;
+  last_modified?: string;
+  Action?: string; // "inserted" | "updated" | "unchanged" — uppercase key from Go json tag
 }
 
 export interface ConfigChange {
@@ -38,10 +45,12 @@ export interface ConfigChange {
   external_created_by?: string;
 }
 
-export interface ConfigRelationship {
+export interface UIRelationship {
   config_id: string;
   related_id: string;
   relation: string;
+  config_name?: string;
+  related_name?: string;
 }
 
 export interface ConfigAnalysis {
@@ -102,7 +111,6 @@ export interface FullScrapeResults {
   configs?: ScrapeResult[];
   changes?: ConfigChange[];
   analysis?: ConfigAnalysis[];
-  relationships?: ConfigRelationship[];
   external_users?: ExternalUser[];
   external_groups?: ExternalGroup[];
   external_roles?: ExternalRole[];
@@ -160,9 +168,16 @@ export interface SaveSummary {
   config_types?: Record<string, { added: number; updated: number; unchanged: number; changes: number }>;
 }
 
+export interface ConfigMeta {
+  parents?: string[];
+  location?: string;
+}
+
 export interface Snapshot {
   scrapers: ScraperProgress[];
   results: FullScrapeResults;
+  relationships?: UIRelationship[];
+  config_meta?: Record<string, ConfigMeta>;
   counts: Counts;
   save_summary?: SaveSummary;
   scrape_spec?: any;

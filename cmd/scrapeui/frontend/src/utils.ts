@@ -148,3 +148,91 @@ export function statusColor(status: number): string {
   if (status >= 500) return 'text-red-600';
   return 'text-gray-600';
 }
+
+function containsCI(text: string | undefined | null, q: string): boolean {
+  return !!text && text.toLowerCase().includes(q);
+}
+
+export type SearchCounts = Record<string, number>;
+
+export function globalSearch(
+  q: string,
+  results?: FullScrapeResults,
+  har?: import('./types').HAREntry[],
+  logs?: string,
+): SearchCounts {
+  const counts: SearchCounts = {};
+  if (!q) return counts;
+  const lq = q.toLowerCase();
+
+  let n = 0;
+  for (const c of results?.configs || []) {
+    if (containsCI(c.name, lq) || containsCI(c.config_type, lq) ||
+        containsCI(JSON.stringify(c.config), lq) ||
+        c.aliases?.some(a => containsCI(a, lq)) ||
+        Object.entries(c.labels || {}).some(([k, v]) => containsCI(k, lq) || containsCI(v, lq)) ||
+        Object.entries(c.tags || {}).some(([k, v]) => containsCI(k, lq) || containsCI(v, lq)))
+      n++;
+  }
+  if (n) counts.configs = n;
+
+  n = 0;
+  for (const e of har || []) {
+    if (containsCI(e.request.url, lq) || containsCI(e.request.method, lq) ||
+        containsCI(e.request.postData?.text, lq) ||
+        containsCI(e.response.content?.text, lq))
+      n++;
+  }
+  if (n) counts.har = n;
+
+  n = 0;
+  for (const u of results?.external_users || [])
+    if (containsCI(u.name, lq) || u.aliases?.some(a => containsCI(a, lq))) n++;
+  if (n) counts.users = n;
+
+  n = 0;
+  for (const g of results?.external_groups || [])
+    if (containsCI(g.name, lq) || g.aliases?.some(a => containsCI(a, lq))) n++;
+  if (n) counts.groups = n;
+
+  n = 0;
+  for (const r of results?.external_roles || [])
+    if (containsCI(r.name, lq) || r.aliases?.some(a => containsCI(a, lq))) n++;
+  if (n) counts.roles = n;
+
+  n = 0;
+  for (const a of results?.config_access || [])
+    if (a.external_user_aliases?.some(x => containsCI(x, lq)) ||
+        a.external_role_aliases?.some(x => containsCI(x, lq)) ||
+        a.external_group_aliases?.some(x => containsCI(x, lq)))
+      n++;
+  if (n) counts.access = n;
+
+  n = 0;
+  for (const a of results?.config_access_logs || [])
+    if (a.external_user_aliases?.some(x => containsCI(x, lq))) n++;
+  if (n) counts.access_logs = n;
+
+  if (containsCI(logs, lq)) counts.logs = 1;
+
+  n = 0;
+  for (const ch of results?.changes || [])
+    if (containsCI(ch.summary, lq) || containsCI(ch.change_type, lq) ||
+        containsCI(ch.diff, lq) || containsCI(ch.external_created_by, lq))
+      n++;
+  if (n) counts.changes = n;
+
+  return counts;
+}
+
+export function matchesSearch(q: string, ...fields: (string | undefined | null)[]): boolean {
+  if (!q) return true;
+  const lq = q.toLowerCase();
+  return fields.some(f => containsCI(f, lq));
+}
+
+export function matchesSearchArr(q: string, arr: (string | undefined)[]): boolean {
+  if (!q) return true;
+  const lq = q.toLowerCase();
+  return arr.some(f => containsCI(f, lq));
+}
