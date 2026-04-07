@@ -52,17 +52,17 @@ export function AccessTable({ entries, lookups, search }: Props) {
             <tr key={i} class="text-sm border-b border-gray-100 hover:bg-gray-50">
               <td class="px-3 py-2 text-xs whitespace-nowrap">{resolveConfigId(lookups, e.external_config_id)}</td>
               <td class="px-3 py-2 whitespace-nowrap">
-                {e.external_user_aliases?.map((a, j) => (
+                {(e.external_user_aliases?.length ? e.external_user_aliases : e.external_user_id ? [e.external_user_id] : []).map((a, j) => (
                   <span key={j} class="inline-block text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 mr-1">{resolve(lookups.users, a)}</span>
                 ))}
               </td>
               <td class="px-3 py-2 whitespace-nowrap">
-                {e.external_role_aliases?.map((a, j) => (
+                {(e.external_role_aliases?.length ? e.external_role_aliases : e.external_role_id ? [e.external_role_id] : []).map((a, j) => (
                   <span key={j} class="inline-block text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 mr-1">{resolve(lookups.roles, a)}</span>
                 ))}
               </td>
               <td class="px-3 py-2 whitespace-nowrap">
-                {e.external_group_aliases?.map((a, j) => (
+                {(e.external_group_aliases?.length ? e.external_group_aliases : e.external_group_id ? [e.external_group_id] : []).map((a, j) => (
                   <span key={j} class="inline-block text-xs px-1.5 py-0.5 rounded bg-green-50 text-green-600 mr-1">{resolve(lookups.groups, a)}</span>
                 ))}
               </td>

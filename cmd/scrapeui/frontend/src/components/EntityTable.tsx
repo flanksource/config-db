@@ -29,8 +29,12 @@ function matchesEntity(kind: string, aliases: string[], access: ExternalConfigAc
   const targets = kind === 'user' ? access.external_user_aliases
     : kind === 'group' ? access.external_group_aliases
     : access.external_role_aliases;
-  if (!targets) return false;
-  return targets.some(t => aliases.includes(t));
+  if (targets?.some(t => aliases.includes(t))) return true;
+  // Fall back to ID-based matching
+  const id = kind === 'user' ? access.external_user_id
+    : kind === 'group' ? access.external_group_id
+    : access.external_role_id;
+  return !!id && aliases.includes(id);
 }
 
 function matchesEntityLog(aliases: string[], log: ExternalConfigAccessLog): boolean {
@@ -139,7 +143,7 @@ export function EntityTable({ title, kind, entities, access, accessLogs, lookups
                     <div key={i} class="px-2 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs">
                       <div class="text-gray-800 font-medium">{resolveConfigId(lookups, a.external_config_id)}</div>
                       <div class="flex flex-wrap gap-1 mt-1">
-                        {a.external_role_aliases?.map((r, j) => (
+                        {(a.external_role_aliases?.length ? a.external_role_aliases : a.external_role_id ? [a.external_role_id] : []).map((r, j) => (
                           <span key={j} class="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">{resolve(lookups.roles, r)}</span>
                         ))}
                       </div>
