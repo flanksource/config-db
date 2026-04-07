@@ -215,8 +215,9 @@ type runHTMLOutput struct {
 	Changes            []changeWithScreenshot       `pretty:"table"`
 	Artifacts          []models.Artifact            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
-	Relationships      []scrapeui.UIRelationship    `pretty:"table"`
-	ExternalRoles      []models.ExternalRole        `pretty:"table"`
+	Relationships      []scrapeui.UIRelationship        `pretty:"table"`
+	ConfigMeta         map[string]scrapeui.ConfigMeta  `json:",omitempty"`
+	ExternalRoles      []models.ExternalRole           `pretty:"table"`
 	ExternalUsers      []models.ExternalUser        `pretty:"table"`
 	ExternalGroups     []models.ExternalGroup       `pretty:"table"`
 	ExternalUserGroups []models.ExternalUserGroup   `pretty:"table"`
@@ -404,13 +405,15 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 		}
 	}
 
+	relationships := scrapeui.BuildUIRelationships(results)
 	output := runHTMLOutput{
 		Counts:             v1.BuildCounts(all),
 		Configs:            all.Configs,
 		Changes:            changes,
 		Artifacts:          artifacts,
 		Analysis:           all.Analysis,
-		Relationships:      scrapeui.BuildUIRelationships(results),
+		Relationships:      relationships,
+		ConfigMeta:         scrapeui.BuildConfigMeta(results, relationships),
 		ExternalRoles:      all.ExternalRoles,
 		ExternalUsers:      all.ExternalUsers,
 		ExternalGroups:     all.ExternalGroups,
