@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/aws/smithy-go/ptr"
@@ -24,8 +24,11 @@ func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<-
 
 	ctx.Logger.V(3).Infof("Looking up events from %v", input.StartTime)
 	CloudTrail := cloudtrail.NewFromConfig(*ctx.Session, getEndpointResolver[cloudtrail.Options](config), func(o *cloudtrail.Options) {
-		o.RetryMaxAttempts = 5
-		o.RetryMode = aws.RetryModeAdaptive
+		o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
+			// Exponential backoff on rate limits: 1s, 2s, 4s, 8s, 16s, 32s, 60s
+			so.MaxAttempts = 7 // 1 initial attempt + 6 retries
+			so.MaxBackoff = 60 * time.Second
+		})
 	})
 
 	var total int
