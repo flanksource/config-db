@@ -60,6 +60,7 @@ const TYPE_ICONS: Record<string, string> = {
   'Terraform': 'logos:terraform-icon',
   'GitHub': 'logos:github-icon',
   'Trivy': 'simple-icons:trivy',
+  'Orphaned Changes': 'codicon:warning',
 };
 
 export function typeIcon(configType: string): string {
