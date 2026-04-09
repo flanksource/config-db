@@ -621,6 +621,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
+
 	summary.ConfigAccess.Scraped = len(extractResult.configAccesses)
 	var resolvedAccesses []v1.ExternalConfigAccess
 	for i := range extractResult.configAccesses {
@@ -1325,6 +1326,7 @@ func appendResolvedRelationship(origin *v1.ScrapeResult, rel v1.RelationshipResu
 		Matched:     matched,
 	})
 }
+
 
 type updateConfigArgs struct {
 	Result   *v1.ScrapeResult
