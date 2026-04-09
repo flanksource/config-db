@@ -212,7 +212,7 @@ type runHTMLOutput struct {
 	Counts             v1.CountsGrid                `json:"-"`
 	SaveSummary        *v1.ScrapeSummary            `json:"-"`
 	Configs            []v1.ScrapeResult            `pretty:"table"`
-	Changes            []changeWithScreenshot       `pretty:"table"`
+	Changes            []changeWithScreenshot        `pretty:"table"`
 	Artifacts          []models.Artifact            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
 	Relationships      []scrapeui.UIRelationship        `pretty:"table"`
@@ -220,7 +220,7 @@ type runHTMLOutput struct {
 	ExternalRoles      []models.ExternalRole           `pretty:"table"`
 	ExternalUsers      []models.ExternalUser        `pretty:"table"`
 	ExternalGroups     []models.ExternalGroup       `pretty:"table"`
-	ExternalUserGroups []models.ExternalUserGroup   `pretty:"table"`
+	ExternalUserGroups []v1.ExternalUserGroup       `pretty:"table"`
 	ConfigAccess       []v1.ExternalConfigAccess    `pretty:"table"`
 	ConfigAccessLogs   []v1.ExternalConfigAccessLog `pretty:"table"`
 	Logs               v1.LogOutput                 `json:"-"`
@@ -271,7 +271,7 @@ func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary
 }
 
 type changeWithScreenshot struct {
-	models.ConfigChange
+	v1.ChangeResult
 }
 
 func (c changeWithScreenshot) Columns() []clickyapi.ColumnDef {
@@ -286,20 +286,24 @@ func (c changeWithScreenshot) Columns() []clickyapi.ColumnDef {
 }
 
 func (c changeWithScreenshot) Row() map[string]any {
-	row := c.ConfigChange.Row()
-	row["ConfigType"] = clicky.Text(c.ConfigType)
-	row["ExternalID"] = clicky.Text(c.ExternalID)
-	return row
+	return map[string]any{
+		"ConfigType": clicky.Text(c.ConfigType),
+		"ExternalID": clicky.Text(c.ExternalID),
+		"ChangeType": clicky.Text(c.ChangeType),
+		"Summary":    clicky.Text(c.Summary),
+		"Severity":   clicky.Text(c.Severity),
+		"CreatedAt":  c.CreatedAt,
+	}
 }
 
 func (c changeWithScreenshot) RowDetail() clickyapi.Textable {
-	base := c.ConfigChange.RowDetail()
-
-	if c.Details == nil {
-		return base
+	base := clicky.Text("")
+	if c.Summary != "" {
+		base = base.Append(c.Summary)
 	}
-	var details map[string]any
-	if err := json.Unmarshal(c.Details, &details); err != nil {
+
+	details := c.Details
+	if len(details) == 0 {
 		return base
 	}
 
@@ -338,10 +342,7 @@ func (c changeWithScreenshot) RowDetail() clickyapi.Textable {
 	if imgs == "" {
 		return base
 	}
-	if base != nil {
-		return screenshotDetail{html: base.HTML() + imgs}
-	}
-	return screenshotDetail{html: imgs}
+	return screenshotDetail{html: base.HTML() + imgs}
 }
 
 type screenshotDetail struct{ html string }
@@ -362,16 +363,12 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 	var artifacts []models.Artifact
 	for _, c := range all.Changes {
 		changes = append(changes, changeWithScreenshot{c})
-		if c.Details == nil {
-			continue
-		}
-		var details map[string]any
-		if err := json.Unmarshal(c.Details, &details); err != nil {
+		if len(c.Details) == 0 {
 			continue
 		}
 
 		var artMaps []map[string]any
-		if arr, ok := details["artifacts"].([]any); ok {
+		if arr, ok := c.Details["artifacts"].([]any); ok {
 			for _, item := range arr {
 				if m, ok := item.(map[string]any); ok {
 					artMaps = append(artMaps, m)
