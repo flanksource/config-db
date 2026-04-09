@@ -69,12 +69,66 @@ function fileApiPlugin(): Plugin {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(snap));
       });
+
+      server.middlewares.use('/api/config/', (req, res) => {
+        const id = decodeURIComponent((req.url || '').replace(/^\//, ''));
+        const configs: any[] = snap.results.configs || [];
+        const item = configs.find(c => c.id === id);
+        if (!item) {
+          res.writeHead(404);
+          res.end('not found');
+          return;
+        }
+        const rels = (snap.relationships || []).filter(
+          (r: any) => r.config_id === id || r.related_id === id,
+        );
+        const changes = ((snap.results.changes as any[]) || []).filter(
+          (c: any) => c.source && c.source.includes(id),
+        );
+        const detail = {
+          ...item,
+          _meta: (snap.config_meta || {})[id],
+          _relationships: rels,
+          _changes: changes,
+        };
+        const safe = id.replace(/[^a-zA-Z0-9._-]/g, '_');
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Content-Disposition': `attachment; filename="${safe}.json"`,
+        });
+        res.end(JSON.stringify(detail, null, 2));
+      });
+    },
+  };
+}
+
+// Dev-only plugin: rewrite deep SPA routes (/configs/{id}, /groups/{id}, ...)
+// back to '/' so the index HTML is served. Mirrors isSPARoute in server.go.
+function spaHistoryFallback(): Plugin {
+  const prefixes = [
+    '/configs', '/logs', '/har', '/users', '/groups',
+    '/roles', '/access', '/access_logs', '/issues', '/spec',
+  ];
+  return {
+    name: 'spa-history-fallback',
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        const url = req.url || '/';
+        if (req.method !== 'GET' || url.startsWith('/api/') || url.startsWith('/@') || url.startsWith('/src/') || url.startsWith('/node_modules/')) {
+          return next();
+        }
+        const pathOnly = url.split('?')[0];
+        if (prefixes.some(p => pathOnly === p || pathOnly.startsWith(p + '/'))) {
+          req.url = '/';
+        }
+        return next();
+      });
     },
   };
 }
 
 export default defineConfig({
-  plugins: [preact(), fileApiPlugin()],
+  plugins: [preact(), spaHistoryFallback(), fileApiPlugin()],
   build: {
     lib: {
       entry: 'src/index.tsx',

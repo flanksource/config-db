@@ -5,12 +5,50 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/flanksource/commons/har"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 )
+
+// mergeEntitiesByID returns a new slice containing one entry per unique ID,
+// preferring entries from `incoming` over entries already in `existing` when
+// the same ID appears in both (the SaveResults-produced entity is always
+// newer). IDs with a zero UUID are treated as unique.
+func mergeEntitiesByID[T any](existing, incoming []T, getID func(T) uuid.UUID) []T {
+	if len(incoming) == 0 {
+		return existing
+	}
+	out := make([]T, 0, len(existing)+len(incoming))
+	byID := make(map[uuid.UUID]int, len(existing)+len(incoming))
+	for _, e := range existing {
+		id := getID(e)
+		if id == uuid.Nil {
+			out = append(out, e)
+			continue
+		}
+		byID[id] = len(out)
+		out = append(out, e)
+	}
+	for _, e := range incoming {
+		id := getID(e)
+		if id == uuid.Nil {
+			out = append(out, e)
+			continue
+		}
+		if idx, ok := byID[id]; ok {
+			out[idx] = e
+			continue
+		}
+		byID[id] = len(out)
+		out = append(out, e)
+	}
+	return out
+}
 
 type Server struct {
 	mu            sync.RWMutex
@@ -18,6 +56,7 @@ type Server struct {
 	results       v1.FullScrapeResults
 	relationships []UIRelationship
 	configMeta    map[string]ConfigMeta
+	issues        []ScrapeIssue
 	summary       *SaveSummary
 	har           []har.Entry
 	scrapeSpec    any
@@ -80,15 +119,32 @@ func (s *Server) UpdateScraper(name string, status ScraperStatus, results []v1.S
 			s.results.Changes = append(s.results.Changes, merged.Changes...)
 			s.results.Analysis = append(s.results.Analysis, merged.Analysis...)
 			s.results.Relationships = append(s.results.Relationships, merged.Relationships...)
-			s.results.ExternalUsers = append(s.results.ExternalUsers, merged.ExternalUsers...)
-			s.results.ExternalGroups = append(s.results.ExternalGroups, merged.ExternalGroups...)
-			s.results.ExternalRoles = append(s.results.ExternalRoles, merged.ExternalRoles...)
 			s.results.ExternalUserGroups = append(s.results.ExternalUserGroups, merged.ExternalUserGroups...)
 			s.results.ConfigAccess = append(s.results.ConfigAccess, merged.ConfigAccess...)
 			s.results.ConfigAccessLogs = append(s.results.ConfigAccessLogs, merged.ConfigAccessLogs...)
+
+			// External users/groups/roles: when SaveResults ran, prefer the
+			// canonical post-merge entities from the summary (single source of
+			// truth, AAD-supplied winner IDs). Otherwise fall back to the raw
+			// scraper output so --no-save mode still shows something.
+			if summary != nil {
+				s.results.ExternalUsers = mergeEntitiesByID(s.results.ExternalUsers, summary.ExternalUsers.Entities, func(u models.ExternalUser) uuid.UUID { return u.ID })
+				s.results.ExternalGroups = mergeEntitiesByID(s.results.ExternalGroups, summary.ExternalGroups.Entities, func(g models.ExternalGroup) uuid.UUID { return g.ID })
+				s.results.ExternalRoles = mergeEntitiesByID(s.results.ExternalRoles, summary.ExternalRoles.Entities, func(r models.ExternalRole) uuid.UUID { return r.ID })
+			} else {
+				s.results.ExternalUsers = mergeEntitiesByID(s.results.ExternalUsers, merged.ExternalUsers, func(u models.ExternalUser) uuid.UUID { return u.ID })
+				s.results.ExternalGroups = mergeEntitiesByID(s.results.ExternalGroups, merged.ExternalGroups, func(g models.ExternalGroup) uuid.UUID { return g.ID })
+				s.results.ExternalRoles = mergeEntitiesByID(s.results.ExternalRoles, merged.ExternalRoles, func(r models.ExternalRole) uuid.UUID { return r.ID })
+			}
 		}
 		if summary != nil {
 			s.summary = ConvertSaveSummary(summary)
+			for i := range summary.OrphanedChanges {
+				s.issues = append(s.issues, ScrapeIssue{Type: "orphaned", Message: "Change has no matching config", Change: &summary.OrphanedChanges[i]})
+			}
+			for i := range summary.FKErrorChanges {
+				s.issues = append(s.issues, ScrapeIssue{Type: "fk_error", Message: "Foreign key constraint violation", Change: &summary.FKErrorChanges[i]})
+			}
 		}
 		break
 	}
@@ -152,6 +208,7 @@ func (s *Server) snapshot() Snapshot {
 		Results:       s.results,
 		Relationships: s.relationships,
 		ConfigMeta:    s.configMeta,
+		Issues:        s.issues,
 		Counts:        BuildCounts(s.results, s.relationships),
 		SaveSummary:   s.summary,
 		ScrapeSpec:    s.scrapeSpec,
@@ -167,11 +224,96 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/", s.handlePage)
 	mux.HandleFunc("/api/scrape", s.handleJSON)
 	mux.HandleFunc("/api/scrape/stream", s.handleSSE)
+	mux.HandleFunc("/api/config/", s.handleConfigItem)
 	return mux
 }
 
+func (s *Server) handleConfigItem(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/config/")
+	if id == "" {
+		http.Error(w, "id required", http.StatusBadRequest)
+		return
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var item *v1.ScrapeResult
+	for i := range s.results.Configs {
+		if s.results.Configs[i].ID == id {
+			item = &s.results.Configs[i]
+			break
+		}
+	}
+	if item == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	type configItemDetail struct {
+		v1.ScrapeResult
+		Meta          *ConfigMeta      `json:"_meta,omitempty"`
+		Relationships []UIRelationship `json:"_relationships,omitempty"`
+		Changes       []v1.ChangeResult `json:"_changes,omitempty"`
+	}
+
+	detail := configItemDetail{ScrapeResult: *item}
+	if meta, ok := s.configMeta[id]; ok {
+		detail.Meta = &meta
+	}
+	for _, rel := range s.relationships {
+		if rel.ConfigExternalID == id || rel.RelatedExternalID == id {
+			detail.Relationships = append(detail.Relationships, rel)
+		}
+	}
+	for _, ch := range s.results.Changes {
+		if ch.Source != "" && strings.Contains(ch.Source, id) {
+			detail.Changes = append(detail.Changes, ch)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.json"`, sanitizeFilename(id)))
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	enc.Encode(detail) //nolint:errcheck
+}
+
+func sanitizeFilename(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
+}
+
+// SPA routes that the Preact app handles client-side. Any request for one of
+// these prefixes (or the bare root) should return the HTML shell so that
+// deep links like /configs/{id} or /groups/{id} work on refresh.
+var spaRoutes = []string{
+	"/configs", "/logs", "/har", "/users", "/groups",
+	"/roles", "/access", "/access_logs", "/issues", "/spec",
+}
+
+func isSPARoute(path string) bool {
+	if path == "/" {
+		return true
+	}
+	for _, prefix := range spaRoutes {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
+	if !isSPARoute(r.URL.Path) {
 		http.NotFound(w, r)
 		return
 	}

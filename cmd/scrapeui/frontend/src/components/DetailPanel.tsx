@@ -2,6 +2,7 @@ import { useState, useMemo } from 'preact/hooks';
 import type { ScrapeResult, ConfigChange, UIRelationship, ConfigMeta, ExternalConfigAccess, ExternalConfigAccessLog } from '../types';
 import { healthIcon, healthColor, type Lookups, resolve } from '../utils';
 import { JsonView } from './JsonView';
+import { AliasList } from './AliasList';
 
 interface Props {
   item: ScrapeResult | null;
@@ -45,6 +46,22 @@ function Expandable({ summary, data, color }: { summary: any; data: any; color: 
           <JsonView data={data} />
         </div>
       )}
+    </div>
+  );
+}
+
+function Section({ title, count, children, defaultOpen = true }: { title: string; count?: number; children: any; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <h3
+        class="text-sm font-semibold text-gray-700 mb-2 cursor-pointer select-none flex items-center gap-1 hover:text-gray-900"
+        onClick={() => setOpen(!open)}
+      >
+        <span class="text-gray-400 text-xs">{open ? '▼' : '▶'}</span>
+        {title}{count !== undefined && ` (${count})`}
+      </h3>
+      {open && children}
     </div>
   );
 }
@@ -99,6 +116,14 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
             >
               <iconify-icon icon="codicon:link" class="text-sm" />
             </button>
+            <a
+              class="text-gray-300 hover:text-blue-500 transition-colors"
+              title="Download JSON for this config"
+              href={`/api/config/${encodeURIComponent(item.id)}`}
+              download
+            >
+              <iconify-icon icon="codicon:cloud-download" class="text-sm" />
+            </a>
           </div>
           <div class="flex items-center gap-2 text-sm text-gray-500">
             <span>{item.config_type}</span>
@@ -150,14 +175,9 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
       <LabelBadges labels={item.tags} color="bg-gray-100 text-gray-600" />
 
       {item.aliases && item.aliases.length > 0 && (
-        <div>
-          <h3 class="text-sm font-semibold text-gray-700 mb-1">Aliases</h3>
-          <div class="flex flex-wrap gap-1">
-            {item.aliases.map((alias, i) => (
-              <span key={i} class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono break-all">{alias}</span>
-            ))}
-          </div>
-        </div>
+        <Section title="Aliases" count={item.aliases.length}>
+          <AliasList aliases={item.aliases} />
+        </Section>
       )}
 
       {item.analysis && (
@@ -169,8 +189,7 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
 
       {/* Relationships */}
       {itemRelationships.length > 0 && (
-        <div>
-          <h3 class="text-sm font-semibold text-gray-700 mb-2">Relationships ({itemRelationships.length})</h3>
+        <Section title="Relationships" count={itemRelationships.length}>
           <div class="space-y-1">
             {itemRelationships.map((rel, i) => {
               const isOutgoing = rel.config_id === item.id;
@@ -195,13 +214,12 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
               );
             })}
           </div>
-        </div>
+        </Section>
       )}
 
       {/* Changes */}
       {itemChanges.length > 0 && (
-        <div>
-          <h3 class="text-sm font-semibold text-gray-700 mb-2">Changes ({itemChanges.length})</h3>
+        <Section title="Changes" count={itemChanges.length}>
           <div class="space-y-1">
             {itemChanges.map((ch, i) => (
               <Expandable
@@ -211,6 +229,9 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
                 summary={
                   <div class="flex items-center gap-2">
                     <span class="font-medium text-purple-800">{ch.change_type}</span>
+                    {(ch.resolved?.action || ch.action) && (
+                      <span class="px-1 py-0.5 rounded bg-orange-100 text-orange-700">{ch.resolved?.action || ch.action}</span>
+                    )}
                     {ch.severity && <span class="text-purple-500">{ch.severity}</span>}
                     {ch.summary && <span class="text-gray-600 truncate">{ch.summary}</span>}
                     {ch.created_at && <span class="text-gray-400 ml-auto shrink-0">{ch.created_at}</span>}
@@ -219,13 +240,12 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
               />
             ))}
           </div>
-        </div>
+        </Section>
       )}
 
       {/* Config Access */}
       {itemAccess.length > 0 && (
-        <div>
-          <h3 class="text-sm font-semibold text-gray-700 mb-2">Access ({itemAccess.length})</h3>
+        <Section title="Access" count={itemAccess.length}>
           <div class="space-y-1">
             {itemAccess.map((a, i) => (
               <Expandable
@@ -249,13 +269,12 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
               />
             ))}
           </div>
-        </div>
+        </Section>
       )}
 
       {/* Access Logs */}
       {itemAccessLogs.length > 0 && (
-        <div>
-          <h3 class="text-sm font-semibold text-gray-700 mb-2">Access Logs ({itemAccessLogs.length})</h3>
+        <Section title="Access Logs" count={itemAccessLogs.length}>
           <div class="space-y-1">
             {itemAccessLogs.map((a, i) => (
               <Expandable
@@ -277,13 +296,12 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
               />
             ))}
           </div>
-        </div>
+        </Section>
       )}
 
       {/* Config JSON */}
       {item.config && (
-        <div>
-          <h3 class="text-sm font-semibold text-gray-700 mb-2">Configuration</h3>
+        <Section title="Configuration">
           <div class="bg-gray-50 p-3 rounded border overflow-x-auto max-h-96 overflow-y-auto">
             {typeof item.config === 'string' ? (
               <pre class="text-xs font-mono whitespace-pre-wrap">{item.config}</pre>
@@ -291,7 +309,7 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
               <JsonView data={item.config} />
             )}
           </div>
-        </div>
+        </Section>
       )}
     </div>
   );

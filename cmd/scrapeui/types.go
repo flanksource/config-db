@@ -65,11 +65,19 @@ type ConfigMeta struct {
 	Location string   `json:"location,omitempty"`
 }
 
+// ScrapeIssue represents an orphaned change, FK error, or other pipeline issue.
+type ScrapeIssue struct {
+	Type    string          `json:"type"`              // "orphaned", "fk_error", "ignored"
+	Message string          `json:"message,omitempty"`
+	Change  *v1.ChangeResult `json:"change,omitempty"` // Full change details when applicable
+}
+
 type Snapshot struct {
 	Scrapers      []ScraperProgress        `json:"scrapers"`
 	Results       v1.FullScrapeResults     `json:"results"`
 	Relationships []UIRelationship         `json:"relationships,omitempty"`
 	ConfigMeta    map[string]ConfigMeta    `json:"config_meta,omitempty"`
+	Issues        []ScrapeIssue            `json:"issues,omitempty"`
 	Counts        Counts                   `json:"counts"`
 	SaveSummary   *SaveSummary             `json:"save_summary,omitempty"`
 	ScrapeSpec    any                      `json:"scrape_spec,omitempty"`
