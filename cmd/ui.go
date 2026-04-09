@@ -23,7 +23,7 @@ import (
 // Fields have no json tags because clicky serializes using Go field names (PascalCase).
 type jsonResults struct {
 	Configs            []v1.ScrapeResult
-	Changes            []models.ConfigChange
+	Changes            []v1.ChangeResult
 	Artifacts          []models.Artifact
 	Analysis           []models.ConfigAnalysis
 	Relationships      []scrapeui.UIRelationship
@@ -31,7 +31,7 @@ type jsonResults struct {
 	ExternalRoles      []models.ExternalRole
 	ExternalUsers      []models.ExternalUser
 	ExternalGroups     []models.ExternalGroup
-	ExternalUserGroups []models.ExternalUserGroup
+	ExternalUserGroups []v1.ExternalUserGroup
 	ConfigAccess       []v1.ExternalConfigAccess
 	ConfigAccessLogs   []v1.ExternalConfigAccessLog
 	HAR                []har.Entry `json:"har,omitempty"`

@@ -8,6 +8,11 @@ import (
 	"github.com/flanksource/duty/models"
 )
 
+// MergeResults flattens per-scraper ScrapeResults into a FullScrapeResults for
+// the UI. External users/groups/roles are NOT read from individual results any
+// longer — they are published once per save cycle via ScrapeSummary.External*
+// (and copied into Server.results by UpdateScraper). This function still
+// returns ExternalUserGroups and any other per-result fields.
 func MergeResults(results []v1.ScrapeResult) v1.FullScrapeResults {
 	for i := range results {
 		if results[i].Resolved != nil && results[i].Action == "" {

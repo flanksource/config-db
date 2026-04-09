@@ -244,7 +244,7 @@ type runHTMLOutput struct {
 	SaveSummary        *v1.ScrapeSummary            `json:"-"`
 	Snapshots          *v1.ScrapeSnapshotPair       `json:"snapshots,omitempty"`
 	Configs            []v1.ScrapeResult            `pretty:"table"`
-	Changes            []changeWithScreenshot       `pretty:"table"`
+	Changes            []changeWithScreenshot        `pretty:"table"`
 	Artifacts          []models.Artifact            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
 	ExternalRoles      []models.ExternalRole        `pretty:"table"`
