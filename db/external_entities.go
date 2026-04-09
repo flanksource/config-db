@@ -20,49 +20,64 @@ import (
 )
 
 type externalEntitySyncResult struct {
-	Users  v1.EntitySummary
-	Groups v1.EntitySummary
-	Roles  v1.EntitySummary
+	Users  v1.EntitySummary[dutyModels.ExternalUser]
+	Groups v1.EntitySummary[dutyModels.ExternalGroup]
+	Roles  v1.EntitySummary[dutyModels.ExternalRole]
 }
 
-func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraperID *uuid.UUID) (externalEntitySyncResult, map[uuid.UUID]uuid.UUID, error) {
+// syncedExternalEntities carries the canonical, post-merge external entities
+// out of syncExternalEntities so callers (notably SaveResults) can publish them
+// back into the originating *v1.ScrapeResult slices via result.Resolved.
+type syncedExternalEntities struct {
+	// Users/Groups/Roles are post-resolve, post-merge: each entry's ID has
+	// already been rewritten to the canonical winner ID returned by the SQL
+	// merge_and_upsert_external_* functions.
+	Users  []dutyModels.ExternalUser
+	Groups []dutyModels.ExternalGroup
+	Roles  []dutyModels.ExternalRole
+	// UserIDMap and GroupIDMap are the raw loser→winner maps from the merge,
+	// kept for callers (e.g. SaveResults remapping configAccess.ExternalUserID).
+	UserIDMap  map[uuid.UUID]uuid.UUID
+	GroupIDMap map[uuid.UUID]uuid.UUID
+}
+
+func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraperID *uuid.UUID) (externalEntitySyncResult, syncedExternalEntities, error) {
 	var result externalEntitySyncResult
 	result.Users.Scraped = len(extract.externalUsers)
 	result.Groups.Scraped = len(extract.externalGroups)
 	result.Roles.Scraped = len(extract.externalRoles)
 
+	var synced syncedExternalEntities
+
 	now := time.Now()
 
 	resolvedUsers, skippedUsers, err := resolveExternalUsers(ctx, extract.externalUsers, scraperID, now)
 	if err != nil {
-		return result, nil, err
+		return result, synced, err
 	}
 	result.Users.Skipped = skippedUsers
 
 	resolvedGroups, skippedGroups, err := resolveExternalGroups(ctx, extract.externalGroups, scraperID, now)
 	if err != nil {
-		return result, nil, err
+		return result, synced, err
 	}
 	result.Groups.Skipped = skippedGroups
 
 	resolvedRoles, skippedRoles, err := resolveExternalRoles(ctx, extract.externalRoles, scraperID, now)
 	if err != nil {
-		return result, nil, err
+		return result, synced, err
 	}
 	result.Roles.Skipped = skippedRoles
 
-	var resolvedUserGroups []dutyModels.ExternalUserGroup
-	for _, ug := range extract.externalUserGroups {
-		if ug.ExternalUserID == uuid.Nil || ug.ExternalGroupID == uuid.Nil {
-			ctx.Logger.Warnf("skipping external user group with nil user_id=%s or group_id=%s", ug.ExternalUserID, ug.ExternalGroupID)
-			continue
-		}
-		resolvedUserGroups = append(resolvedUserGroups, ug)
-	}
+	// Resolve v1.ExternalUserGroup linkages to models.ExternalUserGroup. Entries
+	// with explicit UUIDs are passed through; alias-only entries (e.g. from the
+	// Azure DevOps scraper, which describes identities by descriptor) are
+	// resolved against the just-resolved users/groups via alias overlap.
+	resolvedUserGroups := resolveExternalUserGroups(ctx, extract.externalUserGroups, resolvedUsers, resolvedGroups)
 
 	counts, idMap, err := upsertExternalEntities(ctx, resolvedUsers, resolvedGroups, resolvedRoles, resolvedUserGroups, scraperID)
 	if err != nil {
-		return result, nil, err
+		return result, synced, err
 	}
 
 	if scraperID != nil {
@@ -87,13 +102,87 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 		}
 	}
 
+	// Apply the merge winner-id rewrites to the resolved slices so SaveResults
+	// can publish the canonical post-merge view back to result.Resolved.
+	for i := range resolvedUsers {
+		if winner, ok := idMap[resolvedUsers[i].ID]; ok {
+			resolvedUsers[i].ID = winner
+		}
+	}
+
+	synced = syncedExternalEntities{
+		Users:     resolvedUsers,
+		Groups:    resolvedGroups,
+		Roles:     resolvedRoles,
+		UserIDMap: idMap,
+	}
+
 	result.Users.Saved = counts.usersSaved
 	result.Users.Deleted = counts.usersDeleted
+	result.Users.Entities = resolvedUsers
 	result.Groups.Saved = counts.groupsSaved
 	result.Groups.Deleted = counts.groupsDeleted
+	result.Groups.Entities = resolvedGroups
 	result.Roles.Saved = counts.rolesSaved
 	result.Roles.Deleted = counts.rolesDeleted
-	return result, idMap, nil
+	result.Roles.Entities = resolvedRoles
+	return result, synced, nil
+}
+
+// resolveExternalUserGroups converts v1.ExternalUserGroup entries (which may
+// describe their user/group either by canonical UUID or by alias) into
+// models.ExternalUserGroup entries with concrete UUIDs. Alias-only entries are
+// matched against the alias lists of the supplied users/groups; entries that
+// fail to resolve on either side are dropped with a warning.
+func resolveExternalUserGroups(
+	ctx api.ScrapeContext,
+	in []v1.ExternalUserGroup,
+	users []dutyModels.ExternalUser,
+	groups []dutyModels.ExternalGroup,
+) []dutyModels.ExternalUserGroup {
+	if len(in) == 0 {
+		return nil
+	}
+
+	userByAlias := make(map[string]uuid.UUID, len(users)*2)
+	for _, u := range users {
+		for _, a := range u.Aliases {
+			userByAlias[a] = u.ID
+		}
+	}
+	groupByAlias := make(map[string]uuid.UUID, len(groups)*2)
+	for _, g := range groups {
+		for _, a := range g.Aliases {
+			groupByAlias[a] = g.ID
+		}
+	}
+
+	resolveID := func(direct *uuid.UUID, aliases []string, lookup map[string]uuid.UUID) uuid.UUID {
+		if direct != nil && *direct != uuid.Nil {
+			return *direct
+		}
+		for _, a := range aliases {
+			if id, ok := lookup[a]; ok {
+				return id
+			}
+		}
+		return uuid.Nil
+	}
+
+	out := make([]dutyModels.ExternalUserGroup, 0, len(in))
+	for _, ug := range in {
+		userID := resolveID(ug.ExternalUserID, ug.ExternalUserAliases, userByAlias)
+		groupID := resolveID(ug.ExternalGroupID, ug.ExternalGroupAliases, groupByAlias)
+		if userID == uuid.Nil || groupID == uuid.Nil {
+			ctx.Logger.Warnf("skipping external user group: unresolved user_aliases=%v group_aliases=%v", ug.ExternalUserAliases, ug.ExternalGroupAliases)
+			continue
+		}
+		out = append(out, dutyModels.ExternalUserGroup{
+			ExternalUserID:  userID,
+			ExternalGroupID: groupID,
+		})
+	}
+	return out
 }
 
 func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalUser, int, error) {
@@ -427,26 +516,115 @@ func dedupeByID[T any](
 	getAliases func(T) []string,
 	setAliases func(*T, []string),
 ) []T {
-	seen := make(map[uuid.UUID]int)
-	var out []T
-	for _, item := range items {
-		id := getID(item)
-		if id == uuid.Nil {
-			out = append(out, item)
-			continue
+	out, _ := dedupeByIDWithIndex(items, getID, getAliases, setAliases)
+	return out
+}
+
+// dedupeByIDWithIndex behaves like dedupeByID but additionally returns a slice
+// `indexMap` parallel to `items` where indexMap[i] is the position of the
+// deduped survivor of items[i] in the returned slice.
+//
+// Entries with non-nil IDs are deduped by exact ID match.
+// Entries with nil IDs (e.g. those from scrapers that intentionally do not
+// synthesize IDs and rely on the SQL merge to assign canonical UUIDs) are
+// deduped by alias overlap using union-find: any chain of items connected
+// by shared aliases collapses into a single survivor entry whose alias set
+// is the union of the chain. This is required because the upstream
+// merge_and_upsert_external_* SQL functions enforce a unique constraint on
+// the aliases column (partial index where deleted_at IS NULL), so distinct
+// temp-table rows that share any alias would violate it.
+func dedupeByIDWithIndex[T any](
+	items []T,
+	getID func(T) uuid.UUID,
+	getAliases func(T) []string,
+	setAliases func(*T, []string),
+) ([]T, []int) {
+	// First pass: group all items into clusters by alias overlap (union-find)
+	// for nil-ID entries, and by exact ID match for non-nil entries.
+	parent := make([]int, len(items))
+	for i := range parent {
+		parent[i] = i
+	}
+	var find func(int) int
+	find = func(x int) int {
+		if parent[x] != x {
+			parent[x] = find(parent[x])
 		}
-		if idx, exists := seen[id]; exists {
-			for _, alias := range getAliases(item) {
-				if !slices.Contains(getAliases(out[idx]), alias) {
-					setAliases(&out[idx], append(getAliases(out[idx]), alias))
-				}
-			}
-		} else {
-			seen[id] = len(out)
-			out = append(out, item)
+		return parent[x]
+	}
+	union := func(a, b int) {
+		ra, rb := find(a), find(b)
+		if ra != rb {
+			parent[ra] = rb
 		}
 	}
-	return out
+
+	idToIdx := make(map[uuid.UUID]int)
+	aliasToIdx := make(map[string]int)
+	for i, item := range items {
+		id := getID(item)
+		if id != uuid.Nil {
+			if existing, ok := idToIdx[id]; ok {
+				union(existing, i)
+			} else {
+				idToIdx[id] = i
+			}
+		}
+		// Index by alias too — overlapping aliases unite both nil-ID and
+		// non-nil-ID entries (the merge SQL function would otherwise reject
+		// them anyway because the aliases unique index spans the whole table).
+		for _, alias := range getAliases(item) {
+			if existing, ok := aliasToIdx[alias]; ok {
+				union(existing, i)
+			} else {
+				aliasToIdx[alias] = i
+			}
+		}
+	}
+
+	// Second pass: pick a survivor per cluster. Prefer items with a non-nil
+	// ID (they carry the authoritative canonical ID, e.g. an AAD-supplied
+	// Azure object UUID) over nil-ID items from descriptor-only scrapers like
+	// Azure DevOps. Fall back to the first item in the cluster.
+	survivor := make(map[int]int) // root -> input index
+	for i := range items {
+		root := find(i)
+		cur, ok := survivor[root]
+		if !ok {
+			survivor[root] = i
+			continue
+		}
+		if getID(items[cur]) == uuid.Nil && getID(items[i]) != uuid.Nil {
+			survivor[root] = i
+		}
+	}
+
+	// Third pass: build the output, merging aliases from every cluster member
+	// into its survivor.
+	rootToOutIdx := make(map[int]int)
+	var out []T
+	indexMap := make([]int, len(items))
+	for i := range items {
+		root := find(i)
+		survivorIdx := survivor[root]
+		outIdx, ok := rootToOutIdx[root]
+		if !ok {
+			outIdx = len(out)
+			rootToOutIdx[root] = outIdx
+			out = append(out, items[survivorIdx])
+		}
+		// Merge this item's aliases into the survivor (if it isn't itself the
+		// survivor entry which is already in `out`).
+		if i != survivorIdx {
+			for _, alias := range getAliases(items[i]) {
+				if !slices.Contains(getAliases(out[outIdx]), alias) {
+					setAliases(&out[outIdx], append(getAliases(out[outIdx]), alias))
+				}
+			}
+		}
+		indexMap[i] = outIdx
+	}
+	return out, indexMap
 }
 
 func createTempAndInsert[T any](tx *gorm.DB, tempTable, sourceTable string, items []T) error {

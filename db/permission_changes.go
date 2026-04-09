@@ -76,6 +76,70 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 		return result, fmt.Errorf("failed to setup temp config access: %w", err)
 	}
 
+	// Insert stub entities for any missing user/role/group references so the
+	// config_access FK insert doesn't fail. Each stub insert runs inside a
+	// savepoint so an error doesn't abort the outer transaction.
+	//
+	// Notes on the SQL below:
+	//   - scraper_id uses `?::uuid` for all three tables. external_roles.scraper_id
+	//     is nominally nullable, but its check constraint
+	//     (application_id IS NOT NULL OR scraper_id IS NOT NULL) forces one to be set.
+	//   - aliases is inserted as NULL, not ARRAY[]::text[], because all three
+	//     tables have a partial unique index on aliases WHERE deleted_at IS NULL,
+	//     and an empty array would collide across multiple stub rows. NULLs are
+	//     distinct under that index.
+	//   - ON CONFLICT DO NOTHING (no target) so any future unique index, not just
+	//     the PK, is tolerated.
+	for _, stub := range []struct {
+		entity    string
+		table     string
+		column    string
+		extraCols string
+		extraVals string
+	}{
+		{
+			entity: "user", table: "external_users", column: "external_user_id",
+			extraCols: ", account_id, user_type", extraVals: ", '', 'Stub'",
+		},
+		{
+			entity: "role", table: "external_roles", column: "external_role_id",
+			extraCols: ", account_id, role_type, description", extraVals: ", '', 'Stub', ''",
+		},
+		{
+			entity: "group", table: "external_groups", column: "external_group_id",
+			extraCols: ", account_id, group_type", extraVals: ", '', 'Stub'",
+		},
+	} {
+		stubSQL := fmt.Sprintf(`
+			INSERT INTO %s (id, name, aliases, scraper_id, created_at, updated_at %s)
+			SELECT DISTINCT t.%s, t.%s::text, NULL::text[], ?::uuid, ?::timestamptz, ?::timestamptz %s
+			FROM %s t
+			WHERE t.%s IS NOT NULL
+			  AND NOT EXISTS (SELECT 1 FROM %s e WHERE e.id = t.%s)
+			ON CONFLICT DO NOTHING
+		`, stub.table, stub.extraCols,
+			stub.column, stub.column, stub.extraVals,
+			tempTable,
+			stub.column, stub.table, stub.column)
+
+		savepoint := fmt.Sprintf("stub_%s", stub.entity)
+		if err := tx.Exec("SAVEPOINT " + savepoint).Error; err != nil {
+			ctx.Logger.Warnf("failed to create savepoint for stub %s: %v", stub.entity, err)
+			continue
+		}
+
+		r := tx.Exec(stubSQL, scraperID.String(), now, now)
+		if r.Error != nil {
+			ctx.Logger.Warnf("failed to create stub %ss: %v", stub.entity, r.Error)
+			tx.Exec("ROLLBACK TO SAVEPOINT " + savepoint)
+			continue
+		}
+		tx.Exec("RELEASE SAVEPOINT " + savepoint)
+		if r.RowsAffected > 0 {
+			ctx.Logger.Warnf("created %d stub %s(s) for missing config_access references", r.RowsAffected, stub.entity)
+		}
+	}
+
 	// Upsert: insert new records, restore soft-deleted ones
 	if len(items) > 0 {
 		var newRows []struct {

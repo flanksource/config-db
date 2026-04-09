@@ -52,7 +52,16 @@ func ExtractFullMode(scraperID *uuid.UUID, scraped v1.ScrapeResults) v1.ScrapeRe
 		{len(all.ExternalUsers) > 0, func(r *v1.ScrapeResult) { r.ExternalUsers = all.ExternalUsers }},
 		{len(all.ExternalGroups) > 0, func(r *v1.ScrapeResult) { r.ExternalGroups = all.ExternalGroups }},
 		{len(all.ExternalRoles) > 0, func(r *v1.ScrapeResult) { r.ExternalRoles = all.ExternalRoles }},
-		{len(all.ExternalUserGroups) > 0, func(r *v1.ScrapeResult) { r.ExternalUserGroups = all.ExternalUserGroups }},
+		{len(all.ExternalUserGroups) > 0, func(r *v1.ScrapeResult) {
+			r.ExternalUserGroups = make([]v1.ExternalUserGroup, len(all.ExternalUserGroups))
+			for i, ug := range all.ExternalUserGroups {
+				userID, groupID := ug.ExternalUserID, ug.ExternalGroupID
+				r.ExternalUserGroups[i] = v1.ExternalUserGroup{
+					ExternalUserID:  &userID,
+					ExternalGroupID: &groupID,
+				}
+			}
+		}},
 		{len(all.ConfigAccess) > 0, func(r *v1.ScrapeResult) { r.ConfigAccess = all.ConfigAccess }},
 		{len(all.AccessLogs) > 0, func(r *v1.ScrapeResult) { r.ConfigAccessLogs = all.AccessLogs }},
 	}

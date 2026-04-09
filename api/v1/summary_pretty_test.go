@@ -3,6 +3,7 @@ package v1
 import (
 	"encoding/json"
 
+	"github.com/flanksource/duty/models"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -35,11 +36,11 @@ var _ = Describe("ScrapeSummary", func() {
 					ConfigTypes: map[string]ConfigTypeScrapeSummary{
 						"AWS::EC2::Instance": {Added: 1},
 					},
-					ExternalUsers:  EntitySummary{Scraped: 50, Saved: 50},
-					ExternalGroups: EntitySummary{Scraped: 10, Saved: 10},
-					ExternalRoles:  EntitySummary{Scraped: 5, Saved: 5},
-					ConfigAccess:   EntitySummary{Scraped: 200, Saved: 200},
-					AccessLogs:     EntitySummary{Scraped: 1000, Saved: 1000},
+					ExternalUsers:  EntitySummary[models.ExternalUser]{Scraped: 50, Saved: 50},
+					ExternalGroups: EntitySummary[models.ExternalGroup]{Scraped: 10, Saved: 10},
+					ExternalRoles:  EntitySummary[models.ExternalRole]{Scraped: 5, Saved: 5},
+					ConfigAccess:   EntitySummary[struct{}]{Scraped: 200, Saved: 200},
+					AccessLogs:     EntitySummary[struct{}]{Scraped: 1000, Saved: 1000},
 				},
 				"configs(+1/~0/=0) users=50 groups=10 roles=5 access=200 logs=1000"),
 		)
@@ -80,7 +81,7 @@ var _ = Describe("ScrapeSummary", func() {
 				ConfigTypes: map[string]ConfigTypeScrapeSummary{
 					"AWS::EC2::Instance": {Added: 3, Changes: 10, Deduped: 2},
 				},
-				ExternalUsers: EntitySummary{Scraped: 50, Saved: 48},
+				ExternalUsers: EntitySummary[models.ExternalUser]{Scraped: 50, Saved: 48},
 			}
 			data, err := json.Marshal(original)
 			Expect(err).ToNot(HaveOccurred())
@@ -110,14 +111,14 @@ var _ = Describe("ScrapeSummary", func() {
 				ConfigTypes: map[string]ConfigTypeScrapeSummary{
 					"AWS::EC2::Instance": {Added: 1, Changes: 5},
 				},
-				ExternalUsers: EntitySummary{Scraped: 10, Saved: 8, Deleted: 1},
+				ExternalUsers: EntitySummary[models.ExternalUser]{Scraped: 10, Saved: 8, Deleted: 1},
 			}
 			b := ScrapeSummary{
 				ConfigTypes: map[string]ConfigTypeScrapeSummary{
 					"AWS::EC2::Instance": {Added: 2, Changes: 3},
 					"Kubernetes::Pod":    {Added: 5},
 				},
-				ExternalUsers: EntitySummary{Scraped: 20, Saved: 18, Deleted: 2},
+				ExternalUsers: EntitySummary[models.ExternalUser]{Scraped: 20, Saved: 18, Deleted: 2},
 			}
 			a.Merge(b)
 
@@ -132,13 +133,13 @@ var _ = Describe("ScrapeSummary", func() {
 
 	Describe("EntitySummary IsEmpty", func() {
 		It("should return true for zero value", func() {
-			Expect(EntitySummary{}.IsEmpty()).To(BeTrue())
+			Expect(EntitySummary[models.ExternalUser]{}.IsEmpty()).To(BeTrue())
 		})
 		It("should return false when Scraped is set", func() {
-			Expect(EntitySummary{Scraped: 1}.IsEmpty()).To(BeFalse())
+			Expect(EntitySummary[models.ExternalUser]{Scraped: 1}.IsEmpty()).To(BeFalse())
 		})
 		It("should return false when Deleted is set", func() {
-			Expect(EntitySummary{Deleted: 1}.IsEmpty()).To(BeFalse())
+			Expect(EntitySummary[models.ExternalUser]{Deleted: 1}.IsEmpty()).To(BeFalse())
 		})
 	})
 
@@ -168,7 +169,7 @@ var _ = Describe("ScrapeSummary", func() {
 			Expect(s.HasUpdates()).To(BeTrue())
 		})
 		It("should return true with entity updates only", func() {
-			s := ScrapeSummary{ExternalUsers: EntitySummary{Saved: 5}}
+			s := ScrapeSummary{ExternalUsers: EntitySummary[models.ExternalUser]{Saved: 5}}
 			Expect(s.HasUpdates()).To(BeTrue())
 		})
 	})

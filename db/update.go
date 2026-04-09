@@ -148,10 +148,10 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result *v1.Scrap
 
 		}
 		result.Changes = []v1.ChangeResult{*changeResult}
-		if newChanges, _, _, err := extractChanges(ctx, result, ci); err != nil {
+		if chResult, err := extractChanges(ctx, result, ci); err != nil {
 			return false, nil, err
 		} else {
-			changes = append(changes, newChanges...)
+			changes = append(changes, chResult.newChanges...)
 		}
 
 		if lo.IsEmpty(ci.Config) || lo.FromPtr(ci.Config) == "null" {
@@ -277,9 +277,18 @@ func shouldExcludeChange(ctx api.ScrapeContext, result *v1.ScrapeResult, changeR
 	return false, nil
 }
 
-func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.ConfigItem) ([]*models.ConfigChange, []*models.ConfigChange, v1.ChangeSummary, error) {
+type extractChangesResult struct {
+	newChanges      []*models.ConfigChange
+	changesToUpdate []*models.ConfigChange
+	changeSummary   v1.ChangeSummary
+	orphanedChanges []v1.ChangeResult
+	fkErrorChanges  []v1.ChangeResult
+}
+
+func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.ConfigItem) (*extractChangesResult, error) {
 	var (
-		changeSummary v1.ChangeSummary
+		changeSummary   v1.ChangeSummary
+		orphanedChanges []v1.ChangeResult
 
 		newOnes = []*models.ConfigChange{}
 		updates = []*models.ConfigChange{}
@@ -295,13 +304,15 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 	result.Changes = append(result.Changes, processMoveUpCopyUp(ctx, result, ci)...)
 	result.Changes = append(result.Changes, processCopyMove(ctx, result, ci)...)
 
-	for _, changeResult := range result.Changes {
+	for i := range result.Changes {
+		changeResult := &result.Changes[i]
 		if changeResult.Action == v1.Ignore {
+			resolveChange(changeResult, string(v1.Ignore), changeResult.ConfigID)
 			changeSummary.AddIgnoredByAction(string(changeResult.Action), changeResult.ChangeType)
 			continue
 		}
 
-		if exclude, err := shouldExcludeChange(ctx, result, changeResult); err != nil {
+		if exclude, err := shouldExcludeChange(ctx, result, *changeResult); err != nil {
 			ctx.JobHistory().AddError(fmt.Sprintf("error running change exclusion: %v", err))
 		} else if exclude {
 			changeSummary.AddIgnored(changeResult.ChangeType)
@@ -314,6 +325,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		if changeResult.ConfigID != "" {
 			if _, ok := OrphanCache.Get(changeResult.ConfigID); ok {
 				changeSummary.AddOrphaned(changeResult.ChangeType, changeResult.ConfigID)
+				orphanedChanges = append(orphanedChanges, *changeResult)
 				continue
 			}
 		}
@@ -321,17 +333,19 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		if changeResult.ExternalID != "" {
 			if _, ok := OrphanCache.Get(changeResult.ExternalID); ok {
 				changeSummary.AddOrphaned(changeResult.ChangeType, changeResult.ExternalID)
+				orphanedChanges = append(orphanedChanges, *changeResult)
 				continue
 			}
 		}
 
 		if changeResult.Action == v1.Delete {
-			if err := deleteChangeHandler(ctx, changeResult); err != nil {
-				return nil, nil, changeSummary, fmt.Errorf("failed to delete config from change: %w", err)
+			resolveChange(changeResult, string(v1.Delete), changeResult.ConfigID)
+			if err := deleteChangeHandler(ctx, *changeResult); err != nil {
+				return nil, fmt.Errorf("failed to delete config from change: %w", err)
 			}
 		}
 
-		change := models.NewConfigChangeFromV1(*result, changeResult)
+		change := models.NewConfigChangeFromV1(*result, *changeResult)
 		if fingerprint, err := pkgChanges.Fingerprint(change); err != nil {
 			logger.Errorf("failed to fingerprint change: %v", err)
 		} else if fingerprint != "" {
@@ -341,7 +355,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		if change.CreatedBy != nil {
 			person, err := FindPersonByEmail(ctx, ptr.ToString(change.CreatedBy))
 			if err != nil {
-				return nil, nil, changeSummary, fmt.Errorf("error finding person by email: %w", err)
+				return nil, fmt.Errorf("error finding person by email: %w", err)
 			} else if person != nil {
 				change.CreatedBy = ptr.String(person.ID.String())
 			} else {
@@ -355,7 +369,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 				change.ConfigID = ci.ID
 			} else if !change.GetExternalID().IsEmpty() {
 				if ci, err := ctx.TempCache().FindExternalID(ctx, change.GetExternalID()); err != nil {
-					return nil, nil, changeSummary, fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
+					return nil, fmt.Errorf("failed to get config from change (externalID=%s): %w", change.GetExternalID(), err)
 				} else if ci != "" {
 					change.ConfigID = ci
 				}
@@ -377,6 +391,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 				missingID = change.ExternalID
 			}
 			changeSummary.AddOrphaned(changeResult.ChangeType, missingID)
+			orphanedChanges = append(orphanedChanges, *changeResult)
 
 			if change.ExternalID != "" {
 				OrphanCache.Set(change.ExternalID, true, 0)
@@ -396,7 +411,12 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 		}
 	}
 
-	return newOnes, updates, changeSummary, nil
+	return &extractChangesResult{
+		newChanges:      newOnes,
+		changesToUpdate: updates,
+		changeSummary:   changeSummary,
+		orphanedChanges: orphanedChanges,
+	}, nil
 }
 
 // validateExistingUsers checks which external user IDs exist in the database
@@ -549,6 +569,8 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	if err != nil {
 		return summary, ctx.Oops().Wrapf(err, "failed to extract configs & changes from results")
 	}
+	summary.OrphanedChanges = append(summary.OrphanedChanges, extractResult.orphanedChanges...)
+	summary.FKErrorChanges = append(summary.FKErrorChanges, extractResult.fkErrorChanges...)
 	for configType, cs := range extractResult.changeSummary {
 		summary.AddChangeSummary(configType, cs)
 	}
@@ -573,7 +595,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
-	entityResult, userIDMap, err := syncExternalEntities(ctx, extractResult, scraperID)
+	entityResult, synced, err := syncExternalEntities(ctx, extractResult, scraperID)
 	if err != nil {
 		summary.AddWarning("ExternalEntities", fmt.Sprintf("failed to sync external entities: %v", err))
 	} else {
@@ -585,18 +607,19 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	// Remap stale ExternalUserIDs after entity sync has resolved canonical IDs
 	for i := range extractResult.configAccesses {
 		if extractResult.configAccesses[i].ExternalUserID != nil {
-			if remapped, ok := userIDMap[*extractResult.configAccesses[i].ExternalUserID]; ok {
+			if remapped, ok := synced.UserIDMap[*extractResult.configAccesses[i].ExternalUserID]; ok {
 				extractResult.configAccesses[i].ExternalUserID = &remapped
 			}
 		}
 	}
 	for i := range extractResult.configAccessLogs {
 		if extractResult.configAccessLogs[i].ExternalUserID != uuid.Nil {
-			if remapped, ok := userIDMap[extractResult.configAccessLogs[i].ExternalUserID]; ok {
+			if remapped, ok := synced.UserIDMap[extractResult.configAccessLogs[i].ExternalUserID]; ok {
 				extractResult.configAccessLogs[i].ExternalUserID = remapped
 			}
 		}
 	}
+
 
 	summary.ConfigAccess.Scraped = len(extractResult.configAccesses)
 	missingConfigs := map[string]int{}
@@ -1254,6 +1277,7 @@ func appendResolvedRelationship(origin *v1.ScrapeResult, rel v1.RelationshipResu
 	})
 }
 
+
 type updateConfigArgs struct {
 	Result   *v1.ScrapeResult
 	Existing *models.ConfigItem
@@ -1294,13 +1318,15 @@ type extractResult struct {
 
 	externalUsers      []dutyModels.ExternalUser
 	externalGroups     []dutyModels.ExternalGroup
-	externalUserGroups []dutyModels.ExternalUserGroup
+	externalUserGroups []v1.ExternalUserGroup
 
 	externalRoles    []dutyModels.ExternalRole
 	configAccesses   []v1.ExternalConfigAccess
 	configAccessLogs []v1.ExternalConfigAccessLog
 
-	changeSummary v1.ChangeSummaryByType
+	changeSummary  v1.ChangeSummaryByType
+	orphanedChanges []v1.ChangeResult
+	fkErrorChanges  []v1.ChangeResult
 }
 
 func NewExtractResult() *extractResult {
@@ -1413,10 +1439,10 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 			ctx.TempCache().Insert(*ci)
 		}
 
-		if toCreate, toUpdate, changeSummary, err := extractChanges(ctx, result, ci); err != nil {
+		if chResult, err := extractChanges(ctx, result, ci); err != nil {
 			return nil, err
 		} else {
-			if !changeSummary.IsEmpty() {
+			if !chResult.changeSummary.IsEmpty() {
 				var configType string
 				if ci != nil {
 					configType = ci.Type
@@ -1428,11 +1454,12 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 					configType = "None"
 				}
 
-				extractResult.changeSummary.Merge(configType, changeSummary)
+				extractResult.changeSummary.Merge(configType, chResult.changeSummary)
 			}
 
-			extractResult.newChanges = append(extractResult.newChanges, toCreate...)
-			extractResult.changesToUpdate = append(extractResult.changesToUpdate, toUpdate...)
+			extractResult.newChanges = append(extractResult.newChanges, chResult.newChanges...)
+			extractResult.changesToUpdate = append(extractResult.changesToUpdate, chResult.changesToUpdate...)
+			extractResult.orphanedChanges = append(extractResult.orphanedChanges, chResult.orphanedChanges...)
 		}
 	}
 

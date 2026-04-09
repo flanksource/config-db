@@ -93,20 +93,24 @@ func (e ExtractedConfig) Merge(other ExtractedConfig) ExtractedConfig {
 }
 
 type ExtractionSummary struct {
-	Users        v1.EntitySummary `json:"users,omitzero"`
-	Groups       v1.EntitySummary `json:"groups,omitzero"`
-	Roles        v1.EntitySummary `json:"roles,omitzero"`
-	ConfigAccess v1.EntitySummary `json:"config_access,omitzero"`
-	AccessLogs   v1.EntitySummary `json:"access_logs,omitzero"`
-	Changes      v1.EntitySummary `json:"changes,omitzero"`
-	Analysis     v1.EntitySummary `json:"analysis,omitzero"`
+	Users        v1.EntitySummary[models.ExternalUser]  `json:"users,omitzero"`
+	Groups       v1.EntitySummary[models.ExternalGroup] `json:"groups,omitzero"`
+	Roles        v1.EntitySummary[models.ExternalRole]  `json:"roles,omitzero"`
+	ConfigAccess v1.EntitySummary[struct{}]             `json:"config_access,omitzero"`
+	AccessLogs   v1.EntitySummary[struct{}]             `json:"access_logs,omitzero"`
+	Changes      v1.EntitySummary[struct{}]             `json:"changes,omitzero"`
+	Analysis     v1.EntitySummary[struct{}]             `json:"analysis,omitzero"`
 }
 
 func (e ExtractionSummary) Pretty() api.Text {
 	t := clicky.Text("")
+	type entitySummaryLike interface {
+		IsEmpty() bool
+		Pretty() api.Text
+	}
 	type entry struct {
 		label   string
-		summary v1.EntitySummary
+		summary entitySummaryLike
 	}
 	for _, e := range []entry{
 		{"users", e.Users},
