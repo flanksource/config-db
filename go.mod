@@ -8,7 +8,7 @@ require (
 	github.com/flanksource/commons v1.50.1
 	github.com/flanksource/deps v1.0.24
 	github.com/flanksource/duty v1.0.1250
-	github.com/flanksource/gomplate/v3 v3.24.74
+	github.com/flanksource/gomplate/v3 v3.24.76
 	github.com/flanksource/is-healthy v1.0.86
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.18
@@ -149,6 +149,8 @@ require (
 	github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b // indirect
 	github.com/alecthomas/chroma/v2 v2.23.1 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
+	github.com/antchfx/xmlquery v1.5.1 // indirect
+	github.com/antchfx/xpath v1.3.6 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apache/arrow/go/v15 v15.0.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
