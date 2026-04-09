@@ -10,10 +10,7 @@ import (
 	"time"
 
 	commonsHTTP "github.com/flanksource/commons/http"
-	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
-	"github.com/google/uuid"
-	"github.com/lib/pq"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -1267,12 +1264,6 @@ func NormalizeDescriptor(descriptor string) string {
 		return descriptor
 	}
 	return SIDToVssgp(sid)
-}
-
-// DescriptorID generates a deterministic UUID from any descriptor form.
-// Normalizes to vssgp. form first so the same identity always gets the same ID.
-func DescriptorID(descriptor string) (uuid.UUID, error) {
-	return hash.DeterministicUUID(pq.StringArray{NormalizeDescriptor(descriptor)})
 }
 
 // DescriptorAliases returns both descriptor forms (vssgp. and Microsoft.TeamFoundation.Identity;)

@@ -173,14 +173,11 @@ func (ado AzureDevopsScraper) fetchReleasePermissions(
 		}
 
 		if identity.IsContainer {
-			groupID, err := DescriptorID(identity.Descriptor)
-			if err != nil {
-				continue
-			}
 			aliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
 			aliases = append(aliases, DescriptorAliases(identity.SubjectDescriptor)...)
+			// No ID — the SQL merge resolves this group against the AAD scraper's
+			// authoritative record by alias overlap. AAD takes precedence.
 			ctx.AddGroup(dutyModels.ExternalGroup{
-				ID:        groupID,
 				Name:      name,
 				Aliases:   pq.StringArray(aliases),
 				Tenant:    config.Organization,
