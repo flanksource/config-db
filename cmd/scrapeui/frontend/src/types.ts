@@ -34,6 +34,7 @@ export interface ScrapeResult {
 
 export interface ConfigChange {
   change_type: string;
+  action?: string;
   severity?: string;
   source?: string;
   summary?: string;
@@ -43,6 +44,13 @@ export interface ConfigChange {
   patches?: string;
   created_at?: string;
   external_created_by?: string;
+  resolved?: {
+    action?: string;
+    config_id?: string;
+    change_type?: string;
+    summary?: string;
+    severity?: string;
+  };
 }
 
 export interface UIRelationship {
@@ -84,8 +92,10 @@ export interface ExternalRole {
 }
 
 export interface ExternalUserGroup {
-  external_user_id: string;
-  external_group_id: string;
+  external_user_id?: string;
+  external_group_id?: string;
+  external_user_aliases?: string[];
+  external_group_aliases?: string[];
 }
 
 export interface ExternalConfigAccess {
@@ -176,11 +186,18 @@ export interface ConfigMeta {
   location?: string;
 }
 
+export interface ScrapeIssue {
+  type: string;
+  message?: string;
+  change?: ConfigChange;
+}
+
 export interface Snapshot {
   scrapers: ScraperProgress[];
   results: FullScrapeResults;
   relationships?: UIRelationship[];
   config_meta?: Record<string, ConfigMeta>;
+  issues?: ScrapeIssue[];
   counts: Counts;
   save_summary?: SaveSummary;
   scrape_spec?: any;
@@ -196,4 +213,4 @@ export interface TypeGroup {
   counts: { healthy: number; unhealthy: number; warning: number; unknown: number; errors: number };
 }
 
-export type Tab = 'configs' | 'logs' | 'har' | 'users' | 'groups' | 'roles' | 'access' | 'access_logs' | 'spec';
+export type Tab = 'configs' | 'logs' | 'har' | 'users' | 'groups' | 'roles' | 'access' | 'access_logs' | 'issues' | 'spec';

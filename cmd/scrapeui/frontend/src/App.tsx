@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import type { Snapshot, ScrapeResult, Tab } from './types';
 import { groupByType, filterItems, collectTypes, formatDuration, buildLookups, globalSearch } from './utils';
+import { useRoute } from './hooks/useRoute';
 import { SplitPane } from './components/SplitPane';
 import { ScraperList } from './components/ScraperList';
 import { Summary } from './components/Summary';
@@ -23,43 +24,26 @@ const TAB_DEFS: { key: Tab; label: string; icon: string; countKey?: string }[] =
   { key: 'roles', label: 'Roles', icon: 'codicon:shield', countKey: 'external_roles' },
   { key: 'access', label: 'Access', icon: 'codicon:lock', countKey: 'config_access' },
   { key: 'access_logs', label: 'Access Logs', icon: 'codicon:history', countKey: 'access_logs' },
+  { key: 'issues', label: 'Issues', icon: 'codicon:warning' },
   { key: 'spec', label: 'Spec', icon: 'codicon:file-code' },
 ];
 
-function parseHash(): { tab?: Tab; id?: string; q?: string } {
-  const params = new URLSearchParams(location.hash.slice(1));
-  return {
-    tab: (params.get('tab') as Tab) || undefined,
-    id: params.get('id') || undefined,
-    q: params.get('q') || undefined,
-  };
-}
-
-function writeHash(tab: Tab, id?: string, q?: string) {
-  const params = new URLSearchParams();
-  params.set('tab', tab);
-  if (id) params.set('id', id);
-  if (q) params.set('q', q);
-  const next = '#' + params.toString();
-  if (location.hash !== next) history.replaceState(null, '', next);
-}
-
-const INITIAL_HASH = parseHash();
-
 export function App() {
+  const [route, navigate] = useRoute();
+  const { tab, id: routeId, q: routeQ } = route;
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [done, setDone] = useState(false);
   const [status, setStatus] = useState('Loading...');
   const [selected, setSelected] = useState<ScrapeResult | null>(null);
   const [expandAll, setExpandAll] = useState<boolean | null>(null);
   const [filters, setFilters] = useState<Filters>({ health: new Set(), type: new Set() });
-  const [tab, setTab] = useState<Tab>(INITIAL_HASH.tab || 'spec');
   const [elapsed, setElapsed] = useState(0);
-  const [search, setSearch] = useState(INITIAL_HASH.q || '');
-  const pendingId = useRef<string | undefined>(INITIAL_HASH.id);
+  const search = routeQ || '';
+  const setSearch = (value: string) => navigate({ q: value || undefined });
   const doneRef = useRef(false);
   const startRef = useRef(0);
   const logsRef = useRef<HTMLDivElement>(null);
+  const initialTabRef = useRef(tab);
 
   useEffect(() => {
     fetch('/api/scrape')
@@ -104,8 +88,8 @@ export function App() {
     } else {
       setStatus('Scraping...');
     }
-    if ((snap.results?.configs?.length ?? 0) > 0 && tabRef.current === 'spec' && !INITIAL_HASH.tab) {
-      setTab('configs');
+    if ((snap.results?.configs?.length ?? 0) > 0 && tabRef.current === 'spec' && initialTabRef.current === 'spec' && location.pathname === '/') {
+      navigate({ tab: 'configs' });
     }
   }
 
@@ -118,39 +102,33 @@ export function App() {
 
   const configs = snapshot?.results?.configs || [];
 
-  // Sync URL hash
+  // Sync selected config with URL route id (when on configs tab)
   useEffect(() => {
-    writeHash(tab, selected?.id, search || undefined);
-  }, [tab, selected?.id, search]);
-
-  // Restore selection from URL when configs load
-  useEffect(() => {
-    if (!pendingId.current || !configs.length) return;
-    const match = configs.find(c => c.id === pendingId.current);
-    if (match) {
-      setSelected(match);
-      pendingId.current = undefined;
+    if (tab !== 'configs') return;
+    if (!routeId) {
+      setSelected(null);
+      return;
     }
-  }, [configs]);
+    if (selected?.id === routeId) return;
+    const match = configs.find(c => c.id === routeId);
+    if (match) setSelected(match);
+  }, [routeId, configs, tab]);
+  const orphanedConfigs = useMemo(() => {
+    return (snapshot?.issues || [])
+      .filter(issue => issue.type === 'orphaned' && issue.change)
+      .map((issue, i): ScrapeResult => ({
+        id: `orphaned-${i}`,
+        name: issue.change!.summary || issue.change!.change_type || `Orphaned #${i + 1}`,
+        config_type: 'Orphaned Changes',
+        health: 'warning',
+        config: issue.change,
+      }));
+  }, [snapshot?.issues]);
 
-  // Handle browser back/forward
-  useEffect(() => {
-    const onHashChange = () => {
-      const h = parseHash();
-      if (h.tab && h.tab !== tabRef.current) setTab(h.tab);
-      if (h.q !== undefined) setSearch(h.q);
-      if (h.id) {
-        const match = configs.find(c => c.id === h.id);
-        if (match) setSelected(match);
-      } else {
-        setSelected(null);
-      }
-    };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, [configs]);
+  const allConfigs = useMemo(() => [...configs, ...orphanedConfigs], [configs, orphanedConfigs]);
+
   const filtered = useMemo(() => {
-    let items = filterItems(configs, filters.health, filters.type);
+    let items = filterItems(allConfigs, filters.health, filters.type);
     if (search) {
       const lq = search.toLowerCase();
       items = items.filter(c =>
@@ -163,14 +141,14 @@ export function App() {
       );
     }
     return items;
-  }, [configs, filters, search]);
+  }, [allConfigs, filters, search]);
   const groups = useMemo(() => groupByType(filtered), [filtered]);
-  const types = useMemo(() => collectTypes(configs), [configs]);
+  const types = useMemo(() => collectTypes(allConfigs), [allConfigs]);
   const healthValues = useMemo(() => {
     const vals = new Set<string>();
-    for (const item of configs) vals.add(item.health || 'unknown');
+    for (const item of allConfigs) vals.add(item.health || 'unknown');
     return Array.from(vals).sort();
-  }, [configs]);
+  }, [allConfigs]);
 
   const counts: Record<string, number> = snapshot?.counts as any || {};
 
@@ -267,7 +245,8 @@ export function App() {
         {TAB_DEFS.map(t => {
           const count = t.countKey ? counts[t.countKey] || 0 : (
             t.key === 'har' ? (snapshot?.har?.length || 0) :
-            t.key === 'logs' ? (snapshot?.logs ? 1 : 0) : 0
+            t.key === 'logs' ? (snapshot?.logs ? 1 : 0) :
+            t.key === 'issues' ? (snapshot?.issues?.length || 0) : 0
           );
           const isActive = tab === t.key;
           const searchHits = search ? (searchCounts[t.key] || 0) : 0;
@@ -283,7 +262,7 @@ export function App() {
                   ? 'border-blue-500 text-blue-600 font-medium'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
-              onClick={() => setTab(t.key)}
+              onClick={() => navigate({ tab: t.key, id: undefined })}
             >
               <iconify-icon icon={t.icon} />
               {t.label}
@@ -353,7 +332,7 @@ export function App() {
               left={
                 <>
                   {groups.map(g => (
-                    <ConfigTree key={g.type} groups={[g]} selected={selected} onSelect={setSelected} expandAll={expandAll} configCounts={configCounts} />
+                    <ConfigTree key={g.type} groups={[g]} selected={selected} onSelect={(item) => navigate({ tab: 'configs', id: item.id })} expandAll={expandAll} configCounts={configCounts} />
                   ))}
                   {configs.length === 0 && !done && (
                     <div class="p-8 text-center text-gray-400">
@@ -385,11 +364,46 @@ export function App() {
 
         {tab === 'har' && <HARPanel entries={snapshot?.har || []} search={search} />}
 
-        {tab === 'users' && <EntityTable title="Users" kind="user" entities={snapshot?.results?.external_users || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} search={search} />}
-        {tab === 'groups' && <EntityTable title="Groups" kind="group" entities={snapshot?.results?.external_groups || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} search={search} />}
-        {tab === 'roles' && <EntityTable title="Roles" kind="role" entities={snapshot?.results?.external_roles || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} search={search} />}
+        {tab === 'users' && <EntityTable title="Users" kind="user" entities={snapshot?.results?.external_users || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} userGroups={snapshot?.results?.external_user_groups} allUsers={snapshot?.results?.external_users} allGroups={snapshot?.results?.external_groups} lookups={lookups} search={search} selectedId={routeId} onSelect={(id) => navigate({ tab: 'users', id })} />}
+        {tab === 'groups' && <EntityTable title="Groups" kind="group" entities={snapshot?.results?.external_groups || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} userGroups={snapshot?.results?.external_user_groups} allUsers={snapshot?.results?.external_users} allGroups={snapshot?.results?.external_groups} lookups={lookups} search={search} selectedId={routeId} onSelect={(id) => navigate({ tab: 'groups', id })} />}
+        {tab === 'roles' && <EntityTable title="Roles" kind="role" entities={snapshot?.results?.external_roles || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} search={search} selectedId={routeId} onSelect={(id) => navigate({ tab: 'roles', id })} />}
         {tab === 'access' && <AccessTable entries={snapshot?.results?.config_access || []} lookups={lookups} search={search} />}
         {tab === 'access_logs' && <AccessLogTable entries={snapshot?.results?.config_access_logs || []} lookups={lookups} search={search} />}
+
+        {tab === 'issues' && (
+          <div class="overflow-auto h-full p-4">
+            {(!snapshot?.issues || snapshot.issues.length === 0) ? (
+              <div class="p-8 text-center text-gray-400 text-sm">No issues found</div>
+            ) : (
+              <div class="space-y-2">
+                {snapshot.issues.map((issue, i) => (
+                  <div key={i} class={`border rounded p-3 text-sm ${
+                    issue.type === 'fk_error' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
+                  }`}>
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                        issue.type === 'fk_error' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                      }`}>{issue.type}</span>
+                      {issue.message && <span class="text-gray-600">{issue.message}</span>}
+                    </div>
+                    {issue.change && (
+                      <div class="mt-1 text-xs space-y-0.5">
+                        <div><span class="text-gray-500">change_type:</span> <span class="font-medium">{issue.change.change_type}</span></div>
+                        {issue.change.config_type && <div><span class="text-gray-500">config_type:</span> {issue.change.config_type}</div>}
+                        {issue.change.external_id && <div><span class="text-gray-500">external_id:</span> <span class="font-mono">{issue.change.external_id}</span></div>}
+                        {issue.change.summary && <div><span class="text-gray-500">summary:</span> {issue.change.summary}</div>}
+                        {issue.change.source && <div><span class="text-gray-500">source:</span> {issue.change.source}</div>}
+                        {issue.change.severity && <div><span class="text-gray-500">severity:</span> {issue.change.severity}</div>}
+                        {issue.change.created_at && <div><span class="text-gray-500">created_at:</span> {issue.change.created_at}</div>}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === 'spec' && <ScrapeConfigPanel spec={snapshot?.scrape_spec} />}
       </div>
     </div>
