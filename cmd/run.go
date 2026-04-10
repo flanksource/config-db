@@ -593,6 +593,8 @@ func ensureScraper(ctx context.Context, sc *v1.ScrapeConfig) error {
 
 func startScrapeUI(scraperNames []string, scrapeSpec any, logBuf *bytes.Buffer) *scrapeui.Server {
 	srv := scrapeui.NewServer(scraperNames, scrapeSpec, logBuf)
+	bi := GetBuildInfo()
+	srv.SetBuildInfo(scrapeui.BuildInfo{Version: bi.Version, Commit: bi.Commit, Date: bi.Date})
 	addr := fmt.Sprintf("localhost:%d", uiPort)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil && uiPort != 0 {
