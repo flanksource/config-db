@@ -15,6 +15,9 @@ spec:
         domains:
           - "*.azure.com"
           - "*.microsoft.com"
+          - "*.microsoftonline.com"
+          - "*.windows.net"
+          - "*.live.com"
         video: on-error
       login:
         browser:
@@ -39,6 +42,14 @@ spec:
 
           await checkLogin('https://portal.azure.com/');
 
+          // The Azure portal is a SPA whose hash router is registered by lazily-loaded
+          // extensions (Microsoft_AAD_IAM among them). domcontentloaded fires long before
+          // those extensions are wired up, so deep-linking immediately after navigation
+          // produces an "unknown route" fallback to #home. The avatar menu is the latest
+          // chrome element to mount and is a reliable signal that route handlers are live.
+          await page.waitForSelector('#fxs-avatarmenu, [data-telemetryname="AvatarMenuButton"], button[aria-label*="Account manager"]', { timeout: 60000 }).catch(() => {});
+          await page.waitForTimeout(3000);
+
           for (const group of groups) {
             const config = typeof group.config === 'string' ? JSON.parse(group.config) : group.config;
             const groupId = config?.id || group.external_id?.[0] || group.id;
@@ -47,7 +58,12 @@ spec:
             const url = `https://portal.azure.com/#view/Microsoft_AAD_IAM/GroupDetailsMenuBlade/~/Members/groupId/${groupId}/menuId/`;
             log(`navigating to group: ${groupName} (${groupId})`);
 
-            await page.goto(url, { waitUntil: 'domcontentloaded' });
+            // Drive the navigation from inside the portal's own JS context. For a
+            // same-document hash change, assigning location.href fires hashchange
+            // against the SPA's already-wired router; page.goto via CDP can take a
+            // path that the portal silently falls back from.
+            await page.evaluate((u) => { window.location.href = u; }, url);
+            await page.waitForTimeout(2000);
             await page.waitForSelector('[class*="member"], [data-automationid="ListCell"]', { timeout: 30000 }).catch(() => {});
 
             const path = await screenshot(groupName, { watermark: `${groupName} — Members` });
@@ -58,7 +74,6 @@ spec:
               summary: `Member list screenshot for ${groupName}`,
               screenshot: path,
             });
-
           }
 
           writeOutput(null);

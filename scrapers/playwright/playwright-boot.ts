@@ -36,9 +36,9 @@ async function boot() {
     log(`video recording: ${process.env.PLAYWRIGHT_VIDEO_DIR}`);
   }
 
-  // NOTE: launchPersistentContext silently drops the cookies half of
-  // storageState in our Playwright build, so we apply cookies and per-origin
-  // localStorage manually after launch instead.
+  // Cookies and per-origin localStorage are applied manually after launch via
+  // addCookies / addInitScript. Passing them through launchPersistentContext's
+  // storageState option does not get them into the browser jar.
   let pendingStorageState: { cookies?: any[]; origins?: any[] } | null = null;
   if (process.env.PLAYWRIGHT_STORAGE_STATE) {
     try {
@@ -135,10 +135,11 @@ async function boot() {
     await page.waitForTimeout(1000);
     await cleanupPage();
 
-    // For SPAs that use fixed-position layouts (e.g. Azure portal) the document
-    // body never scrolls — content lives in inner overflow:auto containers, so
-    // Playwright's fullPage:true is a no-op there. Stretch the viewport to a
-    // moderate height so the SPA lays out its inner panels at full height.
+    // Fixed-position SPAs (Azure portal, etc.) pin the document body to the
+    // viewport — body.scrollHeight never grows, so fullPage:true alone captures
+    // only the viewport. Stretching the viewport forces the SPA to lay out its
+    // inner overflow:auto panels taller, after which fullPage:true captures the
+    // expanded result. The viewport is restored before the helper returns.
     const wantsFullPage = opts?.fullPage !== false;
     let originalViewport: { width: number; height: number } | null = null;
     if (wantsFullPage) {
