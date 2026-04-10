@@ -57,6 +57,7 @@ func scrapeAgents(ctx api.ScrapeContext) v1.ScrapeResults {
 			Name:        agent.Name,
 			Type:        "MissionControl::Agent",
 			ConfigClass: "Agent",
+			Config:      agent,
 			Health:      health,
 			Status:      status,
 		})
