@@ -18,7 +18,7 @@ jobs:
       BENCH_SIZES: 1000
     steps:
       - name: Install Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v5
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: 1.26.x
           cache: false
@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
 
       - name: Post "benchmark running" comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const marker = '<!-- benchstat-report -->';
@@ -138,7 +138,7 @@ jobs:
           retention-days: 14
 
       - name: Post report to PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
