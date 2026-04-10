@@ -1,7 +1,22 @@
 import { defineConfig, type Plugin } from 'vite';
 import preact from '@preact/preset-vite';
+import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+
+// Capture git commit + build time once at vite startup so the UI header can
+// display the frontend build identity alongside the Go binary's. Failing to
+// resolve git metadata (e.g. running from a tarball) falls back to safe
+// defaults rather than breaking the build.
+function uiBuildCommit(): string {
+  try {
+    return execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+const UI_BUILD_COMMIT = uiBuildCommit();
+const UI_BUILD_DATE = new Date().toISOString();
 
 function fileApiPlugin(): Plugin {
   return {
@@ -107,7 +122,7 @@ function fileApiPlugin(): Plugin {
 function spaHistoryFallback(): Plugin {
   const prefixes = [
     '/configs', '/logs', '/har', '/users', '/groups',
-    '/roles', '/access', '/access_logs', '/issues', '/spec',
+    '/roles', '/access', '/access_logs', '/issues', '/snapshot', '/spec',
   ];
   return {
     name: 'spa-history-fallback',
@@ -129,6 +144,10 @@ function spaHistoryFallback(): Plugin {
 
 export default defineConfig({
   plugins: [preact(), spaHistoryFallback(), fileApiPlugin()],
+  define: {
+    __UI_BUILD_COMMIT__: JSON.stringify(UI_BUILD_COMMIT),
+    __UI_BUILD_DATE__: JSON.stringify(UI_BUILD_DATE),
+  },
   build: {
     lib: {
       entry: 'src/index.tsx',

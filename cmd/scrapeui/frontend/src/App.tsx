@@ -14,6 +14,7 @@ import { EntityTable } from './components/EntityTable';
 import { AccessTable } from './components/AccessTable';
 import { AccessLogTable } from './components/AccessLogTable';
 import { ScrapeConfigPanel } from './components/ScrapeConfigPanel';
+import { SnapshotPanel } from './components/SnapshotPanel';
 
 const TAB_DEFS: { key: Tab; label: string; icon: string; countKey?: string }[] = [
   { key: 'configs', label: 'Configs', icon: 'codicon:server-process', countKey: 'configs' },
@@ -25,6 +26,7 @@ const TAB_DEFS: { key: Tab; label: string; icon: string; countKey?: string }[] =
   { key: 'access', label: 'Access', icon: 'codicon:lock', countKey: 'config_access' },
   { key: 'access_logs', label: 'Access Logs', icon: 'codicon:history', countKey: 'access_logs' },
   { key: 'issues', label: 'Issues', icon: 'codicon:warning' },
+  { key: 'snapshot', label: 'Snapshot', icon: 'codicon:database' },
   { key: 'spec', label: 'Spec', icon: 'codicon:file-code' },
 ];
 
@@ -215,6 +217,11 @@ export function App() {
     [search, snapshot?.results, snapshot?.har, snapshot?.logs],
   );
 
+  const scraperErrors = useMemo(
+    () => (snapshot?.scrapers || []).filter(s => s.status === 'error' && s.error),
+    [snapshot?.scrapers],
+  );
+
   return (
     <div class="bg-gray-100 h-screen flex flex-col">
       {/* Header */}
@@ -226,6 +233,20 @@ export function App() {
               Scrape Results
             </h1>
             <span class="text-sm text-gray-400">{status}</span>
+            {snapshot?.build_info && (
+              <span
+                class="text-xs text-gray-400 font-mono"
+                title={`commit ${snapshot.build_info.commit}\nbuilt ${snapshot.build_info.date}\nui ${__UI_BUILD_COMMIT__} (${__UI_BUILD_DATE__})`}
+              >
+                {snapshot.build_info.version}
+                {snapshot.build_info.commit && snapshot.build_info.commit !== 'none' && (
+                  <> · {snapshot.build_info.commit.substring(0, 8)}</>
+                )}
+                {snapshot.build_info.date && snapshot.build_info.date !== 'unknown' && (
+                  <> · {snapshot.build_info.date}</>
+                )}
+              </span>
+            )}
           </div>
           {snapshot && (
             <Summary
@@ -240,6 +261,22 @@ export function App() {
         {snapshot && <div class="mt-2"><ScraperList scrapers={snapshot.scrapers} /></div>}
       </div>
 
+      {/* Scrape error banner — surfaces errors from failed scrapers so they
+          aren't just a small red chip in the scraper list. */}
+      {scraperErrors.length > 0 && (
+        <div class="border-b border-red-200 bg-red-50 px-6 py-3">
+          {scraperErrors.map(s => (
+            <div key={s.name} class="flex items-start gap-2 text-sm">
+              <iconify-icon icon="codicon:error" class="text-red-500 mt-0.5 flex-shrink-0" />
+              <div class="min-w-0 flex-1">
+                <div class="font-semibold text-red-700">{s.name} failed</div>
+                <div class="text-red-600 font-mono text-xs whitespace-pre-wrap break-all">{s.error}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Tab bar */}
       <div class="border-b bg-white px-6 flex items-center gap-1 overflow-x-auto">
         {TAB_DEFS.map(t => {
@@ -251,8 +288,8 @@ export function App() {
           const isActive = tab === t.key;
           const searchHits = search ? (searchCounts[t.key] || 0) : 0;
 
-          // Hide tabs with no data (except configs, logs, spec)
-          if (!count && !isActive && !searchHits && !['configs', 'logs', 'spec'].includes(t.key)) return null;
+          // Hide tabs with no data (except configs, logs, spec, snapshot)
+          if (!count && !isActive && !searchHits && !['configs', 'logs', 'spec', 'snapshot'].includes(t.key)) return null;
 
           return (
             <button
@@ -345,7 +382,19 @@ export function App() {
                   )}
                 </>
               }
-              right={<DetailPanel item={selected} changes={snapshot?.results?.changes} relationships={snapshot?.relationships} configMeta={snapshot?.config_meta} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} />}
+              right={<DetailPanel
+                item={selected}
+                changes={snapshot?.results?.changes}
+                relationships={snapshot?.relationships}
+                configMeta={snapshot?.config_meta}
+                access={snapshot?.results?.config_access}
+                accessLogs={snapshot?.results?.config_access_logs}
+                allUsers={snapshot?.results?.external_users}
+                allGroups={snapshot?.results?.external_groups}
+                allRoles={snapshot?.results?.external_roles}
+                lookups={lookups}
+                onNavigate={(kind, id) => navigate({ tab: kind, id })}
+              />}
             />
           </div>
         )}
@@ -404,6 +453,7 @@ export function App() {
           </div>
         )}
 
+        {tab === 'snapshot' && <SnapshotPanel pairs={snapshot?.snapshots} />}
         {tab === 'spec' && <ScrapeConfigPanel spec={snapshot?.scrape_spec} />}
       </div>
     </div>

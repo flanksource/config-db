@@ -100,6 +100,7 @@ export interface ExternalUserGroup {
 
 export interface ExternalConfigAccess {
   id: string;
+  config_id?: string;
   external_config_id?: any;
   external_user_id?: string;
   external_role_id?: string;
@@ -192,6 +193,54 @@ export interface ScrapeIssue {
   change?: ConfigChange;
 }
 
+export interface EntityWindowCounts {
+  total: number;
+  updated_last: number;
+  updated_hour: number;
+  updated_day: number;
+  updated_week: number;
+  deleted_last: number;
+  deleted_hour: number;
+  deleted_day: number;
+  deleted_week: number;
+}
+
+export interface ScrapeSnapshot {
+  captured_at: string;
+  run_started_at: string;
+  per_scraper: Record<string, EntityWindowCounts>;
+  per_config_type: Record<string, EntityWindowCounts>;
+  external_users: EntityWindowCounts;
+  external_groups: EntityWindowCounts;
+  external_roles: EntityWindowCounts;
+  external_user_groups: EntityWindowCounts;
+  config_access: EntityWindowCounts;
+  config_access_logs: EntityWindowCounts;
+}
+
+export interface ScrapeSnapshotDiff {
+  per_scraper?: Record<string, EntityWindowCounts>;
+  per_config_type?: Record<string, EntityWindowCounts>;
+  external_users: EntityWindowCounts;
+  external_groups: EntityWindowCounts;
+  external_roles: EntityWindowCounts;
+  external_user_groups: EntityWindowCounts;
+  config_access: EntityWindowCounts;
+  config_access_logs: EntityWindowCounts;
+}
+
+export interface ScrapeSnapshotPair {
+  before?: ScrapeSnapshot;
+  after?: ScrapeSnapshot;
+  diff: ScrapeSnapshotDiff;
+}
+
+export interface BuildInfo {
+  version: string;
+  commit: string;
+  date: string;
+}
+
 export interface Snapshot {
   scrapers: ScraperProgress[];
   results: FullScrapeResults;
@@ -200,11 +249,13 @@ export interface Snapshot {
   issues?: ScrapeIssue[];
   counts: Counts;
   save_summary?: SaveSummary;
+  snapshots?: Record<string, ScrapeSnapshotPair>;
   scrape_spec?: any;
   har?: HAREntry[];
   logs: string;
   done: boolean;
   started_at: number;
+  build_info?: BuildInfo;
 }
 
 export interface TypeGroup {
@@ -213,4 +264,4 @@ export interface TypeGroup {
   counts: { healthy: number; unhealthy: number; warning: number; unknown: number; errors: number };
 }
 
-export type Tab = 'configs' | 'logs' | 'har' | 'users' | 'groups' | 'roles' | 'access' | 'access_logs' | 'issues' | 'spec';
+export type Tab = 'configs' | 'logs' | 'har' | 'users' | 'groups' | 'roles' | 'access' | 'access_logs' | 'issues' | 'snapshot' | 'spec';
