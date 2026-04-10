@@ -5,7 +5,7 @@ const path = require('path');
 
 const log = (msg: string) => process.stderr.write(`[playwright] ${msg}\n`);
 
-const LOGIN_PATTERNS = ['/signin', '/login', '/oauth', '/sso', 'login.microsoftonline.com', 'login.live.com', 'signin.aws.amazon.com', 'accounts.google.com'];
+const LOGIN_HOSTS = ['login.microsoftonline.com', 'login.microsoft.com', 'login.live.com', 'signin.aws.amazon.com', 'accounts.google.com', 'login.windows.net'];
 
 async function boot() {
   const outputFile = process.env.PLAYWRIGHT_OUTPUT_FILE!;
@@ -24,6 +24,11 @@ async function boot() {
   const launchOpts: any = {
     headless,
     viewport: { width: 1920, height: 1080 },
+    args: [
+      '--disable-features=ThirdPartyStoragePartitioning,PartitionedCookies,IsolateOrigins,site-per-process',
+      '--disable-site-isolation-trials',
+    ],
+    ignoreDefaultArgs: ['--enable-automation'],
   };
 
   if (process.env.PLAYWRIGHT_HAR_FILE) {
@@ -36,12 +41,68 @@ async function boot() {
     log(`video recording: ${process.env.PLAYWRIGHT_VIDEO_DIR}`);
   }
 
+  // NOTE: launchPersistentContext silently drops the cookies half of
+  // storageState in our Playwright build, so we apply cookies and per-origin
+  // localStorage manually after launch instead.
+  let pendingStorageState: { cookies?: any[]; origins?: any[] } | null = null;
   if (process.env.PLAYWRIGHT_STORAGE_STATE) {
-    launchOpts.storageState = process.env.PLAYWRIGHT_STORAGE_STATE;
-    log(`storage state: ${process.env.PLAYWRIGHT_STORAGE_STATE}`);
+    try {
+      pendingStorageState = JSON.parse(fs.readFileSync(process.env.PLAYWRIGHT_STORAGE_STATE, 'utf-8'));
+      log(`storage state loaded from ${process.env.PLAYWRIGHT_STORAGE_STATE}`);
+    } catch (e: any) {
+      log(`failed to read storage state: ${e.message || e}`);
+    }
   }
 
   const browser = await chromium.launchPersistentContext(userDataDir, launchOpts);
+
+  if (pendingStorageState && Array.isArray(pendingStorageState.cookies) && pendingStorageState.cookies.length > 0) {
+    try {
+      await browser.addCookies(pendingStorageState.cookies);
+      log(`injected ${pendingStorageState.cookies.length} cookies into browser context`);
+    } catch (e: any) {
+      log(`failed to inject cookies: ${e.message || e}`);
+    }
+  }
+
+  if (pendingStorageState && Array.isArray(pendingStorageState.origins)) {
+    for (const origin of pendingStorageState.origins) {
+      if (!origin || !origin.origin || !Array.isArray(origin.localStorage) || origin.localStorage.length === 0) continue;
+      const data = { origin: origin.origin, items: origin.localStorage as Array<{ name: string; value: string }> };
+      await browser.addInitScript((d: { origin: string; items: Array<{ name: string; value: string }> }) => {
+        try {
+          if (window.location.origin === d.origin) {
+            for (const it of d.items) {
+              try { localStorage.setItem(it.name, it.value); } catch {}
+            }
+          }
+        } catch {}
+      }, data);
+      log(`localStorage init script registered for ${origin.origin} (${origin.localStorage.length} items)`);
+    }
+  }
+
+  if (process.env.PLAYWRIGHT_SESSION_STORAGE_FILE) {
+    try {
+      const raw = fs.readFileSync(process.env.PLAYWRIGHT_SESSION_STORAGE_FILE, 'utf-8');
+      const payload = JSON.parse(raw) as { origin: string; items: Record<string, string> };
+      if (payload && payload.origin && payload.items) {
+        await browser.addInitScript((data: { origin: string; items: Record<string, string> }) => {
+          try {
+            if (window.location.origin === data.origin) {
+              for (const k of Object.keys(data.items)) {
+                try { sessionStorage.setItem(k, data.items[k]); } catch {}
+              }
+            }
+          } catch {}
+        }, payload);
+        log(`sessionStorage init script registered for ${payload.origin} (${Object.keys(payload.items).length} items)`);
+      }
+    } catch (e: any) {
+      log(`failed to register sessionStorage init script: ${e.message || e}`);
+    }
+  }
+
   const page = browser.pages()[0] || await browser.newPage();
 
   log(`browser launched, page url=${page.url()}`);
@@ -161,12 +222,11 @@ async function boot() {
       await page.waitForTimeout(3000);
     }
 
-    const currentUrl = page.url().toLowerCase();
-    for (const pattern of LOGIN_PATTERNS) {
-      if (currentUrl.includes(pattern)) {
-        await screenshot('login_failure');
-        throw new Error(`Login failed: redirected to ${page.url()}`);
-      }
+    let currentHost = '';
+    try { currentHost = new URL(page.url()).hostname.toLowerCase(); } catch {}
+    if (LOGIN_HOSTS.includes(currentHost)) {
+      await screenshot('login_failure');
+      throw new Error(`Login failed: redirected to ${page.url()}`);
     }
 
     const title = await page.title();

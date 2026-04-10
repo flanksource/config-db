@@ -141,11 +141,12 @@ func login(ctx api.ScrapeContext, b *Browser, provider v1.PlaywrightLoginProvide
 	}
 
 	if provider.Browser != nil {
-		path, err := loginWithBrowser(ctx, *provider.Browser)
+		result, err := loginWithBrowser(ctx, *provider.Browser)
 		if err != nil {
 			return fmt.Errorf("browser login: %w", err)
 		}
-		b.StorageState = path
+		b.StorageState = result.StorageStatePath
+		b.SessionStorageFile = result.SessionStoragePath
 		return nil
 	}
 
@@ -185,7 +186,6 @@ func mergeHAR(ctx api.ScrapeContext, harPath string, domains []string) error {
 		ctx.Logger.Infof("no HAR collector on context, HAR file preserved at %s", harPath)
 		return nil
 	}
-	defer os.Remove(harPath) //nolint:errcheck
 
 	data, err := os.ReadFile(harPath)
 	if err != nil {

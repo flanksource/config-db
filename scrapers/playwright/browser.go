@@ -47,12 +47,13 @@ type Result struct {
 }
 
 type Browser struct {
-	DataDir        string
-	WorkDir        string // root working dir for all artifacts
-	ScreenshotsDir string
-	QueryDir       string // directory for config query JSON exports
-	StorageState   string // path to Playwright storageState JSON file
-	Headless       bool
+	DataDir            string
+	WorkDir            string // root working dir for all artifacts
+	ScreenshotsDir     string
+	QueryDir           string // directory for config query JSON exports
+	StorageState       string // path to Playwright storageState JSON file
+	SessionStorageFile string // path to JSON {origin, items} for sessionStorage rehydration
+	Headless           bool
 	trace          bool // when true, enable HAR/video recording and persist artifacts
 	keep           bool // when true, skip cleanup on Close (but don't enable tracing)
 	traceConfig    *v1.PlaywrightTrace
@@ -326,6 +327,9 @@ func (b *Browser) Run(script string, env []string, timeout time.Duration) (*Resu
 	}
 	if b.StorageState != "" {
 		env = append(env, "PLAYWRIGHT_STORAGE_STATE="+b.StorageState)
+	}
+	if b.SessionStorageFile != "" {
+		env = append(env, "PLAYWRIGHT_SESSION_STORAGE_FILE="+b.SessionStorageFile)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
