@@ -72,17 +72,27 @@ type ScrapeIssue struct {
 	Change  *v1.ChangeResult `json:"change,omitempty"` // Full change details when applicable
 }
 
+// BuildInfo carries the build-time version/commit/date for display in the
+// scrape UI. Populated by the server at startup from the cmd package.
+type BuildInfo struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Date    string `json:"date"`
+}
+
 type Snapshot struct {
-	Scrapers      []ScraperProgress        `json:"scrapers"`
-	Results       v1.FullScrapeResults     `json:"results"`
-	Relationships []UIRelationship         `json:"relationships,omitempty"`
-	ConfigMeta    map[string]ConfigMeta    `json:"config_meta,omitempty"`
-	Issues        []ScrapeIssue            `json:"issues,omitempty"`
-	Counts        Counts                   `json:"counts"`
-	SaveSummary   *SaveSummary             `json:"save_summary,omitempty"`
-	ScrapeSpec    any                      `json:"scrape_spec,omitempty"`
-	HAR           []har.Entry              `json:"har,omitempty"`
-	Logs          string                   `json:"logs"`
-	Done          bool                     `json:"done"`
-	StartedAt     int64                    `json:"started_at"`
+	Scrapers      []ScraperProgress                 `json:"scrapers"`
+	Results       v1.FullScrapeResults              `json:"results"`
+	Relationships []UIRelationship                  `json:"relationships,omitempty"`
+	ConfigMeta    map[string]ConfigMeta             `json:"config_meta,omitempty"`
+	Issues        []ScrapeIssue                     `json:"issues,omitempty"`
+	Counts        Counts                            `json:"counts"`
+	SaveSummary   *SaveSummary                      `json:"save_summary,omitempty"`
+	Snapshots     map[string]*v1.ScrapeSnapshotPair `json:"snapshots,omitempty"`
+	ScrapeSpec    any                               `json:"scrape_spec,omitempty"`
+	HAR           []har.Entry                       `json:"har,omitempty"`
+	Logs          string                            `json:"logs"`
+	Done          bool                              `json:"done"`
+	StartedAt     int64                             `json:"started_at"`
+	BuildInfo     *BuildInfo                        `json:"build_info,omitempty"`
 }

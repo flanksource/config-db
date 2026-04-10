@@ -58,12 +58,24 @@ type Server struct {
 	configMeta    map[string]ConfigMeta
 	issues        []ScrapeIssue
 	summary       *SaveSummary
+	snapshots     map[string]*v1.ScrapeSnapshotPair
 	har           []har.Entry
 	scrapeSpec    any
 	logBuf        *bytes.Buffer
 	done          bool
 	startedAt     int64
+	buildInfo     *BuildInfo
 	updated       chan struct{}
+}
+
+// SetBuildInfo stores the build-time version/commit/date so the frontend can
+// display it. Called once at startup by cmd/run.go after constructing the
+// server. Kept on Server rather than passed to NewServer to avoid adding yet
+// another constructor argument.
+func (s *Server) SetBuildInfo(info BuildInfo) {
+	s.mu.Lock()
+	s.buildInfo = &info
+	s.mu.Unlock()
 }
 
 func NewServer(scraperNames []string, scrapeSpec any, logBuf *bytes.Buffer) *Server {
@@ -123,18 +135,19 @@ func (s *Server) UpdateScraper(name string, status ScraperStatus, results []v1.S
 			s.results.ConfigAccess = append(s.results.ConfigAccess, merged.ConfigAccess...)
 			s.results.ConfigAccessLogs = append(s.results.ConfigAccessLogs, merged.ConfigAccessLogs...)
 
-			// External users/groups/roles: when SaveResults ran, prefer the
-			// canonical post-merge entities from the summary (single source of
-			// truth, AAD-supplied winner IDs). Otherwise fall back to the raw
-			// scraper output so --no-save mode still shows something.
+			// External users/groups/roles: prefer the canonical post-merge
+			// entities from the summary (AAD-supplied winner IDs), but also
+			// merge in the raw scraper output so results are visible even
+			// when summary.Entities is empty — e.g. when SaveResults ran but
+			// the SQL merge short-circuited without repopulating Entities,
+			// or when running with --no-save.
+			s.results.ExternalUsers = mergeEntitiesByID(s.results.ExternalUsers, merged.ExternalUsers, func(u models.ExternalUser) uuid.UUID { return u.ID })
+			s.results.ExternalGroups = mergeEntitiesByID(s.results.ExternalGroups, merged.ExternalGroups, func(g models.ExternalGroup) uuid.UUID { return g.ID })
+			s.results.ExternalRoles = mergeEntitiesByID(s.results.ExternalRoles, merged.ExternalRoles, func(r models.ExternalRole) uuid.UUID { return r.ID })
 			if summary != nil {
 				s.results.ExternalUsers = mergeEntitiesByID(s.results.ExternalUsers, summary.ExternalUsers.Entities, func(u models.ExternalUser) uuid.UUID { return u.ID })
 				s.results.ExternalGroups = mergeEntitiesByID(s.results.ExternalGroups, summary.ExternalGroups.Entities, func(g models.ExternalGroup) uuid.UUID { return g.ID })
 				s.results.ExternalRoles = mergeEntitiesByID(s.results.ExternalRoles, summary.ExternalRoles.Entities, func(r models.ExternalRole) uuid.UUID { return r.ID })
-			} else {
-				s.results.ExternalUsers = mergeEntitiesByID(s.results.ExternalUsers, merged.ExternalUsers, func(u models.ExternalUser) uuid.UUID { return u.ID })
-				s.results.ExternalGroups = mergeEntitiesByID(s.results.ExternalGroups, merged.ExternalGroups, func(g models.ExternalGroup) uuid.UUID { return g.ID })
-				s.results.ExternalRoles = mergeEntitiesByID(s.results.ExternalRoles, merged.ExternalRoles, func(r models.ExternalRole) uuid.UUID { return r.ID })
 			}
 		}
 		if summary != nil {
@@ -154,6 +167,22 @@ func (s *Server) UpdateScraper(name string, status ScraperStatus, results []v1.S
 func (s *Server) SetHAR(entries []har.Entry) {
 	s.mu.Lock()
 	s.har = entries
+	s.mu.Unlock()
+	s.notify()
+}
+
+// SetSnapshots records the before/after/diff snapshot pair captured by the
+// scrape run for the given scraper. Keyed by scraper name so multi-scraper
+// runs keep each pair distinct.
+func (s *Server) SetSnapshots(scraperName string, pair *v1.ScrapeSnapshotPair) {
+	if pair == nil {
+		return
+	}
+	s.mu.Lock()
+	if s.snapshots == nil {
+		s.snapshots = map[string]*v1.ScrapeSnapshotPair{}
+	}
+	s.snapshots[ScraperName(scraperName)] = pair
 	s.mu.Unlock()
 	s.notify()
 }
@@ -211,11 +240,13 @@ func (s *Server) snapshot() Snapshot {
 		Issues:        s.issues,
 		Counts:        BuildCounts(s.results, s.relationships),
 		SaveSummary:   s.summary,
+		Snapshots:     s.snapshots,
 		ScrapeSpec:    s.scrapeSpec,
 		HAR:           s.har,
 		Logs:          logs,
 		Done:          s.done,
 		StartedAt:     s.startedAt,
+		BuildInfo:     s.buildInfo,
 	}
 }
 
@@ -297,7 +328,7 @@ func sanitizeFilename(s string) string {
 // deep links like /configs/{id} or /groups/{id} work on refresh.
 var spaRoutes = []string{
 	"/configs", "/logs", "/har", "/users", "/groups",
-	"/roles", "/access", "/access_logs", "/issues", "/spec",
+	"/roles", "/access", "/access_logs", "/issues", "/snapshot", "/spec",
 }
 
 func isSPARoute(path string) bool {
