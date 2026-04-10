@@ -24,11 +24,6 @@ async function boot() {
   const launchOpts: any = {
     headless,
     viewport: { width: 1920, height: 1080 },
-    args: [
-      '--disable-features=ThirdPartyStoragePartitioning,PartitionedCookies,IsolateOrigins,site-per-process',
-      '--disable-site-isolation-trials',
-    ],
-    ignoreDefaultArgs: ['--enable-automation'],
   };
 
   if (process.env.PLAYWRIGHT_HAR_FILE) {
@@ -140,10 +135,25 @@ async function boot() {
     await page.waitForTimeout(1000);
     await cleanupPage();
 
+    // For SPAs that use fixed-position layouts (e.g. Azure portal) the document
+    // body never scrolls — content lives in inner overflow:auto containers, so
+    // Playwright's fullPage:true is a no-op there. Stretch the viewport to a
+    // moderate height so the SPA lays out its inner panels at full height.
+    const wantsFullPage = opts?.fullPage !== false;
+    let originalViewport: { width: number; height: number } | null = null;
+    if (wantsFullPage) {
+      originalViewport = page.viewportSize();
+      if (originalViewport) {
+        await page.setViewportSize({ width: originalViewport.width, height: 1000 });
+        await page.waitForTimeout(500);
+      }
+    }
+
     if (opts?.watermark) {
       const currentUrl = page.url();
       const lines = [
         new Date().toISOString(),
+        name,
         opts.watermark,
         currentUrl,
       ];
@@ -169,6 +179,10 @@ async function boot() {
 
     if (opts?.watermark) {
       await page.evaluate(() => document.getElementById('__playwright_watermark')?.remove()).catch(() => {});
+    }
+
+    if (wantsFullPage && originalViewport) {
+      await page.setViewportSize(originalViewport);
     }
 
     log(`screenshot: ${screenshotPath}`);

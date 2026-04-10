@@ -94,37 +94,20 @@ func logSessionStorageSummary(ctx api.ScrapeContext, connName string, data []byt
 		ctx.Logger.Errorf("sessionStorage from connection %s is not valid JSON (%d bytes): %v", connName, len(data), err)
 		return
 	}
-	ctx.Logger.Infof("sessionStorage from connection %s: origin=%s, %d items", connName, parsed.Origin, len(parsed.Items))
+	ctx.Logger.V(2).Infof("sessionStorage from connection %s: origin=%s, %d items", connName, parsed.Origin, len(parsed.Items))
 }
 
 func logStorageStateSummary(ctx api.ScrapeContext, connName string, data []byte) {
 	var parsed struct {
-		Cookies []struct {
-			Name   string `json:"name"`
-			Domain string `json:"domain"`
-		} `json:"cookies"`
-		Origins []struct {
-			Origin       string `json:"origin"`
-			LocalStorage []any  `json:"localStorage"`
-		} `json:"origins"`
+		Cookies []struct{} `json:"cookies"`
+		Origins []struct{} `json:"origins"`
 	}
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		ctx.Logger.Errorf("storageState from connection %s is not valid JSON (%d bytes): %v", connName, len(data), err)
 		return
 	}
-
-	domains := map[string]int{}
-	for _, c := range parsed.Cookies {
-		domains[c.Domain]++
-	}
-	ctx.Logger.Infof("storageState from connection %s: %d bytes, %d cookies across %d domains, %d origins",
-		connName, len(data), len(parsed.Cookies), len(domains), len(parsed.Origins))
-	for d, n := range domains {
-		ctx.Logger.Infof("  cookie domain %s: %d", d, n)
-	}
-	for _, o := range parsed.Origins {
-		ctx.Logger.Infof("  origin %s: %d localStorage items", o.Origin, len(o.LocalStorage))
-	}
+	ctx.Logger.V(2).Infof("storageState from connection %s: %d bytes, %d cookies, %d origins",
+		connName, len(data), len(parsed.Cookies), len(parsed.Origins))
 }
 
 func writeStorageState(data []byte) (string, error) {
