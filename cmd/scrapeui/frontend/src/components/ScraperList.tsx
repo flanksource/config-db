@@ -23,10 +23,10 @@ function statusColor(status: ScraperProgress['status']): string {
 }
 
 export function ScraperList({ scrapers }: Props) {
-  if (!scrapers || scrapers.length <= 1) return null;
+  if (!scrapers || scrapers.length === 0) return null;
 
   return (
-    <div class="flex gap-3 items-center">
+    <div class="flex gap-3 items-center flex-wrap">
       {scrapers.map(s => (
         <div key={s.name} class="flex items-center gap-1 text-sm" title={s.error || ''}>
           <iconify-icon icon={statusIcon(s.status)} class={statusColor(s.status)} />
@@ -34,8 +34,8 @@ export function ScraperList({ scrapers }: Props) {
           {s.result_count > 0 && (
             <span class="text-xs text-gray-400">({s.result_count})</span>
           )}
-          {s.duration_secs > 0 && (
-            <span class="text-xs text-gray-400">{s.duration_secs.toFixed(1)}s</span>
+          {(s.duration_secs ?? 0) > 0 && (
+            <span class="text-xs text-gray-400">{(s.duration_secs as number).toFixed(1)}s</span>
           )}
         </div>
       ))}

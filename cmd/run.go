@@ -5,6 +5,7 @@ import (
 	gocontext "context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -153,6 +155,7 @@ var Run = &cobra.Command{
 		var hasErrors bool
 		var allResults v1.ScrapeResults
 		var lastSummary *v1.ScrapeSummary
+		var lastSnapshotPair *v1.ScrapeSnapshotPair
 		for i := range scraperConfigs {
 			if uiServer != nil {
 				uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperRunning, nil, nil, nil)
@@ -165,7 +168,7 @@ var Run = &cobra.Command{
 
 			scrapeCtx = scrapeCtx.WithHARCollector(harCollector)
 
-			results, summary, err := scrapeAndStore(scrapeCtx)
+			results, summary, snapshotPair, err := scrapeAndStore(scrapeCtx)
 			if err != nil {
 				hasErrors = true
 				logger.Errorf("error scraping config: (name=%s) %+v", scraperConfigs[i].Name, err)
@@ -175,9 +178,15 @@ var Run = &cobra.Command{
 			} else if uiServer != nil {
 				uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperComplete, results, summary, nil)
 			}
+			if uiServer != nil && snapshotPair != nil {
+				uiServer.SetSnapshots(scraperConfigs[i].Name, snapshotPair)
+			}
 			allResults = append(allResults, results...)
 			if summary != nil {
 				lastSummary = summary
+			}
+			if snapshotPair != nil {
+				lastSnapshotPair = snapshotPair
 			}
 		}
 
@@ -191,7 +200,7 @@ var Run = &cobra.Command{
 			uiServer.SetDone()
 		}
 
-		printOutput(allResults, lastSummary, harCollector, logBuf.String())
+		printOutput(allResults, lastSummary, lastSnapshotPair, harCollector, logBuf.String())
 
 		if uiServer != nil {
 			sig := make(chan os.Signal, 1)
@@ -211,6 +220,7 @@ var Run = &cobra.Command{
 type runHTMLOutput struct {
 	Counts             v1.CountsGrid                `json:"-"`
 	SaveSummary        *v1.ScrapeSummary            `json:"-"`
+	Snapshots          *v1.ScrapeSnapshotPair       `json:"snapshots,omitempty"`
 	Configs            []v1.ScrapeResult            `pretty:"table"`
 	Changes            []changeWithScreenshot        `pretty:"table"`
 	Artifacts          []models.Artifact            `pretty:"table"`
@@ -227,24 +237,58 @@ type runHTMLOutput struct {
 	HTTPTraffic        []har.Entry                  `json:"har,omitempty"`
 }
 
-func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary, error) {
+func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary, *v1.ScrapeSnapshotPair, error) {
 	ctx, err := ctx.InitTempCache()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+
+	// Capture the pre-scrape global DB state so we can diff against the
+	// post-scrape snapshot later. Only meaningful when a DB is configured;
+	// otherwise we skip both captures entirely. Snapshot capture is
+	// observability, so we log-and-continue on failure rather than aborting
+	// the scrape itself.
+	dbConnected := save && dutyapi.DefaultConfig.ConnectionString != ""
+	runStart := time.Now()
+	var beforeSnapshot *v1.ScrapeSnapshot
+	if dbConnected {
+		beforeSnapshot, err = db.CaptureScrapeSnapshot(ctx, runStart)
+		if err != nil {
+			logger.Warnf("failed to capture pre-scrape snapshot: %v", err)
+		}
+	}
+	// beforeOnlyPair returns a partial snapshot pair with just the Before
+	// snapshot populated. Used on early-exit error paths so the Snapshot tab
+	// still shows the pre-scrape DB state even when the scrape itself failed
+	// (e.g. the token expired before we could fetch anything).
+	beforeOnlyPair := func() *v1.ScrapeSnapshotPair {
+		if beforeSnapshot == nil {
+			return nil
+		}
+		return &v1.ScrapeSnapshotPair{Before: beforeSnapshot}
 	}
 
 	timer := timer.NewMemoryTimer()
 	results, err := scrapers.Run(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, beforeOnlyPair(), err
 	}
 
+	// Collect any per-result scrape errors but do NOT short-circuit: a
+	// partial failure (one paginated endpoint rate-limited, one tenant with
+	// a permission gap) should still persist everything that did succeed.
+	// The scrape error is combined with any later save error below and
+	// returned to the caller, which surfaces both to the scrapeui via the
+	// red error banner and still gets a populated snapshot pair.
+	var scrapeErr error
 	scrapeResults := v1.ScrapeResults(results)
 	if scrapeResults.HasErr() {
-		for _, e := range scrapeResults.Errors() {
+		errs := scrapeResults.Errors()
+		for _, e := range errs {
 			logger.Errorf("scrape error: %s", e)
 		}
-		return results, nil, fmt.Errorf("scrape completed with %d error(s)", len(scrapeResults.Errors()))
+		joined := strings.Join(errs, "\n---\n")
+		scrapeErr = fmt.Errorf("scrape completed with %d error(s):\n%s", len(errs), joined)
 	}
 
 	logger.Infof("Scraped %d resources (%s)", len(results), timer.End())
@@ -252,22 +296,40 @@ func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary
 	if outputDir != "" {
 		for _, result := range results {
 			if err := exportResource(result, outputDir); err != nil {
-				return results, nil, fmt.Errorf("failed to export results: %w", err)
+				return results, nil, beforeOnlyPair(), errors.Join(scrapeErr, fmt.Errorf("failed to export results: %w", err))
 			}
 		}
 		logger.Infof("Exported %d resources to %s (%s)", len(results), outputDir, timer.End())
 	}
 
-	if save && dutyapi.DefaultConfig.ConnectionString != "" {
-		summary, err := db.SaveResults(ctx, results)
-		if err != nil {
-			return results, nil, fmt.Errorf("failed to save results to db: %w", err)
+	if dbConnected {
+		summary, saveErr := db.SaveResults(ctx, results)
+		if saveErr != nil {
+			return results, nil, beforeOnlyPair(), errors.Join(scrapeErr, fmt.Errorf("failed to save results to db: %w", saveErr))
 		}
 		logger.Infof("Exported %d resources to DB: %s (%s)", len(results), summary.PrettyShort(), timer.End())
-		return results, &summary, nil
+
+		afterSnapshot, captureErr := db.CaptureScrapeSnapshot(ctx, runStart)
+		if captureErr != nil {
+			logger.Warnf("failed to capture post-scrape snapshot: %v", captureErr)
+		}
+		snapshotPair := &v1.ScrapeSnapshotPair{
+			Before: beforeSnapshot,
+			After:  afterSnapshot,
+			Diff:   v1.DiffSnapshots(beforeSnapshot, afterSnapshot),
+		}
+		// Log both the diff (what changed) and the After totals (final DB
+		// state). On idempotent re-scrapes the diff is empty, but the After
+		// counts are still useful for confirming the DB is populated.
+		logger.Infof("Scrape snapshot diff: %s", snapshotPair.Diff.PrettyShort())
+		if afterSnapshot != nil {
+			logger.Infof("Scrape snapshot after: %s", afterSnapshot.PrettyShort())
+		}
+
+		return results, &summary, snapshotPair, scrapeErr
 	}
 
-	return results, nil, nil
+	return results, nil, beforeOnlyPair(), scrapeErr
 }
 
 type changeWithScreenshot struct {
@@ -353,7 +415,7 @@ func (s screenshotDetail) HTML() string       { return s.html }
 func (s screenshotDetail) Markdown() string   { return "[screenshot]" }
 func (s screenshotDetail) StaticHTML() string { return s.html }
 
-func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollector *har.Collector, logs string) {
+func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, snapshots *v1.ScrapeSnapshotPair, harCollector *har.Collector, logs string) {
 	if outputDir != "" {
 		return
 	}
@@ -421,6 +483,7 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, harCollect
 		Logs:               v1.BuildLogOutput(logs),
 	}
 	output.SaveSummary = summary
+	output.Snapshots = snapshots
 	clicky.MustPrint(output)
 }
 
@@ -506,6 +569,8 @@ func ensureScraper(ctx context.Context, sc *v1.ScrapeConfig) error {
 
 func startScrapeUI(scraperNames []string, scrapeSpec any, logBuf *bytes.Buffer) *scrapeui.Server {
 	srv := scrapeui.NewServer(scraperNames, scrapeSpec, logBuf)
+	bi := GetBuildInfo()
+	srv.SetBuildInfo(scrapeui.BuildInfo{Version: bi.Version, Commit: bi.Commit, Date: bi.Date})
 	addr := fmt.Sprintf("localhost:%d", uiPort)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil && uiPort != 0 {
