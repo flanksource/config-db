@@ -9,7 +9,7 @@ import (
 	"github.com/flanksource/clicky/api"
 )
 
-// PrettyShort returns a one-line summary for terminal/log output.
+// PrettyShort returns a one-line summary for terminal/log output, omitting zero values.
 func (s *ScrapeSnapshot) PrettyShort() string {
 	if s == nil {
 		return "no snapshot"
@@ -18,16 +18,23 @@ func (s *ScrapeSnapshot) PrettyShort() string {
 	for _, v := range s.PerConfigType {
 		configTotal += v.Total
 	}
-	return fmt.Sprintf(
-		"configs=%d users=%d groups=%d roles=%d user_groups=%d access=%d access_logs=%d",
-		configTotal,
-		s.ExternalUsers.Total,
-		s.ExternalGroups.Total,
-		s.ExternalRoles.Total,
-		s.ExternalUserGroups.Total,
-		s.ConfigAccess.Total,
-		s.ConfigAccessLogs.Total,
-	)
+	var parts []string
+	add := func(label string, n int) {
+		if n != 0 {
+			parts = append(parts, fmt.Sprintf("%s=%d", label, n))
+		}
+	}
+	add("configs", configTotal)
+	add("users", s.ExternalUsers.Total)
+	add("groups", s.ExternalGroups.Total)
+	add("roles", s.ExternalRoles.Total)
+	add("user_groups", s.ExternalUserGroups.Total)
+	add("access", s.ConfigAccess.Total)
+	add("access_logs", s.ConfigAccessLogs.Total)
+	if len(parts) == 0 {
+		return "empty"
+	}
+	return strings.Join(parts, " ")
 }
 
 // Pretty renders the full snapshot using the clicky Text API.
@@ -51,12 +58,21 @@ func (s *ScrapeSnapshot) Pretty() api.Text {
 		}
 	}
 
-	t = appendEntityRow(t, "External Users", s.ExternalUsers)
-	t = appendEntityRow(t, "External Groups", s.ExternalGroups)
-	t = appendEntityRow(t, "External Roles", s.ExternalRoles)
-	t = appendEntityRow(t, "External User Groups", s.ExternalUserGroups)
-	t = appendEntityRow(t, "Config Access", s.ConfigAccess)
-	t = appendEntityRow(t, "Access Logs", s.ConfigAccessLogs)
+	for _, e := range []struct {
+		label  string
+		counts EntityWindowCounts
+	}{
+		{"External Users", s.ExternalUsers},
+		{"External Groups", s.ExternalGroups},
+		{"External Roles", s.ExternalRoles},
+		{"External User Groups", s.ExternalUserGroups},
+		{"Config Access", s.ConfigAccess},
+		{"Access Logs", s.ConfigAccessLogs},
+	} {
+		if !e.counts.IsZero() {
+			t = appendEntityRow(t, e.label, e.counts)
+		}
+	}
 
 	return t
 }
@@ -159,20 +175,31 @@ func sortedKeys(m map[string]EntityWindowCounts) []string {
 	return keys
 }
 
+func appendWindowCounts(t api.Text, c EntityWindowCounts) api.Text {
+	t = t.Append(fmt.Sprintf("total=%d", c.Total), "text-muted")
+	if c.UpdatedLast != 0 || c.UpdatedHour != 0 || c.UpdatedDay != 0 || c.UpdatedWeek != 0 {
+		t = t.Append(fmt.Sprintf(" upd(L=%d H=%d D=%d W=%d)", c.UpdatedLast, c.UpdatedHour, c.UpdatedDay, c.UpdatedWeek))
+	}
+	if c.DeletedLast != 0 || c.DeletedHour != 0 || c.DeletedDay != 0 || c.DeletedWeek != 0 {
+		t = t.Append(fmt.Sprintf(" del(L=%d H=%d D=%d W=%d)", c.DeletedLast, c.DeletedHour, c.DeletedDay, c.DeletedWeek))
+	}
+	if c.LastCreatedAt != nil {
+		t = t.Append(fmt.Sprintf(" created=%s", c.LastCreatedAt.Format("15:04:05")), "text-muted")
+	}
+	if c.LastUpdatedAt != nil {
+		t = t.Append(fmt.Sprintf(" updated=%s", c.LastUpdatedAt.Format("15:04:05")), "text-muted")
+	}
+	return t
+}
+
 func appendGroupRow(t api.Text, label string, c EntityWindowCounts) api.Text {
 	t = t.Append("  " + label + " ")
-	t = t.Append(fmt.Sprintf("total=%d", c.Total), "text-muted")
-	t = t.Append(fmt.Sprintf(" upd(L=%d H=%d D=%d W=%d)", c.UpdatedLast, c.UpdatedHour, c.UpdatedDay, c.UpdatedWeek))
-	t = t.Append(fmt.Sprintf(" del(L=%d H=%d D=%d W=%d)", c.DeletedLast, c.DeletedHour, c.DeletedDay, c.DeletedWeek))
-	return t.NewLine()
+	return appendWindowCounts(t, c).NewLine()
 }
 
 func appendEntityRow(t api.Text, label string, c EntityWindowCounts) api.Text {
 	t = t.Append(label+": ", "font-bold")
-	t = t.Append(fmt.Sprintf("total=%d", c.Total), "text-muted")
-	t = t.Append(fmt.Sprintf(" upd(L=%d H=%d D=%d W=%d)", c.UpdatedLast, c.UpdatedHour, c.UpdatedDay, c.UpdatedWeek))
-	t = t.Append(fmt.Sprintf(" del(L=%d H=%d D=%d W=%d)", c.DeletedLast, c.DeletedHour, c.DeletedDay, c.DeletedWeek))
-	return t.NewLine()
+	return appendWindowCounts(t, c).NewLine()
 }
 
 func appendDiffRow(t api.Text, label string, c EntityWindowCounts) api.Text {

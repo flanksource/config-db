@@ -79,16 +79,18 @@ func queryArgs(sql string, runStart time.Time) []any {
 // use exactly 9 `?` placeholders bound to runStart.
 func queryGrouped(ctx api.ScrapeContext, runStart time.Time, sql string) (map[string]v1.EntityWindowCounts, error) {
 	type row struct {
-		Key         string `gorm:"column:key"`
-		Total       int    `gorm:"column:total"`
-		UpdatedLast int    `gorm:"column:updated_last"`
-		UpdatedHour int    `gorm:"column:updated_hour"`
-		UpdatedDay  int    `gorm:"column:updated_day"`
-		UpdatedWeek int    `gorm:"column:updated_week"`
-		DeletedLast int    `gorm:"column:deleted_last"`
-		DeletedHour int    `gorm:"column:deleted_hour"`
-		DeletedDay  int    `gorm:"column:deleted_day"`
-		DeletedWeek int    `gorm:"column:deleted_week"`
+		Key           string     `gorm:"column:key"`
+		Total         int        `gorm:"column:total"`
+		UpdatedLast   int        `gorm:"column:updated_last"`
+		UpdatedHour   int        `gorm:"column:updated_hour"`
+		UpdatedDay    int        `gorm:"column:updated_day"`
+		UpdatedWeek   int        `gorm:"column:updated_week"`
+		DeletedLast   int        `gorm:"column:deleted_last"`
+		DeletedHour   int        `gorm:"column:deleted_hour"`
+		DeletedDay    int        `gorm:"column:deleted_day"`
+		DeletedWeek   int        `gorm:"column:deleted_week"`
+		LastCreatedAt *time.Time `gorm:"column:last_created_at"`
+		LastUpdatedAt *time.Time `gorm:"column:last_updated_at"`
 	}
 	var rows []row
 	if err := ctx.DB().Raw(sql, queryArgs(sql, runStart)...).Scan(&rows).Error; err != nil {
@@ -97,15 +99,17 @@ func queryGrouped(ctx api.ScrapeContext, runStart time.Time, sql string) (map[st
 	out := make(map[string]v1.EntityWindowCounts, len(rows))
 	for _, r := range rows {
 		out[r.Key] = v1.EntityWindowCounts{
-			Total:       r.Total,
-			UpdatedLast: r.UpdatedLast,
-			UpdatedHour: r.UpdatedHour,
-			UpdatedDay:  r.UpdatedDay,
-			UpdatedWeek: r.UpdatedWeek,
-			DeletedLast: r.DeletedLast,
-			DeletedHour: r.DeletedHour,
-			DeletedDay:  r.DeletedDay,
-			DeletedWeek: r.DeletedWeek,
+			Total:         r.Total,
+			UpdatedLast:   r.UpdatedLast,
+			UpdatedHour:   r.UpdatedHour,
+			UpdatedDay:    r.UpdatedDay,
+			UpdatedWeek:   r.UpdatedWeek,
+			DeletedLast:   r.DeletedLast,
+			DeletedHour:   r.DeletedHour,
+			DeletedDay:    r.DeletedDay,
+			DeletedWeek:   r.DeletedWeek,
+			LastCreatedAt: r.LastCreatedAt,
+			LastUpdatedAt: r.LastUpdatedAt,
 		}
 	}
 	return out, nil
@@ -115,29 +119,33 @@ func queryGrouped(ctx api.ScrapeContext, runStart time.Time, sql string) (map[st
 // count columns (same column ordering as queryGrouped).
 func querySingle(ctx api.ScrapeContext, runStart time.Time, sql string) (v1.EntityWindowCounts, error) {
 	var row struct {
-		Total       int `gorm:"column:total"`
-		UpdatedLast int `gorm:"column:updated_last"`
-		UpdatedHour int `gorm:"column:updated_hour"`
-		UpdatedDay  int `gorm:"column:updated_day"`
-		UpdatedWeek int `gorm:"column:updated_week"`
-		DeletedLast int `gorm:"column:deleted_last"`
-		DeletedHour int `gorm:"column:deleted_hour"`
-		DeletedDay  int `gorm:"column:deleted_day"`
-		DeletedWeek int `gorm:"column:deleted_week"`
+		Total         int        `gorm:"column:total"`
+		UpdatedLast   int        `gorm:"column:updated_last"`
+		UpdatedHour   int        `gorm:"column:updated_hour"`
+		UpdatedDay    int        `gorm:"column:updated_day"`
+		UpdatedWeek   int        `gorm:"column:updated_week"`
+		DeletedLast   int        `gorm:"column:deleted_last"`
+		DeletedHour   int        `gorm:"column:deleted_hour"`
+		DeletedDay    int        `gorm:"column:deleted_day"`
+		DeletedWeek   int        `gorm:"column:deleted_week"`
+		LastCreatedAt *time.Time `gorm:"column:last_created_at"`
+		LastUpdatedAt *time.Time `gorm:"column:last_updated_at"`
 	}
 	if err := ctx.DB().Raw(sql, queryArgs(sql, runStart)...).Scan(&row).Error; err != nil {
 		return v1.EntityWindowCounts{}, err
 	}
 	return v1.EntityWindowCounts{
-		Total:       row.Total,
-		UpdatedLast: row.UpdatedLast,
-		UpdatedHour: row.UpdatedHour,
-		UpdatedDay:  row.UpdatedDay,
-		UpdatedWeek: row.UpdatedWeek,
-		DeletedLast: row.DeletedLast,
-		DeletedHour: row.DeletedHour,
-		DeletedDay:  row.DeletedDay,
-		DeletedWeek: row.DeletedWeek,
+		Total:         row.Total,
+		UpdatedLast:   row.UpdatedLast,
+		UpdatedHour:   row.UpdatedHour,
+		UpdatedDay:    row.UpdatedDay,
+		UpdatedWeek:   row.UpdatedWeek,
+		DeletedLast:   row.DeletedLast,
+		DeletedHour:   row.DeletedHour,
+		DeletedDay:    row.DeletedDay,
+		DeletedWeek:   row.DeletedWeek,
+		LastCreatedAt: row.LastCreatedAt,
+		LastUpdatedAt: row.LastUpdatedAt,
 	}, nil
 }
 
@@ -157,7 +165,9 @@ SELECT
   COUNT(*) FILTER (WHERE ci.deleted_at >= ?::timestamptz)                      AS deleted_last,
   COUNT(*) FILTER (WHERE ci.deleted_at >= ?::timestamptz - interval '1 hour')  AS deleted_hour,
   COUNT(*) FILTER (WHERE ci.deleted_at >= ?::timestamptz - interval '1 day')   AS deleted_day,
-  COUNT(*) FILTER (WHERE ci.deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week
+  COUNT(*) FILTER (WHERE ci.deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week,
+  MAX(ci.created_at) AS last_created_at,
+  MAX(ci.updated_at) AS last_updated_at
 FROM config_items ci
 LEFT JOIN config_scrapers cs ON cs.id = ci.scraper_id
 GROUP BY key
@@ -174,7 +184,9 @@ SELECT
   COUNT(*) FILTER (WHERE ci.deleted_at >= ?::timestamptz)                      AS deleted_last,
   COUNT(*) FILTER (WHERE ci.deleted_at >= ?::timestamptz - interval '1 hour')  AS deleted_hour,
   COUNT(*) FILTER (WHERE ci.deleted_at >= ?::timestamptz - interval '1 day')   AS deleted_day,
-  COUNT(*) FILTER (WHERE ci.deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week
+  COUNT(*) FILTER (WHERE ci.deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week,
+  MAX(ci.created_at) AS last_created_at,
+  MAX(ci.updated_at) AS last_updated_at
 FROM config_items ci
 WHERE ci.type IS NOT NULL
 GROUP BY ci.type
@@ -190,7 +202,9 @@ SELECT
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz)                      AS deleted_last,
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '1 hour')  AS deleted_hour,
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '1 day')   AS deleted_day,
-  COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week
+  COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week,
+  MAX(created_at) AS last_created_at,
+  MAX(updated_at) AS last_updated_at
 FROM external_users
 `
 
@@ -204,7 +218,9 @@ SELECT
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz)                      AS deleted_last,
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '1 hour')  AS deleted_hour,
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '1 day')   AS deleted_day,
-  COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week
+  COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week,
+  MAX(created_at) AS last_created_at,
+  MAX(updated_at) AS last_updated_at
 FROM external_groups
 `
 
@@ -218,7 +234,9 @@ SELECT
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz)                      AS deleted_last,
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '1 hour')  AS deleted_hour,
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '1 day')   AS deleted_day,
-  COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week
+  COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week,
+  MAX(created_at) AS last_created_at,
+  MAX(updated_at) AS last_updated_at
 FROM external_roles
 `
 
@@ -233,11 +251,13 @@ SELECT
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz)                      AS deleted_last,
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '1 hour')  AS deleted_hour,
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '1 day')   AS deleted_day,
-  COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week
+  COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week,
+  NULL::timestamptz AS last_created_at,
+  NULL::timestamptz AS last_updated_at
 FROM external_user_groups
 `
 
-// config_access has deleted_at but no updated_at.
+// config_access has deleted_at and created_at but no updated_at.
 const configAccessSQL = `
 SELECT
   COUNT(*) FILTER (WHERE deleted_at IS NULL)                                AS total,
@@ -248,12 +268,13 @@ SELECT
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz)                      AS deleted_last,
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '1 hour')  AS deleted_hour,
   COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '1 day')   AS deleted_day,
-  COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week
+  COUNT(*) FILTER (WHERE deleted_at >= ?::timestamptz - interval '7 days')  AS deleted_week,
+  MAX(created_at) AS last_created_at,
+  NULL::timestamptz AS last_updated_at
 FROM config_access
 `
 
-// config_access_logs has neither updated_at nor deleted_at; "Total" is a bare
-// row count and all window buckets stay zero.
+// config_access_logs has created_at but no updated_at or deleted_at.
 const configAccessLogsSQL = `
 SELECT
   COUNT(*) AS total,
@@ -264,6 +285,8 @@ SELECT
   0 AS deleted_last,
   0 AS deleted_hour,
   0 AS deleted_day,
-  0 AS deleted_week
+  0 AS deleted_week,
+  MAX(created_at) AS last_created_at,
+  NULL::timestamptz AS last_updated_at
 FROM config_access_logs
 `

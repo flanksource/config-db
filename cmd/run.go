@@ -33,6 +33,7 @@ import (
 	"github.com/flanksource/duty"
 	dutyapi "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/job"
 	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/shutdown"
@@ -166,6 +167,13 @@ var Run = &cobra.Command{
 			defer cancelTimeout()
 			shutdown.AddHook(func() { defer cancel() })
 
+			if save && dutyapi.DefaultConfig.ConnectionString != "" {
+				prev := scrapers.GetLastScrapeSummary(dutyCtx, string(scraperConfigs[i].GetUID()))
+				scrapeCtx = scrapeCtx.WithLastScrapeSummary(prev)
+				if uiServer != nil {
+					uiServer.SetLastScrapeSummary(prev)
+				}
+			}
 			scrapeCtx = scrapeCtx.WithHARCollector(harCollector)
 
 			results, summary, snapshotPair, err := scrapeAndStore(scrapeCtx)
@@ -181,6 +189,32 @@ var Run = &cobra.Command{
 			if uiServer != nil && snapshotPair != nil {
 				uiServer.SetSnapshots(scraperConfigs[i].Name, snapshotPair)
 			}
+
+			scraperUID := string(scraperConfigs[i].GetUID())
+			if scraperUID == "" {
+				if id, err := hash.DeterministicUUID(pq.StringArray{scraperConfigs[i].Namespace, scraperConfigs[i].Name}); err == nil {
+					scraperUID = id.String()
+				}
+			}
+			if save && dutyapi.DefaultConfig.ConnectionString != "" && summary != nil {
+				history := models.NewJobHistory(logger.StandardLogger(), "scraper", job.ResourceTypeScraper, scraperUID)
+				history.Start()
+				history.SuccessCount = len(results)
+				history.AddDetails("scrape_summary", *summary)
+				if hasErrors {
+					history.AddError(err.Error())
+				}
+				history.End()
+				if persistErr := history.Persist(dutyCtx.DB()); persistErr != nil {
+					logger.Warnf("failed to persist job history: %v", persistErr)
+				}
+				scrapers.ScraperSummaryCache.Store(scraperUID, *summary)
+			}
+
+			if uiServer != nil && summary != nil {
+				uiServer.SetLastScrapeSummary(*summary)
+			}
+
 			allResults = append(allResults, results...)
 			if summary != nil {
 				lastSummary = summary
@@ -197,10 +231,37 @@ var Run = &cobra.Command{
 			if harCollector != nil {
 				uiServer.SetHAR(harCollector.Entries())
 			}
+
+			props := make(map[string]scrapeui.PropertyInfo)
+			for k, v := range dutyCtx.Properties().SupportedProperties() {
+				props[k] = scrapeui.PropertyInfo{
+					Value:   v.Value,
+					Default: v.Default,
+					Type:    v.Type,
+				}
+			}
+			scraperLogLevel := ""
+			for _, sc := range scraperConfigs {
+				if sc.Spec.LogLevel != "" {
+					scraperLogLevel = sc.Spec.LogLevel
+					break
+				}
+			}
+			globalLevel := "info"
+			if logger.IsTraceEnabled() {
+				globalLevel = "trace"
+			}
+			uiServer.SetProperties(props, scrapeui.LogLevelInfo{
+				Scraper: scraperLogLevel,
+				Global:  globalLevel,
+			})
+
 			uiServer.SetDone()
 		}
 
-		printOutput(allResults, lastSummary, lastSnapshotPair, harCollector, logBuf.String())
+		if uiServer == nil {
+			printOutput(allResults, lastSummary, lastSnapshotPair, harCollector, logBuf.String())
+		}
 
 		if uiServer != nil {
 			sig := make(chan os.Signal, 1)

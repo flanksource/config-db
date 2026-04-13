@@ -118,7 +118,7 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 	if t.Target != nil {
 		change.Target = t.Target
 	}
-	if ctx.PropertyOn(false, "scraper.log.transforms") {
+	if ctx.PropertyOn(false, "log.transforms") {
 		ctx.Tracef("%s --> %s", change.Pretty().ANSI(), clicky.MustFormat(configEnv))
 	}
 

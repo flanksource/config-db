@@ -24,25 +24,33 @@ type EntityWindowCounts struct {
 	DeletedHour int `json:"deleted_hour"`
 	DeletedDay  int `json:"deleted_day"`
 	DeletedWeek int `json:"deleted_week"`
+
+	LastCreatedAt *time.Time `json:"last_created_at,omitempty"`
+	LastUpdatedAt *time.Time `json:"last_updated_at,omitempty"`
 }
 
 // IsZero reports whether all fields are zero.
 func (e EntityWindowCounts) IsZero() bool {
-	return e == EntityWindowCounts{}
+	return e.Total == 0 &&
+		e.UpdatedLast == 0 && e.UpdatedHour == 0 && e.UpdatedDay == 0 && e.UpdatedWeek == 0 &&
+		e.DeletedLast == 0 && e.DeletedHour == 0 && e.DeletedDay == 0 && e.DeletedWeek == 0 &&
+		e.LastCreatedAt == nil && e.LastUpdatedAt == nil
 }
 
-// Sub returns e - other, field-wise.
+// Sub returns e - other, field-wise. Timestamps are taken from e (the "after" side).
 func (e EntityWindowCounts) Sub(other EntityWindowCounts) EntityWindowCounts {
 	return EntityWindowCounts{
-		Total:       e.Total - other.Total,
-		UpdatedLast: e.UpdatedLast - other.UpdatedLast,
-		UpdatedHour: e.UpdatedHour - other.UpdatedHour,
-		UpdatedDay:  e.UpdatedDay - other.UpdatedDay,
-		UpdatedWeek: e.UpdatedWeek - other.UpdatedWeek,
-		DeletedLast: e.DeletedLast - other.DeletedLast,
-		DeletedHour: e.DeletedHour - other.DeletedHour,
-		DeletedDay:  e.DeletedDay - other.DeletedDay,
-		DeletedWeek: e.DeletedWeek - other.DeletedWeek,
+		Total:         e.Total - other.Total,
+		UpdatedLast:   e.UpdatedLast - other.UpdatedLast,
+		UpdatedHour:   e.UpdatedHour - other.UpdatedHour,
+		UpdatedDay:    e.UpdatedDay - other.UpdatedDay,
+		UpdatedWeek:   e.UpdatedWeek - other.UpdatedWeek,
+		DeletedLast:   e.DeletedLast - other.DeletedLast,
+		DeletedHour:   e.DeletedHour - other.DeletedHour,
+		DeletedDay:    e.DeletedDay - other.DeletedDay,
+		DeletedWeek:   e.DeletedWeek - other.DeletedWeek,
+		LastCreatedAt: e.LastCreatedAt,
+		LastUpdatedAt: e.LastUpdatedAt,
 	}
 }
 

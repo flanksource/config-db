@@ -102,6 +102,12 @@ type ExtractionSummary struct {
 	Analysis     v1.EntitySummary[struct{}]             `json:"analysis,omitzero"`
 }
 
+func (e ExtractionSummary) IsEmpty() bool {
+	return e.Users.IsEmpty() && e.Groups.IsEmpty() && e.Roles.IsEmpty() &&
+		e.ConfigAccess.IsEmpty() && e.AccessLogs.IsEmpty() &&
+		e.Changes.IsEmpty() && e.Analysis.IsEmpty()
+}
+
 func (e ExtractionSummary) Pretty() api.Text {
 	t := clicky.Text("")
 	type entitySummaryLike interface {
