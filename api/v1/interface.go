@@ -293,29 +293,35 @@ type AnalysisResults []AnalysisResult
 // models.ExternalUser). Summaries that only track counts (config_access,
 // access_logs) use EntitySummary[struct{}] and leave Entities nil.
 type EntitySummary[T any] struct {
-	Scraped          int `json:"scraped,omitempty"`
-	Saved            int `json:"saved,omitempty"`
-	Skipped          int `json:"skipped,omitempty"`
-	Deleted          int `json:"deleted,omitempty"`
-	ForeignKeyErrors int `json:"foreign_key_errors,omitempty"`
+	Scraped          int        `json:"scraped,omitempty"`
+	Saved            int        `json:"saved,omitempty"`
+	Skipped          int        `json:"skipped,omitempty"`
+	Deleted          int        `json:"deleted,omitempty"`
+	ForeignKeyErrors int        `json:"foreign_key_errors,omitempty"`
+	LastCreatedAt    *time.Time `json:"last_created_at,omitempty"`
 	// Entities holds the post-merge canonical entities for this kind. Only
 	// populated for user/group/role summaries; nil for count-only summaries.
 	Entities []T `json:"entities,omitempty"`
 }
 
 func (e EntitySummary[T]) IsEmpty() bool {
-	return e.Scraped == 0 && e.Saved == 0 && e.Skipped == 0 && e.Deleted == 0 && e.ForeignKeyErrors == 0 && len(e.Entities) == 0
+	return e.Scraped == 0 && e.Saved == 0 && e.Skipped == 0 && e.Deleted == 0 && e.ForeignKeyErrors == 0 && e.LastCreatedAt == nil && len(e.Entities) == 0
 }
 
 func (e EntitySummary[T]) Merge(other EntitySummary[T]) EntitySummary[T] {
-	return EntitySummary[T]{
+	merged := EntitySummary[T]{
 		Scraped:          e.Scraped + other.Scraped,
 		Saved:            e.Saved + other.Saved,
 		Skipped:          e.Skipped + other.Skipped,
 		Deleted:          e.Deleted + other.Deleted,
 		ForeignKeyErrors: e.ForeignKeyErrors + other.ForeignKeyErrors,
 		Entities:         append(append([]T{}, e.Entities...), other.Entities...),
+		LastCreatedAt:    e.LastCreatedAt,
 	}
+	if other.LastCreatedAt != nil && (merged.LastCreatedAt == nil || other.LastCreatedAt.After(*merged.LastCreatedAt)) {
+		merged.LastCreatedAt = other.LastCreatedAt
+	}
+	return merged
 }
 
 func (e EntitySummary[T]) Pretty() api.Text {
@@ -342,6 +348,17 @@ func (e EntitySummary[T]) String() string {
 	return e.Pretty().String()
 }
 
+// Warning captures the full context of a failed extraction or transformation.
+// +kubebuilder:object:generate=false
+type Warning struct {
+	Input  any    `json:"input,omitempty"`
+	Output any    `json:"output,omitempty"`
+	Result any    `json:"result,omitempty"`
+	Expr   string `json:"expr,omitempty"`
+	Error  string `json:"error,omitempty"`
+	Count  int    `json:"count,omitempty"`
+}
+
 // +kubebuilder:object:generate=false
 type ScrapeSummary struct {
 	ConfigTypes     map[string]ConfigTypeScrapeSummary     `json:"config_types,omitempty"`
@@ -358,10 +375,27 @@ type ScrapeSummary struct {
 	ExternalRoles  EntitySummary[models.ExternalRole]  `json:"external_roles,omitempty"`
 	ConfigAccess   EntitySummary[struct{}]             `json:"config_access,omitempty"`
 	AccessLogs     EntitySummary[struct{}]             `json:"access_logs,omitempty"`
+	Warnings       []Warning                          `json:"warnings,omitempty"`
+	State          map[string]any                     `json:"state,omitempty"`
 }
 
 func NewScrapeSummary() ScrapeSummary {
 	return ScrapeSummary{ConfigTypes: make(map[string]ConfigTypeScrapeSummary)}
+}
+
+// AsMap returns the summary keyed by json tags so template/CEL envs can
+// reference fields by their documented snake_case names — Go's text/template
+// ignores json tags and would otherwise make paths like .access_logs.last_created_at unreachable.
+func (s ScrapeSummary) AsMap() map[string]any {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return map[string]any{}
+	}
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return map[string]any{}
+	}
+	return out
 }
 
 func (summary ScrapeSummary) HasUpdates() bool {
@@ -530,6 +564,19 @@ func (t *ScrapeSummary) AddWarning(configType, warning string) {
 	t.ConfigTypes[configType] = v
 }
 
+func (t *ScrapeSummary) AddScrapeWarning(w Warning) {
+	if w.Count == 0 {
+		w.Count = 1
+	}
+	for i := range t.Warnings {
+		if t.Warnings[i].Error == w.Error {
+			t.Warnings[i].Count += w.Count
+			return
+		}
+	}
+	t.Warnings = append(t.Warnings, w)
+}
+
 func (t *ScrapeSummary) AddChanges(configType string, count int) {
 	t.initConfigTypes()
 	v := t.ConfigTypes[configType]
@@ -693,13 +740,14 @@ func (t *ChangeSummaryByType) Merge(typ string, b ChangeSummary) {
 
 // +kubebuilder:object:generate=false
 type ConfigTypeScrapeSummary struct {
-	Added     int            `json:"added,omitempty"`
-	Updated   int            `json:"updated,omitempty"`
-	Unchanged int            `json:"unchanged,omitempty"`
-	Changes   int            `json:"changes,omitempty"`
-	Deduped   int            `json:"deduped,omitempty"`
-	Change    *ChangeSummary `json:"change,omitempty"`
-	Warnings  []string       `json:"warnings,omitempty"`
+	Added      int                    `json:"added,omitempty"`
+	Updated    int                    `json:"updated,omitempty"`
+	Unchanged  int                    `json:"unchanged,omitempty"`
+	Changes    int                    `json:"changes,omitempty"`
+	Deduped    int                    `json:"deduped,omitempty"`
+	Change     *ChangeSummary         `json:"change,omitempty"`
+	Warnings   []string               `json:"warnings,omitempty"`
+	AccessLogs EntitySummary[struct{}] `json:"access_logs,omitempty"`
 }
 
 // +kubebuilder:object:generate=false
@@ -1173,6 +1221,12 @@ type ScrapeResult struct {
 	ExternalUserGroups []ExternalUserGroup       `json:"-"`
 	ConfigAccess       []ExternalConfigAccess    `json:"-"`
 	ConfigAccessLogs   []ExternalConfigAccessLog `json:"-"`
+	Warnings           []Warning                 `json:"-"`
+
+	// Transform context captured for diagnostics.
+	TransformInput  any    `json:"-"`
+	TransformOutput any    `json:"-"`
+	TransformExpr   string `json:"-"`
 
 	RateLimitResetAt *time.Time `json:"-"`
 
@@ -1314,10 +1368,23 @@ func (s *ScrapeResult) Pretty() api.Text {
 	}
 	t := clicky.Text("")
 	if s.ConfigClass != "" {
-		t = t.Append(s.ConfigClass+"/", "text-muted")
+		t = t.Append(s.ConfigClass, "text-muted")
 	}
-	if s.Name != "" {
-		t = t.Append(s.Name)
+	// Prefer Name; fall back through ID and the first alias so that log lines
+	// like "Scraped Azure::Group/" (when the scraper produced a result with
+	// an empty name field) still carry a useful identifier.
+	label := s.Name
+	if label == "" {
+		label = s.ID
+	}
+	if label == "" && len(s.Aliases) > 0 {
+		label = s.Aliases[0]
+	}
+	if label != "" {
+		if s.ConfigClass != "" {
+			t = t.Append("/", "text-muted")
+		}
+		t = t.Append(label)
 	}
 
 	if len(s.Changes) > 0 {

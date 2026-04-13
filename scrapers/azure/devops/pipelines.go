@@ -299,7 +299,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			"pipeline":     basePipeline,
 			"organization": config.Organization,
 		}
-		baseID, _ = gomplate.RunTemplate(env, gomplate.Template{Expression: config.ID})
+		baseID, _ = ctx.RunTemplate(gomplate.Template{Expression: config.ID}, env)
 	}
 	uniquePipelines[baseID] = basePipeline
 
@@ -330,7 +330,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 				"pipeline":     localPipeline,
 				"organization": config.Organization,
 			}
-			id, err = gomplate.RunTemplate(env, gomplate.Template{Expression: config.ID})
+			id, err = ctx.RunTemplate(gomplate.Template{Expression: config.ID}, env)
 			if err != nil {
 				return results.Errorf(err, "failed to render id template for %s/%s", project.Name, pipeline.Name)
 			}

@@ -13,7 +13,11 @@ import (
 func ExtractFullMode(ctx api.ScrapeContext, scraperID *uuid.UUID, scraped v1.ScrapeResults) v1.ScrapeResults {
 	all := ExtractedConfig{}
 	for i := range scraped {
-		extracted, err := ExtractConfigChangesFromConfig(nil, scraperID, scraped[i].Config)
+		var tc []TransformContext
+		if scraped[i].TransformInput != nil || scraped[i].TransformExpr != "" {
+			tc = append(tc, TransformContext{Input: scraped[i].TransformInput, Expr: scraped[i].TransformExpr})
+		}
+		extracted, err := ExtractConfigChangesFromConfig(nil, scraperID, scraped[i].Config, tc...)
 		if err != nil {
 			scraped[i].Error = err
 			continue
@@ -45,7 +49,7 @@ func ExtractFullMode(ctx api.ScrapeContext, scraperID *uuid.UUID, scraped v1.Scr
 	}
 
 	for _, w := range all.Warnings {
-		ctx.Logger.Warnf("extraction: %s", w)
+		ctx.Logger.Warnf("extraction: %s", w.Error)
 	}
 	if !all.Summary.IsEmpty() {
 		ctx.Logger.V(2).Infof("extraction: %s", all.Summary.Pretty().ANSI())
@@ -72,6 +76,7 @@ func ExtractFullMode(ctx api.ScrapeContext, scraperID *uuid.UUID, scraped v1.Scr
 		}},
 		{len(all.ConfigAccess) > 0, func(r *v1.ScrapeResult) { r.ConfigAccess = all.ConfigAccess }},
 		{len(all.AccessLogs) > 0, func(r *v1.ScrapeResult) { r.ConfigAccessLogs = all.AccessLogs }},
+		{len(all.Warnings) > 0, func(r *v1.ScrapeResult) { r.Warnings = all.Warnings }},
 	}
 
 	for _, a := range appenders {

@@ -10,11 +10,18 @@ import (
 	"github.com/samber/lo"
 )
 
-func RunScript(ctx api.ScrapeContext, result v1.ScrapeResult, script v1.Script) ([]v1.ScrapeResult, error) {
+type ScriptResult struct {
+	Results  []v1.ScrapeResult
+	RawInput any
+	RawOutput string
+	Expr     string
+}
+
+func RunScript(ctx api.ScrapeContext, result v1.ScrapeResult, script v1.Script) (*ScriptResult, error) {
 	env := map[string]interface{}{
 		"config":              result.Config,
 		"result":              result,
-		"last_scrape_summary": ctx.LastScrapeSummary(),
+		"last_scrape_summary": ctx.LastScrapeSummary().AsMap(),
 	}
 
 	out, err := ctx.RunTemplate(script.ToGomplate(), env)
@@ -28,7 +35,12 @@ func RunScript(ctx api.ScrapeContext, result v1.ScrapeResult, script v1.Script) 
 	}
 
 	ctx.Logger.V(3).Infof("script produced %d config(s)", len(configs))
-	return configs, nil
+	return &ScriptResult{
+		Results:   configs,
+		RawInput:  result.Config,
+		RawOutput: out,
+		Expr:      script.ToGomplate().Expression,
+	}, nil
 }
 
 func unmarshalConfigsFromString(s string, parent v1.ScrapeResult) ([]v1.ScrapeResult, error) {

@@ -2,6 +2,7 @@ package v1
 
 import (
 	"sort"
+	"time"
 
 	"github.com/flanksource/commons/collections/set"
 	. "github.com/onsi/ginkgo/v2"
@@ -128,4 +129,39 @@ var _ = Describe("ChangeSummary", func() {
 				IgnoredByAction: map[string]map[string]int{"ignore": {"baz": 9}},
 			}),
 	)
+})
+
+var _ = Describe("ScrapeSummary.AsMap", func() {
+	It("exposes nested values via json-tagged snake_case keys", func() {
+		ts := time.Date(2026, 4, 12, 13, 10, 47, 0, time.UTC)
+		summary := ScrapeSummary{
+			ConfigTypes: map[string]ConfigTypeScrapeSummary{
+				"Azure::Application": {
+					Added:      3,
+					AccessLogs: EntitySummary[struct{}]{LastCreatedAt: &ts, Scraped: 7},
+				},
+			},
+			AccessLogs: EntitySummary[struct{}]{LastCreatedAt: &ts, Scraped: 7},
+		}
+
+		m := summary.AsMap()
+
+		accessLogs, ok := m["access_logs"].(map[string]any)
+		Expect(ok).To(BeTrue(), "access_logs must serialize as a nested map")
+		Expect(accessLogs).To(HaveKey("last_created_at"))
+		Expect(accessLogs["last_created_at"]).To(Equal("2026-04-12T13:10:47Z"))
+
+		configTypes, ok := m["config_types"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		azureApp, ok := configTypes["Azure::Application"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(azureApp).To(HaveKeyWithValue("added", float64(3)))
+		azureAppAccess, ok := azureApp["access_logs"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(azureAppAccess["last_created_at"]).To(Equal("2026-04-12T13:10:47Z"))
+	})
+
+	It("returns an empty map for a zero-value summary without panicking", func() {
+		Expect(ScrapeSummary{}.AsMap()).NotTo(BeNil())
+	})
 })

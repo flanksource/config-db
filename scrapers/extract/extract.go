@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/flanksource/clicky"
 	"github.com/flanksource/clicky/api"
@@ -36,7 +35,18 @@ type ExtractedConfig struct {
 	ExternalUserGroups []models.ExternalUserGroup   `json:"external_user_groups,omitempty"`
 	ExternalRoles      []models.ExternalRole        `json:"external_roles,omitempty"`
 	Summary            ExtractionSummary            `json:"summary,omitempty"`
-	Warnings           []string                     `json:"warnings,omitempty"`
+	Warnings           []v1.Warning                 `json:"warnings,omitempty"`
+
+	// Transform context for diagnostic warnings — not serialized.
+	transformInput  any    `json:"-"`
+	transformOutput any    `json:"-"`
+	transformExpr   string `json:"-"`
+}
+
+func (e *ExtractedConfig) SetTransformContext(input, output any, expr string) {
+	e.transformInput = input
+	e.transformOutput = output
+	e.transformExpr = expr
 }
 
 func (e ExtractedConfig) HasEntities() bool {
@@ -46,11 +56,17 @@ func (e ExtractedConfig) HasEntities() bool {
 		len(e.Changes) > 0 || len(e.Analysis) > 0
 }
 
-func (e *ExtractedConfig) AddWarning(msg string) {
-	if slices.Contains(e.Warnings, msg) {
-		return
+func (e *ExtractedConfig) AddWarning(w v1.Warning) {
+	if w.Input == nil {
+		w.Input = e.transformInput
 	}
-	e.Warnings = append(e.Warnings, msg)
+	if w.Output == nil {
+		w.Output = e.transformOutput
+	}
+	if w.Expr == "" {
+		w.Expr = e.transformExpr
+	}
+	e.Warnings = append(e.Warnings, w)
 }
 
 func (e ExtractedConfig) Pretty() api.Text {
@@ -184,13 +200,22 @@ func findStringKey(m map[string]any, keys ...string) (string, bool) {
 //
 // When resolver is non-nil, entities are synced and aliases are resolved to UUIDs.
 // When resolver is nil, only parsing and default-filling is performed.
-func ExtractConfigChangesFromConfig(resolver Resolver, scraperID *uuid.UUID, config any) (ExtractedConfig, error) {
+// TransformContext holds diagnostic context from the transform that produced this config.
+type TransformContext struct {
+	Input any
+	Expr  string
+}
+
+func ExtractConfigChangesFromConfig(resolver Resolver, scraperID *uuid.UUID, config any, tc ...TransformContext) (ExtractedConfig, error) {
 	configMap, ok := config.(map[string]any)
 	if !ok {
 		return ExtractedConfig{}, errors.New("config is not a map")
 	}
 
 	var result ExtractedConfig
+	if len(tc) > 0 {
+		result.SetTransformContext(tc[0].Input, config, tc[0].Expr)
+	}
 
 	if eConf, ok := configMap["config"]; ok {
 		result.Config = eConf
@@ -677,17 +702,17 @@ func validateConfigRefs(result *ExtractedConfig) {
 	for _, c := range result.Changes {
 		if c.ExternalID == "" {
 			result.Summary.Changes.Skipped++
-			result.AddWarning("change missing external_id")
+			result.AddWarning(v1.Warning{Error: "change missing external_id", Result: c})
 			continue
 		}
 		if c.ExternalChangeID == "" {
 			result.Summary.Changes.Skipped++
-			result.AddWarning("change missing external_change_id")
+			result.AddWarning(v1.Warning{Error: "change missing external_change_id", Result: c})
 			continue
 		}
 		if c.ChangeType == "" {
 			result.Summary.Changes.Skipped++
-			result.AddWarning("change missing change_type")
+			result.AddWarning(v1.Warning{Error: "change missing change_type", Result: c})
 			continue
 		}
 		validChanges = append(validChanges, c)
@@ -701,7 +726,7 @@ func validateConfigRefs(result *ExtractedConfig) {
 			continue
 		}
 		result.Summary.Analysis.Skipped++
-		result.AddWarning("analysis missing external_id")
+		result.AddWarning(v1.Warning{Error: "analysis missing external_id", Result: a})
 	}
 	result.Analysis = validAnalysis
 
@@ -709,12 +734,12 @@ func validateConfigRefs(result *ExtractedConfig) {
 	for _, ca := range result.ConfigAccess {
 		if ca.ConfigID == uuid.Nil && ca.ConfigExternalID.ExternalID == "" {
 			result.Summary.ConfigAccess.Skipped++
-			result.AddWarning("config_access missing config reference")
+			result.AddWarning(v1.Warning{Error: "config_access missing config reference", Result: ca})
 			continue
 		}
 		if !ca.HasPrincipal() {
 			result.Summary.ConfigAccess.Skipped++
-			result.AddWarning("config_access missing user/group reference")
+			result.AddWarning(v1.Warning{Error: "config_access missing user/group reference", Result: ca})
 			continue
 		}
 		validAccess = append(validAccess, ca)
@@ -725,12 +750,12 @@ func validateConfigRefs(result *ExtractedConfig) {
 	for _, al := range result.AccessLogs {
 		if al.ConfigID == uuid.Nil && al.ConfigExternalID.ExternalID == "" {
 			result.Summary.AccessLogs.Skipped++
-			result.AddWarning("access_log missing config reference")
+			result.AddWarning(v1.Warning{Error: "access_log missing config reference", Result: al})
 			continue
 		}
 		if al.ExternalUserID == uuid.Nil && len(al.ExternalUserAliases) == 0 {
 			result.Summary.AccessLogs.Skipped++
-			result.AddWarning("access_log missing user reference")
+			result.AddWarning(v1.Warning{Error: "access_log missing user reference", Result: al})
 			continue
 		}
 		validLogs = append(validLogs, al)

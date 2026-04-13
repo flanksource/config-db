@@ -101,7 +101,7 @@ func (s Scraper) scrapeChannel(ctx api.ScrapeContext, config v1.Slack, client *S
 func processRule(ctx api.ScrapeContext, config v1.Slack, rule v1.SlackChangeExtractionRule, messages []Message) []v1.ScrapeResult {
 	var results v1.ScrapeResults
 	for _, message := range messages {
-		if accept, err := filterMessage(message, rule.Filter); err != nil {
+		if accept, err := filterMessage(ctx, message, rule.Filter); err != nil {
 			results = append(results, v1.ScrapeResult{Error: err})
 			return results // bad filter, exit early
 		} else if !accept {
@@ -123,7 +123,7 @@ func processRule(ctx api.ScrapeContext, config v1.Slack, rule v1.SlackChangeExtr
 	return results
 }
 
-func filterMessage(message Message, filter *v1.SlackChangeAcceptanceFilter) (bool, error) {
+func filterMessage(ctx api.ScrapeContext, message Message, filter *v1.SlackChangeAcceptanceFilter) (bool, error) {
 	if filter == nil {
 		return true, nil
 	}
@@ -136,7 +136,7 @@ func filterMessage(message Message, filter *v1.SlackChangeAcceptanceFilter) (boo
 	}
 
 	if filter.Expr != "" {
-		output, err := gomplate.RunTemplate(message.AsMap(), gomplate.Template{Expression: string(filter.Expr)})
+		output, err := ctx.RunTemplate(gomplate.Template{Expression: string(filter.Expr)}, message.AsMap())
 		if err != nil {
 			return false, nil
 		} else if parsed, err := strconv.ParseBool(output); err != nil {
