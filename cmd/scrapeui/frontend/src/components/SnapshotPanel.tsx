@@ -17,7 +17,14 @@ function isZero(c?: EntityWindowCounts): boolean {
   if (!c) return true;
   return c.total === 0 &&
     c.updated_last === 0 && c.updated_hour === 0 && c.updated_day === 0 && c.updated_week === 0 &&
-    c.deleted_last === 0 && c.deleted_hour === 0 && c.deleted_day === 0 && c.deleted_week === 0;
+    c.deleted_last === 0 && c.deleted_hour === 0 && c.deleted_day === 0 && c.deleted_week === 0 &&
+    !c.last_created_at && !c.last_updated_at;
+}
+
+function fmtTime(ts?: string): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 function signed(n: number): string {
@@ -33,6 +40,7 @@ function cls(n: number, isDiff: boolean): string {
 }
 
 function fmt(n: number, isDiff: boolean): string {
+  if (n === 0) return '';
   return isDiff ? signed(n) : String(n);
 }
 
@@ -58,6 +66,8 @@ function CountsRow({ label, counts, isDiff }: { label: string; counts: EntityWin
       <td class={`px-3 py-1.5 text-right tabular-nums text-xs ${cls(counts.deleted_hour, isDiff)}`}>{fmt(counts.deleted_hour, isDiff)}</td>
       <td class={`px-3 py-1.5 text-right tabular-nums text-xs ${cls(counts.deleted_day, isDiff)}`}>{fmt(counts.deleted_day, isDiff)}</td>
       <td class={`px-3 py-1.5 text-right tabular-nums text-xs ${cls(counts.deleted_week, isDiff)}`}>{fmt(counts.deleted_week, isDiff)}</td>
+      <td class="px-3 py-1.5 text-right tabular-nums text-xs text-gray-500 whitespace-nowrap">{fmtTime(counts.last_created_at)}</td>
+      <td class="px-3 py-1.5 text-right tabular-nums text-xs text-gray-500 whitespace-nowrap">{fmtTime(counts.last_updated_at)}</td>
     </tr>
   );
 }
@@ -76,6 +86,8 @@ function CountsTable({ title, rows, isDiff }: { title: string; rows: { label: st
             <th class="px-3 py-2 text-right">Total</th>
             <th class="px-3 py-2 text-right" colSpan={4}>Updated (L / H / D / W)</th>
             <th class="px-3 py-2 text-right" colSpan={4}>Deleted (L / H / D / W)</th>
+            <th class="px-3 py-2 text-right">Last Created</th>
+            <th class="px-3 py-2 text-right">Last Updated</th>
           </tr>
         </thead>
         <tbody>
@@ -98,17 +110,17 @@ function renderSection(data: ScrapeSnapshot | ScrapeSnapshotDiff | undefined, is
 
   const scraperRows = Object.keys(perScraper)
     .sort()
-    .filter(k => !isDiff || !isZero(perScraper[k]))
+    .filter(k => !isZero(perScraper[k]))
     .map(k => ({ label: k, counts: perScraper[k] }));
 
   const typeRows = Object.keys(perType)
     .sort()
-    .filter(k => !isDiff || !isZero(perType[k]))
+    .filter(k => !isZero(perType[k]))
     .map(k => ({ label: k, counts: perType[k] }));
 
   const entityRows = ENTITY_ROWS
     .map(({ key, label }) => ({ label, counts: (data as any)[key] as EntityWindowCounts || ZERO }))
-    .filter(r => !isDiff || !isZero(r.counts));
+    .filter(r => !isZero(r.counts));
 
   const empty = scraperRows.length === 0 && typeRows.length === 0 && entityRows.length === 0;
   if (empty && isDiff) {

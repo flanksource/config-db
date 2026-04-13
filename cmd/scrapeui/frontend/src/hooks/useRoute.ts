@@ -9,7 +9,7 @@ export interface Route {
 
 const VALID_TABS: Tab[] = [
   'configs', 'logs', 'har', 'users', 'groups', 'roles',
-  'access', 'access_logs', 'issues', 'spec',
+  'access', 'access_logs', 'issues', 'snapshot', 'last_summary', 'spec',
 ];
 
 const DEFAULT_TAB: Tab = 'spec';

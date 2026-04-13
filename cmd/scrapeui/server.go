@@ -61,11 +61,14 @@ type Server struct {
 	snapshots     map[string]*v1.ScrapeSnapshotPair
 	har           []har.Entry
 	scrapeSpec    any
-	logBuf        *bytes.Buffer
-	done          bool
-	startedAt     int64
-	buildInfo     *BuildInfo
-	updated       chan struct{}
+	properties    map[string]PropertyInfo
+	logLevel      *LogLevelInfo
+	logBuf             *bytes.Buffer
+	done               bool
+	startedAt          int64
+	buildInfo          *BuildInfo
+	lastScrapeSummary  *v1.ScrapeSummary
+	updated            chan struct{}
 }
 
 // SetBuildInfo stores the build-time version/commit/date so the frontend can
@@ -76,6 +79,20 @@ func (s *Server) SetBuildInfo(info BuildInfo) {
 	s.mu.Lock()
 	s.buildInfo = &info
 	s.mu.Unlock()
+}
+
+func (s *Server) SetLastScrapeSummary(summary v1.ScrapeSummary) {
+	s.mu.Lock()
+	s.lastScrapeSummary = &summary
+	s.mu.Unlock()
+}
+
+func (s *Server) SetProperties(props map[string]PropertyInfo, logLevel LogLevelInfo) {
+	s.mu.Lock()
+	s.properties = props
+	s.logLevel = &logLevel
+	s.mu.Unlock()
+	s.notify()
 }
 
 func NewServer(scraperNames []string, scrapeSpec any, logBuf *bytes.Buffer) *Server {
@@ -157,6 +174,14 @@ func (s *Server) UpdateScraper(name string, status ScraperStatus, results []v1.S
 			}
 			for i := range summary.FKErrorChanges {
 				s.issues = append(s.issues, ScrapeIssue{Type: "fk_error", Message: "Foreign key constraint violation", Change: &summary.FKErrorChanges[i]})
+			}
+			for i := range summary.Warnings {
+				s.issues = append(s.issues, ScrapeIssue{Type: "warning", Message: summary.Warnings[i].Error, Warning: &summary.Warnings[i]})
+			}
+			for configType, cs := range summary.ConfigTypes {
+				for _, w := range cs.Warnings {
+					s.issues = append(s.issues, ScrapeIssue{Type: "warning", Message: fmt.Sprintf("[%s] %s", configType, w)})
+				}
 			}
 		}
 		break
@@ -242,11 +267,14 @@ func (s *Server) snapshot() Snapshot {
 		SaveSummary:   s.summary,
 		Snapshots:     s.snapshots,
 		ScrapeSpec:    s.scrapeSpec,
+		Properties:    s.properties,
+		LogLevel:      s.logLevel,
 		HAR:           s.har,
 		Logs:          logs,
 		Done:          s.done,
 		StartedAt:     s.startedAt,
-		BuildInfo:     s.buildInfo,
+		BuildInfo:          s.buildInfo,
+		LastScrapeSummary:  s.lastScrapeSummary,
 	}
 }
 
@@ -328,7 +356,7 @@ func sanitizeFilename(s string) string {
 // deep links like /configs/{id} or /groups/{id} work on refresh.
 var spaRoutes = []string{
 	"/configs", "/logs", "/har", "/users", "/groups",
-	"/roles", "/access", "/access_logs", "/issues", "/snapshot", "/spec",
+	"/roles", "/access", "/access_logs", "/issues", "/snapshot", "/last_summary", "/spec",
 }
 
 func isSPARoute(path string) bool {
