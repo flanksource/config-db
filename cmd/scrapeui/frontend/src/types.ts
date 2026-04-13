@@ -102,6 +102,9 @@ export interface ExternalConfigAccess {
   id: string;
   config_id?: string;
   external_config_id?: any;
+  application_id?: string;
+  scraper_id?: string;
+  source?: string;
   external_user_id?: string;
   external_role_id?: string;
   external_group_id?: string;
@@ -109,16 +112,24 @@ export interface ExternalConfigAccess {
   external_role_aliases?: string[];
   external_group_aliases?: string[];
   created_at?: string;
+  created_by?: string;
+  deleted_at?: string;
+  deleted_by?: string;
   last_reviewed_at?: string;
+  last_reviewed_by?: string;
+  [key: string]: any;
 }
 
 export interface ExternalConfigAccessLog {
   config_id?: string;
   external_config_id?: any;
+  external_user_id?: string;
   external_user_aliases?: string[];
   mfa?: boolean;
   count?: number;
   created_at?: string;
+  properties?: Record<string, any>;
+  [key: string]: any;
 }
 
 export interface FullScrapeResults {
@@ -187,10 +198,20 @@ export interface ConfigMeta {
   location?: string;
 }
 
+export interface Warning {
+  input?: any;
+  output?: any;
+  result?: any;
+  expr?: string;
+  error?: string;
+  count?: number;
+}
+
 export interface ScrapeIssue {
   type: string;
   message?: string;
   change?: ConfigChange;
+  warning?: Warning;
 }
 
 export interface EntityWindowCounts {
@@ -203,6 +224,8 @@ export interface EntityWindowCounts {
   deleted_hour: number;
   deleted_day: number;
   deleted_week: number;
+  last_created_at?: string;
+  last_updated_at?: string;
 }
 
 export interface ScrapeSnapshot {
@@ -235,6 +258,17 @@ export interface ScrapeSnapshotPair {
   diff: ScrapeSnapshotDiff;
 }
 
+export interface PropertyInfo {
+  value?: any;
+  default?: any;
+  type?: string;
+}
+
+export interface LogLevelInfo {
+  scraper?: string;
+  global?: string;
+}
+
 export interface BuildInfo {
   version: string;
   commit: string;
@@ -251,11 +285,14 @@ export interface Snapshot {
   save_summary?: SaveSummary;
   snapshots?: Record<string, ScrapeSnapshotPair>;
   scrape_spec?: any;
+  properties?: Record<string, PropertyInfo>;
+  log_level?: LogLevelInfo;
   har?: HAREntry[];
   logs: string;
   done: boolean;
   started_at: number;
   build_info?: BuildInfo;
+  last_scrape_summary?: any;
 }
 
 export interface TypeGroup {
@@ -264,4 +301,4 @@ export interface TypeGroup {
   counts: { healthy: number; unhealthy: number; warning: number; unknown: number; errors: number };
 }
 
-export type Tab = 'configs' | 'logs' | 'har' | 'users' | 'groups' | 'roles' | 'access' | 'access_logs' | 'issues' | 'snapshot' | 'spec';
+export type Tab = 'configs' | 'logs' | 'har' | 'users' | 'groups' | 'roles' | 'access' | 'access_logs' | 'issues' | 'snapshot' | 'last_summary' | 'spec';

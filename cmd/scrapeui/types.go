@@ -67,9 +67,23 @@ type ConfigMeta struct {
 
 // ScrapeIssue represents an orphaned change, FK error, or other pipeline issue.
 type ScrapeIssue struct {
-	Type    string          `json:"type"`              // "orphaned", "fk_error", "ignored"
-	Message string          `json:"message,omitempty"`
-	Change  *v1.ChangeResult `json:"change,omitempty"` // Full change details when applicable
+	Type    string           `json:"type"`              // "orphaned", "fk_error", "warning"
+	Message string           `json:"message,omitempty"`
+	Change  *v1.ChangeResult `json:"change,omitempty"`
+	Warning *v1.Warning      `json:"warning,omitempty"`
+}
+
+// PropertyInfo is a UI-friendly representation of a resolved property.
+type PropertyInfo struct {
+	Value   any    `json:"value,omitempty"`
+	Default any    `json:"default,omitempty"`
+	Type    string `json:"type,omitempty"`
+}
+
+// LogLevelInfo carries the effective log levels for display in the Spec tab.
+type LogLevelInfo struct {
+	Scraper string `json:"scraper,omitempty"`
+	Global  string `json:"global,omitempty"`
 }
 
 // BuildInfo carries the build-time version/commit/date for display in the
@@ -90,9 +104,12 @@ type Snapshot struct {
 	SaveSummary   *SaveSummary                      `json:"save_summary,omitempty"`
 	Snapshots     map[string]*v1.ScrapeSnapshotPair `json:"snapshots,omitempty"`
 	ScrapeSpec    any                               `json:"scrape_spec,omitempty"`
-	HAR           []har.Entry                       `json:"har,omitempty"`
-	Logs          string                            `json:"logs"`
-	Done          bool                              `json:"done"`
-	StartedAt     int64                             `json:"started_at"`
-	BuildInfo     *BuildInfo                        `json:"build_info,omitempty"`
+	Properties    map[string]PropertyInfo            `json:"properties,omitempty"`
+	LogLevel      *LogLevelInfo                      `json:"log_level,omitempty"`
+	HAR                []har.Entry                    `json:"har,omitempty"`
+	Logs               string                       `json:"logs"`
+	Done               bool                         `json:"done"`
+	StartedAt          int64                         `json:"started_at"`
+	BuildInfo          *BuildInfo                    `json:"build_info,omitempty"`
+	LastScrapeSummary  *v1.ScrapeSummary             `json:"last_scrape_summary,omitempty"`
 }

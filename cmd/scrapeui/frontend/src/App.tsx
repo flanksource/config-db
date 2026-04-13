@@ -15,6 +15,7 @@ import { AccessTable } from './components/AccessTable';
 import { AccessLogTable } from './components/AccessLogTable';
 import { ScrapeConfigPanel } from './components/ScrapeConfigPanel';
 import { SnapshotPanel } from './components/SnapshotPanel';
+import { JsonView } from './components/JsonView';
 
 const TAB_DEFS: { key: Tab; label: string; icon: string; countKey?: string }[] = [
   { key: 'configs', label: 'Configs', icon: 'codicon:server-process', countKey: 'configs' },
@@ -27,6 +28,7 @@ const TAB_DEFS: { key: Tab; label: string; icon: string; countKey?: string }[] =
   { key: 'access_logs', label: 'Access Logs', icon: 'codicon:history', countKey: 'access_logs' },
   { key: 'issues', label: 'Issues', icon: 'codicon:warning' },
   { key: 'snapshot', label: 'Snapshot', icon: 'codicon:database' },
+  { key: 'last_summary', label: 'Last Summary', icon: 'codicon:pulse' },
   { key: 'spec', label: 'Spec', icon: 'codicon:file-code' },
 ];
 
@@ -288,8 +290,8 @@ export function App() {
           const isActive = tab === t.key;
           const searchHits = search ? (searchCounts[t.key] || 0) : 0;
 
-          // Hide tabs with no data (except configs, logs, spec, snapshot)
-          if (!count && !isActive && !searchHits && !['configs', 'logs', 'spec', 'snapshot'].includes(t.key)) return null;
+          // Hide tabs with no data (except configs, logs, spec, snapshot, last_summary)
+          if (!count && !isActive && !searchHits && !['configs', 'logs', 'spec', 'snapshot', 'last_summary'].includes(t.key)) return null;
 
           return (
             <button
@@ -427,13 +429,20 @@ export function App() {
               <div class="space-y-2">
                 {snapshot.issues.map((issue, i) => (
                   <div key={i} class={`border rounded p-3 text-sm ${
-                    issue.type === 'fk_error' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
+                    issue.type === 'fk_error' ? 'bg-red-50 border-red-200' :
+                    issue.type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                    'bg-amber-50 border-amber-200'
                   }`}>
                     <div class="flex items-center gap-2 mb-1">
                       <span class={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                        issue.type === 'fk_error' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        issue.type === 'fk_error' ? 'bg-red-100 text-red-700' :
+                        issue.type === 'warning' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-amber-100 text-amber-700'
                       }`}>{issue.type}</span>
                       {issue.message && <span class="text-gray-600">{issue.message}</span>}
+                      {issue.warning?.count && issue.warning.count > 1 && (
+                        <span class="text-xs text-gray-400 ml-1">&times;{issue.warning.count}</span>
+                      )}
                     </div>
                     {issue.change && (
                       <div class="mt-1 text-xs space-y-0.5">
@@ -446,6 +455,35 @@ export function App() {
                         {issue.change.created_at && <div><span class="text-gray-500">created_at:</span> {issue.change.created_at}</div>}
                       </div>
                     )}
+                    {issue.warning && (
+                      <div class="mt-1 text-xs space-y-1">
+                        {issue.warning.expr && <div><span class="text-gray-500">expr:</span> <code class="bg-gray-100 px-1 rounded font-mono">{issue.warning.expr}</code></div>}
+                        {issue.warning.input && (
+                          <details class="mt-1">
+                            <summary class="text-gray-500 cursor-pointer hover:text-gray-700">input</summary>
+                            <div class="mt-1 p-2 bg-gray-100 rounded overflow-auto max-h-48">
+                              {typeof issue.warning.input === 'object' ? <JsonView data={issue.warning.input} /> : <pre class="whitespace-pre-wrap break-all">{String(issue.warning.input)}</pre>}
+                            </div>
+                          </details>
+                        )}
+                        {issue.warning.output && (
+                          <details class="mt-1">
+                            <summary class="text-gray-500 cursor-pointer hover:text-gray-700">output</summary>
+                            <div class="mt-1 p-2 bg-gray-100 rounded overflow-auto max-h-48">
+                              {typeof issue.warning.output === 'object' ? <JsonView data={issue.warning.output} /> : <pre class="whitespace-pre-wrap break-all">{String(issue.warning.output)}</pre>}
+                            </div>
+                          </details>
+                        )}
+                        {issue.warning.result && (
+                          <details class="mt-1">
+                            <summary class="text-gray-500 cursor-pointer hover:text-gray-700">result</summary>
+                            <div class="mt-1 p-2 bg-gray-100 rounded overflow-auto max-h-48">
+                              {typeof issue.warning.result === 'object' ? <JsonView data={issue.warning.result} /> : <pre class="whitespace-pre-wrap break-all">{String(issue.warning.result)}</pre>}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -454,7 +492,16 @@ export function App() {
         )}
 
         {tab === 'snapshot' && <SnapshotPanel pairs={snapshot?.snapshots} />}
-        {tab === 'spec' && <ScrapeConfigPanel spec={snapshot?.scrape_spec} />}
+        {tab === 'last_summary' && (
+          <div class="overflow-auto h-full p-4">
+            {snapshot?.last_scrape_summary ? (
+              <JsonView data={snapshot.last_scrape_summary} />
+            ) : (
+              <div class="p-8 text-center text-gray-400 text-sm">No previous scrape summary available (first run or no database connection)</div>
+            )}
+          </div>
+        )}
+        {tab === 'spec' && <ScrapeConfigPanel spec={snapshot?.scrape_spec} properties={snapshot?.properties} logLevel={snapshot?.log_level} />}
       </div>
     </div>
   );
