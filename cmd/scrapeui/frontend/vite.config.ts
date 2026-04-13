@@ -122,7 +122,7 @@ function fileApiPlugin(): Plugin {
 function spaHistoryFallback(): Plugin {
   const prefixes = [
     '/configs', '/logs', '/har', '/users', '/groups',
-    '/roles', '/access', '/access_logs', '/issues', '/snapshot', '/spec',
+    '/roles', '/access', '/access_logs', '/issues', '/snapshot', '/last_summary', '/spec',
   ];
   return {
     name: 'spa-history-fallback',
