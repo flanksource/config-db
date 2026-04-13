@@ -141,7 +141,7 @@ func login(ctx api.ScrapeContext, b *Browser, provider v1.PlaywrightLoginProvide
 	}
 
 	if provider.Browser != nil {
-		result, err := loginWithBrowser(ctx, *provider.Browser)
+		result, err := loginWithBrowser(ctx, *provider.Browser, b.WorkDir)
 		if err != nil {
 			return fmt.Errorf("browser login: %w", err)
 		}

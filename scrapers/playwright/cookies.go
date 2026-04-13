@@ -33,7 +33,7 @@ type browserLoginResult struct {
 	SessionStoragePath string
 }
 
-func loginWithBrowser(ctx api.ScrapeContext, login v1.PlaywrightBrowserLogin) (*browserLoginResult, error) {
+func loginWithBrowser(ctx api.ScrapeContext, login v1.PlaywrightBrowserLogin, workDir string) (*browserLoginResult, error) {
 	conn, err := connection.Get(ctx.Context, login.ConnectionName)
 	if err != nil {
 		return nil, fmt.Errorf("getting connection %s: %w", login.ConnectionName, err)
@@ -60,7 +60,7 @@ func loginWithBrowser(ctx api.ScrapeContext, login v1.PlaywrightBrowserLogin) (*
 	}
 
 	if sessionStorage, ok := conn.Properties["sessionStorage"]; ok && sessionStorage != "" {
-		path, err := writeSessionStorage([]byte(sessionStorage))
+		path, err := writeSessionStorage([]byte(sessionStorage), workDir)
 		if err != nil {
 			ctx.Logger.Errorf("failed to write sessionStorage from connection %s: %v", login.ConnectionName, err)
 		} else {
@@ -72,8 +72,8 @@ func loginWithBrowser(ctx api.ScrapeContext, login v1.PlaywrightBrowserLogin) (*
 	return result, nil
 }
 
-func writeSessionStorage(data []byte) (string, error) {
-	f, err := os.CreateTemp("", "playwright-session-*.json")
+func writeSessionStorage(data []byte, workDir string) (string, error) {
+	f, err := os.CreateTemp(workDir, "playwright-session-*.json")
 	if err != nil {
 		return "", err
 	}
