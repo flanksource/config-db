@@ -31,6 +31,7 @@ import (
 	"github.com/flanksource/duty"
 	dutyapi "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/job"
 	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/job"
 	"github.com/flanksource/duty/models"
