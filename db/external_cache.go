@@ -64,11 +64,17 @@ var ExternalRoleCache = newTypedCache[uuid.UUID]("external-roles-alias")
 // ExternalRoleIDCache stores external_role_id -> winning external_role_id.
 var ExternalRoleIDCache = newTypedCache[uuid.UUID]("external-roles-id")
 
+// ExternalRoleIDCache stores external_role_id -> winning external_role_id.
+var ExternalRoleIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+
 // ExternalGroupCache stores alias -> external_group_id mapping
 var ExternalGroupCache = newTypedCache[uuid.UUID]("external-groups-alias")
 
 // ExternalGroupIDCache stores external_group_id -> winning external_group_id.
 var ExternalGroupIDCache = newTypedCache[uuid.UUID]("external-groups-id")
+
+// ExternalGroupIDCache stores external_group_id -> winning external_group_id.
+var ExternalGroupIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 
 // externalEntityWithID is a constraint for external entity types that have an ID field
 type externalEntityWithID interface {
