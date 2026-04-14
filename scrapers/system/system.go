@@ -48,7 +48,7 @@ func scrapeAgents(ctx api.ScrapeContext) v1.ScrapeResults {
 		lastSeen := time.Since(lo.FromPtr(agent.LastSeen))
 		health := models.HealthHealthy
 		status := "online"
-		if lastSeen > (61 * time.Second) {
+		if lastSeen > (61*time.Second) && agent.ID != uuid.Nil {
 			health = models.HealthUnhealthy
 			status = "offline"
 		}
