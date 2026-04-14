@@ -590,7 +590,7 @@
             "type": "array"
           },
           "type": "object",
-          "description": "Roles maps role names to Git permission names.\nEach identity is assigned the role whose required permissions are all present.\nPermission names: Read, Contribute, ForcePush, CreateBranch, CreateTag, ManageNotes,\nCreateRepository, DeleteRepository, RenameRepository, ManagePermissions, PolicyExempt"
+          "description": "Roles maps role names to permission strings with resource-type prefixes.\nFormat: \"Type:Permission\" where Type is Git, Pipeline, or Release.\nAn identity is assigned a role if it has ANY of the listed permissions for that type.\n\nGit permissions: Read, Contribute, ForcePush, CreateBranch, CreateTag, ManageNotes,\n  CreateRepository, DeleteRepository, RenameRepository, ManagePermissions, PolicyExempt\nPipeline permissions: ViewBuilds, EditBuildPipeline, DeleteBuilds, QueueBuilds,\n  StopBuilds, AdministerBuildPermissions\nRelease permissions: ViewReleaseDefinition, EditReleaseDefinition, DeleteReleaseDefinition,\n  ManageDeployments, ManageReleaseApprovers, ManageReleases, ViewReleases,\n  CreateReleases, EditReleaseEnvironment, DeleteReleaseEnvironment,\n  AdministerReleasePermissions, DeleteReleases, ManageDefinitionReleaseApprovers\n\nDefaults to Viewer, Developer, Admin, Releaser roles when not configured."
         }
       },
       "additionalProperties": false,
@@ -3267,7 +3267,7 @@
         },
         "script": {
           "type": "string",
-          "description": "Script is the inline TypeScript/JavaScript script to run with Playwright.\nThe script should import from 'playwright' and output JSON to stdout."
+          "description": "Script is an inline TypeScript/JavaScript to run with Playwright."
         },
         "connections": {
           "$ref": "#/$defs/ExecConnections",
@@ -3277,13 +3277,6 @@
           "$ref": "#/$defs/GitConnection",
           "description": "Checkout is a git repository to check out the script from"
         },
-        "env": {
-          "items": {
-            "$ref": "#/$defs/EnvVar"
-          },
-          "type": "array",
-          "description": "Env are environment variables passed to the script"
-        },
         "artifacts": {
           "items": {
             "$ref": "#/$defs/Artifact"
@@ -3291,17 +3284,43 @@
           "type": "array",
           "description": "Artifacts are additional artifact paths to collect after execution"
         },
-        "trace": {
+        "outputMode": {
           "type": "string",
-          "description": "Trace enables Playwright tracing. The trace zip file is collected as an artifact.\nValid values: \"on\", \"off\", \"retain-on-failure\". Defaults to \"off\"."
+          "description": "OutputMode controls how stdout is parsed: \"json\" (default) or \"raw\""
+        },
+        "login": {
+          "$ref": "#/$defs/PlaywrightLoginProvider",
+          "description": "Login provider for auto-login (AWS federation, browser cookies)"
+        },
+        "headless": {
+          "type": "boolean",
+          "description": "Headless mode (default true)"
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "Timeout in seconds for the script execution (default 300)"
+        },
+        "trace": {
+          "$ref": "#/$defs/PlaywrightTrace",
+          "description": "Trace configures HAR, video, and network recording"
         },
         "har": {
           "type": "boolean",
-          "description": "HAR enables Playwright HAR recording. The HAR file is collected as an artifact."
+          "description": "HAR enables HAR (HTTP Archive) recording"
         },
-        "outputMode": {
-          "type": "string",
-          "description": "OutputMode controls how stdout is parsed.\n\"json\" (default): parse stdout as JSON/YAML into config items.\n\"raw\": return stdout as a single plain-text config item."
+        "env": {
+          "items": {
+            "$ref": "#/$defs/EnvVar"
+          },
+          "type": "array",
+          "description": "Env additional environment variables for the script"
+        },
+        "query": {
+          "items": {
+            "$ref": "#/$defs/ConfigQuery"
+          },
+          "type": "array",
+          "description": "Query exports config items as JSON files for use in scripts"
         }
       },
       "additionalProperties": false,
@@ -3309,6 +3328,89 @@
       "required": [
         "script"
       ]
+    },
+    "PlaywrightAWSLogin": {
+      "properties": {
+        "connection": {
+          "type": "string",
+          "description": "ConnectionName of the connection. It'll be used to populate the endpoint, accessKey and secretKey."
+        },
+        "accessKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "secretKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "assumeRole": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "skipTLSVerify": {
+          "type": "boolean",
+          "description": "Skip TLS verify when connecting to aws"
+        },
+        "region": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sessionDuration": {
+          "type": "integer"
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "login": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "PlaywrightBrowserLogin": {
+      "properties": {
+        "connection": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "connection"
+      ]
+    },
+    "PlaywrightLoginProvider": {
+      "properties": {
+        "aws": {
+          "$ref": "#/$defs/PlaywrightAWSLogin"
+        },
+        "browser": {
+          "$ref": "#/$defs/PlaywrightBrowserLogin"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "PlaywrightTrace": {
+      "properties": {
+        "har": {
+          "type": "boolean"
+        },
+        "domains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "video": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "PodFile": {
       "properties": {
