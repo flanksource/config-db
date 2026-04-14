@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
@@ -24,10 +24,11 @@ import (
 	"github.com/flanksource/commons/hash"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/utils"
-	"github.com/google/uuid"
-	"github.com/lib/pq"
+	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/samber/lo"
@@ -101,7 +102,7 @@ var defaultExcludes = []v1.ConfigFieldExclusion{
 
 type Scraper struct {
 	ctx    api.ScrapeContext
-	cred   *azidentity.ClientSecretCredential
+	cred   azcore.TokenCredential
 	config *v1.Azure
 
 	graphClient *msgraphsdkgo.GraphServiceClient
@@ -117,41 +118,48 @@ func (azure Scraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.Azure) > 0
 }
 
-// HydrateConnection populates the credentials in Azure from the connection name (if available)
-// else it'll try to fetch the credentials from kubernetes secrets.
-func (azure Scraper) hydrateConnection(ctx api.ScrapeContext, t v1.Azure) (v1.Azure, error) {
-	if t.ConnectionName != "" {
-		connection, err := ctx.HydrateConnectionByURL(t.ConnectionName)
-		if err != nil {
-			return t, fmt.Errorf("could not hydrate connection: %w", err)
-		} else if connection == nil {
-			return t, fmt.Errorf("connection %s not found", t.ConnectionName)
-		}
+// hydrateConnection builds a duty connection.AzureConnection from the scrape
+// config. When ConnectionName is set it resolves against the connection
+// registry (which handles service-principal and bearer-token fallbacks);
+// otherwise it resolves the inline EnvVars from kubernetes secrets.
+func (azure Scraper) hydrateConnection(ctx api.ScrapeContext, t v1.Azure) (v1.Azure, connection.AzureConnection, error) {
+	azureConn := connection.AzureConnection{
+		ConnectionName: t.ConnectionName,
+		ClientID:       &t.ClientID,
+		ClientSecret:   &t.ClientSecret,
+		TenantID:       t.TenantID,
+	}
 
-		t.ClientID.ValueStatic = connection.Username
-		t.ClientSecret.ValueStatic = connection.Password
-		t.TenantID = connection.Properties["tenant"]
-		return t, nil
+	if t.ConnectionName != "" {
+		if err := azureConn.HydrateConnection(ctx); err != nil {
+			return t, azureConn, fmt.Errorf("could not hydrate connection: %w", err)
+		}
+		t.ClientID = *azureConn.ClientID
+		t.ClientSecret = *azureConn.ClientSecret
+		t.TenantID = azureConn.TenantID
+		return t, azureConn, nil
 	}
 
 	var err error
 	t.ClientID.ValueStatic, err = ctx.GetEnvValueFromCache(t.ClientID, ctx.Namespace())
 	if err != nil {
-		return t, fmt.Errorf("failed to get client id: %w", err)
+		return t, azureConn, fmt.Errorf("failed to get client id: %w", err)
 	}
 
 	t.ClientSecret.ValueStatic, err = ctx.GetEnvValueFromCache(t.ClientSecret, ctx.Namespace())
 	if err != nil {
-		return t, fmt.Errorf("failed to get client secret: %w", err)
+		return t, azureConn, fmt.Errorf("failed to get client secret: %w", err)
 	}
 
-	return t, nil
+	azureConn.ClientID = &t.ClientID
+	azureConn.ClientSecret = &t.ClientSecret
+	return t, azureConn, nil
 }
 
 func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 	for _, _config := range ctx.ScrapeConfig().Spec.Azure {
-		config, err := azure.hydrateConnection(ctx, _config)
+		config, azureConn, err := azure.hydrateConnection(ctx, _config)
 		if err != nil {
 			results.Errorf(err, "failed to populate connection")
 			continue
@@ -159,7 +167,7 @@ func (azure Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 		config.Transform.Exclude = append(config.Transform.Exclude, defaultExcludes...)
 
-		cred, err := azidentity.NewClientSecretCredential(config.TenantID, config.ClientID.ValueStatic, config.ClientSecret.ValueStatic, nil)
+		cred, err := azureConn.TokenCredential()
 		if err != nil {
 			results.Errorf(err, "failed to get credentials for azure")
 			continue
@@ -1128,12 +1136,7 @@ func (azure *Scraper) setGraphClient() error {
 		return nil
 	}
 
-	graphCred, err := azidentity.NewClientSecretCredential(azure.config.TenantID, azure.config.ClientID.ValueStatic, azure.config.ClientSecret.ValueStatic, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create graph credentials: %w", err)
-	}
-
-	client, err := msgraphsdkgo.NewGraphServiceClientWithCredentials(graphCred, []string{"https://graph.microsoft.com/.default"})
+	client, err := msgraphsdkgo.NewGraphServiceClientWithCredentials(azure.cred, []string{"https://graph.microsoft.com/.default"})
 	if err != nil {
 		return fmt.Errorf("failed to create graph client: %w", err)
 	}

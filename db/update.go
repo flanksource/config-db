@@ -265,7 +265,7 @@ func shouldExcludeChange(ctx api.ScrapeContext, result *v1.ScrapeResult, changeR
 	}
 
 	for _, expr := range exclusions {
-		if res, err := gomplate.RunTemplate(env, gomplate.Template{Expression: expr}); err != nil {
+		if res, err := ctx.RunTemplate(gomplate.Template{Expression: expr}, env); err != nil {
 			return false, fmt.Errorf("[%s] change exclusion expression failed (%s): %w", changeResult, expr, err)
 		} else if skipChange, err := strconv.ParseBool(res); err != nil {
 			return false, fmt.Errorf("change exclusion expression(%s) didn't evaluate to a boolean: %w", expr, err)
@@ -571,6 +571,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 	summary.OrphanedChanges = append(summary.OrphanedChanges, extractResult.orphanedChanges...)
 	summary.FKErrorChanges = append(summary.FKErrorChanges, extractResult.fkErrorChanges...)
+	for _, w := range extractResult.warnings {
+		summary.AddScrapeWarning(w)
+	}
 	for configType, cs := range extractResult.changeSummary {
 		summary.AddChangeSummary(configType, cs)
 	}
@@ -622,7 +625,6 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 
 	summary.ConfigAccess.Scraped = len(extractResult.configAccesses)
-	missingConfigs := map[string]int{}
 	var resolvedAccesses []v1.ExternalConfigAccess
 	for i := range extractResult.configAccesses {
 		configAccess := &extractResult.configAccesses[i]
@@ -683,7 +685,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 				summary.ConfigAccess.Skipped++
 				continue
 			} else if config == "" {
-				missingConfigs[configAccess.ConfigExternalID.Pretty().ANSI()]++
+				summary.AddScrapeWarning(v1.Warning{
+					Error:  fmt.Sprintf("config access references unknown config %s", configAccess.ConfigExternalID.Pretty().ANSI()),
+					Input:  extractResult.transformInput,
+					Expr:   extractResult.transformExpr,
+					Result: configAccess,
+				})
 				summary.ConfigAccess.Skipped++
 				continue
 			}
@@ -702,10 +709,6 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		resolvedAccesses = append(resolvedAccesses, *configAccess)
 	}
 
-	for key, count := range missingConfigs {
-		ctx.Logger.V(2).Infof("config access references unknown config %s (scraper=%s, count=%d)", key, ctx.ScrapeConfig().Name, count)
-	}
-
 	if len(resolvedAccesses) > 0 {
 		permResult, err := upsertConfigAccess(ctx, resolvedAccesses, scraperID)
 		if err != nil {
@@ -720,7 +723,6 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	}
 
 	summary.AccessLogs.Scraped = len(extractResult.configAccessLogs)
-	missingAccessLogConfigs := map[string]int{}
 	var resolvedAccessLogs []dutyModels.ConfigAccessLog
 	for _, accessLog := range extractResult.configAccessLogs {
 		if accessLog.ConfigID == uuid.Nil && accessLog.ConfigExternalID.ExternalID != "" {
@@ -730,7 +732,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 				summary.AccessLogs.Skipped++
 				continue
 			} else if config == "" {
-				missingAccessLogConfigs[accessLog.ConfigExternalID.Key()]++
+				summary.AddScrapeWarning(v1.Warning{
+					Error:  fmt.Sprintf("access log references unknown config %s", accessLog.ConfigExternalID.Key()),
+					Input:  extractResult.transformInput,
+					Expr:   extractResult.transformExpr,
+					Result: accessLog,
+				})
 				summary.AccessLogs.Skipped++
 				continue
 			}
@@ -760,16 +767,18 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		if accessLog.ExternalUserID != uuid.Nil {
-			if _, ok := ExternalUserIDCache.Get(accessLog.ExternalUserID.String()); !ok {
-				id, _ := findExternalEntityIDByAliases[dutyModels.ExternalUser](ctx, []string{accessLog.ExternalUserID.String()})
-				if id != nil {
-					accessLog.ExternalUserID = *id
-				} else {
-					summary.AddWarning("AccessLog", fmt.Sprintf("access log user_id=%s aliases=%v not found, skipping", accessLog.ExternalUserID, accessLog.ExternalUserAliases))
-					summary.AccessLogs.Skipped++
-					continue
-				}
+			id, err := findExternalEntityByID[dutyModels.ExternalUser](ctx, accessLog.ExternalUserID)
+			if err != nil {
+				summary.AddWarning("AccessLog", fmt.Sprintf("failed to look up access log user_id=%s: %v", accessLog.ExternalUserID, err))
+				summary.AccessLogs.Skipped++
+				continue
 			}
+			if id == nil {
+				summary.AddWarning("AccessLog", fmt.Sprintf("access log user_id=%s aliases=%v not found, skipping", accessLog.ExternalUserID, accessLog.ExternalUserAliases))
+				summary.AccessLogs.Skipped++
+				continue
+			}
+			accessLog.ExternalUserID = *id
 		}
 
 		if accessLog.ExternalUserID == uuid.Nil {
@@ -780,8 +789,28 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		resolvedAccessLogs = append(resolvedAccessLogs, accessLog.ConfigAccessLog)
 	}
 
-	for key, count := range missingAccessLogConfigs {
-		ctx.Logger.V(2).Infof("access log references unknown config %s (scraper=%s, count=%d)", key, ctx.ScrapeConfig().Name, count)
+	// Track max created_at per config type from access logs
+	accessLogMaxTime := map[string]time.Time{}
+	for _, al := range extractResult.configAccessLogs {
+		configType := al.ConfigExternalID.ConfigType
+		if configType == "" || al.CreatedAt.IsZero() {
+			continue
+		}
+		if existing, ok := accessLogMaxTime[configType]; !ok || al.CreatedAt.After(existing) {
+			accessLogMaxTime[configType] = al.CreatedAt
+		}
+	}
+	for configType, maxTime := range accessLogMaxTime {
+		if summary.ConfigTypes == nil {
+			summary.ConfigTypes = make(map[string]v1.ConfigTypeScrapeSummary)
+		}
+		v := summary.ConfigTypes[configType]
+		t := maxTime
+		v.AccessLogs.LastCreatedAt = &t
+		summary.ConfigTypes[configType] = v
+		if summary.AccessLogs.LastCreatedAt == nil || maxTime.After(*summary.AccessLogs.LastCreatedAt) {
+			summary.AccessLogs.LastCreatedAt = &t
+		}
 	}
 
 	// Deduplicate by (config_id, external_user_id, scraper_id) to avoid
@@ -803,10 +832,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		resolvedAccessLogs = append(resolvedAccessLogs, log)
 	}
 
-	if err := SaveConfigAccessLogs(ctx, resolvedAccessLogs); err != nil {
+	if logResult, err := SaveConfigAccessLogs(ctx, resolvedAccessLogs); err != nil {
 		summary.AddWarning("AccessLogs", fmt.Sprintf("failed to save access logs: %v", err))
 	} else {
-		summary.AccessLogs.Saved = len(resolvedAccessLogs)
+		summary.AccessLogs.Saved = logResult.saved
+		summary.AccessLogs.ForeignKeyErrors = logResult.foreignKeyErrors
 	}
 
 	// updatedConfigIDs are configs that were not new in this scrape.
@@ -1000,8 +1030,25 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
-	if summary.HasUpdates() {
+	// Retain last_created_at from the previous scrape when no new access logs were seen for a type
+	prev := ctx.LastScrapeSummary()
+	for configType, prevType := range prev.ConfigTypes {
+		if prevType.AccessLogs.LastCreatedAt != nil {
+			if summary.ConfigTypes == nil {
+				summary.ConfigTypes = make(map[string]v1.ConfigTypeScrapeSummary)
+			}
+			cur := summary.ConfigTypes[configType]
+			if cur.AccessLogs.LastCreatedAt == nil {
+				cur.AccessLogs.LastCreatedAt = prevType.AccessLogs.LastCreatedAt
+			}
+			summary.ConfigTypes[configType] = cur
+		}
+	}
+	if prev.AccessLogs.LastCreatedAt != nil && summary.AccessLogs.LastCreatedAt == nil {
+		summary.AccessLogs.LastCreatedAt = prev.AccessLogs.LastCreatedAt
+	}
 
+	if summary.HasUpdates() {
 		ctx.Logger.Debugf("Updates %s", summary)
 	} else {
 		ctx.Logger.V(4).Infof("No Update: %s", summary)
@@ -1289,23 +1336,254 @@ type configExternalKey struct {
 	parentType string
 }
 
-func SaveConfigAccessLogs(ctx api.ScrapeContext, accessLogs []dutyModels.ConfigAccessLog) error {
+type accessLogUpsertResult struct {
+	saved            int
+	foreignKeyErrors int
+}
+
+// SaveConfigAccessLogs upserts access-log rows into config_access_logs with
+// FK-violation recovery. Matches the pattern in upsertConfigAccess: temp
+// table, stub-user backfill for missing external_user_id FKs, bulk upsert
+// inside a savepoint, and a row-by-row fallback that isolates rows whose
+// FK still can't be satisfied. Rows that remain unresolvable are counted
+// in result.foreignKeyErrors and diagnostics are logged via
+// logAccessLogFKDiagnostics.
+//
+// All input rows are expected to belong to the current scraper. Any row
+// with a mismatched ScraperID is dropped with a warning (single
+// enforcement point for scraper isolation — subsequent SQL trusts it).
+func SaveConfigAccessLogs(ctx api.ScrapeContext, accessLogs []dutyModels.ConfigAccessLog) (accessLogUpsertResult, error) {
+	var result accessLogUpsertResult
 	if len(accessLogs) == 0 {
-		return nil
+		return result, nil
 	}
 
-	return ctx.DB().Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "config_id"}, {Name: "external_user_id"}, {Name: "scraper_id"}},
-		DoUpdates: clause.Set{
-			{Column: clause.Column{Name: "created_at"}, Value: gorm.Expr("excluded.created_at")},
-			{Column: clause.Column{Name: "mfa"}, Value: gorm.Expr("excluded.mfa")},
-			{Column: clause.Column{Name: "properties"}, Value: gorm.Expr("excluded.properties")},
-			{Column: clause.Column{Name: "count"}, Value: gorm.Expr(`config_access_logs."count" + 1`)},
-		},
-		Where: clause.Where{Exprs: []clause.Expression{
-			clause.Expr{SQL: "excluded.created_at > config_access_logs.created_at"},
-		}},
-	}).CreateInBatches(&accessLogs, configItemsBulkInsertSize).Error
+	scraperIDPtr := ctx.ScrapeConfig().GetPersistedID()
+	if scraperIDPtr == nil || *scraperIDPtr == uuid.Nil {
+		// No persisted scraper id ⇒ no stub-user path (stubs need a
+		// scraper_id on their rows). Fall back to the simple single-
+		// statement upsert and surface any error directly.
+		if err := ctx.DB().Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "config_id"}, {Name: "external_user_id"}, {Name: "scraper_id"}},
+			DoUpdates: clause.Set{
+				{Column: clause.Column{Name: "created_at"}, Value: gorm.Expr("excluded.created_at")},
+				{Column: clause.Column{Name: "mfa"}, Value: gorm.Expr("excluded.mfa")},
+				{Column: clause.Column{Name: "properties"}, Value: gorm.Expr("excluded.properties")},
+				{Column: clause.Column{Name: "count"}, Value: gorm.Expr(`config_access_logs."count" + 1`)},
+			},
+			Where: clause.Where{Exprs: []clause.Expression{
+				clause.Expr{SQL: "excluded.created_at > config_access_logs.created_at"},
+			}},
+		}).CreateInBatches(&accessLogs, configItemsBulkInsertSize).Error; err != nil {
+			return result, err
+		}
+		result.saved = len(accessLogs)
+		return result, nil
+	}
+	scraperID := *scraperIDPtr
+
+	// Pre-filter to the current scraper. Any mismatched row would indicate
+	// an upstream bug; drop and warn so it surfaces.
+	filtered := accessLogs[:0:0]
+	var dropped int
+	for _, log := range accessLogs {
+		if log.ScraperID != scraperID {
+			dropped++
+			continue
+		}
+		filtered = append(filtered, log)
+	}
+	if dropped > 0 {
+		ctx.Logger.Warnf("SaveConfigAccessLogs: dropped %d access-log row(s) whose scraper_id did not match the current scraper %s", dropped, scraperID)
+	}
+	if len(filtered) == 0 {
+		return result, nil
+	}
+	result.saved = len(filtered)
+
+	now := time.Now()
+	scraperIDStr := scraperID.String()
+	tempTable := fmt.Sprintf("_scrape_config_access_logs_%s", sanitizeForTempTable(scraperIDStr))
+
+	tx := ctx.DB().Begin()
+	if tx.Error != nil {
+		return result, fmt.Errorf("failed to begin transaction: %w", tx.Error)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
+	if err := duty.ApplySessionProperties(ctx.DutyContext(), tx); err != nil {
+		tx.Rollback()
+		return result, fmt.Errorf("failed to apply session properties: %w", err)
+	}
+
+	if err := createTempAndInsert(tx, tempTable, "config_access_logs", filtered); err != nil {
+		tx.Rollback()
+		return result, fmt.Errorf("failed to setup temp access logs: %w", err)
+	}
+
+	// Stub external_users for any missing user references so the
+	// config_access_logs FK insert doesn't fail. Savepoint-guarded so a
+	// stub insert error doesn't abort the outer tx. Mirrors the user
+	// branch in upsertConfigAccess.
+	stubSQL := fmt.Sprintf(`
+		INSERT INTO external_users (id, name, aliases, scraper_id, created_at, updated_at, account_id, user_type)
+		SELECT DISTINCT t.external_user_id, t.external_user_id::text, NULL::text[], ?::uuid, ?::timestamptz, ?::timestamptz, '', 'Stub'
+		FROM %s t
+		WHERE t.external_user_id IS NOT NULL
+		  AND NOT EXISTS (SELECT 1 FROM external_users e WHERE e.id = t.external_user_id)
+		ON CONFLICT DO NOTHING
+	`, tempTable)
+	if err := tx.Exec("SAVEPOINT stub_user_access_logs").Error; err != nil {
+		ctx.Logger.Warnf("failed to create savepoint for access-log stub users: %v", err)
+	} else {
+		r := tx.Exec(stubSQL, scraperIDStr, now, now)
+		if r.Error != nil {
+			ctx.Logger.Warnf("failed to create stub users for access logs: %v", r.Error)
+			tx.Exec("ROLLBACK TO SAVEPOINT stub_user_access_logs")
+		} else {
+			tx.Exec("RELEASE SAVEPOINT stub_user_access_logs")
+			if r.RowsAffected > 0 {
+				ctx.Logger.Warnf("created %d stub user(s) for missing access_log references", r.RowsAffected)
+			}
+		}
+	}
+
+	// Bulk upsert from temp to live. Wrapped in a savepoint so an FK
+	// violation can be caught and recovered with a row-by-row retry.
+	bulkSQL := fmt.Sprintf(`
+		INSERT INTO config_access_logs (config_id, external_user_id, scraper_id, created_at, mfa, properties, count)
+		SELECT config_id, external_user_id, scraper_id, created_at, mfa, properties, COALESCE(count, 1)
+		FROM %s
+		ON CONFLICT (config_id, external_user_id, scraper_id) DO UPDATE SET
+			created_at = excluded.created_at,
+			mfa = excluded.mfa,
+			properties = excluded.properties,
+			count = config_access_logs."count" + 1
+		WHERE excluded.created_at > config_access_logs.created_at
+	`, tempTable)
+
+	tx.Exec("SAVEPOINT bulk_insert_access_logs")
+	if err := tx.Exec(bulkSQL).Error; err != nil {
+		if !dutydb.IsForeignKeyError(err) {
+			tx.Rollback()
+			return result, fmt.Errorf("failed to upsert config access logs: %w", err)
+		}
+
+		// Recover the tx from the aborted bulk insert; temp table is
+		// preserved across savepoint rollback.
+		tx.Exec("ROLLBACK TO SAVEPOINT bulk_insert_access_logs")
+
+		// Row-by-row fallback with per-row exception handling. Rows that
+		// succeed are deleted from the temp table; rows that still trip
+		// the FK remain and are counted below.
+		fallbackSQL := fmt.Sprintf(`
+			DO $$
+			DECLARE
+				v_rec RECORD;
+			BEGIN
+				FOR v_rec IN SELECT * FROM %s LOOP
+					BEGIN
+						INSERT INTO config_access_logs (config_id, external_user_id, scraper_id, created_at, mfa, properties, count)
+						VALUES (v_rec.config_id, v_rec.external_user_id, v_rec.scraper_id, v_rec.created_at, v_rec.mfa, v_rec.properties, COALESCE(v_rec.count, 1))
+						ON CONFLICT (config_id, external_user_id, scraper_id) DO UPDATE SET
+							created_at = excluded.created_at,
+							mfa = excluded.mfa,
+							properties = excluded.properties,
+							count = config_access_logs."count" + 1
+						WHERE excluded.created_at > config_access_logs.created_at;
+						DELETE FROM %s
+						WHERE config_id = v_rec.config_id
+							AND external_user_id = v_rec.external_user_id
+							AND scraper_id = v_rec.scraper_id;
+					EXCEPTION WHEN foreign_key_violation THEN
+						NULL;
+					END;
+				END LOOP;
+			END $$;
+		`, tempTable, tempTable)
+
+		if err := tx.Exec(fallbackSQL).Error; err != nil {
+			tx.Rollback()
+			return result, fmt.Errorf("failed to fallback upsert config access logs: %w", err)
+		}
+
+		var fkErrorCount int64
+		tx.Raw(fmt.Sprintf("SELECT count(*) FROM %s", tempTable)).Scan(&fkErrorCount)
+		result.foreignKeyErrors = int(fkErrorCount)
+		result.saved -= result.foreignKeyErrors
+
+		if fkErrorCount > 0 {
+			ctx.Logger.Warnf("config_access_logs: %d rows with FK violations (scraper=%s)", fkErrorCount, scraperIDStr)
+			logAccessLogFKDiagnostics(ctx, tx, tempTable)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return result, fmt.Errorf("failed to commit config access logs transaction: %w", err)
+	}
+
+	return result, nil
+}
+
+// logAccessLogFKDiagnostics mirrors logFKDiagnostics (permission_changes.go)
+// but scoped to config_access_logs: only external_user_id and config_id are
+// relevant (access logs don't reference roles or groups). Classifies the
+// remaining unresolvable rows and logs a grouped breakdown.
+func logAccessLogFKDiagnostics(ctx api.ScrapeContext, tx *gorm.DB, tempTable string) {
+	type diagRow struct {
+		ExternalUserID *uuid.UUID `gorm:"column:external_user_id"`
+		ConfigID       *uuid.UUID `gorm:"column:config_id"`
+		Reason         string     `gorm:"column:reason"`
+	}
+
+	diagSQL := fmt.Sprintf(`
+		SELECT t.external_user_id, t.config_id,
+			CASE
+				WHEN t.external_user_id IS NOT NULL AND eu.id IS NULL THEN 'user_missing'
+				WHEN t.external_user_id IS NOT NULL AND eu.deleted_at IS NOT NULL THEN 'user_deleted'
+				WHEN NOT EXISTS (SELECT 1 FROM config_items ci WHERE ci.id = t.config_id) THEN 'config_missing'
+				ELSE 'unknown'
+			END AS reason
+		FROM %s t
+		LEFT JOIN external_users eu ON eu.id = t.external_user_id
+		LIMIT 100
+	`, tempTable)
+
+	var rows []diagRow
+	if err := tx.Raw(diagSQL).Scan(&rows).Error; err != nil {
+		ctx.Logger.Warnf("  failed to diagnose access-log FK errors: %v", err)
+		return
+	}
+
+	type groupKey struct {
+		Reason string
+		FKID   string
+	}
+	counts := make(map[groupKey]int)
+	for _, row := range rows {
+		fkID := "unknown"
+		switch row.Reason {
+		case "user_missing", "user_deleted":
+			fkID = uuidPtrStr(row.ExternalUserID)
+		case "config_missing":
+			fkID = uuidPtrStr(row.ConfigID)
+		}
+		counts[groupKey{Reason: row.Reason, FKID: fkID}]++
+	}
+
+	logged := 0
+	for key, count := range counts {
+		if logged >= 10 {
+			break
+		}
+		ctx.Logger.Warnf("  reason=%s id=%s count=%d", key.Reason, key.FKID, count)
+		logged++
+	}
 }
 
 // extractResult holds the extracted configs & changes from the scrape result
@@ -1324,9 +1602,13 @@ type extractResult struct {
 	configAccesses   []v1.ExternalConfigAccess
 	configAccessLogs []v1.ExternalConfigAccessLog
 
-	changeSummary  v1.ChangeSummaryByType
+	changeSummary   v1.ChangeSummaryByType
 	orphanedChanges []v1.ChangeResult
 	fkErrorChanges  []v1.ChangeResult
+	warnings        []v1.Warning
+
+	transformInput any
+	transformExpr  string
 }
 
 func NewExtractResult() *extractResult {
@@ -1374,6 +1656,15 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 
 		if len(result.ExternalUserGroups) > 0 {
 			extractResult.externalUserGroups = append(extractResult.externalUserGroups, result.ExternalUserGroups...)
+		}
+
+		if len(result.Warnings) > 0 {
+			extractResult.warnings = append(extractResult.warnings, result.Warnings...)
+		}
+
+		if result.TransformInput != nil && extractResult.transformInput == nil {
+			extractResult.transformInput = result.TransformInput
+			extractResult.transformExpr = result.TransformExpr
 		}
 
 		if result.Name == "" {
