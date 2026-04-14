@@ -79,9 +79,7 @@ func scrape(ctx api.ScrapeContext, spec v1.HTTP) (v1.ScrapeResults, error) {
 		}
 	}
 
-	templateEnv := map[string]any{
-		"last_scrape_summary": ctx.LastScrapeSummary().AsMap(),
-	}
+	templateEnv := ctx.ScraperTemplateEnv()
 	for _, env := range spec.Env {
 		if v, err := ctx.GetEnvValueFromCache(env, ctx.Namespace()); err != nil {
 			return nil, fmt.Errorf("failed to get env value for %v: %w", env, err)

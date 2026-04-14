@@ -165,3 +165,26 @@ var _ = Describe("ScrapeSummary.AsMap", func() {
 		Expect(ScrapeSummary{}.AsMap()).NotTo(BeNil())
 	})
 })
+
+var _ = Describe("ScrapeSummary warnings", func() {
+	It("deduplicates structured warnings inline by error", func() {
+		summary := NewScrapeSummary()
+
+		summary.AddScrapeWarning(Warning{Error: "duplicate warning", Input: "first", Expr: "expr-a"})
+		summary.AddScrapeWarning(Warning{Error: "duplicate warning", Input: "second", Expr: "expr-b"})
+
+		Expect(summary.Warnings).To(HaveLen(1))
+		Expect(summary.Warnings[0].Count).To(Equal(2))
+		Expect(summary.Warnings[0].Input).To(Equal("first"))
+		Expect(summary.Warnings[0].Expr).To(Equal("expr-a"))
+	})
+
+	It("deduplicates config type warnings inline", func() {
+		summary := NewScrapeSummary()
+
+		summary.AddWarning("AWS::EC2::Instance", "duplicate warning")
+		summary.AddWarning("AWS::EC2::Instance", "duplicate warning")
+
+		Expect(summary.ConfigTypes["AWS::EC2::Instance"].Warnings).To(Equal([]string{"duplicate warning"}))
+	})
+})

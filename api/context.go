@@ -114,6 +114,15 @@ func (ctx ScrapeContext) LastScrapeSummary() v1.ScrapeSummary {
 	return copied
 }
 
+// ScraperTemplateEnv exposes scraper-level template inputs. This is for
+// request-shaping config such as URLs and query payloads, not per-item
+// transform execution.
+func (ctx ScrapeContext) ScraperTemplateEnv() map[string]any {
+	return map[string]any{
+		"last_scrape_summary": ctx.LastScrapeSummary().AsMap(),
+	}
+}
+
 func (ctx ScrapeContext) WithValue(key, val any) ScrapeContext {
 	return ScrapeContext{
 		Context:           ctx.Context.WithValue(key, val),

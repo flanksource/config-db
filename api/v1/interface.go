@@ -359,11 +359,18 @@ type Warning struct {
 	Count  int    `json:"count,omitempty"`
 }
 
+func warningCount(w Warning) int {
+	if w.Count > 0 {
+		return w.Count
+	}
+	return 1
+}
+
 // +kubebuilder:object:generate=false
 type ScrapeSummary struct {
-	ConfigTypes     map[string]ConfigTypeScrapeSummary     `json:"config_types,omitempty"`
-	OrphanedChanges []ChangeResult                         `json:"orphaned_changes,omitempty"`
-	FKErrorChanges  []ChangeResult                         `json:"fk_error_changes,omitempty"`
+	ConfigTypes     map[string]ConfigTypeScrapeSummary `json:"config_types,omitempty"`
+	OrphanedChanges []ChangeResult                     `json:"orphaned_changes,omitempty"`
+	FKErrorChanges  []ChangeResult                     `json:"fk_error_changes,omitempty"`
 	// ExternalUsers/Groups/Roles carry both counts and the post-merge
 	// canonical entities. This is the single source of truth for the UI's
 	// flat /users, /groups, /roles listings: individual ScrapeResults
@@ -375,8 +382,10 @@ type ScrapeSummary struct {
 	ExternalRoles  EntitySummary[models.ExternalRole]  `json:"external_roles,omitempty"`
 	ConfigAccess   EntitySummary[struct{}]             `json:"config_access,omitempty"`
 	AccessLogs     EntitySummary[struct{}]             `json:"access_logs,omitempty"`
-	Warnings       []Warning                          `json:"warnings,omitempty"`
-	State          map[string]any                     `json:"state,omitempty"`
+	Warnings       []Warning                           `json:"warnings,omitempty"`
+	State          map[string]any                      `json:"state,omitempty"`
+
+	warningIndex map[string]int `json:"-"`
 }
 
 func NewScrapeSummary() ScrapeSummary {
@@ -497,14 +506,22 @@ func (a ConfigTypeScrapeSummary) Merge(b ConfigTypeScrapeSummary) ConfigTypeScra
 	if b.Change != nil {
 		change.Merge(*b.Change)
 	}
-	return ConfigTypeScrapeSummary{
-		Added:     a.Added + b.Added,
-		Updated:   a.Updated + b.Updated,
-		Unchanged: a.Unchanged + b.Unchanged,
-		Changes:   a.Changes + b.Changes,
-		Deduped:   a.Deduped + b.Deduped,
-		Change:    change,
+	merged := ConfigTypeScrapeSummary{
+		Added:      a.Added + b.Added,
+		Updated:    a.Updated + b.Updated,
+		Unchanged:  a.Unchanged + b.Unchanged,
+		Changes:    a.Changes + b.Changes,
+		Deduped:    a.Deduped + b.Deduped,
+		Change:     change,
+		AccessLogs: a.AccessLogs.Merge(b.AccessLogs),
 	}
+	for _, warning := range a.Warnings {
+		merged.AddWarning(warning)
+	}
+	for _, warning := range b.Warnings {
+		merged.AddWarning(warning)
+	}
+	return merged
 }
 
 func (s ScrapeSummary) Totals() ConfigTypeScrapeSummary {
@@ -560,20 +577,19 @@ func (t *ScrapeSummary) AddUnchanged(configType string) {
 func (t *ScrapeSummary) AddWarning(configType, warning string) {
 	t.initConfigTypes()
 	v := t.ConfigTypes[configType]
-	v.Warnings = append(v.Warnings, warning)
+	v.AddWarning(warning)
 	t.ConfigTypes[configType] = v
 }
 
 func (t *ScrapeSummary) AddScrapeWarning(w Warning) {
-	if w.Count == 0 {
-		w.Count = 1
+	t.initWarningIndex()
+	count := warningCount(w)
+	if idx, ok := t.warningIndex[w.Error]; ok {
+		t.Warnings[idx].Count += count
+		return
 	}
-	for i := range t.Warnings {
-		if t.Warnings[i].Error == w.Error {
-			t.Warnings[i].Count += w.Count
-			return
-		}
-	}
+	w.Count = count
+	t.warningIndex[w.Error] = len(t.Warnings)
 	t.Warnings = append(t.Warnings, w)
 }
 
@@ -605,6 +621,25 @@ func (s *ScrapeSummary) Merge(other ScrapeSummary) {
 	s.ExternalRoles = s.ExternalRoles.Merge(other.ExternalRoles)
 	s.ConfigAccess = s.ConfigAccess.Merge(other.ConfigAccess)
 	s.AccessLogs = s.AccessLogs.Merge(other.AccessLogs)
+	for _, w := range other.Warnings {
+		s.AddScrapeWarning(w)
+	}
+}
+
+func (t *ScrapeSummary) initWarningIndex() {
+	if t.warningIndex != nil {
+		return
+	}
+	t.warningIndex = make(map[string]int, len(t.Warnings))
+	for i := range t.Warnings {
+		if _, ok := t.warningIndex[t.Warnings[i].Error]; ok {
+			continue
+		}
+		if t.Warnings[i].Count == 0 {
+			t.Warnings[i].Count = 1
+		}
+		t.warningIndex[t.Warnings[i].Error] = i
+	}
 }
 
 // +kubebuilder:object:generate=false
@@ -740,14 +775,16 @@ func (t *ChangeSummaryByType) Merge(typ string, b ChangeSummary) {
 
 // +kubebuilder:object:generate=false
 type ConfigTypeScrapeSummary struct {
-	Added      int                    `json:"added,omitempty"`
-	Updated    int                    `json:"updated,omitempty"`
-	Unchanged  int                    `json:"unchanged,omitempty"`
-	Changes    int                    `json:"changes,omitempty"`
-	Deduped    int                    `json:"deduped,omitempty"`
-	Change     *ChangeSummary         `json:"change,omitempty"`
-	Warnings   []string               `json:"warnings,omitempty"`
+	Added      int                     `json:"added,omitempty"`
+	Updated    int                     `json:"updated,omitempty"`
+	Unchanged  int                     `json:"unchanged,omitempty"`
+	Changes    int                     `json:"changes,omitempty"`
+	Deduped    int                     `json:"deduped,omitempty"`
+	Change     *ChangeSummary          `json:"change,omitempty"`
+	Warnings   []string                `json:"warnings,omitempty"`
 	AccessLogs EntitySummary[struct{}] `json:"access_logs,omitempty"`
+
+	warningIndex map[string]int `json:"-"`
 }
 
 // +kubebuilder:object:generate=false
@@ -761,6 +798,28 @@ func (t ScrapeResults) HasErr() bool {
 	}
 
 	return false
+}
+
+func (s *ConfigTypeScrapeSummary) initWarningIndex() {
+	if s.warningIndex != nil {
+		return
+	}
+	s.warningIndex = make(map[string]int, len(s.Warnings))
+	for i := range s.Warnings {
+		if _, ok := s.warningIndex[s.Warnings[i]]; ok {
+			continue
+		}
+		s.warningIndex[s.Warnings[i]] = i
+	}
+}
+
+func (s *ConfigTypeScrapeSummary) AddWarning(warning string) {
+	s.initWarningIndex()
+	if _, ok := s.warningIndex[warning]; ok {
+		return
+	}
+	s.warningIndex[warning] = len(s.Warnings)
+	s.Warnings = append(s.Warnings, warning)
 }
 
 func (t ScrapeResults) Errors() []string {
@@ -1940,12 +1999,12 @@ type FullScrapeResults struct {
 	Analysis           []models.ConfigAnalysis     `json:"analysis,omitempty"`
 	Changes            []ChangeResult              `json:"changes,omitempty"`
 	Relationships      []models.ConfigRelationship `json:"relationships,omitempty"`
-	ExternalRoles      []models.ExternalRole     `json:"external_roles,omitempty"`
-	ExternalUsers      []models.ExternalUser     `json:"external_users,omitempty"`
-	ExternalGroups     []models.ExternalGroup    `json:"external_groups,omitempty"`
-	ExternalUserGroups []ExternalUserGroup       `json:"external_user_groups,omitempty"`
-	ConfigAccess       []ExternalConfigAccess    `json:"config_access,omitempty"`
-	ConfigAccessLogs   []ExternalConfigAccessLog `json:"config_access_logs,omitempty"`
+	ExternalRoles      []models.ExternalRole       `json:"external_roles,omitempty"`
+	ExternalUsers      []models.ExternalUser       `json:"external_users,omitempty"`
+	ExternalGroups     []models.ExternalGroup      `json:"external_groups,omitempty"`
+	ExternalUserGroups []ExternalUserGroup         `json:"external_user_groups,omitempty"`
+	ConfigAccess       []ExternalConfigAccess      `json:"config_access,omitempty"`
+	ConfigAccessLogs   []ExternalConfigAccessLog   `json:"config_access_logs,omitempty"`
 }
 
 func MergeScrapeResults(results ...ScrapeResults) FullScrapeResults {

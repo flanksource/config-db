@@ -38,9 +38,10 @@ type ExtractedConfig struct {
 	Warnings           []v1.Warning                 `json:"warnings,omitempty"`
 
 	// Transform context for diagnostic warnings — not serialized.
-	transformInput  any    `json:"-"`
-	transformOutput any    `json:"-"`
-	transformExpr   string `json:"-"`
+	transformInput  any            `json:"-"`
+	transformOutput any            `json:"-"`
+	transformExpr   string         `json:"-"`
+	warningIndex    map[string]int `json:"-"`
 }
 
 func (e *ExtractedConfig) SetTransformContext(input, output any, expr string) {
@@ -57,6 +58,7 @@ func (e ExtractedConfig) HasEntities() bool {
 }
 
 func (e *ExtractedConfig) AddWarning(w v1.Warning) {
+	e.initWarningIndex()
 	if w.Input == nil {
 		w.Input = e.transformInput
 	}
@@ -66,6 +68,13 @@ func (e *ExtractedConfig) AddWarning(w v1.Warning) {
 	if w.Expr == "" {
 		w.Expr = e.transformExpr
 	}
+	count := warningCount(w)
+	if idx, ok := e.warningIndex[w.Error]; ok {
+		e.Warnings[idx].Count += count
+		return
+	}
+	w.Count = count
+	e.warningIndex[w.Error] = len(e.Warnings)
 	e.Warnings = append(e.Warnings, w)
 }
 
@@ -106,6 +115,29 @@ func (e ExtractedConfig) Merge(other ExtractedConfig) ExtractedConfig {
 		e.AddWarning(w)
 	}
 	return e
+}
+
+func (e *ExtractedConfig) initWarningIndex() {
+	if e.warningIndex != nil {
+		return
+	}
+	e.warningIndex = make(map[string]int, len(e.Warnings))
+	for i := range e.Warnings {
+		if _, ok := e.warningIndex[e.Warnings[i].Error]; ok {
+			continue
+		}
+		if e.Warnings[i].Count == 0 {
+			e.Warnings[i].Count = 1
+		}
+		e.warningIndex[e.Warnings[i].Error] = i
+	}
+}
+
+func warningCount(w v1.Warning) int {
+	if w.Count > 0 {
+		return w.Count
+	}
+	return 1
 }
 
 type ExtractionSummary struct {

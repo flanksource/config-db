@@ -191,3 +191,17 @@ func TestUnmarshalConfigsFromString_MixedBatch(t *testing.T) {
 		t.Errorf("group-b: ID=%q Name=%q", got[2].ID, got[2].Name)
 	}
 }
+
+func TestScriptEnv_ExcludesLastScrapeSummary(t *testing.T) {
+	env := scriptEnv(v1.ScrapeResult{Config: map[string]any{"name": "demo"}})
+
+	if _, ok := env["last_scrape_summary"]; ok {
+		t.Fatalf("script env should not include last_scrape_summary")
+	}
+	if _, ok := env["config"]; !ok {
+		t.Fatalf("script env missing config")
+	}
+	if _, ok := env["result"]; !ok {
+		t.Fatalf("script env missing result")
+	}
+}

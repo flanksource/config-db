@@ -298,6 +298,21 @@ var _ = Describe("TestProcessRules", Ordered, func() {
 			},
 			err: true,
 		},
+		{
+			name: "last_scrape_summary unavailable in change rules",
+			input: v1.ScrapeResult{
+				Changes: []v1.ChangeResult{
+					{ChangeType: "diff"},
+				},
+			},
+			rules: []v1.ChangeMapping{
+				{
+					Filter: `last_scrape_summary.config_types != null`,
+					Type:   "ShouldNotApply",
+				},
+			},
+			err: true,
+		},
 	}
 
 	for _, tt := range tests {

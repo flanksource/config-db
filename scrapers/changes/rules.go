@@ -52,7 +52,6 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 
 	env["change"] = change.AsMap()
 	env["patch"] = change.PatchesMap()
-	env["last_scrape_summary"] = ctx.LastScrapeSummary().AsMap()
 	for k, v := range configEnv {
 		env[k] = v
 	}

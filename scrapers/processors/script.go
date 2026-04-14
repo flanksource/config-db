@@ -11,20 +11,21 @@ import (
 )
 
 type ScriptResult struct {
-	Results  []v1.ScrapeResult
-	RawInput any
+	Results   []v1.ScrapeResult
+	RawInput  any
 	RawOutput string
-	Expr     string
+	Expr      string
+}
+
+func scriptEnv(result v1.ScrapeResult) map[string]interface{} {
+	return map[string]interface{}{
+		"config": result.Config,
+		"result": result,
+	}
 }
 
 func RunScript(ctx api.ScrapeContext, result v1.ScrapeResult, script v1.Script) (*ScriptResult, error) {
-	env := map[string]interface{}{
-		"config":              result.Config,
-		"result":              result,
-		"last_scrape_summary": ctx.LastScrapeSummary().AsMap(),
-	}
-
-	out, err := ctx.RunTemplate(script.ToGomplate(), env)
+	out, err := ctx.RunTemplate(script.ToGomplate(), scriptEnv(result))
 	if err != nil {
 		return nil, err
 	}

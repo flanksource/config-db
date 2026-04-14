@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -88,4 +89,38 @@ var _ = Describe("Extraction fixtures", func() {
 			}
 		})
 	}
+})
+
+var _ = Describe("ExtractedConfig warnings", func() {
+	It("deduplicates warnings inline and increments count", func() {
+		result := ExtractedConfig{}
+		result.SetTransformContext("input-a", "output-a", "expr-a")
+
+		result.AddWarning(v1.Warning{Error: "duplicate warning"})
+		result.AddWarning(v1.Warning{Error: "duplicate warning", Result: "ignored"})
+
+		Expect(result.Warnings).To(HaveLen(1))
+		Expect(result.Warnings[0].Count).To(Equal(2))
+		Expect(result.Warnings[0].Input).To(Equal("input-a"))
+		Expect(result.Warnings[0].Output).To(Equal("output-a"))
+		Expect(result.Warnings[0].Expr).To(Equal("expr-a"))
+	})
+
+	It("merges warning counts without replacing the first context example", func() {
+		left := ExtractedConfig{}
+		left.SetTransformContext("left-input", "left-output", "left-expr")
+		left.AddWarning(v1.Warning{Error: "duplicate warning"})
+
+		right := ExtractedConfig{}
+		right.SetTransformContext("right-input", "right-output", "right-expr")
+		right.AddWarning(v1.Warning{Error: "duplicate warning"})
+
+		merged := left.Merge(right)
+
+		Expect(merged.Warnings).To(HaveLen(1))
+		Expect(merged.Warnings[0].Count).To(Equal(2))
+		Expect(merged.Warnings[0].Input).To(Equal("left-input"))
+		Expect(merged.Warnings[0].Output).To(Equal("left-output"))
+		Expect(merged.Warnings[0].Expr).To(Equal("left-expr"))
+	})
 })

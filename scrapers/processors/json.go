@@ -470,7 +470,6 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		}
 
 		for _, result := range ongoingInput {
-			result.AsMap()["last_scrape_summary"] = ctx.LastScrapeSummary().AsMap()
 			for i, configProperty := range result.BaseScraper.Properties {
 				if configProperty.Filter != "" {
 					if response, err := ctx.RunTemplate(gomplate.Template{Expression: configProperty.Filter}, result.AsMap()); err != nil {
