@@ -14,456 +14,329 @@ spec:
     singular: scrapeplugin
   scope: Namespaced
   versions:
-  - name: v1
-    schema:
-      openAPIV3Schema:
-        description: ScrapePlugin is the Schema for the scraper plugins
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            properties:
-              aliases:
-                items:
-                  properties:
-                    filter:
-                      description: |-
-                        A Cel expression, when provided, must return true for this filter to apply.
-
-                        Receives the config item as the cel env variable.
-                      type: string
-                    type:
-                      description: |-
-                        Types on which this plugin should run.
-                        Supports match expression
-                        Example: AWS::*, Kubernetes::Namespace
-                      type: string
-                    values:
-                      items:
-                        type: string
-                      type: array
-                    withParent:
-                      description: The type of the parent to be used
-                      type: string
-                  required:
-                  - type
-                  type: object
-                type: array
-              changes:
-                properties:
-                  exclude:
-                    description: Exclude is a list of CEL expressions that excludes
-                      a given change
-                    items:
-                      type: string
-                    type: array
-                  mapping:
-                    description: Mapping is a list of CEL expressions that maps a
-                      change to the specified type
-                    items:
-                      properties:
-                        action:
-                          description: |-
-                            Action allows performing actions on the corresponding config item
-                            based on this change.
-                            Allowed actions: "delete", "ignore", "move-up", "copy-up", "copy", "move"
-                          type: string
-                        ancestor_type:
-                          description: |-
-                            AncestorType specifies the config type of the ancestor to target
-                            when using "move-up" or "copy-up" actions. The engine walks the parent_id
-                            chain and selects the first ancestor matching this type.
-                            If omitted, the immediate parent is used.
-                          type: string
-                        config_id:
-                          description: |-
-                            ConfigID is a CEL expression that returns the target config's external ID
-                            for redirecting changes to a different config item.
-                          type: string
-                        config_type:
-                          description: ConfigType is the target config type for redirecting
-                            changes.
-                          type: string
-                        filter:
-                          description: Filter selects what change to apply the mapping
-                            to
-                          type: string
-                        scraper_id:
-                          description: ScraperID is the scraper ID for the target
-                            config. Use "all" for cross-scraper lookups.
-                          type: string
-                        severity:
-                          description: Severity is the severity to be set on the change
-                          type: string
-                        summary:
-                          description: Summary replaces the existing change summary.
-                          type: string
-                        target:
-                          description: |-
-                            Target specifies a config item selector for "copy" and "move" actions.
-                            The selector is evaluated to find target config items to redirect or
-                            duplicate changes to. Mutually exclusive with move-up/copy-up/ancestor_type.
-                          properties:
-                            agent:
-                              description: |-
-                                Agent can be one of
-                                 - agent id
-                                 - agent name
-                                 - 'self' (no agent)
-                              properties:
-                                expr:
-                                  type: string
-                                label:
-                                  type: string
-                                value:
-                                  type: string
-                              type: object
-                            external_id:
-                              description: Lookup offers different ways to specify
-                                a lookup value
-                              properties:
-                                expr:
-                                  type: string
-                                label:
-                                  type: string
-                                value:
-                                  type: string
-                              type: object
-                            id:
-                              description: Lookup offers different ways to specify
-                                a lookup value
-                              properties:
-                                expr:
-                                  type: string
-                                label:
-                                  type: string
-                                value:
-                                  type: string
-                              type: object
-                            labels:
-                              additionalProperties:
-                                type: string
-                              type: object
-                            name:
-                              description: Lookup offers different ways to specify
-                                a lookup value
-                              properties:
-                                expr:
-                                  type: string
-                                label:
-                                  type: string
-                                value:
-                                  type: string
-                              type: object
-                            namespace:
-                              description: Lookup offers different ways to specify
-                                a lookup value
-                              properties:
-                                expr:
-                                  type: string
-                                label:
-                                  type: string
-                                value:
-                                  type: string
-                              type: object
-                            scope:
-                              description: |-
-                                Scope is the id of the parent of the resource to select.
-                                Example: For config items, the scope is the scraper id
-                                - for checks, it's canaries and
-                                - for components, it's topology.
-                                If left empty, the scope is the requester's scope.
-                                Use `all` to disregard scope.
-                              properties:
-                                expr:
-                                  type: string
-                                label:
-                                  type: string
-                                value:
-                                  type: string
-                              type: object
-                            type:
-                              description: Lookup offers different ways to specify
-                                a lookup value
-                              properties:
-                                expr:
-                                  type: string
-                                label:
-                                  type: string
-                                value:
-                                  type: string
-                              type: object
-                          type: object
-                        type:
-                          description: Type is the type to be set on the change
-                          type: string
-                      type: object
-                    type: array
-                type: object
-              locations:
-                items:
-                  properties:
-                    filter:
-                      description: |-
-                        A Cel expression, when provided, must return true for this filter to apply.
-
-                        Receives the config item as the cel env variable.
-                      type: string
-                    type:
-                      description: |-
-                        Types on which this plugin should run.
-                        Supports match expression
-                        Example: AWS::*, Kubernetes::Namespace
-                      type: string
-                    values:
-                      items:
-                        type: string
-                      type: array
-                    withParent:
-                      description: The type of the parent to be used
-                      type: string
-                  required:
-                  - type
-                  type: object
-                type: array
+    - name: v1
+      schema:
+        openAPIV3Schema:
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
               properties:
-                description: |-
-                  Properties are custom templatable properties for the scraped config items
-                  grouped by the config type.
-                items:
+                aliases:
+                  items:
+                    properties:
+                      filter:
+                        type: string
+                      type:
+                        type: string
+                      values:
+                        items:
+                          type: string
+                        type: array
+                      withParent:
+                        type: string
+                    required:
+                      - type
+                    type: object
+                  type: array
+                changes:
                   properties:
-                    color:
-                      type: string
-                    filter:
-                      type: string
-                    headline:
-                      type: boolean
-                    hidden:
-                      type: boolean
-                    icon:
-                      type: string
-                    label:
-                      type: string
-                    lastTransition:
-                      type: string
-                    links:
+                    exclude:
+                      items:
+                        type: string
+                      type: array
+                    mapping:
                       items:
                         properties:
-                          icon:
+                          action:
                             type: string
-                          label:
+                          ancestor_type:
                             type: string
-                          text:
+                          config_id:
                             type: string
-                          tooltip:
+                          config_type:
                             type: string
+                          filter:
+                            type: string
+                          scraper_id:
+                            type: string
+                          severity:
+                            type: string
+                          summary:
+                            type: string
+                          target:
+                            properties:
+                              agent:
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              external_id:
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              id:
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              name:
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              namespace:
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              scope:
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                              type:
+                                properties:
+                                  expr:
+                                    type: string
+                                  label:
+                                    type: string
+                                  value:
+                                    type: string
+                                type: object
+                            type: object
                           type:
-                            description: e.g. documentation, support, playbook
-                            type: string
-                          url:
                             type: string
                         type: object
                       type: array
-                    max:
-                      format: int64
-                      type: integer
-                    min:
-                      format: int64
-                      type: integer
-                    name:
-                      type: string
-                    order:
-                      type: integer
-                    status:
-                      type: string
-                    text:
-                      description: Either text or value is required, but not both.
-                      type: string
-                    tooltip:
-                      type: string
-                    type:
-                      description: 'Type controls how the UI renders the property
-                        value: url, badge, currency, text, age, hidden.'
-                      type: string
-                    unit:
-                      description: e.g. milliseconds, bytes, millicores, epoch etc.
-                      type: string
-                    value:
-                      format: int64
-                      type: integer
                   type: object
-                type: array
-              relationship:
-                description: Relationship allows you to form relationships between
-                  config items using selectors.
-                items:
-                  properties:
-                    agent:
-                      description: |-
-                        Agent can be one of
-                         - agent id
-                         - agent name
-                         - 'self' (no agent)
-                      properties:
-                        expr:
-                          type: string
-                        label:
-                          type: string
-                        value:
-                          type: string
-                      type: object
-                    expr:
-                      description: |-
-                        Alternately, a single cel-expression can be used
-                        that returns a list of relationship selector.
-                      type: string
-                    external_id:
-                      description: Lookup offers different ways to specify a lookup
-                        value
-                      properties:
-                        expr:
-                          type: string
-                        label:
-                          type: string
-                        value:
-                          type: string
-                      type: object
-                    filter:
-                      description: |-
-                        Filter is a CEL expression that selects on what config items
-                        the relationship needs to be applied
-                      type: string
-                    id:
-                      description: Lookup offers different ways to specify a lookup
-                        value
-                      properties:
-                        expr:
-                          type: string
-                        label:
-                          type: string
-                        value:
-                          type: string
-                      type: object
-                    labels:
-                      additionalProperties:
+                locations:
+                  items:
+                    properties:
+                      filter:
                         type: string
-                      type: object
-                    name:
-                      description: Lookup offers different ways to specify a lookup
-                        value
-                      properties:
-                        expr:
+                      type:
+                        type: string
+                      values:
+                        items:
                           type: string
-                        label:
-                          type: string
-                        value:
-                          type: string
-                      type: object
-                    namespace:
-                      description: Lookup offers different ways to specify a lookup
-                        value
-                      properties:
-                        expr:
-                          type: string
-                        label:
-                          type: string
-                        value:
-                          type: string
-                      type: object
-                    parent:
-                      description: |-
-                        Parent sets all the configs found by the selector
-                        as the parent of the configs passed by the filter
-                      type: boolean
-                    scope:
-                      description: |-
-                        Scope is the id of the parent of the resource to select.
-                        Example: For config items, the scope is the scraper id
-                        - for checks, it's canaries and
-                        - for components, it's topology.
-                        If left empty, the scope is the requester's scope.
-                        Use `all` to disregard scope.
-                      properties:
-                        expr:
-                          type: string
-                        label:
-                          type: string
-                        value:
-                          type: string
-                      type: object
-                    type:
-                      description: Lookup offers different ways to specify a lookup
-                        value
-                      properties:
-                        expr:
-                          type: string
-                        label:
-                          type: string
-                        value:
-                          type: string
-                      type: object
-                  type: object
-                type: array
-              retention:
-                description: Retention config for changes, types, and stale items.
+                        type: array
+                      withParent:
+                        type: string
+                    required:
+                      - type
+                    type: object
+                  type: array
                 properties:
-                  changes:
-                    items:
-                      properties:
-                        age:
+                  items:
+                    properties:
+                      color:
+                        type: string
+                      filter:
+                        type: string
+                      headline:
+                        type: boolean
+                      hidden:
+                        type: boolean
+                      icon:
+                        type: string
+                      label:
+                        type: string
+                      lastTransition:
+                        type: string
+                      links:
+                        items:
+                          properties:
+                            icon:
+                              type: string
+                            label:
+                              type: string
+                            text:
+                              type: string
+                            tooltip:
+                              type: string
+                            type:
+                              type: string
+                            url:
+                              type: string
+                          type: object
+                        type: array
+                      max:
+                        format: int64
+                        type: integer
+                      min:
+                        format: int64
+                        type: integer
+                      name:
+                        type: string
+                      order:
+                        type: integer
+                      status:
+                        type: string
+                      text:
+                        type: string
+                      tooltip:
+                        type: string
+                      type:
+                        type: string
+                      unit:
+                        type: string
+                      value:
+                        format: int64
+                        type: integer
+                    type: object
+                  type: array
+                relationship:
+                  items:
+                    properties:
+                      agent:
+                        properties:
+                          expr:
+                            type: string
+                          label:
+                            type: string
+                          value:
+                            type: string
+                        type: object
+                      expr:
+                        type: string
+                      external_id:
+                        properties:
+                          expr:
+                            type: string
+                          label:
+                            type: string
+                          value:
+                            type: string
+                        type: object
+                      filter:
+                        type: string
+                      id:
+                        properties:
+                          expr:
+                            type: string
+                          label:
+                            type: string
+                          value:
+                            type: string
+                        type: object
+                      labels:
+                        additionalProperties:
                           type: string
-                        count:
-                          type: integer
-                        name:
-                          type: string
-                      type: object
-                    type: array
-                  staleAnalysisAge:
-                    description: |-
-                      StaleAnalysisAge is the duration after which an analysis that is no longer observed by the scraper
-                      is marked as resolved. Defaults to 48h. Use "keep" to disable auto-resolution.
-                    type: string
-                  staleItemAge:
-                    type: string
-                  types:
-                    items:
-                      properties:
-                        createdAge:
-                          type: string
-                        deletedAge:
-                          type: string
-                        name:
-                          type: string
-                        updatedAge:
-                          type: string
-                      type: object
-                    type: array
-                type: object
-            type: object
-          status:
-            description: ScrapePluginStatus defines the observed state of Plugin
-            properties:
-              observedGeneration:
-                format: int64
-                type: integer
-            type: object
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
+                        type: object
+                      name:
+                        properties:
+                          expr:
+                            type: string
+                          label:
+                            type: string
+                          value:
+                            type: string
+                        type: object
+                      namespace:
+                        properties:
+                          expr:
+                            type: string
+                          label:
+                            type: string
+                          value:
+                            type: string
+                        type: object
+                      parent:
+                        type: boolean
+                      scope:
+                        properties:
+                          expr:
+                            type: string
+                          label:
+                            type: string
+                          value:
+                            type: string
+                        type: object
+                      type:
+                        properties:
+                          expr:
+                            type: string
+                          label:
+                            type: string
+                          value:
+                            type: string
+                        type: object
+                    type: object
+                  type: array
+                retention:
+                  properties:
+                    changes:
+                      items:
+                        properties:
+                          age:
+                            type: string
+                          count:
+                            type: integer
+                          name:
+                            type: string
+                        type: object
+                      type: array
+                    staleAnalysisAge:
+                      type: string
+                    staleItemAge:
+                      type: string
+                    types:
+                      items:
+                        properties:
+                          createdAge:
+                            type: string
+                          deletedAge:
+                            type: string
+                          name:
+                            type: string
+                          updatedAge:
+                            type: string
+                        type: object
+                      type: array
+                  type: object
+              type: object
+            status:
+              properties:
+                observedGeneration:
+                  format: int64
+                  type: integer
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
