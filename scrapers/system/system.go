@@ -45,15 +45,18 @@ func scrapeAgents(ctx api.ScrapeContext) v1.ScrapeResults {
 	}
 
 	for _, agent := range agents {
-		lastSeen := time.Since(lo.FromPtr(agent.LastSeen))
+		// local agent config id should be models.LocalAgentConfigID
+		id := lo.Ternary(agent.ID == uuid.Nil, models.LocalAgentConfigID, agent.ID)
+
 		health := models.HealthHealthy
 		status := "online"
-		if lastSeen > (61*time.Second) && agent.ID != uuid.Nil {
+		lastSeen := time.Since(lo.FromPtr(agent.LastSeen))
+		if lastSeen > (61*time.Second) && id != models.LocalAgentConfigID {
 			health = models.HealthUnhealthy
 			status = "offline"
 		}
 		results = append(results, v1.ScrapeResult{
-			ID:          agent.ID.String(),
+			ID:          id.String(),
 			Name:        agent.Name,
 			Type:        "MissionControl::Agent",
 			ConfigClass: "Agent",
