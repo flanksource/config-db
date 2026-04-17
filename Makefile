@@ -44,7 +44,7 @@ gen-schemas:
 		go mod edit -replace=github.com/flanksource/duty=../../../duty; \
 	fi && \
 	go mod tidy && \
-	go run ./main.go
+	go run .
 
 docker:
 	docker build . -f build/Dockerfile -t ${IMG}
@@ -101,6 +101,10 @@ gotest: ginkgo
 .PHONY: test-fast
 test-fast: ginkgo
 		ginkgo --tags slim --nodes=4   --label-filter "!slow" -r -v --skip-package=tests/e2e  ./...
+
+.PHONY: bench
+bench:
+	go test -bench=. -benchmem -run=^$$ ./bench $(BENCH_ARGS)
 
 
 
@@ -294,7 +298,7 @@ rust-generate-header:
 
 .PHONY: bench
 bench:
-	go test ./scrapers/kubernetes/ -bench='^Benchmark(EventProcessing|CacheMemory|Deserialization)' \
+	go test ./... -bench='^Benchmark(EventProcessing|CacheMemory|Deserialization)' \
 		-benchmem -run='^$$' \
 		-count=3 \
 		-benchtime=2s -v

@@ -146,14 +146,18 @@ func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uu
 	}
 
 	var zero T
-	var found uuid.UUID
+	var foundIDs []uuid.UUID
 	err := ctx.DB().Table(zero.TableName()).
 		Select("id").
 		Where("id = ? AND deleted_at IS NULL", id).
 		Limit(1).
-		Pluck("id", &found).Error
+		Pluck("id", &foundIDs).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, fmt.Errorf("failed to query %s by id: %w", zero.TableName(), err)
+	}
+	var found uuid.UUID
+	if len(foundIDs) > 0 {
+		found = foundIDs[0]
 	}
 	if found != uuid.Nil {
 		if idCache != nil {
