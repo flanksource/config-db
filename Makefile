@@ -115,6 +115,10 @@ gotest: ginkgo
 test-fast: ginkgo
 		ginkgo --tags slim --nodes=4   --label-filter "!slow" -r -v --skip-package=tests/e2e  ./...
 
+.PHONY: bench
+bench:
+	go test -bench=. -benchmem -run=^$$ ./bench $(BENCH_ARGS)
+
 
 
 .PHONY: gotest-prod
@@ -302,7 +306,7 @@ rust-generate-header:
 
 .PHONY: bench
 bench:
-	go test ./scrapers/kubernetes/ -bench='^Benchmark(EventProcessing|CacheMemory|Deserialization)' \
+	go test ./... -bench='^Benchmark(EventProcessing|CacheMemory|Deserialization)' \
 		-benchmem -run='^$$' \
 		-count=3 \
 		-benchtime=2s -v
