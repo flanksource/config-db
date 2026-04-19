@@ -1,0 +1,6 @@
+{
+  "id": "22222222-2222-2222-2222-222222222222",
+  "config_id": "1459a2bc-1889-4637-951b-3cc0ded83571",
+  "change_type": "diff",
+  "patches": "{\"status\":{\"history\":[{\"digest\":\"sha256:e93e0f0501c0feb29de49bfafe0afc4ed5b44bfb1d6d287c2f907a9347b1e825\",\"metadata\":{\"revision\":\"main@sha1:7736c590d6011a5f0ec37d43f55fc087b83a2a27\"},\"lastReconciled\":\"2026-04-19T09:10:54Z\",\"firstReconciled\":\"2025-12-10T20:09:42Z\",\"lastReconciledStatus\":\"ReconciliationSucceeded\",\"totalReconciliations\":37392,\"lastReconciledDuration\":\"114.046818ms\"},{\"digest\":\"sha256:feda35648eb512db4771edab5b17e8c6e44438672a1825692cc6f917a1f61df3\",\"metadata\":{\"revision\":\"main@sha1:65bdf1491abf296ae287a650c680bac378302c71\"},\"lastReconciled\":\"2025-12-10T20:05:29Z\",\"firstReconciled\":\"2025-11-22T06:21:01Z\",\"lastReconciledStatus\":\"ReconciliationSucceeded\",\"totalReconciliations\":5427,\"lastReconciledDuration\":\"175.854963ms\"},{\"digest\":\"sha256:cdb9933fdd48d72e66903066493aca4ffc9fcccdd53a2da4898f776e7678d882\",\"metadata\":{\"revision\":\"main@sha1:50d6781937c9ddda0b123c43af321579503c8954\"},\"lastReconciled\":\"2025-11-22T06:20:45Z\",\"firstReconciled\":\"2025-10-05T08:47:19Z\",\"lastReconciledStatus\":\"ReconciliationSucceeded\",\"totalReconciliations\":13344,\"lastReconciledDuration\":\"457.975121ms\"}]}}"
+}
