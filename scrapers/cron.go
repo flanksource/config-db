@@ -235,8 +235,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 		ResourceType: job.ResourceTypeScraper,
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		Fn: func(jr job.JobRuntime) error {
-			var runLogs bytes.Buffer
-			runLogger := logger.NewWithWriter(io.MultiWriter(os.Stderr, &runLogs))
+			runLogger := logger.NewWithWriter(os.Stderr)
 			runLogger.SetLogLevel(jr.Logger.GetLevel())
 
 			var harCollector *har.Collector
@@ -279,7 +278,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			jr.History.AddDetails("scrape_summary", output.Summary)
 			ScraperSummaryCache.Store(sc.ScraperID(), output.Summary)
 
-			if runArtifact, err := persistRunArtifact(jr.Context, sc.ScraperID(), sc.ScrapeConfig().Name, start, output, runLogs.String(), lastSummary); err != nil {
+			if runArtifact, err := persistRunArtifact(jr.Context, sc.ScraperID(), sc.ScrapeConfig().Name, start, output, lastSummary); err != nil {
 				jr.Logger.Warnf("failed to persist scrape run artifact: %v", err)
 			} else {
 				jr.History.AddDetails("run_artifact_id", runArtifact.ID.String())
@@ -307,7 +306,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 	}
 }
 
-func persistRunArtifact(ctx context.Context, scraperID, scraperName string, startedAt time.Time, output *ScrapeOutput, logs string, lastSummary v1.ScrapeSummary) (*models.Artifact, error) {
+func persistRunArtifact(ctx context.Context, scraperID, scraperName string, startedAt time.Time, output *ScrapeOutput, lastSummary v1.ScrapeSummary) (*models.Artifact, error) {
 	blobs, err := ctx.Blobs()
 	if err != nil {
 		return nil, err
@@ -323,7 +322,7 @@ func persistRunArtifact(ctx context.Context, scraperID, scraperName string, star
 		SaveSummary:  &output.Summary,
 		SnapshotPair: output.SnapshotPair,
 		HAR:          output.HAR,
-		Logs:         logs,
+		Logs:         output.Logs,
 	}
 	if lastSummary.ConfigTypes != nil {
 		copy := lastSummary

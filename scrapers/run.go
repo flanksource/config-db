@@ -1,11 +1,15 @@
 package scrapers
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"os"
 	"time"
 
 	"github.com/flanksource/commons/collections/syncmap"
 	"github.com/flanksource/commons/har"
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/timer"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -31,6 +35,7 @@ type ScrapeOutput struct {
 	Results          v1.ScrapeResults
 	SnapshotPair     *v1.ScrapeSnapshotPair
 	HAR              []har.Entry
+	Logs             string
 	RateLimitResetAt *time.Time
 }
 
@@ -79,6 +84,14 @@ func RunScraper(ctx api.ScrapeContext, opts ...RunScraperOption) (*ScrapeOutput,
 		WithName(fmt.Sprintf("%s/%s", ctx.ScrapeConfig().Namespace, ctx.ScrapeConfig().Name)).
 		WithNamespace(ctx.ScrapeConfig().Namespace)
 
+	var runLogs *bytes.Buffer
+	if runOpts.CaptureLogs {
+		runLogs = &bytes.Buffer{}
+		runLogger := logger.NewWithWriter(io.MultiWriter(os.Stderr, runLogs))
+		runLogger.SetLogLevel(ctx.Logger.GetLevel())
+		ctx = ctx.WithLogger(runLogger)
+	}
+
 	var beforeSnapshot *v1.ScrapeSnapshot
 	if runOpts.CaptureSnapshots {
 		if snap, snapErr := db.CaptureScrapeSnapshot(ctx, runStart); snapErr != nil {
@@ -97,6 +110,9 @@ func RunScraper(ctx api.ScrapeContext, opts ...RunScraperOption) (*ScrapeOutput,
 		resetAt := v1.ScrapeResults(results).GetRateLimitResetAt()
 		ctx.Logger.Warnf("Scrape rate limited, skipping save/retention (reset at %v)", resetAt)
 		out := &ScrapeOutput{RateLimitResetAt: resetAt, Results: results}
+		if runLogs != nil {
+			out.Logs = runLogs.String()
+		}
 		if runOpts.CaptureHAR {
 			if collector := ctx.HARCollector(); collector != nil {
 				out.HAR = collector.Entries()
@@ -134,6 +150,9 @@ func RunScraper(ctx api.ScrapeContext, opts ...RunScraperOption) (*ScrapeOutput,
 		Summary:      savedResult,
 		Results:      results,
 		SnapshotPair: snapshotPair,
+	}
+	if runLogs != nil {
+		out.Logs = runLogs.String()
 	}
 	if runOpts.CaptureHAR {
 		if collector := ctx.HARCollector(); collector != nil {
