@@ -45,6 +45,10 @@ tidy:
 	go mod tidy
 	git add go.mod go.sum
 
+.PHONY: scrapeui-build
+scrapeui-build:
+	cd cmd/scrapeui/frontend && npm ci && npm run build
+
 # Generate OpenAPI schema
 .PHONY: gen-schemas
 gen-schemas:
@@ -215,7 +219,7 @@ uninstall-crd: manifests
 
 # produce a build that's debuggable
 .PHONY: dev
-dev:
+dev: scrapeui-build
 	go build -o ./.bin/$(NAME) -v -gcflags="all=-N -l" main.go
 
 .PHONY: watch
