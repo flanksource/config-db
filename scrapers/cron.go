@@ -1,8 +1,11 @@
 package scrapers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"reflect"
 	"sync"
 	"time"
@@ -216,6 +219,10 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 		ResourceType: job.ResourceTypeScraper,
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		Fn: func(jr job.JobRuntime) error {
+			var runLogs bytes.Buffer
+			runLogger := logger.NewWithWriter(io.MultiWriter(os.Stderr, &runLogs))
+			runLogger.SetLogLevel(jr.Logger.GetLevel())
+
 			if resetAt := getLastRateLimitReset(jr.Context, sc.ScraperID()); resetAt != nil {
 				if time.Now().Before(*resetAt) {
 					jr.Logger.Warnf("still rate limited until %s, skipping", resetAt.Format(time.RFC3339))
@@ -227,7 +234,8 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			start := time.Now()
 
 			scrapeCtx := sc.WithJobHistory(jr.History).
-				WithLastScrapeSummary(GetLastScrapeSummary(jr.Context, sc.ScraperID()))
+				WithLastScrapeSummary(GetLastScrapeSummary(jr.Context, sc.ScraperID())).
+				WithLogger(runLogger)
 
 			output, err := RunScraper(scrapeCtx)
 			if err != nil {
