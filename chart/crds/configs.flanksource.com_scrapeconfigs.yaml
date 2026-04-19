@@ -11920,7 +11920,7 @@ spec:
                         the description for the resource.
                       type: string
                     env:
-                      description: Env are environment variables passed to the script
+                      description: Env additional environment variables for the script
                       items:
                         properties:
                           name:
@@ -11970,8 +11970,10 @@ spec:
                         options are JSON, properties
                       type: string
                     har:
-                      description: HAR enables Playwright HAR recording. The HAR file
-                        is collected as an artifact.
+                      description: HAR enables HAR (HTTP Archive) recording
+                      type: boolean
+                    headless:
+                      description: Headless mode (default true)
                       type: boolean
                     health:
                       description: A static value or JSONPath expression to use as
@@ -11991,15 +11993,137 @@ spec:
                         type: string
                       description: Labels for each config item.
                       type: object
+                    login:
+                      description: Login provider for auto-login (AWS federation,
+                        browser cookies)
+                      properties:
+                        aws:
+                          properties:
+                            accessKey:
+                              properties:
+                                name:
+                                  type: string
+                                value:
+                                  type: string
+                                valueFrom:
+                                  properties:
+                                    configMapKeyRef:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          type: string
+                                      required:
+                                      - key
+                                      type: object
+                                    helmRef:
+                                      properties:
+                                        key:
+                                          description: Key is a JSONPath expression
+                                            used to fetch the key from the merged
+                                            JSON.
+                                          type: string
+                                        name:
+                                          type: string
+                                      required:
+                                      - key
+                                      type: object
+                                    secretKeyRef:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          type: string
+                                      required:
+                                      - key
+                                      type: object
+                                    serviceAccount:
+                                      description: ServiceAccount specifies the service
+                                        account whose token should be fetched
+                                      type: string
+                                  type: object
+                              type: object
+                            assumeRole:
+                              type: string
+                            connection:
+                              description: ConnectionName of the connection. It'll
+                                be used to populate the endpoint, accessKey and secretKey.
+                              type: string
+                            endpoint:
+                              type: string
+                            issuer:
+                              type: string
+                            login:
+                              type: string
+                            region:
+                              items:
+                                type: string
+                              type: array
+                            secretKey:
+                              properties:
+                                name:
+                                  type: string
+                                value:
+                                  type: string
+                                valueFrom:
+                                  properties:
+                                    configMapKeyRef:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          type: string
+                                      required:
+                                      - key
+                                      type: object
+                                    helmRef:
+                                      properties:
+                                        key:
+                                          description: Key is a JSONPath expression
+                                            used to fetch the key from the merged
+                                            JSON.
+                                          type: string
+                                        name:
+                                          type: string
+                                      required:
+                                      - key
+                                      type: object
+                                    secretKeyRef:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          type: string
+                                      required:
+                                      - key
+                                      type: object
+                                    serviceAccount:
+                                      description: ServiceAccount specifies the service
+                                        account whose token should be fetched
+                                      type: string
+                                  type: object
+                              type: object
+                            sessionDuration:
+                              type: integer
+                            skipTLSVerify:
+                              description: Skip TLS verify when connecting to aws
+                              type: boolean
+                          type: object
+                        browser:
+                          properties:
+                            connection:
+                              type: string
+                          required:
+                          - connection
+                          type: object
+                      type: object
                     name:
                       description: A static value or JSONPath expression to use as
                         the Name for the resource.
                       type: string
                     outputMode:
-                      description: |-
-                        OutputMode controls how stdout is parsed.
-                        "json" (default): parse stdout as JSON/YAML into config items.
-                        "raw": return stdout as a single plain-text config item.
+                      description: 'OutputMode controls how stdout is parsed: "json"
+                        (default) or "raw"'
                       type: string
                     properties:
                       description: |-
@@ -12070,10 +12194,79 @@ spec:
                             type: integer
                         type: object
                       type: array
+                    query:
+                      description: Query exports config items as JSON files for use
+                        in scripts
+                      items:
+                        description: ConfigQuery defines a query that exports config
+                          items as JSON files for use in scripts.
+                        properties:
+                          agent:
+                            description: |-
+                              Agent can be the agent id or the name of the agent.
+                               Additionally, the special "self" value can be used to select resources without an agent.
+                            type: string
+                          cache:
+                            description: |-
+                              Cache directives
+                               'no-cache' (should not fetch from cache but can be cached)
+                               'no-store' (should not cache)
+                               'max-age=X' (cache for X duration)
+                            type: string
+                          fieldSelector:
+                            type: string
+                          health:
+                            description: |-
+                              Health filters resources by the health.
+                              Multiple healths can be provided separated by comma.
+                            type: string
+                          id:
+                            type: string
+                          includeDeleted:
+                            type: boolean
+                          labelSelector:
+                            type: string
+                          limit:
+                            type: integer
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                          path:
+                            description: Path is the file path to write the query
+                              results to (relative to script working dir).
+                            type: string
+                          scope:
+                            description: |-
+                              Scope is the reference for parent of the resource to select.
+                              For config items, the scope is the scraper id
+                              For checks, it's canaries and
+                              For components, it's topology.
+                              It can either be a uuid or namespace/name
+                            type: string
+                          search:
+                            description: Search query that applies to the resource
+                              name, tag & labels.
+                            type: string
+                          statuses:
+                            description: Statuses filter resources by the status
+                            items:
+                              type: string
+                            type: array
+                          tagSelector:
+                            type: string
+                          types:
+                            description: Types filter resources by the type
+                            items:
+                              type: string
+                            type: array
+                        required:
+                        - path
+                        type: object
+                      type: array
                     script:
-                      description: |-
-                        Script is the inline TypeScript/JavaScript script to run with Playwright.
-                        The script should import from 'playwright' and output JSON to stdout.
+                      description: Script is an inline TypeScript/JavaScript to run
+                        with Playwright.
                       type: string
                     status:
                       description: A static value or JSONPath expression to use as
@@ -12097,6 +12290,10 @@ spec:
                         - name
                         type: object
                       type: array
+                    timeout:
+                      description: Timeout in seconds for the script execution (default
+                        300)
+                      type: integer
                     timestampFormat:
                       description: |-
                         TimestampFormat is a Go time format string used to
@@ -12104,10 +12301,17 @@ spec:
                         If not specified, the default is RFC3339.
                       type: string
                     trace:
-                      description: |-
-                        Trace enables Playwright tracing. The trace zip file is collected as an artifact.
-                        Valid values: "on", "off", "retain-on-failure". Defaults to "off".
-                      type: string
+                      description: Trace configures HAR, video, and network recording
+                      properties:
+                        domains:
+                          items:
+                            type: string
+                          type: array
+                        har:
+                          type: boolean
+                        video:
+                          type: string
+                      type: object
                     transform:
                       properties:
                         aliases:
