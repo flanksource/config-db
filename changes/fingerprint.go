@@ -36,7 +36,7 @@ func init() {
 	tokenizer = NewReplacements(
 		"UUID", `\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b`,
 		"TIMESTAMP", `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})`,
-		"DURATION", `\s+\d+(.\d+){0,1}(ms|s|h|d|m)`,
+		"DURATION", `\b\d+(?:\.\d+)?(?:ns|us|µs|ms|s|m|h|d)\b`,
 		"SHA256", `[a-z0-9]{64}`,
 		"NUMBER", `^\d+$`,
 		"HEX16", `[0-9a-f]{16}`, // matches a 16 character long hex string

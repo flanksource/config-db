@@ -63,6 +63,22 @@ var _ = Describe("Change Fingerprints", func() {
 		Expect(err2).ToNot(HaveOccurred())
 		Expect(fp1).To(Equal(fp2))
 	})
+
+	It("bare duration values should be ignored", func() {
+		fp1, err1 := changes.Fingerprint(readChange("status_history_duration_1.json"))
+		fp2, err2 := changes.Fingerprint(readChange("status_history_duration_2.json"))
+		Expect(err1).ToNot(HaveOccurred())
+		Expect(err2).ToNot(HaveOccurred())
+		Expect(fp1).To(Equal(fp2))
+	})
+
+	It("status history patches should fingerprint the same across reconcile churn", func() {
+		fp1, err1 := changes.Fingerprint(readChange("status_history_query_1.json"))
+		fp2, err2 := changes.Fingerprint(readChange("status_history_query_2.json"))
+		Expect(err1).ToNot(HaveOccurred())
+		Expect(err2).ToNot(HaveOccurred())
+		Expect(fp1).To(Equal(fp2))
+	})
 })
 
 func TestChangeFingerprints(t *testing.T) {

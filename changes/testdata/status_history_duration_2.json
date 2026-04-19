@@ -1,0 +1,20 @@
+{
+  "change_type": "diff",
+  "details": {
+    "status": {
+      "history": [
+        {
+          "digest": "sha256:6084c000bf330e46d06fb07e8b901b2b685dc8dd146e41385f2bf0cd81d297e6",
+          "metadata": {
+            "revision": "main@sha1:1a2bdf942e1a95b8b1a8878c1d70c0b317a22288"
+          },
+          "lastReconciled": "2026-04-10T03:49:50Z",
+          "firstReconciled": "2026-03-29T16:00:27Z",
+          "lastReconciledStatus": "ReconciliationSucceeded",
+          "totalReconciliations": 591,
+          "lastReconciledDuration": "124.429793ms"
+        }
+      ]
+    }
+  }
+}
