@@ -2,6 +2,7 @@ package scrapers
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,7 +12,9 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/duty/artifact"
 	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/context"
 	dutyEcho "github.com/flanksource/duty/echo"
@@ -42,6 +45,19 @@ var (
 )
 
 const scrapeJobName = "Scraper"
+
+type runArtifactPayload struct {
+	ScraperID         string                `json:"scraper_id"`
+	ScraperName       string                `json:"scraper_name"`
+	StartedAt         time.Time             `json:"started_at"`
+	FinishedAt        time.Time             `json:"finished_at"`
+	Results           v1.FullScrapeResults  `json:"results"`
+	SaveSummary       *v1.ScrapeSummary     `json:"save_summary,omitempty"`
+	LastScrapeSummary *v1.ScrapeSummary     `json:"last_scrape_summary,omitempty"`
+	SnapshotPair      *v1.ScrapeSnapshotPair `json:"snapshot_pair,omitempty"`
+	HAR               []har.Entry           `json:"har,omitempty"`
+	Logs              string                `json:"logs,omitempty"`
+}
 
 func init() {
 	dutyEcho.RegisterCron(scrapeJobScheduler)
@@ -223,6 +239,11 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			runLogger := logger.NewWithWriter(io.MultiWriter(os.Stderr, &runLogs))
 			runLogger.SetLogLevel(jr.Logger.GetLevel())
 
+			var harCollector *har.Collector
+			if runLogger.IsTraceEnabled() {
+				harCollector = har.NewCollector(har.DefaultConfig())
+			}
+
 			if resetAt := getLastRateLimitReset(jr.Context, sc.ScraperID()); resetAt != nil {
 				if time.Now().Before(*resetAt) {
 					jr.Logger.Warnf("still rate limited until %s, skipping", resetAt.Format(time.RFC3339))
@@ -233,11 +254,17 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 
 			start := time.Now()
 
+			lastSummary := GetLastScrapeSummary(jr.Context, sc.ScraperID())
 			scrapeCtx := sc.WithJobHistory(jr.History).
-				WithLastScrapeSummary(GetLastScrapeSummary(jr.Context, sc.ScraperID())).
-				WithLogger(runLogger)
+				WithLastScrapeSummary(lastSummary).
+				WithLogger(runLogger).
+				WithHARCollector(harCollector)
 
-			output, err := RunScraper(scrapeCtx)
+			output, err := RunScraper(scrapeCtx,
+				WithCaptureHAR(true),
+				WithCaptureLogs(true),
+				WithCaptureSnapshots(true),
+			)
 			if err != nil {
 				jr.History.AddError(err.Error())
 				return fmt.Errorf("error running scraper[%s]: %w", sc.ScrapeConfig().Name, err)
@@ -251,6 +278,14 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			jr.History.SuccessCount = output.Total
 			jr.History.AddDetails("scrape_summary", output.Summary)
 			ScraperSummaryCache.Store(sc.ScraperID(), output.Summary)
+
+			if runArtifact, err := persistRunArtifact(jr.Context, sc.ScraperID(), sc.ScrapeConfig().Name, start, output, runLogs.String(), lastSummary); err != nil {
+				jr.Logger.Warnf("failed to persist scrape run artifact: %v", err)
+			} else {
+				jr.History.AddDetails("run_artifact_id", runArtifact.ID.String())
+				jr.History.AddDetails("run_artifact_path", runArtifact.Path)
+				jr.History.AddDetails("run_artifact_size", runArtifact.Size)
+			}
 
 			source := sc.ScrapeConfig().GetAnnotations()["source"]
 			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
@@ -270,6 +305,57 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			return nil
 		},
 	}
+}
+
+func persistRunArtifact(ctx context.Context, scraperID, scraperName string, startedAt time.Time, output *ScrapeOutput, logs string, lastSummary v1.ScrapeSummary) (*models.Artifact, error) {
+	blobs, err := ctx.Blobs()
+	if err != nil {
+		return nil, err
+	}
+	defer blobs.Close() //nolint:errcheck
+
+	payload := runArtifactPayload{
+		ScraperID:    scraperID,
+		ScraperName:  scraperName,
+		StartedAt:    startedAt,
+		FinishedAt:   time.Now(),
+		Results:      v1.MergeScrapeResults(output.Results),
+		SaveSummary:  &output.Summary,
+		SnapshotPair: output.SnapshotPair,
+		HAR:          output.HAR,
+		Logs:         logs,
+	}
+	if lastSummary.ConfigTypes != nil {
+		copy := lastSummary
+		payload.LastScrapeSummary = &copy
+	}
+
+	var raw bytes.Buffer
+	if err := json.NewEncoder(&raw).Encode(payload); err != nil {
+		return nil, fmt.Errorf("failed to marshal run artifact: %w", err)
+	}
+
+	var gz bytes.Buffer
+	zw := gzip.NewWriter(&gz)
+	if _, err := io.Copy(zw, &raw); err != nil {
+		return nil, fmt.Errorf("failed to compress run artifact: %w", err)
+	}
+	if err := zw.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close run artifact compression stream: %w", err)
+	}
+
+	filename := fmt.Sprintf("scrape-runs/%s/%d.json.gz", scraperID, startedAt.UnixMilli())
+	saved, err := blobs.Write(artifact.Data{
+		Content:       io.NopCloser(bytes.NewReader(gz.Bytes())),
+		ContentLength: int64(gz.Len()),
+		Filename:      filename,
+		ContentType:   "application/gzip",
+	}, &models.Artifact{Path: filename, Filename: fmt.Sprintf("%s.json.gz", scraperName)})
+	if err != nil {
+		return nil, fmt.Errorf("failed to write run artifact: %w", err)
+	}
+
+	return saved, nil
 }
 
 func updateCRDStatus(ctx context.Context, obj *v1.ScrapeConfig, lastRun v1.LastRunStatus) error {
