@@ -6,6 +6,9 @@ input:
       external_user_id: "00000000-0000-0000-0000-000000000001"
       mfa: true
       count: 5
+      properties:
+        role: "Deployment"
+        environment: "production"
 pre_populate:
   configs:
     "Bucket/s3://my-bucket": "00000000-0000-0000-0000-aaaaaaaaaaaa"
@@ -15,5 +18,7 @@ assertions:
   - access_logs[0].external_user_id == '00000000-0000-0000-0000-000000000001'
   - access_logs[0].mfa == true
   - access_logs[0].count == 5.0
+  - access_logs[0].properties.role == 'Deployment'
+  - access_logs[0].properties.environment == 'production'
   - summary.access_logs.scraped == 1
   - summary.access_logs.skipped == 0

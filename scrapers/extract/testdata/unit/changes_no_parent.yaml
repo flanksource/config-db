@@ -17,4 +17,4 @@ assertions:
   - summary.changes.scraped == 2
   - summary.changes.skipped == 1
   - size(warnings) == 1
-  - warnings[0] == 'change missing external_id'
+  - warnings[0].error == 'change missing external_id'

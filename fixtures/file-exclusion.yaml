@@ -11,7 +11,7 @@ spec:
       transform:
         javascript: |+
           for (var i = 0; i < config.length; i++) {
-            config[i].id = i + 1
+            config[i].id = String(i + 1)
           }
           JSON.stringify(config)
         exclude:
