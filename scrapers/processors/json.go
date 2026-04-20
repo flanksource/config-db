@@ -458,7 +458,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 			ctx.Logger.V(3).Infof("Applying script transformation")
 			scriptResult, err := RunScript(ctx, input, input.BaseScraper.Transform.Script)
 			if err != nil {
-				return results, fmt.Errorf("failed to run transform script: %v", err)
+				return results, fmt.Errorf("failed to run transform script: %w", err)
 			}
 
 			for i := range scriptResult.Results {
