@@ -21,6 +21,14 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+.PHONY: install-deps
+install-deps: $(LOCALBIN) ## Install the deps CLI if not present
+	which deps 2>/dev/null || test -x $(LOCALBIN)/deps || curl -sSL https://github.com/flanksource/deps/releases/latest/download/deps-$(OS)-$(ARCH).tar.gz | tar -xz -C $(LOCALBIN)
+
+.PHONY: deps
+deps: install-deps ginkgo controller-gen golangci-lint kustomize $(TAILWIND_JS) ## Install all tool dependencies
+
+
 .PHONY: tidy
 tidy:
 	go mod tidy
@@ -264,11 +272,11 @@ ENVTEST_ASSETS_DIR = $(LOCALBIN)
 
 
 .PHONY: envtest
-envtest: $(LOCALBIN) ## Install envtest binaries using flanksource/deps.
+envtest: install-deps $(LOCALBIN) ## Install envtest binaries using flanksource/deps.
 	@mkdir -p $(ENVTEST_ASSETS_DIR)
-	@test -x $(ENVTEST_ASSETS_DIR)/etcd || deps install etcd@v3.5.23 --bin-dir $(ENVTEST_ASSETS_DIR)
-	@test -x $(ENVTEST_ASSETS_DIR)/kube-apiserver || deps install kube-apiserver@v$(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR)
-	@test -x $(ENVTEST_ASSETS_DIR)/kubectl || deps install kubectl@v$(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR)
+	@test -x $(ENVTEST_ASSETS_DIR)/etcd || $(LOCALBIN)/deps install etcd@v3.5.23 --bin-dir $(ENVTEST_ASSETS_DIR)
+	@test -x $(ENVTEST_ASSETS_DIR)/kube-apiserver || $(LOCALBIN)/deps install kube-apiserver@v$(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR)
+	@test -x $(ENVTEST_ASSETS_DIR)/kubectl || $(LOCALBIN)/deps install kubectl@v$(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR)
 
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
