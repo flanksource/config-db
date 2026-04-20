@@ -647,3 +647,166 @@ var _ = Describe("releaseApprovalChanges", func() {
 		Expect(*changes[0].CreatedBy).To(Equal("actual@example.com"))
 	})
 })
+
+var _ = Describe("extractApprovalPolicies", func() {
+	const (
+		org          = "test-org"
+		releaseExtID = "azuredevops://test-org/Proj/release/42"
+	)
+	var ado AzureDevopsScraper
+
+	config := v1.AzureDevops{Organization: org}
+
+	// Minimal group descriptor — DescriptorAliases returns at least the input
+	// form when the descriptor can't be decoded to a SID, which is enough to
+	// assert the access entry carries the group identifier.
+	groupDescriptor := "vssgp.opaque-group-descriptor"
+
+	buildEnv := func(name string, pre, post []map[string]any) map[string]any {
+		env := map[string]any{"name": name}
+		if pre != nil {
+			env["preDeployApprovals"] = map[string]any{"approvals": toAnySlice(pre)}
+		}
+		if post != nil {
+			env["postDeployApprovals"] = map[string]any{"approvals": toAnySlice(post)}
+		}
+		return env
+	}
+
+	automated := map[string]any{"id": 1, "isAutomated": true}
+	userApproval := map[string]any{
+		"id":          2,
+		"isAutomated": false,
+		"approver": map[string]any{
+			"id":          "user-id",
+			"displayName": "Alice",
+			"uniqueName":  "alice@org.com",
+			"descriptor":  "aad.user-descriptor",
+		},
+	}
+	groupApproval := map[string]any{
+		"id":          3,
+		"isAutomated": false,
+		"approver": map[string]any{
+			"id":          "group-id",
+			"displayName": "Release Managers",
+			"uniqueName":  "vstfs:///Classification/TeamProject/release-managers",
+			"descriptor":  groupDescriptor,
+			"isContainer": true,
+		},
+	}
+
+	It("skips automated approvals", func() {
+		defJSON := map[string]any{"environments": []any{
+			buildEnv("Dev", []map[string]any{automated}, []map[string]any{automated}),
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+		Expect(access).To(BeEmpty())
+		Expect(roles).To(BeEmpty())
+	})
+
+	It("emits user access with env-scoped pre-deploy role", func() {
+		defJSON := map[string]any{"environments": []any{
+			buildEnv("Dev", []map[string]any{userApproval}, nil),
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+
+		Expect(roles).To(HaveLen(1))
+		Expect(roles[0].Name).To(Equal("Approver:Dev:Pre"))
+		Expect(roles[0].RoleType).To(Equal("AzureDevOps"))
+		Expect(roles[0].Tenant).To(Equal(org))
+
+		Expect(access).To(HaveLen(1))
+		entry := access[0]
+		Expect(entry.ConfigExternalID.ConfigType).To(Equal(ReleaseType))
+		Expect(entry.ConfigExternalID.ExternalID).To(Equal(releaseExtID))
+		Expect(entry.ExternalRoleID).To(Equal(&roles[0].ID))
+		Expect(entry.ExternalUserAliases).To(ConsistOf("alice@org.com"))
+		Expect(entry.ExternalGroupAliases).To(BeEmpty())
+	})
+
+	It("emits group access with env-scoped post-deploy role", func() {
+		defJSON := map[string]any{"environments": []any{
+			buildEnv("Prod", nil, []map[string]any{groupApproval}),
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+
+		Expect(roles).To(HaveLen(1))
+		Expect(roles[0].Name).To(Equal("Approver:Prod:Post"))
+
+		Expect(access).To(HaveLen(1))
+		Expect(access[0].ExternalUserAliases).To(BeEmpty())
+		Expect(access[0].ExternalGroupAliases).ToNot(BeEmpty())
+		Expect(access[0].ExternalGroupAliases).To(ContainElement(groupDescriptor))
+	})
+
+	It("produces a distinct role per environment", func() {
+		defJSON := map[string]any{"environments": []any{
+			buildEnv("Dev", []map[string]any{userApproval}, nil),
+			buildEnv("Staging", []map[string]any{groupApproval}, nil),
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+
+		Expect(access).To(HaveLen(2))
+		Expect(roles).To(HaveLen(2),
+			"different envs must resolve to different roles so authorisation boundaries aren't collapsed")
+		names := []string{roles[0].Name, roles[1].Name}
+		Expect(names).To(ConsistOf("Approver:Dev:Pre", "Approver:Staging:Pre"))
+	})
+
+	It("dedups the role within a single env+phase", func() {
+		defJSON := map[string]any{"environments": []any{
+			buildEnv("Dev", []map[string]any{userApproval, groupApproval}, nil),
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+
+		Expect(access).To(HaveLen(2))
+		Expect(roles).To(HaveLen(1),
+			"two approvers on the same env+phase must share one ExternalRole")
+	})
+
+	It("skips environments without a name", func() {
+		defJSON := map[string]any{"environments": []any{
+			map[string]any{"preDeployApprovals": map[string]any{"approvals": []any{userApproval}}},
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+		Expect(access).To(BeEmpty())
+		Expect(roles).To(BeEmpty())
+	})
+
+	It("returns empty when environments is missing or malformed", func() {
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, map[string]any{}, releaseExtID)
+		Expect(access).To(BeEmpty())
+		Expect(roles).To(BeEmpty())
+
+		access, roles = ado.extractApprovalPolicies(testCtx(), config, map[string]any{"environments": "not-a-slice"}, releaseExtID)
+		Expect(access).To(BeEmpty())
+		Expect(roles).To(BeEmpty())
+	})
+})
+
+var _ = Describe("mergeRolesByID", func() {
+	It("appends roles whose UUID is not already present", func() {
+		a := dutyModels.ExternalRole{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), Name: "A"}
+		b := dutyModels.ExternalRole{ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Name: "B"}
+		merged := mergeRolesByID([]dutyModels.ExternalRole{a}, []dutyModels.ExternalRole{b})
+		Expect(merged).To(HaveLen(2))
+	})
+
+	It("drops duplicates by UUID", func() {
+		id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+		a := dutyModels.ExternalRole{ID: id, Name: "A"}
+		dup := dutyModels.ExternalRole{ID: id, Name: "A-alt"}
+		merged := mergeRolesByID([]dutyModels.ExternalRole{a}, []dutyModels.ExternalRole{dup})
+		Expect(merged).To(HaveLen(1))
+		Expect(merged[0].Name).To(Equal("A"), "existing entry wins")
+	})
+})
+
+func toAnySlice(in []map[string]any) []any {
+	out := make([]any, len(in))
+	for i, v := range in {
+		out[i] = v
+	}
+	return out
+}
