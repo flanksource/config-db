@@ -265,7 +265,7 @@ func shouldExcludeChange(ctx api.ScrapeContext, result *v1.ScrapeResult, changeR
 	}
 
 	for _, expr := range exclusions {
-		if res, err := gomplate.RunTemplate(env, gomplate.Template{Expression: expr}); err != nil {
+		if res, err := ctx.RunTemplate(gomplate.Template{Expression: expr}, env); err != nil {
 			return false, fmt.Errorf("[%s] change exclusion expression failed (%s): %w", changeResult, expr, err)
 		} else if skipChange, err := strconv.ParseBool(res); err != nil {
 			return false, fmt.Errorf("change exclusion expression(%s) didn't evaluate to a boolean: %w", expr, err)
@@ -573,7 +573,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
-	entityResult, userIDMap, err := syncExternalEntities(ctx, extractResult, scraperID)
+	entityResult, synced, err := syncExternalEntities(ctx, extractResult, scraperID)
 	if err != nil {
 		summary.AddWarning("ExternalEntities", fmt.Sprintf("failed to sync external entities: %v", err))
 	} else {
@@ -585,14 +585,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 	// Remap stale ExternalUserIDs after entity sync has resolved canonical IDs
 	for i := range extractResult.configAccesses {
 		if extractResult.configAccesses[i].ExternalUserID != nil {
-			if remapped, ok := userIDMap[*extractResult.configAccesses[i].ExternalUserID]; ok {
+			if remapped, ok := synced.UserIDMap[*extractResult.configAccesses[i].ExternalUserID]; ok {
 				extractResult.configAccesses[i].ExternalUserID = &remapped
 			}
 		}
 	}
 	for i := range extractResult.configAccessLogs {
 		if extractResult.configAccessLogs[i].ExternalUserID != uuid.Nil {
-			if remapped, ok := userIDMap[extractResult.configAccessLogs[i].ExternalUserID]; ok {
+			if remapped, ok := synced.UserIDMap[extractResult.configAccessLogs[i].ExternalUserID]; ok {
 				extractResult.configAccessLogs[i].ExternalUserID = remapped
 			}
 		}

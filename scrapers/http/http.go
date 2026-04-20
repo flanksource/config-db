@@ -79,7 +79,7 @@ func scrape(ctx api.ScrapeContext, spec v1.HTTP) (v1.ScrapeResults, error) {
 		}
 	}
 
-	templateEnv := map[string]any{}
+	templateEnv := ctx.ScraperTemplateEnv()
 	for _, env := range spec.Env {
 		if v, err := ctx.GetEnvValueFromCache(env, ctx.Namespace()); err != nil {
 			return nil, fmt.Errorf("failed to get env value for %v: %w", env, err)
@@ -88,7 +88,7 @@ func scrape(ctx api.ScrapeContext, spec v1.HTTP) (v1.ScrapeResults, error) {
 		}
 	}
 
-	url, err := gomplate.RunTemplate(templateEnv, gomplate.Template{Template: conn.URL})
+	url, err := ctx.RunTemplate(gomplate.Template{Template: conn.URL}, templateEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply template: %w", err)
 	}

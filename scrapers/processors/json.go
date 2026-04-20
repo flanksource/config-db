@@ -36,12 +36,12 @@ type Mask struct {
 }
 
 // Filter returns true if the mask selector matches
-func (t *Mask) Filter(in v1.ScrapeResult) (bool, error) {
+func (t *Mask) Filter(ctx api.ScrapeContext, in v1.ScrapeResult) (bool, error) {
 	if t.Selector == "" {
 		return false, nil
 	}
 
-	res, err := gomplate.RunTemplate(in.AsMap(), gomplate.Template{Expression: t.Selector})
+	res, err := ctx.RunTemplate(gomplate.Template{Expression: t.Selector}, in.AsMap())
 	if err != nil {
 		return false, err
 	}
@@ -299,7 +299,7 @@ func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.Scr
 
 	for _, rc := range relationshipConfigs {
 		if rc.Filter != "" {
-			filterOutput, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: rc.Filter})
+			filterOutput, err := ctx.RunTemplate(gomplate.Template{Expression: rc.Filter}, input.AsMap())
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate relationship config filter: %s: %v", rc.Filter, err)
 			}
@@ -313,7 +313,7 @@ func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.Scr
 
 		var relationshipSelectors []v1.DirectedRelationship
 		if rc.Expr != "" {
-			celOutput, err := gomplate.RunTemplate(input.AsMap(), gomplate.Template{Expression: rc.Expr})
+			celOutput, err := ctx.RunTemplate(gomplate.Template{Expression: rc.Expr}, input.AsMap())
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate relationship config (expr: %s, config_id: %s): %v", rc.Expr, lo.FromPtr(input.ConfigID), err)
 			}
@@ -456,19 +456,23 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		var ongoingInput v1.ScrapeResults = []v1.ScrapeResult{input}
 		if !input.BaseScraper.Transform.Script.IsEmpty() {
 			ctx.Logger.V(3).Infof("Applying script transformation")
-			transformed, err := RunScript(ctx, input, input.BaseScraper.Transform.Script)
+			scriptResult, err := RunScript(ctx, input, input.BaseScraper.Transform.Script)
 			if err != nil {
 				return results, fmt.Errorf("failed to run transform script: %v", err)
 			}
 
-			ongoingInput = transformed
+			for i := range scriptResult.Results {
+				scriptResult.Results[i].TransformInput = scriptResult.RawInput
+				scriptResult.Results[i].TransformOutput = scriptResult.Results[i].Config
+				scriptResult.Results[i].TransformExpr = scriptResult.Expr
+			}
+			ongoingInput = scriptResult.Results
 		}
 
 		for _, result := range ongoingInput {
-			result.AsMap()["last_scrape_summary"] = ctx.LastScrapeSummary()
 			for i, configProperty := range result.BaseScraper.Properties {
 				if configProperty.Filter != "" {
-					if response, err := gomplate.RunTemplate(result.AsMap(), gomplate.Template{Expression: configProperty.Filter}); err != nil {
+					if response, err := ctx.RunTemplate(gomplate.Template{Expression: configProperty.Filter}, result.AsMap()); err != nil {
 						result.Errorf("failed to parse filter: %v", err)
 						continue
 					} else if boolVal, err := strconv.ParseBool(response); err != nil {
@@ -522,7 +526,7 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 		}
 
 		if !input.BaseScraper.Transform.Masks.IsEmpty() {
-			results, err = e.applyMask(results)
+			results, err = e.applyMask(ctx, results)
 			if err != nil {
 				return results, fmt.Errorf("e.applyMask(); %w", err)
 			}
@@ -837,10 +841,10 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 	return input, nil
 }
 
-func (e Extract) applyMask(results []v1.ScrapeResult) ([]v1.ScrapeResult, error) {
+func (e Extract) applyMask(ctx api.ScrapeContext, results []v1.ScrapeResult) ([]v1.ScrapeResult, error) {
 	for _, m := range e.Transform.Masks {
 		for i, input := range results {
-			if ok, err := m.Filter(input); err != nil || !ok {
+			if ok, err := m.Filter(ctx, input); err != nil || !ok {
 				// NOTE: If the cel expression accesses a field that doesn't exist,
 				// it will return an error. We treat this errors as a non-match filter.
 				continue

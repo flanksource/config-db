@@ -22,14 +22,21 @@ var OrphanCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 // ExternalUserCache stores alias -> external_user_id mapping
 var ExternalUserCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 
-// ExternalUserIDCache stores external_user_id -> external_user_id for existence checks
+// ExternalUserIDCache stores external_user_id -> winning external_user_id
+// (the id under which the row currently lives after any merges).
 var ExternalUserIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 
 // ExternalRoleCache stores alias -> external_role_id mapping
 var ExternalRoleCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 
+// ExternalRoleIDCache stores external_role_id -> winning external_role_id.
+var ExternalRoleIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+
 // ExternalGroupCache stores alias -> external_group_id mapping
 var ExternalGroupCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+
+// ExternalGroupIDCache stores external_group_id -> winning external_group_id.
+var ExternalGroupIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 
 // externalEntityWithID is a constraint for external entity types that have an ID field
 type externalEntityWithID interface {

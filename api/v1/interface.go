@@ -278,27 +278,48 @@ func (result *AnalysisResult) Message(msg string) *AnalysisResult {
 type AnalysisResults []AnalysisResult
 
 // +kubebuilder:object:generate=false
-type EntitySummary struct {
-	Scraped int `json:"scraped,omitempty"`
-	Saved   int `json:"saved,omitempty"`
-	Skipped int `json:"skipped,omitempty"`
-	Deleted int `json:"deleted,omitempty"`
+// EntitySummary is the per-kind summary of external entities produced by a
+// scrape and/or save cycle. Beyond the count fields, it also carries the
+// resolved (post-merge canonical) entities themselves so UI and downstream
+// consumers read them from a single authoritative location instead of having
+// to dedupe across individual ScrapeResults.
+//
+// The type parameter is the element type of the entity slice (e.g.
+// models.ExternalUser). Summaries that only track counts (config_access,
+// access_logs) use EntitySummary[struct{}] and leave Entities nil.
+type EntitySummary[T any] struct {
+	Scraped          int        `json:"scraped,omitempty"`
+	Saved            int        `json:"saved,omitempty"`
+	Skipped          int        `json:"skipped,omitempty"`
+	Deleted          int        `json:"deleted,omitempty"`
+	ForeignKeyErrors int        `json:"foreign_key_errors,omitempty"`
+	LastCreatedAt    *time.Time `json:"last_created_at,omitempty"`
+	// Entities holds the post-merge canonical entities for this kind. Only
+	// populated for user/group/role summaries; nil for count-only summaries.
+	Entities []T `json:"entities,omitempty"`
 }
 
-func (e EntitySummary) IsEmpty() bool {
-	return e.Scraped == 0 && e.Saved == 0 && e.Skipped == 0 && e.Deleted == 0
+func (e EntitySummary[T]) IsEmpty() bool {
+	return e.Scraped == 0 && e.Saved == 0 && e.Skipped == 0 && e.Deleted == 0 && e.ForeignKeyErrors == 0 && e.LastCreatedAt == nil && len(e.Entities) == 0
 }
 
-func (e EntitySummary) Merge(other EntitySummary) EntitySummary {
-	return EntitySummary{
-		Scraped: e.Scraped + other.Scraped,
-		Saved:   e.Saved + other.Saved,
-		Skipped: e.Skipped + other.Skipped,
-		Deleted: e.Deleted + other.Deleted,
+func (e EntitySummary[T]) Merge(other EntitySummary[T]) EntitySummary[T] {
+	merged := EntitySummary[T]{
+		Scraped:          e.Scraped + other.Scraped,
+		Saved:            e.Saved + other.Saved,
+		Skipped:          e.Skipped + other.Skipped,
+		Deleted:          e.Deleted + other.Deleted,
+		ForeignKeyErrors: e.ForeignKeyErrors + other.ForeignKeyErrors,
+		Entities:         append(append([]T{}, e.Entities...), other.Entities...),
+		LastCreatedAt:    e.LastCreatedAt,
 	}
+	if other.LastCreatedAt != nil && (merged.LastCreatedAt == nil || other.LastCreatedAt.After(*merged.LastCreatedAt)) {
+		merged.LastCreatedAt = other.LastCreatedAt
+	}
+	return merged
 }
 
-func (e EntitySummary) Pretty() api.Text {
+func (e EntitySummary[T]) Pretty() api.Text {
 	t := clicky.Text("")
 	if e.Scraped > 0 {
 		t = t.Appendf("%d", e.Scraped).AddText(" scraped", "muted")
@@ -312,25 +333,68 @@ func (e EntitySummary) Pretty() api.Text {
 	if e.Deleted > 0 {
 		t = t.Space().Appendf("%d", e.Deleted).AddText(" deleted", "error")
 	}
+	if e.ForeignKeyErrors > 0 {
+		t = t.Space().Appendf("%d", e.ForeignKeyErrors).AddText(" fk errors", "error")
+	}
 	return t
 }
 
-func (e EntitySummary) String() string {
+func (e EntitySummary[T]) String() string {
 	return e.Pretty().String()
 }
 
+// Warning captures the full context of a failed extraction or transformation.
+// +kubebuilder:object:generate=false
+type Warning struct {
+	Input  any    `json:"input,omitempty"`
+	Output any    `json:"output,omitempty"`
+	Result any    `json:"result,omitempty"`
+	Expr   string `json:"expr,omitempty"`
+	Error  string `json:"error,omitempty"`
+	Count  int    `json:"count,omitempty"`
+}
+
+// func warningCount(w Warning) int {
+// 	if w.Count > 0 {
+// 		return w.Count
+// 	}
+// 	return 1
+// }
+
 // +kubebuilder:object:generate=false
 type ScrapeSummary struct {
-	ConfigTypes    map[string]ConfigTypeScrapeSummary `json:"config_types,omitempty"`
-	ExternalUsers  EntitySummary                      `json:"external_users,omitempty"`
-	ExternalGroups EntitySummary                      `json:"external_groups,omitempty"`
-	ExternalRoles  EntitySummary                      `json:"external_roles,omitempty"`
-	ConfigAccess   EntitySummary                      `json:"config_access,omitempty"`
-	AccessLogs     EntitySummary                      `json:"access_logs,omitempty"`
+	ConfigTypes map[string]ConfigTypeScrapeSummary `json:"config_types,omitempty"`
+
+	// ExternalUsers/Groups/Roles carry both counts and the post-merge
+	// canonical entities. This is the single source of truth for the UI's
+	// flat /users, /groups, /roles listings: individual ScrapeResults
+	// contribute aliases during scraping, SaveResults resolves them to
+	// canonical IDs via the SQL merge, and the resolved entities are
+	// published here instead of fanning them out per-result.
+	ExternalUsers  EntitySummary[models.ExternalUser]  `json:"external_users,omitempty"`
+	ExternalGroups EntitySummary[models.ExternalGroup] `json:"external_groups,omitempty"`
+	ExternalRoles  EntitySummary[models.ExternalRole]  `json:"external_roles,omitempty"`
+	ConfigAccess   EntitySummary[struct{}]             `json:"config_access,omitempty"`
+	AccessLogs     EntitySummary[struct{}]             `json:"access_logs,omitempty"`
 }
 
 func NewScrapeSummary() ScrapeSummary {
 	return ScrapeSummary{ConfigTypes: make(map[string]ConfigTypeScrapeSummary)}
+}
+
+// AsMap returns the summary keyed by json tags so template/CEL envs can
+// reference fields by their documented snake_case names — Go's text/template
+// ignores json tags and would otherwise make paths like .access_logs.last_created_at unreachable.
+func (s ScrapeSummary) AsMap() map[string]any {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return map[string]any{}
+	}
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return map[string]any{}
+	}
+	return out
 }
 
 func (summary ScrapeSummary) HasUpdates() bool {
@@ -669,6 +733,8 @@ type ConfigTypeScrapeSummary struct {
 	Deduped   int            `json:"deduped,omitempty"`
 	Change    *ChangeSummary `json:"change,omitempty"`
 	Warnings  []string       `json:"warnings,omitempty"`
+
+	AccessLogs EntitySummary[struct{}] `json:"access_logs,omitempty"`
 }
 
 // +kubebuilder:object:generate=false
@@ -1143,6 +1209,12 @@ type ScrapeResult struct {
 	ExternalGroups   []models.ExternalGroup    `json:"-"`
 	ConfigAccess     []ExternalConfigAccess    `json:"-"`
 	ConfigAccessLogs []ExternalConfigAccessLog `json:"-"`
+	Warnings         []Warning                 `json:"-"`
+
+	// Transform context captured for diagnostics.
+	TransformInput  any    `json:"-"`
+	TransformOutput any    `json:"-"`
+	TransformExpr   string `json:"-"`
 
 	RateLimitResetAt *time.Time `json:"-"`
 
@@ -1805,8 +1877,13 @@ func NewScrapeResult(base BaseScraper) *ScrapeResult {
 }
 
 func (s ScrapeResult) Success(config interface{}) ScrapeResult {
-	s.Config = config
-	return s
+	clone := s
+	clone.Config = config
+	clone.Warnings = s.Warnings
+	clone.TransformInput = s.TransformInput
+	clone.TransformOutput = s.TransformOutput
+	clone.TransformExpr = s.TransformExpr
+	return clone
 }
 
 func (s ScrapeResult) Errorf(msg string, args ...interface{}) ScrapeResult {
@@ -1821,18 +1898,22 @@ func (s ScrapeResult) SetError(err error) ScrapeResult {
 
 func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 	clone := ScrapeResult{
-		LastModified: s.LastModified,
-		Aliases:      s.Aliases,
-		ConfigClass:  s.ConfigClass,
-		Name:         s.Name,
-		ID:           s.ID,
-		Source:       s.Source,
-		Config:       config,
-		Labels:       s.Labels,
-		Tags:         s.Tags,
-		BaseScraper:  s.BaseScraper,
-		Format:       s.Format,
-		Error:        s.Error,
+		LastModified:    s.LastModified,
+		Aliases:         s.Aliases,
+		ConfigClass:     s.ConfigClass,
+		Name:            s.Name,
+		ID:              s.ID,
+		Source:          s.Source,
+		Config:          config,
+		Labels:          s.Labels,
+		Tags:            s.Tags,
+		BaseScraper:     s.BaseScraper,
+		Format:          s.Format,
+		Error:           s.Error,
+		Warnings:        s.Warnings,
+		TransformInput:  s.TransformInput,
+		TransformOutput: s.TransformOutput,
+		TransformExpr:   s.TransformExpr,
 	}
 	return clone
 }
