@@ -1356,7 +1356,10 @@ func SaveConfigAccessLogs(ctx api.ScrapeContext, accessLogs []dutyModels.ConfigA
 		return result, nil
 	}
 
-	scraperIDPtr := ctx.ScrapeConfig().GetPersistedID()
+	var scraperIDPtr *uuid.UUID
+	if sc := ctx.ScrapeConfig(); sc != nil {
+		scraperIDPtr = sc.GetPersistedID()
+	}
 	if scraperIDPtr == nil || *scraperIDPtr == uuid.Nil {
 		// No persisted scraper id ⇒ no stub-user path (stubs need a
 		// scraper_id on their rows). Fall back to the simple single-
