@@ -2,6 +2,7 @@ package devops
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/scrapers/azure"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -491,9 +493,9 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 		var changeType string
 		switch a.Status {
 		case "approved":
-			changeType = ChangeTypeApproved
+			changeType = types.ChangeTypeApproved
 		case "rejected":
-			changeType = ChangeTypeRejected
+			changeType = types.ChangeTypeRejected
 		default:
 			continue
 		}
@@ -510,7 +512,7 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 		}
 
 		severity := "info"
-		if changeType == ChangeTypeRejected {
+		if changeType == types.ChangeTypeRejected {
 			severity = "high"
 		}
 
@@ -520,6 +522,18 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 		}
 
 		createdAt := release.CreatedOn
+		externalChangeID := fmt.Sprintf("%s/approval/%d", baseExternalChangeID, a.ID)
+
+		approvalDetail := types.Approval{
+			Event: types.Event{
+				ID:        externalChangeID,
+				Timestamp: createdAt.UTC().Format(time.RFC3339),
+			},
+			Approver: identityRefToTyped(approver, a.Comments),
+			Stage:    approvalTypeToStage(a.ApprovalType),
+			Status:   approvalStatusToTyped(a.Status),
+		}
+
 		out = append(out, v1.ChangeResult{
 			ChangeType:       changeType,
 			CreatedAt:        &createdAt,
@@ -529,7 +543,8 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 			ConfigType:       ReleaseType,
 			Source:           source,
 			Summary:          summary,
-			ExternalChangeID: fmt.Sprintf("%s/approval/%d", baseExternalChangeID, a.ID),
+			Details:          v1.ChangeDetailsWithRaw(approvalDetail, a),
+			ExternalChangeID: externalChangeID,
 		})
 	}
 	return out
@@ -567,66 +582,49 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 				createdBy = &release.CreatedBy.UniqueName
 			}
 
-			details := map[string]any{
-				"releaseId":   release.ID,
-				"releaseName": release.Name,
-				"environment": env.Name,
-				"status":      env.Status,
-			}
-			if createdBy != nil {
-				details["createdBy"] = *createdBy
-			}
-			webURL := release.Links["web"].Href
-			if webURL != "" {
-				details["url"] = webURL
-			}
-			if pre := approvalSummary(env.PreDeployApprovals); len(pre) > 0 {
-				details["preDeployApprovals"] = pre
-			}
-			if post := approvalSummary(env.PostDeployApprovals); len(post) > 0 {
-				details["postDeployApprovals"] = post
-			}
-
-			if len(env.DeploySteps) > 0 {
-				details["deploySteps"] = env.DeploySteps
-			}
-			if release.Reason != "" {
-				details["reason"] = release.Reason
-			}
-			if release.Description != "" {
-				details["description"] = release.Description
-			}
-			if env.TriggerReason != "" {
-				details["triggerReason"] = env.TriggerReason
-			}
-			if vars := flattenVariables(release.Variables); len(vars) > 0 {
-				details["variables"] = vars
-			}
-			if envVars := flattenVariables(env.Variables); len(envVars) > 0 {
-				details["environmentVariables"] = envVars
-			}
-			if len(release.Artifacts) > 0 {
-				details["artifacts"] = summarizeArtifacts(release.Artifacts)
-			}
-
 			createdAt := release.CreatedOn
+			externalChangeID := fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID)
+
+			promotion := types.Promotion{
+				Event: types.Event{
+					ID:         externalChangeID,
+					URL:        release.Links["web"].Href,
+					Timestamp:  createdAt.UTC().Format(time.RFC3339),
+					Properties: buildReleaseEventProperties(release, env),
+				},
+				To: types.Environment{
+					Name:       env.Name,
+					Identifier: strconv.Itoa(env.ID),
+					Stage:      envNameToStage(env.Name),
+				},
+				Version: release.Name,
+				Approvals: append(
+					approvalsToTyped(env.PreDeployApprovals, types.ApprovalStagePreDeployment, createdAt),
+					approvalsToTyped(env.PostDeployApprovals, types.ApprovalStagePostDeployment, createdAt)...,
+				),
+				Artifact: primaryArtifactSummary(release.Artifacts),
+				Source:   primaryArtifactSource(release.Artifacts),
+			}
+
+			raw := buildReleaseRaw(release, env, createdBy)
+
 			result.Changes = append(result.Changes, v1.ChangeResult{
-				ChangeType:       env.Name,
+				ChangeType:       types.ChangeTypeDeployment,
 				CreatedAt:        &createdAt,
 				CreatedBy:        createdBy,
 				ExternalID:       releaseID,
 				ConfigType:       ReleaseType,
 				Source:           "AzureDevops/release/" + configExternalID.ExternalID,
 				Summary:          fmt.Sprintf("%s / %s", release.Name, env.Name),
-				Details:          details,
-				ExternalChangeID: fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID),
+				Details:          v1.ChangeDetailsWithRaw(promotion, raw),
+				ExternalChangeID: externalChangeID,
 			})
 
 			result.Changes = append(result.Changes, releaseApprovalChanges(
 				append(env.PreDeployApprovals, env.PostDeployApprovals...),
 				release, env.Name, configExternalID.ExternalID,
 				"AzureDevops/release/"+configExternalID.ExternalID,
-				fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID),
+				externalChangeID,
 			)...)
 
 			if config.Permissions != nil && config.Permissions.Enabled {
