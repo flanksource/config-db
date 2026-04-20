@@ -2,6 +2,7 @@ apiVersion: configs.flanksource.com/v1
 kind: ScrapeConfig
 metadata:
   name: lastfm-scraper
+  namespace: mc
 spec:
   http:
     - type: 'LastFM::Singer'

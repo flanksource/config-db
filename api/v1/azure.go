@@ -42,10 +42,20 @@ type AzureDevopsPermissions struct {
 	RateLimit string `yaml:"rateLimit,omitempty" json:"rateLimit,omitempty"`
 	// Groups enables fetching organization-level group membership
 	Groups bool `yaml:"groups,omitempty" json:"groups,omitempty"`
-	// Roles maps role names to Git permission names.
-	// Each identity is assigned the role whose required permissions are all present.
-	// Permission names: Read, Contribute, ForcePush, CreateBranch, CreateTag, ManageNotes,
-	// CreateRepository, DeleteRepository, RenameRepository, ManagePermissions, PolicyExempt
+	// Roles maps role names to permission strings with resource-type prefixes.
+	// Format: "Type:Permission" where Type is Git, Pipeline, or Release.
+	// An identity is assigned a role if it has ANY of the listed permissions for that type.
+	//
+	// Git permissions: Read, Contribute, ForcePush, CreateBranch, CreateTag, ManageNotes,
+	//   CreateRepository, DeleteRepository, RenameRepository, ManagePermissions, PolicyExempt
+	// Pipeline permissions: ViewBuilds, EditBuildPipeline, DeleteBuilds, QueueBuilds,
+	//   StopBuilds, AdministerBuildPermissions
+	// Release permissions: ViewReleaseDefinition, EditReleaseDefinition, DeleteReleaseDefinition,
+	//   ManageDeployments, ManageReleaseApprovers, ManageReleases, ViewReleases,
+	//   CreateReleases, EditReleaseEnvironment, DeleteReleaseEnvironment,
+	//   AdministerReleasePermissions, DeleteReleases, ManageDefinitionReleaseApprovers
+	//
+	// Defaults to Viewer, Developer, Admin, Releaser roles when not configured.
 	Roles map[string][]string `yaml:"roles,omitempty" json:"roles,omitempty"`
 }
 
