@@ -275,7 +275,7 @@ func backupJobToChange(ctx *AWSContext, job backupTypes.BackupJob) (v1.ChangeRes
 			lo.FromPtr(job.ResourceType), lo.FromPtr(job.ResourceName), strings.ToLower(string(job.State))),
 		CreatedAt: job.CreationDate,
 		ScraperID: "all",
-		Details:   withRaw(typed, job),
+		Details:   v1.ChangeDetailsWithRaw(typed, job),
 	}, true
 }
 
@@ -339,7 +339,7 @@ func restoreJobToChange(ctx *AWSContext, job backupTypes.RestoreJobsListMember) 
 		CreatedAt:        job.CreationDate,
 		ScraperID:        "all",
 		ExternalID:       lo.FromPtr(job.CreatedResourceArn),
-		Details:          withRaw(typed, job),
+		Details:          v1.ChangeDetailsWithRaw(typed, job),
 	}, true
 }
 
@@ -425,7 +425,7 @@ func recoveryPointToChange(ctx *AWSContext, vault backupTypes.BackupVaultListMem
 		Summary:          fmt.Sprintf("Recovery point %s in vault %s", strings.ToLower(string(rp.Status)), lo.FromPtr(vault.BackupVaultName)),
 		CreatedAt:        rp.CreationDate,
 		ScraperID:        "all",
-		Details:          withRaw(typed, rp),
+		Details:          v1.ChangeDetailsWithRaw(typed, rp),
 	}, true
 }
 
