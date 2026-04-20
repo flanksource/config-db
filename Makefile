@@ -9,7 +9,13 @@ else
   VERSION_TAG=$(VERSION)
 endif
 
-LDFLAGS = -X "main.version=$(VERSION_TAG)" -X "github.com/flanksource/clicky.Version=$(VERSION_TAG)"
+GIT_COMMIT=$(shell git rev-parse HEAD 2>/dev/null || echo none)
+BUILD_DATE=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+
+LDFLAGS = -X "github.com/flanksource/config-db/cmd.version=$(VERSION_TAG)" \
+          -X "github.com/flanksource/config-db/cmd.commit=$(GIT_COMMIT)" \
+          -X "github.com/flanksource/config-db/cmd.date=$(BUILD_DATE)" \
+          -X "github.com/flanksource/clicky.Version=$(VERSION_TAG)"
 
 # Image URL to use all building/pushing image targets
 IMG ?= docker.io/flanksource/$(NAME):${VERSION_TAG}
@@ -46,7 +52,7 @@ gen-schemas:
 		go mod edit -replace=github.com/flanksource/duty=../../../duty; \
 	fi && \
 	go mod tidy && \
-	go run ./main.go
+	go run .
 
 docker:
 	docker build . -f build/Dockerfile -t ${IMG}
