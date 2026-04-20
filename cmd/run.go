@@ -166,7 +166,7 @@ var Run = &cobra.Command{
 				history.Start()
 				history.SuccessCount = len(results)
 				history.AddDetails("scrape_summary", *summary)
-				if hasErrors {
+				if err != nil {
 					history.AddError(err.Error())
 				}
 				history.End()

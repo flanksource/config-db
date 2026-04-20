@@ -208,16 +208,16 @@ var _ = Describe("CaptureScrapeSnapshot", Ordered, func() {
 	})
 
 	AfterAll(func() {
-		for _, id := range createdConfigIDs {
-			_ = ctx.DB().Exec("DELETE FROM config_items WHERE id = ?", id).Error
-		}
+		_ = ctx.DB().Exec("DELETE FROM config_access_logs WHERE scraper_id = ?", scraperAID).Error
 		for _, id := range createdAccessIDs {
 			_ = ctx.DB().Exec("DELETE FROM config_access WHERE id = ?", id).Error
 		}
 		for _, k := range createdUserGroupKs {
 			_ = ctx.DB().Exec("DELETE FROM external_user_groups WHERE external_user_id = ? AND external_group_id = ?", k.U, k.G).Error
 		}
-		_ = ctx.DB().Exec("DELETE FROM config_access_logs WHERE scraper_id = ?", scraperAID).Error
+		for _, id := range createdConfigIDs {
+			_ = ctx.DB().Exec("DELETE FROM config_items WHERE id = ?", id).Error
+		}
 		for _, id := range createdRoleIDs {
 			_ = ctx.DB().Exec("DELETE FROM external_roles WHERE id = ?", id).Error
 		}

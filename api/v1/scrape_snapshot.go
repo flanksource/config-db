@@ -41,19 +41,22 @@ func (e EntityWindowCounts) IsZero() bool {
 
 // Sub returns e - other, field-wise. Timestamps are taken from e (the "after" side).
 func (e EntityWindowCounts) Sub(other EntityWindowCounts) EntityWindowCounts {
-	return EntityWindowCounts{
-		Total:         e.Total - other.Total,
-		UpdatedLast:   e.UpdatedLast - other.UpdatedLast,
-		UpdatedHour:   e.UpdatedHour - other.UpdatedHour,
-		UpdatedDay:    e.UpdatedDay - other.UpdatedDay,
-		UpdatedWeek:   e.UpdatedWeek - other.UpdatedWeek,
-		DeletedLast:   e.DeletedLast - other.DeletedLast,
-		DeletedHour:   e.DeletedHour - other.DeletedHour,
-		DeletedDay:    e.DeletedDay - other.DeletedDay,
-		DeletedWeek:   e.DeletedWeek - other.DeletedWeek,
-		LastCreatedAt: e.LastCreatedAt,
-		LastUpdatedAt: e.LastUpdatedAt,
+	delta := EntityWindowCounts{
+		Total:       e.Total - other.Total,
+		UpdatedLast: e.UpdatedLast - other.UpdatedLast,
+		UpdatedHour: e.UpdatedHour - other.UpdatedHour,
+		UpdatedDay:  e.UpdatedDay - other.UpdatedDay,
+		UpdatedWeek: e.UpdatedWeek - other.UpdatedWeek,
+		DeletedLast: e.DeletedLast - other.DeletedLast,
+		DeletedHour: e.DeletedHour - other.DeletedHour,
+		DeletedDay:  e.DeletedDay - other.DeletedDay,
+		DeletedWeek: e.DeletedWeek - other.DeletedWeek,
 	}
+	if !delta.IsZero() {
+		delta.LastCreatedAt = e.LastCreatedAt
+		delta.LastUpdatedAt = e.LastUpdatedAt
+	}
+	return delta
 }
 
 // ScrapeSnapshot is a point-in-time snapshot of global DB state relevant to a
