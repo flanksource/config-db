@@ -8,7 +8,7 @@ COPY Makefile /app
 COPY external/diffgen /app/external/diffgen
 RUN make rust-diffgen
 
-FROM golang:1.26-bookworm AS builder-base
+FROM golang:1.26-bookworm@sha256:4f4ab2c90005e7e63cb631f0b4427f05422f241622ee3ec4727cc5febbf83e34 AS builder-base
 WORKDIR /app
 
 ARG VERSION
