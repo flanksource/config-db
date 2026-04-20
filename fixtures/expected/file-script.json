@@ -7,7 +7,7 @@
     "id": "1",
     "config": {
       "added": "a",
-      "id": 1,
+      "id": "1",
       "name": "Config1",
       "password": "p1",
       "secret": "secret_1"
@@ -21,7 +21,7 @@
     "id": "2",
     "config": {
       "added": "a",
-      "id": 2,
+      "id": "2",
       "name": "Config2",
       "password": "p2",
       "secret": "secret_2"
