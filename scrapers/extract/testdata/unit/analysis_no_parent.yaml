@@ -15,4 +15,4 @@ assertions:
   - summary.analysis.scraped == 2
   - summary.analysis.skipped == 1
   - size(warnings) == 1
-  - warnings[0] == 'analysis missing external_id'
+  - warnings[0].error == 'analysis missing external_id'
