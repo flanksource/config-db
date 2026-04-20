@@ -74,24 +74,32 @@ func queryArgs(sql string, runStart time.Time) []any {
 	return args
 }
 
+func toMetaTime(t *time.Time) *metav1.Time {
+	if t == nil {
+		return nil
+	}
+	mt := metav1.NewTime(*t)
+	return &mt
+}
+
 // queryGrouped runs a GROUP BY query returning (key, windowed counts) rows and
 // assembles the result map. The SQL must select the grouping key as the first
 // column and the 9 count columns in the EntityWindowCounts field order, and
 // use exactly 9 `?` placeholders bound to runStart.
 func queryGrouped(ctx api.ScrapeContext, runStart time.Time, sql string) (map[string]v1.EntityWindowCounts, error) {
 	type row struct {
-		Key           string       `gorm:"column:key"`
-		Total         int          `gorm:"column:total"`
-		UpdatedLast   int          `gorm:"column:updated_last"`
-		UpdatedHour   int          `gorm:"column:updated_hour"`
-		UpdatedDay    int          `gorm:"column:updated_day"`
-		UpdatedWeek   int          `gorm:"column:updated_week"`
-		DeletedLast   int          `gorm:"column:deleted_last"`
-		DeletedHour   int          `gorm:"column:deleted_hour"`
-		DeletedDay    int          `gorm:"column:deleted_day"`
-		DeletedWeek   int          `gorm:"column:deleted_week"`
-		LastCreatedAt *metav1.Time `gorm:"column:last_created_at"`
-		LastUpdatedAt *metav1.Time `gorm:"column:last_updated_at"`
+		Key           string     `gorm:"column:key"`
+		Total         int        `gorm:"column:total"`
+		UpdatedLast   int        `gorm:"column:updated_last"`
+		UpdatedHour   int        `gorm:"column:updated_hour"`
+		UpdatedDay    int        `gorm:"column:updated_day"`
+		UpdatedWeek   int        `gorm:"column:updated_week"`
+		DeletedLast   int        `gorm:"column:deleted_last"`
+		DeletedHour   int        `gorm:"column:deleted_hour"`
+		DeletedDay    int        `gorm:"column:deleted_day"`
+		DeletedWeek   int        `gorm:"column:deleted_week"`
+		LastCreatedAt *time.Time `gorm:"column:last_created_at"`
+		LastUpdatedAt *time.Time `gorm:"column:last_updated_at"`
 	}
 	var rows []row
 	if err := ctx.DB().Raw(sql, queryArgs(sql, runStart)...).Scan(&rows).Error; err != nil {
@@ -109,8 +117,8 @@ func queryGrouped(ctx api.ScrapeContext, runStart time.Time, sql string) (map[st
 			DeletedHour:   r.DeletedHour,
 			DeletedDay:    r.DeletedDay,
 			DeletedWeek:   r.DeletedWeek,
-			LastCreatedAt: r.LastCreatedAt,
-			LastUpdatedAt: r.LastUpdatedAt,
+			LastCreatedAt: toMetaTime(r.LastCreatedAt),
+			LastUpdatedAt: toMetaTime(r.LastUpdatedAt),
 		}
 	}
 
@@ -121,17 +129,17 @@ func queryGrouped(ctx api.ScrapeContext, runStart time.Time, sql string) (map[st
 // count columns (same column ordering as queryGrouped).
 func querySingle(ctx api.ScrapeContext, runStart time.Time, sql string) (v1.EntityWindowCounts, error) {
 	var row struct {
-		Total         int          `gorm:"column:total"`
-		UpdatedLast   int          `gorm:"column:updated_last"`
-		UpdatedHour   int          `gorm:"column:updated_hour"`
-		UpdatedDay    int          `gorm:"column:updated_day"`
-		UpdatedWeek   int          `gorm:"column:updated_week"`
-		DeletedLast   int          `gorm:"column:deleted_last"`
-		DeletedHour   int          `gorm:"column:deleted_hour"`
-		DeletedDay    int          `gorm:"column:deleted_day"`
-		DeletedWeek   int          `gorm:"column:deleted_week"`
-		LastCreatedAt *metav1.Time `gorm:"column:last_created_at"`
-		LastUpdatedAt *metav1.Time `gorm:"column:last_updated_at"`
+		Total         int        `gorm:"column:total"`
+		UpdatedLast   int        `gorm:"column:updated_last"`
+		UpdatedHour   int        `gorm:"column:updated_hour"`
+		UpdatedDay    int        `gorm:"column:updated_day"`
+		UpdatedWeek   int        `gorm:"column:updated_week"`
+		DeletedLast   int        `gorm:"column:deleted_last"`
+		DeletedHour   int        `gorm:"column:deleted_hour"`
+		DeletedDay    int        `gorm:"column:deleted_day"`
+		DeletedWeek   int        `gorm:"column:deleted_week"`
+		LastCreatedAt *time.Time `gorm:"column:last_created_at"`
+		LastUpdatedAt *time.Time `gorm:"column:last_updated_at"`
 	}
 
 	if err := ctx.DB().Raw(sql, queryArgs(sql, runStart)...).Scan(&row).Error; err != nil {
@@ -147,8 +155,8 @@ func querySingle(ctx api.ScrapeContext, runStart time.Time, sql string) (v1.Enti
 		DeletedHour:   row.DeletedHour,
 		DeletedDay:    row.DeletedDay,
 		DeletedWeek:   row.DeletedWeek,
-		LastCreatedAt: row.LastCreatedAt,
-		LastUpdatedAt: row.LastUpdatedAt,
+		LastCreatedAt: toMetaTime(row.LastCreatedAt),
+		LastUpdatedAt: toMetaTime(row.LastUpdatedAt),
 	}, nil
 }
 

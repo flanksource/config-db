@@ -335,6 +335,6 @@ var _ = Describe("CaptureScrapeSnapshot", Ordered, func() {
 		snap, err := CaptureScrapeSnapshot(ctx, runStart)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(snap.RunStartedAt.Unix()).To(Equal(runStart.Unix()))
-		Expect(snap.CapturedAt).To(BeTemporally(">=", runStart))
+		Expect(snap.CapturedAt.Time).To(BeTemporally(">=", runStart))
 	})
 })
