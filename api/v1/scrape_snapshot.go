@@ -1,6 +1,8 @@
 package v1
 
-import "time"
+import (
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // EntityWindowCounts captures total + windowed updated/deleted counts for one
 // entity type or group. Windows are anchored to the run's start time, not to
@@ -25,8 +27,8 @@ type EntityWindowCounts struct {
 	DeletedDay  int `json:"deleted_day"`
 	DeletedWeek int `json:"deleted_week"`
 
-	LastCreatedAt *time.Time `json:"last_created_at,omitempty"`
-	LastUpdatedAt *time.Time `json:"last_updated_at,omitempty"`
+	LastCreatedAt *v1.Time `json:"last_created_at,omitempty"`
+	LastUpdatedAt *v1.Time `json:"last_updated_at,omitempty"`
 }
 
 // IsZero reports whether all fields are zero.
@@ -59,8 +61,8 @@ func (e EntityWindowCounts) Sub(other EntityWindowCounts) EntityWindowCounts {
 // completes; the pair drives before/after/diff rendering in the scrapeui and
 // in CLI pretty output.
 type ScrapeSnapshot struct {
-	CapturedAt   time.Time `json:"captured_at"`
-	RunStartedAt time.Time `json:"run_started_at"`
+	CapturedAt   v1.Time `json:"captured_at"`
+	RunStartedAt v1.Time `json:"run_started_at"`
 
 	// PerScraper groups config_items by their scraper. The key is the scraper
 	// name when available, falling back to the scraper_id string, or
