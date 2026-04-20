@@ -20,20 +20,31 @@
       "aliases": ["bob-inc", "bob-inc@example.com"]
     }
   ],
+  "external_roles": [
+    {
+      "name": "Viewer",
+      "account_id": "org-inc",
+      "role_type": "builtin",
+      "description": "View-only access",
+      "aliases": ["viewer-role-inc"]
+    }
+  ],
   "config_access": [
     {
       "external_config_id": {
         "config_type": "Organization",
         "external_id": "test-org-incremental-rbac"
       },
-      "external_user_aliases": ["alice-inc"]
+      "external_user_aliases": ["alice-inc"],
+      "external_role_aliases": ["viewer-role-inc"]
     },
     {
       "external_config_id": {
         "config_type": "Organization",
         "external_id": "test-org-incremental-rbac"
       },
-      "external_user_aliases": ["bob-inc"]
+      "external_user_aliases": ["bob-inc"],
+      "external_role_aliases": ["viewer-role-inc"]
     }
   ]
 }
