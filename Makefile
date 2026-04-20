@@ -1,7 +1,6 @@
 NAME=config-db
 OS   = $(shell uname -s | tr '[:upper:]' '[:lower:]')
 ARCH = $(shell uname -m | sed 's/x86_64/amd64/')
-KUSTOMIZE=$(PWD)/.bin/kustomize
 
 ifeq ($(VERSION),)
   VERSION_TAG=$(shell git describe --abbrev=0 --tags --exact-match 2>/dev/null || echo latest)
@@ -27,9 +26,15 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/.bin
+export PATH := $(LOCALBIN):$(PATH)
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
 .PHONY: install-deps
 install-deps: $(LOCALBIN) ## Install the deps CLI if not present
-	test -x $(LOCALBIN)/deps || curl -sSL https://github.com/flanksource/deps/releases/latest/download/deps-$(OS)-$(ARCH).tar.gz | tar -xz -C $(LOCALBIN)
+	@test -x $(LOCALBIN)/deps || curl -sSL https://github.com/flanksource/deps/releases/latest/download/deps-$(OS)-$(ARCH).tar.gz | tar -xz -C $(LOCALBIN)
 
 .PHONY: deps
 deps: install-deps ginkgo controller-gen golangci-lint kustomize $(TAILWIND_JS) ## Install all tool dependencies
@@ -194,7 +199,7 @@ build-slim:
 build-prod:
 	go build -v -o ./.bin/$(NAME) -ldflags '$(LDFLAGS)' -tags rustdiffgen .
 
-.PHONY: build-prod
+.PHONY: build-debug
 build-debug:
 	go build -o ./.bin/$(NAME) -ldflags '$(LDFLAGS) -checklinkname=0' -tags rustdiffgen,debug .
 
@@ -223,8 +228,11 @@ watch:
 	mv upx-3.96-$(ARCH)_$(OS)/upx .bin
 	rm -rf upx-3.96-$(ARCH)_$(OS)
 
-## Tool Binaries
+## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/.bin
+export PATH := $(LOCALBIN):$(PATH)
+
+## Tool Binaries
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
@@ -236,9 +244,6 @@ CONTROLLER_TOOLS_VERSION ?= v0.19.0
 GOLANGCI_LINT_VERSION ?= v2.11.3
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
-
-$(LOCALBIN):
-	mkdir -p $(LOCALBIN)
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary. If wrong version is installed, it will be removed before downloading.
