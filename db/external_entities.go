@@ -20,34 +20,52 @@ import (
 )
 
 type externalEntitySyncResult struct {
-	Users  v1.EntitySummary
-	Groups v1.EntitySummary
-	Roles  v1.EntitySummary
+	Users  v1.EntitySummary[dutyModels.ExternalUser]
+	Groups v1.EntitySummary[dutyModels.ExternalGroup]
+	Roles  v1.EntitySummary[dutyModels.ExternalRole]
 }
 
-func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraperID *uuid.UUID) (externalEntitySyncResult, map[uuid.UUID]uuid.UUID, error) {
+// syncedExternalEntities carries the canonical, post-merge external entities
+// out of syncExternalEntities so callers (notably SaveResults) can publish them
+// back into the originating *v1.ScrapeResult slices via result.Resolved.
+type syncedExternalEntities struct {
+	// Users/Groups/Roles are post-resolve, post-merge: each entry's ID has
+	// already been rewritten to the canonical winner ID returned by the SQL
+	// merge_and_upsert_external_* functions.
+	Users  []dutyModels.ExternalUser
+	Groups []dutyModels.ExternalGroup
+	Roles  []dutyModels.ExternalRole
+	// UserIDMap and GroupIDMap are the raw loser→winner maps from the merge,
+	// kept for callers (e.g. SaveResults remapping configAccess.ExternalUserID).
+	UserIDMap  map[uuid.UUID]uuid.UUID
+	GroupIDMap map[uuid.UUID]uuid.UUID
+}
+
+func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraperID *uuid.UUID) (externalEntitySyncResult, syncedExternalEntities, error) {
 	var result externalEntitySyncResult
 	result.Users.Scraped = len(extract.externalUsers)
 	result.Groups.Scraped = len(extract.externalGroups)
 	result.Roles.Scraped = len(extract.externalRoles)
 
+	var synced syncedExternalEntities
+
 	now := time.Now()
 
 	resolvedUsers, skippedUsers, err := resolveExternalUsers(ctx, extract.externalUsers, scraperID, now)
 	if err != nil {
-		return result, nil, err
+		return result, synced, err
 	}
 	result.Users.Skipped = skippedUsers
 
 	resolvedGroups, skippedGroups, err := resolveExternalGroups(ctx, extract.externalGroups, scraperID, now)
 	if err != nil {
-		return result, nil, err
+		return result, synced, err
 	}
 	result.Groups.Skipped = skippedGroups
 
 	resolvedRoles, skippedRoles, err := resolveExternalRoles(ctx, extract.externalRoles, scraperID, now)
 	if err != nil {
-		return result, nil, err
+		return result, synced, err
 	}
 	result.Roles.Skipped = skippedRoles
 
@@ -59,7 +77,7 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 
 	counts, idMap, err := upsertExternalEntities(ctx, resolvedUsers, resolvedGroups, resolvedRoles, resolvedUserGroups, scraperID)
 	if err != nil {
-		return result, nil, err
+		return result, synced, err
 	}
 
 	if scraperID != nil {
@@ -73,24 +91,44 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 			}
 		}
 		for _, g := range resolvedGroups {
+			ExternalGroupIDCache.Set(g.ID.String(), g.ID, cache.DefaultExpiration)
 			for _, alias := range g.Aliases {
 				ExternalGroupCache.Set(alias, g.ID, cache.DefaultExpiration)
 			}
 		}
 		for _, r := range resolvedRoles {
+			ExternalRoleIDCache.Set(r.ID.String(), r.ID, cache.DefaultExpiration)
 			for _, alias := range r.Aliases {
 				ExternalRoleCache.Set(alias, r.ID, cache.DefaultExpiration)
 			}
 		}
 	}
 
+	// Apply the merge winner-id rewrites to the resolved slices so SaveResults
+	// can publish the canonical post-merge view back to result.Resolved.
+	for i := range resolvedUsers {
+		if winner, ok := idMap[resolvedUsers[i].ID]; ok {
+			resolvedUsers[i].ID = winner
+		}
+	}
+
+	synced = syncedExternalEntities{
+		Users:     resolvedUsers,
+		Groups:    resolvedGroups,
+		Roles:     resolvedRoles,
+		UserIDMap: idMap,
+	}
+
 	result.Users.Saved = counts.usersSaved
 	result.Users.Deleted = counts.usersDeleted
+	result.Users.Entities = resolvedUsers
 	result.Groups.Saved = counts.groupsSaved
 	result.Groups.Deleted = counts.groupsDeleted
+	result.Groups.Entities = resolvedGroups
 	result.Roles.Saved = counts.rolesSaved
 	result.Roles.Deleted = counts.rolesDeleted
-	return result, idMap, nil
+	result.Roles.Entities = resolvedRoles
+	return result, synced, nil
 }
 
 func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalUser, int, error) {

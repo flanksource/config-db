@@ -58,4 +58,22 @@ var _ = Describe("ScrapeContext LastScrapeSummary", func() {
 
 		Expect(ctx.LastScrapeSummary().ConfigTypes["Kubernetes::Pod"].Updated).To(Equal(7))
 	})
+
+	It("exposes last_scrape_summary in scraper template env", func() {
+		ctx := ScrapeContext{}.WithLastScrapeSummary(v1.ScrapeSummary{
+			ConfigTypes: map[string]v1.ConfigTypeScrapeSummary{
+				"AWS::EC2::Instance": {Added: 2},
+			},
+		})
+
+		env := ctx.ScraperTemplateEnv()
+		summary, ok := env["last_scrape_summary"].(map[string]any)
+		Expect(ok).To(BeTrue())
+
+		configTypes, ok := summary["config_types"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		instance, ok := configTypes["AWS::EC2::Instance"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(instance["added"]).To(Equal(float64(2)))
+	})
 })

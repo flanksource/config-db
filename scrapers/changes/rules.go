@@ -34,12 +34,12 @@ type changeRule struct {
 }
 
 // matches the rule with a config using the filter
-func (t *changeRule) match(configEnv map[string]any) (bool, error) {
+func (t *changeRule) match(ctx api.ScrapeContext, configEnv map[string]any) (bool, error) {
 	if t.Filter == "" {
 		return true, nil
 	}
 
-	return gomplate.RunTemplateBool(configEnv, gomplate.Template{Expression: t.Filter})
+	return ctx.RunTemplateBool(gomplate.Template{Expression: t.Filter}, configEnv)
 }
 
 // process returns (matched, error)
@@ -52,12 +52,11 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 
 	env["change"] = change.AsMap()
 	env["patch"] = change.PatchesMap()
-	env["last_scrape_summary"] = ctx.LastScrapeSummary()
 	for k, v := range configEnv {
 		env[k] = v
 	}
 
-	ok, err := gomplate.RunTemplateBool(env, gomplate.Template{Expression: t.Rule})
+	ok, err := ctx.RunTemplateBool(gomplate.Template{Expression: t.Rule}, env)
 	if err != nil {
 		return false, fmt.Errorf("failed to evaluate change mapping rule (%s): %w", lo.Ellipsis(t.Rule, 30), err)
 	}
@@ -83,7 +82,7 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 	}
 
 	if t.Summary != "" {
-		summary, err := gomplate.RunTemplate(env, gomplate.Template{Template: t.Summary})
+		summary, err := ctx.RunTemplate(gomplate.Template{Template: t.Summary}, env)
 		if err != nil {
 			return true, fmt.Errorf("failed to evaluate summary template %s: %w", t.Summary, err)
 		}
@@ -92,7 +91,7 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 	}
 
 	if t.ConfigID != "" {
-		configID, err := gomplate.RunTemplate(env, gomplate.Template{Expression: t.ConfigID})
+		configID, err := ctx.RunTemplate(gomplate.Template{Expression: t.ConfigID}, env)
 		if err != nil {
 			return true, fmt.Errorf("failed to evaluate config_id expression %s: %w", t.ConfigID, err)
 		}
@@ -118,7 +117,7 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 	if t.Target != nil {
 		change.Target = t.Target
 	}
-	if ctx.PropertyOn(false, "scraper.log.transforms") {
+	if ctx.PropertyOn(false, "log.transforms") {
 		ctx.Tracef("%s --> %s", change.Pretty().ANSI(), clicky.MustFormat(configEnv))
 	}
 
@@ -193,7 +192,7 @@ func ProcessRules(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.Con
 	configEnv := configItemEnv(ci, result)
 	logTransforms := ctx.PropertyOn(false, "log.transforms") && ctx.IsDebug()
 	for _, rule := range allRules {
-		if match, err := rule.match(configEnv); err != nil {
+		if match, err := rule.match(ctx, configEnv); err != nil {
 			errors = append(errors, oops.Wrapf(err, "failed to match filter"))
 			continue
 		} else if !match {
