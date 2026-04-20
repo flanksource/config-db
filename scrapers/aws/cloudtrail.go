@@ -180,11 +180,19 @@ func containsAny(a []string, v string) bool {
 }
 
 func cloudtrailEventToChange(event types.Event, resource types.Resource) (*v1.ChangeResult, error) {
+	rawEventJSON := lo.FromPtr(event.CloudTrailEvent)
+	eventName := lo.FromPtr(event.EventName)
+
 	change := &v1.ChangeResult{
 		CreatedAt:        event.EventTime,
 		ExternalChangeID: lo.FromPtr(event.EventId),
-		ChangeType:       lo.FromPtr(event.EventName),
-		Details:          v1.NewJSON(lo.FromPtr(event.CloudTrailEvent)),
+		ChangeType:       eventName,
+		Details:          v1.NewJSON(rawEventJSON),
+	}
+
+	if canonicalType, typedDetails, ok := classifyBackupEvent(eventName, rawEventJSON); ok {
+		change.ChangeType = canonicalType
+		change.Details = typedDetails
 	}
 
 	var cloudtrailEvent CloudTrailEvent
