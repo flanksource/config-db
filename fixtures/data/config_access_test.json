@@ -20,6 +20,15 @@
       "aliases": ["bob-jones", "bob@example.com"]
     }
   ],
+  "external_roles": [
+    {
+      "name": "Reader",
+      "account_id": "org-456",
+      "role_type": "builtin",
+      "description": "Read-only access",
+      "aliases": ["reader-role"]
+    }
+  ],
   "config_access": [
     {
       "id": "access-001",
@@ -27,7 +36,8 @@
         "config_type": "Organization",
         "external_id": "test-org-config-access"
       },
-      "external_user_aliases": ["alice-smith"]
+      "external_user_aliases": ["alice-smith"],
+      "external_role_aliases": ["reader-role"]
     },
     {
       "id": "access-002",
@@ -35,7 +45,8 @@
         "config_type": "Organization",
         "external_id": "test-org-config-access"
       },
-      "external_user_aliases": ["bob-jones", "bob@example.com"]
+      "external_user_aliases": ["bob-jones", "bob@example.com"],
+      "external_role_aliases": ["reader-role"]
     }
   ]
 }

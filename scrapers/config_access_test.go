@@ -45,6 +45,9 @@ var _ = Describe("Config access with external_user_aliases test", Ordered, func(
 		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to delete external users")
 
+		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error
+		Expect(err).NotTo(HaveOccurred(), "failed to delete external roles")
+
 		err = DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&models.ConfigItem{}).Error
 		Expect(err).NotTo(HaveOccurred(), "failed to delete config items")
 
