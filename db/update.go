@@ -1280,7 +1280,7 @@ type extractResult struct {
 
 	externalUsers      []dutyModels.ExternalUser
 	externalGroups     []dutyModels.ExternalGroup
-	externalUserGroups []dutyModels.ExternalUserGroup
+	externalUserGroups []v1.ExternalUserGroup
 
 	externalRoles    []dutyModels.ExternalRole
 	configAccesses   []v1.ExternalConfigAccess

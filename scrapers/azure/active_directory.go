@@ -553,13 +553,13 @@ func (azure Scraper) fetchAuthMethods() v1.ScrapeResults {
 }
 
 // fetchGroupMembers gets members of an Azure AD group.
-func (azure Scraper) fetchGroupMembers(groupID string) ([]models.ExternalUserGroup, error) {
+func (azure Scraper) fetchGroupMembers(groupID string) ([]v1.ExternalUserGroup, error) {
 	groupUUID, err := uuid.Parse(groupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse group ID %s: %w", groupID, err)
 	}
 
-	var results []models.ExternalUserGroup
+	var results []v1.ExternalUserGroup
 	members, err := azure.graphClient.Groups().ByGroupId(groupID).Members().Get(azure.ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch group members: %w", err)
@@ -577,13 +577,11 @@ func (azure Scraper) fetchGroupMembers(groupID string) ([]models.ExternalUserGro
 			return true
 		}
 
-		ug := models.ExternalUserGroup{
-			ExternalUserID:  memberID,
-			ExternalGroupID: groupUUID,
-			// CreatedAt: , // TODO: The API doesn't return created date
-			// DeletedAt: member.GetDeletedDateTime(), // TODO: The API doesn't return deleted date
-		}
-		results = append(results, ug)
+		groupUUIDCopy := groupUUID
+		results = append(results, v1.ExternalUserGroup{
+			ExternalUserID:  &memberID,
+			ExternalGroupID: &groupUUIDCopy,
+		})
 		return true
 	})
 	if err != nil {

@@ -35,7 +35,7 @@ var (
 
 	scrapeJobScheduler  = cron.New()
 	scrapeJobs          sync.Map
-	scraperSummaryCache sync.Map
+	ScraperSummaryCache sync.Map
 )
 
 const scrapeJobName = "Scraper"
@@ -227,7 +227,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			start := time.Now()
 
 			scrapeCtx := sc.WithJobHistory(jr.History).
-				WithLastScrapeSummary(getLastScrapeSummary(jr.Context, sc.ScraperID()))
+				WithLastScrapeSummary(GetLastScrapeSummary(jr.Context, sc.ScraperID()))
 
 			output, err := RunScraper(scrapeCtx)
 			if err != nil {
@@ -242,7 +242,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 
 			jr.History.SuccessCount = output.Total
 			jr.History.AddDetails("scrape_summary", output.Summary)
-			scraperSummaryCache.Store(sc.ScraperID(), output.Summary)
+			ScraperSummaryCache.Store(sc.ScraperID(), output.Summary)
 
 			source := sc.ScrapeConfig().GetAnnotations()["source"]
 			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
@@ -378,11 +378,11 @@ func getLastRateLimitReset(ctx context.Context, scraperID string) *time.Time {
 	return nil
 }
 
-// getLastScrapeSummary returns the scrape summary from the most recent
+// GetLastScrapeSummary returns the scrape summary from the most recent
 // successful job run. It checks the in-memory cache first and falls back
 // to querying the job_history table.
-func getLastScrapeSummary(ctx context.Context, scraperID string) v1.ScrapeSummary {
-	if cached, ok := scraperSummaryCache.Load(scraperID); ok {
+func GetLastScrapeSummary(ctx context.Context, scraperID string) v1.ScrapeSummary {
+	if cached, ok := ScraperSummaryCache.Load(scraperID); ok {
 		return cached.(v1.ScrapeSummary)
 	}
 
@@ -410,7 +410,7 @@ func getLastScrapeSummary(ctx context.Context, scraperID string) v1.ScrapeSummar
 		return v1.ScrapeSummary{}
 	}
 
-	scraperSummaryCache.Store(scraperID, summary)
+	ScraperSummaryCache.Store(scraperID, summary)
 	return summary
 }
 

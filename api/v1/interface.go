@@ -1131,17 +1131,18 @@ type ScrapeResult struct {
 	// List of children whose hard parent should be set to this config item.
 	Children []ConfigExternalKey `json:"-"`
 
+	ExternalUserGroups []ExternalUserGroup `json:"-"`
+
 	// RelationshipSelectors are used to form relationship of this scraped item with other items.
 	// Unlike `RelationshipResults`, selectors give you the flexibility to form relationship without
 	// knowing the external ids of the item to be linked.
 	RelationshipSelectors []DirectedRelationship `json:"-"`
 
-	ExternalRoles      []models.ExternalRole      `json:"-"`
-	ExternalUsers      []models.ExternalUser      `json:"-"`
-	ExternalGroups     []models.ExternalGroup     `json:"-"`
-	ExternalUserGroups []models.ExternalUserGroup `json:"-"`
-	ConfigAccess       []ExternalConfigAccess     `json:"-"`
-	ConfigAccessLogs   []ExternalConfigAccessLog  `json:"-"`
+	ExternalRoles    []models.ExternalRole     `json:"-"`
+	ExternalUsers    []models.ExternalUser     `json:"-"`
+	ExternalGroups   []models.ExternalGroup    `json:"-"`
+	ConfigAccess     []ExternalConfigAccess    `json:"-"`
+	ConfigAccessLogs []ExternalConfigAccessLog `json:"-"`
 
 	RateLimitResetAt *time.Time `json:"-"`
 
@@ -1609,6 +1610,24 @@ func (e ExternalConfigAccessLog) Row() map[string]any {
 	return row
 }
 
+// ExternalUserGroup is a scraper-emitted membership entry. The scraper may
+// describe the user and group either by canonical UUID (when it has authoritative
+// IDs, e.g. AAD with Azure object UUIDs) or purely by alias (when it only has
+// descriptor-level identifiers, e.g. ADO descriptors). SaveResults resolves
+// alias-only entries to canonical UUIDs at insert time, mirroring how
+// ExternalConfigAccess.ExternalUserAliases is resolved.
+//
+// At least one of (ExternalUserID, ExternalUserAliases) and one of
+// (ExternalGroupID, ExternalGroupAliases) must be set.
+//
+// +kubebuilder:object:generate=false
+type ExternalUserGroup struct {
+	ExternalUserID       *uuid.UUID `json:"external_user_id,omitempty"`
+	ExternalGroupID      *uuid.UUID `json:"external_group_id,omitempty"`
+	ExternalUserAliases  []string   `json:"external_user_aliases,omitempty"`
+	ExternalGroupAliases []string   `json:"external_group_aliases,omitempty"`
+}
+
 // +kubebuilder:object:generate=false
 type ExternalConfigAccess struct {
 	ID            string     `json:"id"`
@@ -1827,7 +1846,7 @@ type FullScrapeResults struct {
 	ExternalRoles      []models.ExternalRole       `json:"external_roles,omitempty"`
 	ExternalUsers      []models.ExternalUser       `json:"external_users,omitempty"`
 	ExternalGroups     []models.ExternalGroup      `json:"external_groups,omitempty"`
-	ExternalUserGroups []models.ExternalUserGroup  `json:"external_user_groups,omitempty"`
+	ExternalUserGroups []ExternalUserGroup         `json:"external_user_groups,omitempty"`
 	ConfigAccess       []ExternalConfigAccess      `json:"config_access,omitempty"`
 	ConfigAccessLogs   []ExternalConfigAccessLog   `json:"config_access_logs,omitempty"`
 }

@@ -7,7 +7,7 @@ import (
 
 var _ = Describe("repositoryExternalID", func() {
 	It("formats correctly", func() {
-		id := repositoryExternalID("myorg", "MyProject", "abc-123-def")
+		id := RepositoryExternalID("myorg", "MyProject", "abc-123-def")
 		Expect(id).To(Equal("azuredevops://myorg/MyProject/repository/abc-123-def"))
 	})
 })
