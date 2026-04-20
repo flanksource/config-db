@@ -122,6 +122,11 @@ func (ado AzureDevopsScraper) scrapeReleases(
 					markPermissionsFetched(releaseKey)
 				}
 			}
+			// Approval-stage access comes directly from defJSON — no API call,
+			// so no rate-limit gate. Dedup roles across both sources by UUID.
+			policyAccess, policyRoles := ado.extractApprovalPolicies(ctx, config, defJSON, result.ID)
+			result.ConfigAccess = append(result.ConfigAccess, policyAccess...)
+			result.ExternalRoles = mergeRolesByID(result.ExternalRoles, policyRoles)
 		}
 
 		results = append(results, result)
@@ -227,6 +232,166 @@ func (ado AzureDevopsScraper) fetchReleasePermissions(
 	}
 
 	return configAccess, roles, nil
+}
+
+// approvalRoleName builds the role name for an approval stage. The env name
+// is part of the role because approvers for "Prod" are a different
+// authorisation boundary from approvers for "Dev" — collapsing them would
+// lose that distinction when answering "who can approve deployment to X?".
+// phase is either "Pre" or "Post".
+func approvalRoleName(envName, phase string) string {
+	return "Approver:" + envName + ":" + phase
+}
+
+// extractApprovalPolicies walks the raw release-definition JSON and emits one
+// ExternalConfigAccess per configured (non-automated) approver on every
+// pre- or post-deploy approval stage of every environment. The approver
+// identity is taken straight from defJSON without an extra identity API call
+// because the embedded approver object already carries descriptor + uniqueName.
+func (ado AzureDevopsScraper) extractApprovalPolicies(
+	ctx api.ScrapeContext,
+	config v1.AzureDevops,
+	defJSON map[string]any,
+	releaseExternalID string,
+) ([]v1.ExternalConfigAccess, []dutyModels.ExternalRole) {
+	envs, ok := defJSON["environments"].([]any)
+	if !ok {
+		return nil, nil
+	}
+
+	roleIDs := make(map[string]uuid.UUID)
+	var roles []dutyModels.ExternalRole
+	var configAccess []v1.ExternalConfigAccess
+
+	phases := []struct {
+		key   string
+		label string
+	}{
+		{"preDeployApprovals", "Pre"},
+		{"postDeployApprovals", "Post"},
+	}
+
+	for _, rawEnv := range envs {
+		env, ok := rawEnv.(map[string]any)
+		if !ok {
+			continue
+		}
+		envName, _ := env["name"].(string)
+		if envName == "" {
+			continue
+		}
+		for _, phase := range phases {
+			approvals := approvalPolicyList(env[phase.key])
+			for _, approval := range approvals {
+				approver := decodeApprover(approval)
+				if approver == nil {
+					continue
+				}
+				addExternalEntity(ctx, approver, config.Organization)
+
+				roleName := approvalRoleName(envName, phase.label)
+				roleID, ok := roleIDs[roleName]
+				if !ok {
+					roleID = azure.RoleID(ctx.ScraperID(), roleName)
+					roleIDs[roleName] = roleID
+					roles = append(roles, dutyModels.ExternalRole{
+						ID:       roleID,
+						Name:     roleName,
+						RoleType: "AzureDevOps",
+						Tenant:   config.Organization,
+					})
+				}
+
+				access := v1.ExternalConfigAccess{
+					ConfigExternalID: v1.ExternalID{ConfigType: ReleaseType, ExternalID: releaseExternalID},
+					ExternalRoleID:   &roleID,
+				}
+				if approver.IsContainer {
+					access.ExternalGroupAliases = DescriptorAliases(approver.Descriptor)
+				} else {
+					access.ExternalUserAliases = []string{approver.UniqueName}
+				}
+				configAccess = append(configAccess, access)
+			}
+		}
+	}
+
+	return configAccess, roles
+}
+
+// approvalPolicyList extracts the `approvals` slice from a
+// pre-/postDeployApprovals block in defJSON. Returns nil for missing/malformed
+// input rather than erroring — the shape is maintained by Azure DevOps, not us.
+func approvalPolicyList(raw any) []map[string]any {
+	block, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	arr, ok := block["approvals"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(arr))
+	for _, item := range arr {
+		if m, ok := item.(map[string]any); ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// mergeRolesByID appends src into dst, skipping entries whose UUID is already
+// present. The caller-side dedup keeps the two approval sources
+// (`fetchReleasePermissions` and `extractApprovalPolicies`) decoupled while
+// avoiding duplicate ExternalRole rows in the scrape result.
+func mergeRolesByID(dst, src []dutyModels.ExternalRole) []dutyModels.ExternalRole {
+	if len(src) == 0 {
+		return dst
+	}
+	seen := make(map[uuid.UUID]struct{}, len(dst))
+	for _, r := range dst {
+		seen[r.ID] = struct{}{}
+	}
+	for _, r := range src {
+		if _, ok := seen[r.ID]; ok {
+			continue
+		}
+		seen[r.ID] = struct{}{}
+		dst = append(dst, r)
+	}
+	return dst
+}
+
+// decodeApprover returns the approver IdentityRef for a real (non-automated)
+// approval policy, or nil if the entry is automated / lacks a usable approver.
+func decodeApprover(approval map[string]any) *IdentityRef {
+	if automated, _ := approval["isAutomated"].(bool); automated {
+		return nil
+	}
+	raw, ok := approval["approver"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	ref := &IdentityRef{}
+	if v, ok := raw["id"].(string); ok {
+		ref.ID = v
+	}
+	if v, ok := raw["displayName"].(string); ok {
+		ref.DisplayName = v
+	}
+	if v, ok := raw["uniqueName"].(string); ok {
+		ref.UniqueName = v
+	}
+	if v, ok := raw["descriptor"].(string); ok {
+		ref.Descriptor = v
+	}
+	if v, ok := raw["isContainer"].(bool); ok {
+		ref.IsContainer = v
+	}
+	if ref.UniqueName == "" && ref.Descriptor == "" {
+		return nil
+	}
+	return ref
 }
 
 func addExternalEntity(ctx api.ScrapeContext, identity *IdentityRef, organization string) {
