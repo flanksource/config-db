@@ -13,6 +13,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 var CACHE_TIMEOUT = properties.Duration(time.Hour*24, "external.cache.timeout")
@@ -59,6 +60,21 @@ func getEntityCache[T externalEntityWithID]() *cache.Cache {
 	}
 }
 
+// getEntityIDCache returns the id-keyed cache for an external entity type.
+func getEntityIDCache[T externalEntityWithID]() *cache.Cache {
+	var zero T
+	switch any(zero).(type) {
+	case dutyModels.ExternalUser:
+		return ExternalUserIDCache
+	case dutyModels.ExternalRole:
+		return ExternalRoleIDCache
+	case dutyModels.ExternalGroup:
+		return ExternalGroupIDCache
+	default:
+		return nil
+	}
+}
+
 // WarmExternalEntityCaches pre-fills the user/role/group alias caches from the database.
 func WarmExternalEntityCaches(ctx context.Context) {
 	type idAliases struct {
@@ -67,29 +83,27 @@ func WarmExternalEntityCaches(ctx context.Context) {
 	}
 
 	for _, table := range []struct {
-		name  string
-		cache *cache.Cache
+		name        string
+		aliasCache  *cache.Cache
+		idCache     *cache.Cache
 	}{
-		{"external_users", ExternalUserCache},
-		{"external_roles", ExternalRoleCache},
-		{"external_groups", ExternalGroupCache},
+		{"external_users", ExternalUserCache, ExternalUserIDCache},
+		{"external_roles", ExternalRoleCache, ExternalRoleIDCache},
+		{"external_groups", ExternalGroupCache, ExternalGroupIDCache},
 	} {
 		var rows []idAliases
 		if err := ctx.DB().Table(table.name).
 			Select("id, aliases").
 			Where("deleted_at IS NULL").
-			Where("aliases IS NOT NULL AND array_length(aliases, 1) > 0").
 			Find(&rows).Error; err != nil {
 			logger.Errorf("failed to warm %s cache: %v", table.name, err)
 			continue
 		}
 		for _, row := range rows {
 			for _, alias := range row.Aliases {
-				table.cache.Set(alias, row.ID, cache.DefaultExpiration)
+				table.aliasCache.Set(alias, row.ID, cache.DefaultExpiration)
 			}
-			if table.name == "external_users" {
-				ExternalUserIDCache.Set(row.ID.String(), row.ID, cache.DefaultExpiration)
-			}
+			table.idCache.Set(row.ID.String(), row.ID, cache.DefaultExpiration)
 		}
 		logger.Infof("warmed %s cache with %d entities", table.name, len(rows))
 	}
@@ -106,6 +120,60 @@ func findExternalEntityIDByAliases[T externalEntityWithID](ctx api.ScrapeContext
 		return nil, nil
 	}
 	return lo.ToPtr(ids[0]), nil
+}
+
+// findExternalEntityByID resolves an external entity by canonical id. It checks
+// the id-cache first, then queries `id =` on the live table. If the row is
+// not found by id, it falls back to alias overlap — covering the case where
+// the entity was previously merged into a winner whose `aliases` array now
+// contains the original (loser) id.
+//
+// `entity.aliases` is invariant-free of `entity.id` for live entities, so the
+// alias fallback only fires for historical/loser ids — never for the entity's
+// current canonical id.
+func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uuid.UUID) (*uuid.UUID, error) {
+	if id == uuid.Nil {
+		return nil, nil
+	}
+
+	idCache := getEntityIDCache[T]()
+	if idCache != nil {
+		if cached, ok := idCache.Get(id.String()); ok {
+			if winner, valid := cached.(uuid.UUID); valid {
+				return &winner, nil
+			}
+		}
+	}
+
+	var zero T
+	var foundIDs []uuid.UUID
+	err := ctx.DB().Table(zero.TableName()).
+		Select("id").
+		Where("id = ? AND deleted_at IS NULL", id).
+		Limit(1).
+		Pluck("id", &foundIDs).Error
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return nil, fmt.Errorf("failed to query %s by id: %w", zero.TableName(), err)
+	}
+	var found uuid.UUID
+	if len(foundIDs) > 0 {
+		found = foundIDs[0]
+	}
+	if found != uuid.Nil {
+		if idCache != nil {
+			idCache.Set(id.String(), found, cache.DefaultExpiration)
+		}
+		return &found, nil
+	}
+
+	winner, err := findExternalEntityIDByAliases[T](ctx, []string{id.String()})
+	if err != nil {
+		return nil, err
+	}
+	if winner != nil && idCache != nil {
+		idCache.Set(id.String(), *winner, cache.DefaultExpiration)
+	}
+	return winner, nil
 }
 
 // findAllExternalEntityIDsByAliases returns all distinct entity IDs that share any alias with the given set.

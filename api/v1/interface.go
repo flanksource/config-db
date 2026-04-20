@@ -132,6 +132,11 @@ type ChangeResult struct {
 	// selector for resolving target config items.
 	Target *duty.RelationshipSelectorTemplate `json:"-"`
 
+	// Resolved is the final state of the change after transformation by the
+	// change mapping pipeline. The original ChangeResult fields represent the
+	// scraper input; Resolved represents the pipeline output.
+	Resolved *models.ConfigChange `json:"resolved,omitempty"`
+
 	// For storing struct as map[string]any
 	_map map[string]any `json:"-"`
 }
@@ -354,12 +359,12 @@ type Warning struct {
 	Count  int    `json:"count,omitempty"`
 }
 
-// func warningCount(w Warning) int {
-// 	if w.Count > 0 {
-// 		return w.Count
-// 	}
-// 	return 1
-// }
+func warningCount(w Warning) int {
+	if w.Count > 0 {
+		return w.Count
+	}
+	return 1
+}
 
 // +kubebuilder:object:generate=false
 type ScrapeSummary struct {
@@ -376,6 +381,13 @@ type ScrapeSummary struct {
 	ExternalRoles  EntitySummary[models.ExternalRole]  `json:"external_roles,omitempty"`
 	ConfigAccess   EntitySummary[struct{}]             `json:"config_access,omitempty"`
 	AccessLogs     EntitySummary[struct{}]             `json:"access_logs,omitempty"`
+
+	OrphanedChanges []ChangeResult `json:"orphaned_changes,omitempty"`
+	FKErrorChanges  []ChangeResult `json:"fk_error_changes,omitempty"`
+	Warnings        []Warning      `json:"warnings,omitempty"`
+	State           map[string]any `json:"state,omitempty"`
+
+	warningIndex map[string]int `json:"-"`
 }
 
 func NewScrapeSummary() ScrapeSummary {
@@ -496,14 +508,22 @@ func (a ConfigTypeScrapeSummary) Merge(b ConfigTypeScrapeSummary) ConfigTypeScra
 	if b.Change != nil {
 		change.Merge(*b.Change)
 	}
-	return ConfigTypeScrapeSummary{
-		Added:     a.Added + b.Added,
-		Updated:   a.Updated + b.Updated,
-		Unchanged: a.Unchanged + b.Unchanged,
-		Changes:   a.Changes + b.Changes,
-		Deduped:   a.Deduped + b.Deduped,
-		Change:    change,
+	merged := ConfigTypeScrapeSummary{
+		Added:      a.Added + b.Added,
+		Updated:    a.Updated + b.Updated,
+		Unchanged:  a.Unchanged + b.Unchanged,
+		Changes:    a.Changes + b.Changes,
+		Deduped:    a.Deduped + b.Deduped,
+		Change:     change,
+		AccessLogs: a.AccessLogs.Merge(b.AccessLogs),
 	}
+	for _, warning := range a.Warnings {
+		merged.AddWarning(warning)
+	}
+	for _, warning := range b.Warnings {
+		merged.AddWarning(warning)
+	}
+	return merged
 }
 
 func (s ScrapeSummary) Totals() ConfigTypeScrapeSummary {
@@ -559,8 +579,20 @@ func (t *ScrapeSummary) AddUnchanged(configType string) {
 func (t *ScrapeSummary) AddWarning(configType, warning string) {
 	t.initConfigTypes()
 	v := t.ConfigTypes[configType]
-	v.Warnings = append(v.Warnings, warning)
+	v.AddWarning(warning)
 	t.ConfigTypes[configType] = v
+}
+
+func (t *ScrapeSummary) AddScrapeWarning(w Warning) {
+	t.initWarningIndex()
+	count := warningCount(w)
+	if idx, ok := t.warningIndex[w.Error]; ok {
+		t.Warnings[idx].Count += count
+		return
+	}
+	w.Count = count
+	t.warningIndex[w.Error] = len(t.Warnings)
+	t.Warnings = append(t.Warnings, w)
 }
 
 func (t *ScrapeSummary) AddChanges(configType string, count int) {
@@ -591,6 +623,22 @@ func (s *ScrapeSummary) Merge(other ScrapeSummary) {
 	s.ExternalRoles = s.ExternalRoles.Merge(other.ExternalRoles)
 	s.ConfigAccess = s.ConfigAccess.Merge(other.ConfigAccess)
 	s.AccessLogs = s.AccessLogs.Merge(other.AccessLogs)
+}
+
+func (t *ScrapeSummary) initWarningIndex() {
+	if t.warningIndex != nil {
+		return
+	}
+	t.warningIndex = make(map[string]int, len(t.Warnings))
+	for i := range t.Warnings {
+		if _, ok := t.warningIndex[t.Warnings[i].Error]; ok {
+			continue
+		}
+		if t.Warnings[i].Count == 0 {
+			t.Warnings[i].Count = 1
+		}
+		t.warningIndex[t.Warnings[i].Error] = i
+	}
 }
 
 // +kubebuilder:object:generate=false
@@ -735,6 +783,8 @@ type ConfigTypeScrapeSummary struct {
 	Warnings  []string       `json:"warnings,omitempty"`
 
 	AccessLogs EntitySummary[struct{}] `json:"access_logs,omitempty"`
+
+	warningIndex map[string]int `json:"-"`
 }
 
 // +kubebuilder:object:generate=false
@@ -748,6 +798,28 @@ func (t ScrapeResults) HasErr() bool {
 	}
 
 	return false
+}
+
+func (s *ConfigTypeScrapeSummary) initWarningIndex() {
+	if s.warningIndex != nil {
+		return
+	}
+	s.warningIndex = make(map[string]int, len(s.Warnings))
+	for i := range s.Warnings {
+		if _, ok := s.warningIndex[s.Warnings[i]]; ok {
+			continue
+		}
+		s.warningIndex[s.Warnings[i]] = i
+	}
+}
+
+func (s *ConfigTypeScrapeSummary) AddWarning(warning string) {
+	s.initWarningIndex()
+	if _, ok := s.warningIndex[warning]; ok {
+		return
+	}
+	s.warningIndex[warning] = len(s.Warnings)
+	s.Warnings = append(s.Warnings, warning)
 }
 
 func (t ScrapeResults) Errors() []string {

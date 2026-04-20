@@ -8,10 +8,29 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty"
+	dutyModels "github.com/flanksource/duty/models"
 	"github.com/samber/lo"
 )
 
 const maxTraversalDepth = 50
+
+func resolveChange(change *v1.ChangeResult, action string, targetConfigID string) {
+	change.Resolved = &dutyModels.ConfigChange{
+		ConfigID:          targetConfigID,
+		ChangeType:        change.ChangeType,
+		Severity:          dutyModels.Severity(change.Severity),
+		Source:            change.Source,
+		Summary:           change.Summary,
+		Patches:           change.Patches,
+		ExternalCreatedBy: change.CreatedBy,
+		CreatedAt:         change.CreatedAt,
+		Action:            action,
+	}
+
+	if change.Diff != nil {
+		change.Resolved.Diff = *change.Diff
+	}
+}
 
 // findAncestor walks the parent_id chain from ci and returns the first
 // ancestor whose Type matches ancestorType. If ancestorType is empty,
@@ -79,6 +98,7 @@ func processMoveUpCopyUp(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *mod
 		}
 
 		if change.Action == v1.MoveUp {
+			resolveChange(change, string(v1.MoveUp), ancestor.ID)
 			change.ConfigID = ancestor.ID
 			change.Action = ""
 		} else {
@@ -88,7 +108,6 @@ func processMoveUpCopyUp(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *mod
 			if change.ExternalChangeID != "" {
 				copied.ExternalChangeID = change.ExternalChangeID + ":copy-up:" + ancestor.ID
 			}
-			// Deep copy the Details map to prevent shared-map mutation
 			if change.Details != nil {
 				copiedDetails := make(map[string]any, len(change.Details))
 				for k, v := range change.Details {
@@ -96,7 +115,9 @@ func processMoveUpCopyUp(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *mod
 				}
 				copied.Details = copiedDetails
 			}
+			resolveChange(&copied, string(v1.CopyUp), ancestor.ID)
 			additional = append(additional, copied)
+			resolveChange(change, string(v1.CopyUp), ci.ID)
 			change.Action = ""
 		}
 	}
@@ -172,6 +193,7 @@ func applyCopyMove(change *v1.ChangeResult, targetIDs []string, action v1.Change
 	var additional []v1.ChangeResult
 
 	if action == v1.Move {
+		resolveChange(change, string(v1.Move), targetIDs[0])
 		change.ConfigID = targetIDs[0]
 		change.Action = ""
 		for _, id := range targetIDs[1:] {
@@ -180,7 +202,6 @@ func applyCopyMove(change *v1.ChangeResult, targetIDs []string, action v1.Change
 			if change.ExternalChangeID != "" {
 				copied.ExternalChangeID = change.ExternalChangeID + ":copy:" + id
 			}
-			// Deep copy the Details map to prevent shared-map mutation
 			if change.Details != nil {
 				copiedDetails := make(map[string]any, len(change.Details))
 				for k, v := range change.Details {
@@ -188,10 +209,12 @@ func applyCopyMove(change *v1.ChangeResult, targetIDs []string, action v1.Change
 				}
 				copied.Details = copiedDetails
 			}
+			resolveChange(&copied, string(v1.Move), id)
 			copied.FlushMap()
 			additional = append(additional, copied)
 		}
 	} else {
+		resolveChange(change, string(v1.Copy), change.ConfigID)
 		change.Action = ""
 		for _, id := range targetIDs {
 			copied := *change
@@ -199,7 +222,6 @@ func applyCopyMove(change *v1.ChangeResult, targetIDs []string, action v1.Change
 			if change.ExternalChangeID != "" {
 				copied.ExternalChangeID = change.ExternalChangeID + ":copy:" + id
 			}
-			// Deep copy the Details map to prevent shared-map mutation
 			if change.Details != nil {
 				copiedDetails := make(map[string]any, len(change.Details))
 				for k, v := range change.Details {
@@ -207,6 +229,7 @@ func applyCopyMove(change *v1.ChangeResult, targetIDs []string, action v1.Change
 				}
 				copied.Details = copiedDetails
 			}
+			resolveChange(&copied, string(v1.Copy), id)
 			copied.FlushMap()
 			additional = append(additional, copied)
 		}
