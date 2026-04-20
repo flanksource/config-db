@@ -1,7 +1,7 @@
 package file
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"net/url"
 	"os"
@@ -57,7 +57,7 @@ func convertToLocalPath(uri string) string {
 	if err != nil {
 		return uri
 	}
-	hash := md5.Sum([]byte(uri))
+	hash := sha256.Sum256([]byte(stripSecrets(uri)))
 	p := ""
 	if _uri.Host != "" {
 		p = _uri.Host + "-"
