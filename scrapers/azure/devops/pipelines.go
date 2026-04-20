@@ -462,6 +462,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 		runDetails.URL = run.Links["web"].Href
 		createdAt := run.CreatedDate
+		pipelineRun := buildPipelineRunDetail(run, externalChangeID)
 		changeResult := v1.ChangeResult{
 			ChangeType:       changeType,
 			CreatedAt:        &createdAt,
@@ -470,7 +471,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			ConfigType:       PipelineType,
 			Source:           "AzureDevops/pipeline/" + pipelineConfigExternalID,
 			Summary:          summary,
-			Details:          runDetails.ToJSON(),
+			Details:          v1.ChangeDetailsWithRaw(pipelineRun, runDetails.ToJSON()),
 			ExternalChangeID: externalChangeID,
 		}
 		if requester != nil {
@@ -665,9 +666,9 @@ func pipelineApprovalChanges(approvals []PipelineApproval, externalID, source, b
 			var changeType string
 			switch step.Status {
 			case "approved":
-				changeType = ChangeTypeApproved
+				changeType = types.ChangeTypeApproved
 			case "rejected":
-				changeType = ChangeTypeRejected
+				changeType = types.ChangeTypeRejected
 			default:
 				continue
 			}
@@ -679,7 +680,7 @@ func pipelineApprovalChanges(approvals []PipelineApproval, externalID, source, b
 
 			severity := "info"
 			summary := fmt.Sprintf("%s by %s", changeType, approver.UniqueName)
-			if changeType == ChangeTypeRejected {
+			if changeType == types.ChangeTypeRejected {
 				severity = "high"
 			}
 			if step.Comment != "" {
@@ -687,6 +688,18 @@ func pipelineApprovalChanges(approvals []PipelineApproval, externalID, source, b
 			}
 
 			createdAt := step.LastModifiedOn
+			externalChangeID := fmt.Sprintf("%s/approval/%s/%d", baseExternalChangeID, approval.ID, i)
+
+			approvalDetail := types.Approval{
+				Event: types.Event{
+					ID:        externalChangeID,
+					Timestamp: createdAt.UTC().Format(time.RFC3339),
+				},
+				Approver: identityRefToTyped(approver, step.Comment),
+				Stage:    types.ApprovalStageManual,
+				Status:   pipelineApprovalStatusToTyped(step.Status),
+			}
+
 			out = append(out, v1.ChangeResult{
 				ChangeType:       changeType,
 				CreatedAt:        &createdAt,
@@ -696,7 +709,8 @@ func pipelineApprovalChanges(approvals []PipelineApproval, externalID, source, b
 				ConfigType:       PipelineType,
 				Source:           source,
 				Summary:          summary,
-				ExternalChangeID: fmt.Sprintf("%s/approval/%s/%d", baseExternalChangeID, approval.ID, i),
+				Details:          v1.ChangeDetailsWithRaw(approvalDetail, step),
+				ExternalChangeID: externalChangeID,
 			})
 		}
 	}
