@@ -30,9 +30,9 @@ var _ = Describe("convertToLocalPath", func() {
 		func(input, expected string) {
 			Expect(convertToLocalPath(input)).To(Equal(expected))
 		},
-		Entry("file:// prefix", "file://foo", "foo-ecf5c8ee"),
-		Entry("git:: prefix", "git::foo", "foo-b943d8a5"),
-		Entry("git:: with URL and query", "git::https://foo/path?query=abc", "foo-path-8f49fbdc"),
-		Entry("plain path", "foo", "foo-acbd18db"),
+		Entry("file:// prefix", "file://foo", "foo-2c26b46b"),
+		Entry("git:: prefix", "git::foo", "foo-2c26b46b"),
+		Entry("git:: with URL and query", "git::https://foo/path?query=abc", "foo-path-90c2b34a"),
+		Entry("plain path", "foo", "foo-2c26b46b"),
 	)
 })
