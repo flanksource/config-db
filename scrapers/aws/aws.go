@@ -1283,7 +1283,7 @@ func rdsChangeType(sourceType rdsTypes.SourceType, category, message string) (st
 // Backup/Restore envelope convention.
 func rdsEventDetails(changeType, eventID string, event rdsTypes.Event, status types.Status) v1.JSON {
 	if changeType == types.ChangeTypeBackupRestored {
-		return withRaw(types.Restore{
+		return v1.ChangeDetailsWithRaw(types.Restore{
 			Event: types.Event{
 				ID:        eventID,
 				Timestamp: timeToRFC3339(event.Date),
@@ -1291,7 +1291,7 @@ func rdsEventDetails(changeType, eventID string, event rdsTypes.Event, status ty
 			Status: status,
 		}, event)
 	}
-	return withRaw(types.Backup{
+	return v1.ChangeDetailsWithRaw(types.Backup{
 		Event: types.Event{
 			ID:        eventID,
 			Timestamp: timeToRFC3339(event.Date),

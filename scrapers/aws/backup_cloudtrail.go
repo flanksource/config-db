@@ -43,7 +43,7 @@ var backupRestoreEventNames = map[string]struct{}{
 func classifyBackupEvent(eventName string, cloudTrailEventJSON string) (changeType string, details v1.JSON, ok bool) {
 	if _, isBackup := backupSnapshotEventNames[eventName]; isBackup {
 		return types.ChangeTypeBackupCompleted,
-			withRaw(types.Backup{
+			v1.ChangeDetailsWithRaw(types.Backup{
 				BackupType: types.BackupTypeSnapshot,
 				Status:     types.StatusCompleted,
 			}, parseCloudTrailEvent(cloudTrailEventJSON)),
@@ -57,7 +57,7 @@ func classifyBackupEvent(eventName string, cloudTrailEventJSON string) (changeTy
 			return "", nil, false
 		}
 		return types.ChangeTypeBackupRestored,
-			withRaw(types.Restore{
+			v1.ChangeDetailsWithRaw(types.Restore{
 				Status: types.StatusCompleted,
 			}, parseCloudTrailEvent(cloudTrailEventJSON)),
 			true

@@ -1,12 +1,14 @@
 package devops
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	. "github.com/onsi/ginkgo/v2"
@@ -408,7 +410,7 @@ var _ = Describe("buildReleaseResult", func() {
 		Expect(result.ConfigAccessLogs).To(BeEmpty())
 	})
 
-	It("uses environment name as ChangeType and includes deploySteps in details", func() {
+	It("emits Promotion envelope with canonical ChangeType and raw deploySteps", func() {
 		createdOn := time.Now().Add(-1 * time.Hour)
 		cutoff := createdOn.Add(-1 * time.Hour)
 		queuedOn := createdOn.Add(5 * time.Minute)
@@ -433,12 +435,22 @@ var _ = Describe("buildReleaseResult", func() {
 		)
 
 		Expect(result.Changes).To(HaveLen(1))
-		Expect(result.Changes[0].ChangeType).To(Equal("Production"))
-		Expect(result.Changes[0].Details["status"]).To(Equal("succeeded"))
-		Expect(result.Changes[0].Details["deploySteps"]).ToNot(BeNil())
+		change := result.Changes[0]
+		Expect(change.ChangeType).To(Equal(types.ChangeTypeDeployment))
+		Expect(change.Details["kind"]).To(Equal("Promotion/v1"))
+
+		to := change.Details["to"].(map[string]any)
+		Expect(to["name"]).To(Equal("Production"))
+		Expect(to["stage"]).To(Equal(string(types.EnvironmentStageProduction)))
+		Expect(to["identifier"]).To(Equal("10"))
+		Expect(change.Details["version"]).To(Equal("Release-1"))
+
+		raw := change.Details["raw"].(map[string]any)
+		Expect(raw["status"]).To(Equal("succeeded"))
+		Expect(raw["deploySteps"]).ToNot(BeNil())
 	})
 
-	It("includes reason, triggerReason, variables, and artifacts in details", func() {
+	It("carries reason, triggerReason, variables, and artifacts through Promotion envelope", func() {
 		createdOn := time.Now().Add(-1 * time.Hour)
 		cutoff := createdOn.Add(-1 * time.Hour)
 
@@ -478,18 +490,72 @@ var _ = Describe("buildReleaseResult", func() {
 
 		Expect(result.Changes).To(HaveLen(1))
 		details := result.Changes[0].Details
-		Expect(details["reason"]).To(Equal("continuousIntegration"))
-		Expect(details["description"]).To(Equal("CI triggered release"))
-		Expect(details["triggerReason"]).To(Equal("After successful deployment of Staging"))
-		Expect(details["variables"]).To(Equal(map[string]string{"releaseVar": "relVal"}))
-		Expect(details["environmentVariables"]).To(Equal(map[string]string{"envVar": "envVal"}))
 
-		artifacts := details["artifacts"].([]map[string]any)
-		Expect(artifacts).To(HaveLen(1))
-		Expect(artifacts[0]["definition"]).To(Equal("my-pipeline"))
-		Expect(artifacts[0]["version"]).To(Equal("20240101.1"))
-		Expect(artifacts[0]["branch"]).To(Equal("refs/heads/main"))
-		Expect(artifacts[0]["isPrimary"]).To(BeTrue())
+		properties := details["properties"].(map[string]any)
+		Expect(properties["reason"]).To(Equal("continuousIntegration"))
+		Expect(properties["description"]).To(Equal("CI triggered release"))
+		Expect(properties["triggerReason"]).To(Equal("After successful deployment of Staging"))
+
+		Expect(details["artifact"]).To(Equal("my-pipeline@20240101.1 (refs/heads/main)"))
+		source := details["source"].(map[string]any)
+		git := source["git"].(map[string]any)
+		Expect(git["branch"]).To(Equal("refs/heads/main"))
+		Expect(git["version"]).To(Equal("20240101.1"))
+
+		raw := details["raw"].(map[string]any)
+		Expect(raw["variables"]).To(HaveKeyWithValue("releaseVar", "relVal"))
+		Expect(raw["variables"]).ToNot(HaveKey("secret"))
+		Expect(raw["environmentVariables"]).To(HaveKeyWithValue("envVar", "envVal"))
+		rawArtifacts := raw["artifacts"].([]any)
+		Expect(rawArtifacts).To(HaveLen(1))
+		Expect(rawArtifacts[0].(map[string]any)["definition"]).To(Equal("my-pipeline"))
+		Expect(rawArtifacts[0].(map[string]any)["isPrimary"]).To(BeTrue())
+	})
+
+	It("emits typed Approval envelope that round-trips through UnmarshalChangeDetails", func() {
+		createdOn := time.Now().Add(-1 * time.Hour)
+		cutoff := createdOn.Add(-1 * time.Hour)
+
+		approver := identityRef("alice@org.com", "Alice", "alice-id")
+		def := makeDef(1, "Deploy", `\`)
+		env := ReleaseEnvironment{
+			ID: 10, Name: "Staging", Status: "succeeded",
+			PreDeployApprovals: []ReleaseApproval{{
+				ID: 42, ApprovalType: "preDeploy", Status: "approved",
+				ApprovedBy: approver, Comments: "LGTM",
+			}},
+		}
+		release := makeRelease(100, nil, []ReleaseEnvironment{env}, createdOn)
+
+		result := buildReleaseResult(
+			testCtx(),
+			v1.AzureDevops{Organization: "org"},
+			Project{Name: "MyProject"},
+			def, nil, []Release{release}, cutoff,
+		)
+
+		Expect(result.Changes).To(HaveLen(2))
+		approvalChange := result.Changes[1]
+		Expect(approvalChange.ChangeType).To(Equal(types.ChangeTypeApproved))
+		Expect(approvalChange.Details["kind"]).To(Equal("Approval/v1"))
+		Expect(approvalChange.Details["stage"]).To(Equal(string(types.ApprovalStagePreDeployment)))
+		Expect(approvalChange.Details["status"]).To(Equal(string(types.ApprovalStatusApproved)))
+
+		approverMap := approvalChange.Details["approver"].(map[string]any)
+		Expect(approverMap["id"]).To(Equal("alice@org.com"))
+		Expect(approverMap["comment"]).To(Equal("LGTM"))
+
+		raw := approvalChange.Details["raw"].(map[string]any)
+		Expect(raw["comments"]).To(Equal("LGTM"))
+
+		payload, err := json.Marshal(approvalChange.Details)
+		Expect(err).ToNot(HaveOccurred())
+		decoded, err := types.UnmarshalChangeDetails(payload)
+		Expect(err).ToNot(HaveOccurred())
+		typedApproval, ok := decoded.(types.Approval)
+		Expect(ok).To(BeTrue())
+		Expect(typedApproval.Stage).To(Equal(types.ApprovalStagePreDeployment))
+		Expect(typedApproval.Status).To(Equal(types.ApprovalStatusApproved))
 	})
 
 	It("uses defJSON as config when provided", func() {
