@@ -60,6 +60,7 @@ docker-push:
 manifests: generate gen-schemas ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	#$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=chart/crds
+	$(MAKE) strip-crd-descriptions
 
 
 .PHONY: generate
@@ -195,6 +196,11 @@ build-debug:
 .PHONY: install
 install:
 	cp ./.bin/$(NAME) /usr/local/bin/
+
+strip-crd-descriptions:
+	@for f in chart/crds/*.yaml; do \
+		yq 'del(.. | select(has("description")).description)' "$$f" > "$$f.tmp" && mv "$$f.tmp" "$$f"; \
+	done
 
 install-crd: manifests
 	kubectl apply -f chart/crds
