@@ -161,11 +161,13 @@ var Run = &cobra.Command{
 					scraperUID = id.String()
 				}
 			}
-			if save && dutyapi.DefaultConfig.ConnectionString != "" && summary != nil {
+			if save && dutyapi.DefaultConfig.ConnectionString != "" {
 				history := models.NewJobHistory(logger.StandardLogger(), "scraper", job.ResourceTypeScraper, scraperUID)
 				history.Start()
 				history.SuccessCount = len(results)
-				history.AddDetails("scrape_summary", *summary)
+				if summary != nil {
+					history.AddDetails("scrape_summary", *summary)
+				}
 				if err != nil {
 					history.AddError(err.Error())
 				}
@@ -173,7 +175,9 @@ var Run = &cobra.Command{
 				if persistErr := history.Persist(dutyCtx.DB()); persistErr != nil {
 					logger.Warnf("failed to persist job history: %v", persistErr)
 				}
-				scrapers.ScraperSummaryCache.Store(scraperUID, *summary)
+				if summary != nil {
+					scrapers.ScraperSummaryCache.Store(scraperUID, *summary)
+				}
 			}
 
 			allResults = append(allResults, results...)

@@ -84,8 +84,8 @@ func toMetaTime(t *time.Time) *metav1.Time {
 
 // queryGrouped runs a GROUP BY query returning (key, windowed counts) rows and
 // assembles the result map. The SQL must select the grouping key as the first
-// column and the 9 count columns in the EntityWindowCounts field order, and
-// use exactly 9 `?` placeholders bound to runStart.
+// column and the count columns in the EntityWindowCounts field order. Every `?`
+// placeholder in the SQL is bound to runStart via queryArgs.
 func queryGrouped(ctx api.ScrapeContext, runStart time.Time, sql string) (map[string]v1.EntityWindowCounts, error) {
 	type row struct {
 		Key           string     `gorm:"column:key"`
@@ -125,8 +125,9 @@ func queryGrouped(ctx api.ScrapeContext, runStart time.Time, sql string) (map[st
 	return out, nil
 }
 
-// querySingle runs a non-grouped aggregate query returning one row with the 9
-// count columns (same column ordering as queryGrouped).
+// querySingle runs a non-grouped aggregate query returning one row with the
+// count columns (same column ordering as queryGrouped). Every `?` placeholder
+// in the SQL is bound to runStart via queryArgs.
 func querySingle(ctx api.ScrapeContext, runStart time.Time, sql string) (v1.EntityWindowCounts, error) {
 	var row struct {
 		Total         int        `gorm:"column:total"`
