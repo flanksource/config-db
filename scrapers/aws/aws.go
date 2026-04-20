@@ -1192,12 +1192,17 @@ func (aws Scraper) rdsEvents(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 				sourceID := lo.FromPtr(event.SourceIdentifier)
 				eventID := fmt.Sprintf("%s-%d", sourceID, event.Date.Unix())
 
-				changeType, status, severity := rdsChangeType(source.Type, event.EventCategories[0], message)
+				changeType, status, severity, skip := rdsChangeType(source.Type, event.EventCategories[0], message)
+				if skip {
+					continue
+				}
 
 				externalID := sourceID
 				if source.Type == rdsTypes.SourceTypeDbSnapshot || source.Type == rdsTypes.SourceTypeDbClusterSnapshot {
 					externalID = extractDBInstanceFromSnapshot(sourceID)
 				}
+
+				details := rdsEventDetails(changeType, eventID, event, status)
 
 				changeResult := v1.ChangeResult{
 					ExternalChangeID: eventID,
@@ -1208,10 +1213,7 @@ func (aws Scraper) rdsEvents(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 					Severity:         string(severity),
 					Source:           SourceRDSEvents,
 					CreatedAt:        event.Date,
-					Details: map[string]any{
-						"event":  event,
-						"status": lo.PascalCase(status),
-					},
+					Details:          details,
 				}
 
 				changes = append(changes, changeResult)
@@ -1239,38 +1241,64 @@ func extractDBInstanceFromSnapshot(snapshotID string) string {
 	return id
 }
 
-func rdsChangeType(sourceType rdsTypes.SourceType, category, message string) (string, string, models.Severity) {
+// rdsChangeType maps an RDS event (source + category + message) to the
+// canonical v1 change_type, typed Status, and Severity. skip=true means the
+// event is in-progress or deliberately not modelled (deletion), and no
+// ChangeResult should be emitted.
+func rdsChangeType(sourceType rdsTypes.SourceType, category, message string) (string, types.Status, models.Severity, bool) {
 	switch sourceType {
 	case rdsTypes.SourceTypeDbInstance:
 		switch category {
 		case "backup":
-			if strings.Contains(message, "Finished") {
-				return "BackupCompleted", "Completed", models.SeverityInfo
-			} else if strings.Contains(message, "Backing up") {
-				return "BackupStarted", "Started", models.SeverityInfo
+			if strings.Contains(message, "Backing up") {
+				return "", "", "", true // in-progress
 			}
-			return "BackupCreated", "Completed", models.SeverityInfo
+			return types.ChangeTypeBackupCompleted, types.StatusCompleted, models.SeverityInfo, false
 		case "restoration":
-			return "BackupRestored", "Completed", models.SeverityMedium
+			return types.ChangeTypeBackupRestored, types.StatusCompleted, models.SeverityMedium, false
 		}
 
-	case rdsTypes.SourceTypeDbSnapshot:
+	case rdsTypes.SourceTypeDbSnapshot, rdsTypes.SourceTypeDbClusterSnapshot:
 		switch category {
-		case "creation":
-			if strings.Contains(message, "Creating") {
-				return "BackupStarted", "Started", models.SeverityInfo
-			} else if strings.Contains(message, "Created") {
-				return "BackupCompleted", "Completed", models.SeverityInfo
+		case "creation", "backup":
+			if strings.Contains(message, "Creating") || strings.Contains(message, "Backing up") {
+				return "", "", "", true // in-progress
 			}
+			return types.ChangeTypeBackupCompleted, types.StatusCompleted, models.SeverityInfo, false
 		case "restoration":
-			return "BackupRestored", "Completed", models.SeverityMedium
+			return types.ChangeTypeBackupRestored, types.StatusCompleted, models.SeverityMedium, false
 		case "deletion":
-			// TODO: This should delete the original BackupCreated/BackupCompleted changes
-			return "BackupDeleted", "Completed", models.SeverityLow
+			// Deletion is not modelled as a distinct change kind. Retention
+			// of the original BackupCompleted row is a separate concern
+			// (see aws.go TODO at the top of this block).
+			return "", "", "", true
 		}
 	}
 
-	return "Unknown", "Unknown", models.SeverityInfo
+	return "", "", "", true
+}
+
+// rdsEventDetails builds the typed ChangeResult.Details payload for an RDS
+// event, wrapping the full raw event under details.raw per the v1
+// Backup/Restore envelope convention.
+func rdsEventDetails(changeType, eventID string, event rdsTypes.Event, status types.Status) v1.JSON {
+	if changeType == types.ChangeTypeBackupRestored {
+		return withRaw(types.Restore{
+			Event: types.Event{
+				ID:        eventID,
+				Timestamp: timeToRFC3339(event.Date),
+			},
+			Status: status,
+		}, event)
+	}
+	return withRaw(types.Backup{
+		Event: types.Event{
+			ID:        eventID,
+			Timestamp: timeToRFC3339(event.Date),
+		},
+		BackupType: types.BackupTypeSnapshot,
+		Status:     status,
+	}, event)
 }
 
 func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {

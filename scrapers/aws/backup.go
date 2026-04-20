@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/backup"
 	backupTypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/samber/lo"
 
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -63,6 +64,56 @@ func resourceTypeToConfigType(resourceType string) string {
 		return v1.AWSDynamoDBTable
 	}
 	return ""
+}
+
+// awsBackupJobOutcome maps an AWS BackupJobState to the canonical v1 change
+// type, the typed Status, and the per-state Severity. skip=true means the
+// state is in-progress or otherwise not a persistable change.
+func awsBackupJobOutcome(s backupTypes.BackupJobState) (changeType string, status types.Status, severity models.Severity, skip bool) {
+	switch s {
+	case backupTypes.BackupJobStateCompleted:
+		return types.ChangeTypeBackupCompleted, types.StatusCompleted, models.SeverityInfo, false
+	case backupTypes.BackupJobStateFailed:
+		return types.ChangeTypeBackupFailed, types.StatusFailed, models.SeverityHigh, false
+	case backupTypes.BackupJobStateAborted, backupTypes.BackupJobStateExpired, backupTypes.BackupJobStatePartial:
+		return types.ChangeTypeBackupFailed, types.Status(lo.PascalCase(string(s))), models.SeverityMedium, false
+	default:
+		// Created / Pending / Running / Aborting — in-progress, skip
+		return "", "", "", true
+	}
+}
+
+// awsRestoreJobOutcome maps an AWS RestoreJobStatus to the canonical v1
+// change type (always BackupRestored for terminal states) and typed Status.
+func awsRestoreJobOutcome(s backupTypes.RestoreJobStatus) (changeType string, status types.Status, severity models.Severity, skip bool) {
+	switch s {
+	case backupTypes.RestoreJobStatusCompleted:
+		return types.ChangeTypeBackupRestored, types.StatusCompleted, models.SeverityInfo, false
+	case backupTypes.RestoreJobStatusFailed:
+		return types.ChangeTypeBackupRestored, types.StatusFailed, models.SeverityHigh, false
+	case backupTypes.RestoreJobStatusAborted:
+		return types.ChangeTypeBackupRestored, types.Status("Aborted"), models.SeverityMedium, false
+	default:
+		return "", "", "", true
+	}
+}
+
+// awsRecoveryPointOutcome maps a RecoveryPointStatus to the canonical v1
+// change type. Completed → BackupCompleted, Partial/Expired/Deleting →
+// BackupFailed, Pending/Running → skip.
+func awsRecoveryPointOutcome(s backupTypes.RecoveryPointStatus) (changeType string, status types.Status, severity models.Severity, skip bool) {
+	switch s {
+	case backupTypes.RecoveryPointStatusCompleted:
+		return types.ChangeTypeBackupCompleted, types.StatusCompleted, models.SeverityInfo, false
+	case backupTypes.RecoveryPointStatusPartial:
+		return types.ChangeTypeBackupFailed, types.Status("Partial"), models.SeverityMedium, false
+	case backupTypes.RecoveryPointStatusExpired:
+		return types.ChangeTypeBackupFailed, types.Status("Expired"), models.SeverityLow, false
+	case backupTypes.RecoveryPointStatusDeleting:
+		return types.ChangeTypeBackupFailed, types.Status("Deleting"), models.SeverityLow, false
+	default:
+		return "", "", "", true
+	}
 }
 
 func (aws Scraper) scrapeBackupVaults(ctx *AWSContext, config v1.AWS, client *backup.Client, results *v1.ScrapeResults) error {
@@ -174,35 +225,9 @@ func (aws Scraper) scrapeBackupJobs(ctx *AWSContext, config v1.AWS, client *back
 		}
 
 		for _, job := range output.BackupJobs {
-			changeType := fmt.Sprintf("Backup%s", lo.PascalCase(string(job.State)))
-
-			changeResult := v1.ChangeResult{
-				ConfigType:       resourceTypeToConfigType(lo.FromPtr(job.ResourceType)),
-				ExternalID:       lo.FromPtr(job.ResourceArn),
-				ExternalChangeID: lo.FromPtr(job.BackupJobId),
-				ChangeType:       changeType,
-				Source:           SourceAWSBackup,
-				Summary:          fmt.Sprintf("%s %s backup %s", lo.FromPtr(job.ResourceType), lo.FromPtr(job.ResourceName), strings.ToLower(string(job.State))),
-				CreatedAt:        job.CreationDate,
-				ScraperID:        "all",
-				Details: map[string]any{
-					"job":    job,
-					"status": lo.PascalCase(string(job.State)),
-				},
+			if cr, ok := backupJobToChange(ctx, job); ok {
+				changes = append(changes, cr)
 			}
-
-			switch job.State {
-			case backupTypes.BackupJobStateCreated, backupTypes.BackupJobStatePending, backupTypes.BackupJobStateRunning, backupTypes.BackupJobStateCompleted:
-				changeResult.Severity = string(models.SeverityInfo)
-			case backupTypes.BackupJobStateAborting, backupTypes.BackupJobStateAborted:
-				changeResult.Severity = string(models.SeverityLow)
-			case backupTypes.BackupJobStateFailed:
-				changeResult.Severity = string(models.SeverityHigh)
-			case backupTypes.BackupJobStateExpired, backupTypes.BackupJobStatePartial:
-				changeResult.Severity = string(models.SeverityMedium)
-			}
-
-			changes = append(changes, changeResult)
 		}
 	}
 
@@ -211,6 +236,47 @@ func (aws Scraper) scrapeBackupJobs(ctx *AWSContext, config v1.AWS, client *back
 	*results = append(*results, *result)
 
 	return nil
+}
+
+// backupJobToChange transforms an AWS BackupJob into a ChangeResult with a
+// canonical change_type (BackupCompleted / BackupFailed) and a typed
+// types.Backup payload in Details, with the full raw job under details.raw.
+// Returns ok=false for in-progress job states.
+func backupJobToChange(ctx *AWSContext, job backupTypes.BackupJob) (v1.ChangeResult, bool) {
+	changeType, status, severity, skip := awsBackupJobOutcome(job.State)
+	if skip {
+		return v1.ChangeResult{}, false
+	}
+
+	typed := types.Backup{
+		Event: types.Event{
+			ID:        lo.FromPtr(job.BackupJobId),
+			Timestamp: timeToRFC3339(job.CreationDate),
+		},
+		BackupType:   types.BackupTypeSnapshot,
+		Status:       status,
+		Size:         bytesToString(job.BackupSizeInBytes),
+		EndTimestamp: timeToRFC3339(job.CompletionDate),
+		CreatedBy: types.Identity{
+			ID:   lo.FromPtr(job.IamRoleArn),
+			Type: "IAM",
+		},
+		Environment: types.Environment{Identifier: ctx.Session.Region},
+	}
+
+	return v1.ChangeResult{
+		ConfigType:       resourceTypeToConfigType(lo.FromPtr(job.ResourceType)),
+		ExternalID:       lo.FromPtr(job.ResourceArn),
+		ExternalChangeID: lo.FromPtr(job.BackupJobId),
+		ChangeType:       changeType,
+		Source:           SourceAWSBackup,
+		Severity:         string(severity),
+		Summary: fmt.Sprintf("%s %s backup %s",
+			lo.FromPtr(job.ResourceType), lo.FromPtr(job.ResourceName), strings.ToLower(string(job.State))),
+		CreatedAt: job.CreationDate,
+		ScraperID: "all",
+		Details:   withRaw(typed, job),
+	}, true
 }
 
 func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *backup.Client, results *v1.ScrapeResults) error {
@@ -232,30 +298,9 @@ func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *bac
 		}
 
 		for _, job := range output.RestoreJobs {
-			changeResult := v1.ChangeResult{
-				ConfigType:       resourceTypeToConfigType(lo.FromPtr(job.ResourceType)),
-				Source:           SourceAWSBackup,
-				ExternalChangeID: lo.FromPtr(job.RestoreJobId),
-				ChangeType:       fmt.Sprintf("Restore%s", lo.PascalCase(string(job.Status))),
-				Severity:         string(models.SeverityInfo),
-				Summary:          fmt.Sprintf("%s restore %s", lo.FromPtr(job.ResourceType), strings.ToLower(string(job.Status))),
-				CreatedAt:        job.CreationDate,
-				ScraperID:        "all",
-				Details: map[string]any{
-					"job":    job,
-					"status": lo.PascalCase(string(job.Status)),
-				},
+			if cr, ok := restoreJobToChange(ctx, job); ok {
+				changes = append(changes, cr)
 			}
-
-			switch job.Status {
-			case backupTypes.RestoreJobStatusAborted:
-				changeResult.Severity = string(models.SeverityMedium)
-			case backupTypes.RestoreJobStatusFailed:
-				changeResult.Severity = string(models.SeverityHigh)
-			}
-
-			changeResult.ExternalID = lo.FromPtr(job.CreatedResourceArn)
-			changes = append(changes, changeResult)
 		}
 	}
 
@@ -264,6 +309,38 @@ func (aws Scraper) scrapeRestoreJobs(ctx *AWSContext, config v1.AWS, client *bac
 	*results = append(*results, *result)
 
 	return nil
+}
+
+// restoreJobToChange transforms an AWS RestoreJob into a ChangeResult with
+// change_type=BackupRestored and a typed types.Restore payload, full raw job
+// under details.raw. Returns ok=false for in-progress job states.
+func restoreJobToChange(ctx *AWSContext, job backupTypes.RestoreJobsListMember) (v1.ChangeResult, bool) {
+	changeType, status, severity, skip := awsRestoreJobOutcome(job.Status)
+	if skip {
+		return v1.ChangeResult{}, false
+	}
+
+	typed := types.Restore{
+		Event: types.Event{
+			ID:        lo.FromPtr(job.RestoreJobId),
+			Timestamp: timeToRFC3339(job.CreationDate),
+		},
+		Status: status,
+		To:     types.Environment{Identifier: ctx.Session.Region},
+	}
+
+	return v1.ChangeResult{
+		ConfigType:       resourceTypeToConfigType(lo.FromPtr(job.ResourceType)),
+		Source:           SourceAWSBackup,
+		ExternalChangeID: lo.FromPtr(job.RestoreJobId),
+		ChangeType:       changeType,
+		Severity:         string(severity),
+		Summary:          fmt.Sprintf("%s restore %s", lo.FromPtr(job.ResourceType), strings.ToLower(string(job.Status))),
+		CreatedAt:        job.CreationDate,
+		ScraperID:        "all",
+		ExternalID:       lo.FromPtr(job.CreatedResourceArn),
+		Details:          withRaw(typed, job),
+	}, true
 }
 
 func (aws Scraper) scrapeRecoveryPoints(ctx *AWSContext, config v1.AWS, client *backup.Client, results *v1.ScrapeResults) error {
@@ -303,34 +380,9 @@ func (aws Scraper) scrapeRecoveryPointsForVault(ctx *AWSContext, config v1.AWS, 
 		}
 
 		for _, recoveryPoint := range output.RecoveryPoints {
-			changeResult := v1.ChangeResult{
-				ConfigType:       resourceTypeToConfigType(lo.FromPtr(recoveryPoint.ResourceType)),
-				ExternalID:       lo.FromPtr(recoveryPoint.ResourceArn),
-				Source:           SourceAWSBackup,
-				ExternalChangeID: lo.FromPtr(recoveryPoint.RecoveryPointArn) + "-" + string(recoveryPoint.Status),
-				ChangeType:       fmt.Sprintf("RecoveryPoint%s", lo.PascalCase(string(recoveryPoint.Status))),
-				Severity:         string(models.SeverityInfo),
-				Summary:          fmt.Sprintf("Recovery point %s in vault %s", strings.ToLower(string(recoveryPoint.Status)), lo.FromPtr(vault.BackupVaultName)),
-				CreatedAt:        recoveryPoint.CreationDate,
-				ScraperID:        "all",
-				Details: map[string]any{
-					"recoveryPoint": recoveryPoint,
-					"status":        lo.PascalCase(string(recoveryPoint.Status)),
-				},
+			if cr, ok := recoveryPointToChange(ctx, vault, recoveryPoint); ok {
+				changes = append(changes, cr)
 			}
-
-			switch recoveryPoint.Status {
-			case backupTypes.RecoveryPointStatusCompleted:
-				changeResult.Severity = string(models.SeverityInfo)
-			case backupTypes.RecoveryPointStatusPartial:
-				changeResult.Severity = string(models.SeverityMedium)
-			case backupTypes.RecoveryPointStatusDeleting:
-				changeResult.Severity = string(models.SeverityLow)
-			case backupTypes.RecoveryPointStatusExpired:
-				changeResult.Severity = string(models.SeverityLow)
-			}
-
-			changes = append(changes, changeResult)
 		}
 	}
 
@@ -339,4 +391,54 @@ func (aws Scraper) scrapeRecoveryPointsForVault(ctx *AWSContext, config v1.AWS, 
 	*results = append(*results, *result)
 
 	return nil
+}
+
+// recoveryPointToChange transforms a RecoveryPointByBackupVault into a
+// ChangeResult. Completed points emit BackupCompleted; partial/expired/
+// deleting emit BackupFailed with reduced severity. In-progress (pending/
+// running) return ok=false.
+func recoveryPointToChange(ctx *AWSContext, vault backupTypes.BackupVaultListMember, rp backupTypes.RecoveryPointByBackupVault) (v1.ChangeResult, bool) {
+	changeType, status, severity, skip := awsRecoveryPointOutcome(rp.Status)
+	if skip {
+		return v1.ChangeResult{}, false
+	}
+
+	typed := types.Backup{
+		Event: types.Event{
+			ID:        lo.FromPtr(rp.RecoveryPointArn),
+			Timestamp: timeToRFC3339(rp.CreationDate),
+		},
+		BackupType:   types.BackupTypeSnapshot,
+		Status:       status,
+		Size:         bytesToString(rp.BackupSizeInBytes),
+		EndTimestamp: timeToRFC3339(rp.CompletionDate),
+		Environment:  types.Environment{Identifier: ctx.Session.Region},
+	}
+
+	return v1.ChangeResult{
+		ConfigType:       resourceTypeToConfigType(lo.FromPtr(rp.ResourceType)),
+		ExternalID:       lo.FromPtr(rp.ResourceArn),
+		Source:           SourceAWSBackup,
+		ExternalChangeID: lo.FromPtr(rp.RecoveryPointArn) + "-" + string(rp.Status),
+		ChangeType:       changeType,
+		Severity:         string(severity),
+		Summary:          fmt.Sprintf("Recovery point %s in vault %s", strings.ToLower(string(rp.Status)), lo.FromPtr(vault.BackupVaultName)),
+		CreatedAt:        rp.CreationDate,
+		ScraperID:        "all",
+		Details:          withRaw(typed, rp),
+	}, true
+}
+
+func timeToRFC3339(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.Format(time.RFC3339)
+}
+
+func bytesToString(b *int64) string {
+	if b == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", *b)
 }
