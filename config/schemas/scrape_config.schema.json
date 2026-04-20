@@ -590,7 +590,7 @@
             "type": "array"
           },
           "type": "object",
-          "description": "Roles maps role names to Git permission names.\nEach identity is assigned the role whose required permissions are all present.\nPermission names: Read, Contribute, ForcePush, CreateBranch, CreateTag, ManageNotes,\nCreateRepository, DeleteRepository, RenameRepository, ManagePermissions, PolicyExempt"
+          "description": "Roles maps role names to permission strings with resource-type prefixes.\nFormat: \"Type:Permission\" where Type is Git, Pipeline, or Release.\nAn identity is assigned a role if it has ANY of the listed permissions for that type.\n\nGit permissions: Read, Contribute, ForcePush, CreateBranch, CreateTag, ManageNotes,\n  CreateRepository, DeleteRepository, RenameRepository, ManagePermissions, PolicyExempt\nPipeline permissions: ViewBuilds, EditBuildPipeline, DeleteBuilds, QueueBuilds,\n  StopBuilds, AdministerBuildPermissions\nRelease permissions: ViewReleaseDefinition, EditReleaseDefinition, DeleteReleaseDefinition,\n  ManageDeployments, ManageReleaseApprovers, ManageReleases, ViewReleases,\n  CreateReleases, EditReleaseEnvironment, DeleteReleaseEnvironment,\n  AdministerReleasePermissions, DeleteReleases, ManageDefinitionReleaseApprovers\n\nDefaults to Viewer, Developer, Admin, Releaser roles when not configured."
         }
       },
       "additionalProperties": false,

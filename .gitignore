@@ -56,3 +56,6 @@ screenshots/
 .htpasswd
 .facet/
 *.har
+*.png
+.playwright-mcp/
+*.json
