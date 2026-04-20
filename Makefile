@@ -97,11 +97,11 @@ define validate-envtest-assets
 		ASSETS="$(ENVTEST_ASSETS_DIR)"; \
 	else \
 		ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
-			{ echo "ERROR: setup-envtest failed. Run 'make deps-envtest' to install via flanksource/deps"; exit 1; }; \
+			{ echo "ERROR: setup-envtest failed. Run 'make envtest' to install via flanksource/deps"; exit 1; }; \
 		[ -n "$$ASSETS" ] || \
-			{ echo "ERROR: setup-envtest returned empty path. Run 'make deps-envtest' instead"; exit 1; }; \
+			{ echo "ERROR: setup-envtest returned empty path. Run 'make envtest' instead"; exit 1; }; \
 		[ -x "$$ASSETS/etcd" ] || \
-			{ echo "ERROR: etcd not found at $$ASSETS/etcd — try 'make deps-envtest'"; exit 1; }; \
+			{ echo "ERROR: etcd not found at $$ASSETS/etcd — try 'make envtest'"; exit 1; }; \
 	fi;
 endef
 
@@ -158,7 +158,7 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: compress
-compress: .bin/upx
+compress: $(LOCALBIN)/upx
 	upx -5 ./.bin/$(NAME)_linux_amd64 ./.bin/$(NAME)_linux_arm64 ./.bin/$(NAME)_darwin_amd64 ./.bin/$(NAME)_darwin_arm64 ./.bin/$(NAME).exe
 
 .PHONY: linux
@@ -222,15 +222,11 @@ dev:
 watch:
 	watchexec -c make build install
 
-.bin/upx: .bin
+$(LOCALBIN)/upx: $(LOCALBIN)
 	wget -nv -O upx.tar.xz https://github.com/upx/upx/releases/download/v3.96/upx-3.96-$(ARCH)_$(OS).tar.xz
 	tar xf upx.tar.xz
-	mv upx-3.96-$(ARCH)_$(OS)/upx .bin
+	mv upx-3.96-$(ARCH)_$(OS)/upx $(LOCALBIN)
 	rm -rf upx-3.96-$(ARCH)_$(OS)
-
-## Location to install dependencies to
-LOCALBIN ?= $(shell pwd)/.bin
-export PATH := $(LOCALBIN):$(PATH)
 
 ## Tool Binaries
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
@@ -302,8 +298,7 @@ rust-diffgen:
 .PHONY: rust-generate-header
 rust-generate-header:
 	cargo install cbindgen
-	cd external/diffgen
-	cbindgen . -o libdiffgen.h --lang c
+	cd external/diffgen && cbindgen . -o libdiffgen.h --lang c
 
 .PHONY: bench
 bench:
