@@ -39,6 +39,7 @@ var _ = Describe("Permission change tracking", Ordered, func() {
 	AfterAll(func() {
 		Expect(DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{}).Error).NotTo(HaveOccurred())
 		Expect(DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error).NotTo(HaveOccurred())
 		if configItemID != "" {
 			Expect(DefaultContext.DB().Where("config_id = ? AND change_type IN (?, ?)", configItemID, v1.ChangeTypePermissionAdded, v1.ChangeTypePermissionRemoved).
 				Delete(&models.ConfigChange{}).Error).NotTo(HaveOccurred())

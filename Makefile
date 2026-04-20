@@ -23,7 +23,7 @@ endif
 
 .PHONY: install-deps
 install-deps: $(LOCALBIN) ## Install the deps CLI if not present
-	which deps 2>/dev/null || test -x $(LOCALBIN)/deps || curl -sSL https://github.com/flanksource/deps/releases/latest/download/deps-$(OS)-$(ARCH).tar.gz | tar -xz -C $(LOCALBIN)
+	test -x $(LOCALBIN)/deps || curl -sSL https://github.com/flanksource/deps/releases/latest/download/deps-$(OS)-$(ARCH).tar.gz | tar -xz -C $(LOCALBIN)
 
 .PHONY: deps
 deps: install-deps ginkgo controller-gen golangci-lint kustomize $(TAILWIND_JS) ## Install all tool dependencies

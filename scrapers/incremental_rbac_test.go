@@ -37,6 +37,7 @@ var _ = Describe("Incremental scrape preserves RBAC data", Ordered, func() {
 	AfterAll(func() {
 		Expect(DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{}).Error).NotTo(HaveOccurred())
 		Expect(DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Unscoped().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error).NotTo(HaveOccurred())
 		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&models.ConfigItem{}).Error).NotTo(HaveOccurred())
 		Expect(DefaultContext.DB().Delete(&scraperModel).Error).NotTo(HaveOccurred())
 	})
