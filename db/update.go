@@ -723,6 +723,7 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 
 	summary.AccessLogs.Scraped = len(extractResult.configAccessLogs)
 	var resolvedAccessLogs []dutyModels.ConfigAccessLog
+	resolvedConfigTypes := make(map[uuid.UUID]string) // ConfigID → ConfigType for resolved logs
 	for _, accessLog := range extractResult.configAccessLogs {
 		if accessLog.ConfigID == uuid.Nil && accessLog.ConfigExternalID.ExternalID != "" {
 			config, err := ctx.TempCache().FindExternalID(ctx, accessLog.ConfigExternalID)
@@ -786,12 +787,16 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		resolvedAccessLogs = append(resolvedAccessLogs, accessLog.ConfigAccessLog)
+		if ct := accessLog.ConfigExternalID.ConfigType; ct != "" {
+			resolvedConfigTypes[accessLog.ConfigID] = ct
+		}
 	}
 
-	// Track max created_at per config type from access logs
+	// Track max created_at per config type from validated access logs only,
+	// so the cursor doesn't advance past rows that failed validation.
 	accessLogMaxTime := map[string]time.Time{}
-	for _, al := range extractResult.configAccessLogs {
-		configType := al.ConfigExternalID.ConfigType
+	for _, al := range resolvedAccessLogs {
+		configType := resolvedConfigTypes[al.ConfigID]
 		if configType == "" || al.CreatedAt.IsZero() {
 			continue
 		}
