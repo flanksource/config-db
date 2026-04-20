@@ -45,6 +45,10 @@ tidy:
 	go mod tidy
 	git add go.mod go.sum
 
+.PHONY: scrapeui-build
+scrapeui-build:
+	cd cmd/scrapeui/frontend && npm ci && npm run build
+
 # Generate OpenAPI schema
 .PHONY: gen-schemas
 gen-schemas:
@@ -114,7 +118,6 @@ gotest: ginkgo
 .PHONY: test-fast
 test-fast: ginkgo
 		ginkgo --tags slim --nodes=4   --label-filter "!slow" -r -v --skip-package=tests/e2e  ./...
-
 
 
 .PHONY: gotest-prod
@@ -215,7 +218,7 @@ uninstall-crd: manifests
 
 # produce a build that's debuggable
 .PHONY: dev
-dev:
+dev: scrapeui-build
 	go build -o ./.bin/$(NAME) -v -gcflags="all=-N -l" main.go
 
 .PHONY: watch
@@ -302,10 +305,10 @@ rust-generate-header:
 
 .PHONY: bench
 bench:
-	go test ./scrapers/kubernetes/ -bench='^Benchmark(EventProcessing|CacheMemory|Deserialization)' \
+	go test ./... -bench='^Benchmark(EventProcessing|CacheMemory|Deserialization)' \
 		-benchmem -run='^$$' \
 		-count=3 \
-		-benchtime=2s -v
+		-benchtime=2s -v $(BENCH_ARGS)
 
 .PHONY: modernize
 modernize:
