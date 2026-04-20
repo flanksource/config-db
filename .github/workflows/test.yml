@@ -229,7 +229,7 @@ jobs:
   test-slim:
     runs-on: ubuntu-latest
     env:
-      ENVTEST_ASSETS_DIR: $HOME/.local/bin
+      ENVTEST_ASSETS_DIR: ${HOME}/.local/bin
     steps:
       - name: Install Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
@@ -259,6 +259,8 @@ jobs:
           restore-keys: |
             cache-
       - name: Setup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make manifests generate fmt vet envtest
       - name: Test
         run: make test-fast
@@ -293,6 +295,8 @@ jobs:
           restore-keys: |
             cache-
       - name: Setup envtest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make envtest
       - name: Test
         run: make test-load
