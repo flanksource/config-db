@@ -7,6 +7,7 @@ import (
 	"github.com/flanksource/commons/hash"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
+	dutydb "github.com/flanksource/duty/db"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -15,9 +16,10 @@ import (
 )
 
 type permissionChangeResult struct {
-	added   []*models.ConfigChange
-	removed []*models.ConfigChange
-	saved   int
+	added            []*models.ConfigChange
+	removed          []*models.ConfigChange
+	saved            int
+	foreignKeyErrors int
 }
 
 type staleAccessResult struct {
@@ -74,6 +76,70 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 		return result, fmt.Errorf("failed to setup temp config access: %w", err)
 	}
 
+	// Insert stub entities for any missing user/role/group references so the
+	// config_access FK insert doesn't fail. Each stub insert runs inside a
+	// savepoint so an error doesn't abort the outer transaction.
+	//
+	// Notes on the SQL below:
+	//   - scraper_id uses `?::uuid` for all three tables. external_roles.scraper_id
+	//     is nominally nullable, but its check constraint
+	//     (application_id IS NOT NULL OR scraper_id IS NOT NULL) forces one to be set.
+	//   - aliases is inserted as NULL, not ARRAY[]::text[], because all three
+	//     tables have a partial unique index on aliases WHERE deleted_at IS NULL,
+	//     and an empty array would collide across multiple stub rows. NULLs are
+	//     distinct under that index.
+	//   - ON CONFLICT DO NOTHING (no target) so any future unique index, not just
+	//     the PK, is tolerated.
+	for _, stub := range []struct {
+		entity    string
+		table     string
+		column    string
+		extraCols string
+		extraVals string
+	}{
+		{
+			entity: "user", table: "external_users", column: "external_user_id",
+			extraCols: ", account_id, user_type", extraVals: ", '', 'Stub'",
+		},
+		{
+			entity: "role", table: "external_roles", column: "external_role_id",
+			extraCols: ", account_id, role_type, description", extraVals: ", '', 'Stub', ''",
+		},
+		{
+			entity: "group", table: "external_groups", column: "external_group_id",
+			extraCols: ", account_id, group_type", extraVals: ", '', 'Stub'",
+		},
+	} {
+		stubSQL := fmt.Sprintf(`
+			INSERT INTO %s (id, name, aliases, scraper_id, created_at, updated_at %s)
+			SELECT DISTINCT t.%s, t.%s::text, NULL::text[], ?::uuid, ?::timestamptz, ?::timestamptz %s
+			FROM %s t
+			WHERE t.%s IS NOT NULL
+			  AND NOT EXISTS (SELECT 1 FROM %s e WHERE e.id = t.%s)
+			ON CONFLICT DO NOTHING
+		`, stub.table, stub.extraCols,
+			stub.column, stub.column, stub.extraVals,
+			tempTable,
+			stub.column, stub.table, stub.column)
+
+		savepoint := fmt.Sprintf("stub_%s", stub.entity)
+		if err := tx.Exec("SAVEPOINT " + savepoint).Error; err != nil {
+			ctx.Logger.Warnf("failed to create savepoint for stub %s: %v", stub.entity, err)
+			continue
+		}
+
+		r := tx.Exec(stubSQL, scraperID.String(), now, now)
+		if r.Error != nil {
+			ctx.Logger.Warnf("failed to create stub %ss: %v", stub.entity, r.Error)
+			tx.Exec("ROLLBACK TO SAVEPOINT " + savepoint)
+			continue
+		}
+		tx.Exec("RELEASE SAVEPOINT " + savepoint)
+		if r.RowsAffected > 0 {
+			ctx.Logger.Warnf("created %d stub %s(s) for missing config_access references", r.RowsAffected, stub.entity)
+		}
+	}
+
 	// Upsert: insert new records, restore soft-deleted ones
 	if len(items) > 0 {
 		var newRows []struct {
@@ -94,9 +160,54 @@ func upsertConfigAccess(ctx api.ScrapeContext, accesses []v1.ExternalConfigAcces
 			RETURNING id, config_id, external_user_id, external_role_id, external_group_id
 		`, tempTable)
 
+		tx.Exec("SAVEPOINT bulk_insert")
+
 		if err := tx.Raw(newSQL).Scan(&newRows).Error; err != nil {
-			tx.Rollback()
-			return result, fmt.Errorf("failed to upsert config access: %w", err)
+			if !dutydb.IsForeignKeyError(err) {
+				tx.Rollback()
+				return result, fmt.Errorf("failed to upsert config access: %w", err)
+			}
+
+			// Restore transaction state; temp table is preserved.
+			tx.Exec("ROLLBACK TO SAVEPOINT bulk_insert")
+
+			// Row-by-row with exception handling: successfully inserted rows
+			// are deleted from the temp table; FK violations stay.
+			fallbackSQL := fmt.Sprintf(`
+				DO $$
+				DECLARE
+					v_rec RECORD;
+				BEGIN
+					FOR v_rec IN SELECT * FROM %s LOOP
+						BEGIN
+							INSERT INTO config_access (id, config_id, external_user_id, external_role_id,
+								external_group_id, scraper_id, application_id, source, created_at)
+							VALUES (v_rec.id, v_rec.config_id, v_rec.external_user_id, v_rec.external_role_id,
+								v_rec.external_group_id, v_rec.scraper_id, v_rec.application_id, v_rec.source, v_rec.created_at)
+							ON CONFLICT (id) DO UPDATE SET deleted_at = NULL
+							WHERE config_access.deleted_at IS NOT NULL;
+							DELETE FROM %s WHERE id = v_rec.id;
+						EXCEPTION WHEN foreign_key_violation THEN
+							NULL;
+						END;
+					END LOOP;
+				END $$;
+			`, tempTable, tempTable)
+
+			if err := tx.Exec(fallbackSQL).Error; err != nil {
+				tx.Rollback()
+				return result, fmt.Errorf("failed to fallback upsert config access: %w", err)
+			}
+
+			var fkErrorCount int64
+			tx.Raw(fmt.Sprintf("SELECT count(*) FROM %s", tempTable)).Scan(&fkErrorCount)
+			result.foreignKeyErrors = int(fkErrorCount)
+			result.saved -= result.foreignKeyErrors
+
+			if fkErrorCount > 0 {
+				ctx.Logger.Warnf("config_access: %d rows with FK violations (scraper=%s)", fkErrorCount, scraperIDStr)
+				logFKDiagnostics(ctx, tx, tempTable)
+			}
 		}
 
 		for _, row := range newRows {
@@ -238,6 +349,67 @@ func joinParts(parts []string) string {
 		result += ", " + parts[i]
 	}
 	return result
+}
+
+func logFKDiagnostics(ctx api.ScrapeContext, tx *gorm.DB, tempTable string) {
+	type diagRow struct {
+		ExternalUserID  *uuid.UUID `gorm:"column:external_user_id"`
+		ExternalGroupID *uuid.UUID `gorm:"column:external_group_id"`
+		ExternalRoleID  *uuid.UUID `gorm:"column:external_role_id"`
+		Reason          string     `gorm:"column:reason"`
+	}
+
+	diagSQL := fmt.Sprintf(`
+		SELECT t.external_user_id, t.external_group_id, t.external_role_id,
+			CASE
+				WHEN t.external_user_id IS NOT NULL AND eu.id IS NULL THEN 'user_missing'
+				WHEN t.external_user_id IS NOT NULL AND eu.deleted_at IS NOT NULL THEN 'user_deleted'
+				WHEN t.external_group_id IS NOT NULL AND eg.id IS NULL THEN 'group_missing'
+				WHEN t.external_group_id IS NOT NULL AND eg.deleted_at IS NOT NULL THEN 'group_deleted'
+				WHEN t.external_role_id IS NOT NULL AND er.id IS NULL THEN 'role_missing'
+				WHEN t.external_role_id IS NOT NULL AND er.deleted_at IS NOT NULL THEN 'role_deleted'
+				WHEN NOT EXISTS (SELECT 1 FROM config_items ci WHERE ci.id = t.config_id) THEN 'config_missing'
+				ELSE 'unknown'
+			END AS reason
+		FROM %s t
+		LEFT JOIN external_users eu ON eu.id = t.external_user_id
+		LEFT JOIN external_groups eg ON eg.id = t.external_group_id
+		LEFT JOIN external_roles er ON er.id = t.external_role_id
+		LIMIT 100
+	`, tempTable)
+
+	var rows []diagRow
+	if err := tx.Raw(diagSQL).Scan(&rows).Error; err != nil {
+		ctx.Logger.Warnf("  failed to diagnose FK errors: %v", err)
+		return
+	}
+
+	type groupKey struct {
+		Reason string
+		FKID   string
+	}
+	counts := make(map[groupKey]int)
+	for _, row := range rows {
+		fkID := "unknown"
+		switch row.Reason {
+		case "user_missing", "user_deleted":
+			fkID = uuidPtrStr(row.ExternalUserID)
+		case "group_missing", "group_deleted":
+			fkID = uuidPtrStr(row.ExternalGroupID)
+		case "role_missing", "role_deleted":
+			fkID = uuidPtrStr(row.ExternalRoleID)
+		}
+		counts[groupKey{Reason: row.Reason, FKID: fkID}]++
+	}
+
+	logged := 0
+	for key, count := range counts {
+		if logged >= 10 {
+			break
+		}
+		ctx.Logger.Warnf("  reason=%s id=%s count=%d", key.Reason, key.FKID, count)
+		logged++
+	}
 }
 
 func sanitizeForTempTable(s string) string {
