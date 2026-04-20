@@ -1009,19 +1009,19 @@ func ParseBuildPermissions(acls []AccessControlList) []GitPermissionInfo {
 const ReleaseSecurityNamespaceID = "c788c23e-1b46-4162-8f5e-d7585343b5de"
 
 const (
-	ReleasePermissionViewReleaseDefinition              = 1
-	ReleasePermissionEditReleaseDefinition              = 2
-	ReleasePermissionDeleteReleaseDefinition            = 4
-	ReleasePermissionManageDeployments                  = 8
-	ReleasePermissionManageReleaseApprovers             = 16
-	ReleasePermissionManageReleases                     = 32
-	ReleasePermissionViewReleases                       = 64
-	ReleasePermissionCreateReleases                     = 128
-	ReleasePermissionEditReleaseEnvironment             = 256
-	ReleasePermissionDeleteReleaseEnvironment           = 512
-	ReleasePermissionAdministerReleasePermissions       = 1024
-	ReleasePermissionDeleteReleases                     = 2048
-	ReleasePermissionManageDefinitionReleaseApprovers   = 4096
+	ReleasePermissionViewReleaseDefinition            = 1
+	ReleasePermissionEditReleaseDefinition            = 2
+	ReleasePermissionDeleteReleaseDefinition          = 4
+	ReleasePermissionManageDeployments                = 8
+	ReleasePermissionManageReleaseApprovers           = 16
+	ReleasePermissionManageReleases                   = 32
+	ReleasePermissionViewReleases                     = 64
+	ReleasePermissionCreateReleases                   = 128
+	ReleasePermissionEditReleaseEnvironment           = 256
+	ReleasePermissionDeleteReleaseEnvironment         = 512
+	ReleasePermissionAdministerReleasePermissions     = 1024
+	ReleasePermissionDeleteReleases                   = 2048
+	ReleasePermissionManageDefinitionReleaseApprovers = 4096
 )
 
 var releasePermissionBits = []struct {

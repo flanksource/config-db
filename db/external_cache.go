@@ -83,9 +83,9 @@ func WarmExternalEntityCaches(ctx context.Context) {
 	}
 
 	for _, table := range []struct {
-		name        string
-		aliasCache  *cache.Cache
-		idCache     *cache.Cache
+		name       string
+		aliasCache *cache.Cache
+		idCache    *cache.Cache
 	}{
 		{"external_users", ExternalUserCache, ExternalUserIDCache},
 		{"external_roles", ExternalRoleCache, ExternalRoleIDCache},

@@ -1,7 +1,6 @@
 NAME=config-db
 OS   = $(shell uname -s | tr '[:upper:]' '[:lower:]')
 ARCH = $(shell uname -m | sed 's/x86_64/amd64/')
-KUSTOMIZE=$(PWD)/.bin/kustomize
 
 ifeq ($(VERSION),)
   VERSION_TAG=$(shell git describe --abbrev=0 --tags --exact-match 2>/dev/null || echo latest)
@@ -9,7 +8,13 @@ else
   VERSION_TAG=$(VERSION)
 endif
 
-LDFLAGS = -X "main.version=$(VERSION_TAG)" -X "github.com/flanksource/clicky.Version=$(VERSION_TAG)"
+GIT_COMMIT=$(shell git rev-parse HEAD 2>/dev/null || echo none)
+BUILD_DATE=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+
+LDFLAGS = -X "github.com/flanksource/config-db/cmd.version=$(VERSION_TAG)" \
+          -X "github.com/flanksource/config-db/cmd.commit=$(GIT_COMMIT)" \
+          -X "github.com/flanksource/config-db/cmd.date=$(BUILD_DATE)" \
+          -X "github.com/flanksource/clicky.Version=$(VERSION_TAG)"
 
 # Image URL to use all building/pushing image targets
 IMG ?= docker.io/flanksource/$(NAME):${VERSION_TAG}
@@ -21,9 +26,15 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/.bin
+export PATH := $(LOCALBIN):$(PATH)
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
 .PHONY: install-deps
 install-deps: $(LOCALBIN) ## Install the deps CLI if not present
-	test -x $(LOCALBIN)/deps || curl -sSL https://github.com/flanksource/deps/releases/latest/download/deps-$(OS)-$(ARCH).tar.gz | tar -xz -C $(LOCALBIN)
+	@test -x $(LOCALBIN)/deps || curl -sSL https://github.com/flanksource/deps/releases/latest/download/deps-$(OS)-$(ARCH).tar.gz | tar -xz -C $(LOCALBIN)
 
 .PHONY: deps
 deps: install-deps ginkgo controller-gen golangci-lint kustomize $(TAILWIND_JS) ## Install all tool dependencies
@@ -46,7 +57,7 @@ gen-schemas:
 		go mod edit -replace=github.com/flanksource/duty=../../../duty; \
 	fi && \
 	go mod tidy && \
-	go run ./main.go
+	go run .
 
 docker:
 	docker build . -f build/Dockerfile -t ${IMG}
@@ -86,11 +97,11 @@ define validate-envtest-assets
 		ASSETS="$(ENVTEST_ASSETS_DIR)"; \
 	else \
 		ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path) || \
-			{ echo "ERROR: setup-envtest failed. Run 'make deps-envtest' to install via flanksource/deps"; exit 1; }; \
+			{ echo "ERROR: setup-envtest failed. Run 'make envtest' to install via flanksource/deps"; exit 1; }; \
 		[ -n "$$ASSETS" ] || \
-			{ echo "ERROR: setup-envtest returned empty path. Run 'make deps-envtest' instead"; exit 1; }; \
+			{ echo "ERROR: setup-envtest returned empty path. Run 'make envtest' instead"; exit 1; }; \
 		[ -x "$$ASSETS/etcd" ] || \
-			{ echo "ERROR: etcd not found at $$ASSETS/etcd — try 'make deps-envtest'"; exit 1; }; \
+			{ echo "ERROR: etcd not found at $$ASSETS/etcd — try 'make envtest'"; exit 1; }; \
 	fi;
 endef
 
@@ -147,7 +158,7 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: compress
-compress: .bin/upx
+compress: $(LOCALBIN)/upx
 	upx -5 ./.bin/$(NAME)_linux_amd64 ./.bin/$(NAME)_linux_arm64 ./.bin/$(NAME)_darwin_amd64 ./.bin/$(NAME)_darwin_arm64 ./.bin/$(NAME).exe
 
 .PHONY: linux
@@ -188,7 +199,7 @@ build-slim:
 build-prod:
 	go build -v -o ./.bin/$(NAME) -ldflags '$(LDFLAGS)' -tags rustdiffgen .
 
-.PHONY: build-prod
+.PHONY: build-debug
 build-debug:
 	go build -o ./.bin/$(NAME) -ldflags '$(LDFLAGS) -checklinkname=0' -tags rustdiffgen,debug .
 
@@ -211,14 +222,13 @@ dev:
 watch:
 	watchexec -c make build install
 
-.bin/upx: .bin
+$(LOCALBIN)/upx: $(LOCALBIN)
 	wget -nv -O upx.tar.xz https://github.com/upx/upx/releases/download/v3.96/upx-3.96-$(ARCH)_$(OS).tar.xz
 	tar xf upx.tar.xz
-	mv upx-3.96-$(ARCH)_$(OS)/upx .bin
+	mv upx-3.96-$(ARCH)_$(OS)/upx $(LOCALBIN)
 	rm -rf upx-3.96-$(ARCH)_$(OS)
 
 ## Tool Binaries
-LOCALBIN ?= $(shell pwd)/.bin
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
@@ -230,9 +240,6 @@ CONTROLLER_TOOLS_VERSION ?= v0.19.0
 GOLANGCI_LINT_VERSION ?= v2.11.3
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
-
-$(LOCALBIN):
-	mkdir -p $(LOCALBIN)
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary. If wrong version is installed, it will be removed before downloading.
@@ -268,7 +275,7 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 
 ENVTEST_K8S_VERSION = 1.34.0
 ENVTEST_BRANCH = release-0.22
-ENVTEST_ASSETS_DIR = $(LOCALBIN)
+ENVTEST_ASSETS_DIR ?= $(LOCALBIN)
 
 
 .PHONY: envtest
@@ -291,8 +298,7 @@ rust-diffgen:
 .PHONY: rust-generate-header
 rust-generate-header:
 	cargo install cbindgen
-	cd external/diffgen
-	cbindgen . -o libdiffgen.h --lang c
+	cd external/diffgen && cbindgen . -o libdiffgen.h --lang c
 
 .PHONY: bench
 bench:

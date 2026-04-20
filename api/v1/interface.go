@@ -623,6 +623,9 @@ func (s *ScrapeSummary) Merge(other ScrapeSummary) {
 	s.ExternalRoles = s.ExternalRoles.Merge(other.ExternalRoles)
 	s.ConfigAccess = s.ConfigAccess.Merge(other.ConfigAccess)
 	s.AccessLogs = s.AccessLogs.Merge(other.AccessLogs)
+	for _, w := range other.Warnings {
+		s.AddScrapeWarning(w)
+	}
 }
 
 func (t *ScrapeSummary) initWarningIndex() {
@@ -1428,10 +1431,23 @@ func (s *ScrapeResult) Pretty() api.Text {
 	}
 	t := clicky.Text("")
 	if s.ConfigClass != "" {
-		t = t.Append(s.ConfigClass+"/", "text-muted")
+		t = t.Append(s.ConfigClass, "text-muted")
 	}
-	if s.Name != "" {
-		t = t.Append(s.Name)
+	// Prefer Name; fall back through ID and the first alias so that log lines
+	// like "Scraped Azure::Group/" (when the scraper produced a result with
+	// an empty name field) still carry a useful identifier.
+	label := s.Name
+	if label == "" {
+		label = s.ID
+	}
+	if label == "" && len(s.Aliases) > 0 {
+		label = s.Aliases[0]
+	}
+	if label != "" {
+		if s.ConfigClass != "" {
+			t = t.Append("/", "text-muted")
+		}
+		t = t.Append(label)
 	}
 
 	if len(s.Changes) > 0 {
@@ -1994,7 +2010,7 @@ func (s ScrapeResult) Clone(config interface{}) ScrapeResult {
 type FullScrapeResults struct {
 	Configs            []ScrapeResult              `json:"configs,omitempty"`
 	Analysis           []models.ConfigAnalysis     `json:"analysis,omitempty"`
-	Changes            []models.ConfigChange       `json:"changes,omitempty"`
+	Changes            []ChangeResult              `json:"changes,omitempty"`
 	Relationships      []models.ConfigRelationship `json:"relationships,omitempty"`
 	ExternalRoles      []models.ExternalRole       `json:"external_roles,omitempty"`
 	ExternalUsers      []models.ExternalUser       `json:"external_users,omitempty"`
@@ -2016,27 +2032,7 @@ func MergeScrapeResults(results ...ScrapeResults) FullScrapeResults {
 				full.Analysis = append(full.Analysis, r.AnalysisResult.ToConfigAnalysis())
 			}
 
-			for _, change := range r.Changes {
-				configChange := models.ConfigChange{
-					ChangeType:        change.ChangeType,
-					Severity:          models.Severity(change.Severity),
-					Source:            change.Source,
-					Summary:           change.Summary,
-					CreatedAt:         change.CreatedAt,
-					ExternalChangeID:  lo.ToPtr(change.ExternalChangeID),
-					ExternalID:        change.ExternalID,
-					ConfigType:        change.ConfigType,
-					Diff:              lo.FromPtr(change.Diff),
-					Patches:           change.Patches,
-					ExternalCreatedBy: change.CreatedBy,
-				}
-				if change.Details != nil {
-					if detailsJSON, err := json.Marshal(change.Details); err == nil {
-						configChange.Details = detailsJSON
-					}
-				}
-				full.Changes = append(full.Changes, configChange)
-			}
+			full.Changes = append(full.Changes, r.Changes...)
 
 			for _, rel := range r.RelationshipResults {
 				full.Relationships = append(full.Relationships, models.ConfigRelationship{

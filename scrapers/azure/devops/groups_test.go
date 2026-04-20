@@ -170,9 +170,9 @@ var _ = Describe("ParseBuildPermissions", func() {
 	It("identifies user vs group by descriptor prefix", func() {
 		acls := []AccessControlList{{
 			AcesDictionary: map[string]AccessControlEntry{
-				"vssgp.group-desc":                                 {Allow: BuildPermissionViewBuilds},
-				"Microsoft.TeamFoundation.Identity;user-desc":      {Allow: BuildPermissionViewBuilds},
-				"aad.user-desc":                                    {Allow: BuildPermissionViewBuilds},
+				"vssgp.group-desc": {Allow: BuildPermissionViewBuilds},
+				"Microsoft.TeamFoundation.Identity;user-desc": {Allow: BuildPermissionViewBuilds},
+				"aad.user-desc": {Allow: BuildPermissionViewBuilds},
 			},
 		}}
 

@@ -14,8 +14,8 @@ import (
 	_ "embed"
 
 	"github.com/chromedp/chromedp"
-	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/commons/logger"
+	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 //go:embed playwright-boot.ts
@@ -54,11 +54,11 @@ type Browser struct {
 	StorageState       string // path to Playwright storageState JSON file
 	SessionStorageFile string // path to JSON {origin, items} for sessionStorage rehydration
 	Headless           bool
-	trace          bool // when true, enable HAR/video recording and persist artifacts
-	keep           bool // when true, skip cleanup on Close (but don't enable tracing)
-	traceConfig    *v1.PlaywrightTrace
-	logger         logger.Logger
-	ownsDir        bool // true if we created the dir and should clean it up
+	trace              bool // when true, enable HAR/video recording and persist artifacts
+	keep               bool // when true, skip cleanup on Close (but don't enable tracing)
+	traceConfig        *v1.PlaywrightTrace
+	logger             logger.Logger
+	ownsDir            bool // true if we created the dir and should clean it up
 }
 
 func findChromiumBinary() (string, error) {
@@ -233,12 +233,12 @@ func (b *Browser) Login(url string, timeout time.Duration) error {
 		chromedp.WaitVisible(`#nav-usernameMenu`, chromedp.ByID),
 	); err != nil {
 		b.logger.V(2).Infof("account menu not found, falling back to body wait")
-		chromedp.Run(ctx, chromedp.WaitReady("body")) //nolint:errcheck
+		chromedp.Run(ctx, chromedp.WaitReady("body"))    //nolint:errcheck
 		chromedp.Run(ctx, chromedp.Sleep(3*time.Second)) //nolint:errcheck
 	}
 
 	var accountLabel, finalURL string
-	chromedp.Run(ctx, chromedp.Location(&finalURL)) //nolint:errcheck
+	chromedp.Run(ctx, chromedp.Location(&finalURL))                                                                          //nolint:errcheck
 	chromedp.Run(ctx, chromedp.Text(`[data-testid="account-label"]`, &accountLabel, chromedp.ByQuery, chromedp.NodeVisible)) //nolint:errcheck
 	if accountLabel != "" {
 		b.logger.Infof("logged in as: %s", strings.TrimSpace(accountLabel))
