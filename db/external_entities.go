@@ -51,14 +51,11 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	}
 	result.Roles.Skipped = skippedRoles
 
-	var resolvedUserGroups []dutyModels.ExternalUserGroup
-	for _, ug := range extract.externalUserGroups {
-		if ug.ExternalUserID == uuid.Nil || ug.ExternalGroupID == uuid.Nil {
-			ctx.Logger.Warnf("skipping external user group with nil user_id=%s or group_id=%s", ug.ExternalUserID, ug.ExternalGroupID)
-			continue
-		}
-		resolvedUserGroups = append(resolvedUserGroups, ug)
-	}
+	// Resolve v1.ExternalUserGroup linkages to models.ExternalUserGroup. Entries
+	// with explicit UUIDs are passed through; alias-only entries (e.g. from the
+	// Azure DevOps scraper, which describes identities by descriptor) are
+	// resolved against the just-resolved users/groups via alias overlap.
+	resolvedUserGroups := resolveExternalUserGroups(ctx, extract.externalUserGroups, resolvedUsers, resolvedGroups)
 
 	counts, idMap, err := upsertExternalEntities(ctx, resolvedUsers, resolvedGroups, resolvedRoles, resolvedUserGroups, scraperID)
 	if err != nil {
@@ -160,6 +157,91 @@ func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGr
 	}
 
 	return valid, skipped, nil
+}
+
+// resolveExternalUserGroups converts v1.ExternalUserGroup entries (which may
+// describe their user/group either by canonical UUID or by alias) into
+// models.ExternalUserGroup entries with concrete UUIDs. Alias-only entries are
+// matched against the alias lists of the supplied users/groups; entries that
+// fail to resolve on either side are dropped with a warning.
+func resolveExternalUserGroups(
+	ctx api.ScrapeContext,
+	in []v1.ExternalUserGroup,
+	users []dutyModels.ExternalUser,
+	groups []dutyModels.ExternalGroup,
+) []dutyModels.ExternalUserGroup {
+	if len(in) == 0 {
+		return nil
+	}
+
+	// Build sets of valid IDs so direct-UUID references can be verified
+	// against the actual entities we're about to upsert. A scraper might
+	// emit an external_user_groups entry whose external_user_id / external_group_id
+	// is a raw upstream UUID (e.g. Azure Graph group.id) that will NOT be the
+	// final DB id because resolveExternalUsers / resolveExternalGroups synthesize
+	// new hash-based IDs when the entity is pushed without its own `id` field.
+	// Trusting the direct UUID blindly in that case produces a dangling FK and
+	// the entire external-entity transaction rolls back.
+	validUserIDs := make(map[uuid.UUID]struct{}, len(users))
+	userByAlias := make(map[string]uuid.UUID, len(users)*2)
+	for _, u := range users {
+		validUserIDs[u.ID] = struct{}{}
+		for _, a := range u.Aliases {
+			userByAlias[a] = u.ID
+		}
+	}
+	validGroupIDs := make(map[uuid.UUID]struct{}, len(groups))
+	groupByAlias := make(map[string]uuid.UUID, len(groups)*2)
+	for _, g := range groups {
+		validGroupIDs[g.ID] = struct{}{}
+		for _, a := range g.Aliases {
+			groupByAlias[a] = g.ID
+		}
+	}
+
+	// resolveID accepts a direct UUID only when it references an entity we
+	// actually have. Otherwise it falls through to alias resolution.
+	resolveID := func(direct *uuid.UUID, aliases []string, validIDs map[uuid.UUID]struct{}, lookup map[string]uuid.UUID) uuid.UUID {
+		if direct != nil && *direct != uuid.Nil {
+			if _, ok := validIDs[*direct]; ok {
+				return *direct
+			}
+			// Direct UUID references an entity not in this scrape — try to
+			// recover via the alias list before giving up.
+		}
+		for _, a := range aliases {
+			if id, ok := lookup[a]; ok {
+				return id
+			}
+		}
+		return uuid.Nil
+	}
+
+	var droppedUnknownUser, droppedUnknownGroup int
+	out := make([]dutyModels.ExternalUserGroup, 0, len(in))
+	for _, ug := range in {
+		userID := resolveID(ug.ExternalUserID, ug.ExternalUserAliases, validUserIDs, userByAlias)
+		groupID := resolveID(ug.ExternalGroupID, ug.ExternalGroupAliases, validGroupIDs, groupByAlias)
+		if userID == uuid.Nil {
+			droppedUnknownUser++
+			continue
+		}
+		if groupID == uuid.Nil {
+			droppedUnknownGroup++
+			continue
+		}
+		out = append(out, dutyModels.ExternalUserGroup{
+			ExternalUserID:  userID,
+			ExternalGroupID: groupID,
+		})
+	}
+	if droppedUnknownUser > 0 || droppedUnknownGroup > 0 {
+		ctx.Logger.Warnf(
+			"dropped %d external_user_groups rows (unresolved user=%d, unresolved group=%d of %d input)",
+			droppedUnknownUser+droppedUnknownGroup, droppedUnknownUser, droppedUnknownGroup, len(in),
+		)
+	}
+	return out
 }
 
 func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalRole, int, error) {

@@ -30,6 +30,17 @@ var _ = Describe("mapAuditEntryToConfig", func() {
 		Expect(externalID).To(Equal("azuredevops://myorg/MyProject/release/10"))
 	})
 
+	It("maps Release area with ReleaseDefinitionId to release config", func() {
+		entry := AuditLogEntry{
+			Area:        "Release",
+			ProjectName: "MyProject",
+			Data:        map[string]any{"ReleaseDefinitionId": float64(13)},
+		}
+		externalID, configType := mapAuditEntryToConfig(org, entry)
+		Expect(configType).To(Equal(ReleaseType))
+		Expect(externalID).To(Equal("azuredevops://myorg/MyProject/release/13"))
+	})
+
 	It("maps Git area with RepoId to repository config", func() {
 		entry := AuditLogEntry{
 			Area:        "Git",

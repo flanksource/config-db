@@ -173,7 +173,7 @@ type runHTMLOutput struct {
 	ExternalRoles      []models.ExternalRole        `pretty:"table"`
 	ExternalUsers      []models.ExternalUser        `pretty:"table"`
 	ExternalGroups     []models.ExternalGroup       `pretty:"table"`
-	ExternalUserGroups []models.ExternalUserGroup   `pretty:"table"`
+	ExternalUserGroups []v1.ExternalUserGroup       `pretty:"table"`
 	ConfigAccess       []v1.ExternalConfigAccess    `pretty:"table"`
 	ConfigAccessLogs   []v1.ExternalConfigAccessLog `pretty:"table"`
 	Logs               v1.LogOutput                 `json:"-"`

@@ -8,7 +8,9 @@ import (
 	"github.com/flanksource/commons/collections"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/config-db/scrapers/azure"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
 
@@ -73,12 +75,13 @@ var releaseEnvStatusToChangeType = map[string]string{
 	"scheduled":          ChangeTypeInProgress,
 }
 
-func releaseExternalID(organization, project string, definitionID int) string {
+func ReleaseExternalID(organization, project string, definitionID int) string {
 	return fmt.Sprintf("azuredevops://%s/%s/release/%d", organization, project, definitionID)
 }
 
 func (ado AzureDevopsScraper) scrapeReleases(
 	ctx api.ScrapeContext,
+	client *AzureDevopsClient,
 	releaseClient *AzureDevopsReleaseClient,
 	config v1.AzureDevops,
 	project Project,
@@ -107,9 +110,123 @@ func (ado AzureDevopsScraper) scrapeReleases(
 			return results.Errorf(err, "failed to get releases for definition %d in project %s", def.ID, project.Name)
 		}
 		result := buildReleaseResult(ctx, config, project, def, defJSON, releases, cutoff)
+
+		if config.Permissions != nil && config.Permissions.Enabled {
+			releaseKey := fmt.Sprintf("release/%s/%s/%d", config.Organization, project.Name, def.ID)
+			if shouldFetchPermissions(releaseKey, parsePermissionsInterval(config.Permissions.RateLimit)) {
+				ca, roles, err := ado.fetchReleasePermissions(ctx, client, config, project, def.ID, result.ID)
+				if err != nil {
+					ctx.Logger.V(4).Infof("failed to refresh release permissions for %s/%d: %v", project.Name, def.ID, err)
+				} else {
+					result.ConfigAccess, result.ExternalRoles = ca, roles
+					markPermissionsFetched(releaseKey)
+				}
+			}
+		}
+
 		results = append(results, result)
 	}
 	return results
+}
+
+func (ado AzureDevopsScraper) fetchReleasePermissions(
+	ctx api.ScrapeContext,
+	client *AzureDevopsClient,
+	config v1.AzureDevops,
+	project Project,
+	definitionID int,
+	releaseExternalID string,
+) ([]v1.ExternalConfigAccess, []dutyModels.ExternalRole, error) {
+	acls, err := client.GetReleasePermissions(ctx, project.ID, definitionID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	perms := ParseReleasePermissions(acls)
+	if len(perms) == 0 {
+		return nil, nil, nil
+	}
+
+	var descriptors []string
+	for _, p := range perms {
+		descriptors = append(descriptors, p.IdentityDescriptor)
+	}
+
+	identities, err := client.GetIdentitiesByDescriptor(ctx, descriptors)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	identityMap := BuildIdentityMap(identities)
+
+	roleIDs := make(map[string]uuid.UUID)
+	var roles []dutyModels.ExternalRole
+	var configAccess []v1.ExternalConfigAccess
+
+	for _, perm := range perms {
+		identity, ok := identityMap[perm.IdentityDescriptor]
+		if !ok {
+			continue
+		}
+
+		name := ResolvedIdentityName(identity, project.Name)
+		email := emailFromIdentity(identity)
+		if name == "" && email == "" {
+			continue
+		}
+		if email == "" {
+			email = name
+		}
+
+		if identity.IsContainer {
+			aliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
+			aliases = append(aliases, DescriptorAliases(identity.SubjectDescriptor)...)
+			// No ID — the SQL merge resolves this group against the AAD scraper's
+			// authoritative record by alias overlap. AAD takes precedence.
+			ctx.AddGroup(dutyModels.ExternalGroup{
+				Name:      name,
+				Aliases:   pq.StringArray(aliases),
+				Tenant:    config.Organization,
+				GroupType: "AzureDevOps",
+			})
+		} else {
+			ctx.AddUser(dutyModels.ExternalUser{
+				Name:     name,
+				Email:    &email,
+				Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
+				Tenant:   config.Organization,
+				UserType: "AzureDevOps",
+			})
+		}
+
+		resolvedRoles := ResolveRoles("Release", perm.Permissions, config.Permissions.Roles)
+		for _, roleName := range resolvedRoles {
+			if _, exists := roleIDs[roleName]; !exists {
+				roleID := azure.RoleID(ctx.ScraperID(), roleName)
+				roleIDs[roleName] = roleID
+				roles = append(roles, dutyModels.ExternalRole{
+					ID:       roleID,
+					Name:     roleName,
+					RoleType: "AzureDevOps",
+					Tenant:   config.Organization,
+				})
+			}
+
+			roleID := roleIDs[roleName]
+			access := v1.ExternalConfigAccess{
+				ConfigExternalID: v1.ExternalID{ConfigType: ReleaseType, ExternalID: releaseExternalID},
+				ExternalRoleID:   &roleID,
+			}
+			if identity.IsContainer {
+				access.ExternalGroupAliases = DescriptorAliases(identity.Descriptor)
+			} else {
+				access.ExternalUserAliases = []string{email}
+			}
+			configAccess = append(configAccess, access)
+		}
+	}
+
+	return configAccess, roles, nil
 }
 
 func addExternalEntity(ctx api.ScrapeContext, identity *IdentityRef, organization string) {
@@ -256,7 +373,7 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Project, def ReleaseDefinition, defJSON map[string]any, releases []Release, cutoff time.Time) v1.ScrapeResult {
 	var result v1.ScrapeResult
 
-	releaseID := releaseExternalID(config.Organization, project.Name, def.ID)
+	releaseID := ReleaseExternalID(config.Organization, project.Name, def.ID)
 	configExternalID := v1.ExternalID{
 		ConfigType: ReleaseType,
 		ExternalID: releaseID,
