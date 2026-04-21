@@ -1,11 +1,13 @@
 package scrapers
 
 import (
+	"encoding/json"
 	gocontext "context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
-	"strconv"
+	"strings"
 	"time"
 
 	dutyAPI "github.com/flanksource/duty/api"
@@ -27,6 +29,46 @@ type runNowResponse struct {
 	Status        string `json:"status,omitempty"`
 }
 
+type runNowRequest struct {
+	Async                 *bool `json:"async,omitempty"`
+	CaptureHAR            *bool `json:"capture_har,omitempty"`
+	CaptureHARCamel       *bool `json:"captureHAR,omitempty"`
+	CaptureLogs           *bool `json:"capture_logs,omitempty"`
+	CaptureLogsCamel      *bool `json:"captureLogs,omitempty"`
+	CaptureSnapshots      *bool `json:"capture_snapshots,omitempty"`
+	CaptureSnapshotsCamel *bool `json:"captureSnapshots,omitempty"`
+}
+
+func (r runNowRequest) captureHAR() (bool, bool) {
+	if r.CaptureHAR != nil {
+		return *r.CaptureHAR, true
+	}
+	if r.CaptureHARCamel != nil {
+		return *r.CaptureHARCamel, true
+	}
+	return false, false
+}
+
+func (r runNowRequest) captureLogs() (bool, bool) {
+	if r.CaptureLogs != nil {
+		return *r.CaptureLogs, true
+	}
+	if r.CaptureLogsCamel != nil {
+		return *r.CaptureLogsCamel, true
+	}
+	return false, false
+}
+
+func (r runNowRequest) captureSnapshots() (bool, bool) {
+	if r.CaptureSnapshots != nil {
+		return *r.CaptureSnapshots, true
+	}
+	if r.CaptureSnapshotsCamel != nil {
+		return *r.CaptureSnapshotsCamel, true
+	}
+	return false, false
+}
+
 func RunNowHandler(c echo.Context) error {
 	id := c.Param("id")
 	baseCtx := c.Request().Context().(context.Context)
@@ -43,14 +85,21 @@ func RunNowHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to transform config scraper model", err)
 	}
 
-	isAsync, _ := strconv.ParseBool(c.QueryParam("async"))
-	if isAsync {
-		return runNowAsync(c, baseCtx, *scraper, configScraper)
+	req, err := parseRunNowRequest(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-	return runNowSync(c, baseCtx, configScraper)
+
+	runOpts := runScraperOptsFromRunNowRequest(req)
+	isAsync := req.Async != nil && *req.Async
+
+	if isAsync {
+		return runNowAsync(c, baseCtx, *scraper, configScraper, runOpts...)
+	}
+	return runNowSync(c, baseCtx, configScraper, runOpts...)
 }
 
-func runNowSync(c echo.Context, baseCtx context.Context, configScraper v1.ScrapeConfig) error {
+func runNowSync(c echo.Context, baseCtx context.Context, configScraper v1.ScrapeConfig, runOpts ...RunScraperOption) error {
 	resultCh := make(chan struct {
 		resp runNowResponse
 		err  error
@@ -63,7 +112,7 @@ func runNowSync(c echo.Context, baseCtx context.Context, configScraper v1.Scrape
 		defer cancel()
 
 		scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(&configScraper)
-		j := newScraperJob(scrapeCtx)
+		j := newScraperJob(scrapeCtx, runOpts...)
 		j.JitterDisable = true
 		j.Run()
 
@@ -95,7 +144,7 @@ func runNowSync(c echo.Context, baseCtx context.Context, configScraper v1.Scrape
 	}
 }
 
-func runNowAsync(c echo.Context, baseCtx context.Context, scraper models.ConfigScraper, configScraper v1.ScrapeConfig) error {
+func runNowAsync(c echo.Context, baseCtx context.Context, scraper models.ConfigScraper, configScraper v1.ScrapeConfig, runOpts ...RunScraperOption) error {
 	startedAt := time.Now().UTC()
 	go func() {
 		ctx, cancel := context.New().
@@ -105,7 +154,7 @@ func runNowAsync(c echo.Context, baseCtx context.Context, scraper models.ConfigS
 		defer cancel()
 
 		scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(&configScraper)
-		j := newScraperJob(scrapeCtx)
+		j := newScraperJob(scrapeCtx, runOpts...)
 		j.JitterDisable = true
 		j.Run()
 	}()
@@ -161,4 +210,43 @@ func responseFromHistory(history *models.JobHistory) runNowResponse {
 		resp.RunArtifactID = raw
 	}
 	return resp
+}
+
+func parseRunNowRequest(c echo.Context) (runNowRequest, error) {
+	var req runNowRequest
+
+	if c.Request().Body == nil {
+		return req, nil
+	}
+
+	raw, err := io.ReadAll(c.Request().Body)
+	if err != nil {
+		return req, fmt.Errorf("failed to read request body: %w", err)
+	}
+
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return req, nil
+	}
+
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return req, fmt.Errorf("invalid request body: %w", err)
+	}
+
+	return req, nil
+}
+
+func runScraperOptsFromRunNowRequest(req runNowRequest) []RunScraperOption {
+	opts := make([]RunScraperOption, 0, 3)
+
+	if enabled, ok := req.captureHAR(); ok {
+		opts = append(opts, WithCaptureHAR(enabled))
+	}
+	if enabled, ok := req.captureLogs(); ok {
+		opts = append(opts, WithCaptureLogs(enabled))
+	}
+	if enabled, ok := req.captureSnapshots(); ok {
+		opts = append(opts, WithCaptureSnapshots(enabled))
+	}
+
+	return opts
 }

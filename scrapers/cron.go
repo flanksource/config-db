@@ -199,9 +199,16 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 	return nil
 }
 
-func newScraperJob(sc api.ScrapeContext) *job.Job {
+func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job {
 	schedule, _ := lo.Coalesce(sc.Properties().String(fmt.Sprintf("scraper.%s.schedule", sc.ScrapeConfig().UID), sc.ScrapeConfig().Spec.Schedule), DefaultSchedule)
 	minScheduleAllowed := sc.Properties().Duration(fmt.Sprintf("scraper.%s.schedule.min", sc.ScrapeConfig().Type()), MinScraperSchedule)
+
+	runScraperOpts := []RunScraperOption{
+		WithCaptureHAR(sc.PropertyOn(true, "capture.har")),
+		WithCaptureLogs(sc.PropertyOn(true, "capture.logs")),
+		WithCaptureSnapshots(sc.PropertyOn(true, "capture.snapshots")),
+	}
+	runScraperOpts = append(runScraperOpts, overrides...)
 
 	// Attempt to get a fixed interval from the schedule.
 	// NOTE: Only works for fixed interval schedules.
@@ -259,11 +266,7 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 				WithLogger(runLogger).
 				WithHARCollector(harCollector)
 
-			output, err := RunScraper(scrapeCtx,
-				WithCaptureHAR(true),
-				WithCaptureLogs(true),
-				WithCaptureSnapshots(true),
-			)
+			output, err := RunScraper(scrapeCtx, runScraperOpts...)
 			if err != nil {
 				jr.History.AddError(err.Error())
 				return fmt.Errorf("error running scraper[%s]: %w", sc.ScrapeConfig().Name, err)
