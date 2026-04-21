@@ -1,14 +1,20 @@
 package scrapers
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"reflect"
 	"sync"
 	"time"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/logger"
+	"github.com/flanksource/duty/artifact"
 	"github.com/flanksource/duty/connection"
 	"github.com/flanksource/duty/context"
 	dutyEcho "github.com/flanksource/duty/echo"
@@ -39,6 +45,66 @@ var (
 )
 
 const scrapeJobName = "Scraper"
+
+type runArtifactPayload struct {
+	ScraperID         string                 `json:"scraper_id"`
+	ScraperName       string                 `json:"scraper_name"`
+	StartedAt         time.Time              `json:"started_at"`
+	FinishedAt        time.Time              `json:"finished_at"`
+	Results           runArtifactResults     `json:"results"`
+	SaveSummary       *v1.ScrapeSummary      `json:"save_summary,omitempty"`
+	LastScrapeSummary *v1.ScrapeSummary      `json:"last_scrape_summary,omitempty"`
+	SnapshotPair      *v1.ScrapeSnapshotPair `json:"snapshot_pair,omitempty"`
+	HAR               []har.Entry            `json:"har,omitempty"`
+	Logs              string                 `json:"logs,omitempty"`
+}
+
+type runArtifactResults struct {
+	v1.FullScrapeResults
+	Failed []runArtifactFailedResult `json:"failed,omitempty"`
+}
+
+type runArtifactFailedResult struct {
+	v1.ScrapeResult
+	Error              string                       `json:"error,omitempty"`
+	Warnings           []v1.Warning                 `json:"warnings,omitempty"`
+	Changes            []v1.ChangeResult            `json:"changes,omitempty"`
+	Relationships      v1.RelationshipResults       `json:"relationships,omitempty"`
+	ExternalRoles      []models.ExternalRole        `json:"external_roles,omitempty"`
+	ExternalUsers      []models.ExternalUser        `json:"external_users,omitempty"`
+	ExternalGroups     []models.ExternalGroup       `json:"external_groups,omitempty"`
+	ExternalUserGroups []v1.ExternalUserGroup       `json:"external_user_groups,omitempty"`
+	ConfigAccess       []v1.ExternalConfigAccess    `json:"config_access,omitempty"`
+	ConfigAccessLogs   []v1.ExternalConfigAccessLog `json:"config_access_logs,omitempty"`
+	TransformExpr      string                       `json:"transform_expr,omitempty"`
+}
+
+func buildRunArtifactResults(results v1.ScrapeResults) runArtifactResults {
+	artifactResults := runArtifactResults{FullScrapeResults: v1.MergeScrapeResults(results)}
+	for _, result := range results {
+		if result.Error == nil {
+			continue
+		}
+		artifactResults.Failed = append(artifactResults.Failed, runArtifactFailedResult{
+			ScrapeResult:       result,
+			Error:              result.Error.Error(),
+			Warnings:           result.Warnings,
+			Changes:            result.Changes,
+			Relationships:      result.RelationshipResults,
+			ExternalRoles:      result.ExternalRoles,
+			ExternalUsers:      result.ExternalUsers,
+			ExternalGroups:     result.ExternalGroups,
+			ExternalUserGroups: result.ExternalUserGroups,
+			ConfigAccess:       result.ConfigAccess,
+			ConfigAccessLogs:   result.ConfigAccessLogs,
+			TransformExpr:      result.TransformExpr,
+		})
+	}
+	if len(artifactResults.Failed) == 0 {
+		artifactResults.Failed = nil
+	}
+	return artifactResults
+}
 
 func init() {
 	dutyEcho.RegisterCron(scrapeJobScheduler)
@@ -180,9 +246,16 @@ func SyncScrapeJob(sc api.ScrapeContext) error {
 	return nil
 }
 
-func newScraperJob(sc api.ScrapeContext) *job.Job {
+func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job {
 	schedule, _ := lo.Coalesce(sc.Properties().String(fmt.Sprintf("scraper.%s.schedule", sc.ScrapeConfig().UID), sc.ScrapeConfig().Spec.Schedule), DefaultSchedule)
 	minScheduleAllowed := sc.Properties().Duration(fmt.Sprintf("scraper.%s.schedule.min", sc.ScrapeConfig().Type()), MinScraperSchedule)
+
+	runScraperOpts := []RunScraperOption{
+		WithCaptureHAR(sc.PropertyOn(false, "capture.har")),
+		WithCaptureLogs(sc.PropertyOn(false, "capture.logs")),
+		WithCaptureSnapshots(sc.PropertyOn(false, "capture.snapshots")),
+	}
+	runScraperOpts = append(runScraperOpts, overrides...)
 
 	// Attempt to get a fixed interval from the schedule.
 	// NOTE: Only works for fixed interval schedules.
@@ -216,6 +289,14 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 		ResourceType: job.ResourceTypeScraper,
 		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
 		Fn: func(jr job.JobRuntime) error {
+			runLogger := logger.NewWithWriter(os.Stderr)
+			runLogger.SetLogLevel(jr.Logger.GetLevel())
+
+			var harCollector *har.Collector
+			if runLogger.IsTraceEnabled() {
+				harCollector = har.NewCollector(har.DefaultConfig())
+			}
+
 			if resetAt := getLastRateLimitReset(jr.Context, sc.ScraperID()); resetAt != nil {
 				if time.Now().Before(*resetAt) {
 					jr.Logger.Warnf("still rate limited until %s, skipping", resetAt.Format(time.RFC3339))
@@ -226,10 +307,13 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 
 			start := time.Now()
 
+			lastSummary := GetLastScrapeSummary(jr.Context, sc.ScraperID())
 			scrapeCtx := sc.WithJobHistory(jr.History).
-				WithLastScrapeSummary(GetLastScrapeSummary(jr.Context, sc.ScraperID()))
+				WithLastScrapeSummary(lastSummary).
+				WithLogger(runLogger).
+				WithHARCollector(harCollector)
 
-			output, err := RunScraper(scrapeCtx)
+			output, err := RunScraper(scrapeCtx, runScraperOpts...)
 			if err != nil {
 				jr.History.AddError(err.Error())
 				return fmt.Errorf("error running scraper[%s]: %w", sc.ScrapeConfig().Name, err)
@@ -243,6 +327,19 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			jr.History.SuccessCount = output.Total
 			jr.History.AddDetails("scrape_summary", output.Summary)
 			ScraperSummaryCache.Store(sc.ScraperID(), output.Summary)
+
+			if shouldPersist, reason := shouldPersistRunArtifact(jr.Context, sc.ScraperID(), runScraperOpts...); shouldPersist {
+				runArtifact, err := persistRunArtifact(jr.Context, sc.ScraperID(), jr.History.ID, sc.ScrapeConfig().Name, start, output, lastSummary)
+				if err != nil {
+					jr.Logger.Warnf("failed to persist scrape run artifact: %v", err)
+				} else if runArtifact != nil {
+					jr.History.AddDetails("run_artifact_count", 1)
+					jr.History.AddDetails("run_artifact_prefix", runArtifactPrefix(sc.ScraperID(), jr.History.ID))
+					jr.History.AddDetails("run_artifact_path", runArtifact.Path)
+				}
+			} else {
+				jr.Logger.Infof("skipping scrape run artifact persistence: %s", reason)
+			}
 
 			source := sc.ScrapeConfig().GetAnnotations()["source"]
 			agentID := sc.ScrapeConfig().GetAnnotations()["agent_id"]
@@ -262,6 +359,119 @@ func newScraperJob(sc api.ScrapeContext) *job.Job {
 			return nil
 		},
 	}
+}
+
+func persistRunArtifact(ctx context.Context, scraperID string, jobHistoryID uuid.UUID, scraperName string, startedAt time.Time, output *ScrapeOutput, lastSummary v1.ScrapeSummary) (*models.Artifact, error) {
+	if scraperID == "" {
+		return nil, nil
+	}
+
+	artifactConnectionID, err := getArtifactConnectionID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	blobs, err := ctx.Blobs()
+	if err != nil {
+		return nil, err
+	}
+	defer blobs.Close() //nolint:errcheck
+
+	scraperUUID, err := uuid.Parse(scraperID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid scraper id %q: %w", scraperID, err)
+	}
+
+	payload := runArtifactPayload{
+		ScraperID:    scraperID,
+		ScraperName:  scraperName,
+		StartedAt:    startedAt,
+		FinishedAt:   time.Now(),
+		Results:      buildRunArtifactResults(output.Results),
+		SaveSummary:  &output.Summary,
+		SnapshotPair: output.SnapshotPair,
+		HAR:          output.HAR,
+		Logs:         output.Logs,
+	}
+	if lastSummary.ConfigTypes != nil {
+		copy := lastSummary
+		payload.LastScrapeSummary = &copy
+	}
+
+	summaryData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal run artifact: %w", err)
+	}
+
+	prefix := runArtifactPrefix(scraperID, jobHistoryID)
+	return writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "summary.json.gz", "summary.json.gz", summaryData)
+}
+
+func shouldPersistRunArtifact(ctx context.Context, scraperID string, runOpts ...RunScraperOption) (bool, string) {
+	if scraperID == "" {
+		return false, "scraper has no persisted ID"
+	}
+
+	opts := buildRunScraperOptions(runOpts...)
+	hasCaptureEnabled := opts.CaptureHAR || opts.CaptureLogs || opts.CaptureSnapshots
+	hasArtifactConnection := ctx.Properties().String("artifacts.connection", "") != ""
+	if !hasCaptureEnabled && !hasArtifactConnection {
+		return false, "no artifact capture enabled and no artifacts.connection configured"
+	}
+
+	return true, ""
+}
+
+func runArtifactPrefix(scraperID string, jobHistoryID uuid.UUID) string {
+	return fmt.Sprintf("scrape-runs/%s/%s", scraperID, jobHistoryID.String())
+}
+
+func writeCompressedRunArtifact(blobs artifact.BlobStore, artifactConnectionID uuid.UUID, scraperID uuid.UUID, jobHistoryID uuid.UUID, prefix, pathSuffix, filename string, data []byte) (*models.Artifact, error) {
+	var gz bytes.Buffer
+	zw := gzip.NewWriter(&gz)
+	if _, err := zw.Write(data); err != nil {
+		return nil, fmt.Errorf("failed to compress run artifact %s: %w", pathSuffix, err)
+	}
+	if err := zw.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close run artifact compression stream for %s: %w", pathSuffix, err)
+	}
+
+	path := fmt.Sprintf("%s/%s", prefix, pathSuffix)
+	saved, err := blobs.Write(artifact.Data{
+		Content:       io.NopCloser(bytes.NewReader(gz.Bytes())),
+		ContentLength: int64(gz.Len()),
+		Filename:      path,
+		ContentType:   "application/gzip",
+	}, &models.Artifact{
+		Path:            path,
+		Filename:        filename,
+		ConnectionID:    artifactConnectionID,
+		CompressionType: "gzip",
+		ScraperID:       &scraperID,
+		JobHistoryID:    &jobHistoryID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to write run artifact %s: %w", pathSuffix, err)
+	}
+
+	return saved, nil
+}
+
+func getArtifactConnectionID(ctx context.Context) (uuid.UUID, error) {
+	connURL := ctx.Properties().String("artifacts.connection", "")
+	if connURL == "" {
+		return uuid.Nil, nil
+	}
+
+	conn, err := ctx.HydrateConnectionByURL(connURL)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to resolve artifact connection %q: %w", connURL, err)
+	}
+	if conn == nil {
+		return uuid.Nil, fmt.Errorf("artifact connection %q not found", connURL)
+	}
+
+	return conn.ID, nil
 }
 
 func updateCRDStatus(ctx context.Context, obj *v1.ScrapeConfig, lastRun v1.LastRunStatus) error {

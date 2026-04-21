@@ -167,6 +167,17 @@ func (ctx ScrapeContext) WithJobHistory(jobHistory *models.JobHistory) ScrapeCon
 	return ctx
 }
 
+// WithLogger assigns a run-scoped logger to this scrape context without
+// mutating the global logger singleton. This allows concurrent scraper runs to
+// emit to independent sinks (e.g. per-run buffers) while preserving all other
+// duty context wiring (db/pool/kubernetes/namespace).
+func (ctx ScrapeContext) WithLogger(log logger.Logger) ScrapeContext {
+	wrapped := ctx.Context.Wrap(ctx.Context)
+	wrapped.Context.Logger = log
+	ctx.Context = wrapped
+	return ctx
+}
+
 func (ctx ScrapeContext) DutyContext() dutyCtx.Context {
 	return ctx.Context.WithNamespace(ctx.Namespace())
 }
