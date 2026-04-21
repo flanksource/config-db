@@ -75,7 +75,7 @@ spec:
 
     - type: Kubernetes::*
       withParent: Kubernetes::HelmRelease
-      filter: "has(labels['helm.toolkit.fluxcd.io/name'])"
+      filter: "'helm.toolkit.fluxcd.io/name' in labels"
       values:
         - helm://$(tags.cluster)/$(.parent.tags.namespace)/$(.parent.name)
 {{- end }}
