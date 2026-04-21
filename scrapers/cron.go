@@ -328,8 +328,17 @@ func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job
 			jr.History.AddDetails("scrape_summary", output.Summary)
 			ScraperSummaryCache.Store(sc.ScraperID(), output.Summary)
 
-			if _, err := persistRunArtifacts(jr.Context, sc.ScraperID(), jr.History.ID, sc.ScrapeConfig().Name, start, output, lastSummary); err != nil {
-				jr.Logger.Warnf("failed to persist scrape run artifacts: %v", err)
+			if shouldPersist, reason := shouldPersistRunArtifact(jr.Context, sc.ScraperID(), runScraperOpts...); shouldPersist {
+				runArtifact, err := persistRunArtifact(jr.Context, sc.ScraperID(), jr.History.ID, sc.ScrapeConfig().Name, start, output, lastSummary)
+				if err != nil {
+					jr.Logger.Warnf("failed to persist scrape run artifact: %v", err)
+				} else if runArtifact != nil {
+					jr.History.AddDetails("run_artifact_count", 1)
+					jr.History.AddDetails("run_artifact_prefix", runArtifactPrefix(sc.ScraperID(), jr.History.ID))
+					jr.History.AddDetails("run_artifact_path", runArtifact.Path)
+				}
+			} else {
+				jr.Logger.Infof("skipping scrape run artifact persistence: %s", reason)
 			}
 
 			source := sc.ScrapeConfig().GetAnnotations()["source"]
@@ -352,7 +361,11 @@ func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job
 	}
 }
 
-func persistRunArtifacts(ctx context.Context, scraperID string, jobHistoryID uuid.UUID, scraperName string, startedAt time.Time, output *ScrapeOutput, lastSummary v1.ScrapeSummary) ([]*models.Artifact, error) {
+func persistRunArtifact(ctx context.Context, scraperID string, jobHistoryID uuid.UUID, scraperName string, startedAt time.Time, output *ScrapeOutput, lastSummary v1.ScrapeSummary) (*models.Artifact, error) {
+	if scraperID == "" {
+		return nil, nil
+	}
+
 	artifactConnectionID, err := getArtifactConnectionID(ctx)
 	if err != nil {
 		return nil, err
@@ -369,16 +382,16 @@ func persistRunArtifacts(ctx context.Context, scraperID string, jobHistoryID uui
 		return nil, fmt.Errorf("invalid scraper id %q: %w", scraperID, err)
 	}
 
-	prefix := runArtifactPrefix(scraperID, jobHistoryID)
-	persisted := make([]*models.Artifact, 0, 4)
-
 	payload := runArtifactPayload{
-		ScraperID:   scraperID,
-		ScraperName: scraperName,
-		StartedAt:   startedAt,
-		FinishedAt:  time.Now(),
-		Results:     buildRunArtifactResults(output.Results),
-		SaveSummary: &output.Summary,
+		ScraperID:    scraperID,
+		ScraperName:  scraperName,
+		StartedAt:    startedAt,
+		FinishedAt:   time.Now(),
+		Results:      buildRunArtifactResults(output.Results),
+		SaveSummary:  &output.Summary,
+		SnapshotPair: output.SnapshotPair,
+		HAR:          output.HAR,
+		Logs:         output.Logs,
 	}
 	if lastSummary.ConfigTypes != nil {
 		copy := lastSummary
@@ -387,47 +400,26 @@ func persistRunArtifacts(ctx context.Context, scraperID string, jobHistoryID uui
 
 	summaryData, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal run summary artifact: %w", err)
-	}
-	summaryArtifact, err := writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "summary.json.gz", fmt.Sprintf("%s-summary.json.gz", scraperName), summaryData)
-	if err != nil {
-		return nil, err
-	}
-	persisted = append(persisted, summaryArtifact)
-
-	if output.Logs != "" {
-		logsArtifact, err := writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "logs.txt.gz", fmt.Sprintf("%s-logs.txt.gz", scraperName), []byte(output.Logs))
-		if err != nil {
-			return nil, err
-		}
-		persisted = append(persisted, logsArtifact)
+		return nil, fmt.Errorf("failed to marshal run artifact: %w", err)
 	}
 
-	if len(output.HAR) > 0 {
-		harData, err := json.Marshal(output.HAR)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal run HAR artifact: %w", err)
-		}
-		harArtifact, err := writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "har.json.gz", fmt.Sprintf("%s-har.json.gz", scraperName), harData)
-		if err != nil {
-			return nil, err
-		}
-		persisted = append(persisted, harArtifact)
+	prefix := runArtifactPrefix(scraperID, jobHistoryID)
+	return writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "summary.json.gz", "summary.json.gz", summaryData)
+}
+
+func shouldPersistRunArtifact(ctx context.Context, scraperID string, runOpts ...RunScraperOption) (bool, string) {
+	if scraperID == "" {
+		return false, "scraper has no persisted ID"
 	}
 
-	if output.SnapshotPair != nil {
-		snapshotData, err := json.Marshal(output.SnapshotPair)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal run snapshot artifact: %w", err)
-		}
-		snapshotArtifact, err := writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "snapshots.json.gz", fmt.Sprintf("%s-snapshots.json.gz", scraperName), snapshotData)
-		if err != nil {
-			return nil, err
-		}
-		persisted = append(persisted, snapshotArtifact)
+	opts := buildRunScraperOptions(runOpts...)
+	hasCaptureEnabled := opts.CaptureHAR || opts.CaptureLogs || opts.CaptureSnapshots
+	hasArtifactConnection := ctx.Properties().String("artifacts.connection", "") != ""
+	if !hasCaptureEnabled && !hasArtifactConnection {
+		return false, "no artifact capture enabled and no artifacts.connection configured"
 	}
 
-	return persisted, nil
+	return true, ""
 }
 
 func runArtifactPrefix(scraperID string, jobHistoryID uuid.UUID) string {
@@ -451,11 +443,12 @@ func writeCompressedRunArtifact(blobs artifact.BlobStore, artifactConnectionID u
 		Filename:      path,
 		ContentType:   "application/gzip",
 	}, &models.Artifact{
-		Path:         path,
-		Filename:     filename,
-		ConnectionID: artifactConnectionID,
-		ScraperID:    &scraperID,
-		JobHistoryID: &jobHistoryID,
+		Path:            path,
+		Filename:        filename,
+		ConnectionID:    artifactConnectionID,
+		CompressionType: "gzip",
+		ScraperID:       &scraperID,
+		JobHistoryID:    &jobHistoryID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to write run artifact %s: %w", pathSuffix, err)
