@@ -247,6 +247,17 @@ func uploadArtifacts(ctx api.ScrapeContext, results v1.ScrapeResults) {
 	}
 	defer blobs.Close() //nolint:errcheck
 
+	var scraperID *uuid.UUID
+	if parsed, err := uuid.Parse(ctx.ScraperID()); err == nil {
+		scraperID = &parsed
+	}
+
+	var jobHistoryID *uuid.UUID
+	if history := ctx.JobHistory(); history != nil && history.ID != uuid.Nil {
+		id := history.ID
+		jobHistoryID = &id
+	}
+
 	for _, result := range results {
 		for i, change := range result.Changes {
 			if change.Details == nil {
@@ -274,8 +285,10 @@ func uploadArtifacts(ctx api.ScrapeContext, results v1.ScrapeResults) {
 
 				filename := filepath.Base(localPath)
 				a := &dutyModels.Artifact{
-					Path:     fmt.Sprintf("playwright/%s/%s", ctx.ScrapeConfig().Name, filename),
-					Filename: filename,
+					Path:         fmt.Sprintf("playwright/%s/%s", ctx.ScrapeConfig().Name, filename),
+					Filename:     filename,
+					ScraperID:    scraperID,
+					JobHistoryID: jobHistoryID,
 				}
 				artifactData := artifact.Data{
 					Content:       io.NopCloser(bytes.NewReader(data)),

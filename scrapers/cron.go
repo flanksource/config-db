@@ -328,12 +328,8 @@ func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job
 			jr.History.AddDetails("scrape_summary", output.Summary)
 			ScraperSummaryCache.Store(sc.ScraperID(), output.Summary)
 
-			if runArtifact, err := persistRunArtifact(jr.Context, sc.ScraperID(), sc.ScrapeConfig().Name, start, output, lastSummary); err != nil {
-				jr.Logger.Warnf("failed to persist scrape run artifact: %v", err)
-			} else {
-				jr.History.AddDetails("run_artifact_id", runArtifact.ID.String())
-				jr.History.AddDetails("run_artifact_path", runArtifact.Path)
-				jr.History.AddDetails("run_artifact_size", runArtifact.Size)
+			if _, err := persistRunArtifacts(jr.Context, sc.ScraperID(), jr.History.ID, sc.ScrapeConfig().Name, start, output, lastSummary); err != nil {
+				jr.Logger.Warnf("failed to persist scrape run artifacts: %v", err)
 			}
 
 			source := sc.ScrapeConfig().GetAnnotations()["source"]
@@ -356,7 +352,7 @@ func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job
 	}
 }
 
-func persistRunArtifact(ctx context.Context, scraperID, scraperName string, startedAt time.Time, output *ScrapeOutput, lastSummary v1.ScrapeSummary) (*models.Artifact, error) {
+func persistRunArtifacts(ctx context.Context, scraperID string, jobHistoryID uuid.UUID, scraperName string, startedAt time.Time, output *ScrapeOutput, lastSummary v1.ScrapeSummary) ([]*models.Artifact, error) {
 	artifactConnectionID, err := getArtifactConnectionID(ctx)
 	if err != nil {
 		return nil, err
@@ -368,45 +364,101 @@ func persistRunArtifact(ctx context.Context, scraperID, scraperName string, star
 	}
 	defer blobs.Close() //nolint:errcheck
 
+	scraperUUID, err := uuid.Parse(scraperID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid scraper id %q: %w", scraperID, err)
+	}
+
+	prefix := runArtifactPrefix(scraperID, jobHistoryID)
+	persisted := make([]*models.Artifact, 0, 4)
+
 	payload := runArtifactPayload{
-		ScraperID:    scraperID,
-		ScraperName:  scraperName,
-		StartedAt:    startedAt,
-		FinishedAt:   time.Now(),
-		Results:      buildRunArtifactResults(output.Results),
-		SaveSummary:  &output.Summary,
-		SnapshotPair: output.SnapshotPair,
-		HAR:          output.HAR,
-		Logs:         output.Logs,
+		ScraperID:   scraperID,
+		ScraperName: scraperName,
+		StartedAt:   startedAt,
+		FinishedAt:  time.Now(),
+		Results:     buildRunArtifactResults(output.Results),
+		SaveSummary: &output.Summary,
 	}
 	if lastSummary.ConfigTypes != nil {
 		copy := lastSummary
 		payload.LastScrapeSummary = &copy
 	}
 
-	var raw bytes.Buffer
-	if err := json.NewEncoder(&raw).Encode(payload); err != nil {
-		return nil, fmt.Errorf("failed to marshal run artifact: %w", err)
+	summaryData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal run summary artifact: %w", err)
+	}
+	summaryArtifact, err := writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "summary.json.gz", fmt.Sprintf("%s-summary.json.gz", scraperName), summaryData)
+	if err != nil {
+		return nil, err
+	}
+	persisted = append(persisted, summaryArtifact)
+
+	if output.Logs != "" {
+		logsArtifact, err := writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "logs.txt.gz", fmt.Sprintf("%s-logs.txt.gz", scraperName), []byte(output.Logs))
+		if err != nil {
+			return nil, err
+		}
+		persisted = append(persisted, logsArtifact)
 	}
 
+	if len(output.HAR) > 0 {
+		harData, err := json.Marshal(output.HAR)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal run HAR artifact: %w", err)
+		}
+		harArtifact, err := writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "har.json.gz", fmt.Sprintf("%s-har.json.gz", scraperName), harData)
+		if err != nil {
+			return nil, err
+		}
+		persisted = append(persisted, harArtifact)
+	}
+
+	if output.SnapshotPair != nil {
+		snapshotData, err := json.Marshal(output.SnapshotPair)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal run snapshot artifact: %w", err)
+		}
+		snapshotArtifact, err := writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "snapshots.json.gz", fmt.Sprintf("%s-snapshots.json.gz", scraperName), snapshotData)
+		if err != nil {
+			return nil, err
+		}
+		persisted = append(persisted, snapshotArtifact)
+	}
+
+	return persisted, nil
+}
+
+func runArtifactPrefix(scraperID string, jobHistoryID uuid.UUID) string {
+	return fmt.Sprintf("scrape-runs/%s/%s", scraperID, jobHistoryID.String())
+}
+
+func writeCompressedRunArtifact(blobs artifact.BlobStore, artifactConnectionID uuid.UUID, scraperID uuid.UUID, jobHistoryID uuid.UUID, prefix, pathSuffix, filename string, data []byte) (*models.Artifact, error) {
 	var gz bytes.Buffer
 	zw := gzip.NewWriter(&gz)
-	if _, err := io.Copy(zw, &raw); err != nil {
-		return nil, fmt.Errorf("failed to compress run artifact: %w", err)
+	if _, err := zw.Write(data); err != nil {
+		return nil, fmt.Errorf("failed to compress run artifact %s: %w", pathSuffix, err)
 	}
 	if err := zw.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close run artifact compression stream: %w", err)
+		return nil, fmt.Errorf("failed to close run artifact compression stream for %s: %w", pathSuffix, err)
 	}
 
-	filename := fmt.Sprintf("scrape-runs/%s/%d.json.gz", scraperID, startedAt.UnixMilli())
+	path := fmt.Sprintf("%s/%s", prefix, pathSuffix)
 	saved, err := blobs.Write(artifact.Data{
 		Content:       io.NopCloser(bytes.NewReader(gz.Bytes())),
 		ContentLength: int64(gz.Len()),
-		Filename:      filename,
+		Filename:      path,
 		ContentType:   "application/gzip",
-	}, &models.Artifact{Path: filename, Filename: fmt.Sprintf("%s.json.gz", scraperName), ConnectionID: artifactConnectionID})
+	}, &models.Artifact{
+		Path:         path,
+		Filename:     filename,
+		ConnectionID: artifactConnectionID,
+		ScraperID:    &scraperID,
+		JobHistoryID: &jobHistoryID,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to write run artifact: %w", err)
+		return nil, fmt.Errorf("failed to write run artifact %s: %w", pathSuffix, err)
 	}
 
 	return saved, nil

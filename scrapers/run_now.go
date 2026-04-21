@@ -26,9 +26,8 @@ const (
 )
 
 type runNowResponse struct {
-	JobHistoryID  string `json:"job_history_id,omitempty"`
-	RunArtifactID string `json:"run_artifact_id,omitempty"`
-	Status        string `json:"status,omitempty"`
+	JobHistoryID string `json:"job_history_id,omitempty"`
+	Status       string `json:"status,omitempty"`
 }
 
 type runNowRequest struct {
@@ -204,14 +203,10 @@ func waitForStartedJobHistory(reqCtx gocontext.Context, baseCtx context.Context,
 }
 
 func responseFromHistory(history *models.JobHistory) runNowResponse {
-	resp := runNowResponse{
+	return runNowResponse{
 		JobHistoryID: history.ID.String(),
 		Status:       history.Status,
 	}
-	if raw, ok := history.Details["run_artifact_id"].(string); ok {
-		resp.RunArtifactID = raw
-	}
-	return resp
 }
 
 func parseRunNowRequest(c echo.Context) (runNowRequest, error) {
