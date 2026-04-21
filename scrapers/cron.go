@@ -204,9 +204,9 @@ func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job
 	minScheduleAllowed := sc.Properties().Duration(fmt.Sprintf("scraper.%s.schedule.min", sc.ScrapeConfig().Type()), MinScraperSchedule)
 
 	runScraperOpts := []RunScraperOption{
-		WithCaptureHAR(sc.PropertyOn(true, "capture.har")),
-		WithCaptureLogs(sc.PropertyOn(true, "capture.logs")),
-		WithCaptureSnapshots(sc.PropertyOn(true, "capture.snapshots")),
+		WithCaptureHAR(sc.PropertyOn(false, "capture.har")),
+		WithCaptureLogs(sc.PropertyOn(false, "capture.logs")),
+		WithCaptureSnapshots(sc.PropertyOn(false, "capture.snapshots")),
 	}
 	runScraperOpts = append(runScraperOpts, overrides...)
 
