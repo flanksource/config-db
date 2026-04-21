@@ -51,12 +51,59 @@ type runArtifactPayload struct {
 	ScraperName       string                 `json:"scraper_name"`
 	StartedAt         time.Time              `json:"started_at"`
 	FinishedAt        time.Time              `json:"finished_at"`
-	Results           v1.FullScrapeResults   `json:"results"`
+	Results           runArtifactResults     `json:"results"`
 	SaveSummary       *v1.ScrapeSummary      `json:"save_summary,omitempty"`
 	LastScrapeSummary *v1.ScrapeSummary      `json:"last_scrape_summary,omitempty"`
 	SnapshotPair      *v1.ScrapeSnapshotPair `json:"snapshot_pair,omitempty"`
 	HAR               []har.Entry            `json:"har,omitempty"`
 	Logs              string                 `json:"logs,omitempty"`
+}
+
+type runArtifactResults struct {
+	v1.FullScrapeResults
+	Failed []runArtifactFailedResult `json:"failed,omitempty"`
+}
+
+type runArtifactFailedResult struct {
+	v1.ScrapeResult
+	Error              string                       `json:"error,omitempty"`
+	Warnings           []v1.Warning                 `json:"warnings,omitempty"`
+	Changes            []v1.ChangeResult            `json:"changes,omitempty"`
+	Relationships      v1.RelationshipResults       `json:"relationships,omitempty"`
+	ExternalRoles      []models.ExternalRole        `json:"external_roles,omitempty"`
+	ExternalUsers      []models.ExternalUser        `json:"external_users,omitempty"`
+	ExternalGroups     []models.ExternalGroup       `json:"external_groups,omitempty"`
+	ExternalUserGroups []v1.ExternalUserGroup       `json:"external_user_groups,omitempty"`
+	ConfigAccess       []v1.ExternalConfigAccess    `json:"config_access,omitempty"`
+	ConfigAccessLogs   []v1.ExternalConfigAccessLog `json:"config_access_logs,omitempty"`
+	TransformExpr      string                       `json:"transform_expr,omitempty"`
+}
+
+func buildRunArtifactResults(results v1.ScrapeResults) runArtifactResults {
+	artifactResults := runArtifactResults{FullScrapeResults: v1.MergeScrapeResults(results)}
+	for _, result := range results {
+		if result.Error == nil {
+			continue
+		}
+		artifactResults.Failed = append(artifactResults.Failed, runArtifactFailedResult{
+			ScrapeResult:       result,
+			Error:              result.Error.Error(),
+			Warnings:           result.Warnings,
+			Changes:            result.Changes,
+			Relationships:      result.RelationshipResults,
+			ExternalRoles:      result.ExternalRoles,
+			ExternalUsers:      result.ExternalUsers,
+			ExternalGroups:     result.ExternalGroups,
+			ExternalUserGroups: result.ExternalUserGroups,
+			ConfigAccess:       result.ConfigAccess,
+			ConfigAccessLogs:   result.ConfigAccessLogs,
+			TransformExpr:      result.TransformExpr,
+		})
+	}
+	if len(artifactResults.Failed) == 0 {
+		artifactResults.Failed = nil
+	}
+	return artifactResults
 }
 
 func init() {
@@ -326,7 +373,7 @@ func persistRunArtifact(ctx context.Context, scraperID, scraperName string, star
 		ScraperName:  scraperName,
 		StartedAt:    startedAt,
 		FinishedAt:   time.Now(),
-		Results:      v1.MergeScrapeResults(output.Results),
+		Results:      buildRunArtifactResults(output.Results),
 		SaveSummary:  &output.Summary,
 		SnapshotPair: output.SnapshotPair,
 		HAR:          output.HAR,

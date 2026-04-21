@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	dutyAPI "github.com/flanksource/duty/api"
@@ -21,7 +20,10 @@ import (
 	"github.com/flanksource/config-db/db"
 )
 
-const runNowTimeout = 30 * time.Minute
+const (
+	runNowTimeout         = 30 * time.Minute
+	runNowRequestMaxBytes = 8 * 1024
+)
 
 type runNowResponse struct {
 	JobHistoryID  string `json:"job_history_id,omitempty"`
@@ -219,20 +221,34 @@ func parseRunNowRequest(c echo.Context) (runNowRequest, error) {
 		return req, nil
 	}
 
-	raw, err := io.ReadAll(c.Request().Body)
-	if err != nil {
-		return req, fmt.Errorf("failed to read request body: %w", err)
-	}
+	limitedBody := http.MaxBytesReader(c.Response(), c.Request().Body, runNowRequestMaxBytes)
+	c.Request().Body = limitedBody
 
-	if len(strings.TrimSpace(string(raw))) == 0 {
-		return req, nil
-	}
-
-	if err := json.Unmarshal(raw, &req); err != nil {
+	decoder := json.NewDecoder(limitedBody)
+	if err := decoder.Decode(&req); err != nil {
+		if errors.Is(err, io.EOF) {
+			return req, nil
+		}
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			return req, fmt.Errorf("request body too large (max %d bytes)", runNowRequestMaxBytes)
+		}
 		return req, fmt.Errorf("invalid request body: %w", err)
 	}
 
-	return req, nil
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); err != nil {
+		if errors.Is(err, io.EOF) {
+			return req, nil
+		}
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			return req, fmt.Errorf("request body too large (max %d bytes)", runNowRequestMaxBytes)
+		}
+		return req, fmt.Errorf("invalid request body: %w", err)
+	}
+
+	return req, fmt.Errorf("invalid request body: multiple JSON values are not allowed")
 }
 
 func runScraperOptsFromRunNowRequest(req runNowRequest) []RunScraperOption {
