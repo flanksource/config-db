@@ -187,7 +187,9 @@ export function DetailPanel({ item, changes, relationships, configMeta, access, 
               title="Copy link to this config"
               onClick={() => {
                 const url = new URL(location.href);
-                url.hash = `tab=configs&id=${encodeURIComponent(item.id)}`;
+                url.pathname = `/configs/${encodeURIComponent(item.id)}`;
+                url.search = '';
+                url.hash = '';
                 navigator.clipboard.writeText(url.toString());
               }}
             >

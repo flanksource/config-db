@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	gocontext "context"
 	"encoding/base64"
 	"encoding/json"
@@ -58,7 +57,7 @@ var Run = &cobra.Command{
 	Use:   "run <scraper.yaml>",
 	Short: "Run scrapers and return",
 	Run: func(cmd *cobra.Command, configFiles []string) {
-		var logBuf bytes.Buffer
+		var logBuf scrapeui.SafeBuffer
 		var harCollector *har.Collector
 
 		if logger.IsTraceEnabled() {
@@ -231,7 +230,6 @@ var Run = &cobra.Command{
 		// Restore stderr-only logging before rendering
 		logger.Use(os.Stderr)
 
-		printOutput(allResults, lastSummary, lastSnapshotPair, harCollector, logBuf.String())
 		if uiServer != nil {
 			if harCollector != nil {
 				uiServer.SetHAR(harCollector.Entries())
@@ -266,12 +264,14 @@ var Run = &cobra.Command{
 
 		if uiServer == nil {
 			printOutput(allResults, lastSummary, lastSnapshotPair, harCollector, logBuf.String())
-		}
-
-		if uiServer != nil {
+		} else {
 			sig := make(chan os.Signal, 1)
 			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 			<-sig
+			shutdown.Shutdown()
+			if hasErrors {
+				os.Exit(1)
+			}
 			return
 		}
 
@@ -635,7 +635,7 @@ func ensureScraper(ctx context.Context, sc *v1.ScrapeConfig) error {
 	return nil
 }
 
-func startScrapeUI(scraperNames []string, scrapeSpec any, logBuf *bytes.Buffer) *scrapeui.Server {
+func startScrapeUI(scraperNames []string, scrapeSpec any, logBuf *scrapeui.SafeBuffer) *scrapeui.Server {
 	srv := scrapeui.NewServer(scraperNames, scrapeSpec, logBuf)
 	bi := GetBuildInfo()
 	srv.SetBuildInfo(scrapeui.BuildInfo{Version: bi.Version, Commit: bi.Commit, Date: bi.Date})
@@ -652,7 +652,15 @@ func startScrapeUI(scraperNames []string, scrapeSpec any, logBuf *bytes.Buffer) 
 	port := listener.Addr().(*net.TCPAddr).Port
 	url := fmt.Sprintf("http://localhost:%d", port)
 
-	go http.Serve(listener, srv.Handler()) //nolint:errcheck
+	httpServer := &http.Server{Handler: srv.Handler()}
+	shutdown.AddHook(func() {
+		ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 5*time.Second)
+		defer cancel()
+		_ = httpServer.Shutdown(ctx)
+		_ = listener.Close()
+	})
+
+	go httpServer.Serve(listener) //nolint:errcheck
 
 	time.Sleep(100 * time.Millisecond)
 	logger.Infof("Scrape UI at %s", url)

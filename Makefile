@@ -81,8 +81,16 @@ manifests: generate gen-schemas ## Generate WebhookConfiguration, ClusterRole an
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 
+.PHONY: scrapeui-fallback-assets
+scrapeui-fallback-assets:
+	@mkdir -p cmd/scrapeui/frontend/dist
+	@test -f cmd/scrapeui/frontend/dist/scrapeui.js || \
+		echo "console.warn('scrapeui fallback bundle: run make scrapeui-build for full UI');" > cmd/scrapeui/frontend/dist/scrapeui.js
+	@test -f cmd/scrapeui/frontend/dist/scrapeui.css || \
+		echo "/* scrapeui fallback styles: run make scrapeui-build for full UI */" > cmd/scrapeui/frontend/dist/scrapeui.css
+
 .PHONY: resources
-resources: fmt manifests
+resources: scrapeui-fallback-assets fmt manifests
 
 test: manifests generate fmt vet envtest  ## Run tests.
 	$(MAKE) gotest

@@ -1,7 +1,6 @@
 package scrapeui
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -51,24 +50,24 @@ func mergeEntitiesByID[T any](existing, incoming []T, getID func(T) uuid.UUID) [
 }
 
 type Server struct {
-	mu            sync.RWMutex
-	scrapers      []ScraperProgress
-	results       v1.FullScrapeResults
-	relationships []UIRelationship
-	configMeta    map[string]ConfigMeta
-	issues        []ScrapeIssue
-	summary       *SaveSummary
-	snapshots     map[string]*v1.ScrapeSnapshotPair
-	har           []har.Entry
-	scrapeSpec    any
-	properties    map[string]PropertyInfo
-	logLevel      *LogLevelInfo
-	logBuf             *bytes.Buffer
-	done               bool
-	startedAt          int64
-	buildInfo          *BuildInfo
-	lastScrapeSummary  *v1.ScrapeSummary
-	updated            chan struct{}
+	mu                sync.RWMutex
+	scrapers          []ScraperProgress
+	results           v1.FullScrapeResults
+	relationships     []UIRelationship
+	configMeta        map[string]ConfigMeta
+	issues            []ScrapeIssue
+	summary           *SaveSummary
+	snapshots         map[string]*v1.ScrapeSnapshotPair
+	har               []har.Entry
+	scrapeSpec        any
+	properties        map[string]PropertyInfo
+	logLevel          *LogLevelInfo
+	logBuf            *SafeBuffer
+	done              bool
+	startedAt         int64
+	buildInfo         *BuildInfo
+	lastScrapeSummary *v1.ScrapeSummary
+	updated           chan struct{}
 }
 
 // SetBuildInfo stores the build-time version/commit/date so the frontend can
@@ -95,12 +94,13 @@ func (s *Server) SetProperties(props map[string]PropertyInfo, logLevel LogLevelI
 	s.notify()
 }
 
-func NewServer(scraperNames []string, scrapeSpec any, logBuf *bytes.Buffer) *Server {
+func NewServer(scraperNames []string, scrapeSpec any, logBuf *SafeBuffer) *Server {
 	scrapers := make([]ScraperProgress, len(scraperNames))
 	for i, name := range scraperNames {
 		scrapers[i] = ScraperProgress{
-			Name:   ScraperName(name),
-			Status: ScraperPending,
+			RawName: name,
+			Name:    ScraperName(name),
+			Status:  ScraperPending,
 		}
 	}
 	return &Server{
@@ -116,9 +116,8 @@ func (s *Server) UpdateScraper(name string, status ScraperStatus, results []v1.S
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	displayName := ScraperName(name)
 	for i := range s.scrapers {
-		if s.scrapers[i].Name != displayName {
+		if s.scrapers[i].RawName != name {
 			continue
 		}
 		s.scrapers[i].Status = status
@@ -207,7 +206,7 @@ func (s *Server) SetSnapshots(scraperName string, pair *v1.ScrapeSnapshotPair) {
 	if s.snapshots == nil {
 		s.snapshots = map[string]*v1.ScrapeSnapshotPair{}
 	}
-	s.snapshots[ScraperName(scraperName)] = pair
+	s.snapshots[scraperName] = pair
 	s.mu.Unlock()
 	s.notify()
 }
@@ -226,15 +225,28 @@ func NewStaticServer(snap Snapshot) *Server {
 	if snap.StartedAt == 0 {
 		snap.StartedAt = time.Now().UnixMilli()
 	}
+	for i := range snap.Scrapers {
+		if snap.Scrapers[i].RawName == "" {
+			snap.Scrapers[i].RawName = snap.Scrapers[i].Name
+		}
+	}
 	return &Server{
-		scrapers:      snap.Scrapers,
-		results:       snap.Results,
-		relationships: uiRels,
-		configMeta:    configMeta,
-		har:           snap.HAR,
-		done:          true,
-		startedAt:     snap.StartedAt,
-		updated:       make(chan struct{}, 1),
+		scrapers:          snap.Scrapers,
+		results:           snap.Results,
+		relationships:     uiRels,
+		configMeta:        configMeta,
+		issues:            snap.Issues,
+		summary:           snap.SaveSummary,
+		snapshots:         snap.Snapshots,
+		har:               snap.HAR,
+		scrapeSpec:        snap.ScrapeSpec,
+		properties:        snap.Properties,
+		logLevel:          snap.LogLevel,
+		done:              true,
+		startedAt:         snap.StartedAt,
+		buildInfo:         snap.BuildInfo,
+		lastScrapeSummary: snap.LastScrapeSummary,
+		updated:           make(chan struct{}, 1),
 	}
 }
 
@@ -258,23 +270,23 @@ func (s *Server) snapshot() Snapshot {
 		logs = s.logBuf.String()
 	}
 	return Snapshot{
-		Scrapers:      s.scrapers,
-		Results:       s.results,
-		Relationships: s.relationships,
-		ConfigMeta:    s.configMeta,
-		Issues:        s.issues,
-		Counts:        BuildCounts(s.results, s.relationships),
-		SaveSummary:   s.summary,
-		Snapshots:     s.snapshots,
-		ScrapeSpec:    s.scrapeSpec,
-		Properties:    s.properties,
-		LogLevel:      s.logLevel,
-		HAR:           s.har,
-		Logs:          logs,
-		Done:          s.done,
-		StartedAt:     s.startedAt,
-		BuildInfo:          s.buildInfo,
-		LastScrapeSummary:  s.lastScrapeSummary,
+		Scrapers:          s.scrapers,
+		Results:           s.results,
+		Relationships:     s.relationships,
+		ConfigMeta:        s.configMeta,
+		Issues:            s.issues,
+		Counts:            BuildCounts(s.results, s.relationships),
+		SaveSummary:       s.summary,
+		Snapshots:         s.snapshots,
+		ScrapeSpec:        s.scrapeSpec,
+		Properties:        s.properties,
+		LogLevel:          s.logLevel,
+		HAR:               s.har,
+		Logs:              logs,
+		Done:              s.done,
+		StartedAt:         s.startedAt,
+		BuildInfo:         s.buildInfo,
+		LastScrapeSummary: s.lastScrapeSummary,
 	}
 }
 
@@ -311,8 +323,8 @@ func (s *Server) handleConfigItem(w http.ResponseWriter, r *http.Request) {
 
 	type configItemDetail struct {
 		v1.ScrapeResult
-		Meta          *ConfigMeta      `json:"_meta,omitempty"`
-		Relationships []UIRelationship `json:"_relationships,omitempty"`
+		Meta          *ConfigMeta       `json:"_meta,omitempty"`
+		Relationships []UIRelationship  `json:"_relationships,omitempty"`
 		Changes       []v1.ChangeResult `json:"_changes,omitempty"`
 	}
 
@@ -377,6 +389,7 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 	fmt.Fprint(w, pageHTML())
 }
 
@@ -387,8 +400,7 @@ func pageHTML() string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scrape Results</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://code.iconify.design/iconify-icon/2.0.0/iconify-icon.min.js"></script>
+    <style>` + bundleCSS + `</style>
 </head>
 <body>
     <div id="root"></div>
