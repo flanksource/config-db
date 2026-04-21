@@ -30,12 +30,12 @@ jobs:
       contents: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "16"
       - name: Install Go
@@ -71,7 +71,7 @@ jobs:
       id-token: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -92,7 +92,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Publish to DockerHub Registry
-        uses: elgohr/Publish-Docker-Github-Action@bd5abbb5b131e78b0790675b767a367fcd6e71e2 # v5
+        uses: elgohr/Publish-Docker-Github-Action@cba9ef01f060d055caf693f34a0ed92d361f2ab1 # v5
         with:
           name: flanksource/config-db
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -136,15 +136,15 @@ jobs:
           git fetch --prune --unshallow
           echo "RELEASE_VERSION=$(git describe --abbrev=0 --tags | sed -e 's/^v//')" >> $GITHUB_ENV
       - name: Update chart version
-        uses: mikefarah/yq@0f4fb8d35ec1a939d78dd6862f494d19ec589f19 # v4.45.1
+        uses: mikefarah/yq@751d8ad57b84f1794661bc70c0afb92a22ad7b3c # v4.45.1
         with:
           cmd: yq -i e '.version = "${{ env.RELEASE_VERSION }}"' chart/Chart.yaml
       - name: Update app version
-        uses: mikefarah/yq@0f4fb8d35ec1a939d78dd6862f494d19ec589f19 # v4.45.1
+        uses: mikefarah/yq@751d8ad57b84f1794661bc70c0afb92a22ad7b3c # v4.45.1
         with:
           cmd: yq -i e '.appVersion = "${{ env.RELEASE_VERSION }}"' chart/values.yaml
       - name: Update image tags
-        uses: mikefarah/yq@0f4fb8d35ec1a939d78dd6862f494d19ec589f19 # v4.45.1
+        uses: mikefarah/yq@751d8ad57b84f1794661bc70c0afb92a22ad7b3c # v4.45.1
         with:
           cmd: yq -i e '.image.tag = "v${{ env.RELEASE_VERSION }}"' chart/values.yaml
       - name: Set up Helm
