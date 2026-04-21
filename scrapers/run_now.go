@@ -1,8 +1,8 @@
 package scrapers
 
 import (
-	"encoding/json"
 	gocontext "context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -180,8 +180,8 @@ func waitForStartedJobHistory(reqCtx gocontext.Context, baseCtx context.Context,
 	for {
 		var history models.JobHistory
 		err := baseCtx.DB().
-			Where("resource_id = ? AND name = ? AND time_start >= ?", scraperID, scrapeJobName, startedAt.Add(-1*time.Second)).
-			Order("time_start DESC").
+			Where("resource_id = ? AND name = ? AND time_start >= ?", scraperID, scrapeJobName, startedAt).
+			Order("time_start ASC, id ASC").
 			First(&history).Error
 
 		if err == nil {
