@@ -58,4 +58,3 @@ screenshots/
 *.har
 *.png
 .playwright-mcp/
-*.json

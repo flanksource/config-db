@@ -45,6 +45,10 @@ tidy:
 	go mod tidy
 	git add go.mod go.sum
 
+.PHONY: scrapeui-build
+scrapeui-build:
+	cd cmd/scrapeui/frontend && npm ci && npm run build
+
 # Generate OpenAPI schema
 .PHONY: gen-schemas
 gen-schemas:
@@ -77,8 +81,16 @@ manifests: generate gen-schemas ## Generate WebhookConfiguration, ClusterRole an
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
 
+.PHONY: scrapeui-fallback-assets
+scrapeui-fallback-assets:
+	@mkdir -p cmd/scrapeui/frontend/dist
+	@test -f cmd/scrapeui/frontend/dist/scrapeui.js || \
+		echo "console.warn('scrapeui fallback bundle: run make scrapeui-build for full UI');" > cmd/scrapeui/frontend/dist/scrapeui.js
+	@test -f cmd/scrapeui/frontend/dist/scrapeui.css || \
+		echo "/* scrapeui fallback styles: run make scrapeui-build for full UI */" > cmd/scrapeui/frontend/dist/scrapeui.css
+
 .PHONY: resources
-resources: fmt manifests
+resources: scrapeui-fallback-assets fmt manifests
 
 test: manifests generate fmt vet envtest  ## Run tests.
 	$(MAKE) gotest
@@ -114,7 +126,6 @@ gotest: ginkgo
 .PHONY: test-fast
 test-fast: ginkgo
 		ginkgo --tags slim --nodes=4   --label-filter "!slow" -r -v --skip-package=tests/e2e  ./...
-
 
 
 .PHONY: gotest-prod
@@ -215,7 +226,7 @@ uninstall-crd: manifests
 
 # produce a build that's debuggable
 .PHONY: dev
-dev:
+dev: scrapeui-build
 	go build -o ./.bin/$(NAME) -v -gcflags="all=-N -l" main.go
 
 .PHONY: watch
@@ -302,10 +313,10 @@ rust-generate-header:
 
 .PHONY: bench
 bench:
-	go test ./scrapers/kubernetes/ -bench='^Benchmark(EventProcessing|CacheMemory|Deserialization)' \
+	go test ./... -bench='^Benchmark(EventProcessing|CacheMemory|Deserialization)' \
 		-benchmem -run='^$$' \
 		-count=3 \
-		-benchtime=2s -v
+		-benchtime=2s -v $(BENCH_ARGS)
 
 .PHONY: modernize
 modernize:

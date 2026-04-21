@@ -8,6 +8,13 @@ COPY Makefile /app
 COPY external/diffgen /app/external/diffgen
 RUN make rust-diffgen
 
+FROM node:20-bookworm AS scrapeui-builder
+WORKDIR /app/cmd/scrapeui/frontend
+COPY cmd/scrapeui/frontend/package.json cmd/scrapeui/frontend/package-lock.json ./
+RUN npm ci
+COPY cmd/scrapeui/frontend ./
+RUN npm run build
+
 FROM golang:1.26-bookworm AS builder-base
 WORKDIR /app
 
@@ -22,6 +29,7 @@ FROM builder-base AS builder
 COPY ./ ./
 
 COPY --from=rust-builder /app/external/diffgen/target ./external/diffgen/target
+COPY --from=scrapeui-builder /app/cmd/scrapeui/frontend/dist ./cmd/scrapeui/frontend/dist
 
 RUN make build-prod
 
