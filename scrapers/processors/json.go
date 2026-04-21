@@ -574,7 +574,7 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 		if l.WithParent != "" {
 			if id, ok := env["id"].(string); ok {
 				if uuuu, err := uuid.Parse(id); err == nil {
-					configs := query.TraverseConfig(ctx.DutyContext(), uuuu.String(), l.WithParent, string(query.Incoming))
+					configs := query.TraverseConfig(ctx.DutyContext(), uuuu.String(), l.WithParent, query.Incoming)
 					if len(configs) > 0 {
 						env["parent"] = configs[0].AsMap()
 					}
