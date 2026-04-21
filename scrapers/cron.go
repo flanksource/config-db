@@ -47,16 +47,16 @@ var (
 const scrapeJobName = "Scraper"
 
 type runArtifactPayload struct {
-	ScraperID         string                `json:"scraper_id"`
-	ScraperName       string                `json:"scraper_name"`
-	StartedAt         time.Time             `json:"started_at"`
-	FinishedAt        time.Time             `json:"finished_at"`
-	Results           v1.FullScrapeResults  `json:"results"`
-	SaveSummary       *v1.ScrapeSummary     `json:"save_summary,omitempty"`
-	LastScrapeSummary *v1.ScrapeSummary     `json:"last_scrape_summary,omitempty"`
+	ScraperID         string                 `json:"scraper_id"`
+	ScraperName       string                 `json:"scraper_name"`
+	StartedAt         time.Time              `json:"started_at"`
+	FinishedAt        time.Time              `json:"finished_at"`
+	Results           v1.FullScrapeResults   `json:"results"`
+	SaveSummary       *v1.ScrapeSummary      `json:"save_summary,omitempty"`
+	LastScrapeSummary *v1.ScrapeSummary      `json:"last_scrape_summary,omitempty"`
 	SnapshotPair      *v1.ScrapeSnapshotPair `json:"snapshot_pair,omitempty"`
-	HAR               []har.Entry           `json:"har,omitempty"`
-	Logs              string                `json:"logs,omitempty"`
+	HAR               []har.Entry            `json:"har,omitempty"`
+	Logs              string                 `json:"logs,omitempty"`
 }
 
 func init() {
@@ -310,6 +310,11 @@ func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job
 }
 
 func persistRunArtifact(ctx context.Context, scraperID, scraperName string, startedAt time.Time, output *ScrapeOutput, lastSummary v1.ScrapeSummary) (*models.Artifact, error) {
+	artifactConnectionID, err := getArtifactConnectionID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	blobs, err := ctx.Blobs()
 	if err != nil {
 		return nil, err
@@ -352,12 +357,29 @@ func persistRunArtifact(ctx context.Context, scraperID, scraperName string, star
 		ContentLength: int64(gz.Len()),
 		Filename:      filename,
 		ContentType:   "application/gzip",
-	}, &models.Artifact{Path: filename, Filename: fmt.Sprintf("%s.json.gz", scraperName)})
+	}, &models.Artifact{Path: filename, Filename: fmt.Sprintf("%s.json.gz", scraperName), ConnectionID: artifactConnectionID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to write run artifact: %w", err)
 	}
 
 	return saved, nil
+}
+
+func getArtifactConnectionID(ctx context.Context) (uuid.UUID, error) {
+	connURL := ctx.Properties().String("artifacts.connection", "")
+	if connURL == "" {
+		return uuid.Nil, nil
+	}
+
+	conn, err := ctx.HydrateConnectionByURL(connURL)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to resolve artifact connection %q: %w", connURL, err)
+	}
+	if conn == nil {
+		return uuid.Nil, fmt.Errorf("artifact connection %q not found", connURL)
+	}
+
+	return conn.ID, nil
 }
 
 func updateCRDStatus(ctx context.Context, obj *v1.ScrapeConfig, lastRun v1.LastRunStatus) error {
