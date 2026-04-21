@@ -69,6 +69,16 @@ func buildRunScraperOptions(opts ...RunScraperOption) RunScraperOptions {
 	return cfg
 }
 
+func ensureHARCollector(ctx api.ScrapeContext, opts RunScraperOptions) api.ScrapeContext {
+	if ctx.HARCollector() != nil {
+		return ctx
+	}
+	if opts.CaptureHAR || ctx.Logger.IsTraceEnabled() {
+		return ctx.WithHARCollector(har.NewCollector(har.DefaultConfig()))
+	}
+	return ctx
+}
+
 func RunScraper(ctx api.ScrapeContext, opts ...RunScraperOption) (*ScrapeOutput, error) {
 	runOpts := buildRunScraperOptions(opts...)
 	var timer = timer.NewMemoryTimer()
@@ -91,6 +101,8 @@ func RunScraper(ctx api.ScrapeContext, opts ...RunScraperOption) (*ScrapeOutput,
 		runLogger.SetLogLevel(ctx.Logger.GetLevel())
 		ctx = ctx.WithLogger(runLogger)
 	}
+
+	ctx = ensureHARCollector(ctx, runOpts)
 
 	var beforeSnapshot *v1.ScrapeSnapshot
 	if runOpts.CaptureSnapshots {
