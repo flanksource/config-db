@@ -7,6 +7,7 @@ import (
 	cloudtrailTypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	backupTypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/flanksource/duty/types"
 	"github.com/samber/lo"
 
@@ -144,7 +145,10 @@ var _ = Describe("AWS Backup service job mappers", func() {
 				CreationDate: lo.ToPtr(time.Now()),
 			}
 
-			ctx := &AWSContext{Session: &aws.Config{Region: "us-east-1"}}
+			ctx := &AWSContext{
+				Session: &aws.Config{Region: "us-east-1"},
+				Caller:  &sts.GetCallerIdentityOutput{Account: lo.ToPtr("123456789012")},
+			}
 			cr, ok := backupJobToChange(ctx, job)
 			Expect(ok).To(Equal(wantOK))
 			if !wantOK {
@@ -187,7 +191,10 @@ var _ = Describe("AWS Backup service job mappers", func() {
 				Status:             status,
 				CreationDate:       lo.ToPtr(time.Now()),
 			}
-			ctx := &AWSContext{Session: &aws.Config{Region: "us-east-1"}}
+			ctx := &AWSContext{
+				Session: &aws.Config{Region: "us-east-1"},
+				Caller:  &sts.GetCallerIdentityOutput{Account: lo.ToPtr("123456789012")},
+			}
 
 			cr, ok := restoreJobToChange(ctx, job)
 			Expect(ok).To(Equal(wantOK))
@@ -205,4 +212,86 @@ var _ = Describe("AWS Backup service job mappers", func() {
 		Entry("Pending → skip", backupTypes.RestoreJobStatusPending, false),
 		Entry("Running → skip", backupTypes.RestoreJobStatusRunning, false),
 	)
+
+	Describe("recoveryPointToChange ExternalChangeID", func() {
+		const rpARN = "arn:aws:rds:eu-west-1:1:snapshot:rds:db-1-2026-04-12-22-08"
+
+		makeRP := func(status backupTypes.RecoveryPointStatus) backupTypes.RecoveryPointByBackupVault {
+			return backupTypes.RecoveryPointByBackupVault{
+				RecoveryPointArn:  lo.ToPtr(rpARN),
+				ResourceArn:       lo.ToPtr("arn:aws:rds:eu-west-1:1:db:db-1"),
+				ResourceType:      lo.ToPtr("RDS"),
+				CreationDate:      lo.ToPtr(time.Now()),
+				BackupSizeInBytes: lo.ToPtr(int64(1024)),
+				Status:            status,
+			}
+		}
+		vault := backupTypes.BackupVaultListMember{BackupVaultName: lo.ToPtr("v")}
+		ctx := &AWSContext{
+			Session: &aws.Config{Region: "eu-west-1"},
+			Caller:  &sts.GetCallerIdentityOutput{Account: lo.ToPtr("123456789012")},
+		}
+
+		It("keeps Completed and Partial on the same ARN key so upsert coalesces them", func() {
+			completed, okC := recoveryPointToChange(ctx, vault, makeRP(backupTypes.RecoveryPointStatusCompleted))
+			partial, okP := recoveryPointToChange(ctx, vault, makeRP(backupTypes.RecoveryPointStatusPartial))
+			Expect(okC).To(BeTrue())
+			Expect(okP).To(BeTrue())
+			Expect(completed.ExternalChangeID).To(Equal(rpARN))
+			Expect(partial.ExternalChangeID).To(Equal(rpARN))
+		})
+
+		It("emits Deleting as a distinct row keyed by ARN+\"-deleted\"", func() {
+			deleted, ok := recoveryPointToChange(ctx, vault, makeRP(backupTypes.RecoveryPointStatusDeleting))
+			Expect(ok).To(BeTrue())
+			Expect(deleted.ChangeType).To(Equal(types.ChangeTypeBackupDeleted))
+			Expect(deleted.ExternalChangeID).To(Equal(rpARN + "-deleted"))
+		})
+
+		It("populates Environment with region+account on the recovery point", func() {
+			cr, _ := recoveryPointToChange(ctx, vault, makeRP(backupTypes.RecoveryPointStatusCompleted))
+			env, ok := cr.Details["environment"].(map[string]any)
+			Expect(ok).To(BeTrue())
+			Expect(env["identifier"]).To(Equal("eu-west-1"))
+			Expect(env["name"]).To(Equal("123456789012"))
+			Expect(env["type"]).To(Equal("Cloud"))
+		})
+
+		It("lifts BackupPlan into CreatedBy when the recovery point came from a plan", func() {
+			rp := makeRP(backupTypes.RecoveryPointStatusCompleted)
+			rp.CreatedBy = &backupTypes.RecoveryPointCreator{
+				BackupPlanArn:  lo.ToPtr("arn:aws:backup:eu-west-1:123:backup-plan:abc"),
+				BackupPlanId:   lo.ToPtr("abc"),
+				BackupPlanName: lo.ToPtr("nightly-rds"),
+			}
+			cr, _ := recoveryPointToChange(ctx, vault, rp)
+			createdBy, ok := cr.Details["created_by"].(map[string]any)
+			Expect(ok).To(BeTrue())
+			Expect(createdBy["id"]).To(Equal("arn:aws:backup:eu-west-1:123:backup-plan:abc"))
+			Expect(createdBy["name"]).To(Equal("nightly-rds"))
+			Expect(createdBy["type"]).To(Equal("System:Auto"))
+		})
+
+		It("falls back to IamRoleArn for ad-hoc recovery points", func() {
+			rp := makeRP(backupTypes.RecoveryPointStatusCompleted)
+			rp.IamRoleArn = lo.ToPtr("arn:aws:iam::123:role/AWSBackup")
+			cr, _ := recoveryPointToChange(ctx, vault, rp)
+			createdBy, ok := cr.Details["created_by"].(map[string]any)
+			Expect(ok).To(BeTrue())
+			Expect(createdBy["id"]).To(Equal("arn:aws:iam::123:role/AWSBackup"))
+			Expect(createdBy["type"]).To(Equal("Role"))
+		})
+
+		It("exposes vault and resource name in Event.Properties", func() {
+			rp := makeRP(backupTypes.RecoveryPointStatusCompleted)
+			rp.ResourceName = lo.ToPtr("db-1")
+			rp.IsEncrypted = true
+			cr, _ := recoveryPointToChange(ctx, vault, rp)
+			props, ok := cr.Details["properties"].(map[string]any)
+			Expect(ok).To(BeTrue())
+			Expect(props).To(HaveKeyWithValue("resource_name", "db-1"))
+			Expect(props).To(HaveKeyWithValue("vault_name", "v"))
+			Expect(props).To(HaveKeyWithValue("encrypted", "true"))
+		})
+	})
 })

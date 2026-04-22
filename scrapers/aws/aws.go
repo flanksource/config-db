@@ -69,13 +69,15 @@ type AWSContext struct {
 }
 
 const (
-	IncludeRDSEvents = "RDSEvents"
+	IncludeRDSEvents  = "RDSEvents"
+	IncludeRDSBackups = "RDSBackups"
 )
 
 // Config changes sources
 const (
-	SourceRDSEvents = "RDS Events"
-	SourceAWSBackup = "AWS Backup"
+	SourceRDSEvents  = "RDS Events"
+	SourceRDSBackups = "RDS Backups"
+	SourceAWSBackup  = "AWS Backup"
 )
 
 func getLabels(tags []ec2Types.Tag) v1.JSONStringMap {
@@ -241,6 +243,11 @@ func (aws Scraper) sqs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	}
 
 	for _, queueURL := range listQueuesOutput.QueueUrls {
+		queueName := queueURL[strings.LastIndex(queueURL, "/")+1:]
+		if config.ShouldExclude(v1.AWSSQS, queueName, nil) {
+			continue
+		}
+
 		getQueueAttributesOutput, err := client.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
 			QueueUrl:       &queueURL,
 			AttributeNames: []sqsTypes.QueueAttributeName{sqsTypes.QueueAttributeNameAll},
@@ -255,8 +262,6 @@ func (aws Scraper) sqs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 			results.Errorf(err, "Failed to parse creation timestamp for queue: %s", queueURL)
 			continue
 		}
-
-		queueName := queueURL[strings.LastIndex(queueURL, "/")+1:]
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSSQS,
 			Aliases:     []string{getQueueAttributesOutput.Attributes["QueueArn"]},
@@ -288,6 +293,9 @@ func (aws Scraper) cloudformationStacks(ctx *AWSContext, config v1.AWS, results 
 
 	for _, stack := range stacks.StackSummaries {
 		stackName := lo.FromPtr(stack.StackName)
+		if config.ShouldExclude(v1.AWSCloudFormationStack, stackName, nil) {
+			continue
+		}
 
 		*results = append(*results, v1.ScrapeResult{
 			Type:         v1.AWSCloudFormationStack,
@@ -322,6 +330,10 @@ func (aws Scraper) snsTopics(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 
 	for _, topic := range topics.Topics {
 		topicArn := lo.FromPtr(topic.TopicArn)
+		topicName := topicArn[strings.LastIndex(topicArn, ":")+1:]
+		if config.ShouldExclude(v1.AWSSNSTopic, topicName, nil) {
+			continue
+		}
 		labels := make(map[string]string)
 		labels["region"] = ctx.Session.Region
 
@@ -333,7 +345,6 @@ func (aws Scraper) snsTopics(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			continue
 		}
 
-		topicName := topicArn[strings.LastIndex(topicArn, ":")+1:]
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSSNSTopic,
 			BaseScraper: config.BaseScraper,
@@ -375,6 +386,9 @@ func (aws Scraper) ecsClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 			labels := make(map[string]string)
 			for _, tag := range clusterInfo.Tags {
 				labels[*tag.Key] = *tag.Value
+			}
+			if config.ShouldExclude(v1.AWSECSCluster, lo.FromPtr(clusterInfo.ClusterName), labels) {
+				continue
 			}
 
 			*results = append(*results, v1.ScrapeResult{
@@ -424,6 +438,14 @@ func (aws Scraper) ecsServices(ctx *AWSContext, config v1.AWS, client *ecs.Clien
 	}
 
 	for _, service := range describeServicesOutput.Services {
+		labels := make(map[string]string)
+		for _, tag := range service.Tags {
+			labels[*tag.Key] = *tag.Value
+		}
+		if config.ShouldExclude(v1.AWSECSService, lo.FromPtr(service.ServiceName), labels) {
+			continue
+		}
+
 		var relationships []v1.RelationshipResult
 		// ECS Task Definition to ECS Service relationship
 		relationships = append(relationships, v1.RelationshipResult{
@@ -431,11 +453,6 @@ func (aws Scraper) ecsServices(ctx *AWSContext, config v1.AWS, client *ecs.Clien
 			ConfigExternalID:  v1.ExternalID{ExternalID: *service.TaskDefinition, ConfigType: v1.AWSECSTaskDefinition},
 			Relationship:      "ECSTaskDefinitionECSService",
 		})
-
-		labels := make(map[string]string)
-		for _, tag := range service.Tags {
-			labels[*tag.Key] = *tag.Value
-		}
 
 		*results = append(*results, v1.ScrapeResult{
 			Type:                v1.AWSECSService,
@@ -665,6 +682,9 @@ func (aws Scraper) elastiCache(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	}
 
 	for _, cluster := range clusters.CacheClusters {
+		if config.ShouldExclude(v1.AWSElastiCacheCluster, lo.FromPtr(cluster.CacheClusterId), nil) {
+			continue
+		}
 		*results = append(*results, v1.ScrapeResult{
 			ID:          *cluster.CacheClusterId,
 			Type:        v1.AWSElastiCacheCluster,
@@ -693,6 +713,9 @@ func (aws Scraper) lambdaFunctions(ctx *AWSContext, config v1.AWS, results *v1.S
 		}
 
 		for _, function := range functions.Functions {
+			if config.ShouldExclude(v1.AWSLambdaFunction, lo.FromPtr(function.FunctionName), nil) {
+				continue
+			}
 			*results = append(*results, v1.ScrapeResult{
 				Type:        v1.AWSLambdaFunction,
 				ID:          *function.FunctionArn,
@@ -726,11 +749,17 @@ func (aws Scraper) eksClusters(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 	}
 
 	for _, clusterName := range clusters.Clusters {
+		if config.ShouldExclude(v1.AWSEKSCluster, clusterName, nil) {
+			continue
+		}
 		cluster, err := EKS.DescribeCluster(ctx, &eks.DescribeClusterInput{
 			Name: strPtr(clusterName),
 		})
 		if err != nil {
 			results.Errorf(err, "failed to describe cluster")
+			continue
+		}
+		if config.ShouldExclude(v1.AWSEKSCluster, clusterName, cluster.Cluster.Tags) {
 			continue
 		}
 
@@ -807,6 +836,9 @@ func (aws Scraper) efs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 		labels := make(v1.JSONStringMap)
 		for _, tag := range fs.Tags {
 			labels[*tag.Key] = *tag.Value
+		}
+		if config.ShouldExclude(v1.AWSEFSFileSystem, getName(labels, lo.FromPtr(fs.FileSystemId)), labels) {
+			continue
 		}
 
 		*results = append(*results, v1.ScrapeResult{
@@ -976,6 +1008,9 @@ func (aws Scraper) users(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResul
 
 	labels := make(map[string]string)
 	for _, user := range users.Users {
+		if config.ShouldExclude(v1.AWSIAMUser, lo.FromPtr(user.UserName), nil) {
+			continue
+		}
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSIAMUser,
 			CreatedAt:   user.CreateDate,
@@ -1013,6 +1048,9 @@ func (aws Scraper) ebs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 
 	for _, volume := range describeOutput.Volumes {
 		labels := getLabels(volume.Tags)
+		if config.ShouldExclude(v1.AWSEBSVolume, getName(labels, lo.FromPtr(volume.VolumeId)), labels) {
+			continue
+		}
 
 		tags := v1.Tags{}
 		tags.Append("zone", *volume.AvailabilityZone)
@@ -1054,6 +1092,9 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 		labels := make(v1.JSONStringMap)
 		for _, tag := range instance.TagList {
 			labels[*tag.Key] = *tag.Value
+		}
+		if config.ShouldExclude(v1.AWSRDSInstance, lo.FromPtr(instance.DBInstanceIdentifier), labels) {
+			continue
 		}
 
 		var relationships v1.RelationshipResults
@@ -1099,6 +1140,10 @@ func (aws Scraper) rds(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults
 	// Fetch and process restore operations
 	if err := aws.rdsEvents(ctx, config, results); err != nil {
 		results.Errorf(err, "failed to get restore operations for RDS instances")
+	}
+
+	if err := aws.rdsBackups(ctx, config, results); err != nil {
+		results.Errorf(err, "failed to scrape RDS snapshots")
 	}
 }
 
@@ -1243,39 +1288,48 @@ func extractDBInstanceFromSnapshot(snapshotID string) string {
 
 // rdsChangeType maps an RDS event (source + category + message) to the
 // canonical v1 change_type, typed Status, and Severity. skip=true means the
-// event is in-progress or deliberately not modelled (deletion), and no
-// ChangeResult should be emitted.
+// event is deliberately not modelled here — notably backup lifecycle
+// (started/completed) is owned by the snapshot poller (rds_backups.go),
+// which keys off the stable snapshot ARN. Restoration events are captured
+// here because they do not produce a persistent snapshot resource to poll.
+// Failures are captured because a failed backup produces no snapshot.
 func rdsChangeType(sourceType rdsTypes.SourceType, category, message string) (string, types.Status, models.Severity, bool) {
+	if rdsEventIsFailure(message) {
+		return types.ChangeTypeBackupFailed, types.StatusFailed, models.SeverityHigh, false
+	}
+
 	switch sourceType {
 	case rdsTypes.SourceTypeDbInstance:
-		switch category {
-		case "backup":
-			if strings.Contains(message, "Backing up") {
-				return "", "", "", true // in-progress
-			}
-			return types.ChangeTypeBackupCompleted, types.StatusCompleted, models.SeverityInfo, false
-		case "restoration":
+		if category == "restoration" {
 			return types.ChangeTypeBackupRestored, types.StatusCompleted, models.SeverityMedium, false
 		}
 
 	case rdsTypes.SourceTypeDbSnapshot, rdsTypes.SourceTypeDbClusterSnapshot:
-		switch category {
-		case "creation", "backup":
-			if strings.Contains(message, "Creating") || strings.Contains(message, "Backing up") {
-				return "", "", "", true // in-progress
-			}
-			return types.ChangeTypeBackupCompleted, types.StatusCompleted, models.SeverityInfo, false
-		case "restoration":
+		if category == "restoration" {
 			return types.ChangeTypeBackupRestored, types.StatusCompleted, models.SeverityMedium, false
-		case "deletion":
-			// Deletion is not modelled as a distinct change kind. Retention
-			// of the original BackupCompleted row is a separate concern
-			// (see aws.go TODO at the top of this block).
-			return "", "", "", true
 		}
 	}
 
 	return "", "", "", true
+}
+
+// rdsEventIsFailure matches RDS event messages that indicate a backup or
+// snapshot failure. The allowlist is intentionally narrow to avoid
+// misclassifying benign notifications that happen to contain these verbs.
+var rdsBackupFailureMarkers = []string{
+	"Failed",
+	"Error",
+	"Incompatible",
+	"cannot take snapshot",
+}
+
+func rdsEventIsFailure(message string) bool {
+	for _, marker := range rdsBackupFailureMarkers {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // rdsEventDetails builds the typed ChangeResult.Details payload for an RDS
@@ -1316,6 +1370,11 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 	}
 
 	for _, vpc := range describeOutput.Vpcs {
+		labels := getLabels(vpc.Tags)
+		if config.ShouldExclude(v1.AWSEC2VPC, getName(labels, lo.FromPtr(vpc.VpcId)), labels) {
+			continue
+		}
+
 		var relationships v1.RelationshipResults
 		// DHCPOptions relationship
 		relationships = append(relationships, v1.RelationshipResult{
@@ -1330,7 +1389,6 @@ func (aws Scraper) vpcs(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 			Relationship: "VPCDHCPOptions",
 		})
 
-		labels := getLabels(vpc.Tags)
 		labels["network"] = *vpc.VpcId
 
 		*results = append(*results, v1.ScrapeResult{
@@ -1377,6 +1435,9 @@ func (aws Scraper) instances(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 			}
 
 			instance := NewInstance(i)
+			if config.ShouldExclude(v1.AWSEC2Instance, instance.InstanceID, instance.Tags) {
+				continue
+			}
 			labels := instance.Tags
 			if labels == nil {
 				labels = make(map[string]string)
@@ -1476,6 +1537,9 @@ func (aws Scraper) securityGroups(ctx *AWSContext, config v1.AWS, results *v1.Sc
 
 	for _, sg := range describeOutput.SecurityGroups {
 		labels := getLabels(sg.Tags)
+		if config.ShouldExclude(v1.AWSEC2SecurityGroup, getName(labels, lo.FromPtr(sg.GroupId)), labels) {
+			continue
+		}
 		labels["network"] = *sg.VpcId
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSEC2SecurityGroup,
@@ -1506,6 +1570,9 @@ func (aws Scraper) routes(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResu
 	}
 	for _, r := range describeOutput.RouteTables {
 		labels := getLabels(r.Tags)
+		if config.ShouldExclude("AWS::EC2::RouteTable", getName(labels, lo.FromPtr(r.RouteTableId)), labels) {
+			continue
+		}
 		labels["network"] = *r.VpcId
 
 		// Sort associations for a cleaner diff since AWS returns same object in
@@ -1543,6 +1610,9 @@ func (aws Scraper) dhcp(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResult
 
 	for _, d := range describeOutput.DhcpOptions {
 		labels := getLabels(d.Tags)
+		if config.ShouldExclude(v1.AWSEC2DHCPOptions, getName(labels, lo.FromPtr(d.DhcpOptionsId)), labels) {
+			continue
+		}
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSEC2DHCPOptions,
 			Labels:      labels,
@@ -1572,6 +1642,9 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 	}
 
 	for _, bucket := range buckets.Buckets {
+		if config.ShouldExclude(v1.AWSS3Bucket, lo.FromPtr(bucket.Name), nil) {
+			continue
+		}
 		labels := make(map[string]string)
 		*results = append(*results, v1.ScrapeResult{
 			Type:        v1.AWSS3Bucket,
@@ -1604,6 +1677,9 @@ func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 		return
 	}
 	for _, zone := range zones.HostedZones {
+		if config.ShouldExclude(v1.AWSZone, lo.FromPtr(zone.Name), nil) {
+			continue
+		}
 		var recordSets []map[string]interface{}
 		records, err := Route53.ListResourceRecordSets(ctx, &route53.ListResourceRecordSetsInput{
 			HostedZoneId: zone.Id,
@@ -1740,6 +1816,9 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 	}
 
 	for _, lb := range loadbalancers.LoadBalancerDescriptions {
+		if config.ShouldExclude(v1.AWSLoadBalancer, lo.FromPtr(lb.LoadBalancerName), nil) {
+			continue
+		}
 		az := lb.AvailabilityZones[0]
 		region := az[:len(az)-1]
 		arn := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, lo.FromPtr(ctx.Caller.Account), *lb.LoadBalancerName)
@@ -1765,9 +1844,11 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			logger.Errorf("error while scraping elb tags: %v", err)
 			continue
 		}
+		lbTags := make(map[string]string)
 		for _, tagDesc := range elbTagsOutput.TagDescriptions {
 			if *tagDesc.LoadBalancerName == *lb.LoadBalancerName {
 				for _, tag := range tagDesc.Tags {
+					lbTags[lo.FromPtr(tag.Key)] = lo.FromPtr(tag.Value)
 					if strings.HasPrefix(*tag.Key, clusterPrefix) {
 						clusterName := strings.ReplaceAll(*tag.Key, clusterPrefix, "")
 						relationships = append(relationships, v1.RelationshipResult{
@@ -1784,6 +1865,9 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 					}
 				}
 			}
+		}
+		if config.ShouldExclude(v1.AWSLoadBalancer, lo.FromPtr(lb.LoadBalancerName), lbTags) {
+			continue
 		}
 
 		labels := make(map[string]string)
@@ -1820,6 +1904,9 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 	}
 
 	for _, lb := range loadbalancersv2.LoadBalancers {
+		if config.ShouldExclude(v1.AWSLoadBalancerV2, lo.FromPtr(lb.LoadBalancerName), nil) {
+			continue
+		}
 
 		clusterPrefix := "kubernetes.io/cluster/"
 		var relationships []v1.RelationshipResult
@@ -1828,9 +1915,11 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 			logger.Errorf("error while scraping elbv2 tags: %v", err)
 			continue
 		}
+		lbTags := make(map[string]string)
 		for _, tagDesc := range elbv2TagsOutput.TagDescriptions {
 			if *tagDesc.ResourceArn == *lb.LoadBalancerArn {
 				for _, tag := range tagDesc.Tags {
+					lbTags[lo.FromPtr(tag.Key)] = lo.FromPtr(tag.Value)
 					if strings.HasPrefix(*tag.Key, clusterPrefix) {
 						clusterName := strings.ReplaceAll(*tag.Key, clusterPrefix, "")
 						relationships = append(relationships, v1.RelationshipResult{
@@ -1847,6 +1936,9 @@ func (aws Scraper) loadBalancers(ctx *AWSContext, config v1.AWS, results *v1.Scr
 					}
 				}
 			}
+		}
+		if config.ShouldExclude(v1.AWSLoadBalancerV2, lo.FromPtr(lb.LoadBalancerName), lbTags) {
+			continue
 		}
 		labels := make(map[string]string)
 
@@ -1901,6 +1993,9 @@ func (aws Scraper) subnets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRes
 		if !config.Includes("subnet") {
 			return
 		}
+		if config.ShouldExclude(v1.AWSEC2Subnet, getName(labels, lo.FromPtr(subnet.SubnetId)), labels) {
+			continue
+		}
 
 		result := v1.ScrapeResult{
 			Type:        v1.AWSEC2Subnet,
@@ -1931,6 +2026,9 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 	}
 
 	for _, role := range roles.Roles {
+		if config.ShouldExclude(v1.AWSIAMRole, lo.FromPtr(role.RoleName), nil) {
+			continue
+		}
 		labels := make(map[string]string)
 
 		roleMap, err := utils.ToJSONMap(role)
@@ -1938,13 +2036,14 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 			results.Errorf(err, "failed to convert role into json")
 			return
 		}
-		policy, err := parseAssumeRolePolicyDoc(ctx, lo.FromPtr(role.AssumeRolePolicyDocument))
+		encodedDoc := lo.FromPtr(role.AssumeRolePolicyDocument)
+		policy, err := parseAssumeRolePolicyDoc(ctx, encodedDoc)
 		if err != nil {
-			ctx.Errorf("error parsing policy doc[%s]: %v", lo.FromPtr(role.AssumeRolePolicyDocument), err)
+			ctx.Errorf("error parsing policy doc[%s]: %v", encodedDoc, err)
 		}
 		roleMap["AssumeRolePolicyDocument"] = policy
 
-		*results = append(*results, v1.ScrapeResult{
+		sr := v1.ScrapeResult{
 			Type:        v1.AWSIAMRole,
 			CreatedAt:   role.CreateDate,
 			BaseScraper: config.BaseScraper,
@@ -1959,7 +2058,11 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 			},
 			ID:      *role.RoleId,
 			Parents: []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
-		})
+		}
+		if config.Includes("IAMTrust") {
+			attachTrustAccess(&sr, lo.FromPtr(role.Arn), lo.FromPtr(ctx.Caller.Account), encodedDoc)
+		}
+		*results = append(*results, sr)
 	}
 }
 
@@ -1978,6 +2081,9 @@ func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.Scrap
 
 	labels := make(map[string]string)
 	for _, profile := range profiles.InstanceProfiles {
+		if config.ShouldExclude(v1.AWSIAMInstanceProfile, lo.FromPtr(profile.InstanceProfileName), nil) {
+			continue
+		}
 		// Instance profile to IAM role relationships
 		var relationships []v1.RelationshipResult
 		for _, role := range profile.Roles {
@@ -2129,6 +2235,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		aws.users(awsCtx, awsConfig, results)
 		aws.iamRoles(awsCtx, awsConfig, results)
 		aws.iamProfiles(awsCtx, awsConfig, results)
+		aws.iamGroups(awsCtx, awsConfig, results)
 		aws.dnsZones(awsCtx, awsConfig, results)
 		aws.trustedAdvisor(awsCtx, awsConfig, results)
 		aws.s3Buckets(awsCtx, awsConfig, results)

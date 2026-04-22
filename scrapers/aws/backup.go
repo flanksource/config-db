@@ -99,20 +99,22 @@ func awsRestoreJobOutcome(s backupTypes.RestoreJobStatus) (changeType string, st
 }
 
 // awsRecoveryPointOutcome maps a RecoveryPointStatus to the canonical v1
-// change type. Completed → BackupCompleted, Partial/Expired/Deleting →
-// BackupFailed, Pending/Running → skip.
-func awsRecoveryPointOutcome(s backupTypes.RecoveryPointStatus) (changeType string, status types.Status, severity models.Severity, skip bool) {
+// change type and typed Status. distinctKey=true signals that the caller
+// must use a separate ExternalChangeID (ARN+"-deleted") so the deletion
+// event is recorded alongside the historical BackupCompleted row rather
+// than overwriting it.
+func awsRecoveryPointOutcome(s backupTypes.RecoveryPointStatus) (changeType string, status types.Status, severity models.Severity, distinctKey, skip bool) {
 	switch s {
 	case backupTypes.RecoveryPointStatusCompleted:
-		return types.ChangeTypeBackupCompleted, types.StatusCompleted, models.SeverityInfo, false
+		return types.ChangeTypeBackupCompleted, types.StatusCompleted, models.SeverityInfo, false, false
 	case backupTypes.RecoveryPointStatusPartial:
-		return types.ChangeTypeBackupFailed, types.Status("Partial"), models.SeverityMedium, false
+		return types.ChangeTypeBackupFailed, types.Status("Partial"), models.SeverityMedium, false, false
 	case backupTypes.RecoveryPointStatusExpired:
-		return types.ChangeTypeBackupFailed, types.Status("Expired"), models.SeverityLow, false
+		return types.ChangeTypeBackupFailed, types.Status("Expired"), models.SeverityLow, false, false
 	case backupTypes.RecoveryPointStatusDeleting:
-		return types.ChangeTypeBackupFailed, types.Status("Deleting"), models.SeverityLow, false
+		return types.ChangeTypeBackupDeleted, types.Status("Deleted"), models.SeverityInfo, true, false
 	default:
-		return "", "", "", true
+		return "", "", "", false, true
 	}
 }
 
@@ -129,6 +131,9 @@ func (aws Scraper) scrapeBackupVaults(ctx *AWSContext, config v1.AWS, client *ba
 		for _, vault := range output.BackupVaultList {
 			arn := lo.FromPtr(vault.BackupVaultArn)
 			name := lo.FromPtr(vault.BackupVaultName)
+			if config.ShouldExclude(v1.AWSBackupVault, name, nil) {
+				continue
+			}
 
 			*results = append(*results, v1.ScrapeResult{
 				Type:        v1.AWSBackupVault,
@@ -160,6 +165,9 @@ func (aws Scraper) scrapeBackupPlans(ctx *AWSContext, config v1.AWS, client *bac
 			arn := lo.FromPtr(plan.BackupPlanArn)
 			planID := lo.FromPtr(plan.BackupPlanId)
 			name := lo.FromPtr(plan.BackupPlanName)
+			if config.ShouldExclude(v1.AWSBackupPlan, name, nil) {
+				continue
+			}
 
 			// Get full plan details including rules
 			detail, err := client.GetBackupPlan(ctx, &backup.GetBackupPlanInput{
@@ -252,16 +260,14 @@ func backupJobToChange(ctx *AWSContext, job backupTypes.BackupJob) (v1.ChangeRes
 		Event: types.Event{
 			ID:        lo.FromPtr(job.BackupJobId),
 			Timestamp: timeToRFC3339(job.CreationDate),
+			Properties: backupJobProperties(job),
 		},
 		BackupType:   types.BackupTypeSnapshot,
 		Status:       status,
 		Size:         bytesToString(job.BackupSizeInBytes),
 		EndTimestamp: timeToRFC3339(job.CompletionDate),
-		CreatedBy: types.Identity{
-			ID:   lo.FromPtr(job.IamRoleArn),
-			Type: "IAM",
-		},
-		Environment: types.Environment{Identifier: ctx.Session.Region},
+		CreatedBy:    recoveryPointCreatedBy(job.CreatedBy, lo.FromPtr(job.IamRoleArn)),
+		Environment:  awsEnvironment(ctx),
 	}
 
 	return v1.ChangeResult{
@@ -326,7 +332,7 @@ func restoreJobToChange(ctx *AWSContext, job backupTypes.RestoreJobsListMember) 
 			Timestamp: timeToRFC3339(job.CreationDate),
 		},
 		Status: status,
-		To:     types.Environment{Identifier: ctx.Session.Region},
+		To:     awsEnvironment(ctx),
 	}
 
 	return v1.ChangeResult{
@@ -398,28 +404,36 @@ func (aws Scraper) scrapeRecoveryPointsForVault(ctx *AWSContext, config v1.AWS, 
 // deleting emit BackupFailed with reduced severity. In-progress (pending/
 // running) return ok=false.
 func recoveryPointToChange(ctx *AWSContext, vault backupTypes.BackupVaultListMember, rp backupTypes.RecoveryPointByBackupVault) (v1.ChangeResult, bool) {
-	changeType, status, severity, skip := awsRecoveryPointOutcome(rp.Status)
+	changeType, status, severity, distinctKey, skip := awsRecoveryPointOutcome(rp.Status)
 	if skip {
 		return v1.ChangeResult{}, false
 	}
 
+	arn := lo.FromPtr(rp.RecoveryPointArn)
+	externalChangeID := arn
+	if distinctKey {
+		externalChangeID = arn + "-deleted"
+	}
+
 	typed := types.Backup{
 		Event: types.Event{
-			ID:        lo.FromPtr(rp.RecoveryPointArn),
+			ID:        arn,
 			Timestamp: timeToRFC3339(rp.CreationDate),
+			Properties: recoveryPointProperties(rp, vault),
 		},
 		BackupType:   types.BackupTypeSnapshot,
 		Status:       status,
 		Size:         bytesToString(rp.BackupSizeInBytes),
 		EndTimestamp: timeToRFC3339(rp.CompletionDate),
-		Environment:  types.Environment{Identifier: ctx.Session.Region},
+		CreatedBy:    recoveryPointCreatedBy(rp.CreatedBy, lo.FromPtr(rp.IamRoleArn)),
+		Environment:  awsEnvironment(ctx),
 	}
 
 	return v1.ChangeResult{
 		ConfigType:       resourceTypeToConfigType(lo.FromPtr(rp.ResourceType)),
 		ExternalID:       lo.FromPtr(rp.ResourceArn),
 		Source:           SourceAWSBackup,
-		ExternalChangeID: lo.FromPtr(rp.RecoveryPointArn) + "-" + string(rp.Status),
+		ExternalChangeID: externalChangeID,
 		ChangeType:       changeType,
 		Severity:         string(severity),
 		Summary:          fmt.Sprintf("Recovery point %s in vault %s", strings.ToLower(string(rp.Status)), lo.FromPtr(vault.BackupVaultName)),
