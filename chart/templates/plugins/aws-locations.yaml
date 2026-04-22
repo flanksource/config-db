@@ -64,7 +64,7 @@ spec:
         "topology.kubernetes.io/region" in labels &&
         "topology.kubernetes.io/zone" in labels
       values:
-        - zone://aws/$(.labels["topology.kubernetes.io/region"])/$(.labels["topology.kubernetes.io/zone"])
-        - region://aws/$(.labels["topology.kubernetes.io/region"])
+        - zone://aws/$(index .labels "topology.kubernetes.io/region")/$(index .labels "topology.kubernetes.io/zone")
+        - region://aws/$(index .labels "topology.kubernetes.io/region")
         - ec2instance://aws/$(.config.spec.providerID | strings.Split "/" | last)
 {{- end }}
