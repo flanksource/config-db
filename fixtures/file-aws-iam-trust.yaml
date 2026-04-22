@@ -1,0 +1,12 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-aws-iam-trust-scraper
+spec:
+  full: true
+  file:
+    - type: AWS::::Account
+      class: Account
+      id: $.id
+      paths:
+        - fixtures/data/aws_iam_trust_test.json
