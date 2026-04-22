@@ -14,7 +14,6 @@ import (
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -88,21 +87,21 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 			ExternalUserIDCache.Delete(loserID.String())
 		}
 		for _, u := range resolvedUsers {
-			ExternalUserIDCache.Set(u.ID.String(), u.ID, cache.DefaultExpiration)
+			ExternalUserIDCache.Set(u.ID.String(), u.ID)
 			for _, alias := range u.Aliases {
-				ExternalUserCache.Set(alias, u.ID, cache.DefaultExpiration)
+				ExternalUserCache.Set(alias, u.ID)
 			}
 		}
 		for _, g := range resolvedGroups {
-			ExternalGroupIDCache.Set(g.ID.String(), g.ID, cache.DefaultExpiration)
+			ExternalGroupIDCache.Set(g.ID.String(), g.ID)
 			for _, alias := range g.Aliases {
-				ExternalGroupCache.Set(alias, g.ID, cache.DefaultExpiration)
+				ExternalGroupCache.Set(alias, g.ID)
 			}
 		}
 		for _, r := range resolvedRoles {
-			ExternalRoleIDCache.Set(r.ID.String(), r.ID, cache.DefaultExpiration)
+			ExternalRoleIDCache.Set(r.ID.String(), r.ID)
 			for _, alias := range r.Aliases {
-				ExternalRoleCache.Set(alias, r.ID, cache.DefaultExpiration)
+				ExternalRoleCache.Set(alias, r.ID)
 			}
 		}
 	}
@@ -714,9 +713,9 @@ func ensureExternalUserFromAliases(ctx api.ScrapeContext, aliases []string, scra
 		return fmt.Errorf("failed to commit: %w", err)
 	}
 
-	ExternalUserIDCache.Set(id.String(), id, cache.DefaultExpiration)
+	ExternalUserIDCache.Set(id.String(), id)
 	for _, alias := range aliases {
-		ExternalUserCache.Set(alias, id, cache.DefaultExpiration)
+		ExternalUserCache.Set(alias, id)
 	}
 	return nil
 }
