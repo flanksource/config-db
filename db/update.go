@@ -392,7 +392,7 @@ func extractChanges(ctx api.ScrapeContext, result *v1.ScrapeResult, ci *models.C
 			orphanedChanges = append(orphanedChanges, *changeResult)
 
 			if change.ExternalID != "" {
-				OrphanCache.Set(change.ExternalID, true, 0)
+				OrphanCache.Set(change.ExternalID, true)
 			}
 
 			if logUnmatched {

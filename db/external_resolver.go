@@ -5,7 +5,6 @@ import (
 	"github.com/flanksource/config-db/scrapers/extract"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
-	"github.com/patrickmn/go-cache"
 
 	"github.com/flanksource/config-db/api"
 	"time"
@@ -29,7 +28,7 @@ func (d *DBResolver) SyncExternalUsers(users []dutyModels.ExternalUser, scraperI
 	}
 	for _, u := range resolved {
 		for _, alias := range u.Aliases {
-			ExternalUserCache.Set(alias, u.ID, cache.DefaultExpiration)
+			ExternalUserCache.Set(alias, u.ID)
 		}
 	}
 	return resolved, nil, nil
@@ -43,7 +42,7 @@ func (d *DBResolver) SyncExternalGroups(groups []dutyModels.ExternalGroup, scrap
 	}
 	for _, g := range resolved {
 		for _, alias := range g.Aliases {
-			ExternalGroupCache.Set(alias, g.ID, cache.DefaultExpiration)
+			ExternalGroupCache.Set(alias, g.ID)
 		}
 	}
 	return resolved, nil, nil
@@ -57,7 +56,7 @@ func (d *DBResolver) SyncExternalRoles(roles []dutyModels.ExternalRole, scraperI
 	}
 	for _, r := range resolved {
 		for _, alias := range r.Aliases {
-			ExternalRoleCache.Set(alias, r.ID, cache.DefaultExpiration)
+			ExternalRoleCache.Set(alias, r.ID)
 		}
 	}
 	return resolved, nil

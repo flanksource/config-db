@@ -1,43 +1,74 @@
 package db
 
 import (
+	stdcontext "context"
 	"fmt"
 	"time"
 
+	gocache "github.com/eko/gocache/lib/v4/cache"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/config-db/api"
-	"github.com/flanksource/duty/context"
+	dutycache "github.com/flanksource/duty/cache"
+	dutycontext "github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
 
 var CACHE_TIMEOUT = properties.Duration(time.Hour*24, "external.cache.timeout")
 
-var OrphanCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+type typedCache[T any] struct {
+	inner gocache.CacheInterface[T]
+}
+
+func newTypedCache[T any](name string) *typedCache[T] {
+	return &typedCache[T]{inner: dutycache.NewCache[T](name, CACHE_TIMEOUT)}
+}
+
+func (c *typedCache[T]) Get(key string) (T, bool) {
+	value, err := c.inner.Get(stdcontext.Background(), key)
+	if err != nil {
+		var zero T
+		return zero, false
+	}
+	return value, true
+}
+
+func (c *typedCache[T]) Set(key string, value T) {
+	_ = c.inner.Set(stdcontext.Background(), key, value)
+}
+
+func (c *typedCache[T]) Delete(key string) {
+	_ = c.inner.Delete(stdcontext.Background(), key)
+}
+
+func (c *typedCache[T]) Flush() {
+	_ = c.inner.Clear(stdcontext.Background())
+}
+
+var OrphanCache = newTypedCache[bool]("orphan")
 
 // ExternalUserCache stores alias -> external_user_id mapping
-var ExternalUserCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+var ExternalUserCache = newTypedCache[uuid.UUID]("external-users-alias")
 
 // ExternalUserIDCache stores external_user_id -> winning external_user_id
 // (the id under which the row currently lives after any merges).
-var ExternalUserIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+var ExternalUserIDCache = newTypedCache[uuid.UUID]("external-users-id")
 
 // ExternalRoleCache stores alias -> external_role_id mapping
-var ExternalRoleCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+var ExternalRoleCache = newTypedCache[uuid.UUID]("external-roles-alias")
 
 // ExternalRoleIDCache stores external_role_id -> winning external_role_id.
-var ExternalRoleIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+var ExternalRoleIDCache = newTypedCache[uuid.UUID]("external-roles-id")
 
 // ExternalGroupCache stores alias -> external_group_id mapping
-var ExternalGroupCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+var ExternalGroupCache = newTypedCache[uuid.UUID]("external-groups-alias")
 
 // ExternalGroupIDCache stores external_group_id -> winning external_group_id.
-var ExternalGroupIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
+var ExternalGroupIDCache = newTypedCache[uuid.UUID]("external-groups-id")
 
 // externalEntityWithID is a constraint for external entity types that have an ID field
 type externalEntityWithID interface {
@@ -46,7 +77,7 @@ type externalEntityWithID interface {
 }
 
 // getEntityCache returns the appropriate cache for an external entity type
-func getEntityCache[T externalEntityWithID]() *cache.Cache {
+func getEntityCache[T externalEntityWithID]() *typedCache[uuid.UUID] {
 	var zero T
 	switch any(zero).(type) {
 	case dutyModels.ExternalUser:
@@ -61,7 +92,7 @@ func getEntityCache[T externalEntityWithID]() *cache.Cache {
 }
 
 // getEntityIDCache returns the id-keyed cache for an external entity type.
-func getEntityIDCache[T externalEntityWithID]() *cache.Cache {
+func getEntityIDCache[T externalEntityWithID]() *typedCache[uuid.UUID] {
 	var zero T
 	switch any(zero).(type) {
 	case dutyModels.ExternalUser:
@@ -76,7 +107,7 @@ func getEntityIDCache[T externalEntityWithID]() *cache.Cache {
 }
 
 // WarmExternalEntityCaches pre-fills the user/role/group alias caches from the database.
-func WarmExternalEntityCaches(ctx context.Context) {
+func WarmExternalEntityCaches(ctx dutycontext.Context) {
 	type idAliases struct {
 		ID      uuid.UUID
 		Aliases pq.StringArray `gorm:"type:text[]"`
@@ -84,8 +115,8 @@ func WarmExternalEntityCaches(ctx context.Context) {
 
 	for _, table := range []struct {
 		name       string
-		aliasCache *cache.Cache
-		idCache    *cache.Cache
+		aliasCache *typedCache[uuid.UUID]
+		idCache    *typedCache[uuid.UUID]
 	}{
 		{"external_users", ExternalUserCache, ExternalUserIDCache},
 		{"external_roles", ExternalRoleCache, ExternalRoleIDCache},
@@ -101,9 +132,9 @@ func WarmExternalEntityCaches(ctx context.Context) {
 		}
 		for _, row := range rows {
 			for _, alias := range row.Aliases {
-				table.aliasCache.Set(alias, row.ID, cache.DefaultExpiration)
+				table.aliasCache.Set(alias, row.ID)
 			}
-			table.idCache.Set(row.ID.String(), row.ID, cache.DefaultExpiration)
+			table.idCache.Set(row.ID.String(), row.ID)
 		}
 		logger.Infof("warmed %s cache with %d entities", table.name, len(rows))
 	}
@@ -138,10 +169,8 @@ func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uu
 
 	idCache := getEntityIDCache[T]()
 	if idCache != nil {
-		if cached, ok := idCache.Get(id.String()); ok {
-			if winner, valid := cached.(uuid.UUID); valid {
-				return &winner, nil
-			}
+		if winner, ok := idCache.Get(id.String()); ok {
+			return &winner, nil
 		}
 	}
 
@@ -161,7 +190,7 @@ func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uu
 	}
 	if found != uuid.Nil {
 		if idCache != nil {
-			idCache.Set(id.String(), found, cache.DefaultExpiration)
+			idCache.Set(id.String(), found)
 		}
 		return &found, nil
 	}
@@ -171,7 +200,7 @@ func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uu
 		return nil, err
 	}
 	if winner != nil && idCache != nil {
-		idCache.Set(id.String(), *winner, cache.DefaultExpiration)
+		idCache.Set(id.String(), *winner)
 	}
 	return winner, nil
 }
@@ -179,40 +208,54 @@ func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uu
 // findAllExternalEntityIDsByAliases returns all distinct entity IDs that share any alias with the given set.
 func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeContext, aliases []string) ([]uuid.UUID, error) {
 	aliasCache := getEntityCache[T]()
+	idCache := getEntityIDCache[T]()
 	seen := make(map[uuid.UUID]bool)
+	misses := make([]string, 0, len(aliases))
+	checked := make(map[string]bool, len(aliases))
 
 	for _, alias := range aliases {
-		if cachedID, ok := aliasCache.Get(alias); ok {
-			if id, valid := cachedID.(uuid.UUID); valid {
-				seen[id] = true
+		if alias == "" || checked[alias] {
+			continue
+		}
+		checked[alias] = true
+
+		if id, ok := aliasCache.Get(alias); ok {
+			seen[id] = true
+			continue
+		}
+		misses = append(misses, alias)
+	}
+
+	if len(misses) > 0 {
+		var zero T
+		var rows []struct {
+			ID      uuid.UUID
+			Aliases pq.StringArray `gorm:"type:text[]"`
+		}
+		if err := ctx.DB().Table(zero.TableName()).
+			Select("id, aliases").
+			Where("aliases && ?", pq.StringArray(misses)).
+			Where("deleted_at IS NULL").
+			Find(&rows).Error; err != nil {
+			return nil, fmt.Errorf("failed to query %s by aliases: %w", zero.TableName(), err)
+		}
+
+		for _, row := range rows {
+			seen[row.ID] = true
+			if idCache != nil {
+				idCache.Set(row.ID.String(), row.ID)
+			}
+			for _, alias := range row.Aliases {
+				if alias != "" {
+					aliasCache.Set(alias, row.ID)
+				}
 			}
 		}
-	}
-
-	var zero T
-	var dbIDs []uuid.UUID
-	if err := ctx.DB().Table(zero.TableName()).
-		Select("DISTINCT id").
-		Where("aliases && ?", pq.StringArray(aliases)).
-		Where("deleted_at IS NULL").
-		Pluck("id", &dbIDs).Error; err != nil {
-		return nil, fmt.Errorf("failed to query %s by aliases: %w", zero.TableName(), err)
-	}
-
-	for _, id := range dbIDs {
-		seen[id] = true
 	}
 
 	result := make([]uuid.UUID, 0, len(seen))
 	for id := range seen {
 		result = append(result, id)
-	}
-
-	// Populate cache
-	for _, id := range result {
-		for _, a := range aliases {
-			aliasCache.Set(a, id, cache.DefaultExpiration)
-		}
 	}
 
 	return result, nil
