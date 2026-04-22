@@ -158,9 +158,9 @@ spec:
             {{- with .Values.volumeMounts }}
               {{- toYaml . | nindent 12}}
             {{- end }}
-            - mountPath: /app/config.properties
+            - mountPath: /app/config-db.properties
               name: config
-              subPath: config.properties
+              subPath: config-db.properties
             {{- if $embeddedDB}}
             - name: config-db-embedded-database
               mountPath: "/opt/database"
