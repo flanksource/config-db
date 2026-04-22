@@ -199,9 +199,7 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result *v1.Scrap
 		updates["path"] = ci.Path
 	}
 
-	if ci.CreatedAt.IsZero() && existing.CreatedAt.IsZero() {
-		updates["created_at"] = gorm.Expr("NOW()")
-	} else if !ci.CreatedAt.Equal(existing.CreatedAt) && !ci.CreatedAt.IsZero() {
+	if !ci.CreatedAt.IsZero() && !ci.CreatedAt.Equal(existing.CreatedAt) {
 		updates["created_at"] = ci.CreatedAt
 	}
 
@@ -1733,7 +1731,16 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 				})
 			}
 
-			ctx.TempCache().Insert(*ci)
+			cacheItem := *ci
+			if cacheItem.CreatedAt.IsZero() {
+				if existing != nil && existing.ID != "" && !existing.CreatedAt.IsZero() {
+					cacheItem.CreatedAt = existing.CreatedAt
+				} else {
+					cacheItem.CreatedAt = time.Now().UTC()
+				}
+			}
+
+			ctx.TempCache().Insert(cacheItem)
 		}
 
 		if chResult, err := extractChanges(ctx, result, ci); err != nil {
