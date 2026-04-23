@@ -164,15 +164,11 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 	// If the config result hasn't specified an id for the config,
 	// we try to use the external id as the primary key of the config item.
 	if ci.ID == "" {
-		if uuid.Validate(result.ID) == nil {
-			ci.ID = result.ID
-		} else {
-			id, err := hash.DeterministicUUID(result.ID)
-			if err != nil {
-				return nil, fmt.Errorf("error generating uuid for config (id:%s): %w", result.ID, err)
-			}
-			ci.ID = id.String()
+		id, err := hash.DeterministicUUID(result.ID)
+		if err != nil {
+			return nil, fmt.Errorf("error generating uuid for config (id:%s): %w", result.ID, err)
 		}
+		ci.ID = id.String()
 	}
 
 	if result.Status != "" {

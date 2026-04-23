@@ -275,8 +275,10 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 				CreatedAt:      lo.FromPtr(assignment.GetCreatedDateTime()),
 				DeletedAt:      assignment.GetDeletedDateTime(),
 			}
-			if assignment.GetAppRoleId() != nil && assignment.GetAppRoleId().String() != uuid.Nil.String() {
-				ca.ExternalRoleID = assignment.GetAppRoleId()
+			if appRoleID := assignment.GetAppRoleId(); appRoleID != nil && appRoleID.String() != uuid.Nil.String() {
+				ca.ExternalRoleID = appRoleID
+			} else {
+				ca.ExternalRoleAliases = []string{"member"}
 			}
 
 			result.ConfigAccess = append(result.ConfigAccess, ca)
@@ -290,8 +292,10 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 				CreatedAt:       lo.FromPtr(assignment.GetCreatedDateTime()),
 				DeletedAt:       assignment.GetDeletedDateTime(),
 			}
-			if assignment.GetAppRoleId() != nil && assignment.GetAppRoleId().String() != uuid.Nil.String() {
-				ca.ExternalRoleID = assignment.GetAppRoleId()
+			if appRoleID := assignment.GetAppRoleId(); appRoleID != nil && appRoleID.String() != uuid.Nil.String() {
+				ca.ExternalRoleID = appRoleID
+			} else {
+				ca.ExternalRoleAliases = []string{"member"}
 			}
 
 			result.ConfigAccess = append(result.ConfigAccess, ca)
