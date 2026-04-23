@@ -328,17 +328,10 @@ func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job
 			jr.History.AddDetails("scrape_summary", output.Summary)
 			ScraperSummaryCache.Store(sc.ScraperID(), output.Summary)
 
-			if shouldPersist, reason := shouldPersistRunArtifact(jr.Context, sc.ScraperID(), runScraperOpts...); shouldPersist {
-				runArtifact, err := persistRunArtifact(jr.Context, sc.ScraperID(), jr.History.ID, sc.ScrapeConfig().Name, start, output, lastSummary)
-				if err != nil {
+			if shouldPersistRunArtifact(jr.Context, sc.ScraperID(), runScraperOpts...) {
+				if _, err := persistRunArtifact(jr.Context, sc.ScraperID(), jr.History.ID, sc.ScrapeConfig().Name, start, output, lastSummary); err != nil {
 					jr.Logger.Warnf("failed to persist scrape run artifact: %v", err)
-				} else if runArtifact != nil {
-					jr.History.AddDetails("run_artifact_count", 1)
-					jr.History.AddDetails("run_artifact_prefix", runArtifactPrefix(sc.ScraperID(), jr.History.ID))
-					jr.History.AddDetails("run_artifact_path", runArtifact.Path)
 				}
-			} else {
-				jr.Logger.Infof("skipping scrape run artifact persistence: %s", reason)
 			}
 
 			source := sc.ScrapeConfig().GetAnnotations()["source"]
@@ -407,19 +400,21 @@ func persistRunArtifact(ctx context.Context, scraperID string, jobHistoryID uuid
 	return writeCompressedRunArtifact(blobs, artifactConnectionID, scraperUUID, jobHistoryID, prefix, "summary.json.gz", "summary.json.gz", summaryData)
 }
 
-func shouldPersistRunArtifact(ctx context.Context, scraperID string, runOpts ...RunScraperOption) (bool, string) {
+func shouldPersistRunArtifact(ctx context.Context, scraperID string, runOpts ...RunScraperOption) bool {
 	if scraperID == "" {
-		return false, "scraper has no persisted ID"
+		return false
 	}
 
 	opts := buildRunScraperOptions(runOpts...)
-	hasCaptureEnabled := opts.CaptureHAR || opts.CaptureLogs || opts.CaptureSnapshots
-	hasArtifactConnection := ctx.Properties().String("artifacts.connection", "") != ""
-	if !hasCaptureEnabled && !hasArtifactConnection {
-		return false, "no artifact capture enabled and no artifacts.connection configured"
+	if !opts.PersistRunArtifact {
+		return false
 	}
 
-	return true, ""
+	if ctx.Properties().String("artifacts.connection", "") == "" {
+		return false
+	}
+
+	return true
 }
 
 func runArtifactPrefix(scraperID string, jobHistoryID uuid.UUID) string {

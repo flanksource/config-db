@@ -247,7 +247,8 @@ func parseRunNowRequest(c echo.Context) (runNowRequest, error) {
 }
 
 func runScraperOptsFromRunNowRequest(req runNowRequest) []RunScraperOption {
-	opts := make([]RunScraperOption, 0, 3)
+	opts := make([]RunScraperOption, 0, 4)
+	opts = append(opts, WithPersistRunArtifact(true))
 
 	if enabled, ok := req.captureHAR(); ok {
 		opts = append(opts, WithCaptureHAR(enabled))

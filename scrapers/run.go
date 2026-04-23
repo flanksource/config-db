@@ -40,9 +40,10 @@ type ScrapeOutput struct {
 }
 
 type RunScraperOptions struct {
-	CaptureHAR       bool
-	CaptureSnapshots bool
-	CaptureLogs      bool
+	CaptureHAR         bool
+	CaptureSnapshots   bool
+	CaptureLogs        bool
+	PersistRunArtifact bool
 }
 
 type RunScraperOption func(*RunScraperOptions)
@@ -57,6 +58,10 @@ func WithCaptureSnapshots(enabled bool) RunScraperOption {
 
 func WithCaptureLogs(enabled bool) RunScraperOption {
 	return func(o *RunScraperOptions) { o.CaptureLogs = enabled }
+}
+
+func WithPersistRunArtifact(enabled bool) RunScraperOption {
+	return func(o *RunScraperOptions) { o.PersistRunArtifact = enabled }
 }
 
 func buildRunScraperOptions(opts ...RunScraperOption) RunScraperOptions {
