@@ -220,6 +220,11 @@ func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeCon
 		checked[alias] = true
 
 		if id, ok := aliasCache.Get(alias); ok {
+			if idCache != nil {
+				if winner, ok := idCache.Get(id.String()); ok {
+					id = winner
+				}
+			}
 			seen[id] = true
 			continue
 		}
