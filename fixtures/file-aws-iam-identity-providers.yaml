@@ -1,0 +1,19 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-aws-iam-identity-providers-scraper
+spec:
+  full: true
+  file:
+    - type: AWS::IAM::OIDCProvider
+      class: OIDCProvider
+      id: $.id
+      name: $.name
+      paths:
+        - fixtures/data/aws_iam_oidc_provider_test.json
+    - type: AWS::IAM::SAMLProvider
+      class: SAMLProvider
+      id: $.id
+      name: $.name
+      paths:
+        - fixtures/data/aws_iam_saml_provider_test.json
