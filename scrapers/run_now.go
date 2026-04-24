@@ -31,43 +31,10 @@ type runNowResponse struct {
 }
 
 type runNowRequest struct {
-	Async                 *bool `json:"async,omitempty"`
-	CaptureHAR            *bool `json:"capture_har,omitempty"`
-	CaptureHARCamel       *bool `json:"captureHAR,omitempty"`
-	CaptureLogs           *bool `json:"capture_logs,omitempty"`
-	CaptureLogsCamel      *bool `json:"captureLogs,omitempty"`
-	CaptureSnapshots      *bool `json:"capture_snapshots,omitempty"`
-	CaptureSnapshotsCamel *bool `json:"captureSnapshots,omitempty"`
-}
-
-func (r runNowRequest) captureHAR() (bool, bool) {
-	if r.CaptureHAR != nil {
-		return *r.CaptureHAR, true
-	}
-	if r.CaptureHARCamel != nil {
-		return *r.CaptureHARCamel, true
-	}
-	return false, false
-}
-
-func (r runNowRequest) captureLogs() (bool, bool) {
-	if r.CaptureLogs != nil {
-		return *r.CaptureLogs, true
-	}
-	if r.CaptureLogsCamel != nil {
-		return *r.CaptureLogsCamel, true
-	}
-	return false, false
-}
-
-func (r runNowRequest) captureSnapshots() (bool, bool) {
-	if r.CaptureSnapshots != nil {
-		return *r.CaptureSnapshots, true
-	}
-	if r.CaptureSnapshotsCamel != nil {
-		return *r.CaptureSnapshotsCamel, true
-	}
-	return false, false
+	Async            *bool `json:"async,omitempty"`
+	CaptureHAR       *bool `json:"captureHAR,omitempty"`
+	CaptureLogs      *bool `json:"captureLogs,omitempty"`
+	CaptureSnapshots *bool `json:"captureSnapshots,omitempty"`
 }
 
 func RunNowHandler(c echo.Context) error {
@@ -248,16 +215,23 @@ func parseRunNowRequest(c echo.Context) (runNowRequest, error) {
 
 func runScraperOptsFromRunNowRequest(req runNowRequest) []RunScraperOption {
 	opts := make([]RunScraperOption, 0, 4)
-	opts = append(opts, WithPersistRunArtifact(true))
+	persistRunArtifact := false
 
-	if enabled, ok := req.captureHAR(); ok {
-		opts = append(opts, WithCaptureHAR(enabled))
+	if req.CaptureHAR != nil {
+		opts = append(opts, WithCaptureHAR(*req.CaptureHAR))
+		persistRunArtifact = persistRunArtifact || *req.CaptureHAR
 	}
-	if enabled, ok := req.captureLogs(); ok {
-		opts = append(opts, WithCaptureLogs(enabled))
+	if req.CaptureLogs != nil {
+		opts = append(opts, WithCaptureLogs(*req.CaptureLogs))
+		persistRunArtifact = persistRunArtifact || *req.CaptureLogs
 	}
-	if enabled, ok := req.captureSnapshots(); ok {
-		opts = append(opts, WithCaptureSnapshots(enabled))
+	if req.CaptureSnapshots != nil {
+		opts = append(opts, WithCaptureSnapshots(*req.CaptureSnapshots))
+		persistRunArtifact = persistRunArtifact || *req.CaptureSnapshots
+	}
+
+	if persistRunArtifact {
+		opts = append(opts, WithPersistRunArtifact(true))
 	}
 
 	return opts
