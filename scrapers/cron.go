@@ -250,12 +250,7 @@ func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job
 	schedule, _ := lo.Coalesce(sc.Properties().String(fmt.Sprintf("scraper.%s.schedule", sc.ScrapeConfig().UID), sc.ScrapeConfig().Spec.Schedule), DefaultSchedule)
 	minScheduleAllowed := sc.Properties().Duration(fmt.Sprintf("scraper.%s.schedule.min", sc.ScrapeConfig().Type()), MinScraperSchedule)
 
-	runScraperOpts := []RunScraperOption{
-		WithCaptureHAR(sc.PropertyOn(false, "capture.har")),
-		WithCaptureLogs(sc.PropertyOn(false, "capture.logs")),
-		WithCaptureSnapshots(sc.PropertyOn(false, "capture.snapshots")),
-	}
-	runScraperOpts = append(runScraperOpts, overrides...)
+	runScraperOpts := append([]RunScraperOption(nil), overrides...)
 
 	// Attempt to get a fixed interval from the schedule.
 	// NOTE: Only works for fixed interval schedules.
