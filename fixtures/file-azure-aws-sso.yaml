@@ -1,0 +1,19 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-azure-aws-sso-scraper
+spec:
+  full: true
+  file:
+    - type: AWS::IAM::Role
+      class: Role
+      id: $.id
+      name: $.name
+      paths:
+        - fixtures/data/azure_aws_sso_aws_role_test.json
+    - type: Azure::EnterpriseApplication
+      class: EnterpriseApplication
+      id: $.id
+      name: $.name
+      paths:
+        - fixtures/data/azure_aws_sso_azure_app_test.json

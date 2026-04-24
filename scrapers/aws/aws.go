@@ -2236,6 +2236,8 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		aws.iamRoles(awsCtx, awsConfig, results)
 		aws.iamProfiles(awsCtx, awsConfig, results)
 		aws.iamGroups(awsCtx, awsConfig, results)
+		aws.iamOIDCProviders(awsCtx, awsConfig, results)
+		aws.iamSAMLProviders(awsCtx, awsConfig, results)
 		aws.dnsZones(awsCtx, awsConfig, results)
 		aws.trustedAdvisor(awsCtx, awsConfig, results)
 		aws.s3Buckets(awsCtx, awsConfig, results)
@@ -2377,6 +2379,8 @@ func getConsoleLink(region, resourceType, resourceID string, opt map[string]stri
 	case v1.AWSIAMRole:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/iam/home?region=%s#roles/details/%s", region, region, resourceID)
 	case v1.AWSIAMInstanceProfile:
+		url = fmt.Sprintf("https://console.aws.amazon.com/go/view?arn=%s", resourceID)
+	case v1.AWSIAMOIDCProvider, v1.AWSIAMSAMLProvider:
 		url = fmt.Sprintf("https://console.aws.amazon.com/go/view?arn=%s", resourceID)
 	case v1.AWSEC2AMI:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#AMIDetails:amisearch=%s", region, region, resourceID)

@@ -197,3 +197,156 @@ var _ = Describe("AWS CloudTrail AssumeRole access logs", Ordered, func() {
 		Expect(logs[0].CreatedAt.UTC()).To(Equal(time.Date(2026, 4, 21, 22, 0, 0, 0, time.UTC)))
 	})
 })
+
+var _ = Describe("AWS IAM SAML + OIDC identity providers", Ordered, func() {
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+	var scraperModel dutymodels.ConfigScraper
+
+	const (
+		oidcARN = "arn:aws:iam::111111111111:oidc-provider/token.actions.githubusercontent.com"
+		samlARN = "arn:aws:iam::111111111111:saml-provider/customer-saml"
+	)
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("file-aws-iam-identity-providers")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred())
+		scModel.Source = dutymodels.SourceUI
+		Expect(DefaultContext.DB().Create(&scModel).Error).NotTo(HaveOccurred())
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+		scraperModel = scModel
+	})
+
+	AfterAll(func() {
+		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&models.ConfigItem{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Delete(&scraperModel).Error).NotTo(HaveOccurred())
+	})
+
+	It("scrapes without error", func() {
+		_, err := RunScraper(scraperCtx)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("persists an AWS::IAM::OIDCProvider config item with the provider ARN as external id", func() {
+		var oidc models.ConfigItem
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSIAMOIDCProvider, oidcARN).
+			First(&oidc).Error).NotTo(HaveOccurred())
+		Expect(oidc.ID).NotTo(BeEmpty())
+	})
+
+	It("persists an AWS::IAM::SAMLProvider config item with the provider ARN as external id", func() {
+		var saml models.ConfigItem
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSIAMSAMLProvider, samlARN).
+			First(&saml).Error).NotTo(HaveOccurred())
+		Expect(saml.ID).NotTo(BeEmpty())
+	})
+
+})
+
+var _ = Describe("Azure AWS-SSO cross-cloud collapsed access edge", Ordered, func() {
+	var scrapeConfig v1.ScrapeConfig
+	var scraperCtx api.ScrapeContext
+	var scraperModel dutymodels.ConfigScraper
+
+	const awsRoleARN = "arn:aws:iam::963567256330:role/deploy"
+
+	BeforeAll(func() {
+		scrapeConfig = getConfigSpec("file-azure-aws-sso")
+
+		scModel, err := scrapeConfig.ToModel()
+		Expect(err).NotTo(HaveOccurred())
+		scModel.Source = dutymodels.SourceUI
+		Expect(DefaultContext.DB().Create(&scModel).Error).NotTo(HaveOccurred())
+
+		scrapeConfig.SetUID(k8sTypes.UID(scModel.ID.String()))
+		scraperCtx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+		scraperModel = scModel
+	})
+
+	AfterAll(func() {
+		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ConfigAccess{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalRole{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalUser{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&dutymodels.ExternalGroup{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperModel.ID).Delete(&models.ConfigItem{}).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Delete(&scraperModel).Error).NotTo(HaveOccurred())
+	})
+
+	It("scrapes without error", func() {
+		_, err := RunScraper(scraperCtx)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("persists both the AWS::IAM::Role and Azure::EnterpriseApplication config items", func() {
+		var awsRole models.ConfigItem
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSIAMRole, awsRoleARN).
+			First(&awsRole).Error).NotTo(HaveOccurred())
+
+		var azApp models.ConfigItem
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND type = ?", scraperModel.ID, "Azure::EnterpriseApplication").
+			First(&azApp).Error).NotTo(HaveOccurred())
+	})
+
+	It("resolves Azure user's AWS-SSO config_access row to the AWS::IAM::Role config item (the collapsed edge)", func() {
+		var awsRole models.ConfigItem
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSIAMRole, awsRoleARN).
+			First(&awsRole).Error).NotTo(HaveOccurred())
+
+		var access dutymodels.ConfigAccess
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND id = ?", scraperModel.ID, "assignment-alice-to-aws-role").
+			First(&access).Error).NotTo(HaveOccurred())
+		Expect(access.ConfigID.String()).To(Equal(awsRole.ID))
+		Expect(access.ExternalUserID).NotTo(BeNil())
+	})
+
+	It("resolves Azure group's AWS-SSO config_access row to the AWS::IAM::Role config item", func() {
+		var awsRole models.ConfigItem
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSIAMRole, awsRoleARN).
+			First(&awsRole).Error).NotTo(HaveOccurred())
+
+		var access dutymodels.ConfigAccess
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND id = ?", scraperModel.ID, "assignment-engineers-to-aws-role").
+			First(&access).Error).NotTo(HaveOccurred())
+		Expect(access.ConfigID.String()).To(Equal(awsRole.ID))
+		Expect(access.ExternalGroupID).NotTo(BeNil())
+	})
+
+	It("returns Azure principals when querying config_access by the AWS role's UUID", func() {
+		var awsRole models.ConfigItem
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSIAMRole, awsRoleARN).
+			First(&awsRole).Error).NotTo(HaveOccurred())
+
+		var accesses []dutymodels.ConfigAccess
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND config_id = ?", scraperModel.ID, awsRole.ID).
+			Find(&accesses).Error).NotTo(HaveOccurred())
+		Expect(accesses).To(HaveLen(2))
+
+		hasUser, hasGroup := false, false
+		for _, a := range accesses {
+			if a.ExternalUserID != nil {
+				hasUser = true
+			}
+			if a.ExternalGroupID != nil {
+				hasGroup = true
+			}
+		}
+		Expect(hasUser).To(BeTrue(), "expected at least one user-keyed access row on AWS role")
+		Expect(hasGroup).To(BeTrue(), "expected at least one group-keyed access row on AWS role")
+	})
+})
