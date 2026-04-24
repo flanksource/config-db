@@ -49,6 +49,7 @@ const (
 	IncludeActivityLogs        = "activityLogs"
 	IncludeAdvisor             = "advisor"
 	IncludeAppServices         = "appServices"
+	IncludeSubscriptions       = "subscriptions"
 	IncludeContainerRegistries = "containerRegistries"
 	IncludeDatabases           = "databases"
 	IncludeDNS                 = "dns"
@@ -792,9 +793,14 @@ func (azure *Scraper) fetchResourceGroups() v1.ScrapeResults {
 
 // fetchSubscriptions gets Azure subscriptions.
 func (azure *Scraper) fetchSubscriptions() v1.ScrapeResults {
-	azure.ctx.Logger.V(3).Infof("fetching subscriptions")
 
 	var results v1.ScrapeResults
+	if !azure.config.Includes(IncludeSubscriptions) {
+		return results
+	}
+
+	azure.ctx.Logger.V(3).Infof("fetching subscriptions")
+
 	client, err := armsubscription.NewSubscriptionsClient(azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate subscriptions client: %w", err)})
@@ -827,12 +833,12 @@ func (azure *Scraper) fetchSubscriptions() v1.ScrapeResults {
 
 // fetchStorageAccounts gets storage accounts in a subscription.
 func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
-	azure.ctx.Logger.V(3).Infof("fetching storage accounts for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	if !azure.config.Includes(IncludeStorageAccounts) {
 		return results
 	}
+	azure.ctx.Logger.V(3).Infof("fetching storage accounts for subscription %s", azure.config.SubscriptionID)
 
 	client, err := armstorage.NewAccountsClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
