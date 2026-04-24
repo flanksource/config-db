@@ -5,9 +5,9 @@ go 1.26.1
 require (
 	github.com/flanksource/artifacts v1.0.24
 	github.com/flanksource/clicky v1.21.4
-	github.com/flanksource/commons v1.50.2
+	github.com/flanksource/commons v1.50.4
 	github.com/flanksource/deps v1.0.28
-	github.com/flanksource/duty v1.0.1288
+	github.com/flanksource/duty v1.0.1289
 	github.com/flanksource/gomplate/v3 v3.24.77
 	github.com/flanksource/is-healthy v1.0.86
 	github.com/flanksource/ketall v1.1.9
@@ -59,6 +59,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/support v1.31.21
 	github.com/aws/smithy-go v1.25.0
 	github.com/chromedp/chromedp v0.15.1
+	github.com/eko/gocache/lib/v4 v4.2.3
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fjl/memsize v0.0.2
 	github.com/gobwas/glob v0.2.3
@@ -193,7 +194,6 @@ require (
 	github.com/eapache/go-resiliency v1.7.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
-	github.com/eko/gocache/lib/v4 v4.2.3 // indirect
 	github.com/eko/gocache/store/go_cache/v4 v4.2.4 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/emirpasic/gods/v2 v2.0.0-alpha // indirect
