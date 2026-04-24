@@ -3,7 +3,6 @@ package azure
 import (
 	"encoding/base64"
 	"fmt"
-	"strings"
 
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -16,7 +15,6 @@ import (
 	msgraphModels "github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/serviceprincipals"
 	"github.com/microsoftgraph/msgraph-sdk-go/users"
-	"github.com/lib/pq"
 	"github.com/samber/lo"
 )
 
@@ -71,7 +69,14 @@ func (azure Scraper) fetchAppRoles(appObjectID string) v1.ScrapeResults {
 			continue
 		}
 
-		externalRole := v1.ScrapeResult{
+		// AWS-SSO app roles don't need a per-tenant ExternalRole row: the
+		// assignment's config_access targets the AWS IAM role directly via
+		// ConfigExternalID, which resolves against the AWS scraper's output.
+		if _, _, ok := parseAWSSSOAppRoleValue(lo.FromPtr(role.GetValue())); ok {
+			continue
+		}
+
+		results = append(results, v1.ScrapeResult{
 			BaseScraper: azure.config.BaseScraper,
 			ExternalRoles: []models.ExternalRole{
 				{
@@ -82,48 +87,10 @@ func (azure Scraper) fetchAppRoles(appObjectID string) v1.ScrapeResults {
 					Description: lo.FromPtr(role.GetDescription()),
 				},
 			},
-		}
-
-		// AWS-SSO pattern: emit a second ExternalRole aliased by the AWS IAM
-		// role ARN so the AWS role is discoverable (and merges via alias
-		// dedupe when the AWS scraper later runs against that account).
-		if awsRoleARN, _, ok := parseAWSSSOAppRoleValue(lo.FromPtr(role.GetValue())); ok {
-			awsAccount := awsAccountFromARN(awsRoleARN)
-			externalRole.ExternalRoles = append(externalRole.ExternalRoles, models.ExternalRole{
-				Aliases:  pq.StringArray{awsRoleARN},
-				Name:     awsIAMRoleNameFromARN(awsRoleARN),
-				Tenant:   awsAccount,
-				RoleType: "IAMRole",
-			})
-		}
-
-		results = append(results, externalRole)
+		})
 	}
 
 	return results
-}
-
-// awsAccountFromARN extracts the account ID from "arn:aws:iam::<account>:...".
-// Returns "" on parse failure.
-func awsAccountFromARN(arn string) string {
-	const prefix = "arn:aws:iam::"
-	if !strings.HasPrefix(arn, prefix) {
-		return ""
-	}
-	rest := arn[len(prefix):]
-	i := strings.Index(rest, ":")
-	if i <= 0 {
-		return ""
-	}
-	return rest[:i]
-}
-
-// awsIAMRoleNameFromARN returns the trailing segment after "role/".
-func awsIAMRoleNameFromARN(arn string) string {
-	if _, name, ok := strings.Cut(arn, ":role/"); ok {
-		return name
-	}
-	return arn
 }
 
 func (azure Scraper) fetchAllAppRoleAssignments(selectors types.ResourceSelectors) v1.ScrapeResults {
@@ -200,6 +167,15 @@ func (azure Scraper) fetchAppRegistrations(selectors types.ResourceSelectors) v1
 		}
 
 		results = append(results, azure.fetchAppRoles(lo.FromPtr(app.GetId()))...)
+
+		// Auto-scrape the matching Enterprise Application (service principal)
+		// and its role assignments. Graph exposes role assignments only on the
+		// SP side, so fetching the AppRegistration without its SP would never
+		// yield config_access rows.
+		if spResult, spID, ok := azure.fetchServicePrincipalByAppID(appRegAppID); ok {
+			results = append(results, spResult)
+			results = append(results, azure.fetchAppRoleAssignments(spID)...)
+		}
 		return true
 	})
 
@@ -280,6 +256,52 @@ func (azure Scraper) keyCredentialToScrapeResult(cred msgraphModels.KeyCredentia
 	}
 }
 
+// fetchServicePrincipalByAppID resolves the service principal whose appId equals
+// appID (i.e. the Enterprise Application matching an AppRegistration). Returns
+// ok=false (without error) when the tenant has no SP for this app — that's
+// expected for multi-tenant apps owned by a different tenant.
+func (azure Scraper) fetchServicePrincipalByAppID(appID string) (v1.ScrapeResult, uuid.UUID, bool) {
+	filter := fmt.Sprintf("appId eq '%s'", appID)
+	resp, err := azure.graphClient.ServicePrincipals().Get(azure.ctx, &serviceprincipals.ServicePrincipalsRequestBuilderGetRequestConfiguration{
+		QueryParameters: &serviceprincipals.ServicePrincipalsRequestBuilderGetQueryParameters{Filter: &filter},
+	})
+	if err != nil {
+		logger.Warnf("failed to look up service principal for appId %s: %v", appID, err)
+		return v1.ScrapeResult{}, uuid.Nil, false
+	}
+	sps := resp.GetValue()
+	if len(sps) == 0 {
+		return v1.ScrapeResult{}, uuid.Nil, false
+	}
+	sp := sps[0]
+	spID, err := uuid.Parse(lo.FromPtr(sp.GetId()))
+	if err != nil {
+		logger.Warnf("service principal for appId %s has non-uuid id %q: %v", appID, lo.FromPtr(sp.GetId()), err)
+		return v1.ScrapeResult{}, uuid.Nil, false
+	}
+	return azure.servicePrincipalToScrapeResult(sp), spID, true
+}
+
+func (azure Scraper) servicePrincipalToScrapeResult(sp msgraphModels.ServicePrincipalable) v1.ScrapeResult {
+	spID := lo.FromPtr(sp.GetId())
+	appID := lo.FromPtr(sp.GetAppId())
+	displayName := lo.FromPtr(sp.GetDisplayName())
+
+	return v1.ScrapeResult{
+		BaseScraper: azure.config.BaseScraper,
+		ID:          spID,
+		Name:        displayName,
+		Config:      sp.GetBackingStore().Enumerate(),
+		ConfigClass: EnterpriseApplicationType,
+		Type:        ConfigTypePrefix + EnterpriseApplicationType,
+		RelationshipResults: []v1.RelationshipResult{{
+			RelatedConfigID: spID,
+			ConfigID:        appID,
+			Relationship:    "AppServicePrincipal",
+		}},
+	}
+}
+
 // awsSSOLink captures the AWS IAM role + SAML provider ARNs parsed from an
 // Azure AppRole's `value` in the Microsoft AWS-SSO gallery-app pattern.
 type awsSSOLink struct {
@@ -332,116 +354,64 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID) v1.ScrapeResults {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to fetch app role assignments for service principal %s: %w", spID, err)})
 	}
 
-	assignmentIterator, err := graphcore.NewPageIterator[msgraphModels.AppRoleAssignmentable](assignments, azure.graphClient.GetAdapter(), nil)
+	assignmentIterator, err := graphcore.NewPageIterator[msgraphModels.AppRoleAssignmentable](assignments, azure.graphClient.GetAdapter(), msgraphModels.CreateAppRoleAssignmentCollectionResponseFromDiscriminatorValue)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to create assignment iterator for service principal %s: %w", spID, err)})
 	}
 
 	var result v1.ScrapeResult
-	// Track which AWS links have been linked to the SP config item so we emit
-	// one RelationshipResult per unique (SP, AWS role) and (SP, SAML provider).
-	linkedAWS := map[string]struct{}{}
+	scraperID := azure.ctx.ScrapeConfig().GetPersistedID()
 
 	err = assignmentIterator.Iterate(azure.ctx, func(assignment msgraphModels.AppRoleAssignmentable) bool {
 		principalType := lo.FromPtr(assignment.GetPrincipalType())
 		assignmentID := lo.FromPtr(assignment.GetId())
 
-		var ca v1.ExternalConfigAccess
+		base := v1.ExternalConfigAccess{
+			ScraperID: scraperID,
+			CreatedAt: lo.FromPtr(assignment.GetCreatedDateTime()),
+			DeletedAt: assignment.GetDeletedDateTime(),
+		}
 		switch principalType {
 		case "User":
-			ca = v1.ExternalConfigAccess{
-				ID:             assignmentID,
-				ExternalUserID: assignment.GetPrincipalId(),
-				ConfigID:       spID,
-				ScraperID:      azure.ctx.ScrapeConfig().GetPersistedID(),
-				CreatedAt:      lo.FromPtr(assignment.GetCreatedDateTime()),
-				DeletedAt:      assignment.GetDeletedDateTime(),
-			}
+			base.ExternalUserID = assignment.GetPrincipalId()
 		case "Group":
-			ca = v1.ExternalConfigAccess{
-				ID:              assignmentID,
-				ExternalGroupID: assignment.GetPrincipalId(),
-				ConfigID:        spID,
-				ScraperID:       azure.ctx.ScrapeConfig().GetPersistedID(),
-				CreatedAt:       lo.FromPtr(assignment.GetCreatedDateTime()),
-				DeletedAt:       assignment.GetDeletedDateTime(),
-			}
+			base.ExternalGroupID = assignment.GetPrincipalId()
 		default:
 			logger.Warnf("unknown principal type %s for app role assignment %s", principalType, assignmentID)
 			return true
 		}
 
 		appRoleID := assignment.GetAppRoleId()
+		if link, ok := awsLinks[lo.FromPtr(appRoleID).String()]; ok && appRoleID != nil {
+			// AWS-SSO assignment: target the AWS IAM role and SAML provider
+			// directly. No Enterprise-App-targeted row — if the AWS role isn't
+			// resolvable, db/update.go drops the access row.
+			source := lo.ToPtr(fmt.Sprintf("azure-sso via sp:%s saml:%s", spID, link.SAMLARN))
+
+			roleAccess := base
+			roleAccess.ID = assignmentID + "/role"
+			roleAccess.ConfigExternalID = v1.ExternalID{ConfigType: v1.AWSIAMRole, ExternalID: link.RoleARN, ScraperID: "all"}
+			roleAccess.Source = source
+			result.ConfigAccess = append(result.ConfigAccess, roleAccess)
+
+			samlAccess := base
+			samlAccess.ID = assignmentID + "/saml"
+			samlAccess.ConfigExternalID = v1.ExternalID{ConfigType: v1.AWSIAMSAMLProvider, ExternalID: link.SAMLARN, ScraperID: "all"}
+			samlAccess.Source = source
+			result.ConfigAccess = append(result.ConfigAccess, samlAccess)
+			return true
+		}
+
+		// Non-AWS-SSO: access is to the Enterprise App itself.
+		ca := base
+		ca.ID = assignmentID
+		ca.ConfigID = spID
 		if appRoleID != nil && appRoleID.String() != uuid.Nil.String() {
 			ca.ExternalRoleID = appRoleID
 		} else {
 			ca.ExternalRoleAliases = []string{"member"}
 		}
 		result.ConfigAccess = append(result.ConfigAccess, ca)
-
-		// AWS-SSO fan-out: if this assignment's AppRole has an AWS IAM role +
-		// SAML provider in its `value`, emit a second access row whose target
-		// is the AWS IAM role. Cross-scraper lookup is explicit (ScraperID:
-		// "all" on ConfigExternalID) so it resolves regardless of which
-		// scraper persisted the AWS role.
-		if appRoleID == nil {
-			return true
-		}
-		link, ok := awsLinks[appRoleID.String()]
-		if !ok {
-			return true
-		}
-
-		awsCA := v1.ExternalConfigAccess{
-			ID:        assignmentID + "/aws",
-			ConfigExternalID: v1.ExternalID{
-				ConfigType: v1.AWSIAMRole,
-				ExternalID: link.RoleARN,
-				ScraperID:  "all",
-			},
-			ExternalRoleAliases: []string{link.RoleARN},
-			ScraperID:           azure.ctx.ScrapeConfig().GetPersistedID(),
-			CreatedAt:           lo.FromPtr(assignment.GetCreatedDateTime()),
-			DeletedAt:           assignment.GetDeletedDateTime(),
-			Source:              lo.ToPtr(fmt.Sprintf("azure-sso via saml:%s", link.SAMLARN)),
-		}
-		switch principalType {
-		case "User":
-			awsCA.ExternalUserID = assignment.GetPrincipalId()
-		case "Group":
-			awsCA.ExternalGroupID = assignment.GetPrincipalId()
-		}
-		result.ConfigAccess = append(result.ConfigAccess, awsCA)
-
-		// Emit navigational relationships from the Enterprise App SP to the
-		// AWS role and SAML provider, once per unique pair.
-		if _, seen := linkedAWS[link.RoleARN]; !seen {
-			linkedAWS[link.RoleARN] = struct{}{}
-			result.RelationshipResults = append(result.RelationshipResults,
-				v1.RelationshipResult{
-					ConfigID: spID.String(),
-					RelatedExternalID: v1.ExternalID{
-						ConfigType: v1.AWSIAMRole,
-						ExternalID: link.RoleARN,
-						ScraperID:  "all",
-					},
-					Relationship: "AzureEnterpriseAppAWSIAMRole",
-				})
-		}
-		if _, seen := linkedAWS[link.SAMLARN]; !seen {
-			linkedAWS[link.SAMLARN] = struct{}{}
-			result.RelationshipResults = append(result.RelationshipResults,
-				v1.RelationshipResult{
-					ConfigID: spID.String(),
-					RelatedExternalID: v1.ExternalID{
-						ConfigType: v1.AWSIAMSAMLProvider,
-						ExternalID: link.SAMLARN,
-						ScraperID:  "all",
-					},
-					Relationship: "AzureEnterpriseAppAWSSAMLProvider",
-				})
-		}
-
 		return true
 	})
 	if err != nil {
@@ -473,29 +443,13 @@ func (azure Scraper) fetchEnterpriseApplications(selectors types.ResourceSelecto
 	}
 
 	err = pageIterator.Iterate(azure.ctx, func(sp msgraphModels.ServicePrincipalable) bool {
-		spID := lo.FromPtr(sp.GetId())
-		appID := lo.FromPtr(sp.GetAppId())
-		displayName := *sp.GetDisplayName()
-
 		if orgID := sp.GetAppOwnerOrganizationId(); orgID == nil {
 			return true
 		} else if orgID.String() != azure.config.TenantID {
 			return true // there are a lot of built-in service principals. Only process the ones for this tenant
 		}
 
-		result := v1.ScrapeResult{
-			BaseScraper: azure.config.BaseScraper,
-			ID:          spID,
-			Name:        displayName,
-			Config:      sp.GetBackingStore().Enumerate(),
-			ConfigClass: EnterpriseApplicationType,
-			Type:        ConfigTypePrefix + EnterpriseApplicationType,
-			RelationshipResults: []v1.RelationshipResult{{
-				RelatedConfigID: spID,
-				ConfigID:        appID,
-				Relationship:    "AppServicePrincipal",
-			}},
-		}
+		result := azure.servicePrincipalToScrapeResult(sp)
 		if !selectors.Matches(result) {
 			return true
 		}

@@ -153,6 +153,8 @@ const (
 	AWSIAMRole             = "AWS::IAM::Role"
 	AWSIAMGroup            = "AWS::IAM::Group"
 	AWSIAMInstanceProfile  = "AWS::IAM::InstanceProfile"
+	AWSIAMOIDCProvider     = "AWS::IAM::OIDCProvider"
+	AWSIAMSAMLProvider     = "AWS::IAM::SAMLProvider"
 	AWSEC2AMI              = "AWS::EC2::AMI"
 	AWSEC2DHCPOptions      = "AWS::EC2::DHCPOptions"
 	AWSBackupVault         = "AWS::Backup::BackupVault"
