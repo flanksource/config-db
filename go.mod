@@ -4,8 +4,8 @@ go 1.26.1
 
 require (
 	github.com/flanksource/artifacts v1.0.24
-	github.com/flanksource/clicky v1.21.4
-	github.com/flanksource/commons v1.50.2
+	github.com/flanksource/clicky v1.21.5
+	github.com/flanksource/commons v1.50.3
 	github.com/flanksource/deps v1.0.28
 	github.com/flanksource/duty v1.0.1288
 	github.com/flanksource/gomplate/v3 v3.24.77
@@ -35,30 +35,31 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.45.0
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/aws/aws-sdk-go-v2 v1.41.6
-	github.com/aws/aws-sdk-go-v2/service/backup v1.55.0
-	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.9
-	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.9
-	github.com/aws/aws-sdk-go-v2/service/configservice v1.62.1
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.297.0
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.57.0
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.78.0
-	github.com/aws/aws-sdk-go-v2/service/efs v1.41.14
+	github.com/aws/aws-sdk-go-v2/service/backup v1.55.1
+	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.10
+	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.10
+	github.com/aws/aws-sdk-go-v2/service/configservice v1.62.2
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.299.0
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.57.1
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.79.0
+	github.com/aws/aws-sdk-go-v2/service/efs v1.41.15
 	github.com/aws/aws-sdk-go-v2/service/eks v1.82.1
-	github.com/aws/aws-sdk-go-v2/service/elasticache v1.52.0
-	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.33.23
-	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.54.10
-	github.com/aws/aws-sdk-go-v2/service/iam v1.53.7
-	github.com/aws/aws-sdk-go-v2/service/lambda v1.89.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.118.0
-	github.com/aws/aws-sdk-go-v2/service/route53 v1.62.5
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.1
-	github.com/aws/aws-sdk-go-v2/service/sns v1.39.15
+	github.com/aws/aws-sdk-go-v2/service/elasticache v1.52.1
+	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.33.24
+	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.54.11
+	github.com/aws/aws-sdk-go-v2/service/iam v1.53.8
+	github.com/aws/aws-sdk-go-v2/service/lambda v1.90.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.118.1
+	github.com/aws/aws-sdk-go-v2/service/route53 v1.62.6
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.0
+	github.com/aws/aws-sdk-go-v2/service/sns v1.39.16
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.26
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.4
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5
 	github.com/aws/aws-sdk-go-v2/service/sts v1.42.0
-	github.com/aws/aws-sdk-go-v2/service/support v1.31.21
-	github.com/aws/smithy-go v1.25.0
+	github.com/aws/aws-sdk-go-v2/service/support v1.31.22
+	github.com/aws/smithy-go v1.25.1
 	github.com/chromedp/chromedp v0.15.1
+	github.com/eko/gocache/lib/v4 v4.2.3
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fjl/memsize v0.0.2
 	github.com/gobwas/glob v0.2.3
@@ -73,7 +74,7 @@ require (
 	github.com/labstack/echo-contrib v0.50.1
 	github.com/labstack/echo/v4 v4.15.1
 	github.com/lib/pq v1.12.3
-	github.com/microsoftgraph/msgraph-sdk-go v1.96.0
+	github.com/microsoftgraph/msgraph-sdk-go v1.97.0
 	github.com/microsoftgraph/msgraph-sdk-go-core v1.4.0
 	github.com/ohler55/ojg v1.28.1
 	github.com/oklog/ulid/v2 v2.1.1
@@ -100,7 +101,7 @@ require (
 	gocloud.dev v0.45.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.31.1
-	k8s.io/apimachinery v0.35.4
+	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.35.4
 	sigs.k8s.io/controller-runtime v0.23.3
 	sigs.k8s.io/yaml v1.6.0
@@ -193,7 +194,6 @@ require (
 	github.com/eapache/go-resiliency v1.7.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
-	github.com/eko/gocache/lib/v4 v4.2.3 // indirect
 	github.com/eko/gocache/store/go_cache/v4 v4.2.4 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/emirpasic/gods/v2 v2.0.0-alpha // indirect
@@ -296,17 +296,16 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
-	github.com/microsoft/kiota-abstractions-go v1.9.3 // indirect
+	github.com/microsoft/kiota-abstractions-go v1.9.4 // indirect
 	github.com/microsoft/kiota-authentication-azure-go v1.3.1 // indirect
 	github.com/microsoft/kiota-http-go v1.5.4 // indirect
-	github.com/microsoft/kiota-serialization-form-go v1.1.2 // indirect
+	github.com/microsoft/kiota-serialization-form-go v1.1.3 // indirect
 	github.com/microsoft/kiota-serialization-json-go v1.1.2 // indirect
 	github.com/microsoft/kiota-serialization-multipart-go v1.1.2 // indirect
 	github.com/microsoft/kiota-serialization-text-go v1.1.3 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
-	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nats-io/nats.go v1.51.0 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
@@ -402,6 +401,7 @@ require (
 	gorm.io/driver/sqlserver v1.6.3 // indirect
 	gorm.io/plugin/dbresolver v1.6.2 // indirect
 	gorm.io/plugin/prometheus v0.1.0 // indirect
+	k8s.io/streaming v0.36.0 // indirect
 	layeh.com/gopher-json v0.0.0-20201124131017-552bb3c4c3bf // indirect
 	modernc.org/libc v1.72.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
@@ -502,14 +502,14 @@ require (
 	google.golang.org/api v0.276.0
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/grpc v1.80.0
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/api v0.35.4
 	k8s.io/apiextensions-apiserver v0.35.4
 	k8s.io/cli-runtime v0.32.2 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20260304202019-5b3e3fdb0acf // indirect
+	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kustomize/api v0.19.0 // indirect
