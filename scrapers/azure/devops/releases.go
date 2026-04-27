@@ -480,6 +480,12 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 		}
 	}
 
+	if config.Permissions != nil && config.Permissions.Enabled && defJSON != nil {
+		roles, access := emitReleaseDefinitionRoles(ctx, config, def, defJSON, configExternalID)
+		result.ExternalRoles = append(result.ExternalRoles, roles...)
+		result.ConfigAccess = append(result.ConfigAccess, access...)
+	}
+
 	result.BaseScraper = config.BaseScraper
 	result.ConfigClass = "Deployment"
 	if defJSON != nil {
