@@ -510,7 +510,8 @@ require (
 )
 
 // replace github.com/flanksource/clicky => ../clicky
-//replace github.com/flanksource/commons => ../commons
+
+// replace github.com/flanksource/commons => ../commons
 
 // replace github.com/flanksource/deps => ../deps
 //replace github.com/flanksource/duty => ../duty
