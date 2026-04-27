@@ -14,6 +14,8 @@ import (
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/connection"
+	"github.com/flanksource/duty/types"
 )
 
 type Project struct {
@@ -199,10 +201,10 @@ func NewAzureDevopsClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 		return nil, err
 	}
 
-	client := commonsHTTP.NewClient().
-		BaseURL(fmt.Sprintf("https://dev.azure.com/%s", org)).
-		Auth(org, token)
-	client = ctx.ConfigureHTTPClient(client, "azure.devops")
+	client, err := newADOHTTPClient(ctx, fmt.Sprintf("https://dev.azure.com/%s", org), org, token)
+	if err != nil {
+		return nil, err
+	}
 
 	return &AzureDevopsClient{
 		ScrapeContext: ctx,
@@ -210,6 +212,26 @@ func NewAzureDevopsClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 		Organization:  org,
 		token:         token,
 	}, nil
+}
+
+// newADOHTTPClient builds a commons HTTP client for Azure DevOps endpoints,
+// wiring authentication and feature-aware observability through duty's
+// connection layer.
+func newADOHTTPClient(ctx api.ScrapeContext, baseURL, org, token string) (*commonsHTTP.Client, error) {
+	conn := connection.HTTPConnection{
+		HTTPBasicAuth: types.HTTPBasicAuth{
+			Authentication: types.Authentication{
+				Username: types.EnvVar{ValueStatic: org},
+				Password: types.EnvVar{ValueStatic: token},
+			},
+		},
+	}
+	client, err := connection.CreateHTTPClient(ctx, conn, types.WithFeature("azure.devops"))
+	if err != nil {
+		return nil, err
+	}
+	client.BaseURL(baseURL)
+	return client, nil
 }
 
 // get is a convenience wrapper that performs a GET request and unmarshals the JSON response.
@@ -1445,10 +1467,10 @@ func NewAzureDevopsReleaseClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*Az
 	if err != nil {
 		return nil, err
 	}
-	client := commonsHTTP.NewClient().
-		BaseURL(fmt.Sprintf("https://vsrm.dev.azure.com/%s", org)).
-		Auth(org, token)
-	client = ctx.ConfigureHTTPClient(client, "azure.devops")
+	client, err := newADOHTTPClient(ctx, fmt.Sprintf("https://vsrm.dev.azure.com/%s", org), org, token)
+	if err != nil {
+		return nil, err
+	}
 	return &AzureDevopsReleaseClient{ScrapeContext: ctx, Client: client}, nil
 }
 
