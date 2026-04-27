@@ -1304,6 +1304,7 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships []relationsh
 			ConfigID:  configID,
 			RelatedID: relatedID,
 			Relation:  relationship.Relationship,
+			ScraperID: ctx.ScraperID(),
 		})
 	}
 

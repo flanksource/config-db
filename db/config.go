@@ -212,7 +212,7 @@ func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.Conf
 	defer configRelationshipUpdateMutex.Unlock()
 
 	return dutydb.ErrorDetails(ctx.DB().Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "relation"}},
+		Columns:   []clause.Column{{Name: "related_id"}, {Name: "config_id"}, {Name: "relation"}, {Name: "scraper_id"}},
 		DoNothing: true,
 	}).CreateInBatches(relationships, 500).Error)
 }
