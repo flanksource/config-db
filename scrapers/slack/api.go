@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/http"
+	"github.com/flanksource/config-db/api"
 )
 
 type GetConversationHistoryParameters struct {
@@ -84,13 +84,11 @@ type SlackAPI struct {
 	usersList map[string]UserInfo
 }
 
-func NewSlackAPI(token string, harCollector *har.Collector) *SlackAPI {
+func NewSlackAPI(ctx api.ScrapeContext, token string) *SlackAPI {
 	client := http.NewClient().BaseURL("https://slack.com/api/").
 		Header("Authorization", "Bearer "+token).
 		Header("Content-Type", "application/json")
-	if harCollector != nil {
-		client = client.HARCollector(harCollector)
-	}
+	client = ctx.ConfigureHTTPClient(client, "slack")
 	return &SlackAPI{client: client}
 }
 

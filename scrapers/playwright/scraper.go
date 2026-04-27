@@ -53,6 +53,9 @@ func scrape(ctx api.ScrapeContext, config v1.Playwright) (v1.ScrapeResults, erro
 	if config.Headless != nil {
 		headless = *config.Headless
 	}
+	if config.Trace == nil && ctx.Context.IsHARCaptureEnabled("playwright") {
+		config.Trace = &v1.PlaywrightTrace{HAR: true}
+	}
 
 	b, err := NewBrowser(BrowserOptions{
 		Headless:    headless,

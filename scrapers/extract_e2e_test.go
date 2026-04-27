@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/flanksource/commons/hash"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	"github.com/flanksource/config-db/db/models"
 	dutymodels "github.com/flanksource/duty/models"
+	dutytypes "github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -22,14 +24,18 @@ import (
 )
 
 type e2ePrePopulateConfig struct {
-	ConfigClass string   `yaml:"config_class"`
-	Type        string   `yaml:"type"`
-	Name        string   `yaml:"name"`
-	ExternalID  []string `yaml:"external_id"`
-	Config      string   `yaml:"config"`
+	ConfigClass     string            `yaml:"config_class"`
+	ID              string            `yaml:"id,omitempty"`
+	DeterministicID bool              `yaml:"deterministic_id,omitempty"`
+	Type            string            `yaml:"type"`
+	Name            string            `yaml:"name"`
+	ExternalID      []string          `yaml:"external_id"`
+	Config          string            `yaml:"config"`
+	Properties      map[string]string `yaml:"properties,omitempty"`
 }
 
 type e2ePrePopulateExternalUser struct {
+	ID        string   `yaml:"id,omitempty"`
 	Name      string   `yaml:"name"`
 	Aliases   []string `yaml:"aliases"`
 	Email     string   `yaml:"email,omitempty"`
@@ -38,6 +44,7 @@ type e2ePrePopulateExternalUser struct {
 }
 
 type e2ePrePopulateExternalGroup struct {
+	ID        string   `yaml:"id,omitempty"`
 	Name      string   `yaml:"name"`
 	Aliases   []string `yaml:"aliases"`
 	GroupType string   `yaml:"group_type,omitempty"`
@@ -71,19 +78,37 @@ type e2ePrePopulateConfigAccessLog struct {
 	CreatedAtOffsetMins int            `yaml:"created_at_offset_mins,omitempty"`
 }
 
+type e2ePrePopulateExternalUserGroup struct {
+	ExternalUserAliases  []string `yaml:"external_user_aliases"`
+	ExternalGroupAliases []string `yaml:"external_group_aliases"`
+	Owner                string   `yaml:"owner,omitempty"`
+	Deleted              bool     `yaml:"deleted,omitempty"`
+}
+
+type e2ePrePopulateConfigRelationship struct {
+	ConfigExternalID  string `yaml:"config_external_id"`
+	RelatedExternalID string `yaml:"related_external_id"`
+	Relation          string `yaml:"relation,omitempty"`
+	Owner             string `yaml:"owner,omitempty"`
+	Deleted           bool   `yaml:"deleted,omitempty"`
+}
+
 type e2ePrePopulate struct {
-	Configs          []e2ePrePopulateConfig          `yaml:"configs"`
-	ExternalUsers    []e2ePrePopulateExternalUser    `yaml:"external_users"`
-	ExternalGroups   []e2ePrePopulateExternalGroup   `yaml:"external_groups"`
-	ExternalRoles    []e2ePrePopulateExternalRole    `yaml:"external_roles"`
-	ConfigAccess     []e2ePrePopulateConfigAccess    `yaml:"config_access"`
-	ConfigAccessLogs []e2ePrePopulateConfigAccessLog `yaml:"config_access_logs"`
+	Configs             []e2ePrePopulateConfig             `yaml:"configs"`
+	ExternalUsers       []e2ePrePopulateExternalUser       `yaml:"external_users"`
+	ExternalGroups      []e2ePrePopulateExternalGroup      `yaml:"external_groups"`
+	ExternalRoles       []e2ePrePopulateExternalRole       `yaml:"external_roles"`
+	ExternalUserGroups  []e2ePrePopulateExternalUserGroup  `yaml:"external_user_groups"`
+	ConfigRelationships []e2ePrePopulateConfigRelationship `yaml:"config_relationships"`
+	ConfigAccess        []e2ePrePopulateConfigAccess       `yaml:"config_access"`
+	ConfigAccessLogs    []e2ePrePopulateConfigAccessLog    `yaml:"config_access_logs"`
 }
 
 type e2eFixture struct {
 	Spec        map[string]any `yaml:"spec"`
 	PrePopulate e2ePrePopulate `yaml:"pre_populate"`
 	Assertions  []string       `yaml:"assertions"`
+	Incremental bool           `yaml:"incremental,omitempty"`
 }
 
 var _ = Describe("e2e extraction fixtures", func() {
@@ -129,16 +154,51 @@ var _ = Describe("e2e extraction fixtures", func() {
 			scraperModel, err := db.PersistScrapeConfigFromFile(DefaultContext, config)
 			Expect(err).ToNot(HaveOccurred())
 			config.SetUID(k8sTypes.UID(scraperModel.ID.String()))
+			otherScraperModel := dutymodels.ConfigScraper{
+				ID:        uuid.New(),
+				Name:      "e2e-other-" + name,
+				Namespace: "default",
+				Spec:      "{}",
+				Source:    dutymodels.SourceConfigFile,
+			}
+			otherScraperCreated := false
+			ownerScraperID := func(owner string) uuid.UUID {
+				if owner == "other" {
+					if !otherScraperCreated {
+						Expect(DefaultContext.DB().Create(&otherScraperModel).Error).ToNot(HaveOccurred())
+						otherScraperCreated = true
+					}
+					return otherScraperModel.ID
+				}
+				return scraperModel.ID
+			}
 
 			for _, preConfig := range fixture.PrePopulate.Configs {
+				configID := preConfig.ID
+				if configID == "" && preConfig.DeterministicID {
+					Expect(preConfig.ExternalID).ToNot(BeEmpty(), "deterministic_id requires external_id")
+					id, err := hash.DeterministicUUID(preConfig.ExternalID[0])
+					Expect(err).ToNot(HaveOccurred())
+					configID = id.String()
+				}
+				if configID == "" {
+					configID = uuid.NewString()
+				}
 				ci := &models.ConfigItem{
-					ID:          uuid.NewString(),
+					ID:          configID,
 					ConfigClass: preConfig.ConfigClass,
 					Type:        preConfig.Type,
 					Name:        lo.ToPtr(preConfig.Name),
 					ExternalID:  preConfig.ExternalID,
 					ScraperID:   &scraperModel.ID,
 					Config:      lo.ToPtr(preConfig.Config),
+				}
+				if len(preConfig.Properties) > 0 {
+					props := make(dutytypes.Properties, 0, len(preConfig.Properties))
+					for k, v := range preConfig.Properties {
+						props = append(props, &dutytypes.Property{Name: k, Text: v})
+					}
+					ci.Properties = &props
 				}
 				Expect(DefaultContext.DB().Create(ci).Error).ToNot(HaveOccurred())
 				createdItems = append(createdItems, ci.ID)
@@ -153,8 +213,12 @@ var _ = Describe("e2e extraction fixtures", func() {
 			groupIDByAlias := make(map[string]uuid.UUID)
 			roleIDByAlias := make(map[string]uuid.UUID)
 			for _, u := range fixture.PrePopulate.ExternalUsers {
+				id := uuid.New()
+				if u.ID != "" {
+					id = uuid.MustParse(u.ID)
+				}
 				eu := dutymodels.ExternalUser{
-					ID:        uuid.New(),
+					ID:        id,
 					Name:      u.Name,
 					Aliases:   pq.StringArray(u.Aliases),
 					UserType:  u.UserType,
@@ -170,8 +234,12 @@ var _ = Describe("e2e extraction fixtures", func() {
 				}
 			}
 			for _, g := range fixture.PrePopulate.ExternalGroups {
+				id := uuid.New()
+				if g.ID != "" {
+					id = uuid.MustParse(g.ID)
+				}
 				eg := dutymodels.ExternalGroup{
-					ID:        uuid.New(),
+					ID:        id,
 					Name:      g.Name,
 					Aliases:   pq.StringArray(g.Aliases),
 					GroupType: g.GroupType,
@@ -200,6 +268,48 @@ var _ = Describe("e2e extraction fixtures", func() {
 				Expect(DefaultContext.DB().Create(&er).Error).ToNot(HaveOccurred())
 				for _, alias := range r.Aliases {
 					roleIDByAlias[alias] = er.ID
+				}
+			}
+
+			for _, ug := range fixture.PrePopulate.ExternalUserGroups {
+				Expect(ug.ExternalUserAliases).ToNot(BeEmpty(), "external_user_groups fixture row must have external_user_aliases")
+				Expect(ug.ExternalGroupAliases).ToNot(BeEmpty(), "external_user_groups fixture row must have external_group_aliases")
+				userID, ok := userIDByAlias[ug.ExternalUserAliases[0]]
+				Expect(ok).To(BeTrue(), "missing pre-populated external user alias %s", ug.ExternalUserAliases[0])
+				groupID, ok := groupIDByAlias[ug.ExternalGroupAliases[0]]
+				Expect(ok).To(BeTrue(), "missing pre-populated external group alias %s", ug.ExternalGroupAliases[0])
+				row := dutymodels.ExternalUserGroup{
+					ExternalUserID:  userID,
+					ExternalGroupID: groupID,
+					ScraperID:       ownerScraperID(ug.Owner),
+					CreatedAt:       now,
+				}
+				if ug.Deleted {
+					deletedAt := now
+					row.DeletedAt = &deletedAt
+				}
+				Expect(DefaultContext.DB().Create(&row).Error).ToNot(HaveOccurred())
+			}
+
+			for _, rel := range fixture.PrePopulate.ConfigRelationships {
+				configID, ok := configIDByExternalID[rel.ConfigExternalID]
+				Expect(ok).To(BeTrue(), "missing pre-populated config external id %s", rel.ConfigExternalID)
+				relatedID, ok := configIDByExternalID[rel.RelatedExternalID]
+				Expect(ok).To(BeTrue(), "missing pre-populated related external id %s", rel.RelatedExternalID)
+				row := models.ConfigRelationship{
+					ConfigID:  configID.String(),
+					RelatedID: relatedID.String(),
+					Relation:  rel.Relation,
+					ScraperID: ownerScraperID(rel.Owner),
+				}
+				if rel.Deleted {
+					deletedAt := now
+					Expect(DefaultContext.DB().Create(&row).Error).ToNot(HaveOccurred())
+					Expect(DefaultContext.DB().Model(&models.ConfigRelationship{}).
+						Where("config_id = ? AND related_id = ? AND relation = ? AND scraper_id = ?", row.ConfigID, row.RelatedID, row.Relation, row.ScraperID).
+						Update("deleted_at", deletedAt).Error).ToNot(HaveOccurred())
+				} else {
+					Expect(DefaultContext.DB().Create(&row).Error).ToNot(HaveOccurred())
 				}
 			}
 
@@ -258,18 +368,24 @@ var _ = Describe("e2e extraction fixtures", func() {
 					DefaultContext.DB().Delete(&models.ConfigItem{}, "id = ?", id)
 				}
 				// Clean up external entities for this scraper
-				DefaultContext.DB().Exec("DELETE FROM external_user_groups WHERE external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM external_user_groups WHERE scraper_id IN ?", []uuid.UUID{scraperModel.ID, otherScraperModel.ID})
 				DefaultContext.DB().Exec("DELETE FROM external_users WHERE scraper_id = ?", scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM external_groups WHERE scraper_id = ?", scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM external_roles WHERE scraper_id = ?", scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM config_changes WHERE config_id IN (SELECT id FROM config_items WHERE scraper_id = ?)", scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM config_items WHERE scraper_id = ?", scraperModel.ID)
 				DefaultContext.DB().Where("id = ?", scraperModel.ID).Delete(&dutymodels.ConfigScraper{})
+				if otherScraperCreated {
+					DefaultContext.DB().Where("id = ?", otherScraperModel.ID).Delete(&dutymodels.ConfigScraper{})
+				}
 			}()
 
 			scraperCtx := ctx.WithScrapeConfig(&config)
 			scraperCtx, err = scraperCtx.InitTempCache()
 			Expect(err).ToNot(HaveOccurred())
+			if fixture.Incremental {
+				scraperCtx = scraperCtx.AsIncrementalScrape()
+			}
 
 			results, err := Run(scraperCtx)
 			Expect(err).ToNot(HaveOccurred())
@@ -279,12 +395,39 @@ var _ = Describe("e2e extraction fixtures", func() {
 
 			env := buildE2EEnv(results, summary)
 			env["scraper_id"] = scraperModel.ID.String()
+			env["other_scraper_id"] = otherScraperModel.ID.String()
 
-			var rels []models.ConfigRelationship
-			DefaultContext.DB().Where(
-				"config_id IN (SELECT id FROM config_items WHERE scraper_id = ?) OR related_id IN (SELECT id FROM config_items WHERE scraper_id = ?)",
-				scraperModel.ID, scraperModel.ID,
-			).Find(&rels)
+			var configsJSON string
+			Expect(DefaultContext.DB().Raw(`
+				SELECT COALESCE(jsonb_agg(jsonb_build_object(
+					'id', id::text,
+					'type', type,
+					'name', name,
+					'external_id', external_id,
+					'scraper_id', scraper_id::text,
+					'properties', COALESCE(to_jsonb(properties), '[]'::jsonb)
+				) ORDER BY type, name), '[]'::jsonb)::text
+				FROM config_items
+				WHERE scraper_id = ?
+			`, scraperModel.ID).Scan(&configsJSON).Error).ToNot(HaveOccurred())
+			var configsSlice []any
+			_ = json.Unmarshal([]byte(configsJSON), &configsSlice)
+			if configsSlice == nil {
+				configsSlice = []any{}
+			}
+			env["configs"] = configsSlice
+
+			var rels []map[string]any
+			DefaultContext.DB().Raw(`
+				SELECT DISTINCT config_id::text, related_id::text, relation
+				FROM config_relationships
+				WHERE deleted_at IS NULL
+					AND (
+						config_id IN (SELECT id FROM config_items WHERE scraper_id = ?)
+						OR related_id IN (SELECT id FROM config_items WHERE scraper_id = ?)
+					)
+				ORDER BY config_id::text, related_id::text, relation
+			`, scraperModel.ID, scraperModel.ID).Scan(&rels)
 			relsJSON, _ := json.Marshal(rels)
 			var relsSlice []any
 			_ = json.Unmarshal(relsJSON, &relsSlice)
