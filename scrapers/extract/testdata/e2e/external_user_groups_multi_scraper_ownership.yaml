@@ -1,0 +1,31 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_user_groups_no_memberships.json
+pre_populate:
+  external_users:
+    - name: "Alice"
+      aliases: ["owner-alice"]
+      user_type: human
+      account_id: org-ownership
+  external_groups:
+    - name: "Admins"
+      aliases: ["owner-admins"]
+      group_type: security
+      account_id: org-ownership
+  external_user_groups:
+    - external_user_aliases: ["owner-alice"]
+      external_group_aliases: ["owner-admins"]
+      owner: current
+    - external_user_aliases: ["owner-alice"]
+      external_group_aliases: ["owner-admins"]
+      owner: other
+assertions:
+  - size(db.external_user_groups(scraper_id)) == 0
+  - size(db.external_user_groups_all(scraper_id)) == 1
+  - size(db.external_user_groups(other_scraper_id)) == 1
+  - db.external_user_groups(other_scraper_id)[0].scraper_id == other_scraper_id

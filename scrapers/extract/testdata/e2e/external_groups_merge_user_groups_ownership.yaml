@@ -1,0 +1,24 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_groups_merge_user_groups.json
+pre_populate:
+  external_groups:
+    - id: "22222222-2222-2222-2222-222222222222"
+      name: "Group A"
+      aliases: ["grp-alias-a", "grp-alias-b"]
+      group_type: security
+      account_id: org-merge
+    - name: "Group C"
+      aliases: ["grp-alias-c", "grp-alias-d"]
+      group_type: security
+      account_id: org-merge
+assertions:
+  - size(db.external_groups(scraper_id)) == 1
+  - size(db.external_user_groups(scraper_id)) == 1
+  - db.external_user_groups(scraper_id)[0].external_group_id == db.external_groups(scraper_id)[0].id
+  - db.external_user_groups(scraper_id)[0].scraper_id == scraper_id
