@@ -202,9 +202,7 @@ func NewAzureDevopsClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 	client := commonsHTTP.NewClient().
 		BaseURL(fmt.Sprintf("https://dev.azure.com/%s", org)).
 		Auth(org, token)
-	if collector := ctx.HARCollector(); collector != nil {
-		client = client.HARCollector(collector)
-	}
+	client = ctx.ConfigureHTTPClient(client, "azure.devops")
 
 	return &AzureDevopsClient{
 		ScrapeContext: ctx,
@@ -1450,9 +1448,7 @@ func NewAzureDevopsReleaseClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*Az
 	client := commonsHTTP.NewClient().
 		BaseURL(fmt.Sprintf("https://vsrm.dev.azure.com/%s", org)).
 		Auth(org, token)
-	if collector := ctx.HARCollector(); collector != nil {
-		client = client.HARCollector(collector)
-	}
+	client = ctx.ConfigureHTTPClient(client, "azure.devops")
 	return &AzureDevopsReleaseClient{ScrapeContext: ctx, Client: client}, nil
 }
 
