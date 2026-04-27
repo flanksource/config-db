@@ -31,7 +31,6 @@ import (
 	"github.com/flanksource/duty"
 	dutyapi "github.com/flanksource/duty/api"
 	"github.com/flanksource/duty/context"
-	"github.com/flanksource/duty/job"
 	dutyEcho "github.com/flanksource/duty/echo"
 	"github.com/flanksource/duty/job"
 	"github.com/flanksource/duty/models"
@@ -58,21 +57,21 @@ var Run = &cobra.Command{
 	Short: "Run scrapers and return",
 	Run: func(cmd *cobra.Command, configFiles []string) {
 		var logBuf bytes.Buffer
-		var harCollector *har.Collector
+		harCollector := har.NewCollector(har.DefaultConfig())
 
 		if logger.IsTraceEnabled() {
 			logger.Tracef("Enabling HAR collection")
-			harCollector = har.NewCollector(har.DefaultConfig())
 		}
 
 		clicky.Flags.UseFlags()
 
 		// Capture all logs by teeing stderr to a buffer.
 		// Must happen BEFORE context.New() so contexts inherit the multiwriter logger.
+		logLevel := logger.StandardLogger().GetLevel()
 		logger.Use(io.MultiWriter(os.Stderr, &logBuf))
 		// logger.Use() creates a fresh logger that doesn't inherit the level
-		// set by UseFlags(), so re-apply trace to capture everything.
-		logger.StandardLogger().SetLogLevel("trace")
+		// set by UseFlags(), so re-apply the previous level.
+		logger.StandardLogger().SetLogLevel(logLevel)
 
 		logger.Infof("Scraping %v", configFiles)
 		scraperConfigs, err := v1.ParseConfigs(configFiles...)
