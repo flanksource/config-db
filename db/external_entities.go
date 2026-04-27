@@ -77,14 +77,17 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	// resolved against the just-resolved users/groups via alias overlap.
 	resolvedUserGroups := resolveExternalUserGroups(ctx, extract.externalUserGroups, resolvedUsers, resolvedGroups)
 
-	counts, idMap, err := upsertExternalEntities(ctx, resolvedUsers, resolvedGroups, resolvedRoles, resolvedUserGroups, scraperID)
+	counts, userIDMap, groupIDMap, err := upsertExternalEntities(ctx, resolvedUsers, resolvedGroups, resolvedRoles, resolvedUserGroups, scraperID)
 	if err != nil {
 		return result, synced, err
 	}
 
 	if scraperID != nil {
-		for loserID := range idMap {
+		for loserID := range userIDMap {
 			ExternalUserIDCache.Delete(loserID.String())
+		}
+		for loserID := range groupIDMap {
+			ExternalGroupIDCache.Delete(loserID.String())
 		}
 		for _, u := range resolvedUsers {
 			ExternalUserIDCache.Set(u.ID.String(), u.ID)
@@ -109,16 +112,22 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	// Apply the merge winner-id rewrites to the resolved slices so SaveResults
 	// can publish the canonical post-merge view back to result.Resolved.
 	for i := range resolvedUsers {
-		if winner, ok := idMap[resolvedUsers[i].ID]; ok {
+		if winner, ok := userIDMap[resolvedUsers[i].ID]; ok {
 			resolvedUsers[i].ID = winner
+		}
+	}
+	for i := range resolvedGroups {
+		if winner, ok := groupIDMap[resolvedGroups[i].ID]; ok {
+			resolvedGroups[i].ID = winner
 		}
 	}
 
 	synced = syncedExternalEntities{
-		Users:     resolvedUsers,
-		Groups:    resolvedGroups,
-		Roles:     resolvedRoles,
-		UserIDMap: idMap,
+		Users:      resolvedUsers,
+		Groups:     resolvedGroups,
+		Roles:      resolvedRoles,
+		UserIDMap:  userIDMap,
+		GroupIDMap: groupIDMap,
 	}
 
 	result.Users.Saved = counts.usersSaved
@@ -470,20 +479,20 @@ func upsertExternalEntities(
 	roles []dutyModels.ExternalRole,
 	userGroups []dutyModels.ExternalUserGroup,
 	scraperID *uuid.UUID,
-) (upsertCounts, map[uuid.UUID]uuid.UUID, error) {
+) (upsertCounts, map[uuid.UUID]uuid.UUID, map[uuid.UUID]uuid.UUID, error) {
 	var counts upsertCounts
 	userIDMap := make(map[uuid.UUID]uuid.UUID)
 	groupIDMap := make(map[uuid.UUID]uuid.UUID)
 
 	if scraperID == nil {
-		return counts, userIDMap, nil
+		return counts, userIDMap, groupIDMap, nil
 	}
 
 	suffix := sanitizeForTempTable(scraperID.String())
 
 	tx := ctx.DB().Begin()
 	if tx.Error != nil {
-		return counts, nil, fmt.Errorf("failed to begin transaction: %w", tx.Error)
+		return counts, nil, nil, fmt.Errorf("failed to begin transaction: %w", tx.Error)
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -498,7 +507,7 @@ func upsertExternalEntities(
 	// is gated on that GUC).
 	if err := duty.ApplySessionProperties(ctx.DutyContext(), tx); err != nil {
 		tx.Rollback()
-		return counts, nil, fmt.Errorf("failed to apply session properties: %w", err)
+		return counts, nil, nil, fmt.Errorf("failed to apply session properties: %w", err)
 	}
 
 	tempUsers := fmt.Sprintf("_ext_users_%s", suffix)
@@ -509,21 +518,21 @@ func upsertExternalEntities(
 	if len(users) > 0 {
 		if err := createTempAndInsert(tx, tempUsers, "external_users", users); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to setup temp users: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to setup temp users: %w", err)
 		}
 	}
 
 	if len(groups) > 0 {
 		if err := createTempAndInsert(tx, tempGroups, "external_groups", groups); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to setup temp groups: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to setup temp groups: %w", err)
 		}
 	}
 
 	if len(roles) > 0 {
 		if err := createTempAndInsert(tx, tempRoles, "external_roles", roles); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to setup temp roles: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to setup temp roles: %w", err)
 		}
 	}
 
@@ -537,7 +546,7 @@ func upsertExternalEntities(
 		}
 		if err := runMergeFunctionWithDump(ctx, tx, "merge_and_upsert_external_users", tempUsers, &merges); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to merge and upsert external users: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to merge and upsert external users: %w", err)
 		}
 		for _, m := range merges {
 			userIDMap[m.LoserID] = m.WinnerID
@@ -552,7 +561,7 @@ func upsertExternalEntities(
 		}
 		if err := runMergeFunctionWithDump(ctx, tx, "merge_and_upsert_external_groups", tempGroups, &merges); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to merge and upsert external groups: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to merge and upsert external groups: %w", err)
 		}
 		for _, m := range merges {
 			groupIDMap[m.LoserID] = m.WinnerID
@@ -567,7 +576,7 @@ func upsertExternalEntities(
 		}
 		if err := runMergeFunctionWithDump(ctx, tx, "merge_and_upsert_external_roles", tempRoles, &merges); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to merge and upsert external roles: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to merge and upsert external roles: %w", err)
 		}
 		counts.rolesSaved = len(roles)
 	}
@@ -592,23 +601,23 @@ func upsertExternalEntities(
 				// If we can't even roll back the savepoint, the outer
 				// transaction is hosed — abort everything.
 				tx.Rollback()
-				return counts, nil, fmt.Errorf("failed to upsert external user groups (%v) and savepoint rollback also failed: %w", userGroupsErr, rbErr)
+				return counts, nil, nil, fmt.Errorf("failed to upsert external user groups (%v) and savepoint rollback also failed: %w", userGroupsErr, rbErr)
 			}
 			ctx.Logger.Warnf("external_user_groups upsert failed, rolled back to savepoint so users/groups/roles still persist: %v", userGroupsErr)
 		} else {
 			// No savepoint to roll back to — the outer tx is aborted.
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to upsert external user groups: %w", userGroupsErr)
+			return counts, nil, nil, fmt.Errorf("failed to upsert external user groups: %w", userGroupsErr)
 		}
 	} else if ugSavepoint != "" {
 		tx.Exec("RELEASE SAVEPOINT " + ugSavepoint) //nolint:errcheck
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return counts, nil, fmt.Errorf("failed to commit external entities transaction: %w", err)
+		return counts, nil, nil, fmt.Errorf("failed to commit external entities transaction: %w", err)
 	}
 
-	return counts, userIDMap, nil
+	return counts, userIDMap, groupIDMap, nil
 }
 
 // upsertExternalUserGroupsBlock runs the user_groups temp-table insert, the
@@ -630,14 +639,19 @@ func upsertExternalUserGroupsBlock(
 ) error {
 	if len(userGroups) > 0 {
 		remappedUserGroups := remapExternalUserGroups(userGroups, userIDMap, groupIDMap)
+		for i := range remappedUserGroups {
+			if remappedUserGroups[i].ScraperID == uuid.Nil && scraperID != nil {
+				remappedUserGroups[i].ScraperID = *scraperID
+			}
+		}
 		if err := createTempAndInsert(tx, tempUserGroups, "external_user_groups", remappedUserGroups); err != nil {
 			return fmt.Errorf("failed to setup temp user groups: %w", err)
 		}
 
 		r := tx.Exec(fmt.Sprintf(`
-			INSERT INTO external_user_groups (external_user_id, external_group_id, created_at)
-			SELECT external_user_id, external_group_id, created_at FROM %s
-			ON CONFLICT (external_user_id, external_group_id) DO UPDATE SET deleted_at = NULL
+			INSERT INTO external_user_groups (external_user_id, external_group_id, scraper_id, created_at)
+			SELECT external_user_id, external_group_id, scraper_id, created_at FROM %s
+			ON CONFLICT (external_user_id, external_group_id, scraper_id) DO UPDATE SET deleted_at = NULL
 			WHERE external_user_groups.deleted_at IS NOT NULL
 		`, tempUserGroups))
 		if r.Error != nil {
@@ -651,10 +665,11 @@ func upsertExternalUserGroupsBlock(
 			if err := tx.Exec(fmt.Sprintf(`
 				UPDATE external_user_groups SET deleted_at = NOW()
 				WHERE deleted_at IS NULL
-					AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
+					AND scraper_id = ?
 					AND NOT EXISTS (SELECT 1 FROM %s t
 						WHERE t.external_user_id = external_user_groups.external_user_id
-							AND t.external_group_id = external_user_groups.external_group_id)
+							AND t.external_group_id = external_user_groups.external_group_id
+							AND t.scraper_id = external_user_groups.scraper_id)
 			`, tempUserGroups), *scraperID).Error; err != nil {
 				return fmt.Errorf("failed to delete stale external user groups: %w", err)
 			}
@@ -662,7 +677,7 @@ func upsertExternalUserGroupsBlock(
 			if err := tx.Exec(`
 				UPDATE external_user_groups SET deleted_at = NOW()
 				WHERE deleted_at IS NULL
-					AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
+					AND scraper_id = ?
 			`, *scraperID).Error; err != nil {
 				return fmt.Errorf("failed to delete stale external user groups: %w", err)
 			}

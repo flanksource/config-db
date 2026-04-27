@@ -207,10 +207,72 @@ func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.Conf
 	ctx.Histogram("config_relationship_update_mutex_wait_ms", mutexWaitBucketsMs).Record(time.Duration(time.Since(lockWaitStart).Milliseconds()))
 	defer configRelationshipUpdateMutex.Unlock()
 
-	return dutydb.ErrorDetails(ctx.DB().Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "relation"}},
-		DoNothing: true,
-	}).CreateInBatches(relationships, 500).Error)
+	scraperID := uuid.Nil
+	if sc := ctx.ScrapeConfig(); sc != nil && sc.GetPersistedID() != nil {
+		scraperID = *sc.GetPersistedID()
+	}
+
+	for i := range relationships {
+		if relationships[i].ScraperID == uuid.Nil {
+			relationships[i].ScraperID = scraperID
+		}
+	}
+
+	tx := ctx.DB().Begin()
+	if tx.Error != nil {
+		return dutydb.ErrorDetails(tx.Error)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
+	tempTable := fmt.Sprintf("_config_relationships_%s", sanitizeForTempTable(scraperID.String()))
+	if err := tx.Exec(fmt.Sprintf(`CREATE TEMP TABLE %s (LIKE config_relationships INCLUDING ALL) ON COMMIT DROP`, tempTable)).Error; err != nil {
+		tx.Rollback()
+		return dutydb.ErrorDetails(err)
+	}
+	if len(relationships) > 0 {
+		if err := tx.Table(tempTable).Clauses(clause.OnConflict{DoNothing: true}).CreateInBatches(relationships, 500).Error; err != nil {
+			tx.Rollback()
+			return dutydb.ErrorDetails(err)
+		}
+	}
+
+	if err := tx.Exec(fmt.Sprintf(`
+		INSERT INTO config_relationships (config_id, related_id, relation, scraper_id)
+		SELECT config_id, related_id, relation, scraper_id FROM %s
+		ON CONFLICT (related_id, config_id, relation, scraper_id) DO UPDATE SET
+			deleted_at = NULL,
+			updated_at = NOW()
+		WHERE config_relationships.deleted_at IS NOT NULL
+	`, tempTable)).Error; err != nil {
+		tx.Rollback()
+		return dutydb.ErrorDetails(err)
+	}
+
+	if scraperID != uuid.Nil && !ctx.IsIncrementalScrape() {
+		if err := tx.Exec(fmt.Sprintf(`
+			UPDATE config_relationships
+			SET deleted_at = NOW(), updated_at = NOW()
+			WHERE scraper_id = ?
+				AND deleted_at IS NULL
+				AND NOT EXISTS (
+					SELECT 1 FROM %s t
+					WHERE t.config_id = config_relationships.config_id
+						AND t.related_id = config_relationships.related_id
+						AND t.relation = config_relationships.relation
+						AND t.scraper_id = config_relationships.scraper_id
+				)
+		`, tempTable), scraperID).Error; err != nil {
+			tx.Rollback()
+			return dutydb.ErrorDetails(err)
+		}
+	}
+
+	return dutydb.ErrorDetails(tx.Commit().Error)
 }
 
 // FindConfigChangesByItemID returns all the changes of the given config item

@@ -612,6 +612,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 				extractResult.configAccesses[i].ExternalUserID = &remapped
 			}
 		}
+		if extractResult.configAccesses[i].ExternalGroupID != nil {
+			if remapped, ok := synced.GroupIDMap[*extractResult.configAccesses[i].ExternalGroupID]; ok {
+				extractResult.configAccesses[i].ExternalGroupID = &remapped
+			}
+		}
 	}
 	for i := range extractResult.configAccessLogs {
 		if extractResult.configAccessLogs[i].ExternalUserID != uuid.Nil {
@@ -620,7 +625,6 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			}
 		}
 	}
-
 
 	summary.ConfigAccess.Scraped = len(extractResult.configAccesses)
 	var resolvedAccesses []v1.ExternalConfigAccess
@@ -1305,6 +1309,7 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships []relationsh
 			ConfigID:  configID,
 			RelatedID: relatedID,
 			Relation:  relationship.Relationship,
+			ScraperID: lo.FromPtr(ctx.ScrapeConfig().GetPersistedID()),
 		})
 	}
 
@@ -1326,7 +1331,6 @@ func appendResolvedRelationship(origin *v1.ScrapeResult, rel v1.RelationshipResu
 		Matched:     matched,
 	})
 }
-
 
 type updateConfigArgs struct {
 	Result   *v1.ScrapeResult
