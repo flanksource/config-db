@@ -7,7 +7,7 @@ require (
 	github.com/flanksource/clicky v1.21.4
 	github.com/flanksource/commons v1.51.1
 	github.com/flanksource/deps v1.0.28
-	github.com/flanksource/duty v1.0.1292
+	github.com/flanksource/duty v1.0.1292-0.20260427101322-14854e639742
 	github.com/flanksource/gomplate/v3 v3.24.77
 	github.com/flanksource/is-healthy v1.0.86
 	github.com/flanksource/ketall v1.1.9
@@ -143,6 +143,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
 	github.com/RaveNoX/go-jsonmerge v1.0.0 // indirect
+	github.com/Snawoot/go-http-digest-auth-client v1.1.3 // indirect
 	github.com/TomOnTime/utfutil v1.0.0 // indirect
 	github.com/WinterYukky/gorm-extra-clause-plugin v0.4.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
@@ -159,6 +160,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.16 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.15 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kms v1.49.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.10 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
