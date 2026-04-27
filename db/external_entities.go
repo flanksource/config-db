@@ -635,11 +635,11 @@ func upsertExternalUserGroupsBlock(
 		}
 
 		r := tx.Exec(fmt.Sprintf(`
-			INSERT INTO external_user_groups (external_user_id, external_group_id, created_at)
-			SELECT external_user_id, external_group_id, created_at FROM %s
-			ON CONFLICT (external_user_id, external_group_id) DO UPDATE SET deleted_at = NULL
+			INSERT INTO external_user_groups (external_user_id, external_group_id, scraper_id, created_at)
+			SELECT external_user_id, external_group_id, ?, created_at FROM %s
+			ON CONFLICT (external_user_id, external_group_id, scraper_id) DO UPDATE SET deleted_at = NULL
 			WHERE external_user_groups.deleted_at IS NOT NULL
-		`, tempUserGroups))
+		`, tempUserGroups), *scraperID)
 		if r.Error != nil {
 			return fmt.Errorf("failed to upsert external user groups: %w", r.Error)
 		}
