@@ -33,7 +33,11 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 
-		client := NewSlackAPI(ctx, token)
+		client, err := NewSlackAPI(ctx, token)
+		if err != nil {
+			results = append(results, v1.ScrapeResult{Error: err})
+			continue
+		}
 		if err := client.PopulateUsers(ctx); err != nil {
 			results = append(results, v1.ScrapeResult{Error: err})
 			continue
