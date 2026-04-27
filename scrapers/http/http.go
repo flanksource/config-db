@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	commonsHTTP "github.com/flanksource/commons/http"
-	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/connection"
@@ -64,10 +63,6 @@ func scrape(ctx api.ScrapeContext, spec v1.HTTP) (v1.ScrapeResults, error) {
 		return nil, fmt.Errorf("failed to create http client: %w", err)
 	}
 
-	if collector := ctx.HARCollector(); collector != nil {
-		client = client.HARCollector(collector)
-	}
-
 	for _, header := range conn.Headers {
 		if header.Name == "" {
 			continue
@@ -98,12 +93,6 @@ func scrape(ctx api.ScrapeContext, spec v1.HTTP) (v1.ScrapeResults, error) {
 	}
 
 	method := lo.CoalesceOrEmpty(lo.FromPtr(spec.Method), "GET")
-	if ctx.IsTrace() {
-		client = client.WithHttpLogging(logger.Debug, logger.Debug)
-	} else if ctx.IsDebug() {
-		client = client.WithHttpLogging(logger.Debug, logger.Trace1)
-	}
-
 	request := client.R(ctx)
 	if spec.Body != nil {
 		if err := request.Body(*spec.Body); err != nil {
