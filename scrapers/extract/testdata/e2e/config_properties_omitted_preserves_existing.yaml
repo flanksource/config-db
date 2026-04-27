@@ -1,0 +1,22 @@
+spec:
+  full: true
+  file:
+    - type: App::Service
+      id: $.external_id
+      paths:
+        - fixtures/data/config_properties_omitted.json
+pre_populate:
+  configs:
+    - config_class: Service
+      deterministic_id: true
+      type: App::Service
+      name: properties-shared-config
+      external_id: ["properties-shared-config"]
+      config: '{"name":"properties-shared-config","revision":"previous"}'
+      properties:
+        owner: scraper-a
+assertions:
+  - size(configs) == 1
+  - size(configs[0].properties) == 1
+  - configs[0].properties[0].name == "owner"
+  - configs[0].properties[0].text == "scraper-a"
