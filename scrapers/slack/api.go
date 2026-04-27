@@ -6,6 +6,8 @@ import (
 
 	"github.com/flanksource/commons/http"
 	"github.com/flanksource/config-db/api"
+	"github.com/flanksource/duty/connection"
+	"github.com/flanksource/duty/types"
 )
 
 type GetConversationHistoryParameters struct {
@@ -84,12 +86,16 @@ type SlackAPI struct {
 	usersList map[string]UserInfo
 }
 
-func NewSlackAPI(ctx api.ScrapeContext, token string) *SlackAPI {
-	client := http.NewClient().BaseURL("https://slack.com/api/").
-		Header("Authorization", "Bearer "+token).
-		Header("Content-Type", "application/json")
-	client = ctx.ConfigureHTTPClient(client, "slack")
-	return &SlackAPI{client: client}
+func NewSlackAPI(ctx api.ScrapeContext, token string) (*SlackAPI, error) {
+	conn := connection.HTTPConnection{
+		Bearer: types.EnvVar{ValueStatic: token},
+	}
+	client, err := connection.CreateHTTPClient(ctx, conn, types.WithFeature("slack"))
+	if err != nil {
+		return nil, err
+	}
+	client.BaseURL("https://slack.com/api/").Header("Content-Type", "application/json")
+	return &SlackAPI{client: client}, nil
 }
 
 func (t *SlackAPI) ConversationHistory(ctx context.Context, channel ChannelDetail, params *GetConversationHistoryParameters) ([]Message, error) {
