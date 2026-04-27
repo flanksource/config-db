@@ -14,6 +14,7 @@ import (
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -312,6 +313,20 @@ type upsertCounts struct {
 	usersSaved, usersDeleted   int
 	groupsSaved, groupsDeleted int
 	rolesSaved, rolesDeleted   int
+}
+
+// evictMergedFromCache replaces loser IDs with winner IDs in the cache.
+func evictMergedFromCache(c *cache.Cache, idMap map[uuid.UUID]uuid.UUID) {
+	if len(idMap) == 0 {
+		return
+	}
+	for key, val := range c.Items() {
+		if id, ok := val.Object.(uuid.UUID); ok {
+			if winner, merged := idMap[id]; merged {
+				c.Set(key, winner, cache.DefaultExpiration)
+			}
+		}
+	}
 }
 
 func remapExternalUserGroups(userGroups []dutyModels.ExternalUserGroup, userIDMap, groupIDMap map[uuid.UUID]uuid.UUID) []dutyModels.ExternalUserGroup {
