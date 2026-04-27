@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/har"
+	commonsHTTP "github.com/flanksource/commons/http"
 	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
@@ -223,16 +224,16 @@ func (ctx ScrapeContext) Namespace() string {
 
 func (ctx ScrapeContext) IsTrace() bool {
 	if ctx.scrapeConfig == nil {
-		return false
+		return ctx.Context.IsTrace()
 	}
-	return ctx.scrapeConfig.Spec.IsTrace()
+	return ctx.scrapeConfig.Spec.IsTrace() || ctx.Context.IsTrace()
 }
 
 func (ctx ScrapeContext) IsDebug() bool {
 	if ctx.scrapeConfig == nil {
-		return false
+		return ctx.Context.IsDebug()
 	}
-	return ctx.scrapeConfig.Spec.IsDebug()
+	return ctx.scrapeConfig.Spec.IsDebug() || ctx.Context.IsDebug()
 }
 
 func (ctx ScrapeContext) IsDebugRun() bool {
@@ -256,7 +257,15 @@ func (ctx ScrapeContext) WithHARCollector(collector *har.Collector) ScrapeContex
 }
 
 func (ctx ScrapeContext) HARCollector() *har.Collector {
-	return ctx.harCollector
+	return ctx.Context.EffectiveHARCollector("http", ctx.harCollector)
+}
+
+func (ctx ScrapeContext) ConfigureHTTPClient(client *commonsHTTP.Client, feature string) *commonsHTTP.Client {
+	if collector := ctx.Context.EffectiveHARCollector(feature, ctx.harCollector); collector != nil {
+		client = client.HARCollector(collector)
+	}
+	headers, bodies := ctx.Context.HTTPLoggingContent(feature)
+	return client.WithHttpLoggingContent(headers, bodies)
 }
 
 func (ctx ScrapeContext) WithEntities() ScrapeContext {
