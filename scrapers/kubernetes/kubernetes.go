@@ -27,6 +27,7 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
+	"github.com/flanksource/config-db/utils"
 )
 
 const ConfigTypePrefix = "Kubernetes::"
@@ -126,6 +127,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	)
 
 	clusterName := ctx.config.ClusterName
+	extID := "Kubernetes/Cluster/" + clusterName
 	cluster := v1.ScrapeResult{
 		BaseScraper: ctx.config.BaseScraper,
 		Name:        clusterName,
@@ -133,7 +135,8 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		Type:        ConfigTypePrefix + "Cluster",
 		Config:      make(map[string]any),
 		Labels:      make(v1.JSONStringMap),
-		ID:          "Kubernetes/Cluster/" + clusterName,
+		ID:          extID,
+		ConfigID:    lo.ToPtr(utils.IgnoreError(utils.LegacyDeterministicUUID(extID)).String()),
 		Tags:        map[string]string{"cluster": clusterName},
 	}
 

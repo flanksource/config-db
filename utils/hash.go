@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 func Hash(v any) (string, error) {
@@ -17,6 +19,20 @@ func Hash(v any) (string, error) {
 
 	hash := md5.Sum(data)
 	return hex.EncodeToString(hash[:]), nil
+}
+
+func LegacyDeterministicUUID(seed any) (uuid.UUID, error) {
+	byteHash, err := Hash(seed)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	id, err := uuid.FromBytes([]byte(byteHash[0:16]))
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return id, nil
 }
 
 func Sha256Hex(in string) string {
