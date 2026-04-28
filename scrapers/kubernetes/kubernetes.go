@@ -12,6 +12,7 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/flanksource/is-healthy/pkg/lua"
@@ -27,7 +28,6 @@ import (
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
-	"github.com/flanksource/config-db/utils"
 )
 
 const ConfigTypePrefix = "Kubernetes::"
@@ -88,15 +88,27 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 
 		if scraperID := ctx.ScraperID(); scraperID != "" {
 			// (ClusterName, ScraperID) should always be unique
-			var scraperIDs []string
-			if err := ctx.DB().Model(&models.ConfigItem{}).Select("scraper_id").
+			var dbResult []models.ConfigItem
+			if err := ctx.DB().Model(&models.ConfigItem{}).Select("id", "scraper_id", "inserted_at").
 				Where("name = ? AND type = 'Kubernetes::Cluster' AND deleted_at IS NULL AND scraper_id IS NOT NULL", config.ClusterName).
-				Find(&scraperIDs).Error; err != nil {
+				Find(&dbResult).Error; err != nil {
 				return results.Errorf(err, "error querying db for scraper_id with cluster name: %s", config.ClusterName)
 			}
 
+			scraperIDs := lo.Map(dbResult, func(ci models.ConfigItem, _ int) string { return lo.FromPtr(ci.ScraperID) })
 			if len(scraperIDs) > 1 {
-				return results.Errorf(fmt.Errorf("multiple scraper_ids[%s] found with cluster name: %s", strings.Join(scraperIDs, ","), config.ClusterName), "")
+				if len(lo.Uniq(scraperIDs)) > 1 {
+					return results.Errorf(fmt.Errorf("multiple scraper_ids[%s] found with cluster name: %s", strings.Join(scraperIDs, ","), config.ClusterName), "")
+				} else {
+					// Mark older one as deleted, we changed id assignment new mechanism
+					sort.Slice(dbResult, func(i, j int) bool {
+						return dbResult[i].InsertedAt.After(dbResult[j].InsertedAt)
+					})
+					idsToSoftDelete := lo.Map(lo.Slice(dbResult, 1, len(dbResult)), func(item models.ConfigItem, _ int) uuid.UUID { return item.ID })
+					if err := ctx.DB().Model(&models.ConfigItem{}).Where("id IN ?", idsToSoftDelete).Update("deleted_at", duty.Now()).Error; err != nil {
+						return results.Errorf(err, "error soft deleting duplicate cluster config items[%v]", idsToSoftDelete)
+					}
+				}
 			}
 
 			if len(scraperIDs) == 1 && lo.FirstOrEmpty(scraperIDs) != scraperID {
@@ -130,8 +142,8 @@ func getClusterAsScrapeResult(config v1.Kubernetes) v1.ScrapeResult {
 		Config:      make(map[string]any),
 		Labels:      make(v1.JSONStringMap),
 		ID:          extID,
-		ConfigID:    lo.ToPtr(utils.IgnoreError(utils.LegacyDeterministicUUID(extID)).String()),
-		Tags:        map[string]string{"cluster": clusterName},
+		// ConfigID:    lo.ToPtr(utils.IgnoreError(utils.LegacyDeterministicUUID(extID)).String()),
+		Tags: map[string]string{"cluster": clusterName},
 	}
 }
 
