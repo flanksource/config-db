@@ -34,18 +34,9 @@ func newKubernetesContext(ctx api.ScrapeContext, isIncremental bool, config v1.K
 	}
 
 	return &KubernetesContext{
-		ScrapeContext: ctx,
-		config:        config,
-		cluster: v1.ScrapeResult{
-			BaseScraper: config.BaseScraper,
-			Name:        config.ClusterName,
-			ConfigClass: "Cluster",
-			Type:        ConfigTypePrefix + "Cluster",
-			Config:      make(map[string]any),
-			Labels:      make(v1.JSONStringMap),
-			ID:          "Kubernetes/Cluster/" + config.ClusterName,
-			Tags:        map[string]string{"cluster": config.ClusterName},
-		},
+		ScrapeContext:    ctx,
+		config:           config,
+		cluster:          getClusterAsScrapeResult(config),
 		labelsPerNode:    make(map[string]map[string]string),
 		labelsForAllNode: make(map[string]string),
 		globalLabels:     make(map[string]string),

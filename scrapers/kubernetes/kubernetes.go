@@ -118,18 +118,12 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 
 var IgnoredConfigsCache = sync.Map{}
 
-// ExtractResults extracts scrape results from the given list of kuberenetes objects.
-//   - withCluster: if true, will create & add a scrape result for the kubernetes cluster.
-func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v1.ScrapeResults {
-	var (
-		results       v1.ScrapeResults
-		changeResults v1.ScrapeResults
-	)
-
-	clusterName := ctx.config.ClusterName
+func getClusterAsScrapeResult(config v1.Kubernetes) v1.ScrapeResult {
+	clusterName := config.ClusterName
 	extID := "Kubernetes/Cluster/" + clusterName
-	cluster := v1.ScrapeResult{
-		BaseScraper: ctx.config.BaseScraper,
+
+	return v1.ScrapeResult{
+		BaseScraper: config.BaseScraper,
 		Name:        clusterName,
 		ConfigClass: "Cluster",
 		Type:        ConfigTypePrefix + "Cluster",
@@ -139,8 +133,18 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		ConfigID:    lo.ToPtr(utils.IgnoreError(utils.LegacyDeterministicUUID(extID)).String()),
 		Tags:        map[string]string{"cluster": clusterName},
 	}
+}
 
-	results = append(results, cluster)
+// ExtractResults extracts scrape results from the given list of kuberenetes objects.
+//   - withCluster: if true, will create & add a scrape result for the kubernetes cluster.
+func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v1.ScrapeResults {
+	var (
+		results       v1.ScrapeResults
+		changeResults v1.ScrapeResults
+	)
+
+	ctx.cluster = getClusterAsScrapeResult(ctx.config)
+	clusterName := ctx.config.ClusterName
 
 	// Initialize RBAC extractor for config access tracking
 	var rbac *rbacExtractor
@@ -583,9 +587,7 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 	results = append(results, rbac.results(ctx.config.BaseScraper))
 
 	results = append(results, changeResults...)
-	if ctx.IsIncrementalScrape() {
-		results = append([]v1.ScrapeResult{ctx.cluster}, results...)
-	}
+	results = append([]v1.ScrapeResult{ctx.cluster}, results...)
 
 	for i := range results {
 		results[i].Labels = collections.MergeMap(map[string]string(results[i].Labels), ctx.globalLabels)
