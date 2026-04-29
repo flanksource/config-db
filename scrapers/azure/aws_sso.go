@@ -64,6 +64,22 @@ func awsIAMResourceAccount(s, resourcePrefix string) (account string, ok bool) {
 	return account, true
 }
 
+func awsIAMRoleName(arn string) string {
+	const rolePrefix = "role/"
+	idx := strings.Index(arn, ":"+rolePrefix)
+	if idx < 0 {
+		return arn
+	}
+	resource := arn[idx+1+len(rolePrefix):]
+	if resource == "" {
+		return arn
+	}
+	if slash := strings.LastIndex(resource, "/"); slash >= 0 {
+		return resource[slash+1:]
+	}
+	return resource
+}
+
 func isAllDigits(s string) bool {
 	if s == "" {
 		return false
