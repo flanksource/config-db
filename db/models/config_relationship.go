@@ -1,7 +1,5 @@
 package models
 
-import "github.com/google/uuid"
-
 type ConfigRelationship struct {
 	ConfigID   string `gorm:"column:config_id" json:"config_id"`
 	RelatedID  string `gorm:"column:related_id" json:"related_id"`
