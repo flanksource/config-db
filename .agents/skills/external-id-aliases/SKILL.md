@@ -26,3 +26,10 @@ External ID lookups are cached using TempCache (@api/cache.go)
 - Do NOT hand-craft format strings for external IDs when a dedicated helper function exists (e.g., `releaseExternalID()`, `pipelineExternalID()`). Use the helper.
 - Do NOT add "shorter forms" of the ID as aliases unless something explicitly looks them up. Extra aliases increase match surface and create backward-compat debt.
 - Before shipping, run a duplicate check on active rows by `(type, lower(trim(ext_id)))`.
+
+## External users / groups / roles
+
+- External users, groups, and roles merge by exact ID or alias overlap across scrapers.
+- Do not rely on `scraper_id`, `account_id`, `user_type`, or `group_type` to prevent entity merges; these fields affect filtering and stored metadata, not identity boundaries.
+- Membership rows in `external_user_groups` are scraper-owned. A full scrape may delete stale memberships for its own scraper, but must not delete another scraper's memberships for the same user/group pair.
+- For user/group aliases, prefer provider-scoped identifiers (ARNs, object IDs, descriptors, tenant/account-qualified names) over display names.

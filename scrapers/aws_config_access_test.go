@@ -256,7 +256,10 @@ var _ = Describe("Azure AWS-SSO cross-cloud collapsed access edge", Ordered, fun
 	var scraperCtx api.ScrapeContext
 	var scraperModel dutymodels.ConfigScraper
 
-	const awsRoleARN = "arn:aws:iam::963567256330:role/deploy"
+	const (
+		awsAccountID = "963567256330"
+		awsRoleARN   = "arn:aws:iam::963567256330:role/deploy"
+	)
 
 	BeforeAll(func() {
 		scrapeConfig = getConfigSpec("file-azure-aws-sso")
@@ -285,11 +288,11 @@ var _ = Describe("Azure AWS-SSO cross-cloud collapsed access edge", Ordered, fun
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("persists both the AWS::IAM::Role and Azure::EnterpriseApplication config items", func() {
-		var awsRole models.ConfigItem
+	It("persists both the AWS account and Azure::EnterpriseApplication config items", func() {
+		var awsAccount models.ConfigItem
 		Expect(DefaultContext.DB().
-			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSIAMRole, awsRoleARN).
-			First(&awsRole).Error).NotTo(HaveOccurred())
+			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSAccount, awsAccountID).
+			First(&awsAccount).Error).NotTo(HaveOccurred())
 
 		var azApp models.ConfigItem
 		Expect(DefaultContext.DB().
@@ -297,43 +300,57 @@ var _ = Describe("Azure AWS-SSO cross-cloud collapsed access edge", Ordered, fun
 			First(&azApp).Error).NotTo(HaveOccurred())
 	})
 
-	It("resolves Azure user's AWS-SSO config_access row to the AWS::IAM::Role config item (the collapsed edge)", func() {
-		var awsRole models.ConfigItem
+	It("resolves Azure user's AWS-SSO config_access row to the AWS account with the IAM role as role", func() {
+		var awsAccount models.ConfigItem
 		Expect(DefaultContext.DB().
-			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSIAMRole, awsRoleARN).
-			First(&awsRole).Error).NotTo(HaveOccurred())
+			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSAccount, awsAccountID).
+			First(&awsAccount).Error).NotTo(HaveOccurred())
+
+		var role dutymodels.ExternalRole
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND ? = ANY(aliases)", scraperModel.ID, awsRoleARN).
+			First(&role).Error).NotTo(HaveOccurred())
 
 		var access dutymodels.ConfigAccess
 		Expect(DefaultContext.DB().
 			Where("scraper_id = ? AND id = ?", scraperModel.ID, "assignment-alice-to-aws-role").
 			First(&access).Error).NotTo(HaveOccurred())
-		Expect(access.ConfigID.String()).To(Equal(awsRole.ID))
+		Expect(access.ConfigID.String()).To(Equal(awsAccount.ID))
 		Expect(access.ExternalUserID).NotTo(BeNil())
+		Expect(access.ExternalRoleID).NotTo(BeNil())
+		Expect(*access.ExternalRoleID).To(Equal(role.ID))
 	})
 
-	It("resolves Azure group's AWS-SSO config_access row to the AWS::IAM::Role config item", func() {
-		var awsRole models.ConfigItem
+	It("resolves Azure group's AWS-SSO config_access row to the AWS account with the IAM role as role", func() {
+		var awsAccount models.ConfigItem
 		Expect(DefaultContext.DB().
-			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSIAMRole, awsRoleARN).
-			First(&awsRole).Error).NotTo(HaveOccurred())
+			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSAccount, awsAccountID).
+			First(&awsAccount).Error).NotTo(HaveOccurred())
+
+		var role dutymodels.ExternalRole
+		Expect(DefaultContext.DB().
+			Where("scraper_id = ? AND ? = ANY(aliases)", scraperModel.ID, awsRoleARN).
+			First(&role).Error).NotTo(HaveOccurred())
 
 		var access dutymodels.ConfigAccess
 		Expect(DefaultContext.DB().
 			Where("scraper_id = ? AND id = ?", scraperModel.ID, "assignment-engineers-to-aws-role").
 			First(&access).Error).NotTo(HaveOccurred())
-		Expect(access.ConfigID.String()).To(Equal(awsRole.ID))
+		Expect(access.ConfigID.String()).To(Equal(awsAccount.ID))
 		Expect(access.ExternalGroupID).NotTo(BeNil())
+		Expect(access.ExternalRoleID).NotTo(BeNil())
+		Expect(*access.ExternalRoleID).To(Equal(role.ID))
 	})
 
-	It("returns Azure principals when querying config_access by the AWS role's UUID", func() {
-		var awsRole models.ConfigItem
+	It("returns Azure principals when querying config_access by the AWS account's UUID", func() {
+		var awsAccount models.ConfigItem
 		Expect(DefaultContext.DB().
-			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSIAMRole, awsRoleARN).
-			First(&awsRole).Error).NotTo(HaveOccurred())
+			Where("scraper_id = ? AND type = ? AND ? = ANY(external_id)", scraperModel.ID, v1.AWSAccount, awsAccountID).
+			First(&awsAccount).Error).NotTo(HaveOccurred())
 
 		var accesses []dutymodels.ConfigAccess
 		Expect(DefaultContext.DB().
-			Where("scraper_id = ? AND config_id = ?", scraperModel.ID, awsRole.ID).
+			Where("scraper_id = ? AND config_id = ?", scraperModel.ID, awsAccount.ID).
 			Find(&accesses).Error).NotTo(HaveOccurred())
 		Expect(accesses).To(HaveLen(2))
 
@@ -346,7 +363,7 @@ var _ = Describe("Azure AWS-SSO cross-cloud collapsed access edge", Ordered, fun
 				hasGroup = true
 			}
 		}
-		Expect(hasUser).To(BeTrue(), "expected at least one user-keyed access row on AWS role")
-		Expect(hasGroup).To(BeTrue(), "expected at least one group-keyed access row on AWS role")
+		Expect(hasUser).To(BeTrue(), "expected at least one user-keyed access row on AWS account")
+		Expect(hasGroup).To(BeTrue(), "expected at least one group-keyed access row on AWS account")
 	})
 })

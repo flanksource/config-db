@@ -15,7 +15,7 @@ spec:
           # Link a service to a deployment (adjust the label selector accordingly)
           - filter: config_type == "Kubernetes::Service"
             type:
-              value: 'Kubernetes::Deployment'
+              value: "Kubernetes::Deployment"
             name:
               expr: |
                 has(config.spec.selector) && has(config.spec.selector.name) ? config.spec.selector.name : ''
@@ -23,7 +23,7 @@ spec:
           - filter: config_type == 'Kubernetes::Pod'
             expr: |
               config.spec.volumes.
-                filter(item, has(item.persistentVolumeClaim)).
+                filter(item, item.persistentVolumeClaim != null).
                 map(item, {"type": "Kubernetes::PersistentVolumeClaim", "name": item.persistentVolumeClaim.claimName}).
                 toJSON()
           # Link Argo Application to the resources
@@ -41,48 +41,43 @@ spec:
               has(config.kind) ? config.kind == 'Certificate' : false
             jsonpath: .spec.dnsNames
             value: md5sum
-          - selector: 'config_type == "Kubernetes::Certificate"'
+          - selector: "config_type == \"Kubernetes::Certificate\""
             jsonpath: .spec.commonName
             value: md5sum
           - selector: config_class == 'Connection'
             jsonpath: "$..['password','bearer','clientSecret','personalAccessToken','certificate','secretKey','token'].value"
-            value: '******'
+            value: "******"
         exclude:
           - types:
               - Kubernetes::*
-            jsonpath: '.metadata.ownerReferences'
+            jsonpath: ".metadata.ownerReferences"
           - types:
               - Kubernetes::Pod
-            jsonpath: '.metadata.generateName'
+            jsonpath: ".metadata.generateName"
         changes:
           mapping:
             - filter: >
-                change_type == 'diff' && summary == "status.containerStatuses" &&
-                patch != null && has(patch.status) && has(patch.status.containerStatuses) &&
-                patch.status.containerStatuses.size() > 0 &&
-                has(patch.status.containerStatuses[0].restartCount)
+                change_type == 'diff' && summary == "status.containerStatuses" && patch != null && has(patch.status) && has(patch.status.containerStatuses) && patch.status.containerStatuses.size() > 0
+                && has(patch.status.containerStatuses[0].restartCount)
               type: PodCrashLooping
             - filter: >
-                change_type == 'diff' &&
-                jq('.status.conditions[]? | select(.type == "Healthy").message', patch).contains('Health check passed')
+                change_type == 'diff' && jq('.status.conditions[]? | select(.type == "Healthy").message', patch).contains('Health check passed')
               type: HealthCheckPassed
           exclude:
-            - 'config_type == "Kubernetes::Endpoints" && details.message == "metadata.annotations.endpoints.kubernetes.io/last-change-trigger-time"'
-            - 'config_type == "Kubernetes::Node" && has(details.message) && details.message == "status.images"'
-            - 'details.source.component == "canary-checker" && (change_type == "Failed" || change_type == "Pass")'
+            - "config_type == \"Kubernetes::Endpoints\" && details.message == \"metadata.annotations.endpoints.kubernetes.io/last-change-trigger-time\""
+            - "config_type == \"Kubernetes::Node\" && has(details.message) && details.message == \"status.images\""
+            - "details.source.component == \"canary-checker\" && (change_type == \"Failed\" || change_type == \"Pass\")"
             - >
-              change_type == "diff" && summary == "status.reconciledAt" &&
-              config != null &&
-              has(config.apiVersion) && config.apiVersion == "argoproj.io/v1alpha1" &&
-              has(config.kind) && config.kind == "Application"
+              change_type == "diff" && summary == "status.reconciledAt" && config != null && has(config.apiVersion) && config.apiVersion == "argoproj.io/v1alpha1" && has(config.kind) && config.kind ==
+              "Application"
       properties:
-        - filter: 'config_type == "Kubernetes::Pod"'
+        - filter: "config_type == \"Kubernetes::Pod\""
           name: Logs
           icon: opensearch
           links:
             - text: opensearch
               url: https://opensearch.svc/_dashboards/app/discover#/?_a=(query:(language:kuery,query:'kubernetes_pod_id:{{.id}}'))
-        - filter: 'config_type == "Kubernetes::Node"'
+        - filter: "config_type == \"Kubernetes::Node\""
           name: Grafana
           icon: grafana
           links:
@@ -114,7 +109,7 @@ spec:
           - certificaterequest
           - orders.acme.cert-manager.io
         labels:
-          canary-checker.flanksource.com/generated: 'true'
+          canary-checker.flanksource.com/generated: "true"
       relationships:
         - kind:
             expr: "has(spec.claimRef) ? spec.claimRef.kind : ''"

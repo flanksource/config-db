@@ -1,0 +1,8 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: postgres-scraper
+spec:
+  postgres:
+    - connection: postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable
+      permissions: true
