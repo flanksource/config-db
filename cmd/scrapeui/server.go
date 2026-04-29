@@ -18,7 +18,9 @@ import (
 // mergeEntitiesByID returns a new slice containing one entry per unique ID,
 // preferring entries from `incoming` over entries already in `existing` when
 // the same ID appears in both (the SaveResults-produced entity is always
-// newer). IDs with a zero UUID are treated as unique.
+// newer). IDs with a zero UUID are treated as unique here — alias-overlap
+// dedupe is done upstream in v1.MergeScrapeResults so by the time we get here
+// every nil-ID entity is already a single survivor with a unioned alias set.
 func mergeEntitiesByID[T any](existing, incoming []T, getID func(T) uuid.UUID) []T {
 	if len(incoming) == 0 {
 		return existing
@@ -51,24 +53,25 @@ func mergeEntitiesByID[T any](existing, incoming []T, getID func(T) uuid.UUID) [
 }
 
 type Server struct {
-	mu            sync.RWMutex
-	scrapers      []ScraperProgress
-	results       v1.FullScrapeResults
-	relationships []UIRelationship
-	configMeta    map[string]ConfigMeta
-	issues        []ScrapeIssue
-	summary       *SaveSummary
-	snapshots     map[string]*v1.ScrapeSnapshotPair
-	har           []har.Entry
-	scrapeSpec    any
-	properties    map[string]PropertyInfo
-	logLevel      *LogLevelInfo
-	logBuf             *bytes.Buffer
-	done               bool
-	startedAt          int64
-	buildInfo          *BuildInfo
-	lastScrapeSummary  *v1.ScrapeSummary
-	updated            chan struct{}
+	mu                sync.RWMutex
+	scrapers          []ScraperProgress
+	results           v1.FullScrapeResults
+	relationships     []UIRelationship
+	configMeta        map[string]ConfigMeta
+	issues            []ScrapeIssue
+	summary           *SaveSummary
+	snapshots         map[string]*v1.ScrapeSnapshotPair
+	har               []har.Entry
+	scrapeSpec        any
+	properties        map[string]PropertyInfo
+	logLevel          *LogLevelInfo
+	logBuf            *bytes.Buffer
+	logs              string
+	done              bool
+	startedAt         int64
+	buildInfo         *BuildInfo
+	lastScrapeSummary *v1.ScrapeSummary
+	updated           chan struct{}
 }
 
 // SetBuildInfo stores the build-time version/commit/date so the frontend can
@@ -169,20 +172,7 @@ func (s *Server) UpdateScraper(name string, status ScraperStatus, results []v1.S
 		}
 		if summary != nil {
 			s.summary = ConvertSaveSummary(summary)
-			for i := range summary.OrphanedChanges {
-				s.issues = append(s.issues, ScrapeIssue{Type: "orphaned", Message: "Change has no matching config", Change: &summary.OrphanedChanges[i]})
-			}
-			for i := range summary.FKErrorChanges {
-				s.issues = append(s.issues, ScrapeIssue{Type: "fk_error", Message: "Foreign key constraint violation", Change: &summary.FKErrorChanges[i]})
-			}
-			for i := range summary.Warnings {
-				s.issues = append(s.issues, ScrapeIssue{Type: "warning", Message: summary.Warnings[i].Error, Warning: &summary.Warnings[i]})
-			}
-			for configType, cs := range summary.ConfigTypes {
-				for _, w := range cs.Warnings {
-					s.issues = append(s.issues, ScrapeIssue{Type: "warning", Message: fmt.Sprintf("[%s] %s", configType, w)})
-				}
-			}
+			s.issues = append(s.issues, BuildIssues(summary)...)
 		}
 		break
 	}
@@ -227,14 +217,23 @@ func NewStaticServer(snap Snapshot) *Server {
 		snap.StartedAt = time.Now().UnixMilli()
 	}
 	return &Server{
-		scrapers:      snap.Scrapers,
-		results:       snap.Results,
-		relationships: uiRels,
-		configMeta:    configMeta,
-		har:           snap.HAR,
-		done:          true,
-		startedAt:     snap.StartedAt,
-		updated:       make(chan struct{}, 1),
+		scrapers:          snap.Scrapers,
+		results:           snap.Results,
+		relationships:     uiRels,
+		configMeta:        configMeta,
+		issues:            snap.Issues,
+		summary:           snap.SaveSummary,
+		snapshots:         snap.Snapshots,
+		har:               snap.HAR,
+		scrapeSpec:        snap.ScrapeSpec,
+		properties:        snap.Properties,
+		logLevel:          snap.LogLevel,
+		logs:              snap.Logs,
+		done:              true,
+		startedAt:         snap.StartedAt,
+		buildInfo:         snap.BuildInfo,
+		lastScrapeSummary: snap.LastScrapeSummary,
+		updated:           make(chan struct{}, 1),
 	}
 }
 
@@ -256,25 +255,27 @@ func (s *Server) snapshot() Snapshot {
 	logs := ""
 	if s.logBuf != nil {
 		logs = s.logBuf.String()
+	} else {
+		logs = s.logs
 	}
 	return Snapshot{
-		Scrapers:      s.scrapers,
-		Results:       s.results,
-		Relationships: s.relationships,
-		ConfigMeta:    s.configMeta,
-		Issues:        s.issues,
-		Counts:        BuildCounts(s.results, s.relationships),
-		SaveSummary:   s.summary,
-		Snapshots:     s.snapshots,
-		ScrapeSpec:    s.scrapeSpec,
-		Properties:    s.properties,
-		LogLevel:      s.logLevel,
-		HAR:           s.har,
-		Logs:          logs,
-		Done:          s.done,
-		StartedAt:     s.startedAt,
-		BuildInfo:          s.buildInfo,
-		LastScrapeSummary:  s.lastScrapeSummary,
+		Scrapers:          s.scrapers,
+		Results:           s.results,
+		Relationships:     s.relationships,
+		ConfigMeta:        s.configMeta,
+		Issues:            s.issues,
+		Counts:            BuildCounts(s.results, s.relationships),
+		SaveSummary:       s.summary,
+		Snapshots:         s.snapshots,
+		ScrapeSpec:        s.scrapeSpec,
+		Properties:        s.properties,
+		LogLevel:          s.logLevel,
+		HAR:               s.har,
+		Logs:              logs,
+		Done:              s.done,
+		StartedAt:         s.startedAt,
+		BuildInfo:         s.buildInfo,
+		LastScrapeSummary: s.lastScrapeSummary,
 	}
 }
 
@@ -311,8 +312,8 @@ func (s *Server) handleConfigItem(w http.ResponseWriter, r *http.Request) {
 
 	type configItemDetail struct {
 		v1.ScrapeResult
-		Meta          *ConfigMeta      `json:"_meta,omitempty"`
-		Relationships []UIRelationship `json:"_relationships,omitempty"`
+		Meta          *ConfigMeta       `json:"_meta,omitempty"`
+		Relationships []UIRelationship  `json:"_relationships,omitempty"`
 		Changes       []v1.ChangeResult `json:"_changes,omitempty"`
 	}
 

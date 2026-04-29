@@ -1,4 +1,82 @@
-import type { ScrapeResult, TypeGroup, FullScrapeResults } from './types';
+import type { ScrapeResult, TypeGroup, FullScrapeResults, Snapshot } from './types';
+
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+
+function isMissingID(id: string | undefined): boolean {
+  return !id || id === NIL_UUID;
+}
+
+// synthIDFor returns a stable synthetic id for an entity that has no canonical
+// UUID (or only the nil UUID). The id is derived from the entity name plus its
+// position in the list so duplicate-named entries remain distinct and
+// click-targets in the UI are unique. The "@N" suffix avoids ever colliding
+// with real names that happen to contain only valid UUID characters.
+function synthIDFor(name: string | undefined, index: number): string {
+  const base = (name || 'unnamed').trim() || 'unnamed';
+  return `${base}@${index}`;
+}
+
+// normalizeEntityIDs walks the external_* slices of a scrape snapshot and
+// replaces nil/empty ids with synthetic ones derived from name(index). This
+// keeps the tree, list rows, and route-id navigation clickable for entities
+// the scraper produced without a canonical UUID — common when an ADO scraper
+// emits a user/group whose alias-only entry hasn't yet been merged into an
+// AAD-supplied id by the SQL merge.
+//
+// Each membership row is also patched: external_user_id / external_group_id
+// are remapped to the synthetic id of the entity it resolves to (by alias
+// overlap), so the EntityTable membership counts find the right rows.
+export function normalizeEntityIDs(snap: Snapshot): Snapshot {
+  if (!snap?.results) return snap;
+  const r = snap.results;
+
+  // Track aliases → synthetic id so memberships can be remapped.
+  const userIDByAlias = new Map<string, string>();
+  const groupIDByAlias = new Map<string, string>();
+  const roleIDByAlias = new Map<string, string>();
+
+  const remap = <T extends { id: string; name: string; aliases?: string[] }>(
+    list: T[] | undefined,
+    aliasMap: Map<string, string>,
+  ): T[] | undefined => {
+    if (!list) return list;
+    return list.map((e, i) => {
+      const id = isMissingID(e.id) ? synthIDFor(e.name, i) : e.id;
+      aliasMap.set(id, id);
+      if (e.name) aliasMap.set(e.name, id);
+      for (const a of e.aliases || []) aliasMap.set(a, id);
+      return id === e.id ? e : { ...e, id };
+    });
+  };
+
+  const users = remap(r.external_users, userIDByAlias);
+  const groups = remap(r.external_groups, groupIDByAlias);
+  const roles = remap(r.external_roles, roleIDByAlias);
+
+  const userGroups = r.external_user_groups?.map(ug => {
+    let userID = ug.external_user_id;
+    if (isMissingID(userID)) {
+      userID = ug.external_user_aliases?.map(a => userIDByAlias.get(a)).find(Boolean);
+    }
+    let groupID = ug.external_group_id;
+    if (isMissingID(groupID)) {
+      groupID = ug.external_group_aliases?.map(a => groupIDByAlias.get(a)).find(Boolean);
+    }
+    if (userID === ug.external_user_id && groupID === ug.external_group_id) return ug;
+    return { ...ug, external_user_id: userID, external_group_id: groupID };
+  });
+
+  return {
+    ...snap,
+    results: {
+      ...r,
+      external_users: users,
+      external_groups: groups,
+      external_roles: roles,
+      external_user_groups: userGroups,
+    },
+  };
+}
 
 export function groupByType(items: ScrapeResult[]): TypeGroup[] {
   const groups = new Map<string, ScrapeResult[]>();

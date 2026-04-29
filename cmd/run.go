@@ -14,7 +14,9 @@ import (
 	"os/exec"
 	"os/signal"
 	"path"
+	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/flanksource/clicky"
@@ -136,17 +138,12 @@ var Run = &cobra.Command{
 			}
 		}
 
+		scrapeSpec := buildScrapeSpec(scraperConfigs)
 		var uiServer *scrapeui.Server
 		if uiEnabled {
 			names := make([]string, len(scraperConfigs))
-			specs := make([]any, len(scraperConfigs))
 			for i, sc := range scraperConfigs {
 				names[i] = sc.Name
-				specs[i] = sc.Spec
-			}
-			var scrapeSpec any = specs
-			if len(specs) == 1 {
-				scrapeSpec = specs[0]
 			}
 			uiServer = startScrapeUI(names, scrapeSpec, &logBuf)
 		}
@@ -154,8 +151,16 @@ var Run = &cobra.Command{
 		var hasErrors bool
 		var allResults v1.ScrapeResults
 		var lastSummary *v1.ScrapeSummary
-		var lastSnapshotPair *v1.ScrapeSnapshotPair
+		var lastScrapeSummary *v1.ScrapeSummary
+		snapshotPairs := map[string]*v1.ScrapeSnapshotPair{}
+		progress := make([]scrapeui.ScraperProgress, len(scraperConfigs))
 		for i := range scraperConfigs {
+			startedAt := time.Now()
+			progress[i] = scrapeui.ScraperProgress{
+				Name:      scrapeui.ScraperName(scraperConfigs[i].Name),
+				Status:    scrapeui.ScraperRunning,
+				StartedAt: &startedAt,
+			}
 			if uiServer != nil {
 				uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperRunning, nil, nil, nil)
 			}
@@ -168,21 +173,35 @@ var Run = &cobra.Command{
 			if save && dutyapi.DefaultConfig.ConnectionString != "" {
 				prev := scrapers.GetLastScrapeSummary(dutyCtx, string(scraperConfigs[i].GetUID()))
 				scrapeCtx = scrapeCtx.WithLastScrapeSummary(prev)
-				// if uiServer != nil {
-				// 	uiServer.SetLastScrapeSummary(prev)
-				// }
+				lastScrapeSummary = &prev
+				if uiServer != nil {
+					uiServer.SetLastScrapeSummary(prev)
+				}
 			}
 			scrapeCtx = scrapeCtx.WithHARCollector(harCollector)
 
 			results, summary, snapshotPair, err := scrapeAndStore(scrapeCtx)
+			progress[i].DurationSec = time.Since(startedAt).Seconds()
+			progress[i].ResultCount = len(scrapeui.MergeResults(results).Configs)
 			if err != nil {
 				hasErrors = true
+				progress[i].Status = scrapeui.ScraperError
+				progress[i].Error = err.Error()
 				logger.Errorf("error scraping config: (name=%s) %+v", scraperConfigs[i].Name, err)
 				if uiServer != nil {
 					uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperError, results, summary, err)
 				}
-			} else if uiServer != nil {
-				uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperComplete, results, summary, nil)
+			} else {
+				progress[i].Status = scrapeui.ScraperComplete
+				if uiServer != nil {
+					uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperComplete, results, summary, nil)
+				}
+			}
+			if snapshotPair != nil {
+				snapshotPairs[scrapeui.ScraperName(scraperConfigs[i].Name)] = snapshotPair
+				if uiServer != nil {
+					uiServer.SetSnapshots(scraperConfigs[i].Name, snapshotPair)
+				}
 			}
 
 			scraperUID := string(scraperConfigs[i].GetUID())
@@ -214,15 +233,17 @@ var Run = &cobra.Command{
 			if summary != nil {
 				lastSummary = summary
 			}
-			if snapshotPair != nil {
-				lastSnapshotPair = snapshotPair
-			}
 		}
 
 		// Restore stderr-only logging before rendering
 		logger.Use(os.Stderr)
 
-		printOutput(allResults, lastSummary, lastSnapshotPair, harCollector, logBuf.String())
+		if uiServer != nil {
+			uiServer.SetHAR(harCollector.Entries())
+			uiServer.SetDone()
+		}
+
+		printOutput(allResults, lastSummary, lastScrapeSummary, snapshotPairs, scraperConfigs, progress, scrapeSpec, harCollector, logBuf.String())
 
 		if uiServer != nil {
 			sig := make(chan os.Signal, 1)
@@ -244,7 +265,7 @@ type runHTMLOutput struct {
 	SaveSummary        *v1.ScrapeSummary            `json:"-"`
 	Snapshots          *v1.ScrapeSnapshotPair       `json:"snapshots,omitempty"`
 	Configs            []v1.ScrapeResult            `pretty:"table"`
-	Changes            []changeWithScreenshot        `pretty:"table"`
+	Changes            []changeWithScreenshot       `pretty:"table"`
 	Artifacts          []models.Artifact            `pretty:"table"`
 	Analysis           []models.ConfigAnalysis      `pretty:"table"`
 	ExternalRoles      []models.ExternalRole        `pretty:"table"`
@@ -438,7 +459,7 @@ func (s screenshotDetail) HTML() string       { return s.html }
 func (s screenshotDetail) Markdown() string   { return "[screenshot]" }
 func (s screenshotDetail) StaticHTML() string { return s.html }
 
-func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, snapshots *v1.ScrapeSnapshotPair, harCollector *har.Collector, logs string) {
+func printOutput(results v1.ScrapeResults, summary, lastScrapeSummary *v1.ScrapeSummary, snapshots map[string]*v1.ScrapeSnapshotPair, scraperConfigs []v1.ScrapeConfig, progress []scrapeui.ScraperProgress, scrapeSpec any, harCollector *har.Collector, logs string) {
 	if outputDir != "" {
 		return
 	}
@@ -487,7 +508,7 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, snapshots 
 		}
 	}
 
-	// relationships := scrapeui.BuildUIRelationships(results)
+	relationships := scrapeui.BuildUIRelationships(results)
 	output := runHTMLOutput{
 		Counts:             v1.BuildCounts(all),
 		Configs:            all.Configs,
@@ -502,13 +523,123 @@ func printOutput(results v1.ScrapeResults, summary *v1.ScrapeSummary, snapshots 
 		ConfigAccessLogs:   all.ConfigAccessLogs,
 		HTTPTraffic:        harCollector.Entries(),
 		Logs:               v1.BuildLogOutput(logs),
-
-		// Relationships: relationships,
-		// ConfigMeta:    scrapeui.BuildConfigMeta(results, relationships),
 	}
 	output.SaveSummary = summary
-	output.Snapshots = snapshots
-	clicky.MustPrint(output)
+	output.Snapshots = singleSnapshotPair(snapshots)
+
+	snapshotOutput := buildRunSnapshotOutput(all, results, summary, lastScrapeSummary, snapshots, scraperConfigs, progress, scrapeSpec, relationships, harCollector.Entries(), logs)
+	printRunOutput(output, snapshotOutput)
+}
+
+func buildRunSnapshotOutput(all v1.FullScrapeResults, rawResults v1.ScrapeResults, summary, lastScrapeSummary *v1.ScrapeSummary, snapshots map[string]*v1.ScrapeSnapshotPair, scraperConfigs []v1.ScrapeConfig, progress []scrapeui.ScraperProgress, scrapeSpec any, relationships []scrapeui.UIRelationship, harEntries []har.Entry, logs string) scrapeui.Snapshot {
+	if len(relationships) == 0 {
+		relationships = scrapeui.BuildUIRelationships(rawResults)
+	}
+	if len(progress) == 0 {
+		progress = make([]scrapeui.ScraperProgress, len(scraperConfigs))
+		for i, sc := range scraperConfigs {
+			progress[i] = scrapeui.ScraperProgress{
+				Name:        scrapeui.ScraperName(sc.Name),
+				Status:      scrapeui.ScraperComplete,
+				ResultCount: len(all.Configs),
+			}
+		}
+	}
+	if len(snapshots) == 0 {
+		snapshots = nil
+	}
+	bi := GetBuildInfo()
+	return scrapeui.Snapshot{
+		Scrapers:          progress,
+		Results:           all,
+		Relationships:     relationships,
+		ConfigMeta:        scrapeui.BuildConfigMeta(rawResults, relationships),
+		Issues:            scrapeui.BuildIssues(summary),
+		Counts:            scrapeui.BuildCounts(all, relationships),
+		SaveSummary:       scrapeui.ConvertSaveSummary(summary),
+		Snapshots:         snapshots,
+		ScrapeSpec:        scrapeSpec,
+		HAR:               harEntries,
+		Logs:              logs,
+		Done:              true,
+		StartedAt:         startedAtMillis(progress),
+		BuildInfo:         &scrapeui.BuildInfo{Version: bi.Version, Commit: bi.Commit, Date: bi.Date},
+		LastScrapeSummary: lastScrapeSummary,
+	}
+}
+
+func printRunOutput(defaultOutput runHTMLOutput, snapshotOutput scrapeui.Snapshot) {
+	opts := clicky.Flags.FormatOptions
+	if err := opts.ParseFormatSpec(); err != nil {
+		logger.Fatalf("invalid output format: %v", err)
+	}
+	if len(opts.Sinks) == 0 {
+		if isJSONFormat(opts) {
+			clicky.MustPrint(snapshotOutput, opts)
+			return
+		}
+		clicky.MustPrint(defaultOutput, opts)
+		return
+	}
+
+	for _, sink := range opts.Sinks {
+		sinkOpts := opts
+		sinkOpts.Sinks = nil
+		sinkOpts.Format = sink.Format
+		sinkOpts.JSON, sinkOpts.YAML, sinkOpts.CSV = false, false, false
+		sinkOpts.HTML, sinkOpts.Markdown, sinkOpts.Pretty = false, false, false
+		sinkOpts.PDF, sinkOpts.Slack = false, false
+
+		out := any(defaultOutput)
+		if strings.EqualFold(sink.Format, "json") {
+			out = snapshotOutput
+		}
+		if sink.File == "" {
+			clicky.MustPrint(out, sinkOpts)
+			continue
+		}
+		if err := clicky.FormatToFile(out, sinkOpts, sink.File); err != nil {
+			logger.Errorf("failed to write %s output to %s: %v", sink.Format, sink.File, err)
+		}
+	}
+}
+
+func isJSONFormat(opts clicky.FormatOptions) bool {
+	return strings.EqualFold(opts.ResolveFormat(), "json")
+}
+
+func buildScrapeSpec(scraperConfigs []v1.ScrapeConfig) any {
+	specs := make([]any, len(scraperConfigs))
+	for i, sc := range scraperConfigs {
+		specs[i] = sc.Spec
+	}
+	if len(specs) == 1 {
+		return specs[0]
+	}
+	return specs
+}
+
+func singleSnapshotPair(snapshots map[string]*v1.ScrapeSnapshotPair) *v1.ScrapeSnapshotPair {
+	for _, pair := range snapshots {
+		return pair
+	}
+	return nil
+}
+
+func startedAtMillis(progress []scrapeui.ScraperProgress) int64 {
+	var earliest *time.Time
+	for i := range progress {
+		if progress[i].StartedAt == nil {
+			continue
+		}
+		if earliest == nil || progress[i].StartedAt.Before(*earliest) {
+			earliest = progress[i].StartedAt
+		}
+	}
+	if earliest == nil {
+		return time.Now().UnixMilli()
+	}
+	return earliest.UnixMilli()
 }
 
 func exportResource(resource v1.ScrapeResult, outputDir string) error {
