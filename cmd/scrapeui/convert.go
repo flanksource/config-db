@@ -284,6 +284,29 @@ func ConvertSaveSummary(s *v1.ScrapeSummary) *SaveSummary {
 	return ss
 }
 
+func BuildIssues(summary *v1.ScrapeSummary) []ScrapeIssue {
+	if summary == nil {
+		return nil
+	}
+
+	var issues []ScrapeIssue
+	for i := range summary.OrphanedChanges {
+		issues = append(issues, ScrapeIssue{Type: "orphaned", Message: "Change has no matching config", Change: &summary.OrphanedChanges[i]})
+	}
+	for i := range summary.FKErrorChanges {
+		issues = append(issues, ScrapeIssue{Type: "fk_error", Message: "Foreign key constraint violation", Change: &summary.FKErrorChanges[i]})
+	}
+	for i := range summary.Warnings {
+		issues = append(issues, ScrapeIssue{Type: "warning", Message: summary.Warnings[i].Error, Warning: &summary.Warnings[i]})
+	}
+	for configType, cs := range summary.ConfigTypes {
+		for _, w := range cs.Warnings {
+			issues = append(issues, ScrapeIssue{Type: "warning", Message: "[" + configType + "] " + w})
+		}
+	}
+	return issues
+}
+
 func BuildCounts(results v1.FullScrapeResults, uiRels []UIRelationship) Counts {
 	c := Counts{
 		Configs:        len(results.Configs),

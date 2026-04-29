@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import type { Snapshot, ScrapeResult, Tab } from './types';
-import { groupByType, filterItems, collectTypes, formatDuration, buildLookups, globalSearch } from './utils';
+import { groupByType, filterItems, collectTypes, formatDuration, buildLookups, globalSearch, normalizeEntityIDs } from './utils';
 import { useRoute } from './hooks/useRoute';
 import { SplitPane } from './components/SplitPane';
 import { ScraperList } from './components/ScraperList';
@@ -83,7 +83,7 @@ export function App() {
 
   function applySnap(snap: Snapshot) {
     startRef.current = snap.started_at;
-    setSnapshot(snap);
+    setSnapshot(normalizeEntityIDs(snap));
     if (snap.done) {
       doneRef.current = true;
       setDone(true);
@@ -415,8 +415,8 @@ export function App() {
 
         {tab === 'har' && <HARPanel entries={snapshot?.har || []} search={search} />}
 
-        {tab === 'users' && <EntityTable title="Users" kind="user" entities={snapshot?.results?.external_users || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} userGroups={snapshot?.results?.external_user_groups} allUsers={snapshot?.results?.external_users} allGroups={snapshot?.results?.external_groups} lookups={lookups} search={search} selectedId={routeId} onSelect={(id) => navigate({ tab: 'users', id })} />}
-        {tab === 'groups' && <EntityTable title="Groups" kind="group" entities={snapshot?.results?.external_groups || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} userGroups={snapshot?.results?.external_user_groups} allUsers={snapshot?.results?.external_users} allGroups={snapshot?.results?.external_groups} lookups={lookups} search={search} selectedId={routeId} onSelect={(id) => navigate({ tab: 'groups', id })} />}
+        {tab === 'users' && <EntityTable title="Users" kind="user" entities={snapshot?.results?.external_users || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} userGroups={snapshot?.results?.external_user_groups} allUsers={snapshot?.results?.external_users} allGroups={snapshot?.results?.external_groups} lookups={lookups} search={search} selectedId={routeId} onSelect={(id) => navigate({ tab: 'users', id })} onNavigate={(kind, id) => navigate({ tab: kind === 'user' ? 'users' : kind === 'group' ? 'groups' : 'roles', id })} />}
+        {tab === 'groups' && <EntityTable title="Groups" kind="group" entities={snapshot?.results?.external_groups || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} userGroups={snapshot?.results?.external_user_groups} allUsers={snapshot?.results?.external_users} allGroups={snapshot?.results?.external_groups} lookups={lookups} search={search} selectedId={routeId} onSelect={(id) => navigate({ tab: 'groups', id })} onNavigate={(kind, id) => navigate({ tab: kind === 'user' ? 'users' : kind === 'group' ? 'groups' : 'roles', id })} />}
         {tab === 'roles' && <EntityTable title="Roles" kind="role" entities={snapshot?.results?.external_roles || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} lookups={lookups} search={search} selectedId={routeId} onSelect={(id) => navigate({ tab: 'roles', id })} />}
         {tab === 'access' && <AccessTable entries={snapshot?.results?.config_access || []} lookups={lookups} search={search} />}
         {tab === 'access_logs' && <AccessLogTable entries={snapshot?.results?.config_access_logs || []} lookups={lookups} search={search} />}

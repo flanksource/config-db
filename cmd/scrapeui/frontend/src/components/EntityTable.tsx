@@ -25,6 +25,7 @@ interface Props {
   search?: string;
   selectedId?: string;
   onSelect?: (id: string | undefined) => void;
+  onNavigate?: (kind: 'user' | 'group' | 'role', id: string) => void;
 }
 
 function entityAliases(e: Entity): string[] {
@@ -74,7 +75,7 @@ function columnsFor(kind: 'user' | 'group' | 'role'): { key: string; label: stri
   return base;
 }
 
-export function EntityTable({ title, kind, entities, access, accessLogs, userGroups, allUsers, allGroups, lookups, search, selectedId, onSelect }: Props) {
+export function EntityTable({ title, kind, entities, access, accessLogs, userGroups, allUsers, allGroups, lookups, search, selectedId, onSelect, onNavigate }: Props) {
   const filtered = useMemo(() => {
     if (!search) return entities;
     return entities.filter(e => matchesSearch(search, e.name, ...(e.aliases || [])));
@@ -176,9 +177,9 @@ export function EntityTable({ title, kind, entities, access, accessLogs, userGro
             </tr>
           </thead>
           <tbody>
-            {sorted.map((e, idx) => (
+            {sorted.map(e => (
               <tr
-                key={`${e.id}-${idx}`}
+                key={e.id}
                 class={`text-sm border-b border-gray-100 cursor-pointer transition-colors ${
                   selectedId === e.id ? 'bg-blue-50' : 'hover:bg-gray-50'
                 }`}
@@ -231,7 +232,12 @@ export function EntityTable({ title, kind, entities, access, accessLogs, userGro
               <Section title="Groups" count={userMemberships.length}>
                 <div class="flex flex-wrap gap-1">
                   {userMemberships.map(g => (
-                    <span key={g.id} class="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">{g.name || g.id}</span>
+                    <button
+                      key={g.id}
+                      type="button"
+                      class="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer"
+                      onClick={() => onNavigate?.('group', g.id)}
+                    >{g.name || g.id}</button>
                   ))}
                 </div>
               </Section>
@@ -241,7 +247,12 @@ export function EntityTable({ title, kind, entities, access, accessLogs, userGro
               <Section title="Members" count={groupMembers.length}>
                 <div class="flex flex-wrap gap-1">
                   {groupMembers.map(u => (
-                    <span key={u.id} class="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">{u.name || u.id}</span>
+                    <button
+                      key={u.id}
+                      type="button"
+                      class="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer"
+                      onClick={() => onNavigate?.('user', u.id)}
+                    >{u.name || u.id}</button>
                   ))}
                 </div>
               </Section>

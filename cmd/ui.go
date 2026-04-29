@@ -47,26 +47,9 @@ var UI = &cobra.Command{
 			logger.Fatalf("Failed to read file: %v", err)
 		}
 
-		var results jsonResults
-		if err := json.Unmarshal(data, &results); err != nil {
+		snap, err := parseUISnapshot(data)
+		if err != nil {
 			logger.Fatalf("Failed to parse JSON: %v", err)
-		}
-
-		snap := scrapeui.Snapshot{
-			Results: v1.FullScrapeResults{
-				Configs:            results.Configs,
-				Changes:            results.Changes,
-				Analysis:           results.Analysis,
-				ExternalRoles:      results.ExternalRoles,
-				ExternalUsers:      results.ExternalUsers,
-				ExternalGroups:     results.ExternalGroups,
-				ExternalUserGroups: results.ExternalUserGroups,
-				ConfigAccess:       results.ConfigAccess,
-				ConfigAccessLogs:   results.ConfigAccessLogs,
-			},
-			Relationships: results.Relationships,
-			ConfigMeta:    results.ConfigMeta,
-			HAR:           results.HAR,
 		}
 
 		srv := scrapeui.NewStaticServer(snap)
@@ -98,4 +81,47 @@ var UI = &cobra.Command{
 
 func init() {
 	UI.Flags().IntVar(&uiPort, "ui-port", 9001, "Port for the UI server (0 to pick a free port)")
+}
+
+func parseUISnapshot(data []byte) (scrapeui.Snapshot, error) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return scrapeui.Snapshot{}, err
+	}
+
+	if _, ok := raw["results"]; ok {
+		var snap scrapeui.Snapshot
+		if err := json.Unmarshal(data, &snap); err != nil {
+			return scrapeui.Snapshot{}, err
+		}
+		return snap, nil
+	}
+	if _, ok := raw["scrapers"]; ok {
+		var snap scrapeui.Snapshot
+		if err := json.Unmarshal(data, &snap); err != nil {
+			return scrapeui.Snapshot{}, err
+		}
+		return snap, nil
+	}
+
+	var results jsonResults
+	if err := json.Unmarshal(data, &results); err != nil {
+		return scrapeui.Snapshot{}, err
+	}
+	return scrapeui.Snapshot{
+		Results: v1.FullScrapeResults{
+			Configs:            results.Configs,
+			Changes:            results.Changes,
+			Analysis:           results.Analysis,
+			ExternalRoles:      results.ExternalRoles,
+			ExternalUsers:      results.ExternalUsers,
+			ExternalGroups:     results.ExternalGroups,
+			ExternalUserGroups: results.ExternalUserGroups,
+			ConfigAccess:       results.ConfigAccess,
+			ConfigAccessLogs:   results.ConfigAccessLogs,
+		},
+		Relationships: results.Relationships,
+		ConfigMeta:    results.ConfigMeta,
+		HAR:           results.HAR,
+	}, nil
 }
