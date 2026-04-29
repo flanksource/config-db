@@ -6,19 +6,6 @@ vars:
   IMAGE: '{{.REGISTRY}}/{{.APP_NAME}}'
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
-  CURRENT_NAMESPACE:
-    sh: kubectl config view --minify --output 'jsonpath={..namespace}' 2>/dev/null || echo "default"
-  DEPLOYMENT:
-    sh: |
-      ns={{.CURRENT_NAMESPACE | default "default"}}
-      name=$(kubectl -n "$ns" get deploy \
-        -l app.kubernetes.io/name={{.APP_NAME}} \
-        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-      if [ -z "$name" ]; then
-        name=$(kubectl -n "$ns" get deploy \
-          -o jsonpath='{.items[?(@.metadata.name=="{{.APP_NAME}}")].metadata.name}' 2>/dev/null)
-      fi
-      echo "${name:-{{.APP_NAME}}}"
 
 tasks:
   default:
@@ -34,6 +21,20 @@ tasks:
   deploy:lab:
     desc: "Build, push, and patch the running config-db deployment in the current kubectl context. Defaults REGISTRY=docker.lab."
     deps: [image:lab]
+    vars:
+      CURRENT_NAMESPACE:
+        sh: kubectl config view --minify --output 'jsonpath={..namespace}' 2>/dev/null || echo "default"
+      DEPLOYMENT:
+        sh: |
+          ns={{.CURRENT_NAMESPACE | default "default"}}
+          name=$(kubectl -n "$ns" get deploy \
+            -l app.kubernetes.io/name={{.APP_NAME}} \
+            -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -z "$name" ]; then
+            name=$(kubectl -n "$ns" get deploy \
+              -o jsonpath='{.items[?(@.metadata.name=="{{.APP_NAME}}")].metadata.name}' 2>/dev/null || true)
+          fi
+          echo "${name:-{{.APP_NAME}}}"
     cmds:
       - echo "Patching deploy/{{.DEPLOYMENT}} in namespace {{.CURRENT_NAMESPACE}} -> {{.IMAGE}}:{{.VERSION}}"
       - >-
@@ -42,3 +43,31 @@ tasks:
         {{.APP_NAME}}={{.IMAGE}}:{{.VERSION}}
       - kubectl -n {{.CURRENT_NAMESPACE}} rollout restart deploy/{{.DEPLOYMENT}}
       - kubectl -n {{.CURRENT_NAMESPACE}} rollout status deploy/{{.DEPLOYMENT}} --timeout=300s
+
+  build:
+    desc: "Build the scrapeui bundle then the Go binary."
+    deps: [build:ui]
+    cmds:
+      - make build
+
+  build:ui:
+    desc: "Install npm deps and build the embedded scrapeui Vite bundle."
+    dir: cmd/scrapeui/frontend
+    sources:
+      - src/**/*
+      - package.json
+      - package-lock.json
+      - vite.config.ts
+      - tsconfig.json
+    generates:
+      - dist/scrapeui.js
+    cmds:
+      - npm install
+      - npm run build
+
+  build:ui:dev:
+    desc: "Run the scrapeui Vite dev server (live reload)."
+    dir: cmd/scrapeui/frontend
+    cmds:
+      - npm install
+      - npm run dev
