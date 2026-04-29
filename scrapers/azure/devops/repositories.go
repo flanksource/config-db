@@ -105,7 +105,7 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 ) ([]v1.ExternalConfigAccess, []dutyModels.ExternalRole) {
 	acls, err := client.GetRepositoryPermissions(ctx, project.ID, repo.ID)
 	if err != nil {
-		ctx.Logger.Warnf("failed to get permissions for repo %s/%s: %v", project.Name, repo.Name, err)
+		ctx.Logger.Warnf("failed to get permissions for repo %s/%s/%s: %v", config.Organization, project.Name, repo.Name, err)
 		return nil, nil
 	}
 
@@ -121,7 +121,7 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 
 	identities, err := client.GetIdentitiesByDescriptor(ctx, descriptors)
 	if err != nil {
-		ctx.Logger.Warnf("failed to resolve identities for repo %s/%s: %v", project.Name, repo.Name, err)
+		ctx.Logger.Warnf("failed to resolve identities for repo %s/%s/%s: %v", config.Organization, project.Name, repo.Name, err)
 		return nil, nil
 	}
 
@@ -147,13 +147,9 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 		}
 
 		if identity.IsContainer {
-			aliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
-			aliases = append(aliases, DescriptorAliases(identity.SubjectDescriptor)...)
-			// No ID — the SQL merge resolves this group against the AAD scraper's
-			// authoritative record by alias overlap. AAD takes precedence.
 			ctx.AddGroup(dutyModels.ExternalGroup{
 				Name:      name,
-				Aliases:   pq.StringArray(aliases),
+				Aliases:   pq.StringArray(identityAliases(identity, "")),
 				Tenant:    config.Organization,
 				GroupType: "AzureDevOps",
 			})
@@ -161,7 +157,7 @@ func (ado AzureDevopsScraper) fetchRepoPermissions(
 			ctx.AddUser(dutyModels.ExternalUser{
 				Name:     name,
 				Email:    &email,
-				Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
+				Aliases:  pq.StringArray(identityAliases(identity, email)),
 				Tenant:   config.Organization,
 				UserType: "AzureDevOps",
 			})

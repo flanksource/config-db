@@ -29,6 +29,8 @@ import (
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	azureauth "github.com/microsoft/kiota-authentication-azure-go"
+	nethttplibrary "github.com/microsoft/kiota-http-go"
 	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/samber/lo"
@@ -1146,12 +1148,26 @@ func (azure *Scraper) setGraphClient() error {
 		return nil
 	}
 
-	client, err := msgraphsdkgo.NewGraphServiceClientWithCredentials(azure.cred, []string{"https://graph.microsoft.com/.default"})
+	authProv, err := azureauth.NewAzureIdentityAuthenticationProviderWithScopes(
+		azure.cred, []string{"https://graph.microsoft.com/.default"})
 	if err != nil {
-		return fmt.Errorf("failed to create graph client: %w", err)
+		return fmt.Errorf("failed to create graph auth provider: %w", err)
 	}
 
-	azure.graphClient = client
+	httpClient := nethttplibrary.GetDefaultClient()
+	if collector := azure.ctx.HARCollector(); collector != nil {
+		// HAR middleware sits OUTSIDE Kiota's middleware chain so we record
+		// what actually crossed the wire (post-retry/redirect/auth).
+		httpClient.Transport = collector.Middleware()(httpClient.Transport)
+	}
+
+	adapter, err := nethttplibrary.NewNetHttpRequestAdapterWithParseNodeFactoryAndSerializationWriterFactoryAndHttpClient(
+		authProv, nil, nil, httpClient)
+	if err != nil {
+		return fmt.Errorf("failed to create graph request adapter: %w", err)
+	}
+
+	azure.graphClient = msgraphsdkgo.NewGraphServiceClient(adapter)
 	return nil
 }
 

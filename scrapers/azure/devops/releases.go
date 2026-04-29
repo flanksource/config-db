@@ -93,10 +93,10 @@ func (ado AzureDevopsScraper) scrapeReleases(
 
 	definitions, err := releaseClient.GetReleaseDefinitions(ctx, project.Name)
 	if err != nil {
-		return results.Errorf(err, "failed to get release definitions for %s", project.Name)
+		return results.Errorf(err, "failed to get release definitions for %s/%s", config.Organization, project.Name)
 	}
-	ctx.Logger.V(2).Infof("scraping releases for project=%s definitions=%d filter=%v cutoff=%s",
-		project.Name, len(definitions), config.Releases, cutoff.Format(time.RFC3339))
+	ctx.Logger.V(2).Infof("scraping releases for %s/%s definitions=%d filter=%v cutoff=%s",
+		config.Organization, project.Name, len(definitions), config.Releases, cutoff.Format(time.RFC3339))
 
 	for _, def := range definitions {
 		if !collections.MatchItems(def.Name, config.Releases...) {
@@ -105,11 +105,11 @@ func (ado AzureDevopsScraper) scrapeReleases(
 		}
 		defJSON, err := releaseClient.GetReleaseDefinition(ctx, project.Name, def.ID)
 		if err != nil {
-			return results.Errorf(err, "failed to get release definition %d", def.ID)
+			return results.Errorf(err, "failed to get release definition for %s/%s/%d", config.Organization, project.Name, def.ID)
 		}
 		releases, err := releaseClient.GetReleases(ctx, project.Name, def.ID)
 		if err != nil {
-			return results.Errorf(err, "failed to get releases for definition %d in project %s", def.ID, project.Name)
+			return results.Errorf(err, "failed to get releases for definition %d in %s/%s", def.ID, config.Organization, project.Name)
 		}
 		result := buildReleaseResult(ctx, config, project, def, defJSON, releases, cutoff)
 
@@ -118,7 +118,7 @@ func (ado AzureDevopsScraper) scrapeReleases(
 			if shouldFetchPermissions(releaseKey, parsePermissionsInterval(config.Permissions.RateLimit)) {
 				ca, roles, err := ado.fetchReleasePermissions(ctx, client, config, project, def.ID, result.ID)
 				if err != nil {
-					ctx.Logger.V(4).Infof("failed to refresh release permissions for %s/%d: %v", project.Name, def.ID, err)
+					ctx.Logger.V(4).Infof("failed to refresh release permissions for %s/%s/%d: %v", config.Organization, project.Name, def.ID, err)
 				} else {
 					result.ConfigAccess, result.ExternalRoles = ca, roles
 					markPermissionsFetched(releaseKey)
@@ -186,13 +186,9 @@ func (ado AzureDevopsScraper) fetchReleasePermissions(
 		}
 
 		if identity.IsContainer {
-			aliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
-			aliases = append(aliases, DescriptorAliases(identity.SubjectDescriptor)...)
-			// No ID — the SQL merge resolves this group against the AAD scraper's
-			// authoritative record by alias overlap. AAD takes precedence.
 			ctx.AddGroup(dutyModels.ExternalGroup{
 				Name:      name,
-				Aliases:   pq.StringArray(aliases),
+				Aliases:   pq.StringArray(identityAliases(identity, "")),
 				Tenant:    config.Organization,
 				GroupType: "AzureDevOps",
 			})
@@ -200,7 +196,7 @@ func (ado AzureDevopsScraper) fetchReleasePermissions(
 			ctx.AddUser(dutyModels.ExternalUser{
 				Name:     name,
 				Email:    &email,
-				Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
+				Aliases:  pq.StringArray(identityAliases(identity, email)),
 				Tenant:   config.Organization,
 				UserType: "AzureDevOps",
 			})

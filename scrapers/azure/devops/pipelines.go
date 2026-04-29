@@ -197,9 +197,16 @@ func (ado AzureDevopsScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 
 		if config.Permissions != nil && config.Permissions.Groups {
 			groupsKey := "groups/" + config.Organization
-			if shouldFetchPermissions(groupsKey, parsePermissionsInterval(config.Permissions.RateLimit)) {
-				results = append(results, ado.scrapeGroups(ctx, client, config)...)
-				markPermissionsFetched(groupsKey)
+			interval := parsePermissionsInterval(config.Permissions.RateLimit)
+			if shouldFetchPermissions(groupsKey, interval) {
+				ctx.Logger.Infof("scraping group memberships for %s", config.Organization)
+				groupResults := ado.scrapeGroups(ctx, client, config)
+				results = append(results, groupResults...)
+				if !groupResults.HasErr() {
+					markPermissionsFetched(groupsKey)
+				}
+			} else {
+				ctx.Logger.Infof("skipping group membership scrape for %s — rate-limited (interval=%s)", config.Organization, interval)
 			}
 		}
 	}
@@ -228,7 +235,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		var err error
 		pipelineDef, err = client.GetPipelineWithDefinition(ctx, project.Name, pipeline.ID)
 		if err != nil {
-			return results.Errorf(err, "failed to get pipeline definition for %s/%s", project.Name, pipeline.Name)
+			return results.Errorf(err, "failed to get pipeline definition for %s/%s/%s", config.Organization, project.Name, pipeline.Name)
 		}
 		pipelineDefCache.set(config.Organization, project.Name, pipeline.ID, pipeline.Revision, pipelineDef)
 	}
@@ -246,7 +253,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 	// Warm terminal-run cache for this pipeline (FR-2)
 	if err := terminalRunCache.ensureFresh(ctx, cacheTTL, config.Organization, project.Name, pipeline.ID); err != nil {
-		ctx.Logger.V(4).Infof("failed to warm terminal-run cache for %s/%s: %v", project.Name, pipeline.Name, err)
+		ctx.Logger.V(4).Infof("failed to warm terminal-run cache for %s/%s/%s: %v", config.Organization, project.Name, pipeline.Name, err)
 	}
 
 	var accessLogs []v1.ExternalConfigAccessLog
@@ -260,21 +267,21 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		if shouldFetchPermissions(pipelineKey, parsePermissionsInterval(config.Permissions.RateLimit)) {
 			ca, roles, err := ado.fetchPipelinePermissions(ctx, client, config, project, pipeline.ID, pipelineConfigExternalID)
 			if err != nil {
-				ctx.Logger.V(4).Infof("failed to refresh pipeline permissions for %s/%s: %v", project.Name, pipeline.Name, err)
+				ctx.Logger.V(4).Infof("failed to refresh pipeline permissions for %s/%s/%s: %v", config.Organization, project.Name, pipeline.Name, err)
 			} else {
 				configAccess = ca
 				pipelineRoles = roles
 				markPermissionsFetched(pipelineKey)
 			}
 		} else {
-			ctx.Logger.V(4).Infof("skipping permissions fetch for %s/%s (interval not reached)", project.Name, pipeline.Name)
+			ctx.Logger.V(4).Infof("skipping permissions fetch for %s/%s/%s (interval not reached)", config.Organization, project.Name, pipeline.Name)
 		}
 	}
 
 	// Incremental build fetch (FR-3)
 	builds, err := client.GetBuilds(ctx, project.Name, pipeline.ID, since) //nolint:govet
 	if err != nil {
-		return results.Errorf(err, "failed to get builds for %s/%s", project.Name, pipeline.Name)
+		return results.Errorf(err, "failed to get builds for %s/%s/%s", config.Organization, project.Name, pipeline.Name)
 	}
 	buildRequesters := make(map[int]*IdentityRef, len(builds))
 	for _, build := range builds {
@@ -288,7 +295,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 	runs, err := client.GetPipelineRuns(ctx, project.Name, pipeline)
 	if err != nil {
-		return results.Errorf(err, "failed to get pipeline runs for %s/%s", project.Name, pipeline.Name)
+		return results.Errorf(err, "failed to get pipeline runs for %s/%s/%s", config.Organization, project.Name, pipeline.Name)
 	}
 
 	uniquePipelines := make(map[string]Pipeline) //nolint:govet
@@ -336,7 +343,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 			}
 			id, err = ctx.RunTemplate(gomplate.Template{Expression: config.ID}, env)
 			if err != nil {
-				return results.Errorf(err, "failed to render id template for %s/%s", project.Name, pipeline.Name)
+				return results.Errorf(err, "failed to render id template for %s/%s/%s", config.Organization, project.Name, pipeline.Name)
 			}
 		}
 
@@ -372,7 +379,7 @@ func (ado AzureDevopsScraper) scrapePipeline(
 		if terminal {
 			timeline, err := client.GetBuildTimeline(ctx, project.Name, run.ID)
 			if err != nil {
-				return results.Errorf(err, "failed to get timeline for run %d in %s/%s", run.ID, project.Name, pipeline.Name)
+				return results.Errorf(err, "failed to get timeline for run %d in %s/%s/%s", run.ID, config.Organization, project.Name, pipeline.Name)
 			} else {
 				webURL := ""
 				if webLink, ok := run.Links["web"]; ok {
@@ -385,14 +392,14 @@ func (ado AzureDevopsScraper) scrapePipeline(
 
 			artifacts, err := client.GetBuildArtifacts(ctx, project.Name, run.ID)
 			if err != nil {
-				return results.Errorf(err, "failed to get artifacts for run %d in %s/%s", run.ID, project.Name, pipeline.Name)
+				return results.Errorf(err, "failed to get artifacts for run %d in %s/%s/%s", run.ID, config.Organization, project.Name, pipeline.Name)
 			} else {
 				runDetails.Artifacts = artifacts
 			}
 
 			tests, err := client.GetTestRuns(ctx, project.Name, run.ID)
 			if err != nil {
-				return results.Errorf(err, "failed to get test runs for run %d in %s/%s", run.ID, project.Name, pipeline.Name)
+				return results.Errorf(err, "failed to get test runs for run %d in %s/%s/%s", run.ID, config.Organization, project.Name, pipeline.Name)
 			} else {
 				runDetails.Tests = tests
 			}
@@ -585,13 +592,11 @@ func (ado AzureDevopsScraper) fetchPipelinePermissions(
 		}
 
 		if identity.IsContainer {
-			aliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
-			aliases = append(aliases, DescriptorAliases(identity.SubjectDescriptor)...)
 			// No ID — the SQL merge resolves this group against the AAD scraper's
 			// authoritative record by alias overlap. AAD takes precedence.
 			ctx.AddGroup(dutyModels.ExternalGroup{
 				Name:      name,
-				Aliases:   pq.StringArray(aliases),
+				Aliases:   pq.StringArray(identityAliases(identity, "")),
 				Tenant:    config.Organization,
 				GroupType: "AzureDevOps",
 			})
@@ -599,7 +604,7 @@ func (ado AzureDevopsScraper) fetchPipelinePermissions(
 			ctx.AddUser(dutyModels.ExternalUser{
 				Name:     name,
 				Email:    &email,
-				Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
+				Aliases:  pq.StringArray(identityAliases(identity, email)),
 				Tenant:   config.Organization,
 				UserType: "AzureDevOps",
 			})

@@ -113,7 +113,7 @@ var _ = Describe("release definition approver roles", func() {
 		def = makeDef(42, "Deploy", `\`)
 		configExternalID = v1.ExternalID{
 			ConfigType: ReleaseType,
-			ExternalID: releaseExternalID("test-org", "MyProject", def.ID),
+			ExternalID: ReleaseExternalID("test-org", "MyProject", def.ID),
 		}
 	})
 
