@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -28,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -2091,6 +2093,14 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 			ctx.Errorf("error parsing policy doc[%s]: %v", encodedDoc, err)
 		}
 		roleMap["AssumeRolePolicyDocument"] = policy
+		roleName := lo.FromPtr(role.RoleName)
+		permissions, err := aws.fetchIAMRolePermissions(ctx, roleName)
+		if err != nil {
+			logger.Warnf("failed to resolve IAM role permissions for %s: %v", roleName, err)
+		}
+		if !permissions.IsEmpty() {
+			roleMap["Permissions"] = permissions
+		}
 
 		sr := v1.ScrapeResult{
 			Type:        v1.AWSIAMRole,
@@ -2113,6 +2123,142 @@ func (aws Scraper) iamRoles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeRe
 		}
 		*results = append(*results, sr)
 	}
+}
+
+type iamRolePermissions struct {
+	AWSManagedPolicies      []string                   `json:"AWSManagedPolicies,omitempty"`
+	CustomerManagedPolicies []iamManagedPolicyDocument `json:"CustomerManagedPolicies,omitempty"`
+	InlinePolicies          []iamInlinePolicyDocument  `json:"InlinePolicies,omitempty"`
+}
+
+func (p iamRolePermissions) IsEmpty() bool {
+	return len(p.AWSManagedPolicies) == 0 && len(p.CustomerManagedPolicies) == 0 && len(p.InlinePolicies) == 0
+}
+
+type iamManagedPolicyDocument struct {
+	PolicyName       string         `json:"PolicyName,omitempty"`
+	PolicyArn        string         `json:"PolicyArn,omitempty"`
+	DefaultVersionID string         `json:"DefaultVersionId,omitempty"`
+	Document         map[string]any `json:"Document,omitempty"`
+}
+
+type iamInlinePolicyDocument struct {
+	PolicyName string         `json:"PolicyName,omitempty"`
+	Document   map[string]any `json:"Document,omitempty"`
+}
+
+func (aws Scraper) fetchIAMRolePermissions(ctx *AWSContext, roleName string) (iamRolePermissions, error) {
+	var permissions iamRolePermissions
+	var errs []error
+
+	attached := iam.NewListAttachedRolePoliciesPaginator(ctx.IAM, &iam.ListAttachedRolePoliciesInput{RoleName: &roleName})
+	for attached.HasMorePages() {
+		page, err := attached.NextPage(ctx)
+		if err != nil {
+			return permissions, fmt.Errorf("list attached role policies: %w", err)
+		}
+		for _, policy := range page.AttachedPolicies {
+			policyName := lo.FromPtr(policy.PolicyName)
+			policyARN := lo.FromPtr(policy.PolicyArn)
+			if isAWSManagedPolicyARN(policyARN) {
+				if policyName != "" {
+					permissions.AWSManagedPolicies = append(permissions.AWSManagedPolicies, policyName)
+				}
+				continue
+			}
+
+			resolved, err := aws.fetchCustomerManagedPolicyDocument(ctx, policy)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			permissions.CustomerManagedPolicies = append(permissions.CustomerManagedPolicies, resolved)
+		}
+	}
+
+	inline := iam.NewListRolePoliciesPaginator(ctx.IAM, &iam.ListRolePoliciesInput{RoleName: &roleName})
+	for inline.HasMorePages() {
+		page, err := inline.NextPage(ctx)
+		if err != nil {
+			return permissions, fmt.Errorf("list inline role policies: %w", err)
+		}
+		for _, policyName := range page.PolicyNames {
+			resolved, err := aws.fetchInlineRolePolicyDocument(ctx, roleName, policyName)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			permissions.InlinePolicies = append(permissions.InlinePolicies, resolved)
+		}
+	}
+
+	sort.Strings(permissions.AWSManagedPolicies)
+	sort.Slice(permissions.CustomerManagedPolicies, func(i, j int) bool {
+		return permissions.CustomerManagedPolicies[i].PolicyName < permissions.CustomerManagedPolicies[j].PolicyName
+	})
+	sort.Slice(permissions.InlinePolicies, func(i, j int) bool {
+		return permissions.InlinePolicies[i].PolicyName < permissions.InlinePolicies[j].PolicyName
+	})
+
+	return permissions, errors.Join(errs...)
+}
+
+func (aws Scraper) fetchCustomerManagedPolicyDocument(ctx *AWSContext, policy iamTypes.AttachedPolicy) (iamManagedPolicyDocument, error) {
+	policyName := lo.FromPtr(policy.PolicyName)
+	policyARN := lo.FromPtr(policy.PolicyArn)
+	resolved := iamManagedPolicyDocument{PolicyName: policyName, PolicyArn: policyARN}
+	if policyARN == "" {
+		return resolved, fmt.Errorf("customer managed policy %q has no ARN", policyName)
+	}
+
+	policyOut, err := ctx.IAM.GetPolicy(ctx, &iam.GetPolicyInput{PolicyArn: &policyARN})
+	if err != nil {
+		return resolved, fmt.Errorf("get customer managed policy %s: %w", policyARN, err)
+	}
+	if policyOut.Policy == nil || policyOut.Policy.DefaultVersionId == nil {
+		return resolved, fmt.Errorf("customer managed policy %s has no default version", policyARN)
+	}
+	resolved.DefaultVersionID = lo.FromPtr(policyOut.Policy.DefaultVersionId)
+
+	versionOut, err := ctx.IAM.GetPolicyVersion(ctx, &iam.GetPolicyVersionInput{
+		PolicyArn: &policyARN,
+		VersionId: policyOut.Policy.DefaultVersionId,
+	})
+	if err != nil {
+		return resolved, fmt.Errorf("get customer managed policy version %s/%s: %w", policyARN, resolved.DefaultVersionID, err)
+	}
+	if versionOut.PolicyVersion == nil || versionOut.PolicyVersion.Document == nil {
+		return resolved, fmt.Errorf("customer managed policy version %s/%s has no document", policyARN, resolved.DefaultVersionID)
+	}
+
+	doc, err := parseIAMPolicyDocument(lo.FromPtr(versionOut.PolicyVersion.Document))
+	if err != nil {
+		return resolved, fmt.Errorf("parse customer managed policy document %s/%s: %w", policyARN, resolved.DefaultVersionID, err)
+	}
+	resolved.Document = doc
+	return resolved, nil
+}
+
+func (aws Scraper) fetchInlineRolePolicyDocument(ctx *AWSContext, roleName, policyName string) (iamInlinePolicyDocument, error) {
+	resolved := iamInlinePolicyDocument{PolicyName: policyName}
+	out, err := ctx.IAM.GetRolePolicy(ctx, &iam.GetRolePolicyInput{RoleName: &roleName, PolicyName: &policyName})
+	if err != nil {
+		return resolved, fmt.Errorf("get inline role policy %s/%s: %w", roleName, policyName, err)
+	}
+	if out.PolicyDocument == nil {
+		return resolved, fmt.Errorf("inline role policy %s/%s has no document", roleName, policyName)
+	}
+	doc, err := parseIAMPolicyDocument(lo.FromPtr(out.PolicyDocument))
+	if err != nil {
+		return resolved, fmt.Errorf("parse inline role policy document %s/%s: %w", roleName, policyName, err)
+	}
+	resolved.Document = doc
+	return resolved, nil
+}
+
+func isAWSManagedPolicyARN(policyARN string) bool {
+	parts := strings.SplitN(policyARN, ":", 6)
+	return len(parts) == 6 && parts[0] == "arn" && parts[2] == "iam" && parts[4] == "aws" && strings.HasPrefix(parts[5], "policy/")
 }
 
 func (aws Scraper) iamProfiles(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
@@ -2479,14 +2625,9 @@ func unwrapFields(m map[string]string, fields ...string) map[string]any {
 }
 
 func parseAssumeRolePolicyDoc(ctx *AWSContext, encodedDoc string) (map[string]any, error) {
-	doc, err := url.QueryUnescape(encodedDoc)
+	policyDocObj, err := parseIAMPolicyDocument(encodedDoc)
 	if err != nil {
-		return nil, fmt.Errorf("error escaping policy doc[%s]: %v", encodedDoc, err)
-	}
-
-	var policyDocObj map[string]any
-	if err := json.Unmarshal([]byte(doc), &policyDocObj); err != nil {
-		return nil, fmt.Errorf("error escaping policy doc[%s]: %v", doc, err)
+		return nil, err
 	}
 
 	c := gabs.Wrap(policyDocObj)
@@ -2509,6 +2650,19 @@ func parseAssumeRolePolicyDoc(ctx *AWSContext, encodedDoc string) (map[string]an
 	var policyDoc map[string]any
 	err = json.Unmarshal(c.Bytes(), &policyDoc)
 	return policyDoc, err
+}
+
+func parseIAMPolicyDocument(encodedDoc string) (map[string]any, error) {
+	doc, err := url.QueryUnescape(encodedDoc)
+	if err != nil {
+		return nil, fmt.Errorf("error escaping policy doc[%s]: %v", encodedDoc, err)
+	}
+
+	var policyDocObj map[string]any
+	if err := json.Unmarshal([]byte(doc), &policyDocObj); err != nil {
+		return nil, fmt.Errorf("error parsing policy doc[%s]: %v", doc, err)
+	}
+	return policyDocObj, nil
 }
 
 func awsIAMUserAlias(accountID, userName string) string {

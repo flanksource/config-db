@@ -9,6 +9,7 @@ import (
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
 	dutycache "github.com/flanksource/duty/cache"
 	dutycontext "github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
@@ -64,17 +65,11 @@ var ExternalRoleCache = newTypedCache[uuid.UUID]("external-roles-alias")
 // ExternalRoleIDCache stores external_role_id -> winning external_role_id.
 var ExternalRoleIDCache = newTypedCache[uuid.UUID]("external-roles-id")
 
-// ExternalRoleIDCache stores external_role_id -> winning external_role_id.
-var ExternalRoleIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
-
 // ExternalGroupCache stores alias -> external_group_id mapping
 var ExternalGroupCache = newTypedCache[uuid.UUID]("external-groups-alias")
 
 // ExternalGroupIDCache stores external_group_id -> winning external_group_id.
 var ExternalGroupIDCache = newTypedCache[uuid.UUID]("external-groups-id")
-
-// ExternalGroupIDCache stores external_group_id -> winning external_group_id.
-var ExternalGroupIDCache = cache.New(CACHE_TIMEOUT, CACHE_TIMEOUT)
 
 // externalEntityWithID is a constraint for external entity types that have an ID field
 type externalEntityWithID interface {
@@ -138,7 +133,9 @@ func WarmExternalEntityCaches(ctx dutycontext.Context) {
 		}
 		for _, row := range rows {
 			for _, alias := range row.Aliases {
-				table.aliasCache.Set(alias, row.ID)
+				if norm := v1.NormalizeExternalID(alias); norm != "" {
+					table.aliasCache.Set(norm, row.ID)
+				}
 			}
 			table.idCache.Set(row.ID.String(), row.ID)
 		}
@@ -220,12 +217,15 @@ func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeCon
 	checked := make(map[string]bool, len(aliases))
 
 	for _, alias := range aliases {
-		if alias == "" || checked[alias] {
+		// Normalize so mixed-case input from scrapers matches the lowercased
+		// rows stored by duty's config_triggers.sql alias trigger.
+		norm := v1.NormalizeExternalID(alias)
+		if norm == "" || checked[norm] {
 			continue
 		}
-		checked[alias] = true
+		checked[norm] = true
 
-		if id, ok := aliasCache.Get(alias); ok {
+		if id, ok := aliasCache.Get(norm); ok {
 			if idCache != nil {
 				if winner, ok := idCache.Get(id.String()); ok {
 					id = winner
@@ -234,7 +234,7 @@ func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeCon
 			seen[id] = true
 			continue
 		}
-		misses = append(misses, alias)
+		misses = append(misses, norm)
 	}
 
 	if len(misses) > 0 {
@@ -257,8 +257,8 @@ func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeCon
 				idCache.Set(row.ID.String(), row.ID)
 			}
 			for _, alias := range row.Aliases {
-				if alias != "" {
-					aliasCache.Set(alias, row.ID)
+				if norm := v1.NormalizeExternalID(alias); norm != "" {
+					aliasCache.Set(norm, row.ID)
 				}
 			}
 		}

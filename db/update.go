@@ -603,6 +603,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		summary.ExternalUsers = entityResult.Users
 		summary.ExternalGroups = entityResult.Groups
 		summary.ExternalRoles = entityResult.Roles
+		for _, warning := range entityResult.Warnings {
+			summary.AddScrapeWarning(warning)
+		}
 	}
 
 	// Remap stale ExternalUserIDs after entity sync has resolved canonical IDs
