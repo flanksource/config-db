@@ -27,6 +27,7 @@ var AllScraperConfigs = map[string]any{
 	"kubernetes":     Kubernetes{},
 	"kubernetesfile": KubernetesFile{},
 	"logs":           Logs{},
+	"postgres":       Postgres{},
 	"slack":          Slack{},
 	"sql":            SQL{},
 	"terraform":      Terraform{},
@@ -84,6 +85,7 @@ type ScraperSpec struct {
 	GitHub         []GitHub         `json:"github,omitempty" yaml:"github,omitempty"`
 	GithubActions  []GitHubActions  `json:"githubActions,omitempty" yaml:"githubActions,omitempty"`
 	Azure          []Azure          `json:"azure,omitempty" yaml:"azure,omitempty"`
+	Postgres       []Postgres       `json:"postgres,omitempty" yaml:"postgres,omitempty"`
 	SQL            []SQL            `json:"sql,omitempty" yaml:"sql,omitempty"`
 	Slack          []Slack          `json:"slack,omitempty" yaml:"slack,omitempty"`
 	Trivy          []Trivy          `json:"trivy,omitempty" yaml:"trivy,omitempty"`
@@ -150,6 +152,10 @@ func (c ScraperSpec) ApplyPlugin(plugins []ScrapePluginSpec) ScraperSpec {
 
 	for i := range spec.Azure {
 		spec.Azure[i].BaseScraper = spec.Azure[i].BaseScraper.ApplyPlugins(plugins...)
+	}
+
+	for i := range spec.Postgres {
+		spec.Postgres[i].BaseScraper = spec.Postgres[i].BaseScraper.ApplyPlugins(plugins...)
 	}
 
 	for i := range spec.SQL {
