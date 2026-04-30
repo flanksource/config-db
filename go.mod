@@ -511,11 +511,11 @@ require (
 // replace github.com/flanksource/clicky => ../clicky
 // replace github.com/flanksource/commons => ../commons
 // replace github.com/flanksource/deps => ../deps
-// replace github.com/flanksource/duty => ../duty
-
 // replace github.com/flanksource/gomplate/v3 => ../gomplate
 // replace github.com/flanksource/ketall => ../ketall
 // replace github.com/flanksource/postq => ../postq
 // replace github.com/flanksource/is-healthy => ../is-healthy
+
+replace github.com/flanksource/duty => ../duty
 
 replace github.com/glebarez/sqlite => github.com/clarkmcc/gorm-sqlite v0.0.0-20240426202654-00ed082c0311
