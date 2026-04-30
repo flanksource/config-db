@@ -59,3 +59,4 @@ screenshots/
 *.png
 .playwright-mcp/
 *.json
+!.agents/skills/external-id-aliases/

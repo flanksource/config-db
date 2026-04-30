@@ -101,21 +101,18 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 func scrapeOne(ctx api.ScrapeContext, config v1.Postgres) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
-	connection := config.Connection.GetModel()
-	var err error
-	if strings.HasPrefix(config.Connection.Connection, "connection://") {
-		connection, err = ctx.DutyContext().HydrateConnectionByURL(config.Connection.Connection)
-		if err != nil {
-			return results.Errorf(err, "failed to hydrate postgres connection %s", config.Connection.Connection)
-		}
-		if connection == nil {
-			return results.Errorf(fmt.Errorf("connection not found"), "failed to find postgres connection %s", config.Connection.Connection)
-		}
-	} else {
-		connection, err = ctx.HydrateConnection(connection)
-		if err != nil {
-			return results.Errorf(err, "failed to hydrate postgres connection %s", config.Connection.GetEndpoint())
-		}
+	if !v1.IsConnectionRef(config.Connection.Connection) {
+		return results.Errorf(
+			fmt.Errorf("postgres scraper requires a duty connection reference (connection://<namespace>/<name> or UUID), got %q", config.Connection.GetEndpoint()),
+			"invalid postgres connection")
+	}
+
+	connection, err := ctx.DutyContext().HydrateConnectionByURL(config.Connection.Connection)
+	if err != nil {
+		return results.Errorf(err, "failed to hydrate postgres connection %s", config.Connection.GetEndpoint())
+	}
+	if connection == nil {
+		return results.Errorf(fmt.Errorf("connection not found"), "postgres connection %s does not exist", config.Connection.GetEndpoint())
 	}
 
 	db, err := dburl.Open(connection.URL)

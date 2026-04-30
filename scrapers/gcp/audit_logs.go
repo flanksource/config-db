@@ -173,7 +173,7 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			ID:               generateConsistentID(fmt.Sprintf("%s::%s::%s::%s", config.Project, row.Email, row.Permission, row.PermissionType)).String(),
 			ExternalUserID:   lo.ToPtr(generateConsistentID(row.Email)),
 			ExternalRoleID:   lo.ToPtr(generateConsistentID(row.Permission)),
-			ScraperID:        ctx.ScrapeConfig().GetPersistedID(),
+			OwnerScraperID:   ctx.ScrapeConfig().GetPersistedID(),
 			CreatedAt:        row.Timestamp,
 			ConfigExternalID: resourceID,
 		})
