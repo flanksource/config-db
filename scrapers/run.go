@@ -163,7 +163,7 @@ func RunScraper(ctx api.ScrapeContext, opts ...RunScraperOption) (*ScrapeOutput,
 	ctx.Logger.Debugf("Completed scrape with %s in %s", savedResult.PrettyShort(), timer.End())
 
 	out := &ScrapeOutput{
-		Total:        len(results),
+		Total:        results.NonErrorCount(),
 		Summary:      savedResult,
 		Results:      results,
 		SnapshotPair: snapshotPair,
@@ -205,7 +205,7 @@ func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) err
 }
 
 // Run ...
-func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
+func Run(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 	plugins, err := db.LoadAllPlugins(ctx.DutyContext())
 	if err != nil {
 		return nil, ctx.Oops().Wrapf(err, "failed to load plugins")
@@ -238,7 +238,7 @@ func Run(ctx api.ScrapeContext) ([]v1.ScrapeResult, error) {
 		}
 	}
 
-	return results, nil
+	return v1.ScrapeResults(results), nil
 }
 
 // processScrapeResult extracts possibly more configs from the result

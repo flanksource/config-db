@@ -52,7 +52,7 @@ func scrape(ctx api.ScrapeContext, config v1.Kubernetes) ([]*unstructured.Unstru
 		return nil
 	})
 
-	return objs, nil
+	return objs, err
 }
 
 func updateOptions(ctx context.Context, opts *options.KetallOptions, config v1.Kubernetes) (*options.KetallOptions, error) {

@@ -803,6 +803,12 @@ func (t ScrapeResults) HasErr() bool {
 	return false
 }
 
+func (t ScrapeResults) NonErrorCount() int {
+	return lo.CountBy(t, func(r ScrapeResult) bool {
+		return r.Error == nil
+	})
+}
+
 func (s *ConfigTypeScrapeSummary) initWarningIndex() {
 	if s.warningIndex != nil {
 		return
