@@ -12,7 +12,6 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/flanksource/commons/collections"
-	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/is-healthy/pkg/health"
 	"github.com/flanksource/is-healthy/pkg/lua"
@@ -99,19 +98,10 @@ func (kubernetes KubernetesScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResul
 			if len(scraperIDs) > 1 {
 				if len(lo.Uniq(scraperIDs)) > 1 {
 					return results.Errorf(fmt.Errorf("multiple scraper_ids[%s] found with cluster name: %s", strings.Join(scraperIDs, ","), config.ClusterName), "")
-				} else {
-					// Mark older one as deleted, we changed id assignment new mechanism
-					sort.Slice(dbResult, func(i, j int) bool {
-						return dbResult[i].InsertedAt.After(dbResult[j].InsertedAt)
-					})
-					idsToSoftDelete := lo.Map(lo.Slice(dbResult, 1, len(dbResult)), func(item models.ConfigItem, _ int) uuid.UUID { return item.ID })
-					if err := ctx.DB().Model(&models.ConfigItem{}).Where("id IN ?", idsToSoftDelete).Update("deleted_at", duty.Now()).Error; err != nil {
-						return results.Errorf(err, "error soft deleting duplicate cluster config items[%v]", idsToSoftDelete)
-					}
 				}
 			}
 
-			if len(scraperIDs) == 1 && lo.FirstOrEmpty(scraperIDs) != scraperID {
+			if len(scraperIDs) > 0 && lo.FirstOrEmpty(scraperIDs) != scraperID {
 				return results.Errorf(fmt.Errorf("scraper_id[%s] already exists with cluster name: %s", strings.Join(scraperIDs, ","), config.ClusterName), "")
 			}
 		}
