@@ -1798,8 +1798,16 @@ type ExternalUserGroup struct {
 type ExternalConfigAccess struct {
 	ID            string     `json:"id"`
 	ApplicationID *uuid.UUID `json:"application_id,omitempty"`
-	ScraperID     *uuid.UUID `json:"scraper_id,omitempty"`
-	Source        *string    `json:"source,omitempty"`
+	// OwnerScraperID records which scraper produced this access row. Set
+	// internally during save (db/update.go), not by transforms or YAML.
+	OwnerScraperID *uuid.UUID `json:"-"`
+	// ScraperID controls how ConfigExternalID is resolved.
+	// If empty, the running scraper's id is used.
+	// Use `all` to disregard scraper id (useful when access entries reference
+	// configs owned by another scraper, e.g. SQL-sourced permissions over
+	// Kubernetes-scraped resources).
+	ScraperID string  `json:"scraper_id,omitempty"`
+	Source    *string `json:"source,omitempty"`
 
 	ConfigID        uuid.UUID  `json:"config_id,omitempty"`
 	ExternalUserID  *uuid.UUID `json:"external_user_id,omitempty"`
@@ -1829,7 +1837,7 @@ func (e ExternalConfigAccess) ToConfigAccess() models.ConfigAccess {
 	return models.ConfigAccess{
 		ID:              e.ID,
 		ApplicationID:   e.ApplicationID,
-		ScraperID:       e.ScraperID,
+		ScraperID:       e.OwnerScraperID,
 		Source:          e.Source,
 		ConfigID:        e.ConfigID,
 		ExternalUserID:  e.ExternalUserID,
@@ -1847,7 +1855,6 @@ func (e ExternalConfigAccess) ToConfigAccess() models.ConfigAccess {
 func (e *ExternalConfigAccess) UnmarshalJSON(data []byte) error {
 	type Alias ExternalConfigAccess
 	aux := &struct {
-		ScraperID     *string `json:"scraper_id,omitempty"`
 		ApplicationID *string `json:"application_id,omitempty"`
 		*Alias
 	}{
@@ -1858,11 +1865,6 @@ func (e *ExternalConfigAccess) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	if aux.ScraperID != nil {
-		if id, err := uuid.Parse(*aux.ScraperID); err == nil {
-			e.ScraperID = &id
-		}
-	}
 	if aux.ApplicationID != nil {
 		if id, err := uuid.Parse(*aux.ApplicationID); err == nil {
 			e.ApplicationID = &id

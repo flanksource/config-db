@@ -300,7 +300,7 @@ var _ = Describe("e2e extraction fixtures", func() {
 					ConfigID:  configID.String(),
 					RelatedID: relatedID.String(),
 					Relation:  rel.Relation,
-					ScraperID: ownerScraperID(rel.Owner),
+					ScraperID: ownerScraperID(rel.Owner).String(),
 				}
 				if rel.Deleted {
 					deletedAt := now

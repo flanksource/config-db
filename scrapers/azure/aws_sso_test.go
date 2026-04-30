@@ -100,8 +100,8 @@ var _ = Describe("appendAWSSSOAssignment", func() {
 
 		var result v1.ScrapeResult
 		emitted := map[string]struct{}{}
-		appendAWSSSOAssignment(&result, v1.ExternalConfigAccess{ScraperID: &scraperID, ExternalUserID: &principalID}, "assignment-1", spID, link, "AWSOMASharedInsuranceNonProdAdminRole", &scraperID, emitted)
-		appendAWSSSOAssignment(&result, v1.ExternalConfigAccess{ScraperID: &scraperID, ExternalUserID: &principalID}, "assignment-2", spID, link, "AWSOMASharedInsuranceNonProdAdminRole", &scraperID, emitted)
+		appendAWSSSOAssignment(&result, v1.ExternalConfigAccess{OwnerScraperID: &scraperID, ExternalUserID: &principalID}, "assignment-1", spID, link, "AWSOMASharedInsuranceNonProdAdminRole", &scraperID, emitted)
+		appendAWSSSOAssignment(&result, v1.ExternalConfigAccess{OwnerScraperID: &scraperID, ExternalUserID: &principalID}, "assignment-2", spID, link, "AWSOMASharedInsuranceNonProdAdminRole", &scraperID, emitted)
 
 		Expect(result.ExternalRoles).To(HaveLen(1))
 		Expect(result.ExternalRoles[0].Tenant).To(Equal("507476443755"))

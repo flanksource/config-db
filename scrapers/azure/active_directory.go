@@ -476,9 +476,9 @@ func (azure Scraper) fetchAppRoleAssignments(spID uuid.UUID, roleFilter []string
 		assignmentID := lo.FromPtr(assignment.GetId())
 
 		base := v1.ExternalConfigAccess{
-			ScraperID: scraperID,
-			CreatedAt: lo.FromPtr(assignment.GetCreatedDateTime()),
-			DeletedAt: assignment.GetDeletedDateTime(),
+			OwnerScraperID: scraperID,
+			CreatedAt:      lo.FromPtr(assignment.GetCreatedDateTime()),
+			DeletedAt:      assignment.GetDeletedDateTime(),
 		}
 		switch principalType {
 		case "User":
