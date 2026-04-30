@@ -7,7 +7,7 @@ require (
 	github.com/flanksource/clicky v1.21.8
 	github.com/flanksource/commons v1.51.4
 	github.com/flanksource/deps v1.0.28
-	github.com/flanksource/duty v1.0.1301
+	github.com/flanksource/duty v1.0.1302-0.20260505080647-4f6025d97824
 	github.com/flanksource/gomplate/v3 v3.24.79
 	github.com/flanksource/is-healthy v1.0.87
 	github.com/flanksource/ketall v1.1.9
@@ -520,6 +520,6 @@ require (
 // replace github.com/flanksource/postq => ../postq
 // replace github.com/flanksource/is-healthy => ../is-healthy
 
-replace github.com/flanksource/duty => ../duty
+// replace github.com/flanksource/duty => ../duty
 
 replace github.com/glebarez/sqlite => github.com/clarkmcc/gorm-sqlite v0.0.0-20240426202654-00ed082c0311
