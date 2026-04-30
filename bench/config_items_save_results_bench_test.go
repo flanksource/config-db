@@ -11,6 +11,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 )
 
@@ -202,10 +203,27 @@ func buildScrapeResults(size int, dataset string, revision int) []v1.ScrapeResul
 					"port":     8080,
 				},
 			},
+			Properties: buildScrapeResultProperties(revision),
 		})
 	}
 
 	return results
+}
+
+func buildScrapeResultProperties(revision int) types.Properties {
+	payload := strings.Repeat("x", 16*1024)
+	properties := make(types.Properties, 0, 6)
+	for i := range 6 {
+		properties = append(properties, &types.Property{
+			Name:    fmt.Sprintf("bench-property-%d", i),
+			Label:   fmt.Sprintf("Bench Property %d", i),
+			Type:    "text",
+			Text:    fmt.Sprintf("%s-%d-%d", payload, revision, i),
+			Tooltip: fmt.Sprintf("bench property tooltip %d", i),
+			Order:   i,
+		})
+	}
+	return properties
 }
 
 func cleanupBenchRows(tb testing.TB, scraperID uuid.UUID) {
