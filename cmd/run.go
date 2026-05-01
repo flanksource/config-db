@@ -684,10 +684,34 @@ func ensureScraper(ctx context.Context, sc *v1.ScrapeConfig) error {
 	if name == "" {
 		name = "cli-scraper"
 	}
+	namespace := sc.Namespace
+	if namespace == "" {
+		namespace = api.Namespace
+	}
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	specJSON, err := json.Marshal(sc.Spec)
+	if err != nil {
+		return fmt.Errorf("failed to marshal spec: %w", err)
+	}
 
 	var existing models.ConfigScraper
-	err := ctx.DB().Where("name = ? AND deleted_at IS NULL", name).First(&existing).Error
+	err = ctx.DB().Where("name = ? AND deleted_at IS NULL", name).First(&existing).Error
 	if err == nil {
+		if err := ctx.DB().Model(&models.ConfigScraper{}).
+			Where("name = ? AND deleted_at IS NULL", name).
+			Updates(map[string]any{
+				"name":       name,
+				"namespace":  namespace,
+				"spec":       string(specJSON),
+				"source":     models.SourceConfigFile,
+				"deleted_at": nil,
+			}).Error; err != nil {
+			return fmt.Errorf("failed to update scraper %s: %w", existing.ID, err)
+		}
+
 		sc.ObjectMeta.UID = types.UID(existing.ID.String())
 		return nil
 	}
@@ -700,17 +724,12 @@ func ensureScraper(ctx context.Context, sc *v1.ScrapeConfig) error {
 		return fmt.Errorf("failed to generate scraper id: %w", err)
 	}
 
-	specJSON, err := json.Marshal(sc.Spec)
-	if err != nil {
-		return fmt.Errorf("failed to marshal spec: %w", err)
-	}
-
 	if err := ctx.DB().Exec(`
-		INSERT INTO config_scrapers (id, name, spec, source)
-		VALUES (?, ?, ?, 'ConfigFile')
+		INSERT INTO config_scrapers (id, name, namespace, spec, source)
+		VALUES (?, ?, ?, ?, 'ConfigFile')
 		ON CONFLICT (id) DO UPDATE SET
-			name = EXCLUDED.name, spec = EXCLUDED.spec, deleted_at = NULL
-	`, id, name, string(specJSON)).Error; err != nil {
+			name = EXCLUDED.name, namespace = EXCLUDED.namespace, spec = EXCLUDED.spec, source = EXCLUDED.source, deleted_at = NULL
+	`, id, name, namespace, string(specJSON)).Error; err != nil {
 		return fmt.Errorf("failed to create scraper: %w", err)
 	}
 
