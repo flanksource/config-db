@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/collections/set"
+	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -186,5 +189,62 @@ var _ = Describe("ScrapeSummary warnings", func() {
 		summary.AddWarning("AWS::EC2::Instance", "duplicate warning")
 
 		Expect(summary.ConfigTypes["AWS::EC2::Instance"].Warnings).To(Equal([]string{"duplicate warning"}))
+	})
+})
+
+var _ = Describe("MergeScrapeResults entity dedupe", func() {
+	sid := "S-1-9-1551374245-1204400969-2402986413-2179408616-3-1284223813-3851149125-2957882383-1282321495"
+	persisted := uuid.MustParse("63f8e883-b5df-cda7-18e3-17f34e410afa")
+
+	It("collapses three rows of the same group across scrape paths into one", func() {
+		// Three ScrapeResults emit the same logical group:
+		//   r1: ACL-path emit (nil id, prefixed display name).
+		//   r2: graph-permissions emit (nil id, clean display name, extra alias).
+		//   r3: post-save emit (real id, prefixed display name).
+		// All three share the SID alias, so they must collapse to ONE row in
+		// FullScrapeResults.ExternalGroups.
+		r1 := ScrapeResults{{ExternalGroups: []models.ExternalGroup{{
+			Name:    `[TEAM FOUNDATION]\ExampleApp Shared Architecture Runway Team`,
+			Aliases: pq.StringArray{sid},
+		}}}}
+		r2 := ScrapeResults{{ExternalGroups: []models.ExternalGroup{{
+			Name:    "ExampleApp Shared Architecture Runway Team",
+			Aliases: pq.StringArray{sid, "aadgp.X"},
+		}}}}
+		r3 := ScrapeResults{{ExternalGroups: []models.ExternalGroup{{
+			ID:      persisted,
+			Name:    `[TEAM FOUNDATION]\ExampleApp Shared Architecture Runway Team`,
+			Aliases: pq.StringArray{sid},
+		}}}}
+
+		full := MergeScrapeResults(r1, r2, r3)
+
+		Expect(full.ExternalGroups).To(HaveLen(1), "all three rows must collapse via SID alias overlap")
+		Expect(full.ExternalGroups[0].ID).To(Equal(persisted), "the persisted-id row wins")
+		Expect([]string(full.ExternalGroups[0].Aliases)).To(ConsistOf(sid, "aadgp.X"))
+	})
+
+	It("does not merge groups that do not share any alias", func() {
+		r := ScrapeResults{
+			{ExternalGroups: []models.ExternalGroup{{Name: "Alpha", Aliases: pq.StringArray{"alpha-sid"}}}},
+			{ExternalGroups: []models.ExternalGroup{{Name: "Bravo", Aliases: pq.StringArray{"bravo-sid"}}}},
+		}
+		full := MergeScrapeResults(r)
+		Expect(full.ExternalGroups).To(HaveLen(2))
+	})
+
+	It("collapses users with overlapping email aliases across emits", func() {
+		// One scrape path emits a nil-id user with [email, AAD-id]; another
+		// emits a nil-id user with [email] only. They must merge.
+		full := MergeScrapeResults(
+			ScrapeResults{{ExternalUsers: []models.ExternalUser{{
+				Aliases: pq.StringArray{"alice@example.com", "aad-id-1"},
+			}}}},
+			ScrapeResults{{ExternalUsers: []models.ExternalUser{{
+				Aliases: pq.StringArray{"alice@example.com"},
+			}}}},
+		)
+		Expect(full.ExternalUsers).To(HaveLen(1))
+		Expect([]string(full.ExternalUsers[0].Aliases)).To(ConsistOf("alice@example.com", "aad-id-1"))
 	})
 })
