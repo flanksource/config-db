@@ -115,7 +115,7 @@ var _ = Describe("TestProcessRules", Ordered, func() {
 			name: "change redirect - config_id, config_type, scraper_id",
 			input: v1.ScrapeResult{
 				Type: "AzureDevops::PipelineRun",
-				Name: "Deploy to OIPA",
+				Name: "Deploy to ExampleApp",
 				Changes: []v1.ChangeResult{
 					{
 						ChangeType: "Deployment",
@@ -133,7 +133,7 @@ var _ = Describe("TestProcessRules", Ordered, func() {
 				{
 					ChangeType: "Deployment",
 					ExternalID: "dev-base",
-					ConfigType: "OIPA::Environment",
+					ConfigType: "ExampleApp::Environment",
 					ScraperID:  "all",
 					Details: map[string]any{
 						"templateParameters": map[string]any{
@@ -146,7 +146,7 @@ var _ = Describe("TestProcessRules", Ordered, func() {
 				{
 					Filter:     `change_type == "Deployment" && has(details.templateParameters) && has(details.templateParameters.Environment)`,
 					ConfigID:   `details.templateParameters.Environment`,
-					ConfigType: "OIPA::Environment",
+					ConfigType: "ExampleApp::Environment",
 					ScraperID:  "all",
 				},
 			},

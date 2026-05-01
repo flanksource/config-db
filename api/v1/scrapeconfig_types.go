@@ -117,6 +117,9 @@ func (t *ScrapeConfig) Type() string {
 	if len(t.Spec.Azure) != 0 {
 		return "azure"
 	}
+	if len(t.Spec.Postgres) != 0 {
+		return "postgres"
+	}
 	if len(t.Spec.SQL) != 0 {
 		return "sql"
 	}

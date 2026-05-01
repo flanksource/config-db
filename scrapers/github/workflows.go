@@ -163,6 +163,9 @@ func getNewWorkflowRuns(ctx api.ScrapeContext, client *GitHubActionsClient, work
 func runToChangeResult(workflow *github.Workflow, run Run) v1.ChangeResult {
 	changeType := fmt.Sprintf("GitHubActionRun%s", lo.PascalCase(run.GetConclusion()))
 	createdAt := run.GetCreatedAt().Time
+	externalChangeID := fmt.Sprintf("%s/%d/%d", workflow.GetName(), workflow.GetID(), run.GetID())
+
+	pipelineRun := buildWorkflowPipelineRun(run, externalChangeID)
 
 	return v1.ChangeResult{
 		ChangeType:       changeType,
@@ -172,8 +175,8 @@ func runToChangeResult(workflow *github.Workflow, run Run) v1.ChangeResult {
 		ConfigType:       ConfigTypeWorkflow,
 		Summary:          run.Summary(),
 		Source:           run.GetTriggeringActor().GetLogin(),
-		Details:          v1.NewJSON(run),
-		ExternalChangeID: fmt.Sprintf("%s/%d/%d", workflow.GetName(), workflow.GetID(), run.GetID()),
+		Details:          v1.ChangeDetailsWithRaw(pipelineRun, run),
+		ExternalChangeID: externalChangeID,
 	}
 }
 

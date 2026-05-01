@@ -29,6 +29,8 @@ import (
 	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	azureauth "github.com/microsoft/kiota-authentication-azure-go"
+	nethttplibrary "github.com/microsoft/kiota-http-go"
 	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/samber/lo"
@@ -49,6 +51,7 @@ const (
 	IncludeActivityLogs        = "activityLogs"
 	IncludeAdvisor             = "advisor"
 	IncludeAppServices         = "appServices"
+	IncludeSubscriptions       = "subscriptions"
 	IncludeContainerRegistries = "containerRegistries"
 	IncludeDatabases           = "databases"
 	IncludeDNS                 = "dns"
@@ -792,9 +795,14 @@ func (azure *Scraper) fetchResourceGroups() v1.ScrapeResults {
 
 // fetchSubscriptions gets Azure subscriptions.
 func (azure *Scraper) fetchSubscriptions() v1.ScrapeResults {
-	azure.ctx.Logger.V(3).Infof("fetching subscriptions")
 
 	var results v1.ScrapeResults
+	if !azure.config.Includes(IncludeSubscriptions) {
+		return results
+	}
+
+	azure.ctx.Logger.V(3).Infof("fetching subscriptions")
+
 	client, err := armsubscription.NewSubscriptionsClient(azure.cred, nil)
 	if err != nil {
 		return append(results, v1.ScrapeResult{Error: fmt.Errorf("failed to initiate subscriptions client: %w", err)})
@@ -827,12 +835,12 @@ func (azure *Scraper) fetchSubscriptions() v1.ScrapeResults {
 
 // fetchStorageAccounts gets storage accounts in a subscription.
 func (azure Scraper) fetchStorageAccounts() v1.ScrapeResults {
-	azure.ctx.Logger.V(3).Infof("fetching storage accounts for subscription %s", azure.config.SubscriptionID)
 
 	var results v1.ScrapeResults
 	if !azure.config.Includes(IncludeStorageAccounts) {
 		return results
 	}
+	azure.ctx.Logger.V(3).Infof("fetching storage accounts for subscription %s", azure.config.SubscriptionID)
 
 	client, err := armstorage.NewAccountsClient(azure.config.SubscriptionID, azure.cred, nil)
 	if err != nil {
@@ -1140,12 +1148,26 @@ func (azure *Scraper) setGraphClient() error {
 		return nil
 	}
 
-	client, err := msgraphsdkgo.NewGraphServiceClientWithCredentials(azure.cred, []string{"https://graph.microsoft.com/.default"})
+	authProv, err := azureauth.NewAzureIdentityAuthenticationProviderWithScopes(
+		azure.cred, []string{"https://graph.microsoft.com/.default"})
 	if err != nil {
-		return fmt.Errorf("failed to create graph client: %w", err)
+		return fmt.Errorf("failed to create graph auth provider: %w", err)
 	}
 
-	azure.graphClient = client
+	httpClient := nethttplibrary.GetDefaultClient()
+	if collector := azure.ctx.HARCollector(); collector != nil {
+		// HAR middleware sits OUTSIDE Kiota's middleware chain so we record
+		// what actually crossed the wire (post-retry/redirect/auth).
+		httpClient.Transport = collector.Middleware()(httpClient.Transport)
+	}
+
+	adapter, err := nethttplibrary.NewNetHttpRequestAdapterWithParseNodeFactoryAndSerializationWriterFactoryAndHttpClient(
+		authProv, nil, nil, httpClient)
+	if err != nil {
+		return fmt.Errorf("failed to create graph request adapter: %w", err)
+	}
+
+	azure.graphClient = msgraphsdkgo.NewGraphServiceClient(adapter)
 	return nil
 }
 

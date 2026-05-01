@@ -5,4 +5,5 @@ type ConfigRelationship struct {
 	RelatedID  string `gorm:"column:related_id" json:"related_id"`
 	Relation   string `gorm:"column:relation" json:"relation"`
 	SelectorID string `gorm:"selector_id" json:"selector_id"`
+	ScraperID  string `gorm:"column:scraper_id" json:"scraper_id,omitempty"`
 }

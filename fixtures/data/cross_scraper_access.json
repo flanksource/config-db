@@ -1,0 +1,42 @@
+{
+  "id": "cross-scraper-access-emitter",
+  "config": {
+    "name": "Access Emitter",
+    "type": "emitter"
+  },
+  "external_users": [
+    {
+      "name": "Carol Doe",
+      "user_type": "human",
+      "aliases": ["carol@example.com"]
+    }
+  ],
+  "external_roles": [
+    {
+      "name": "CrossScraperReader",
+      "role_type": "builtin",
+      "aliases": ["cross-scraper-reader-role"]
+    }
+  ],
+  "config_access": [
+    {
+      "id": "cross-scraper-access-allowed",
+      "scraper_id": "all",
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "cross-scraper-org"
+      },
+      "external_user_aliases": ["carol@example.com"],
+      "external_role_aliases": ["cross-scraper-reader-role"]
+    },
+    {
+      "id": "cross-scraper-access-denied",
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "cross-scraper-org"
+      },
+      "external_user_aliases": ["carol@example.com"],
+      "external_role_aliases": ["cross-scraper-reader-role"]
+    }
+  ]
+}

@@ -603,6 +603,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		summary.ExternalUsers = entityResult.Users
 		summary.ExternalGroups = entityResult.Groups
 		summary.ExternalRoles = entityResult.Roles
+		for _, warning := range entityResult.Warnings {
+			summary.AddScrapeWarning(warning)
+		}
 	}
 
 	// Remap stale ExternalUserIDs after entity sync has resolved canonical IDs
@@ -610,6 +613,11 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		if extractResult.configAccesses[i].ExternalUserID != nil {
 			if remapped, ok := synced.UserIDMap[*extractResult.configAccesses[i].ExternalUserID]; ok {
 				extractResult.configAccesses[i].ExternalUserID = &remapped
+			}
+		}
+		if extractResult.configAccesses[i].ExternalGroupID != nil {
+			if remapped, ok := synced.GroupIDMap[*extractResult.configAccesses[i].ExternalGroupID]; ok {
+				extractResult.configAccesses[i].ExternalGroupID = &remapped
 			}
 		}
 	}
@@ -676,14 +684,22 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 
 		if configAccess.ConfigID == uuid.Nil && configAccess.ConfigExternalID.ExternalID != "" {
-			config, err := ctx.TempCache().FindExternalID(ctx, configAccess.ConfigExternalID)
+			lookup := configAccess.ConfigExternalID
+			if lookup.ScraperID == "" && configAccess.ScraperID != "" {
+				lookup.ScraperID = configAccess.ScraperID
+			}
+			config, err := ctx.TempCache().FindExternalID(ctx, lookup)
 			if err != nil {
-				summary.AddWarning("ConfigAccess", fmt.Sprintf("failed to find config (%s) for config access : %v", configAccess.ConfigExternalID.Pretty().ANSI(), err))
+				summary.AddWarning("ConfigAccess", fmt.Sprintf("failed to find config (%s) for config access : %v", lookup.Pretty().ANSI(), err))
 				summary.ConfigAccess.Skipped++
 				continue
 			} else if config == "" {
+				errMsg := fmt.Sprintf("config access references unknown config %s", lookup.Pretty().ANSI())
+				if lookup.ScraperID != "all" {
+					errMsg += " (set scraper_id: \"all\" on the access entry to resolve configs owned by other scrapers)"
+				}
 				summary.AddScrapeWarning(v1.Warning{
-					Error:  fmt.Sprintf("config access references unknown config %s", configAccess.ConfigExternalID.Pretty().ANSI()),
+					Error:  errMsg,
 					Input:  extractResult.transformInput,
 					Expr:   extractResult.transformExpr,
 					Result: configAccess,
@@ -695,9 +711,9 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 			configAccess.ConfigID = uuid.MustParse(config)
 		}
 
-		configAccess.ScraperID = lo.Ternary(configAccess.ScraperID == nil, scraperID, configAccess.ScraperID)
+		configAccess.OwnerScraperID = lo.Ternary(configAccess.OwnerScraperID == nil, scraperID, configAccess.OwnerScraperID)
 
-		if configAccess.ScraperID == nil && configAccess.ApplicationID == nil && configAccess.Source == nil {
+		if configAccess.OwnerScraperID == nil && configAccess.ApplicationID == nil && configAccess.Source == nil {
 			ctx.Logger.V(4).Infof("skipping config access row with no origin (config_id=%s)", configAccess.ConfigID)
 			summary.ConfigAccess.Skipped++
 			continue
@@ -730,8 +746,12 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 				summary.AccessLogs.Skipped++
 				continue
 			} else if config == "" {
+				errMsg := fmt.Sprintf("access log references unknown config %s", accessLog.ConfigExternalID.Key())
+				if accessLog.ConfigExternalID.ScraperID != "all" {
+					errMsg += " (set external_config_id.scraper_id: \"all\" to resolve configs owned by other scrapers)"
+				}
 				summary.AddScrapeWarning(v1.Warning{
-					Error:  fmt.Sprintf("access log references unknown config %s", accessLog.ConfigExternalID.Key()),
+					Error:  errMsg,
 					Input:  extractResult.transformInput,
 					Expr:   extractResult.transformExpr,
 					Result: accessLog,
@@ -1304,6 +1324,7 @@ func relationshipResultHandler(ctx api.ScrapeContext, relationships []relationsh
 			ConfigID:  configID,
 			RelatedID: relatedID,
 			Relation:  relationship.Relationship,
+			ScraperID: ctx.ScraperID(),
 		})
 	}
 

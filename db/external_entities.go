@@ -6,14 +6,15 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
-	"github.com/flanksource/commons/hash"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -22,9 +23,10 @@ import (
 )
 
 type externalEntitySyncResult struct {
-	Users  v1.EntitySummary[dutyModels.ExternalUser]
-	Groups v1.EntitySummary[dutyModels.ExternalGroup]
-	Roles  v1.EntitySummary[dutyModels.ExternalRole]
+	Users    v1.EntitySummary[dutyModels.ExternalUser]
+	Groups   v1.EntitySummary[dutyModels.ExternalGroup]
+	Roles    v1.EntitySummary[dutyModels.ExternalRole]
+	Warnings []v1.Warning
 }
 
 // syncedExternalEntities carries the canonical, post-merge external entities
@@ -75,16 +77,34 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	// with explicit UUIDs are passed through; alias-only entries (e.g. from the
 	// Azure DevOps scraper, which describes identities by descriptor) are
 	// resolved against the just-resolved users/groups via alias overlap.
-	resolvedUserGroups := resolveExternalUserGroups(ctx, extract.externalUserGroups, resolvedUsers, resolvedGroups)
+	resolvedUserGroups, userGroupStats, err := resolveExternalUserGroups(ctx, extract.externalUserGroups, resolvedUsers, resolvedGroups)
+	if err != nil {
+		return result, synced, err
+	}
+	if userGroupStats.Dropped > 0 {
+		result.Warnings = append(result.Warnings, v1.Warning{
+			Error: fmt.Sprintf(
+				"dropped %d external_user_groups rows (unresolved user=%d, unresolved group=%d of %d input)",
+				userGroupStats.Dropped,
+				userGroupStats.DroppedUnknownUser,
+				userGroupStats.DroppedUnknownGroup,
+				userGroupStats.Input,
+			),
+			Count: userGroupStats.Dropped,
+		})
+	}
 
-	counts, idMap, err := upsertExternalEntities(ctx, resolvedUsers, resolvedGroups, resolvedRoles, resolvedUserGroups, scraperID)
+	counts, userIDMap, groupIDMap, err := upsertExternalEntities(ctx, resolvedUsers, resolvedGroups, resolvedRoles, resolvedUserGroups, scraperID)
 	if err != nil {
 		return result, synced, err
 	}
 
 	if scraperID != nil {
-		for loserID := range idMap {
+		for loserID := range userIDMap {
 			ExternalUserIDCache.Delete(loserID.String())
+		}
+		for loserID := range groupIDMap {
+			ExternalGroupIDCache.Delete(loserID.String())
 		}
 		for _, u := range resolvedUsers {
 			ExternalUserIDCache.Set(u.ID.String(), u.ID)
@@ -109,16 +129,22 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	// Apply the merge winner-id rewrites to the resolved slices so SaveResults
 	// can publish the canonical post-merge view back to result.Resolved.
 	for i := range resolvedUsers {
-		if winner, ok := idMap[resolvedUsers[i].ID]; ok {
+		if winner, ok := userIDMap[resolvedUsers[i].ID]; ok {
 			resolvedUsers[i].ID = winner
+		}
+	}
+	for i := range resolvedGroups {
+		if winner, ok := groupIDMap[resolvedGroups[i].ID]; ok {
+			resolvedGroups[i].ID = winner
 		}
 	}
 
 	synced = syncedExternalEntities{
-		Users:     resolvedUsers,
-		Groups:    resolvedGroups,
-		Roles:     resolvedRoles,
-		UserIDMap: idMap,
+		Users:      resolvedUsers,
+		Groups:     resolvedGroups,
+		Roles:      resolvedRoles,
+		UserIDMap:  userIDMap,
+		GroupIDMap: groupIDMap,
 	}
 
 	result.Users.Saved = counts.usersSaved
@@ -131,6 +157,113 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	result.Roles.Deleted = counts.rolesDeleted
 	result.Roles.Entities = resolvedRoles
 	return result, synced, nil
+}
+
+// descriptorAliasPrefixes are the synthetic / framework prefixes that
+// canonicalizeAliases drops from any persisted alias set. The scrapers no
+// longer emit these (DescriptorAliases reduces them to canonical primitives at
+// emit time), but historical rows and any future scrapers that leak descriptor
+// noise are scrubbed defensively here so the alias column converges to its
+// canonical shape one merge at a time.
+var descriptorAliasPrefixes = []string{
+	"Microsoft.TeamFoundation.Identity;",
+	"Microsoft.TeamFoundation.ServiceIdentity;",
+	"Microsoft.IdentityModel.Claims.ClaimsIdentity;",
+	"vssgp.",
+	"aadgp.",
+	"aad.",
+	"svc.",
+	"s2s.",
+}
+
+// canonicalizeAliases drops empty strings, duplicates, and any alias that
+// starts with a known descriptor prefix. The result keeps original casing —
+// the merge SQL applies its own lower-case + sort + distinct normalization at
+// the temp-table boundary (045_merge_external_entities.sql:53-65).
+func canonicalizeAliases(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+nextAlias:
+	for _, a := range in {
+		a = strings.TrimSpace(a)
+		if a == "" {
+			continue
+		}
+		for _, prefix := range descriptorAliasPrefixes {
+			if strings.HasPrefix(a, prefix) {
+				continue nextAlias
+			}
+		}
+		if _, ok := seen[a]; ok {
+			continue
+		}
+		seen[a] = struct{}{}
+		out = append(out, a)
+	}
+	return out
+}
+
+// resolveCanonicalID determines the canonical id for an external entity
+// (user/group/role) that the scraper emitted without an id of its own.
+//
+// The lookup order matches the user's invariant that **aliases are required to
+// be globally unique**, so the id should be either an existing canonical row
+// pinned by alias overlap, or one of the canonical aliases themselves — never
+// a hash of the alias set:
+//
+//  1. Alias-overlap against the live `table` — if any persisted row shares an
+//     alias with the candidate, that row is the canonical one and its id wins.
+//     This is the cross-scraper merge case (ADO emits a user already known to
+//     AAD; AAD's id wins).
+//  2. The first UUID-shaped alias becomes the id. Canonical primitives like
+//     AAD object ids and SID-derived UUIDs are globally unique by construction,
+//     so picking one as the id is sound.
+//  3. Otherwise a fresh UUID v7 — only when no overlap exists and no alias is
+//     UUID-shaped (e.g. a user known only by email at first sight). The fresh
+//     id is opaque and won't collide; subsequent emits with the same email will
+//     find it via path (1).
+func resolveCanonicalID(ctx api.ScrapeContext, table string, aliases []string) (uuid.UUID, error) {
+	id, err := lookupExternalEntityIDByAliases(ctx, table, aliases)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if id != uuid.Nil {
+		return id, nil
+	}
+	for _, alias := range aliases {
+		if parsed, err := uuid.Parse(alias); err == nil && parsed != uuid.Nil {
+			return parsed, nil
+		}
+	}
+	fresh, err := uuid.NewV7()
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to generate uuid: %w", err)
+	}
+	return fresh, nil
+}
+
+// lookupExternalEntityIDByAliases returns the id of the first persisted row in
+// `table` whose aliases overlap any of `aliases`. Returns uuid.Nil if no row
+// matches. Reuses findPersistedExternalEntities's alias-overlap query.
+func lookupExternalEntityIDByAliases(ctx api.ScrapeContext, table string, aliases []string) (uuid.UUID, error) {
+	if ctx.DB() == nil || len(aliases) == 0 {
+		return uuid.Nil, nil
+	}
+	var rows []struct{ ID uuid.UUID }
+	if err := ctx.DB().Table(table).
+		Select("id").
+		Where("deleted_at IS NULL AND aliases && ?", pq.StringArray(normalizeExternalAliases(aliases))).
+		Limit(1).
+		Find(&rows).Error; err != nil {
+		return uuid.Nil, fmt.Errorf("alias-overlap lookup against %s: %w", table, err)
+	}
+	if len(rows) == 0 {
+		return uuid.Nil, nil
+	}
+	return rows[0].ID, nil
 }
 
 func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalUser, int, error) {
@@ -146,12 +279,11 @@ func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser
 			continue
 		}
 		if u.ID == uuid.Nil {
-			sort.Strings(u.Aliases)
-			hid, err := hash.DeterministicUUID(u.Aliases)
+			id, err := resolveCanonicalID(ctx, "external_users", u.Aliases)
 			if err != nil {
-				return nil, 0, ctx.Oops().With("user", u.Name).Wrapf(err, "failed to generate id for external user")
+				return nil, 0, ctx.Oops().With("user", u.Name).Wrapf(err, "failed to resolve canonical id")
 			}
-			u.ID = hid
+			u.ID = id
 		}
 		if u.CreatedAt.IsZero() {
 			u.CreatedAt = now
@@ -176,12 +308,11 @@ func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGr
 			continue
 		}
 		if g.ID == uuid.Nil {
-			sort.Strings(g.Aliases)
-			hid, err := hash.DeterministicUUID(g.Aliases)
+			id, err := resolveCanonicalID(ctx, "external_groups", g.Aliases)
 			if err != nil {
-				return nil, 0, ctx.Oops().With("group", g.Name).Wrapf(err, "failed to generate id for external group")
+				return nil, 0, ctx.Oops().With("group", g.Name).Wrapf(err, "failed to resolve canonical id")
 			}
-			g.ID = hid
+			g.ID = id
 		}
 		if g.CreatedAt.IsZero() {
 			g.CreatedAt = now
@@ -193,19 +324,29 @@ func resolveExternalGroups(ctx api.ScrapeContext, groups []dutyModels.ExternalGr
 	return valid, skipped, nil
 }
 
+type externalUserGroupResolveStats struct {
+	Input               int
+	Resolved            int
+	Dropped             int
+	DroppedUnknownUser  int
+	DroppedUnknownGroup int
+}
+
 // resolveExternalUserGroups converts v1.ExternalUserGroup entries (which may
 // describe their user/group either by canonical UUID or by alias) into
 // models.ExternalUserGroup entries with concrete UUIDs. Alias-only entries are
-// matched against the alias lists of the supplied users/groups; entries that
-// fail to resolve on either side are dropped with a warning.
+// matched against the alias lists of the supplied users/groups, then against
+// active persisted entities. Entries that fail to resolve on either side are
+// dropped with a warning.
 func resolveExternalUserGroups(
 	ctx api.ScrapeContext,
 	in []v1.ExternalUserGroup,
 	users []dutyModels.ExternalUser,
 	groups []dutyModels.ExternalGroup,
-) []dutyModels.ExternalUserGroup {
+) ([]dutyModels.ExternalUserGroup, externalUserGroupResolveStats, error) {
+	stats := externalUserGroupResolveStats{Input: len(in)}
 	if len(in) == 0 {
-		return nil
+		return nil, stats, nil
 	}
 
 	// Build sets of valid IDs so direct-UUID references can be verified
@@ -220,7 +361,7 @@ func resolveExternalUserGroups(
 	userByAlias := make(map[string]uuid.UUID, len(users)*2)
 	for _, u := range users {
 		validUserIDs[u.ID] = struct{}{}
-		for _, a := range u.Aliases {
+		for _, a := range normalizeExternalAliases(u.Aliases) {
 			userByAlias[a] = u.ID
 		}
 	}
@@ -228,9 +369,33 @@ func resolveExternalUserGroups(
 	groupByAlias := make(map[string]uuid.UUID, len(groups)*2)
 	for _, g := range groups {
 		validGroupIDs[g.ID] = struct{}{}
-		for _, a := range g.Aliases {
+		for _, a := range normalizeExternalAliases(g.Aliases) {
 			groupByAlias[a] = g.ID
 		}
+	}
+
+	var userIDs, groupIDs []uuid.UUID
+	var userAliases, groupAliases []string
+	for _, ug := range in {
+		if ug.ExternalUserID != nil && *ug.ExternalUserID != uuid.Nil {
+			if _, ok := validUserIDs[*ug.ExternalUserID]; !ok {
+				userIDs = append(userIDs, *ug.ExternalUserID)
+			}
+		}
+		if ug.ExternalGroupID != nil && *ug.ExternalGroupID != uuid.Nil {
+			if _, ok := validGroupIDs[*ug.ExternalGroupID]; !ok {
+				groupIDs = append(groupIDs, *ug.ExternalGroupID)
+			}
+		}
+		userAliases = append(userAliases, normalizeExternalAliases(ug.ExternalUserAliases)...)
+		groupAliases = append(groupAliases, normalizeExternalAliases(ug.ExternalGroupAliases)...)
+	}
+
+	if err := addPersistedExternalUserLookup(ctx, validUserIDs, userByAlias, userIDs, userAliases); err != nil {
+		return nil, stats, err
+	}
+	if err := addPersistedExternalGroupLookup(ctx, validGroupIDs, groupByAlias, groupIDs, groupAliases); err != nil {
+		return nil, stats, err
 	}
 
 	// resolveID accepts a direct UUID only when it references an entity we
@@ -243,7 +408,7 @@ func resolveExternalUserGroups(
 			// Direct UUID references an entity not in this scrape — try to
 			// recover via the alias list before giving up.
 		}
-		for _, a := range aliases {
+		for _, a := range normalizeExternalAliases(aliases) {
 			if id, ok := lookup[a]; ok {
 				return id
 			}
@@ -269,13 +434,102 @@ func resolveExternalUserGroups(
 			ExternalGroupID: groupID,
 		})
 	}
+	stats.Resolved = len(out)
+	stats.DroppedUnknownUser = droppedUnknownUser
+	stats.DroppedUnknownGroup = droppedUnknownGroup
+	stats.Dropped = droppedUnknownUser + droppedUnknownGroup
 	if droppedUnknownUser > 0 || droppedUnknownGroup > 0 {
 		ctx.Logger.Warnf(
 			"dropped %d external_user_groups rows (unresolved user=%d, unresolved group=%d of %d input)",
 			droppedUnknownUser+droppedUnknownGroup, droppedUnknownUser, droppedUnknownGroup, len(in),
 		)
 	}
+	return out, stats, nil
+}
+
+func normalizeExternalAliases(aliases []string) []string {
+	if len(aliases) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(aliases))
+	out := make([]string, 0, len(aliases))
+	for _, alias := range aliases {
+		alias = strings.ToLower(strings.TrimSpace(alias))
+		if alias == "" {
+			continue
+		}
+		if _, ok := seen[alias]; ok {
+			continue
+		}
+		seen[alias] = struct{}{}
+		out = append(out, alias)
+	}
+	sort.Strings(out)
 	return out
+}
+
+func addPersistedExternalUserLookup(
+	ctx api.ScrapeContext,
+	validIDs map[uuid.UUID]struct{},
+	byAlias map[string]uuid.UUID,
+	ids []uuid.UUID,
+	aliases []string,
+) error {
+	var rows []dutyModels.ExternalUser
+	if err := findPersistedExternalEntities(ctx, "external_users", lo.Uniq(ids), lo.Uniq(aliases), &rows); err != nil {
+		return fmt.Errorf("find external users for user_groups: %w", err)
+	}
+	for _, row := range rows {
+		validIDs[row.ID] = struct{}{}
+		for _, alias := range normalizeExternalAliases(row.Aliases) {
+			byAlias[alias] = row.ID
+		}
+	}
+	return nil
+}
+
+func addPersistedExternalGroupLookup(
+	ctx api.ScrapeContext,
+	validIDs map[uuid.UUID]struct{},
+	byAlias map[string]uuid.UUID,
+	ids []uuid.UUID,
+	aliases []string,
+) error {
+	var rows []dutyModels.ExternalGroup
+	if err := findPersistedExternalEntities(ctx, "external_groups", lo.Uniq(ids), lo.Uniq(aliases), &rows); err != nil {
+		return fmt.Errorf("find external groups for user_groups: %w", err)
+	}
+	for _, row := range rows {
+		validIDs[row.ID] = struct{}{}
+		for _, alias := range normalizeExternalAliases(row.Aliases) {
+			byAlias[alias] = row.ID
+		}
+	}
+	return nil
+}
+
+func findPersistedExternalEntities[T any](
+	ctx api.ScrapeContext,
+	table string,
+	ids []uuid.UUID,
+	aliases []string,
+	out *[]T,
+) error {
+	db := ctx.DB()
+	if db == nil || (len(ids) == 0 && len(aliases) == 0) {
+		return nil
+	}
+
+	q := db.Table(table).Where("deleted_at IS NULL")
+	switch {
+	case len(ids) > 0 && len(aliases) > 0:
+		q = q.Where("(id IN ? OR aliases && ?)", ids, pq.StringArray(aliases))
+	case len(ids) > 0:
+		q = q.Where("id IN ?", ids)
+	default:
+		q = q.Where("aliases && ?", pq.StringArray(aliases))
+	}
+	return q.Find(out).Error
 }
 
 func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalRole, int, error) {
@@ -291,12 +545,11 @@ func resolveExternalRoles(ctx api.ScrapeContext, roles []dutyModels.ExternalRole
 			continue
 		}
 		if r.ID == uuid.Nil {
-			sort.Strings(r.Aliases)
-			hid, err := hash.DeterministicUUID(r.Aliases)
+			id, err := resolveCanonicalID(ctx, "external_roles", r.Aliases)
 			if err != nil {
-				return nil, 0, ctx.Oops().With("role", r.Name).Wrapf(err, "failed to generate id for external role")
+				return nil, 0, ctx.Oops().With("role", r.Name).Wrapf(err, "failed to resolve canonical id")
 			}
-			r.ID = hid
+			r.ID = id
 		}
 		if r.CreatedAt.IsZero() {
 			r.CreatedAt = now
@@ -312,6 +565,20 @@ type upsertCounts struct {
 	usersSaved, usersDeleted   int
 	groupsSaved, groupsDeleted int
 	rolesSaved, rolesDeleted   int
+}
+
+// evictMergedFromCache replaces loser IDs with winner IDs in the cache.
+func evictMergedFromCache(c *cache.Cache, idMap map[uuid.UUID]uuid.UUID) {
+	if len(idMap) == 0 {
+		return
+	}
+	for key, val := range c.Items() {
+		if id, ok := val.Object.(uuid.UUID); ok {
+			if winner, merged := idMap[id]; merged {
+				c.Set(key, winner, cache.DefaultExpiration)
+			}
+		}
+	}
 }
 
 func remapExternalUserGroups(userGroups []dutyModels.ExternalUserGroup, userIDMap, groupIDMap map[uuid.UUID]uuid.UUID) []dutyModels.ExternalUserGroup {
@@ -470,20 +737,20 @@ func upsertExternalEntities(
 	roles []dutyModels.ExternalRole,
 	userGroups []dutyModels.ExternalUserGroup,
 	scraperID *uuid.UUID,
-) (upsertCounts, map[uuid.UUID]uuid.UUID, error) {
+) (upsertCounts, map[uuid.UUID]uuid.UUID, map[uuid.UUID]uuid.UUID, error) {
 	var counts upsertCounts
 	userIDMap := make(map[uuid.UUID]uuid.UUID)
 	groupIDMap := make(map[uuid.UUID]uuid.UUID)
 
 	if scraperID == nil {
-		return counts, userIDMap, nil
+		return counts, userIDMap, groupIDMap, nil
 	}
 
 	suffix := sanitizeForTempTable(scraperID.String())
 
 	tx := ctx.DB().Begin()
 	if tx.Error != nil {
-		return counts, nil, fmt.Errorf("failed to begin transaction: %w", tx.Error)
+		return counts, nil, nil, fmt.Errorf("failed to begin transaction: %w", tx.Error)
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -498,7 +765,7 @@ func upsertExternalEntities(
 	// is gated on that GUC).
 	if err := duty.ApplySessionProperties(ctx.DutyContext(), tx); err != nil {
 		tx.Rollback()
-		return counts, nil, fmt.Errorf("failed to apply session properties: %w", err)
+		return counts, nil, nil, fmt.Errorf("failed to apply session properties: %w", err)
 	}
 
 	tempUsers := fmt.Sprintf("_ext_users_%s", suffix)
@@ -506,24 +773,38 @@ func upsertExternalEntities(
 	tempRoles := fmt.Sprintf("_ext_roles_%s", suffix)
 	tempUserGroups := fmt.Sprintf("_ext_user_groups_%s", suffix)
 
+	// Scrub descriptor noise from every entity's alias list before it enters
+	// the merge. The scrapers no longer emit descriptor synonyms, but historical
+	// rows still carry them; this is the cleanup point that lets the alias
+	// column converge to its canonical shape one merge at a time.
+	for i := range users {
+		users[i].Aliases = canonicalizeAliases(users[i].Aliases)
+	}
+	for i := range groups {
+		groups[i].Aliases = canonicalizeAliases(groups[i].Aliases)
+	}
+	for i := range roles {
+		roles[i].Aliases = canonicalizeAliases(roles[i].Aliases)
+	}
+
 	if len(users) > 0 {
 		if err := createTempAndInsert(tx, tempUsers, "external_users", users); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to setup temp users: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to setup temp users: %w", err)
 		}
 	}
 
 	if len(groups) > 0 {
 		if err := createTempAndInsert(tx, tempGroups, "external_groups", groups); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to setup temp groups: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to setup temp groups: %w", err)
 		}
 	}
 
 	if len(roles) > 0 {
 		if err := createTempAndInsert(tx, tempRoles, "external_roles", roles); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to setup temp roles: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to setup temp roles: %w", err)
 		}
 	}
 
@@ -537,7 +818,7 @@ func upsertExternalEntities(
 		}
 		if err := runMergeFunctionWithDump(ctx, tx, "merge_and_upsert_external_users", tempUsers, &merges); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to merge and upsert external users: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to merge and upsert external users: %w", err)
 		}
 		for _, m := range merges {
 			userIDMap[m.LoserID] = m.WinnerID
@@ -552,7 +833,7 @@ func upsertExternalEntities(
 		}
 		if err := runMergeFunctionWithDump(ctx, tx, "merge_and_upsert_external_groups", tempGroups, &merges); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to merge and upsert external groups: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to merge and upsert external groups: %w", err)
 		}
 		for _, m := range merges {
 			groupIDMap[m.LoserID] = m.WinnerID
@@ -567,7 +848,7 @@ func upsertExternalEntities(
 		}
 		if err := runMergeFunctionWithDump(ctx, tx, "merge_and_upsert_external_roles", tempRoles, &merges); err != nil {
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to merge and upsert external roles: %w", err)
+			return counts, nil, nil, fmt.Errorf("failed to merge and upsert external roles: %w", err)
 		}
 		counts.rolesSaved = len(roles)
 	}
@@ -585,30 +866,30 @@ func upsertExternalEntities(
 		ugSavepoint = ""
 	}
 
-	userGroupsErr := upsertExternalUserGroupsBlock(ctx, tx, tempUserGroups, userGroups, users, groups, userIDMap, groupIDMap, scraperID)
+	userGroupsErr := upsertExternalUserGroupsBlock(ctx, tx, tempUserGroups, userGroups, userIDMap, groupIDMap, scraperID)
 	if userGroupsErr != nil {
 		if ugSavepoint != "" {
 			if rbErr := tx.Exec("ROLLBACK TO SAVEPOINT " + ugSavepoint).Error; rbErr != nil {
 				// If we can't even roll back the savepoint, the outer
 				// transaction is hosed — abort everything.
 				tx.Rollback()
-				return counts, nil, fmt.Errorf("failed to upsert external user groups (%v) and savepoint rollback also failed: %w", userGroupsErr, rbErr)
+				return counts, nil, nil, fmt.Errorf("failed to upsert external user groups (%v) and savepoint rollback also failed: %w", userGroupsErr, rbErr)
 			}
 			ctx.Logger.Warnf("external_user_groups upsert failed, rolled back to savepoint so users/groups/roles still persist: %v", userGroupsErr)
 		} else {
 			// No savepoint to roll back to — the outer tx is aborted.
 			tx.Rollback()
-			return counts, nil, fmt.Errorf("failed to upsert external user groups: %w", userGroupsErr)
+			return counts, nil, nil, fmt.Errorf("failed to upsert external user groups: %w", userGroupsErr)
 		}
 	} else if ugSavepoint != "" {
 		tx.Exec("RELEASE SAVEPOINT " + ugSavepoint) //nolint:errcheck
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return counts, nil, fmt.Errorf("failed to commit external entities transaction: %w", err)
+		return counts, nil, nil, fmt.Errorf("failed to commit external entities transaction: %w", err)
 	}
 
-	return counts, userIDMap, nil
+	return counts, userIDMap, groupIDMap, nil
 }
 
 // upsertExternalUserGroupsBlock runs the user_groups temp-table insert, the
@@ -622,61 +903,59 @@ func upsertExternalUserGroupsBlock(
 	tx *gorm.DB,
 	tempUserGroups string,
 	userGroups []dutyModels.ExternalUserGroup,
-	users []dutyModels.ExternalUser,
-	groups []dutyModels.ExternalGroup,
 	userIDMap map[uuid.UUID]uuid.UUID,
 	groupIDMap map[uuid.UUID]uuid.UUID,
 	scraperID *uuid.UUID,
 ) error {
 	if len(userGroups) > 0 {
 		remappedUserGroups := remapExternalUserGroups(userGroups, userIDMap, groupIDMap)
+		for i := range remappedUserGroups {
+			if remappedUserGroups[i].ScraperID == uuid.Nil && scraperID != nil {
+				remappedUserGroups[i].ScraperID = *scraperID
+			}
+		}
 		if err := createTempAndInsert(tx, tempUserGroups, "external_user_groups", remappedUserGroups); err != nil {
 			return fmt.Errorf("failed to setup temp user groups: %w", err)
 		}
 
 		r := tx.Exec(fmt.Sprintf(`
-			INSERT INTO external_user_groups (external_user_id, external_group_id, created_at)
-			SELECT external_user_id, external_group_id, created_at FROM %s
-			ON CONFLICT (external_user_id, external_group_id) DO UPDATE SET deleted_at = NULL
+			INSERT INTO external_user_groups (external_user_id, external_group_id, scraper_id, created_at)
+			SELECT external_user_id, external_group_id, ?, created_at FROM %s
+			ON CONFLICT (external_user_id, external_group_id, scraper_id) DO UPDATE SET deleted_at = NULL
 			WHERE external_user_groups.deleted_at IS NOT NULL
-		`, tempUserGroups))
+		`, tempUserGroups), *scraperID)
 		if r.Error != nil {
 			return fmt.Errorf("failed to upsert external user groups: %w", r.Error)
 		}
 	}
 
-	// Stale deletion: user_group memberships
-	if !ctx.IsIncrementalScrape() {
-		if len(userGroups) > 0 {
-			if err := tx.Exec(fmt.Sprintf(`
-				UPDATE external_user_groups SET deleted_at = NOW()
-				WHERE deleted_at IS NULL
-					AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
-					AND NOT EXISTS (SELECT 1 FROM %s t
-						WHERE t.external_user_id = external_user_groups.external_user_id
-							AND t.external_group_id = external_user_groups.external_group_id)
-			`, tempUserGroups), *scraperID).Error; err != nil {
-				return fmt.Errorf("failed to delete stale external user groups: %w", err)
-			}
-		} else if len(users) > 0 || len(groups) > 0 {
-			if err := tx.Exec(`
-				UPDATE external_user_groups SET deleted_at = NOW()
-				WHERE deleted_at IS NULL
-					AND external_user_id IN (SELECT id FROM external_users WHERE scraper_id = ?)
-			`, *scraperID).Error; err != nil {
-				return fmt.Errorf("failed to delete stale external user groups: %w", err)
-			}
+	// Stale deletion: only run when this scrape actually emitted memberships
+	// (i.e. the scrape source has authoritative knowledge of who-belongs-to-what).
+	// Scrapers that emit users/groups as a side effect of permission/ACL scraping
+	// — pipelines/releases/repositories in azure-devops, IAM in AWS — have no
+	// opinion on memberships. Treating "produced users but no memberships" as
+	// "all memberships are gone" wipes legitimate rows persisted by a sibling
+	// codepath (e.g. azure-devops scrapeGroups when groups: false or rate-limited).
+	if !ctx.IsIncrementalScrape() && len(userGroups) > 0 {
+		if err := tx.Exec(fmt.Sprintf(`
+			UPDATE external_user_groups SET deleted_at = NOW()
+			WHERE deleted_at IS NULL
+				AND scraper_id = ?
+				AND NOT EXISTS (SELECT 1 FROM %s t
+					WHERE t.external_user_id = external_user_groups.external_user_id
+						AND t.external_group_id = external_user_groups.external_group_id
+						AND t.scraper_id = external_user_groups.scraper_id)
+		`, tempUserGroups), *scraperID).Error; err != nil {
+			return fmt.Errorf("failed to delete stale external user groups: %w", err)
 		}
 	}
 	return nil
 }
 
 func ensureExternalUserFromAliases(ctx api.ScrapeContext, aliases []string, scraperID *uuid.UUID) error {
-	sort.Strings(aliases)
-
-	id, err := hash.DeterministicUUID(aliases)
+	id, err := resolveCanonicalID(ctx, "external_users", aliases)
 	if err != nil {
-		return fmt.Errorf("failed to generate deterministic UUID: %w", err)
+		return fmt.Errorf("failed to resolve canonical id: %w", err)
 	}
 
 	now := time.Now()

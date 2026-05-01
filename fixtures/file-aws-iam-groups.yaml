@@ -1,0 +1,12 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-aws-iam-groups-scraper
+spec:
+  full: true
+  file:
+    - type: AWS::IAM::Group
+      class: Group
+      id: $.id
+      paths:
+        - fixtures/data/aws_iam_groups_test.json
