@@ -415,9 +415,9 @@ func ResolveAccess(r Resolver, scraperID *uuid.UUID, result *ExtractedConfig) er
 			ca.ConfigID = configID
 		}
 
-		ca.ScraperID = lo.Ternary(ca.ScraperID == nil, scraperID, ca.ScraperID)
+		ca.OwnerScraperID = lo.Ternary(ca.OwnerScraperID == nil, scraperID, ca.OwnerScraperID)
 
-		if ca.ScraperID == nil && ca.ApplicationID == nil && ca.Source == nil {
+		if ca.OwnerScraperID == nil && ca.ApplicationID == nil && ca.Source == nil {
 			result.Summary.ConfigAccess.Skipped++
 			continue
 		}

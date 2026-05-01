@@ -95,6 +95,7 @@ func (ado AzureDevopsScraper) scrapeGroups(
 			continue
 		}
 
+		ctx.Logger.V(3).Infof("[%s] group %q: %d members", config.Organization, group.DisplayName, len(members))
 		if len(members) == 0 {
 			continue
 		}
@@ -118,15 +119,9 @@ func (ado AzureDevopsScraper) scrapeGroups(
 				// Nested group — record it. Group-in-group is represented by adding
 				// the nested group's direct users to this parent group when that group
 				// is processed in the outer loop.
-				nestedAliases := uniqueAliases(
-					append(
-						append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor, identity.Descriptor),
-						DescriptorAliases(identity.SubjectDescriptor)...,
-					)...,
-				)
 				addGroup(identity.Descriptor, dutyModels.ExternalGroup{
 					Name:      identity.ProviderDisplayName,
-					Aliases:   pq.StringArray(nestedAliases),
+					Aliases:   pq.StringArray(identityAliases(identity, "")),
 					Tenant:    config.Organization,
 					GroupType: "AzureDevOps",
 				})
@@ -145,11 +140,7 @@ func (ado AzureDevopsScraper) scrapeGroups(
 				email = name
 			}
 
-			userAliases := uniqueAliases(
-				email,
-				identity.Descriptor,
-				identity.SubjectDescriptor,
-			)
+			userAliases := identityAliases(identity, email)
 			addUser(identity.Descriptor, dutyModels.ExternalUser{
 				Name:     name,
 				Email:    &email,
@@ -170,6 +161,9 @@ func (ado AzureDevopsScraper) scrapeGroups(
 	for _, u := range userByDescriptor {
 		externalUsers = append(externalUsers, u)
 	}
+
+	ctx.Logger.Infof("scrapeGroups[%s]: emitted %d groups, %d users, %d memberships from %d source groups",
+		config.Organization, len(externalGroups), len(externalUsers), len(externalUserGroups), len(groups))
 
 	return v1.ScrapeResults{{
 		BaseScraper:        config.BaseScraper,

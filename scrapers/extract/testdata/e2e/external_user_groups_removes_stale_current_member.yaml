@@ -1,0 +1,42 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_user_groups_partial_membership.json
+pre_populate:
+  external_users:
+    - id: "77777777-7777-7777-7777-777777777777"
+      name: "Alice"
+      aliases: ["partial-alice"]
+      user_type: human
+      account_id: org-ownership
+    - id: "88888888-8888-8888-8888-888888888888"
+      name: "Bob"
+      aliases: ["partial-bob"]
+      user_type: human
+      account_id: org-ownership
+  external_groups:
+    - id: "99999999-9999-9999-9999-999999999999"
+      name: "Admins"
+      aliases: ["partial-admins"]
+      group_type: security
+      account_id: org-ownership
+  external_user_groups:
+    - external_user_aliases: ["partial-alice"]
+      external_group_aliases: ["partial-admins"]
+      owner: current
+    - external_user_aliases: ["partial-bob"]
+      external_group_aliases: ["partial-admins"]
+      owner: current
+    - external_user_aliases: ["partial-bob"]
+      external_group_aliases: ["partial-admins"]
+      owner: other
+assertions:
+  - size(db.external_user_groups(scraper_id)) == 1
+  - size(db.external_user_groups_all(scraper_id)) == 2
+  - db.external_user_groups(scraper_id)[0].external_user_id == "77777777-7777-7777-7777-777777777777"
+  - size(db.external_user_groups(other_scraper_id)) == 1
+  - db.external_user_groups(other_scraper_id)[0].external_user_id == "88888888-8888-8888-8888-888888888888"

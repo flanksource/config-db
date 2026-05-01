@@ -1,12 +1,14 @@
 package devops
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	. "github.com/onsi/ginkgo/v2"
@@ -122,7 +124,7 @@ var _ = Describe("ScrapeContext.AddGroup", func() {
 		ctx := testCtx()
 		ctx.AddGroup(dutyModels.ExternalGroup{
 			Name:      "QA Team",
-			Aliases:   pq.StringArray{`[OIPA]\QA`, "group-id-1"},
+			Aliases:   pq.StringArray{`[ExampleApp]\QA`, "group-id-1"},
 			Tenant:    "org",
 			GroupType: "AzureDevOps",
 		})
@@ -131,18 +133,18 @@ var _ = Describe("ScrapeContext.AddGroup", func() {
 		Expect(groups).To(HaveLen(1))
 		Expect(groups[0].Name).To(Equal("QA Team"))
 		Expect(groups[0].GroupType).To(Equal("AzureDevOps"))
-		Expect(groups[0].Aliases).To(ContainElements(`[OIPA]\QA`, "group-id-1"))
+		Expect(groups[0].Aliases).To(ContainElements(`[ExampleApp]\QA`, "group-id-1"))
 	})
 
 	It("deduplicates by alias overlap", func() {
 		ctx := testCtx()
 		ctx.AddGroup(dutyModels.ExternalGroup{
 			Name:    "QA Team",
-			Aliases: pq.StringArray{`[OIPA]\QA`, "group-id-1"},
+			Aliases: pq.StringArray{`[ExampleApp]\QA`, "group-id-1"},
 		})
 		ctx.AddGroup(dutyModels.ExternalGroup{
 			Name:    "QA Team",
-			Aliases: pq.StringArray{`[OIPA]\QA`},
+			Aliases: pq.StringArray{`[ExampleApp]\QA`},
 		})
 
 		Expect(ctx.Groups()).To(HaveLen(1))
@@ -153,7 +155,7 @@ var _ = Describe("addExternalEntity", func() {
 	It("routes container identities to groups", func() {
 		ctx := testCtx()
 		container := &IdentityRef{
-			UniqueName:  `[OIPA]\QA`,
+			UniqueName:  `[ExampleApp]\QA`,
 			DisplayName: "QA Team",
 			ID:          "group-id-1",
 			IsContainer: true,
@@ -408,7 +410,7 @@ var _ = Describe("buildReleaseResult", func() {
 		Expect(result.ConfigAccessLogs).To(BeEmpty())
 	})
 
-	It("uses environment name as ChangeType and includes deploySteps in details", func() {
+	It("emits Promotion envelope with canonical ChangeType and raw deploySteps", func() {
 		createdOn := time.Now().Add(-1 * time.Hour)
 		cutoff := createdOn.Add(-1 * time.Hour)
 		queuedOn := createdOn.Add(5 * time.Minute)
@@ -433,12 +435,22 @@ var _ = Describe("buildReleaseResult", func() {
 		)
 
 		Expect(result.Changes).To(HaveLen(1))
-		Expect(result.Changes[0].ChangeType).To(Equal("Production"))
-		Expect(result.Changes[0].Details["status"]).To(Equal("succeeded"))
-		Expect(result.Changes[0].Details["deploySteps"]).ToNot(BeNil())
+		change := result.Changes[0]
+		Expect(change.ChangeType).To(Equal(types.ChangeTypeDeployment))
+		Expect(change.Details["kind"]).To(Equal("Promotion/v1"))
+
+		to := change.Details["to"].(map[string]any)
+		Expect(to["name"]).To(Equal("Production"))
+		Expect(to["stage"]).To(Equal(string(types.EnvironmentStageProduction)))
+		Expect(to["identifier"]).To(Equal("10"))
+		Expect(change.Details["version"]).To(Equal("Release-1"))
+
+		raw := change.Details["raw"].(map[string]any)
+		Expect(raw["status"]).To(Equal("succeeded"))
+		Expect(raw["deploySteps"]).ToNot(BeNil())
 	})
 
-	It("includes reason, triggerReason, variables, and artifacts in details", func() {
+	It("carries reason, triggerReason, variables, and artifacts through Promotion envelope", func() {
 		createdOn := time.Now().Add(-1 * time.Hour)
 		cutoff := createdOn.Add(-1 * time.Hour)
 
@@ -478,18 +490,72 @@ var _ = Describe("buildReleaseResult", func() {
 
 		Expect(result.Changes).To(HaveLen(1))
 		details := result.Changes[0].Details
-		Expect(details["reason"]).To(Equal("continuousIntegration"))
-		Expect(details["description"]).To(Equal("CI triggered release"))
-		Expect(details["triggerReason"]).To(Equal("After successful deployment of Staging"))
-		Expect(details["variables"]).To(Equal(map[string]string{"releaseVar": "relVal"}))
-		Expect(details["environmentVariables"]).To(Equal(map[string]string{"envVar": "envVal"}))
 
-		artifacts := details["artifacts"].([]map[string]any)
-		Expect(artifacts).To(HaveLen(1))
-		Expect(artifacts[0]["definition"]).To(Equal("my-pipeline"))
-		Expect(artifacts[0]["version"]).To(Equal("20240101.1"))
-		Expect(artifacts[0]["branch"]).To(Equal("refs/heads/main"))
-		Expect(artifacts[0]["isPrimary"]).To(BeTrue())
+		properties := details["properties"].(map[string]any)
+		Expect(properties["reason"]).To(Equal("continuousIntegration"))
+		Expect(properties["description"]).To(Equal("CI triggered release"))
+		Expect(properties["triggerReason"]).To(Equal("After successful deployment of Staging"))
+
+		Expect(details["artifact"]).To(Equal("my-pipeline@20240101.1 (refs/heads/main)"))
+		source := details["source"].(map[string]any)
+		git := source["git"].(map[string]any)
+		Expect(git["branch"]).To(Equal("refs/heads/main"))
+		Expect(git["version"]).To(Equal("20240101.1"))
+
+		raw := details["raw"].(map[string]any)
+		Expect(raw["variables"]).To(HaveKeyWithValue("releaseVar", "relVal"))
+		Expect(raw["variables"]).ToNot(HaveKey("secret"))
+		Expect(raw["environmentVariables"]).To(HaveKeyWithValue("envVar", "envVal"))
+		rawArtifacts := raw["artifacts"].([]any)
+		Expect(rawArtifacts).To(HaveLen(1))
+		Expect(rawArtifacts[0].(map[string]any)["definition"]).To(Equal("my-pipeline"))
+		Expect(rawArtifacts[0].(map[string]any)["isPrimary"]).To(BeTrue())
+	})
+
+	It("emits typed Approval envelope that round-trips through UnmarshalChangeDetails", func() {
+		createdOn := time.Now().Add(-1 * time.Hour)
+		cutoff := createdOn.Add(-1 * time.Hour)
+
+		approver := identityRef("alice@org.com", "Alice", "alice-id")
+		def := makeDef(1, "Deploy", `\`)
+		env := ReleaseEnvironment{
+			ID: 10, Name: "Staging", Status: "succeeded",
+			PreDeployApprovals: []ReleaseApproval{{
+				ID: 42, ApprovalType: "preDeploy", Status: "approved",
+				ApprovedBy: approver, Comments: "LGTM",
+			}},
+		}
+		release := makeRelease(100, nil, []ReleaseEnvironment{env}, createdOn)
+
+		result := buildReleaseResult(
+			testCtx(),
+			v1.AzureDevops{Organization: "org"},
+			Project{Name: "MyProject"},
+			def, nil, []Release{release}, cutoff,
+		)
+
+		Expect(result.Changes).To(HaveLen(2))
+		approvalChange := result.Changes[1]
+		Expect(approvalChange.ChangeType).To(Equal(types.ChangeTypeApproved))
+		Expect(approvalChange.Details["kind"]).To(Equal("Approval/v1"))
+		Expect(approvalChange.Details["stage"]).To(Equal(string(types.ApprovalStagePreDeployment)))
+		Expect(approvalChange.Details["status"]).To(Equal(string(types.ApprovalStatusApproved)))
+
+		approverMap := approvalChange.Details["approver"].(map[string]any)
+		Expect(approverMap["id"]).To(Equal("alice@org.com"))
+		Expect(approverMap["comment"]).To(Equal("LGTM"))
+
+		raw := approvalChange.Details["raw"].(map[string]any)
+		Expect(raw["comments"]).To(Equal("LGTM"))
+
+		payload, err := json.Marshal(approvalChange.Details)
+		Expect(err).ToNot(HaveOccurred())
+		decoded, err := types.UnmarshalChangeDetails(payload)
+		Expect(err).ToNot(HaveOccurred())
+		typedApproval, ok := decoded.(types.Approval)
+		Expect(ok).To(BeTrue())
+		Expect(typedApproval.Stage).To(Equal(types.ApprovalStagePreDeployment))
+		Expect(typedApproval.Status).To(Equal(types.ApprovalStatusApproved))
 	})
 
 	It("uses defJSON as config when provided", func() {
@@ -647,3 +713,166 @@ var _ = Describe("releaseApprovalChanges", func() {
 		Expect(*changes[0].CreatedBy).To(Equal("actual@example.com"))
 	})
 })
+
+var _ = Describe("extractApprovalPolicies", func() {
+	const (
+		org          = "test-org"
+		releaseExtID = "azuredevops://test-org/Proj/release/42"
+	)
+	var ado AzureDevopsScraper
+
+	config := v1.AzureDevops{Organization: org}
+
+	// Minimal group descriptor — DescriptorAliases returns at least the input
+	// form when the descriptor can't be decoded to a SID, which is enough to
+	// assert the access entry carries the group identifier.
+	groupDescriptor := "vssgp.opaque-group-descriptor"
+
+	buildEnv := func(name string, pre, post []map[string]any) map[string]any {
+		env := map[string]any{"name": name}
+		if pre != nil {
+			env["preDeployApprovals"] = map[string]any{"approvals": toAnySlice(pre)}
+		}
+		if post != nil {
+			env["postDeployApprovals"] = map[string]any{"approvals": toAnySlice(post)}
+		}
+		return env
+	}
+
+	automated := map[string]any{"id": 1, "isAutomated": true}
+	userApproval := map[string]any{
+		"id":          2,
+		"isAutomated": false,
+		"approver": map[string]any{
+			"id":          "user-id",
+			"displayName": "Alice",
+			"uniqueName":  "alice@org.com",
+			"descriptor":  "aad.user-descriptor",
+		},
+	}
+	groupApproval := map[string]any{
+		"id":          3,
+		"isAutomated": false,
+		"approver": map[string]any{
+			"id":          "group-id",
+			"displayName": "Release Managers",
+			"uniqueName":  "vstfs:///Classification/TeamProject/release-managers",
+			"descriptor":  groupDescriptor,
+			"isContainer": true,
+		},
+	}
+
+	It("skips automated approvals", func() {
+		defJSON := map[string]any{"environments": []any{
+			buildEnv("Dev", []map[string]any{automated}, []map[string]any{automated}),
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+		Expect(access).To(BeEmpty())
+		Expect(roles).To(BeEmpty())
+	})
+
+	It("emits user access with env-scoped pre-deploy role", func() {
+		defJSON := map[string]any{"environments": []any{
+			buildEnv("Dev", []map[string]any{userApproval}, nil),
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+
+		Expect(roles).To(HaveLen(1))
+		Expect(roles[0].Name).To(Equal("Approver:Dev:Pre"))
+		Expect(roles[0].RoleType).To(Equal("AzureDevOps"))
+		Expect(roles[0].Tenant).To(Equal(org))
+
+		Expect(access).To(HaveLen(1))
+		entry := access[0]
+		Expect(entry.ConfigExternalID.ConfigType).To(Equal(ReleaseType))
+		Expect(entry.ConfigExternalID.ExternalID).To(Equal(releaseExtID))
+		Expect(entry.ExternalRoleID).To(Equal(&roles[0].ID))
+		Expect(entry.ExternalUserAliases).To(ConsistOf("alice@org.com"))
+		Expect(entry.ExternalGroupAliases).To(BeEmpty())
+	})
+
+	It("emits group access with env-scoped post-deploy role", func() {
+		defJSON := map[string]any{"environments": []any{
+			buildEnv("Prod", nil, []map[string]any{groupApproval}),
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+
+		Expect(roles).To(HaveLen(1))
+		Expect(roles[0].Name).To(Equal("Approver:Prod:Post"))
+
+		Expect(access).To(HaveLen(1))
+		Expect(access[0].ExternalUserAliases).To(BeEmpty())
+		Expect(access[0].ExternalGroupAliases).ToNot(BeEmpty())
+		Expect(access[0].ExternalGroupAliases).To(ContainElement(groupDescriptor))
+	})
+
+	It("produces a distinct role per environment", func() {
+		defJSON := map[string]any{"environments": []any{
+			buildEnv("Dev", []map[string]any{userApproval}, nil),
+			buildEnv("Staging", []map[string]any{groupApproval}, nil),
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+
+		Expect(access).To(HaveLen(2))
+		Expect(roles).To(HaveLen(2),
+			"different envs must resolve to different roles so authorisation boundaries aren't collapsed")
+		names := []string{roles[0].Name, roles[1].Name}
+		Expect(names).To(ConsistOf("Approver:Dev:Pre", "Approver:Staging:Pre"))
+	})
+
+	It("dedups the role within a single env+phase", func() {
+		defJSON := map[string]any{"environments": []any{
+			buildEnv("Dev", []map[string]any{userApproval, groupApproval}, nil),
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+
+		Expect(access).To(HaveLen(2))
+		Expect(roles).To(HaveLen(1),
+			"two approvers on the same env+phase must share one ExternalRole")
+	})
+
+	It("skips environments without a name", func() {
+		defJSON := map[string]any{"environments": []any{
+			map[string]any{"preDeployApprovals": map[string]any{"approvals": []any{userApproval}}},
+		}}
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, defJSON, releaseExtID)
+		Expect(access).To(BeEmpty())
+		Expect(roles).To(BeEmpty())
+	})
+
+	It("returns empty when environments is missing or malformed", func() {
+		access, roles := ado.extractApprovalPolicies(testCtx(), config, map[string]any{}, releaseExtID)
+		Expect(access).To(BeEmpty())
+		Expect(roles).To(BeEmpty())
+
+		access, roles = ado.extractApprovalPolicies(testCtx(), config, map[string]any{"environments": "not-a-slice"}, releaseExtID)
+		Expect(access).To(BeEmpty())
+		Expect(roles).To(BeEmpty())
+	})
+})
+
+var _ = Describe("mergeRolesByID", func() {
+	It("appends roles whose UUID is not already present", func() {
+		a := dutyModels.ExternalRole{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), Name: "A"}
+		b := dutyModels.ExternalRole{ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Name: "B"}
+		merged := mergeRolesByID([]dutyModels.ExternalRole{a}, []dutyModels.ExternalRole{b})
+		Expect(merged).To(HaveLen(2))
+	})
+
+	It("drops duplicates by UUID", func() {
+		id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+		a := dutyModels.ExternalRole{ID: id, Name: "A"}
+		dup := dutyModels.ExternalRole{ID: id, Name: "A-alt"}
+		merged := mergeRolesByID([]dutyModels.ExternalRole{a}, []dutyModels.ExternalRole{dup})
+		Expect(merged).To(HaveLen(1))
+		Expect(merged[0].Name).To(Equal("A"), "existing entry wins")
+	})
+})
+
+func toAnySlice(in []map[string]any) []any {
+	out := make([]any, len(in))
+	for i, v := range in {
+		out[i] = v
+	}
+	return out
+}

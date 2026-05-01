@@ -1,0 +1,27 @@
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/external_groups_merge_config_access_direct_id.json
+pre_populate:
+  configs:
+    - config_class: Organization
+      type: Organization
+      external_id: ["merge-group-access-org"]
+      config: '{"name":"Merge Group Access Org"}'
+  external_groups:
+    - name: "Group A"
+      aliases: ["grp-alias-a", "grp-alias-b"]
+      group_type: security
+      account_id: org-merge
+    - name: "Group C"
+      aliases: ["grp-alias-c", "grp-alias-d"]
+      group_type: security
+      account_id: org-merge
+assertions:
+  - size(db.external_groups(scraper_id)) == 1
+  - size(db.config_access(scraper_id)) == 1
+  - db.config_access(scraper_id)[0].external_group_id == db.external_groups(scraper_id)[0].id
