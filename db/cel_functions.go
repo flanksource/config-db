@@ -18,6 +18,10 @@ func init() {
 	context.CelEnvFuncs["db.external_groups_all"] = externalGroupsCEL(true)
 	context.CelEnvFuncs["db.external_roles"] = externalRolesCEL(false)
 	context.CelEnvFuncs["db.external_roles_all"] = externalRolesCEL(true)
+	context.CelEnvFuncs["db.external_user_groups"] = externalUserGroupsCEL(false)
+	context.CelEnvFuncs["db.external_user_groups_all"] = externalUserGroupsCEL(true)
+	context.CelEnvFuncs["db.config_relationships"] = configRelationshipsCEL(false)
+	context.CelEnvFuncs["db.config_relationships_all"] = configRelationshipsCEL(true)
 	context.CelEnvFuncs["db.config_access"] = configAccessCEL(false)
 	context.CelEnvFuncs["db.config_access_all"] = configAccessCEL(true)
 	context.CelEnvFuncs["db.config_access_logs"] = configAccessLogsCEL()
@@ -105,6 +109,50 @@ func queryEntities[T any](ctx context.Context, table string, scraperID uuid.UUID
 		result = []any{}
 	}
 	return types.DefaultTypeAdapter.NativeToValue(result)
+}
+
+func externalUserGroupsCEL(includeDeleted bool) func(context.Context) cel.EnvOption {
+	suffix := ""
+	if includeDeleted {
+		suffix = "_all"
+	}
+	return func(ctx context.Context) cel.EnvOption {
+		return cel.Function("db.external_user_groups"+suffix,
+			cel.Overload("db_external_user_groups"+suffix+"_string",
+				[]*cel.Type{cel.StringType},
+				cel.ListType(cel.DynType),
+				cel.UnaryBinding(func(arg ref.Val) ref.Val {
+					scraperID, err := uuid.Parse(arg.Value().(string))
+					if err != nil {
+						return types.WrapErr(err)
+					}
+					return queryEntities[dutyModels.ExternalUserGroup](ctx, "external_user_groups", scraperID, includeDeleted)
+				}),
+			),
+		)
+	}
+}
+
+func configRelationshipsCEL(includeDeleted bool) func(context.Context) cel.EnvOption {
+	suffix := ""
+	if includeDeleted {
+		suffix = "_all"
+	}
+	return func(ctx context.Context) cel.EnvOption {
+		return cel.Function("db.config_relationships"+suffix,
+			cel.Overload("db_config_relationships"+suffix+"_string",
+				[]*cel.Type{cel.StringType},
+				cel.ListType(cel.DynType),
+				cel.UnaryBinding(func(arg ref.Val) ref.Val {
+					scraperID, err := uuid.Parse(arg.Value().(string))
+					if err != nil {
+						return types.WrapErr(err)
+					}
+					return queryEntities[dutyModels.ConfigRelationship](ctx, "config_relationships", scraperID, includeDeleted)
+				}),
+			),
+		)
+	}
 }
 
 func configAccessCEL(includeDeleted bool) func(context.Context) cel.EnvOption {

@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/clicky/api"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/duty/connection"
+	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
@@ -420,6 +421,12 @@ type Connection struct {
 	// or the connection string itself.
 	Connection     string         `yaml:"connection" json:"connection" template:"true"`
 	Authentication Authentication `yaml:"auth,omitempty" json:"auth,omitempty"`
+}
+
+// IsConnectionRef reports whether s is a duty connection reference —
+// either a `connection://<namespace>/<name>` URL or a connection UUID.
+func IsConnectionRef(s string) bool {
+	return dutyCtx.IsValidConnectionURL(s)
 }
 
 // +k8s:deepcopy-gen=false

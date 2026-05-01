@@ -71,6 +71,19 @@ func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.Confi
 		return t.Get(ctx, alias.(string))
 	}
 
+	// When the change's ScraperID is "all" (cross-scraper changes such as
+	// AWS Backup), the in-memory alias is keyed under the owning scraper's
+	// UUID. Retry the lookup against the current scraper's key before
+	// falling through to the database so configs scraped earlier in the
+	// same run can be matched.
+	if lookup.ScraperID == "all" && ctx.ScraperID() != "" {
+		scoped := lookup
+		scoped.ScraperID = ctx.ScraperID()
+		if alias, ok := t.aliases.Load(scoped.Key()); ok {
+			return t.Get(ctx, alias.(string))
+		}
+	}
+
 	var result models.ConfigItem
 	if err := lookup.Find(ctx.DB()).Find(&result).Error; err != nil {
 		return nil, err
