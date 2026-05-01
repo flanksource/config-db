@@ -2,7 +2,6 @@ package processors
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
@@ -45,27 +44,6 @@ func RunScript(ctx api.ScrapeContext, result v1.ScrapeResult, script v1.Script) 
 }
 
 func unmarshalConfigsFromString(s string, parent v1.ScrapeResult) ([]v1.ScrapeResult, error) {
-	// Decode the CEL/script output twice:
-	//   1. into []v1.ScrapeResult so the JSON tags on the struct (id, name,
-	//      config_type, config_class, aliases, config, …) lift top-level
-	//      scalar fields directly onto the struct — without this, keys like
-	//      `name` and `config_type` sit unreachable inside the result's map
-	//      and the resulting config item renders with no display or id.
-	//   2. into []map[string]interface{} so the FULL outer map (including
-	//      `external_users`, `external_groups`, `external_user_groups`, and
-	//      any other keys not represented by struct fields) is retained and
-	//      re-assigned to `.Config`. The downstream ExtractFullMode path
-	//      iterates this map to extract external entities and then replaces
-	//      `.Config` with the nested `config` sub-dict, matching the
-	//      existing pipeline contract.
-	var structs []v1.ScrapeResult
-	if err := json.Unmarshal([]byte(s), &structs); err != nil {
-		if logger.V(5).Enabled() {
-			logger.Infof("Failed to unmarshal script output into ScrapeResult: %v\n%s\n", err, lo.Ellipsis(s, 2000))
-		}
-		return nil, err
-	}
-
 	var maps = []map[string]interface{}{}
 	if err := json.Unmarshal([]byte(s), &maps); err != nil {
 		if logger.V(5).Enabled() {
@@ -74,8 +52,17 @@ func unmarshalConfigsFromString(s string, parent v1.ScrapeResult) ([]v1.ScrapeRe
 		return nil, err
 	}
 
-	if len(structs) != len(maps) {
-		return nil, fmt.Errorf("script output struct/map length mismatch: %d vs %d", len(structs), len(maps))
+	// Best-effort struct decode: lets transforms that emit typed top-level
+	// fields (id, name, config_type, …) have them lifted directly. When the
+	// output doesn't fit the struct (e.g. numeric id lifted from the source
+	// config), fall back to empty structs and let the downstream spec-level
+	// extractors (id: $.id, etc.) populate fields from the retained map.
+	structs := make([]v1.ScrapeResult, len(maps))
+	if err := json.Unmarshal([]byte(s), &structs); err != nil {
+		if logger.V(5).Enabled() {
+			logger.Infof("Script output not a ScrapeResult shape, falling back to map-only: %v\n%s\n", err, lo.Ellipsis(s, 2000))
+		}
+		structs = make([]v1.ScrapeResult, len(maps))
 	}
 
 	configs := make([]v1.ScrapeResult, 0, len(structs))
