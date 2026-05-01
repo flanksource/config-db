@@ -1,0 +1,34 @@
+spec:
+  full: true
+  file:
+    - type: App::Service
+      id: $.external_id
+      paths:
+        - fixtures/data/relationships_no_edges.json
+pre_populate:
+  configs:
+    - config_class: Service
+      type: App::Service
+      name: rel-owner-parent
+      external_id: ["rel-owner-parent"]
+      config: '{"name":"rel-owner-parent"}'
+    - config_class: Deployment
+      type: App::Deployment
+      name: rel-owner-child
+      external_id: ["rel-owner-child"]
+      config: '{"name":"rel-owner-child"}'
+  config_relationships:
+    - config_external_id: "rel-owner-parent"
+      related_external_id: "rel-owner-child"
+      relation: "Owns"
+      owner: current
+    - config_external_id: "rel-owner-parent"
+      related_external_id: "rel-owner-child"
+      relation: "Owns"
+      owner: other
+assertions:
+  - size(db.config_relationships(scraper_id)) == 0
+  - size(db.config_relationships_all(scraper_id)) == 1
+  - size(db.config_relationships(other_scraper_id)) == 1
+  - size(relationships) == 1
+  - relationships[0].relation == "Owns"

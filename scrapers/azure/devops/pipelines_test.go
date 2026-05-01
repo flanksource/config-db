@@ -4,6 +4,7 @@ import (
 	"time"
 
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -373,17 +374,22 @@ var _ = Describe("buildReleaseResult", func() {
 		Expect(result.Changes[0].ConfigType).To(Equal(ReleaseType))
 		Expect(result.Changes[0].Source).To(Equal("AzureDevops/release/azuredevops://myorg/MyProject/release/7"))
 
-		Expect(result.Changes[0].ChangeType).To(Equal("Staging"))
-		Expect(result.Changes[1].ChangeType).To(Equal(ChangeTypeApproved))
-		Expect(result.Changes[2].ChangeType).To(Equal("Prod"))
+		Expect(result.Changes[0].ChangeType).To(Equal(types.ChangeTypeDeployment))
+		Expect(result.Changes[1].ChangeType).To(Equal(types.ChangeTypeApproved))
+		Expect(result.Changes[2].ChangeType).To(Equal(types.ChangeTypeDeployment))
 
-		pre, ok := result.Changes[0].Details["preDeployApprovals"].([]map[string]any)
-		Expect(ok).To(BeTrue())
-		Expect(pre).To(HaveLen(1))
-		Expect(pre[0]["approver"]).To(Equal("approver@example.com"))
+		stagingTo := result.Changes[0].Details["to"].(map[string]any)
+		Expect(stagingTo["name"]).To(Equal("Staging"))
+		prodTo := result.Changes[2].Details["to"].(map[string]any)
+		Expect(prodTo["name"]).To(Equal("Prod"))
 
-		_, hasPre := result.Changes[2].Details["preDeployApprovals"]
-		Expect(hasPre).To(BeFalse())
+		stagingApprovals := result.Changes[0].Details["approvals"].([]any)
+		Expect(stagingApprovals).To(HaveLen(1))
+		approver := stagingApprovals[0].(map[string]any)["approver"].(map[string]any)
+		Expect(approver["id"]).To(Equal("approver@example.com"))
+
+		_, hasApprovals := result.Changes[2].Details["approvals"]
+		Expect(hasApprovals).To(BeFalse())
 	})
 })
 
@@ -474,6 +480,72 @@ var _ = Describe("pipelineApprovalChanges", func() {
 		Expect(changes).To(HaveLen(2))
 		Expect(changes[0].ChangeType).To(Equal(ChangeTypeApproved))
 		Expect(changes[1].ChangeType).To(Equal(ChangeTypeRejected))
+	})
+
+	It("emits typed Approval envelope with Manual stage and step raw", func() {
+		ts := time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC)
+		approvals := []PipelineApproval{{
+			ID: "a1",
+			Steps: []ApprovalStep{{
+				Status:           "approved",
+				AssignedApprover: IdentityRef{UniqueName: "assigned@example.com"},
+				ActualApprover:   &IdentityRef{UniqueName: "actual@example.com", DisplayName: "Actual"},
+				Comment:          "LGTM",
+				LastModifiedOn:   ts,
+			}},
+		}}
+
+		changes := pipelineApprovalChanges(approvals, "ext-id", "my-source", "org/proj/1/100")
+		Expect(changes).To(HaveLen(1))
+
+		details := changes[0].Details
+		Expect(details["kind"]).To(Equal("Approval/v1"))
+		Expect(details["stage"]).To(Equal(string(types.ApprovalStageManual)))
+		Expect(details["status"]).To(Equal(string(types.ApprovalStatusApproved)))
+
+		approver := details["approver"].(map[string]any)
+		Expect(approver["id"]).To(Equal("actual@example.com"))
+		Expect(approver["comment"]).To(Equal("LGTM"))
+
+		raw := details["raw"].(map[string]any)
+		Expect(raw["comment"]).To(Equal("LGTM"))
+	})
+})
+
+var _ = Describe("runStateToStatus", func() {
+	DescribeTable("maps Run.State/Run.Result to canonical types.Status",
+		func(state, result string, expected types.Status) {
+			Expect(runStateToStatus(state, result)).To(Equal(expected))
+		},
+		Entry("inProgress -> Running", RunStateInProgress, "", types.StatusRunning),
+		Entry("cancelling -> Running", RunStateCancelling, "", types.StatusRunning),
+		Entry("completed+succeeded -> Completed", RunStateCompleted, RunResultSucceeded, types.StatusCompleted),
+		Entry("completed+failed -> Failed", RunStateCompleted, RunResultFailed, types.StatusFailed),
+		Entry("completed+canceled -> Failed", RunStateCompleted, RunResultCanceled, types.StatusFailed),
+		Entry("completed+timedOut -> Timeout", RunStateCompleted, RunResultTimedOut, types.StatusTimeout),
+		Entry("unknown -> Pending", "unknown", "", types.StatusPending),
+	)
+})
+
+var _ = Describe("buildPipelineRunDetail", func() {
+	It("populates Event URL/timestamp/properties and maps Status", func() {
+		ts := time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC)
+		run := Run{
+			ID:          42,
+			Name:        "build-42",
+			State:       RunStateCompleted,
+			Result:      RunResultSucceeded,
+			CreatedDate: ts,
+			Links:       map[string]Link{"web": {Href: "https://dev.azure.com/org/proj/_build/42"}},
+		}
+		detail := buildPipelineRunDetail(run, "ext-42")
+		Expect(detail.Kind()).To(Equal("PipelineRun/v1"))
+		Expect(detail.Event.ID).To(Equal("ext-42"))
+		Expect(detail.Event.URL).To(Equal("https://dev.azure.com/org/proj/_build/42"))
+		Expect(detail.Event.Timestamp).To(Equal(ts.Format(time.RFC3339)))
+		Expect(detail.Event.Properties).To(HaveKeyWithValue("state", RunStateCompleted))
+		Expect(detail.Event.Properties).To(HaveKeyWithValue("result", RunResultSucceeded))
+		Expect(detail.Status).To(Equal(types.StatusCompleted))
 	})
 })
 

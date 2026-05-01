@@ -1,0 +1,38 @@
+spec:
+  full: true
+  file:
+    - type: App::Service
+      id: $.external_id
+      paths:
+        - fixtures/data/relationships_basic.json
+      transform:
+        relationship:
+          - parent: true
+            expr: |
+              [{"type": "App::Deployment", "name": config.backend_ref}].toJSON()
+pre_populate:
+  configs:
+    - config_class: Service
+      deterministic_id: true
+      type: App::Service
+      name: web-frontend
+      external_id: ["svc-web-frontend"]
+      config: '{"name":"web-frontend"}'
+    - config_class: Deployment
+      type: App::Deployment
+      name: deploy-web-frontend
+      external_id: ["deploy-web-frontend"]
+      config: '{"name":"deploy-web-frontend","replicas":3}'
+  config_relationships:
+    - config_external_id: "deploy-web-frontend"
+      related_external_id: "svc-web-frontend"
+      owner: current
+      deleted: true
+    - config_external_id: "deploy-web-frontend"
+      related_external_id: "svc-web-frontend"
+      owner: other
+assertions:
+  - size(db.config_relationships(scraper_id)) == 1
+  - size(db.config_relationships_all(scraper_id)) == 1
+  - size(db.config_relationships(other_scraper_id)) == 1
+  - size(relationships) == 1

@@ -14,6 +14,8 @@ import (
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/connection"
+	"github.com/flanksource/duty/types"
 )
 
 type Project struct {
@@ -199,11 +201,9 @@ func NewAzureDevopsClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 		return nil, err
 	}
 
-	client := commonsHTTP.NewClient().
-		BaseURL(fmt.Sprintf("https://dev.azure.com/%s", org)).
-		Auth(org, token)
-	if collector := ctx.HARCollector(); collector != nil {
-		client = client.HARCollector(collector)
+	client, err := newADOHTTPClient(ctx, fmt.Sprintf("https://dev.azure.com/%s", org), org, token)
+	if err != nil {
+		return nil, err
 	}
 
 	return &AzureDevopsClient{
@@ -212,6 +212,26 @@ func NewAzureDevopsClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*AzureDevo
 		Organization:  org,
 		token:         token,
 	}, nil
+}
+
+// newADOHTTPClient builds a commons HTTP client for Azure DevOps endpoints,
+// wiring authentication and feature-aware observability through duty's
+// connection layer.
+func newADOHTTPClient(ctx api.ScrapeContext, baseURL, org, token string) (*commonsHTTP.Client, error) {
+	conn := connection.HTTPConnection{
+		HTTPBasicAuth: types.HTTPBasicAuth{
+			Authentication: types.Authentication{
+				Username: types.EnvVar{ValueStatic: org},
+				Password: types.EnvVar{ValueStatic: token},
+			},
+		},
+	}
+	client, err := connection.CreateHTTPClient(ctx, conn, types.WithFeature("azure.devops"))
+	if err != nil {
+		return nil, err
+	}
+	client.BaseURL(baseURL)
+	return client, nil
 }
 
 // get is a convenience wrapper that performs a GET request and unmarshals the JSON response.
@@ -1181,29 +1201,93 @@ func (ado *AzureDevopsClient) GetIdentitiesByDescriptor(ctx context.Context, des
 		return nil, nil
 	}
 
-	var resolvable []string
+	// _apis/identities accepts two parameter forms with different descriptor
+	// vocabularies: ?descriptors= takes the legacy Microsoft.TeamFoundation.*
+	// forms, while ?subjectDescriptors= takes the modern Graph forms (vssgp.,
+	// aad., aadgp., svc.). Sending Graph-form values via ?descriptors=
+	// silently returns {"value": [null, null, ...]} — no error, no warning,
+	// just nulls. Routing each descriptor to the right parameter recovers
+	// user/membership emission from the Graph/Memberships flow in
+	// scrapeGroups (whose memberDescriptor values are always Graph form) and
+	// resolves service principals (svc.) which the previous "filter out and
+	// skip" policy left as zero-value records.
+	var legacy, subject []string
 	for _, d := range descriptors {
-		if !strings.HasPrefix(d, "svc.") && !strings.HasPrefix(d, "s2s.") {
-			resolvable = append(resolvable, d)
+		if !isValidDescriptor(d) {
+			ado.Logger.V(4).Infof("skipping unresolvable descriptor %q", d)
+			continue
+		}
+		switch {
+		case strings.HasPrefix(d, tfIdentityPrefix),
+			strings.HasPrefix(d, tfServiceIdentityPrefix),
+			strings.HasPrefix(d, claimsIdentityPrefix):
+			legacy = append(legacy, d)
+		default:
+			// vssgp., aadgp., aad., svc. — Graph forms only after validation.
+			subject = append(subject, d)
 		}
 	}
-	if len(resolvable) == 0 {
+	if len(legacy) == 0 && len(subject) == 0 {
 		return nil, nil
 	}
 
-	vsspsClient := commonsHTTP.NewClient().
-		BaseURL(fmt.Sprintf("https://vssps.dev.azure.com/%s", ado.Organization)).
-		Auth(ado.Organization, ado.token)
-
-	identities, resp, err := get[ResolvedIdentities](vsspsClient, ctx, "/_apis/identities",
-		"api-version", "7.1", "descriptors", joinDescriptors(resolvable))
+	vsspsClient, err := ado.vsspsClient()
 	if err != nil {
-		if resp != nil && resp.StatusCode == 404 {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to resolve identities: %w", err)
+		return nil, fmt.Errorf("failed to build vssps client: %w", err)
 	}
-	return identities.Value, nil
+
+	// Branch failures are non-fatal: a 4xx from one branch must not block
+	// whatever the other branch resolved. The caller (e.g. fetchRepoPermissions)
+	// folds an error return into "drop the whole repo's permission rows" — we
+	// only want to do that when nothing was resolved at all.
+	var combined []ResolvedIdentity
+	var firstErr error
+	tolerable := func(resp *commonsHTTP.Response) bool {
+		// 400 (malformed/unresolvable batch) and 404 (none of the descriptors
+		// match an identity) are recoverable: log and continue.
+		return resp != nil && (resp.StatusCode == 400 || resp.StatusCode == 404)
+	}
+
+	if len(legacy) > 0 {
+		identities, resp, err := get[ResolvedIdentities](vsspsClient, ctx, "/_apis/identities",
+			"api-version", "7.1", "descriptors", joinDescriptors(legacy))
+		switch {
+		case err != nil && tolerable(resp):
+			ado.Logger.Warnf("ADO rejected %d legacy descriptors with HTTP %d: %v — continuing without them",
+				len(legacy), resp.StatusCode, err)
+		case err != nil:
+			firstErr = fmt.Errorf("failed to resolve legacy identities: %w", err)
+		default:
+			for _, id := range identities.Value {
+				if id.Descriptor != "" {
+					combined = append(combined, id)
+				}
+			}
+		}
+	}
+	if len(subject) > 0 {
+		identities, resp, err := get[ResolvedIdentities](vsspsClient, ctx, "/_apis/identities",
+			"api-version", "7.1", "subjectDescriptors", joinDescriptors(subject))
+		switch {
+		case err != nil && tolerable(resp):
+			ado.Logger.Warnf("ADO rejected %d subject descriptors with HTTP %d: %v — continuing without them",
+				len(subject), resp.StatusCode, err)
+		case err != nil:
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to resolve subject identities: %w", err)
+			}
+		default:
+			for _, id := range identities.Value {
+				if id.Descriptor != "" {
+					combined = append(combined, id)
+				}
+			}
+		}
+	}
+	if len(combined) == 0 && firstErr != nil {
+		return nil, firstErr
+	}
+	return combined, nil
 }
 
 func joinDescriptors(descriptors []string) string {
@@ -1217,26 +1301,201 @@ func joinDescriptors(descriptors []string) string {
 	return result
 }
 
-const tfIdentityPrefix = "Microsoft.TeamFoundation.Identity;"
-const vssgpPrefix = "vssgp."
+const (
+	tfIdentityPrefix        = "Microsoft.TeamFoundation.Identity;"
+	tfServiceIdentityPrefix = "Microsoft.TeamFoundation.ServiceIdentity;"
+	claimsIdentityPrefix    = "Microsoft.IdentityModel.Claims.ClaimsIdentity;"
+	vssgpPrefix             = "vssgp."
+	aadgpPrefix             = "aadgp."
+	aadPrefix               = "aad."
+	svcPrefix               = "svc."
+	s2sPrefix               = "s2s."
+)
+
+// isValidDescriptor reports whether `d` is a recognised, non-empty-payload ADO
+// identity descriptor that can be sent to `_apis/identities`. ADO's parser
+// rejects an entire batch with HTTP 400 ("The string must have at least one
+// character. Parameter name: descriptors element.IdentityType") if any element
+// has an empty IdentityType — caused by:
+//   - the empty string,
+//   - a known prefix with nothing after the separator (e.g. "vssgp.", "Microsoft.TeamFoundation.Identity;"),
+//   - any other shape ADO doesn't classify (s2s., bare strings, future Graph forms with no payload).
+//
+// Filtering these out client-side prevents the 400 from blowing up an entire
+// repo / pipeline ACL scrape.
+func isValidDescriptor(d string) bool {
+	if d == "" {
+		return false
+	}
+	hasPayloadAfter := func(d, prefix string) bool {
+		return len(d) > len(prefix) && strings.HasPrefix(d, prefix)
+	}
+	switch {
+	case hasPayloadAfter(d, tfIdentityPrefix),
+		hasPayloadAfter(d, tfServiceIdentityPrefix),
+		hasPayloadAfter(d, claimsIdentityPrefix),
+		hasPayloadAfter(d, vssgpPrefix),
+		hasPayloadAfter(d, aadgpPrefix),
+		hasPayloadAfter(d, aadPrefix),
+		hasPayloadAfter(d, svcPrefix):
+		return true
+	}
+	// s2s. and unknown forms — ADO can't resolve them; skip rather than risk a 400.
+	return false
+}
+
+// b64decodeAny tolerates both standard and raw (unpadded) base64 encodings,
+// since ADO emits the unpadded form for vssgp./aad./aadgp./svc. but historical
+// payloads occasionally surface the padded variant.
+func b64decodeAny(s string) ([]byte, bool) {
+	if b, err := base64.RawStdEncoding.DecodeString(s); err == nil {
+		return b, true
+	}
+	if b, err := base64.StdEncoding.DecodeString(s); err == nil {
+		return b, true
+	}
+	return nil, false
+}
 
 // DescriptorToSID extracts the SID from either descriptor format.
-// "vssgp.BASE64" -> decoded SID, "Microsoft.TeamFoundation.Identity;SID" -> SID
+// "vssgp.BASE64" / "aadgp.BASE64" -> decoded SID,
+// "Microsoft.TeamFoundation.Identity;SID" -> SID.
 func DescriptorToSID(descriptor string) string {
 	if strings.HasPrefix(descriptor, tfIdentityPrefix) {
 		return descriptor[len(tfIdentityPrefix):]
 	}
-	if strings.HasPrefix(descriptor, vssgpPrefix) {
-		b, err := base64.StdEncoding.DecodeString(descriptor[len(vssgpPrefix):])
-		if err != nil {
-			b, err = base64.RawStdEncoding.DecodeString(descriptor[len(vssgpPrefix):])
-			if err != nil {
-				return ""
+	for _, prefix := range []string{vssgpPrefix, aadgpPrefix} {
+		if strings.HasPrefix(descriptor, prefix) {
+			if b, ok := b64decodeAny(descriptor[len(prefix):]); ok {
+				return string(b)
 			}
+			return ""
 		}
-		return string(b)
 	}
 	return ""
+}
+
+// DecodedDescriptor is the canonical, decoded form of an ADO descriptor.
+// Exactly one of the value fields is populated; Form indicates which.
+type DecodedDescriptor struct {
+	Form string // "tfidentity", "service", "claims", "aad-user", "aad-group", "service-principal", "unknown"
+	// SID is set for vssgp./aadgp./Microsoft.TeamFoundation.Identity; descriptors.
+	SID string
+	// AADObjectID is the AAD object id (lower-case, hyphenated GUID) for aad. descriptors.
+	AADObjectID string
+	// Email is set when the descriptor encodes an email address (claims identities).
+	Email string
+	// ServiceLabel is the human-readable label for service/service-principal descriptors.
+	ServiceLabel string
+	// ServicePayload is the inner OWNER:TYPE:GUID payload shared by the legacy
+	// Microsoft.TeamFoundation.ServiceIdentity; form and the Graph svc. form —
+	// the natural canonical alias that lets the two forms merge via overlap.
+	ServicePayload string
+	// Raw is the original descriptor string.
+	Raw string
+}
+
+// DecodeDescriptor classifies a descriptor and decodes it down to its
+// canonical primitive (SID, AAD object id, email, or service label).
+//
+// projectName is used only for service-principal labels — when the descriptor
+// payload contains a project GUID, we substitute the human-readable project
+// name for it (e.g. "Build Service (ExampleApp)" instead of "Build Service (8c6b...)").
+func DecodeDescriptor(descriptor, projectName string) DecodedDescriptor {
+	d := DecodedDescriptor{Raw: descriptor, Form: "unknown"}
+	if descriptor == "" {
+		return d
+	}
+
+	switch {
+	case strings.HasPrefix(descriptor, tfIdentityPrefix):
+		d.Form = "tfidentity"
+		d.SID = descriptor[len(tfIdentityPrefix):]
+
+	case strings.HasPrefix(descriptor, tfServiceIdentityPrefix):
+		d.Form = "service"
+		d.ServicePayload = descriptor[len(tfServiceIdentityPrefix):]
+		d.ServiceLabel = serviceIdentityLabel(d.ServicePayload, projectName)
+
+	case strings.HasPrefix(descriptor, claimsIdentityPrefix):
+		d.Form = "claims"
+		// Payload is "DOMAIN\email" or "DOMAIN\username". Take everything after
+		// the last backslash; if it's an email, that's the canonical user id.
+		payload := descriptor[len(claimsIdentityPrefix):]
+		if idx := strings.LastIndex(payload, `\`); idx >= 0 && idx+1 < len(payload) {
+			d.Email = payload[idx+1:]
+		} else {
+			d.Email = payload
+		}
+
+	case strings.HasPrefix(descriptor, vssgpPrefix):
+		d.Form = "tfidentity"
+		if b, ok := b64decodeAny(descriptor[len(vssgpPrefix):]); ok {
+			d.SID = string(b)
+		}
+
+	case strings.HasPrefix(descriptor, aadgpPrefix):
+		d.Form = "aad-group"
+		if b, ok := b64decodeAny(descriptor[len(aadgpPrefix):]); ok {
+			d.SID = string(b)
+		}
+
+	case strings.HasPrefix(descriptor, aadPrefix):
+		d.Form = "aad-user"
+		if b, ok := b64decodeAny(descriptor[len(aadPrefix):]); ok {
+			d.AADObjectID = canonicalAADObjectID(b)
+		}
+
+	case strings.HasPrefix(descriptor, svcPrefix):
+		d.Form = "service-principal"
+		if b, ok := b64decodeAny(descriptor[len(svcPrefix):]); ok {
+			d.ServicePayload = string(b)
+			d.ServiceLabel = serviceIdentityLabel(d.ServicePayload, projectName)
+		}
+
+	case strings.HasPrefix(descriptor, s2sPrefix):
+		d.Form = "service-principal"
+	}
+
+	return d
+}
+
+// canonicalAADObjectID converts the AAD object-id bytes (which historically
+// arrive as the ASCII GUID string itself rather than a 16-byte UUID) to a
+// lower-case hyphenated GUID. We accept both shapes and normalise.
+func canonicalAADObjectID(raw []byte) string {
+	s := strings.ToLower(strings.TrimSpace(string(raw)))
+	if isUUIDLike(s) {
+		return s
+	}
+	if len(raw) == 16 {
+		// Big-endian byte slice → standard UUID string.
+		var u [16]byte
+		copy(u[:], raw)
+		return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", u[0:4], u[4:6], u[6:8], u[8:10], u[10:16])
+	}
+	return ""
+}
+
+// CanonicalIdentityValue returns the single most useful value for cross-system
+// matching — preferring email > AAD object id > SID > service payload >
+// service label > raw. This is the value that should appear as a primary alias
+// on every entity so AAD-scraper rows and ADO-scraper rows merge.
+func CanonicalIdentityValue(descriptor, projectName string) string {
+	d := DecodeDescriptor(descriptor, projectName)
+	switch {
+	case d.Email != "":
+		return d.Email
+	case d.AADObjectID != "":
+		return d.AADObjectID
+	case d.SID != "":
+		return d.SID
+	case d.ServicePayload != "":
+		return d.ServicePayload
+	case d.ServiceLabel != "":
+		return d.ServiceLabel
+	}
+	return descriptor
 }
 
 // SIDToTFIdentity converts a SID to the Microsoft.TeamFoundation.Identity; form.
@@ -1266,33 +1525,98 @@ func NormalizeDescriptor(descriptor string) string {
 	return SIDToVssgp(sid)
 }
 
-// DescriptorAliases returns both descriptor forms (vssgp. and Microsoft.TeamFoundation.Identity;)
-// given either form as input.
+// DescriptorAliases returns the canonical primitive(s) a descriptor decodes
+// to — never the raw descriptor or its legacy synonyms. The canonical forms
+// (email / AAD object id / SID / service payload / service label) are what
+// merge ADO and AAD rows by alias overlap; the descriptor synonyms add no
+// extra information and only inflate the alias set.
+//
+// When the descriptor is in a form we don't recognise (no decode produces any
+// primitive), the raw descriptor is returned as the only alias — that is the
+// only situation where the caller has nothing better to use.
 func DescriptorAliases(descriptor string) []string {
-	sid := DescriptorToSID(descriptor)
-	if sid == "" {
+	if descriptor == "" {
+		return nil
+	}
+	d := DecodeDescriptor(descriptor, "")
+	var out []string
+	if d.SID != "" {
+		out = append(out, d.SID)
+	}
+	if d.AADObjectID != "" {
+		out = append(out, d.AADObjectID)
+	}
+	if d.Email != "" {
+		out = append(out, d.Email)
+	}
+	if d.ServicePayload != "" {
+		out = append(out, d.ServicePayload)
+	}
+	if d.ServiceLabel != "" {
+		out = append(out, d.ServiceLabel)
+	}
+	if len(out) == 0 {
 		return []string{descriptor}
 	}
-	return []string{SIDToVssgp(sid), SIDToTFIdentity(sid)}
+	return uniqueNonEmpty(out)
 }
 
-// BuildIdentityMap creates a lookup map that maps any descriptor form (vssgp., TF identity, or SubjectDescriptor)
-// to the resolved identity. This handles the case where ACE keys use one form but the API returns another.
-func BuildIdentityMap(identities []ResolvedIdentity) map[string]ResolvedIdentity {
-	m := make(map[string]ResolvedIdentity, len(identities)*3)
-	for _, id := range identities {
-		m[id.Descriptor] = id
-		if id.SubjectDescriptor != "" {
-			m[id.SubjectDescriptor] = id
+// identityAliases assembles the canonical alias list for a resolved identity:
+// the email (already extracted from identity properties by the caller) plus
+// each descriptor's canonical decoded primitives. The raw descriptors are
+// intentionally NOT included — they are the unique-and-redundant synonyms of
+// the canonical forms produced by DescriptorAliases.
+func identityAliases(identity ResolvedIdentity, extraEmail string) []string {
+	out := []string{extraEmail}
+	out = append(out, DescriptorAliases(identity.Descriptor)...)
+	out = append(out, DescriptorAliases(identity.SubjectDescriptor)...)
+	return uniqueNonEmpty(out)
+}
+
+func uniqueNonEmpty(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if s == "" {
+			continue
 		}
-		for _, alias := range DescriptorAliases(id.Descriptor) {
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
+}
+
+// BuildIdentityMap creates a lookup map that maps any descriptor form (vssgp.,
+// Microsoft.TeamFoundation.Identity;, aad./aadgp./svc., SubjectDescriptor) plus
+// the canonical primitive (SID/AAD GUID/email/service payload) to the resolved
+// identity. ACL responses key permissions by one descriptor form but the
+// resolved-identity API may return a different form, so the lookup needs both.
+func BuildIdentityMap(identities []ResolvedIdentity) map[string]ResolvedIdentity {
+	m := make(map[string]ResolvedIdentity, len(identities)*4)
+	addDescriptorKeys := func(descriptor string, id ResolvedIdentity) {
+		if descriptor == "" {
+			return
+		}
+		m[descriptor] = id
+		// Add the matching SID-form synonym so a caller with the OTHER
+		// descriptor form lands on the same identity. This is the only
+		// place the legacy synonyms are useful — they don't belong in the
+		// persisted alias set.
+		if sid := DescriptorToSID(descriptor); sid != "" {
+			m[SIDToVssgp(sid)] = id
+			m[SIDToTFIdentity(sid)] = id
+		}
+		// Canonical primitives (SID / email / AAD id / service payload).
+		for _, alias := range DescriptorAliases(descriptor) {
 			m[alias] = id
 		}
-		if id.SubjectDescriptor != "" {
-			for _, alias := range DescriptorAliases(id.SubjectDescriptor) {
-				m[alias] = id
-			}
-		}
+	}
+	for _, id := range identities {
+		addDescriptorKeys(id.Descriptor, id)
+		addDescriptorKeys(id.SubjectDescriptor, id)
 	}
 	return m
 }
@@ -1315,22 +1639,14 @@ func serviceIdentityLabel(payload string, projectName string) string {
 }
 
 // ResolvedIdentityName returns the best display name for a resolved identity.
-// projectName is used to replace GUIDs in service identity names (e.g. "Build Service (OIPA)").
+// projectName is used to replace GUIDs in service identity names (e.g. "Build Service (ExampleApp)").
 func ResolvedIdentityName(identity ResolvedIdentity, projectName string) string {
 	name := identity.ProviderDisplayName
 
 	for _, desc := range []string{identity.Descriptor, identity.SubjectDescriptor} {
-		if strings.HasPrefix(desc, "Microsoft.TeamFoundation.ServiceIdentity;") {
-			if label := serviceIdentityLabel(desc[len("Microsoft.TeamFoundation.ServiceIdentity;"):], projectName); label != "" {
-				return label
-			}
-		}
-		if strings.HasPrefix(desc, "svc.") {
-			if b, err := base64.RawStdEncoding.DecodeString(desc[4:]); err == nil {
-				if label := serviceIdentityLabel(string(b), projectName); label != "" {
-					return label
-				}
-			}
+		decoded := DecodeDescriptor(desc, projectName)
+		if decoded.ServiceLabel != "" {
+			return decoded.ServiceLabel
 		}
 	}
 
@@ -1392,18 +1708,23 @@ type GraphMemberships struct {
 	Value []GraphMembership `json:"value"`
 }
 
-func (ado *AzureDevopsClient) vsspsClient() *commonsHTTP.Client {
-	return commonsHTTP.NewClient().
-		BaseURL(fmt.Sprintf("https://vssps.dev.azure.com/%s", ado.Organization)).
-		Auth(ado.Organization, ado.token)
+func (ado *AzureDevopsClient) vsspsClient() (*commonsHTTP.Client, error) {
+	return newADOHTTPClient(ado.ScrapeContext, fmt.Sprintf("https://vssps.dev.azure.com/%s", ado.Organization), ado.Organization, ado.token)
 }
 
 func (ado *AzureDevopsClient) GetGroups(ctx context.Context) ([]GraphGroup, error) {
-	client := ado.vsspsClient()
+	client, err := ado.vsspsClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build vssps client: %w", err)
+	}
 	var all []GraphGroup
+	var prevToken string
 	continuationToken := ""
 
 	for {
+		if err := ctx.Err(); err != nil {
+			return all, err
+		}
 		params := []string{"api-version", "7.1-preview.1"}
 		if continuationToken != "" {
 			params = append(params, "continuationToken", continuationToken)
@@ -1416,23 +1737,47 @@ func (ado *AzureDevopsClient) GetGroups(ctx context.Context) ([]GraphGroup, erro
 		all = append(all, groups.Value...)
 
 		continuationToken = resp.Header.Get("X-MS-ContinuationToken")
-		if continuationToken == "" {
+		if continuationToken == "" || continuationToken == prevToken {
 			break
 		}
+		prevToken = continuationToken
 	}
 
 	return all, nil
 }
 
 func (ado *AzureDevopsClient) GetGroupMembers(ctx context.Context, groupDescriptor string) ([]GraphMembership, error) {
-	client := ado.vsspsClient()
-	memberships, _, err := get[GraphMemberships](client, ctx,
-		fmt.Sprintf("/_apis/graph/Memberships/%s", groupDescriptor),
-		"api-version", "7.1-preview.1", "direction", "Down")
+	client, err := ado.vsspsClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get group members: %w", err)
+		return nil, fmt.Errorf("failed to build vssps client: %w", err)
 	}
-	return memberships.Value, nil
+	var all []GraphMembership
+	var prevToken string
+	continuationToken := ""
+	path := fmt.Sprintf("/_apis/graph/Memberships/%s", groupDescriptor)
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return all, err
+		}
+		params := []string{"api-version", "7.1-preview.1", "direction", "Down"}
+		if continuationToken != "" {
+			params = append(params, "continuationToken", continuationToken)
+		}
+		memberships, resp, err := get[GraphMemberships](client, ctx, path, params...)
+		if err != nil {
+			return all, fmt.Errorf("failed to get group members: %w", err)
+		}
+		all = append(all, memberships.Value...)
+
+		continuationToken = resp.Header.Get("X-MS-ContinuationToken")
+		if continuationToken == "" || continuationToken == prevToken {
+			break
+		}
+		prevToken = continuationToken
+	}
+
+	return all, nil
 }
 
 // AzureDevopsReleaseClient talks to vsrm.dev.azure.com for classic release pipelines.
@@ -1447,11 +1792,9 @@ func NewAzureDevopsReleaseClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*Az
 	if err != nil {
 		return nil, err
 	}
-	client := commonsHTTP.NewClient().
-		BaseURL(fmt.Sprintf("https://vsrm.dev.azure.com/%s", org)).
-		Auth(org, token)
-	if collector := ctx.HARCollector(); collector != nil {
-		client = client.HARCollector(collector)
+	client, err := newADOHTTPClient(ctx, fmt.Sprintf("https://vsrm.dev.azure.com/%s", org), org, token)
+	if err != nil {
+		return nil, err
 	}
 	return &AzureDevopsReleaseClient{ScrapeContext: ctx, Client: client}, nil
 }

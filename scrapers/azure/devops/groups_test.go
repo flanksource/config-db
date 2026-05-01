@@ -54,27 +54,19 @@ var _ = Describe("ParseGitPermissions", func() {
 	})
 })
 
-var _ = Describe("DescriptorAliases", func() {
-	It("converts vssgp descriptor to both forms", func() {
-		// vssgp.Uy0xLTktMTIzNA encodes "S-1-9-1234"
+var _ = Describe("DescriptorAliases form coverage", func() {
+	It("a vssgp descriptor reduces to just the SID", func() {
 		vssgp := SIDToVssgp("S-1-9-1234")
-		aliases := DescriptorAliases(vssgp)
-		Expect(aliases).To(HaveLen(2))
-		Expect(aliases).To(ContainElement(vssgp))
-		Expect(aliases).To(ContainElement("Microsoft.TeamFoundation.Identity;S-1-9-1234"))
+		Expect(DescriptorAliases(vssgp)).To(Equal([]string{"S-1-9-1234"}))
 	})
 
-	It("converts TF identity descriptor to both forms", func() {
+	It("a TF Identity descriptor reduces to just the SID", func() {
 		tf := "Microsoft.TeamFoundation.Identity;S-1-9-1234"
-		aliases := DescriptorAliases(tf)
-		Expect(aliases).To(HaveLen(2))
-		Expect(aliases).To(ContainElement(tf))
-		Expect(aliases).To(ContainElement(SIDToVssgp("S-1-9-1234")))
+		Expect(DescriptorAliases(tf)).To(Equal([]string{"S-1-9-1234"}))
 	})
 
-	It("returns original for unknown descriptors", func() {
-		aliases := DescriptorAliases("aad.some-user")
-		Expect(aliases).To(Equal([]string{"aad.some-user"}))
+	It("an unrecognized descriptor is returned as-is", func() {
+		Expect(DescriptorAliases("cuckoo.something")).To(Equal([]string{"cuckoo.something"}))
 	})
 })
 

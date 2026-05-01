@@ -1,0 +1,12 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: cross-scraper-access-scraper
+spec:
+  full: true
+  file:
+    - type: AccessEmitter
+      class: AccessEmitter
+      id: $.id
+      paths:
+        - fixtures/data/cross_scraper_access.json
