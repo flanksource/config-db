@@ -1798,8 +1798,16 @@ type ExternalUserGroup struct {
 type ExternalConfigAccess struct {
 	ID            string     `json:"id"`
 	ApplicationID *uuid.UUID `json:"application_id,omitempty"`
-	ScraperID     *uuid.UUID `json:"scraper_id,omitempty"`
-	Source        *string    `json:"source,omitempty"`
+	// OwnerScraperID records which scraper produced this access row. Set
+	// internally during save (db/update.go), not by transforms or YAML.
+	OwnerScraperID *uuid.UUID `json:"-"`
+	// ScraperID controls how ConfigExternalID is resolved.
+	// If empty, the running scraper's id is used.
+	// Use `all` to disregard scraper id (useful when access entries reference
+	// configs owned by another scraper, e.g. SQL-sourced permissions over
+	// Kubernetes-scraped resources).
+	ScraperID string  `json:"scraper_id,omitempty"`
+	Source    *string `json:"source,omitempty"`
 
 	ConfigID        uuid.UUID  `json:"config_id,omitempty"`
 	ExternalUserID  *uuid.UUID `json:"external_user_id,omitempty"`
@@ -1829,7 +1837,7 @@ func (e ExternalConfigAccess) ToConfigAccess() models.ConfigAccess {
 	return models.ConfigAccess{
 		ID:              e.ID,
 		ApplicationID:   e.ApplicationID,
-		ScraperID:       e.ScraperID,
+		ScraperID:       e.OwnerScraperID,
 		Source:          e.Source,
 		ConfigID:        e.ConfigID,
 		ExternalUserID:  e.ExternalUserID,
@@ -1847,7 +1855,6 @@ func (e ExternalConfigAccess) ToConfigAccess() models.ConfigAccess {
 func (e *ExternalConfigAccess) UnmarshalJSON(data []byte) error {
 	type Alias ExternalConfigAccess
 	aux := &struct {
-		ScraperID     *string `json:"scraper_id,omitempty"`
 		ApplicationID *string `json:"application_id,omitempty"`
 		*Alias
 	}{
@@ -1858,11 +1865,6 @@ func (e *ExternalConfigAccess) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	if aux.ScraperID != nil {
-		if id, err := uuid.Parse(*aux.ScraperID); err == nil {
-			e.ScraperID = &id
-		}
-	}
 	if aux.ApplicationID != nil {
 		if id, err := uuid.Parse(*aux.ApplicationID); err == nil {
 			e.ApplicationID = &id
@@ -2060,7 +2062,135 @@ func MergeScrapeResults(results ...ScrapeResults) FullScrapeResults {
 			full.ConfigAccessLogs = append(full.ConfigAccessLogs, r.ConfigAccessLogs...)
 		}
 	}
+
+	// Collapse duplicate user/group/role rows that came in via different
+	// scrape paths (graph-permissions, ACL paths, per-project loops). Each
+	// path emits its own ScrapeResult; the per-project entityCtx in
+	// pipelines.go only deduplicates within one project, so cross-project
+	// and cross-source duplicates land here. Two rows are the same logical
+	// entity iff they share an id (when non-nil) or any alias.
+	full.ExternalUsers = clusterByIDOrAlias(
+		full.ExternalUsers,
+		func(u models.ExternalUser) uuid.UUID { return u.ID },
+		func(u models.ExternalUser) []string { return u.Aliases },
+		func(u *models.ExternalUser, a []string) { u.Aliases = a },
+	)
+	full.ExternalGroups = clusterByIDOrAlias(
+		full.ExternalGroups,
+		func(g models.ExternalGroup) uuid.UUID { return g.ID },
+		func(g models.ExternalGroup) []string { return g.Aliases },
+		func(g *models.ExternalGroup, a []string) { g.Aliases = a },
+	)
+	full.ExternalRoles = clusterByIDOrAlias(
+		full.ExternalRoles,
+		func(r models.ExternalRole) uuid.UUID { return r.ID },
+		func(r models.ExternalRole) []string { return r.Aliases },
+		func(r *models.ExternalRole, a []string) { r.Aliases = a },
+	)
 	return full
+}
+
+// clusterByIDOrAlias collapses a slice of entities by id-equality (when
+// non-nil) and alias-overlap (always). The first row in each cluster is the
+// survivor and inherits the union of all member aliases; subsequent rows are
+// dropped. This is the upstream chokepoint that ensures every downstream
+// consumer (UI, save, snapshot) sees one row per logical entity.
+func clusterByIDOrAlias[T any](
+	items []T,
+	getID func(T) uuid.UUID,
+	getAliases func(T) []string,
+	setAliases func(*T, []string),
+) []T {
+	if len(items) <= 1 {
+		return items
+	}
+
+	parent := make([]int, len(items))
+	for i := range parent {
+		parent[i] = i
+	}
+	var find func(int) int
+	find = func(x int) int {
+		if parent[x] != x {
+			parent[x] = find(parent[x])
+		}
+		return parent[x]
+	}
+	union := func(a, b int) {
+		ra, rb := find(a), find(b)
+		if ra != rb {
+			parent[ra] = rb
+		}
+	}
+
+	idToIdx := make(map[uuid.UUID]int)
+	aliasToIdx := make(map[string]int)
+	for i, item := range items {
+		if id := getID(item); id != uuid.Nil {
+			if existingIdx, ok := idToIdx[id]; ok {
+				union(existingIdx, i)
+			} else {
+				idToIdx[id] = i
+			}
+		}
+		for _, alias := range getAliases(item) {
+			if alias == "" {
+				continue
+			}
+			if existingIdx, ok := aliasToIdx[alias]; ok {
+				union(existingIdx, i)
+			} else {
+				aliasToIdx[alias] = i
+			}
+		}
+	}
+
+	// First non-nil-id wins per cluster; otherwise the first encountered.
+	survivor := make(map[int]int)
+	for i := range items {
+		root := find(i)
+		cur, ok := survivor[root]
+		if !ok {
+			survivor[root] = i
+			continue
+		}
+		if getID(items[cur]) == uuid.Nil && getID(items[i]) != uuid.Nil {
+			survivor[root] = i
+		}
+	}
+
+	rootToOutIdx := make(map[int]int)
+	out := make([]T, 0, len(items))
+	for i := range items {
+		root := find(i)
+		survivorIdx := survivor[root]
+		outIdx, ok := rootToOutIdx[root]
+		if !ok {
+			outIdx = len(out)
+			rootToOutIdx[root] = outIdx
+			out = append(out, items[survivorIdx])
+		}
+		if i == survivorIdx {
+			continue
+		}
+		seen := make(map[string]struct{})
+		for _, a := range getAliases(out[outIdx]) {
+			seen[a] = struct{}{}
+		}
+		merged := getAliases(out[outIdx])
+		for _, a := range getAliases(items[i]) {
+			if a == "" {
+				continue
+			}
+			if _, ok := seen[a]; ok {
+				continue
+			}
+			seen[a] = struct{}{}
+			merged = append(merged, a)
+		}
+		setAliases(&out[outIdx], merged)
+	}
+	return out
 }
 
 func Ellipses(str string, length int) string {

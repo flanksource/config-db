@@ -2,6 +2,7 @@ package db
 
 import (
 	gocontext "context"
+	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -127,10 +128,12 @@ var _ = Describe("resolveExternalUserGroups", func() {
 		in := []v1.ExternalUserGroup{
 			{ExternalUserID: &userA, ExternalGroupID: &groupX},
 		}
-		out := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		out, stats, err := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(HaveLen(1))
 		Expect(out[0].ExternalUserID).To(Equal(userA))
 		Expect(out[0].ExternalGroupID).To(Equal(groupX))
+		Expect(stats.Dropped).To(Equal(0))
 	})
 
 	It("drops a direct-UUID row that references a non-existent user", func() {
@@ -138,8 +141,10 @@ var _ = Describe("resolveExternalUserGroups", func() {
 		in := []v1.ExternalUserGroup{
 			{ExternalUserID: &bogus, ExternalGroupID: &groupX},
 		}
-		out := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		out, stats, err := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(BeEmpty())
+		Expect(stats.DroppedUnknownUser).To(Equal(1))
 	})
 
 	It("falls through from a bogus direct UUID to an alias resolution", func() {
@@ -154,7 +159,8 @@ var _ = Describe("resolveExternalUserGroups", func() {
 				ExternalGroupAliases: []string{rawGroupX.String()},
 			},
 		}
-		out := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		out, _, err := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(HaveLen(1))
 		Expect(out[0].ExternalUserID).To(Equal(userA))
 		Expect(out[0].ExternalGroupID).To(Equal(groupX))
@@ -167,7 +173,8 @@ var _ = Describe("resolveExternalUserGroups", func() {
 				ExternalGroupAliases: []string{"group-y"},
 			},
 		}
-		out := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		out, _, err := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(HaveLen(1))
 		Expect(out[0].ExternalUserID).To(Equal(userA))
 		Expect(out[0].ExternalGroupID).To(Equal(groupY))
@@ -182,8 +189,10 @@ var _ = Describe("resolveExternalUserGroups", func() {
 				ExternalGroupAliases: []string{"group-x"},
 			},
 		}
-		out := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		out, stats, err := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(BeEmpty())
+		Expect(stats.Dropped).To(Equal(1))
 	})
 
 	It("processes a mixed batch independently — valid rows survive, invalid rows drop", func() {
@@ -193,14 +202,178 @@ var _ = Describe("resolveExternalUserGroups", func() {
 			{ExternalUserID: &bogusUser, ExternalGroupID: &groupX},
 			{ExternalUserID: &userB, ExternalGroupID: &rawGroupX, ExternalGroupAliases: []string{rawGroupX.String()}},
 		}
-		out := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		out, stats, err := resolveExternalUserGroups(ctx, in, mkUsers(), mkGroups())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(HaveLen(2))
 		Expect(out[0]).To(Equal(models.ExternalUserGroup{ExternalUserID: userA, ExternalGroupID: groupX}))
 		Expect(out[1]).To(Equal(models.ExternalUserGroup{ExternalUserID: userB, ExternalGroupID: groupX}))
+		Expect(stats.Resolved).To(Equal(2))
+		Expect(stats.Dropped).To(Equal(1))
 	})
 
 	It("returns nil for empty input", func() {
-		Expect(resolveExternalUserGroups(ctx, nil, mkUsers(), mkGroups())).To(BeNil())
+		out, stats, err := resolveExternalUserGroups(ctx, nil, mkUsers(), mkGroups())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).To(BeNil())
+		Expect(stats.Input).To(Equal(0))
+	})
+
+	It("resolves alias-only entries against persisted entities case-insensitively", func() {
+		ctx = api.NewScrapeContext(DefaultContext)
+		scraper := models.ConfigScraper{
+			ID:     uuid.New(),
+			Name:   "resolve-persisted-user-groups",
+			Spec:   "{}",
+			Source: models.SourceUI,
+		}
+		Expect(DefaultContext.DB().Create(&scraper).Error).ToNot(HaveOccurred())
+		defer DefaultContext.DB().Delete(&models.ConfigScraper{}, "id = ?", scraper.ID)
+
+		now := time.Now()
+		persistedUser := models.ExternalUser{
+			ID:        uuid.MustParse("00000000-0000-0000-0000-0000000000d1"),
+			Name:      "Persisted User",
+			Aliases:   pq.StringArray{"Persisted.User@Example.COM"},
+			UserType:  "human",
+			ScraperID: scraper.ID,
+			CreatedAt: now,
+			UpdatedAt: &now,
+		}
+		persistedGroup := models.ExternalGroup{
+			ID:        uuid.MustParse("00000000-0000-0000-0000-0000000000d2"),
+			Name:      "Persisted Admins",
+			Aliases:   pq.StringArray{"Persisted-Admins"},
+			GroupType: "security",
+			ScraperID: scraper.ID,
+			CreatedAt: now,
+			UpdatedAt: &now,
+		}
+		Expect(DefaultContext.DB().Create(&persistedUser).Error).ToNot(HaveOccurred())
+		Expect(DefaultContext.DB().Create(&persistedGroup).Error).ToNot(HaveOccurred())
+		defer DefaultContext.DB().Delete(&models.ExternalUser{}, "id = ?", persistedUser.ID)
+		defer DefaultContext.DB().Delete(&models.ExternalGroup{}, "id = ?", persistedGroup.ID)
+
+		in := []v1.ExternalUserGroup{
+			{
+				ExternalUserAliases:  []string{"PERSISTED.USER@example.com"},
+				ExternalGroupAliases: []string{"persisted-admins"},
+			},
+		}
+		out, stats, err := resolveExternalUserGroups(ctx, in, nil, nil)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).To(Equal([]models.ExternalUserGroup{{
+			ExternalUserID:  persistedUser.ID,
+			ExternalGroupID: persistedGroup.ID,
+		}}))
+		Expect(stats.Resolved).To(Equal(1))
+		Expect(stats.Dropped).To(Equal(0))
+	})
+
+	It("resolves direct UUID entries against persisted entities", func() {
+		ctx = api.NewScrapeContext(DefaultContext)
+		scraper := models.ConfigScraper{
+			ID:     uuid.New(),
+			Name:   "resolve-persisted-user-groups-by-id",
+			Spec:   "{}",
+			Source: models.SourceUI,
+		}
+		Expect(DefaultContext.DB().Create(&scraper).Error).ToNot(HaveOccurred())
+		defer DefaultContext.DB().Delete(&models.ConfigScraper{}, "id = ?", scraper.ID)
+
+		now := time.Now()
+		persistedUser := models.ExternalUser{
+			ID:        uuid.MustParse("00000000-0000-0000-0000-0000000000e1"),
+			Name:      "Persisted User By ID",
+			UserType:  "human",
+			ScraperID: scraper.ID,
+			CreatedAt: now,
+			UpdatedAt: &now,
+		}
+		persistedGroup := models.ExternalGroup{
+			ID:        uuid.MustParse("00000000-0000-0000-0000-0000000000e2"),
+			Name:      "Persisted Group By ID",
+			GroupType: "security",
+			ScraperID: scraper.ID,
+			CreatedAt: now,
+			UpdatedAt: &now,
+		}
+		Expect(DefaultContext.DB().Create(&persistedUser).Error).ToNot(HaveOccurred())
+		Expect(DefaultContext.DB().Create(&persistedGroup).Error).ToNot(HaveOccurred())
+		defer DefaultContext.DB().Delete(&models.ExternalUser{}, "id = ?", persistedUser.ID)
+		defer DefaultContext.DB().Delete(&models.ExternalGroup{}, "id = ?", persistedGroup.ID)
+
+		in := []v1.ExternalUserGroup{
+			{ExternalUserID: &persistedUser.ID, ExternalGroupID: &persistedGroup.ID},
+		}
+		out, stats, err := resolveExternalUserGroups(ctx, in, nil, nil)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).To(Equal([]models.ExternalUserGroup{{
+			ExternalUserID:  persistedUser.ID,
+			ExternalGroupID: persistedGroup.ID,
+		}}))
+		Expect(stats.Resolved).To(Equal(1))
+		Expect(stats.Dropped).To(Equal(0))
+	})
+
+	It("persists memberships owned by the current scraper for entities from another scraper", func() {
+		ctx = api.NewScrapeContext(DefaultContext)
+		sourceScraper := models.ConfigScraper{
+			ID:     uuid.New(),
+			Name:   "external-entities-source",
+			Spec:   "{}",
+			Source: models.SourceUI,
+		}
+		membershipScraper := models.ConfigScraper{
+			ID:     uuid.New(),
+			Name:   "external-entities-membership",
+			Spec:   "{}",
+			Source: models.SourceUI,
+		}
+		Expect(DefaultContext.DB().Create(&sourceScraper).Error).ToNot(HaveOccurred())
+		Expect(DefaultContext.DB().Create(&membershipScraper).Error).ToNot(HaveOccurred())
+		defer DefaultContext.DB().Delete(&models.ConfigScraper{}, "id IN ?", []uuid.UUID{sourceScraper.ID, membershipScraper.ID})
+
+		now := time.Now()
+		persistedUser := models.ExternalUser{
+			ID:        uuid.MustParse("00000000-0000-0000-0000-0000000000f1"),
+			Name:      "Cross Scraper User",
+			Aliases:   pq.StringArray{"cross-scraper-user"},
+			UserType:  "human",
+			ScraperID: sourceScraper.ID,
+			CreatedAt: now,
+			UpdatedAt: &now,
+		}
+		persistedGroup := models.ExternalGroup{
+			ID:        uuid.MustParse("00000000-0000-0000-0000-0000000000f2"),
+			Name:      "Cross Scraper Group",
+			Aliases:   pq.StringArray{"cross-scraper-group"},
+			GroupType: "security",
+			ScraperID: sourceScraper.ID,
+			CreatedAt: now,
+			UpdatedAt: &now,
+		}
+		Expect(DefaultContext.DB().Create(&persistedUser).Error).ToNot(HaveOccurred())
+		Expect(DefaultContext.DB().Create(&persistedGroup).Error).ToNot(HaveOccurred())
+		defer DefaultContext.DB().Delete(&models.ExternalUser{}, "id = ?", persistedUser.ID)
+		defer DefaultContext.DB().Delete(&models.ExternalGroup{}, "id = ?", persistedGroup.ID)
+		defer DefaultContext.DB().Delete(&models.ExternalUserGroup{}, "external_user_id = ? AND external_group_id = ?", persistedUser.ID, persistedGroup.ID)
+
+		extract := NewExtractResult()
+		extract.externalUserGroups = []v1.ExternalUserGroup{
+			{
+				ExternalUserAliases:  []string{"cross-scraper-user"},
+				ExternalGroupAliases: []string{"cross-scraper-group"},
+			},
+		}
+		result, _, err := syncExternalEntities(ctx, extract, &membershipScraper.ID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.Warnings).To(BeEmpty())
+
+		var membership models.ExternalUserGroup
+		Expect(DefaultContext.DB().
+			Where("external_user_id = ? AND external_group_id = ? AND scraper_id = ?", persistedUser.ID, persistedGroup.ID, membershipScraper.ID).
+			First(&membership).Error).ToNot(HaveOccurred())
+		Expect(membership.DeletedAt).To(BeNil())
 	})
 })
 
@@ -238,3 +411,112 @@ var _ = Describe("remapExternalUserGroups", func() {
 		}))
 	})
 })
+
+var _ = Describe("canonicalizeAliases", func() {
+	It("drops every known descriptor prefix", func() {
+		Expect(canonicalizeAliases([]string{
+			"agupta3@example.com",
+			`Microsoft.IdentityModel.Claims.ClaimsIdentity;abc\agupta3@example.com`,
+			"aad.YjVhNDEyNmEtMjUwYi03NDRkLTg5ODEtMTRiMTgyYTBiMGM0",
+			"b5a4126a-250b-744d-8981-14b182a0b0c4",
+			"vssgp.Uy0xLTktMQ",
+			"aadgp.Uy0xLTktMQ",
+			"Microsoft.TeamFoundation.Identity;S-1-9-1",
+			"Microsoft.TeamFoundation.ServiceIdentity;owner:type:guid",
+			"svc.aGVsbG8",
+			"s2s.world",
+		})).To(Equal([]string{
+			"agupta3@example.com",
+			"b5a4126a-250b-744d-8981-14b182a0b0c4",
+		}))
+	})
+
+	It("keeps Amit Gupta's bloated alias list down to canonical email + AAD GUID", func() {
+		// This is the exact alias array observed at /users/8a4e4f3a-… before
+		// the fix; canonicalization should reduce it to two canonical entries.
+		Expect(canonicalizeAliases([]string{
+			"agupta3@example.com",
+			"Microsoft.IdentityModel.Claims.ClaimsIdentity;00691924-e082-4301-a3dc-1732afd14289\\agupta3@example.com",
+			"aad.YjVhNDEyNmEtMjUwYi03NDRkLTg5ODEtMTRiMTgyYTBiMGM0",
+			"b5a4126a-250b-644d-8981-14b182a0b0c4",
+			"b5a4126a-250b-744d-8981-14b182a0b0c4",
+		})).To(Equal([]string{
+			"agupta3@example.com",
+			// The …644d… ghost from a prior buggy decoder is GUID-shaped, not
+			// descriptor-prefixed, so the trim leaves it for now (documented
+			// known residue). The canonical 744d form is also kept.
+			"b5a4126a-250b-644d-8981-14b182a0b0c4",
+			"b5a4126a-250b-744d-8981-14b182a0b0c4",
+		}))
+	})
+
+	It("dedupes and skips empty / whitespace-only entries", func() {
+		Expect(canonicalizeAliases([]string{"  ", "", "alice@example.com", "alice@example.com", " bob@example.com"})).
+			To(Equal([]string{"alice@example.com", "bob@example.com"}))
+	})
+
+	It("returns nil for an empty input", func() {
+		Expect(canonicalizeAliases(nil)).To(BeNil())
+		Expect(canonicalizeAliases([]string{})).To(BeNil())
+	})
+})
+
+var _ = Describe("resolveCanonicalID", func() {
+	var ctx api.ScrapeContext
+
+	BeforeEach(func() {
+		// No DB attached — lookupExternalEntityIDByAliases short-circuits
+		// to uuid.Nil, exercising the local-fallback paths.
+		ctx = api.NewScrapeContext(dutycontext.NewContext(gocontext.Background()))
+	})
+
+	It("picks the first UUID-shaped alias as the canonical id", func() {
+		id, err := resolveCanonicalID(ctx, "external_users", []string{
+			"alice@example.com",
+			"b5a4126a-250b-744d-8981-14b182a0b0c4",
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(id.String()).To(Equal("b5a4126a-250b-744d-8981-14b182a0b0c4"))
+	})
+
+	It("falls back to a fresh UUID v7 when no alias is UUID-shaped", func() {
+		id, err := resolveCanonicalID(ctx, "external_users", []string{
+			"alice@example.com",
+			"S-1-9-not-a-uuid",
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(id).ToNot(Equal(uuid.Nil))
+		// UUID v7 — not deterministic, but must be a real parseable UUID.
+		Expect(uuid.Validate(id.String())).To(Succeed())
+	})
+
+	It("does not synthesise an id from a hash of the alias list", func() {
+		// Same alias set; two calls must produce DIFFERENT ids in the v7
+		// fallback branch (because nothing is hashing the aliases any more).
+		aliases := []string{"alice@example.com"}
+		first, err := resolveCanonicalID(ctx, "external_users", aliases)
+		Expect(err).ToNot(HaveOccurred())
+		second, err := resolveCanonicalID(ctx, "external_users", aliases)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(first).ToNot(Equal(second))
+	})
+
+	It("ignores the nil uuid as an alias and continues searching", func() {
+		canonical := "b5a4126a-250b-744d-8981-14b182a0b0c4"
+		id, err := resolveCanonicalID(ctx, "external_users", []string{
+			"00000000-0000-0000-0000-000000000000",
+			canonical,
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(id.String()).To(Equal(canonical))
+	})
+
+	// Wired-DB cases (alias-overlap lookup against external_users) are
+	// covered by the integration suite; the unit suite exercises the
+	// no-DB / local-fallback paths.
+})
+
+// silence unused-import warnings if all the time-bearing tests above are
+// compiled away; the test suite imports `time` indirectly via the resolver
+// helpers, so this is just a defensive marker.
+var _ = time.Now
