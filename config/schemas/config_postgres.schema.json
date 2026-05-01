@@ -1,0 +1,596 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/flanksource/config-db/api/v1/postgres",
+  "$ref": "#/$defs/Postgres",
+  "$defs": {
+    "Authentication": {
+      "properties": {
+        "username": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "password": {
+          "$ref": "#/$defs/EnvVar"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "username",
+        "password"
+      ],
+      "description": "Authentication ..."
+    },
+    "ChangeMapping": {
+      "properties": {
+        "filter": {
+          "type": "string",
+          "description": "Filter selects what change to apply the mapping to"
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity is the severity to be set on the change"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type is the type to be set on the change"
+        },
+        "action": {
+          "type": "string",
+          "description": "Action allows performing actions on the corresponding config item\nbased on this change.\nAllowed actions: \"delete\", \"ignore\", \"move-up\", \"copy-up\", \"copy\", \"move\""
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary replaces the existing change summary."
+        },
+        "config_id": {
+          "type": "string",
+          "description": "ConfigID is a CEL expression that returns the target config's external ID\nfor redirecting changes to a different config item."
+        },
+        "config_type": {
+          "type": "string",
+          "description": "ConfigType is the target config type for redirecting changes."
+        },
+        "scraper_id": {
+          "type": "string",
+          "description": "ScraperID is the scraper ID for the target config. Use \"all\" for cross-scraper lookups."
+        },
+        "ancestor_type": {
+          "type": "string",
+          "description": "AncestorType specifies the config type of the ancestor to target\nwhen using \"move-up\" or \"copy-up\" actions. The engine walks the parent_id\nchain and selects the first ancestor matching this type.\nIf omitted, the immediate parent is used."
+        },
+        "target": {
+          "$ref": "#/$defs/RelationshipSelectorTemplate",
+          "description": "Target specifies a config item selector for \"copy\" and \"move\" actions.\nThe selector is evaluated to find target config items to redirect or\nduplicate changes to. Mutually exclusive with move-up/copy-up/ancestor_type."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ConfigFieldExclusion": {
+      "properties": {
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Optionally specify the config types\nfrom which the JSONPath fields need to be removed.\nIf left empty, all config types are considered."
+        },
+        "jsonpath": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "jsonpath"
+      ],
+      "description": "ConfigFieldExclusion defines fields with JSONPath that needs to\nbe removed from the config."
+    },
+    "ConfigMapKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "ConfigProperties": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "headline": {
+          "type": "boolean"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "min": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "lastTransition": {
+          "type": "string"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/Link"
+          },
+          "type": "array"
+        },
+        "filter": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVar": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "valueFrom": {
+          "$ref": "#/$defs/EnvVarSource"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EnvVarSource": {
+      "properties": {
+        "serviceAccount": {
+          "type": "string"
+        },
+        "helmRef": {
+          "$ref": "#/$defs/HelmRefKeySelector"
+        },
+        "configMapKeyRef": {
+          "$ref": "#/$defs/ConfigMapKeySelector"
+        },
+        "secretKeyRef": {
+          "$ref": "#/$defs/SecretKeySelector"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HelmRefKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "JSONStringMap": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object",
+      "description": "JSONStringMap defined JSON data type, need to implements driver.Valuer, sql.Scanner interface"
+    },
+    "Link": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "LocationOrAlias": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Types on which this plugin should run.\nSupports match expression\nExample: AWS::*, Kubernetes::Namespace"
+        },
+        "filter": {
+          "type": "string",
+          "description": "A Cel expression, when provided, must return true for this filter to apply.\n\nReceives the config item as the cel env variable."
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "withParent": {
+          "type": "string",
+          "description": "The type of the parent to be used"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "Lookup": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Mask": {
+      "properties": {
+        "selector": {
+          "type": "string",
+          "description": "Selector is a CEL expression that selects on what config items to apply the mask."
+        },
+        "jsonpath": {
+          "type": "string",
+          "description": "JSONPath specifies what field in the config needs to be masked"
+        },
+        "value": {
+          "type": "string",
+          "description": "Value can be a hash function name or just a string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MaskList": {
+      "items": {
+        "$ref": "#/$defs/Mask"
+      },
+      "type": "array"
+    },
+    "Postgres": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the ID for the resource."
+        },
+        "name": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the Name for the resource."
+        },
+        "description": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the description for the resource."
+        },
+        "items": {
+          "type": "string",
+          "description": "A JSONPath expression to use to extract individual items from the resource,\nitems are extracted first and then the ID,Name,Type and transformations are applied for each item."
+        },
+        "type": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the type for the resource."
+        },
+        "class": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the class for the resource."
+        },
+        "format": {
+          "type": "string",
+          "description": "Format of config item, defaults to JSON, available options are JSON, properties"
+        },
+        "status": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the status of the config item"
+        },
+        "health": {
+          "type": "string",
+          "description": "A static value or JSONPath expression to use as the health of the config item"
+        },
+        "timestampFormat": {
+          "type": "string",
+          "description": "TimestampFormat is a Go time format string used to\nparse timestamps in createFields and DeletedFields.\nIf not specified, the default is RFC3339."
+        },
+        "createFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CreateFields is a list of JSONPath expression used to identify the created time of the config.\nIf multiple fields are specified, the first non-empty value will be used."
+        },
+        "deleteFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "DeleteFields is a JSONPath expression used to identify the deleted time of the config.\nIf multiple fields are specified, the first non-empty value will be used."
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "labels": {
+          "$ref": "#/$defs/JSONStringMap",
+          "description": "Labels for each config item."
+        },
+        "tags": {
+          "$ref": "#/$defs/Tags",
+          "description": "Tags for each config item.\nMax allowed: 5"
+        },
+        "properties": {
+          "items": {
+            "$ref": "#/$defs/ConfigProperties"
+          },
+          "type": "array",
+          "description": "Properties are custom templatable properties for the scraped config items\ngrouped by the config type."
+        },
+        "connection": {
+          "type": "string",
+          "description": "Connection is either the name of the connection to lookup\nor the connection string itself."
+        },
+        "auth": {
+          "$ref": "#/$defs/Authentication"
+        },
+        "permissions": {
+          "type": "boolean",
+          "description": "Permissions enables scraping PostgreSQL roles, memberships, and effective privileges."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "connection"
+      ]
+    },
+    "RelationshipConfig": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "external_id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "name": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "type": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "agent": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "scope": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "expr": {
+          "type": "string",
+          "description": "Alternately, a single cel-expression can be used\nthat returns a list of relationship selector."
+        },
+        "filter": {
+          "type": "string",
+          "description": "Filter is a CEL expression that selects on what config items\nthe relationship needs to be applied"
+        },
+        "parent": {
+          "type": "boolean",
+          "description": "Parent sets all the configs found by the selector\nas the parent of the configs passed by the filter"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RelationshipSelectorTemplate": {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "external_id": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "name": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "namespace": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "type": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "agent": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "scope": {
+          "$ref": "#/$defs/Lookup"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SecretKeySelector": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key"
+      ]
+    },
+    "Tag": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "Tags": {
+      "items": {
+        "$ref": "#/$defs/Tag"
+      },
+      "type": "array"
+    },
+    "Transform": {
+      "properties": {
+        "gotemplate": {
+          "type": "string"
+        },
+        "jsonpath": {
+          "type": "string"
+        },
+        "expr": {
+          "type": "string"
+        },
+        "javascript": {
+          "type": "string"
+        },
+        "exclude": {
+          "items": {
+            "$ref": "#/$defs/ConfigFieldExclusion"
+          },
+          "type": "array",
+          "description": "Fields to remove from the config, useful for removing sensitive data and fields\nthat change often without a material impact i.e. Last Scraped Time"
+        },
+        "mask": {
+          "$ref": "#/$defs/MaskList",
+          "description": "Masks consist of configurations to replace sensitive fields\nwith hash functions or static string."
+        },
+        "relationship": {
+          "items": {
+            "$ref": "#/$defs/RelationshipConfig"
+          },
+          "type": "array",
+          "description": "Relationship allows you to form relationships between config items using selectors."
+        },
+        "changes": {
+          "$ref": "#/$defs/TransformChange"
+        },
+        "locations": {
+          "items": {
+            "$ref": "#/$defs/LocationOrAlias"
+          },
+          "type": "array"
+        },
+        "aliases": {
+          "items": {
+            "$ref": "#/$defs/LocationOrAlias"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TransformChange": {
+      "properties": {
+        "mapping": {
+          "items": {
+            "$ref": "#/$defs/ChangeMapping"
+          },
+          "type": "array",
+          "description": "Mapping is a list of CEL expressions that maps a change to the specified type"
+        },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Exclude is a list of CEL expressions that excludes a given change"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}
