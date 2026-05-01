@@ -1,0 +1,12 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: file-aws-cloudtrail-assume-role-scraper
+spec:
+  full: true
+  file:
+    - type: AWS::IAM::Role
+      class: Role
+      id: $.id
+      paths:
+        - fixtures/data/aws_cloudtrail_assume_role_test.json
