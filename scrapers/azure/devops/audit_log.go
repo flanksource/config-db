@@ -46,11 +46,9 @@ func NewAzureDevopsAuditClient(ctx api.ScrapeContext, ado v1.AzureDevops) (*Azur
 	if err != nil {
 		return nil, err
 	}
-	client := commonsHTTP.NewClient().
-		BaseURL(fmt.Sprintf("https://auditservice.dev.azure.com/%s", org)).
-		Auth(org, token)
-	if collector := ctx.HARCollector(); collector != nil {
-		client = client.HARCollector(collector)
+	client, err := newADOHTTPClient(ctx, fmt.Sprintf("https://auditservice.dev.azure.com/%s", org), org, token)
+	if err != nil {
+		return nil, err
 	}
 	return &AzureDevopsAuditClient{ScrapeContext: ctx, Client: client}, nil
 }

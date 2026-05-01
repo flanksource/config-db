@@ -1,0 +1,12 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: cross-scraper-org-scraper
+spec:
+  full: true
+  file:
+    - type: Organization
+      class: Organization
+      id: $.id
+      paths:
+        - fixtures/data/cross_scraper_org.json

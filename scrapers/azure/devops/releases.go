@@ -2,6 +2,7 @@ package devops
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/scrapers/azure"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -91,10 +93,10 @@ func (ado AzureDevopsScraper) scrapeReleases(
 
 	definitions, err := releaseClient.GetReleaseDefinitions(ctx, project.Name)
 	if err != nil {
-		return results.Errorf(err, "failed to get release definitions for %s", project.Name)
+		return results.Errorf(err, "failed to get release definitions for %s/%s", config.Organization, project.Name)
 	}
-	ctx.Logger.V(2).Infof("scraping releases for project=%s definitions=%d filter=%v cutoff=%s",
-		project.Name, len(definitions), config.Releases, cutoff.Format(time.RFC3339))
+	ctx.Logger.V(2).Infof("scraping releases for %s/%s definitions=%d filter=%v cutoff=%s",
+		config.Organization, project.Name, len(definitions), config.Releases, cutoff.Format(time.RFC3339))
 
 	for _, def := range definitions {
 		if !collections.MatchItems(def.Name, config.Releases...) {
@@ -103,11 +105,11 @@ func (ado AzureDevopsScraper) scrapeReleases(
 		}
 		defJSON, err := releaseClient.GetReleaseDefinition(ctx, project.Name, def.ID)
 		if err != nil {
-			return results.Errorf(err, "failed to get release definition %d", def.ID)
+			return results.Errorf(err, "failed to get release definition for %s/%s/%d", config.Organization, project.Name, def.ID)
 		}
 		releases, err := releaseClient.GetReleases(ctx, project.Name, def.ID)
 		if err != nil {
-			return results.Errorf(err, "failed to get releases for definition %d in project %s", def.ID, project.Name)
+			return results.Errorf(err, "failed to get releases for definition %d in %s/%s", def.ID, config.Organization, project.Name)
 		}
 		result := buildReleaseResult(ctx, config, project, def, defJSON, releases, cutoff)
 
@@ -116,12 +118,17 @@ func (ado AzureDevopsScraper) scrapeReleases(
 			if shouldFetchPermissions(releaseKey, parsePermissionsInterval(config.Permissions.RateLimit)) {
 				ca, roles, err := ado.fetchReleasePermissions(ctx, client, config, project, def.ID, result.ID)
 				if err != nil {
-					ctx.Logger.V(4).Infof("failed to refresh release permissions for %s/%d: %v", project.Name, def.ID, err)
+					ctx.Logger.V(4).Infof("failed to refresh release permissions for %s/%s/%d: %v", config.Organization, project.Name, def.ID, err)
 				} else {
 					result.ConfigAccess, result.ExternalRoles = ca, roles
 					markPermissionsFetched(releaseKey)
 				}
 			}
+			// Approval-stage access comes directly from defJSON — no API call,
+			// so no rate-limit gate. Dedup roles across both sources by UUID.
+			policyAccess, policyRoles := ado.extractApprovalPolicies(ctx, config, defJSON, result.ID)
+			result.ConfigAccess = append(result.ConfigAccess, policyAccess...)
+			result.ExternalRoles = mergeRolesByID(result.ExternalRoles, policyRoles)
 		}
 
 		results = append(results, result)
@@ -179,13 +186,9 @@ func (ado AzureDevopsScraper) fetchReleasePermissions(
 		}
 
 		if identity.IsContainer {
-			aliases := append(DescriptorAliases(identity.Descriptor), identity.SubjectDescriptor)
-			aliases = append(aliases, DescriptorAliases(identity.SubjectDescriptor)...)
-			// No ID — the SQL merge resolves this group against the AAD scraper's
-			// authoritative record by alias overlap. AAD takes precedence.
 			ctx.AddGroup(dutyModels.ExternalGroup{
 				Name:      name,
-				Aliases:   pq.StringArray(aliases),
+				Aliases:   pq.StringArray(identityAliases(identity, "")),
 				Tenant:    config.Organization,
 				GroupType: "AzureDevOps",
 			})
@@ -193,7 +196,7 @@ func (ado AzureDevopsScraper) fetchReleasePermissions(
 			ctx.AddUser(dutyModels.ExternalUser{
 				Name:     name,
 				Email:    &email,
-				Aliases:  pq.StringArray{email, identity.Descriptor, identity.SubjectDescriptor},
+				Aliases:  pq.StringArray(identityAliases(identity, email)),
 				Tenant:   config.Organization,
 				UserType: "AzureDevOps",
 			})
@@ -227,6 +230,166 @@ func (ado AzureDevopsScraper) fetchReleasePermissions(
 	}
 
 	return configAccess, roles, nil
+}
+
+// approvalRoleName builds the role name for an approval stage. The env name
+// is part of the role because approvers for "Prod" are a different
+// authorisation boundary from approvers for "Dev" — collapsing them would
+// lose that distinction when answering "who can approve deployment to X?".
+// phase is either "Pre" or "Post".
+func approvalRoleName(envName, phase string) string {
+	return "Approver:" + envName + ":" + phase
+}
+
+// extractApprovalPolicies walks the raw release-definition JSON and emits one
+// ExternalConfigAccess per configured (non-automated) approver on every
+// pre- or post-deploy approval stage of every environment. The approver
+// identity is taken straight from defJSON without an extra identity API call
+// because the embedded approver object already carries descriptor + uniqueName.
+func (ado AzureDevopsScraper) extractApprovalPolicies(
+	ctx api.ScrapeContext,
+	config v1.AzureDevops,
+	defJSON map[string]any,
+	releaseExternalID string,
+) ([]v1.ExternalConfigAccess, []dutyModels.ExternalRole) {
+	envs, ok := defJSON["environments"].([]any)
+	if !ok {
+		return nil, nil
+	}
+
+	roleIDs := make(map[string]uuid.UUID)
+	var roles []dutyModels.ExternalRole
+	var configAccess []v1.ExternalConfigAccess
+
+	phases := []struct {
+		key   string
+		label string
+	}{
+		{"preDeployApprovals", "Pre"},
+		{"postDeployApprovals", "Post"},
+	}
+
+	for _, rawEnv := range envs {
+		env, ok := rawEnv.(map[string]any)
+		if !ok {
+			continue
+		}
+		envName, _ := env["name"].(string)
+		if envName == "" {
+			continue
+		}
+		for _, phase := range phases {
+			approvals := approvalPolicyList(env[phase.key])
+			for _, approval := range approvals {
+				approver := decodeApprover(approval)
+				if approver == nil {
+					continue
+				}
+				addExternalEntity(ctx, approver, config.Organization)
+
+				roleName := approvalRoleName(envName, phase.label)
+				roleID, ok := roleIDs[roleName]
+				if !ok {
+					roleID = azure.RoleID(ctx.ScraperID(), roleName)
+					roleIDs[roleName] = roleID
+					roles = append(roles, dutyModels.ExternalRole{
+						ID:       roleID,
+						Name:     roleName,
+						RoleType: "AzureDevOps",
+						Tenant:   config.Organization,
+					})
+				}
+
+				access := v1.ExternalConfigAccess{
+					ConfigExternalID: v1.ExternalID{ConfigType: ReleaseType, ExternalID: releaseExternalID},
+					ExternalRoleID:   &roleID,
+				}
+				if approver.IsContainer {
+					access.ExternalGroupAliases = DescriptorAliases(approver.Descriptor)
+				} else {
+					access.ExternalUserAliases = []string{approver.UniqueName}
+				}
+				configAccess = append(configAccess, access)
+			}
+		}
+	}
+
+	return configAccess, roles
+}
+
+// approvalPolicyList extracts the `approvals` slice from a
+// pre-/postDeployApprovals block in defJSON. Returns nil for missing/malformed
+// input rather than erroring — the shape is maintained by Azure DevOps, not us.
+func approvalPolicyList(raw any) []map[string]any {
+	block, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	arr, ok := block["approvals"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(arr))
+	for _, item := range arr {
+		if m, ok := item.(map[string]any); ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// mergeRolesByID appends src into dst, skipping entries whose UUID is already
+// present. The caller-side dedup keeps the two approval sources
+// (`fetchReleasePermissions` and `extractApprovalPolicies`) decoupled while
+// avoiding duplicate ExternalRole rows in the scrape result.
+func mergeRolesByID(dst, src []dutyModels.ExternalRole) []dutyModels.ExternalRole {
+	if len(src) == 0 {
+		return dst
+	}
+	seen := make(map[uuid.UUID]struct{}, len(dst))
+	for _, r := range dst {
+		seen[r.ID] = struct{}{}
+	}
+	for _, r := range src {
+		if _, ok := seen[r.ID]; ok {
+			continue
+		}
+		seen[r.ID] = struct{}{}
+		dst = append(dst, r)
+	}
+	return dst
+}
+
+// decodeApprover returns the approver IdentityRef for a real (non-automated)
+// approval policy, or nil if the entry is automated / lacks a usable approver.
+func decodeApprover(approval map[string]any) *IdentityRef {
+	if automated, _ := approval["isAutomated"].(bool); automated {
+		return nil
+	}
+	raw, ok := approval["approver"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	ref := &IdentityRef{}
+	if v, ok := raw["id"].(string); ok {
+		ref.ID = v
+	}
+	if v, ok := raw["displayName"].(string); ok {
+		ref.DisplayName = v
+	}
+	if v, ok := raw["uniqueName"].(string); ok {
+		ref.UniqueName = v
+	}
+	if v, ok := raw["descriptor"].(string); ok {
+		ref.Descriptor = v
+	}
+	if v, ok := raw["isContainer"].(bool); ok {
+		ref.IsContainer = v
+	}
+	if ref.UniqueName == "" && ref.Descriptor == "" {
+		return nil
+	}
+	return ref
 }
 
 func addExternalEntity(ctx api.ScrapeContext, identity *IdentityRef, organization string) {
@@ -326,9 +489,9 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 		var changeType string
 		switch a.Status {
 		case "approved":
-			changeType = ChangeTypeApproved
+			changeType = types.ChangeTypeApproved
 		case "rejected":
-			changeType = ChangeTypeRejected
+			changeType = types.ChangeTypeRejected
 		default:
 			continue
 		}
@@ -345,7 +508,7 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 		}
 
 		severity := "info"
-		if changeType == ChangeTypeRejected {
+		if changeType == types.ChangeTypeRejected {
 			severity = "high"
 		}
 
@@ -355,6 +518,18 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 		}
 
 		createdAt := release.CreatedOn
+		externalChangeID := fmt.Sprintf("%s/approval/%d", baseExternalChangeID, a.ID)
+
+		approvalDetail := types.Approval{
+			Event: types.Event{
+				ID:        externalChangeID,
+				Timestamp: createdAt.UTC().Format(time.RFC3339),
+			},
+			Approver: identityRefToTyped(approver, a.Comments),
+			Stage:    approvalTypeToStage(a.ApprovalType),
+			Status:   approvalStatusToTyped(a.Status),
+		}
+
 		out = append(out, v1.ChangeResult{
 			ChangeType:       changeType,
 			CreatedAt:        &createdAt,
@@ -364,7 +539,8 @@ func releaseApprovalChanges(approvals []ReleaseApproval, release Release, envNam
 			ConfigType:       ReleaseType,
 			Source:           source,
 			Summary:          summary,
-			ExternalChangeID: fmt.Sprintf("%s/approval/%d", baseExternalChangeID, a.ID),
+			Details:          v1.ChangeDetailsWithRaw(approvalDetail, a),
+			ExternalChangeID: externalChangeID,
 		})
 	}
 	return out
@@ -402,66 +578,49 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 				createdBy = &release.CreatedBy.UniqueName
 			}
 
-			details := map[string]any{
-				"releaseId":   release.ID,
-				"releaseName": release.Name,
-				"environment": env.Name,
-				"status":      env.Status,
-			}
-			if createdBy != nil {
-				details["createdBy"] = *createdBy
-			}
-			webURL := release.Links["web"].Href
-			if webURL != "" {
-				details["url"] = webURL
-			}
-			if pre := approvalSummary(env.PreDeployApprovals); len(pre) > 0 {
-				details["preDeployApprovals"] = pre
-			}
-			if post := approvalSummary(env.PostDeployApprovals); len(post) > 0 {
-				details["postDeployApprovals"] = post
-			}
-
-			if len(env.DeploySteps) > 0 {
-				details["deploySteps"] = env.DeploySteps
-			}
-			if release.Reason != "" {
-				details["reason"] = release.Reason
-			}
-			if release.Description != "" {
-				details["description"] = release.Description
-			}
-			if env.TriggerReason != "" {
-				details["triggerReason"] = env.TriggerReason
-			}
-			if vars := flattenVariables(release.Variables); len(vars) > 0 {
-				details["variables"] = vars
-			}
-			if envVars := flattenVariables(env.Variables); len(envVars) > 0 {
-				details["environmentVariables"] = envVars
-			}
-			if len(release.Artifacts) > 0 {
-				details["artifacts"] = summarizeArtifacts(release.Artifacts)
-			}
-
 			createdAt := release.CreatedOn
+			externalChangeID := fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID)
+
+			promotion := types.Promotion{
+				Event: types.Event{
+					ID:         externalChangeID,
+					URL:        release.Links["web"].Href,
+					Timestamp:  createdAt.UTC().Format(time.RFC3339),
+					Properties: buildReleaseEventProperties(release, env),
+				},
+				To: types.Environment{
+					Name:       env.Name,
+					Identifier: strconv.Itoa(env.ID),
+					Stage:      envNameToStage(env.Name),
+				},
+				Version: release.Name,
+				Approvals: append(
+					approvalsToTyped(env.PreDeployApprovals, types.ApprovalStagePreDeployment, createdAt),
+					approvalsToTyped(env.PostDeployApprovals, types.ApprovalStagePostDeployment, createdAt)...,
+				),
+				Artifact: primaryArtifactSummary(release.Artifacts),
+				Source:   primaryArtifactSource(release.Artifacts),
+			}
+
+			raw := buildReleaseRaw(release, env, createdBy)
+
 			result.Changes = append(result.Changes, v1.ChangeResult{
-				ChangeType:       env.Name,
+				ChangeType:       types.ChangeTypeDeployment,
 				CreatedAt:        &createdAt,
 				CreatedBy:        createdBy,
 				ExternalID:       releaseID,
 				ConfigType:       ReleaseType,
 				Source:           "AzureDevops/release/" + configExternalID.ExternalID,
 				Summary:          fmt.Sprintf("%s / %s", release.Name, env.Name),
-				Details:          details,
-				ExternalChangeID: fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID),
+				Details:          v1.ChangeDetailsWithRaw(promotion, raw),
+				ExternalChangeID: externalChangeID,
 			})
 
 			result.Changes = append(result.Changes, releaseApprovalChanges(
 				append(env.PreDeployApprovals, env.PostDeployApprovals...),
 				release, env.Name, configExternalID.ExternalID,
 				"AzureDevops/release/"+configExternalID.ExternalID,
-				fmt.Sprintf("%s/%s/release/%d/%d/%d", config.Organization, project.Name, def.ID, release.ID, env.ID),
+				externalChangeID,
 			)...)
 
 			if config.Permissions != nil && config.Permissions.Enabled {
@@ -478,6 +637,12 @@ func buildReleaseResult(ctx api.ScrapeContext, config v1.AzureDevops, project Pr
 				}
 			}
 		}
+	}
+
+	if config.Permissions != nil && config.Permissions.Enabled && defJSON != nil {
+		roles, access := emitReleaseDefinitionRoles(ctx, config, def, defJSON, configExternalID)
+		result.ExternalRoles = append(result.ExternalRoles, roles...)
+		result.ConfigAccess = append(result.ConfigAccess, access...)
 	}
 
 	result.BaseScraper = config.BaseScraper
