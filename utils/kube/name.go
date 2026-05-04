@@ -52,7 +52,7 @@ func GetName(obj interface{}) Name {
 		}
 		name.Kind = object.GetKind()
 	default:
-		if t := reflect.TypeOf(obj); t.Kind() == reflect.Ptr {
+		if t := reflect.TypeOf(obj); t.Kind() == reflect.Pointer {
 			name.Kind = t.Elem().Name()
 		} else {
 			name.Kind = t.Name()
