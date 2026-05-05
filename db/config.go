@@ -147,7 +147,6 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 		Name:        &result.Name,
 		Source:      &result.Source,
 		Labels:      (*types.JSONStringMap)(&result.Labels),
-		Properties:  &result.Properties,
 		Config:      &dataStr,
 		Ready:       result.Ready,
 		Parents:     result.Parents,
@@ -158,6 +157,15 @@ func NewConfigItemFromResult(ctx api.ScrapeContext, result v1.ScrapeResult) (*mo
 
 	if result.ScraperLess || slices.Contains(v1.ScraperLessTypes, ci.Type) {
 		ci.ScraperID = nil
+	}
+
+	// Scraper-owned config results always express the scraper's current property slice.
+	// A nil/empty result.Properties therefore means "the scraper now owns zero properties"
+	// and must remove stale scraper-created properties while preserving user/other-scraper properties.
+	if ci.ScraperID != nil && *ci.ScraperID != uuid.Nil {
+		ci.Properties = lo.ToPtr(dutyModels.NewOwnedProperties(result.Properties))
+	} else if result.Properties != nil {
+		ci.Properties = lo.ToPtr(dutyModels.NewOwnedProperties(result.Properties))
 	}
 
 	ci.Tags = types.JSONStringMap(result.Tags)

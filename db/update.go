@@ -109,18 +109,6 @@ func mapStringEqual(a, b map[string]string) bool {
 	return true
 }
 
-func mapEqual(a, b map[string]any) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if b[k] != v {
-			return false
-		}
-	}
-	return true
-}
-
 func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result *v1.ScrapeResult, ci, existing *models.ConfigItem) (bool, []*models.ConfigChange, error) {
 	ci.ID = existing.ID
 	updates := make(map[string]any)
@@ -221,16 +209,51 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result *v1.Scrap
 		summary.AddWarning(ci.Type, fmt.Sprintf("updated scraper_id of config[%s] from %s to %s", ci, existing.ScraperID, ci.ScraperID))
 	}
 
-	if ci.Properties != nil && len(*ci.Properties) > 0 && (existing.Properties == nil || !mapEqual(ci.Properties.AsMap(), existing.Properties.AsMap())) {
-		updates["properties"] = *ci.Properties
-	}
+	// nil properties mean "not observed / no opinion".
+	// empty properties mean "observed and now owns zero properties", so remove this creator's slice.
+	propertyUpdateNeeded := ci.Properties != nil
 
-	if len(updates) == 0 {
+	if len(updates) == 0 && !propertyUpdateNeeded {
 		return false, changes, nil
 	}
 
-	if err := ctx.DutyContext().DB().Model(ci).Updates(updates).Error; err != nil {
-		return false, nil, errors.Wrapf(dutydb.ErrorDetails(err), "unable to update config item: %s", ci)
+	fieldsChanged := len(updates) > 0
+	propertyChanged := false
+	if err := ctx.DutyContext().DB().Transaction(func(tx *gorm.DB) error {
+		if len(updates) > 0 {
+			if err := tx.Model(ci).Updates(updates).Error; err != nil {
+				return dutydb.ErrorDetails(err)
+			}
+		}
+
+		if propertyUpdateNeeded {
+			createdBy := ctx.ScraperID()
+			if ci.ScraperID != nil && *ci.ScraperID != uuid.Nil {
+				createdBy = ci.ScraperID.String()
+			}
+			if createdBy == "" {
+				return nil
+			}
+
+			configID, err := uuid.Parse(ci.ID)
+			if err != nil {
+				return fmt.Errorf("invalid config id %q: %w", ci.ID, err)
+			}
+			createdByID, err := uuid.Parse(createdBy)
+			if err != nil {
+				return fmt.Errorf("invalid property creator id %q: %w", createdBy, err)
+			}
+
+			result, err := dutyModels.UpdateConfigItemProperties(tx, configID, dutyModels.PropertyCreatorTypeScraper, createdByID, ci.Properties.AsProperties())
+			if err != nil {
+				return dutydb.ErrorDetails(err)
+			}
+			ci.Properties = &result.Properties
+			propertyChanged = result.Changed
+		}
+		return nil
+	}); err != nil {
+		return false, nil, errors.Wrapf(err, "unable to update config item: %s", ci)
 	}
 
 	if isDeleted {
@@ -241,7 +264,7 @@ func updateCI(ctx api.ScrapeContext, summary *v1.ScrapeSummary, result *v1.Scrap
 		).Add(1)
 	}
 
-	return true, changes, nil
+	return fieldsChanged || propertyChanged, changes, nil
 }
 
 func shouldExcludeChange(ctx api.ScrapeContext, result *v1.ScrapeResult, changeResult v1.ChangeResult) (bool, error) {
@@ -576,13 +599,42 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		summary.AddChangeSummary(configType, cs)
 	}
 
-	// NOTE: On duplicate primary key do nothing
-	// because an incremental scraper might have already inserted the config item.
-	if err := ctx.DB().
-		Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
-		CreateInBatches(extractResult.newConfigs, configItemsBulkInsertSize).Error; err != nil {
-		return summary, ctx.Oops().Wrapf(dutydb.ErrorDetails(err), "failed to create config items")
+	newConfigProperties := map[string]dutyModels.OwnedProperties{}
+	for _, config := range extractResult.newConfigs {
+		if config.Properties != nil && scraperID != nil && *scraperID != uuid.Nil {
+			newConfigProperties[config.ID] = *config.Properties
+			config.Properties = nil
+		}
 	}
+
+	if err := ctx.DB().Transaction(func(tx *gorm.DB) error {
+		// NOTE: On duplicate primary key do nothing
+		// because an incremental scraper might have already inserted the config item.
+		if err := tx.
+			Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoNothing: true}).
+			CreateInBatches(extractResult.newConfigs, configItemsBulkInsertSize).Error; err != nil {
+			return dutydb.ErrorDetails(err)
+		}
+
+		for _, config := range extractResult.newConfigs {
+			if props, ok := newConfigProperties[config.ID]; ok {
+				configID, err := uuid.Parse(config.ID)
+				if err != nil {
+					return fmt.Errorf("invalid config id %q: %w", config.ID, err)
+				}
+
+				result, err := dutyModels.UpdateConfigItemProperties(tx, configID, dutyModels.PropertyCreatorTypeScraper, *scraperID, props.AsProperties())
+				if err != nil {
+					return dutydb.ErrorDetails(err)
+				}
+				config.Properties = &result.Properties
+			}
+		}
+		return nil
+	}); err != nil {
+		return summary, ctx.Oops().Wrapf(err, "failed to create config items")
+	}
+
 	for _, config := range extractResult.newConfigs {
 		summary.AddInserted(config.Type)
 		ctx.TempCache().Insert(*config)
