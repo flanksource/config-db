@@ -30,7 +30,7 @@ jobs:
       contents: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
         with:
           egress-policy: audit
 
@@ -71,7 +71,7 @@ jobs:
       id-token: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
         with:
           egress-policy: audit
 
@@ -92,7 +92,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Publish to DockerHub Registry
-        uses: elgohr/Publish-Docker-Github-Action@cba9ef01f060d055caf693f34a0ed92d361f2ab1 # v5
+        uses: elgohr/Publish-Docker-Github-Action@9c315307d4addfcc3f922312151226b512f85670 # v5
         with:
           name: flanksource/config-db
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -110,7 +110,7 @@ jobs:
 
       - name: Login to Amazon ECR Public
         id: login-ecr-public
-        uses: aws-actions/amazon-ecr-login@376925c9d111252e87ae59691e5a442dd100ef6a # v2
+        uses: aws-actions/amazon-ecr-login@19d944daaa35f0fa1d3f7f8af1d3f2e5de25c5b7 # v2
         with:
           registry-type: public
 
