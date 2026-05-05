@@ -87,6 +87,7 @@ jobs:
 
       - name: Benchmark base
         run: |
+          set -euo pipefail
           cd .bench/base
           # benchstat recommends >= 10 runs for stronger significance.
           # We use -count=6 to keep PR runtime reasonable.
@@ -95,6 +96,7 @@ jobs:
 
       - name: Benchmark head
         run: |
+          set -euo pipefail
           # benchstat recommends >= 10 runs for stronger significance.
           # We use -count=6 to keep PR runtime reasonable.
           CONFIG_DB_BENCH_SIZES="${BENCH_SIZES}" \
