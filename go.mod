@@ -16,7 +16,7 @@ require (
 
 require (
 	cloud.google.com/go/asset v1.26.0
-	cloud.google.com/go/bigquery v1.76.0
+	cloud.google.com/go/bigquery v1.77.0
 	cloud.google.com/go/securitycenter v1.43.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/advisor/armadvisor v1.2.0
@@ -39,7 +39,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.11
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.11
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.62.3
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.299.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.300.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.57.2
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.79.1
 	github.com/aws/aws-sdk-go-v2/service/efs v1.41.16
