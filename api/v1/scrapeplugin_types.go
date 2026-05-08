@@ -26,6 +26,14 @@ type ScrapePlugin struct {
 	Status ScrapePluginStatus `json:"status,omitempty"`
 }
 
+func (t *ScrapePlugin) SetObservedGeneration(generation int64) {
+	t.Status.ObservedGeneration = generation
+}
+
+func (t *ScrapePlugin) GetObservedGeneration() int64 {
+	return t.Status.ObservedGeneration
+}
+
 type ScrapePluginSpec struct {
 	Change TransformChange `json:"changes,omitempty"`
 
