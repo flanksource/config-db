@@ -203,6 +203,19 @@ var configRelationshipUpdateMutex sync.Mutex
 var mutexWaitBucketsMs = []float64{500, 1_000, 3_000, 5_000, 10_000, 15_000, 30_000, 60_000, 100_000, 150_000, 300_000, 600_000}
 
 func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.ConfigRelationship) error {
+	if len(relationships) == 0 {
+		return nil
+	}
+
+	scraperID := ctx.ScrapeConfig().GetPersistedID()
+	if scraperID != nil && *scraperID != uuid.Nil {
+		for i := range relationships {
+			if relationships[i].ScraperID == nil {
+				relationships[i].ScraperID = scraperID
+			}
+		}
+	}
+
 	// The mutex prevents ShareLock deadlock errors since this function can be called by
 	// both Scraper & consumeWatchKubernetes job and might end up trying to update the same rows
 	// at the same time
@@ -212,7 +225,7 @@ func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.Conf
 	defer configRelationshipUpdateMutex.Unlock()
 
 	return dutydb.ErrorDetails(ctx.DB().Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "config_id"}, {Name: "related_id"}, {Name: "relation"}},
+		Columns:   models.ConfigRelationship{}.PKCols(),
 		DoNothing: true,
 	}).CreateInBatches(relationships, 500).Error)
 }
