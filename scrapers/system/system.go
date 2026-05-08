@@ -2,12 +2,14 @@ package system
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/query"
+	"github.com/flanksource/duty/rbac"
 	"github.com/flanksource/duty/rbac/policy"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -171,6 +173,13 @@ func scrapeAccessEntities(ctx api.ScrapeContext, scraperID uuid.UUID) v1.ScrapeR
 
 	result.ExternalRoles = scrapePlaybookRoles(scraperID)
 
+	access, errAccess := scrapePlaybookAccess(ctx, scraperID, users)
+	if errAccess != nil {
+		result = result.SetError(errAccess)
+		return result
+	}
+	result.ConfigAccess = access
+
 	return result
 }
 
@@ -221,22 +230,85 @@ func scrapeTeams(ctx api.ScrapeContext, scraperID uuid.UUID) ([]models.ExternalG
 }
 
 func scrapePlaybookRoles(scraperID uuid.UUID) []models.ExternalRole {
-	return []models.ExternalRole{
-		{
-			Name:      policy.ActionPlaybookRun,
-			Tenant:    "mission-control",
-			RoleType:  "playbook-action",
-			Aliases:   pq.StringArray{"role:" + policy.ActionPlaybookRun},
-			ScraperID: &scraperID,
-			CreatedAt: time.Now(),
-		},
-		{
-			Name:      policy.ActionPlaybookApprove,
-			Tenant:    "mission-control",
-			RoleType:  "playbook-action",
-			Aliases:   pq.StringArray{"role:" + policy.ActionPlaybookApprove},
-			ScraperID: &scraperID,
-			CreatedAt: time.Now(),
-		},
+	actions := []string{
+		policy.ActionMCPRun,
+		policy.ActionPlaybookRun,
+		policy.ActionPlaybookApprove,
+		policy.ActionPlaybookCancel,
 	}
+
+	roles := make([]models.ExternalRole, 0, len(actions))
+	for _, action := range actions {
+		roles = append(roles, models.ExternalRole{
+			Name:      action,
+			Tenant:    "mission-control",
+			RoleType:  "playbook-action",
+			Aliases:   pq.StringArray{"role:" + action},
+			ScraperID: &scraperID,
+			CreatedAt: time.Now(),
+		})
+	}
+
+	return roles
+}
+
+func scrapePlaybookAccess(ctx api.ScrapeContext, scraperID uuid.UUID, users []models.ExternalUser) ([]v1.ExternalConfigAccess, error) {
+	actions := []string{
+		policy.ActionMCPRun,
+		policy.ActionPlaybookRun,
+		policy.ActionPlaybookApprove,
+		policy.ActionPlaybookCancel,
+	}
+	source := "mission-control-rbac"
+	access := make([]v1.ExternalConfigAccess, 0)
+
+	for _, user := range users {
+		personID := personIDFromAliases(user.Aliases)
+		if personID == "" {
+			continue
+		}
+
+		for _, action := range actions {
+			response, err := rbac.RunSubjectAccessSearch(ctx.DutyContext(), rbac.SubjectAccessSearchRequest{
+				Subject:       personID,
+				Action:        action,
+				ResourceTypes: []string{"playbook"},
+			})
+			if err != nil {
+				return nil, fmt.Errorf("error running playbook access search for user %s action %s: %w", personID, action, err)
+			}
+
+			for _, result := range response.Results {
+				if result.ResourceType != "playbook" {
+					continue
+				}
+
+				playbookID, err := uuid.Parse(result.ID)
+				if err != nil {
+					return nil, fmt.Errorf("invalid playbook id from access search %q: %w", result.ID, err)
+				}
+
+				access = append(access, v1.ExternalConfigAccess{
+					ConfigID:            playbookID,
+					ExternalUserAliases: []string{"people:" + personID},
+					ExternalRoleAliases: []string{"role:" + action},
+					ScraperID:           &scraperID,
+					Source:              &source,
+					CreatedAt:           time.Now(),
+					ConfigExternalID:    v1.ExternalID{ConfigID: playbookID.String(), ConfigType: "MissionControl::Playbook"},
+				})
+			}
+		}
+	}
+
+	return access, nil
+}
+
+func personIDFromAliases(aliases pq.StringArray) string {
+	for _, alias := range aliases {
+		if strings.HasPrefix(alias, "people:") {
+			return strings.TrimPrefix(alias, "people:")
+		}
+	}
+	return ""
 }
