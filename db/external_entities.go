@@ -123,13 +123,15 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 
 	result.Users.Saved = counts.usersSaved
 	result.Users.Deleted = counts.usersDeleted
-	result.Users.Entities = resolvedUsers
 	result.Groups.Saved = counts.groupsSaved
 	result.Groups.Deleted = counts.groupsDeleted
-	result.Groups.Entities = resolvedGroups
 	result.Roles.Saved = counts.rolesSaved
 	result.Roles.Deleted = counts.rolesDeleted
-	result.Roles.Entities = resolvedRoles
+	if ctx.PropertyOn(false, "scraper.history.external_entities") {
+		result.Users.Entities = resolvedUsers
+		result.Groups.Entities = resolvedGroups
+		result.Roles.Entities = resolvedRoles
+	}
 	return result, synced, nil
 }
 

@@ -117,6 +117,7 @@ Per-scraper feature flags, also resolved via `scraper.{uid}.{key}` / `scraper.{k
 | `scraper.disable`                  | Bool | `false` | Disable a scraper entirely                             |
 | `scraper.runNow`                   | Bool | `false` | Run the scraper immediately on schedule registration   |
 | `scraper.watch.disable`            | Bool | `false` | Disable Kubernetes watch/informer for a scraper        |
+| `scraper.history.external_entities` | Bool | `false` | Populate external_*.entities in scrape summaries      |
 | `scraper.azure.devops.incremental` | Bool | `true`  | Enable incremental scraping for Azure DevOps pipelines |
 
 ## Event Processing
