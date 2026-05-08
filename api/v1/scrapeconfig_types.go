@@ -64,6 +64,14 @@ type ScrapeConfig struct {
 	Status ScrapeConfigStatus `json:"status,omitempty"`
 }
 
+func (t *ScrapeConfig) SetObservedGeneration(generation int64) {
+	t.Status.ObservedGeneration = generation
+}
+
+func (t *ScrapeConfig) GetObservedGeneration() int64 {
+	return t.Status.ObservedGeneration
+}
+
 func (t ScrapeConfig) LoggerName() string {
 	return fmt.Sprintf("kubernetes.%s.%s", t.Namespace, t.Name)
 }
