@@ -682,12 +682,16 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 				summary.ConfigAccess.Skipped++
 				continue
 			} else if config == "" {
-				summary.AddScrapeWarning(v1.Warning{
-					Error:  fmt.Sprintf("config access references unknown config %s", configAccess.ConfigExternalID.Pretty().ANSI()),
-					Input:  extractResult.transformInput,
-					Expr:   extractResult.transformExpr,
-					Result: configAccess,
-				})
+				// Certain kubernetes items are excluded, and sometimes accesses are for multiple configurations
+				// where certain entities might not exist
+				if ctx.ScrapeConfig().Type() != "kubernetes" {
+					summary.AddScrapeWarning(v1.Warning{
+						Error:  fmt.Sprintf("config access references unknown config %s", configAccess.ConfigExternalID.Pretty().ANSI()),
+						Input:  extractResult.transformInput,
+						Expr:   extractResult.transformExpr,
+						Result: configAccess,
+					})
+				}
 				summary.ConfigAccess.Skipped++
 				continue
 			}
