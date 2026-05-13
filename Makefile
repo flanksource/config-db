@@ -191,9 +191,17 @@ release: binaries
 lint: golangci-lint ## Run golangci-lint against code.
 	$(GOLANGCI_LINT) run -v ./...
 
+.PHONY: scrape-ui
+scrape-ui:
+	cd ./cmd/scrapeui/frontend/ && pnpm install --no-frozen-lockfile --prefer-offline && pnpm run build
+
 .PHONY: build
 build:
 	go build -o ./.bin/$(NAME) -ldflags '$(LDFLAGS)' .
+
+.PHONY: build-ui
+build-ui: scrape-ui
+	go build -o ./.bin/$(NAME) -ldflags '$(LDFLAGS)' -tags scrapeui .
 
 .PHONY: build-slim
 build-slim:
