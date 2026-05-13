@@ -698,7 +698,7 @@ func ensureScraper(ctx context.Context, sc *v1.ScrapeConfig) error {
 	}
 
 	var existing models.ConfigScraper
-	err = ctx.DB().Where("name = ? AND deleted_at IS NULL", name).First(&existing).Error
+	err = ctx.DB().Where("name = ? AND deleted_at IS NULL", name).Order("created_at ASC, id ASC").First(&existing).Error
 	if err == nil {
 		if err := ctx.DB().Model(&models.ConfigScraper{}).
 			Where("name = ? AND deleted_at IS NULL", name).
