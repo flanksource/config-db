@@ -1,0 +1,37 @@
+{
+  "id": "azure-enterprise-app-aws-sso",
+  "name": "AWS SSO Enterprise Application",
+  "config": {
+    "name": "AWS SSO Enterprise Application"
+  },
+  "external_users": [
+    {
+      "name": "Alice",
+      "account_id": "azure-tenant",
+      "user_type": "User",
+      "aliases": ["alice@example.com"]
+    }
+  ],
+  "external_groups": [
+    {
+      "name": "Engineers",
+      "account_id": "azure-tenant",
+      "group_type": "Security",
+      "aliases": ["engineers"]
+    }
+  ],
+  "config_access": [
+    {
+      "id": "assignment-alice-to-aws-role",
+      "external_config_id": {"config_type": "AWS::::Account", "external_id": "963567256330", "scraper_id": "all"},
+      "external_user_aliases": ["alice@example.com"],
+      "external_role_aliases": ["arn:aws:iam::963567256330:role/deploy"]
+    },
+    {
+      "id": "assignment-engineers-to-aws-role",
+      "external_config_id": {"config_type": "AWS::::Account", "external_id": "963567256330", "scraper_id": "all"},
+      "external_group_aliases": ["engineers"],
+      "external_role_aliases": ["arn:aws:iam::963567256330:role/deploy"]
+    }
+  ]
+}

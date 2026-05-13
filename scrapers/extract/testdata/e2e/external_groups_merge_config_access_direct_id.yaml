@@ -13,7 +13,8 @@ pre_populate:
       external_id: ["merge-group-access-org"]
       config: '{"name":"Merge Group Access Org"}'
   external_groups:
-    - name: "Group A"
+    - id: "33333333-3333-3333-3333-333333333333"
+      name: "Group A"
       aliases: ["grp-alias-a", "grp-alias-b"]
       group_type: security
       account_id: org-merge

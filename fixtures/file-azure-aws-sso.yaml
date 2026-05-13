@@ -5,8 +5,8 @@ metadata:
 spec:
   full: true
   file:
-    - type: AWS::IAM::Role
-      class: Role
+    - type: AWS::::Account
+      class: Account
       id: $.id
       name: $.name
       paths:

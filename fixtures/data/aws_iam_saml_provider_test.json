@@ -1,0 +1,7 @@
+{
+  "id": "arn:aws:iam::111111111111:saml-provider/customer-saml",
+  "name": "customer-saml",
+  "config": {
+    "arn": "arn:aws:iam::111111111111:saml-provider/customer-saml"
+  }
+}

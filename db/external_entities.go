@@ -931,14 +931,12 @@ func upsertExternalUserGroupsBlock(
 		}
 	}
 
-	// Stale deletion: only run when this scrape actually emitted memberships
-	// (i.e. the scrape source has authoritative knowledge of who-belongs-to-what).
-	// Scrapers that emit users/groups as a side effect of permission/ACL scraping
-	// — pipelines/releases/repositories in azure-devops, IAM in AWS — have no
-	// opinion on memberships. Treating "produced users but no memberships" as
-	// "all memberships are gone" wipes legitimate rows persisted by a sibling
-	// codepath (e.g. azure-devops scrapeGroups when groups: false or rate-limited).
-	if !ctx.IsIncrementalScrape() && len(userGroups) > 0 {
+	if !ctx.IsIncrementalScrape() {
+		if len(userGroups) == 0 {
+			if err := tx.Exec(fmt.Sprintf(`CREATE TEMP TABLE %s (LIKE external_user_groups INCLUDING ALL) ON COMMIT DROP`, tempUserGroups)).Error; err != nil {
+				return fmt.Errorf("failed to setup empty temp user groups: %w", err)
+			}
+		}
 		if err := tx.Exec(fmt.Sprintf(`
 			UPDATE external_user_groups SET deleted_at = NOW()
 			WHERE deleted_at IS NULL

@@ -1,0 +1,27 @@
+{
+  "id": "arn:aws:iam::111111111111:role/deployrole",
+  "name": "deployrole",
+  "config": {
+    "name": "deployrole"
+  },
+  "external_users": [
+    {
+      "name": "alice",
+      "account_id": "222222222222",
+      "user_type": "IAMUser",
+      "aliases": ["arn:aws:iam::222222222222:user/alice"]
+    }
+  ],
+  "access_logs": [
+    {
+      "external_config_id": {
+        "config_type": "AWS::IAM::Role",
+        "external_id": "arn:aws:iam::111111111111:role/deployrole"
+      },
+      "external_user_aliases": ["arn:aws:iam::222222222222:user/alice"],
+      "created_at": "2026-04-21T22:00:00Z",
+      "mfa": true,
+      "count": 3
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "external-user-groups-with-membership",
+  "config": {
+    "name": "External User Groups With Membership"
+  },
+  "external_user_groups": [
+    {
+      "external_user_id": "55555555-5555-5555-5555-555555555555",
+      "external_group_id": "66666666-6666-6666-6666-666666666666"
+    }
+  ]
+}

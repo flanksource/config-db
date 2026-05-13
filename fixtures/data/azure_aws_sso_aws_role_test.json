@@ -1,0 +1,16 @@
+{
+  "id": "963567256330",
+  "name": "963567256330",
+  "config_type": "AWS::::Account",
+  "config": {
+    "name": "963567256330"
+  },
+  "external_roles": [
+    {
+      "name": "deploy",
+      "account_id": "963567256330",
+      "role_type": "IAMRole",
+      "aliases": ["arn:aws:iam::963567256330:role/deploy"]
+    }
+  ]
+}
