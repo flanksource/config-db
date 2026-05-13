@@ -11,6 +11,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 )
 
@@ -209,6 +210,15 @@ func (ctx ScrapeContext) ScraperID() string {
 		return ""
 	}
 	return ctx.scrapeConfig.GetPersistedID().String()
+}
+
+func (ctx ScrapeContext) ScraperIDUUID() *uuid.UUID {
+	id := ctx.ScraperID()
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil
+	}
+	return &uid
 }
 
 func (ctx ScrapeContext) Namespace() string {

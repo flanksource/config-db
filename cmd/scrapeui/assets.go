@@ -1,3 +1,5 @@
+//go:build scrapeui
+
 package scrapeui
 
 import _ "embed"
