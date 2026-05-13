@@ -1,0 +1,39 @@
+{
+  "id": "aws-iam-groups-111111111111",
+  "name": "aws-iam-groups-111111111111",
+  "config": {"name": "aws-iam-groups-111111111111"},
+  "external_groups": [
+    {
+      "name": "admins",
+      "account_id": "111111111111",
+      "group_type": "IAM",
+      "aliases": ["arn:aws:iam::111111111111:group/admins"]
+    },
+    {
+      "name": "developers",
+      "account_id": "111111111111",
+      "group_type": "IAM",
+      "aliases": ["arn:aws:iam::111111111111:group/developers"]
+    }
+  ],
+  "external_users": [
+    {
+      "name": "alice",
+      "account_id": "111111111111",
+      "user_type": "IAMUser",
+      "aliases": ["arn:aws:iam::111111111111:user/alice", "alice"]
+    },
+    {
+      "name": "bob",
+      "account_id": "111111111111",
+      "user_type": "IAMUser",
+      "aliases": ["arn:aws:iam::111111111111:user/bob", "bob"]
+    },
+    {
+      "name": "carol",
+      "account_id": "111111111111",
+      "user_type": "IAMUser",
+      "aliases": ["arn:aws:iam::111111111111:user/carol", "carol"]
+    }
+  ]
+}

@@ -199,10 +199,6 @@ var configRelationshipUpdateMutex sync.Mutex
 var mutexWaitBucketsMs = []float64{500, 1_000, 3_000, 5_000, 10_000, 15_000, 30_000, 60_000, 100_000, 150_000, 300_000, 600_000}
 
 func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.ConfigRelationship) error {
-	if len(relationships) == 0 {
-		return nil
-	}
-
 	scraperID := ctx.ScrapeConfig().GetPersistedID()
 	if scraperID != nil && *scraperID != uuid.Nil {
 		for i := range relationships {
@@ -220,9 +216,27 @@ func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.Conf
 	ctx.Histogram("config_relationship_update_mutex_wait_ms", mutexWaitBucketsMs).Record(time.Duration(time.Since(lockWaitStart).Milliseconds()))
 	defer configRelationshipUpdateMutex.Unlock()
 
+	if scraperID != nil && *scraperID != uuid.Nil && !ctx.IsIncrementalScrape() {
+		if err := ctx.DB().Table("config_relationships").
+			Where("scraper_id = ? AND deleted_at IS NULL", *scraperID).
+			Updates(map[string]any{
+				"deleted_at": duty.Now(),
+				"updated_at": duty.Now(),
+			}).Error; err != nil {
+			return dutydb.ErrorDetails(err)
+		}
+	}
+
+	if len(relationships) == 0 {
+		return nil
+	}
+
 	return dutydb.ErrorDetails(ctx.DB().Clauses(clause.OnConflict{
-		Columns:   models.ConfigRelationship{}.PKCols(),
-		DoNothing: true,
+		Columns: models.ConfigRelationship{}.PKCols(),
+		DoUpdates: clause.Assignments(map[string]any{
+			"deleted_at": nil,
+			"updated_at": duty.Now(),
+		}),
 	}).CreateInBatches(relationships, 500).Error)
 }
 

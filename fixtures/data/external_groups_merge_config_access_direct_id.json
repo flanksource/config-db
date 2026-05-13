@@ -1,0 +1,33 @@
+{
+  "id": "merge-group-access-org",
+  "config": {
+    "name": "Merge Group Access Org"
+  },
+  "external_roles": [
+    {
+      "name": "Reader",
+      "account_id": "org-merge",
+      "role_type": "builtin",
+      "aliases": ["reader-role"]
+    }
+  ],
+  "external_groups": [
+    {
+      "name": "Group B",
+      "account_id": "org-merge",
+      "group_type": "security",
+      "aliases": ["grp-alias-b", "grp-alias-c"]
+    }
+  ],
+  "config_access": [
+    {
+      "id": "merge-group-access",
+      "external_config_id": {
+        "config_type": "Organization",
+        "external_id": "merge-group-access-org"
+      },
+      "external_group_id": "33333333-3333-3333-3333-333333333333",
+      "external_role_aliases": ["reader-role"]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "id": "111111111111",
+  "name": "111111111111",
+  "config": {
+    "name": "111111111111"
+  },
+  "external_users": [
+    {
+      "name": "deploy-user",
+      "account_id": "222222222222",
+      "user_type": "IAMUser",
+      "aliases": ["arn:aws:iam::222222222222:user/deploy-user"]
+    },
+    {
+      "name": "token.actions.githubusercontent.com",
+      "account_id": "111111111111",
+      "user_type": "OIDC",
+      "aliases": ["token.actions.githubusercontent.com:repo:flanksource/config-db:ref:refs/heads/main"]
+    }
+  ],
+  "external_groups": [
+    {
+      "name": "333333333333:root",
+      "account_id": "333333333333",
+      "group_type": "AWSAccount",
+      "aliases": ["arn:aws:iam::333333333333:root"]
+    }
+  ],
+  "external_roles": [
+    {
+      "name": "deployrole",
+      "account_id": "111111111111",
+      "role_type": "IAMRole",
+      "aliases": ["arn:aws:iam::111111111111:role/deployrole"]
+    }
+  ],
+  "config_access": [
+    {
+      "id": "trust-aws-user",
+      "external_config_id": {"config_type": "AWS::::Account", "external_id": "111111111111"},
+      "external_user_aliases": ["arn:aws:iam::222222222222:user/deploy-user"],
+      "external_role_aliases": ["arn:aws:iam::111111111111:role/deployrole"]
+    },
+    {
+      "id": "trust-aws-federated",
+      "source": "condition=StringEquals",
+      "external_config_id": {"config_type": "AWS::::Account", "external_id": "111111111111"},
+      "external_user_aliases": ["token.actions.githubusercontent.com:repo:flanksource/config-db:ref:refs/heads/main"],
+      "external_role_aliases": ["arn:aws:iam::111111111111:role/deployrole"]
+    },
+    {
+      "id": "trust-aws-account-root",
+      "external_config_id": {"config_type": "AWS::::Account", "external_id": "111111111111"},
+      "external_group_aliases": ["arn:aws:iam::333333333333:root"],
+      "external_role_aliases": ["arn:aws:iam::111111111111:role/deployrole"]
+    }
+  ]
+}
