@@ -109,7 +109,7 @@ func matchSelector(sel duty.RelationshipSelector, configs []v1.ScrapeResult) []v
 			continue
 		}
 		if sel.Namespace != "" {
-			ns, _ := c.Tags["namespace"]
+			ns := c.Tags["namespace"]
 			if ns != sel.Namespace {
 				continue
 			}

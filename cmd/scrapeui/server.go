@@ -378,7 +378,9 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprint(w, pageHTML())
+	if _, err := fmt.Fprint(w, pageHTML()); err != nil {
+		return
+	}
 }
 
 func pageHTML() string {
@@ -422,7 +424,9 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	initial := s.snapshot()
 	s.mu.RUnlock()
 	if b, err := json.Marshal(initial); err == nil {
-		fmt.Fprintf(w, "data: %s\n\n", b)
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", b); err != nil {
+			return
+		}
 		flusher.Flush()
 	}
 
@@ -442,11 +446,15 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		s.mu.RUnlock()
 
 		b, _ := json.Marshal(data)
-		fmt.Fprintf(w, "data: %s\n\n", b)
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", b); err != nil {
+			return
+		}
 		flusher.Flush()
 
 		if data.Done {
-			fmt.Fprintf(w, "event: done\ndata: {}\n\n")
+			if _, err := fmt.Fprintf(w, "event: done\ndata: {}\n\n"); err != nil {
+				return
+			}
 			flusher.Flush()
 			return
 		}
