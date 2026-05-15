@@ -154,7 +154,7 @@ jobs:
             uv
             powershell
             postgrest
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Test
         run: make test-prod
 
