@@ -14,12 +14,6 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
-type ConfigChangeUpdate struct {
-	Change         *ConfigChange
-	CountIncrement int
-	FirstInBatch   bool // First occurrence in current batch (not found in cache)
-}
-
 // ConfigChange represents the config change database table
 type ConfigChange struct {
 	ExternalID string `gorm:"-"`
