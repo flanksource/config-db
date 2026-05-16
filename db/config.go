@@ -208,6 +208,8 @@ func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.Conf
 		}
 	}
 
+	relationships = dedupeConfigRelationships(relationships)
+
 	// The mutex prevents ShareLock deadlock errors since this function can be called by
 	// both Scraper & consumeWatchKubernetes job and might end up trying to update the same rows
 	// at the same time
@@ -238,6 +240,42 @@ func UpdateConfigRelatonships(ctx api.ScrapeContext, relationships []models.Conf
 			"updated_at": duty.Now(),
 		}),
 	}).CreateInBatches(relationships, 500).Error)
+}
+
+type configRelationshipKey struct {
+	relatedID string
+	configID  string
+	relation  string
+	scraperID string
+}
+
+func dedupeConfigRelationships(relationships []models.ConfigRelationship) []models.ConfigRelationship {
+	if len(relationships) < 2 {
+		return relationships
+	}
+
+	seen := make(map[configRelationshipKey]struct{}, len(relationships))
+	out := make([]models.ConfigRelationship, 0, len(relationships))
+	for _, relationship := range relationships {
+		scraperID := ""
+		if relationship.ScraperID != nil {
+			scraperID = relationship.ScraperID.String()
+		}
+
+		key := configRelationshipKey{
+			relatedID: relationship.RelatedID,
+			configID:  relationship.ConfigID,
+			relation:  relationship.Relation,
+			scraperID: scraperID,
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, relationship)
+	}
+
+	return out
 }
 
 // FindConfigChangesByItemID returns all the changes of the given config item
