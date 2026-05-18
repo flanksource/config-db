@@ -12,6 +12,7 @@ import (
 	"github.com/flanksource/config-db/scrapers"
 	"github.com/flanksource/config-db/scrapers/kubernetes"
 	"github.com/flanksource/config-db/utils"
+	dutyModels "github.com/flanksource/duty/models"
 	"github.com/labstack/echo/v4"
 )
 
@@ -42,7 +43,7 @@ func init() {
 	utils.TrackObject("ScraperTempCache", &api.ScraperTempCache)
 	utils.TrackObject("IgnoreCache", &kubernetes.IgnoreCache)
 	utils.TrackObject("OrphanCache", &db.OrphanCache)
-	utils.TrackObject("ChangeCacheByFingerprint", &db.ChangeCacheByFingerprint)
+	utils.TrackObject("ChangeCacheByFingerprint", &dutyModels.ChangeCacheByFingerprint)
 	utils.TrackObject("ParentCache", &db.ParentCache)
 	utils.TrackObject("ResourceIDMapPerCluster", &kubernetes.ResourceIDMapPerCluster)
 }
