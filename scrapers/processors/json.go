@@ -297,9 +297,14 @@ func (e Extract) String() string {
 func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.ScrapeResult, relationshipConfigs []v1.RelationshipConfig) ([]v1.DirectedRelationship, error) {
 	var output []v1.DirectedRelationship
 
+	inputEnv := input.AsMap()
 	for _, rc := range relationshipConfigs {
 		if rc.Filter != "" {
-			filterOutput, err := ctx.RunTemplate(gomplate.Template{Expression: rc.Filter}, input.AsMap())
+			filterOutput, err := ctx.RunTemplate(gomplate.Template{
+				Expression: rc.Filter,
+				CacheKey:   "processors.relationship.filter:" + rc.Filter,
+				CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+			}, inputEnv)
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate relationship config filter: %s: %v", rc.Filter, err)
 			}
@@ -313,7 +318,11 @@ func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.Scr
 
 		var relationshipSelectors []v1.DirectedRelationship
 		if rc.Expr != "" {
-			celOutput, err := ctx.RunTemplate(gomplate.Template{Expression: rc.Expr}, input.AsMap())
+			celOutput, err := ctx.RunTemplate(gomplate.Template{
+				Expression: rc.Expr,
+				CacheKey:   "processors.relationship.expr:" + rc.Expr,
+				CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+			}, inputEnv)
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate relationship config (expr: %s, config_id: %s): %v", rc.Expr, lo.FromPtr(input.ConfigID), err)
 			}
@@ -561,7 +570,11 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 		}
 
 		if l.Filter != "" {
-			filterOutput, err := ctx.RunTemplateBool(gomplate.Template{Expression: string(l.Filter)}, env)
+			filterOutput, err := ctx.RunTemplateBool(gomplate.Template{
+				Expression: string(l.Filter),
+				CacheKey:   "processors.location.filter:" + string(l.Filter),
+				CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+			}, env)
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate location/alias filter: %w", err)
 			}
