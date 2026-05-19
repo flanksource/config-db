@@ -3,12 +3,14 @@ package changes
 import (
 	_ "embed"
 	"fmt"
+	"time"
 
 	"github.com/flanksource/clicky"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
+	"github.com/flanksource/config-db/utils"
 	"github.com/flanksource/duty"
 	"github.com/flanksource/gomplate/v3"
 	"github.com/samber/lo"
@@ -39,7 +41,11 @@ func (t *changeRule) match(ctx api.ScrapeContext, configEnv map[string]any) (boo
 		return true, nil
 	}
 
-	return ctx.RunTemplateBool(gomplate.Template{Expression: t.Filter}, configEnv)
+	return ctx.RunTemplateBool(gomplate.Template{
+		Expression: t.Filter,
+		CacheKey:   "changes.rule.filter:" + t.Filter,
+		CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+	}, configEnv)
 }
 
 // process returns (matched, error)
@@ -56,7 +62,11 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 		env[k] = v
 	}
 
-	ok, err := ctx.RunTemplateBool(gomplate.Template{Expression: t.Rule}, env)
+	ok, err := ctx.RunTemplateBool(gomplate.Template{
+		Expression: t.Rule,
+		CacheKey:   "changes.rule.expr:" + t.Rule,
+		CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+	}, env)
 	if err != nil {
 		return false, fmt.Errorf("failed to evaluate change mapping rule (%s): %w", lo.Ellipsis(t.Rule, 30), err)
 	}
@@ -82,7 +92,11 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 	}
 
 	if t.Summary != "" {
-		summary, err := ctx.RunTemplate(gomplate.Template{Template: t.Summary}, env)
+		summary, err := ctx.RunTemplate(gomplate.Template{
+			Template:  t.Summary,
+			CacheKey:  "changes.rule.summary:" + t.Summary,
+			CacheTime: utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+		}, env)
 		if err != nil {
 			return true, fmt.Errorf("failed to evaluate summary template %s: %w", t.Summary, err)
 		}
@@ -91,7 +105,11 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 	}
 
 	if t.ConfigID != "" {
-		configID, err := ctx.RunTemplate(gomplate.Template{Expression: t.ConfigID}, env)
+		configID, err := ctx.RunTemplate(gomplate.Template{
+			Expression: t.ConfigID,
+			CacheKey:   "changes.rule.config_id:" + t.ConfigID,
+			CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+		}, env)
 		if err != nil {
 			return true, fmt.Errorf("failed to evaluate config_id expression %s: %w", t.ConfigID, err)
 		}
