@@ -38,6 +38,7 @@ const (
 	KindDeployment  = "Deployment"
 	KindDaemonSet   = "DaemonSet"
 	KindJob         = "Job"
+	KindConnection  = "Connection"
 )
 
 var ResourceIDMapPerCluster PerClusterResourceIDMap
@@ -342,6 +343,11 @@ func ExtractResults(ctx *KubernetesContext, objs []*unstructured.Unstructured) v
 		}
 
 		switch obj.GetKind() {
+		case KindConnection:
+			if obj.GetAPIVersion() == "mission-control.flanksource.com/v1" {
+				maps.Copy(labels, mcConnectionTypeLabel(obj))
+			}
+
 		case KindPod:
 			nodeName := getString(obj, "spec", "nodeName")
 
