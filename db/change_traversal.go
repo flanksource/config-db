@@ -28,7 +28,7 @@ func resolveChange(change *v1.ChangeResult, action string, targetConfigID string
 	}
 
 	if change.Diff != nil {
-		change.Resolved.Diff = *change.Diff
+		change.Resolved.Diff = change.Diff
 	}
 }
 
