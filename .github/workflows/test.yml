@@ -17,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@e3094867375d7a2a2722ff42f8eb55bf7b0dc448 # v1.0.34
         with:
           tools: |
             bun
@@ -48,7 +48,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@e3094867375d7a2a2722ff42f8eb55bf7b0dc448 # v1.0.34
         with:
           tools: |
             bun
@@ -99,7 +99,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@e3094867375d7a2a2722ff42f8eb55bf7b0dc448 # v1.0.34
         with:
           tools: |
             bun
@@ -134,7 +134,7 @@ jobs:
         with:
           go-version: 1.26.x
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
@@ -147,7 +147,7 @@ jobs:
           restore-keys: |
             cache-
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@e3094867375d7a2a2722ff42f8eb55bf7b0dc448 # v1.0.34
         with:
           tools: |
             bun
@@ -236,7 +236,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@e3094867375d7a2a2722ff42f8eb55bf7b0dc448 # v1.0.34
         with:
           tools: |
             bun
@@ -276,7 +276,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@e3094867375d7a2a2722ff42f8eb55bf7b0dc448 # v1.0.34
         with:
           tools: |
             etcd@v3.5.23
