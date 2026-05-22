@@ -6,7 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-const connectionTypeLabel = "missioncontrol/connectionType"
+const connectionTypeLabel = "mission-control/connection-type"
 
 var nonConnectionTypeSpecFields = map[string]struct{}{
 	"properties":   {},
