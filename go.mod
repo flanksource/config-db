@@ -35,15 +35,15 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/aws/aws-sdk-go-v2 v1.41.7
-	github.com/aws/aws-sdk-go-v2/service/backup v1.55.2
+	github.com/aws/aws-sdk-go-v2/service/backup v1.56.0
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.11
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.11
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.62.3
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.303.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.304.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.57.2
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.80.0
 	github.com/aws/aws-sdk-go-v2/service/efs v1.41.16
-	github.com/aws/aws-sdk-go-v2/service/eks v1.83.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.84.0
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.52.2
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.33.25
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.54.12
