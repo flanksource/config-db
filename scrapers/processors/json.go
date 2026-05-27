@@ -41,7 +41,11 @@ func (t *Mask) Filter(ctx api.ScrapeContext, in v1.ScrapeResult) (bool, error) {
 		return false, nil
 	}
 
-	res, err := ctx.RunTemplate(gomplate.Template{Expression: t.Selector}, in.AsMap())
+	res, err := ctx.RunTemplate(gomplate.Template{
+		Expression: t.Selector,
+		CacheKey:   "processors.json.mask.filter:" + t.Selector,
+		CacheTime:  utils.RandomDurationBetween(4*time.Hour, 8*time.Hour),
+	}, in.AsMap())
 	if err != nil {
 		return false, err
 	}
@@ -564,6 +568,10 @@ func (e Extract) Extract(ctx api.ScrapeContext, inputs ...v1.ScrapeResult) ([]v1
 func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias []v1.LocationOrAlias) ([]string, error) {
 	var output []string
 	for _, l := range locationOrAlias {
+		if len(l.Values) == 0 {
+			continue
+		}
+
 		configType, _ := env["config_type"].(string)
 		if l.Type != "" && !l.Type.Match(configType) {
 			continue
@@ -595,23 +603,22 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 			}
 		}
 
-		if len(l.Values) > 0 {
-			templater := gomplate.StructTemplater{
-				Values:         env,
+		for _, value := range l.Values {
+			v, err := gomplate.RunTemplate(env, gomplate.Template{
+				Template:       value,
+				CacheKey:       "extract.location.gomplate:" + value,
+				CacheTime:      utils.RandomDurationBetween(6*time.Hour, 12*time.Hour),
 				ValueFunctions: true,
 				DelimSets: []gomplate.Delims{
 					{Left: "{{", Right: "}}"},
 					{Left: "$(", Right: ")"},
 				},
-			}
-
-			if err := templater.Walk(&l); err != nil {
+			})
+			if err != nil {
 				return nil, fmt.Errorf("failed to template location/alias values for type:%s, filter:%s: %w", l.Type, l.Filter, err)
 			}
 
-			for _, value := range l.Values {
-				output = append(output, string(value))
-			}
+			output = append(output, v)
 		}
 	}
 
