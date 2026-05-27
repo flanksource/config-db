@@ -8,7 +8,7 @@ require (
 	github.com/flanksource/commons v1.51.5
 	github.com/flanksource/deps v1.0.34
 	github.com/flanksource/duty v1.0.1312
-	github.com/flanksource/gomplate/v3 v3.24.80
+	github.com/flanksource/gomplate/v3 v3.24.81
 	github.com/flanksource/is-healthy v1.0.87
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.22
