@@ -44,7 +44,7 @@ func (t *changeRule) match(ctx api.ScrapeContext, configEnv map[string]any) (boo
 	return ctx.RunTemplateBool(gomplate.Template{
 		Expression: t.Filter,
 		CacheKey:   "changes.rule.filter:" + t.Filter,
-		CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+		CacheTime:  utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 	}, configEnv)
 }
 
@@ -65,7 +65,7 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 	ok, err := ctx.RunTemplateBool(gomplate.Template{
 		Expression: t.Rule,
 		CacheKey:   "changes.rule.expr:" + t.Rule,
-		CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+		CacheTime:  utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 	}, env)
 	if err != nil {
 		return false, fmt.Errorf("failed to evaluate change mapping rule (%s): %w", lo.Ellipsis(t.Rule, 30), err)
@@ -95,7 +95,7 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 		summary, err := ctx.RunTemplate(gomplate.Template{
 			Template:  t.Summary,
 			CacheKey:  "changes.rule.summary:" + t.Summary,
-			CacheTime: utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+			CacheTime: utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 		}, env)
 		if err != nil {
 			return true, fmt.Errorf("failed to evaluate summary template %s: %w", t.Summary, err)
@@ -108,7 +108,7 @@ func (t *changeRule) process(ctx api.ScrapeContext, change *v1.ChangeResult, con
 		configID, err := ctx.RunTemplate(gomplate.Template{
 			Expression: t.ConfigID,
 			CacheKey:   "changes.rule.config_id:" + t.ConfigID,
-			CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+			CacheTime:  utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 		}, env)
 		if err != nil {
 			return true, fmt.Errorf("failed to evaluate config_id expression %s: %w", t.ConfigID, err)
