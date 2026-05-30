@@ -44,7 +44,7 @@ func (t *Mask) Filter(ctx api.ScrapeContext, in v1.ScrapeResult) (bool, error) {
 	res, err := ctx.RunTemplate(gomplate.Template{
 		Expression: t.Selector,
 		CacheKey:   "processors.json.mask.filter:" + t.Selector,
-		CacheTime:  utils.RandomDurationBetween(4*time.Hour, 8*time.Hour),
+		CacheTime:  utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 	}, in.AsMap())
 	if err != nil {
 		return false, err
@@ -307,7 +307,7 @@ func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.Scr
 			filterOutput, err := ctx.RunTemplate(gomplate.Template{
 				Expression: rc.Filter,
 				CacheKey:   "processors.relationship.filter:" + rc.Filter,
-				CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+				CacheTime:  utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 			}, inputEnv)
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate relationship config filter: %s: %v", rc.Filter, err)
@@ -325,7 +325,7 @@ func getRelationshipsFromRelationshipConfigs(ctx api.ScrapeContext, input v1.Scr
 			celOutput, err := ctx.RunTemplate(gomplate.Template{
 				Expression: rc.Expr,
 				CacheKey:   "processors.relationship.expr:" + rc.Expr,
-				CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+				CacheTime:  utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 			}, inputEnv)
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate relationship config (expr: %s, config_id: %s): %v", rc.Expr, lo.FromPtr(input.ConfigID), err)
@@ -581,7 +581,7 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 			filterOutput, err := ctx.RunTemplateBool(gomplate.Template{
 				Expression: string(l.Filter),
 				CacheKey:   "processors.location.filter:" + string(l.Filter),
-				CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+				CacheTime:  utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 			}, env)
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate location/alias filter: %w", err)
@@ -607,7 +607,7 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 			v, err := gomplate.RunTemplate(env, gomplate.Template{
 				Template:       value,
 				CacheKey:       "extract.location.gomplate:" + value,
-				CacheTime:      utils.RandomDurationBetween(6*time.Hour, 12*time.Hour),
+				CacheTime:      utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 				ValueFunctions: true,
 				DelimSets: []gomplate.Delims{
 					{Left: "{{", Right: "}}"},

@@ -266,7 +266,7 @@ func shouldExcludeChange(ctx api.ScrapeContext, result *v1.ScrapeResult, changeR
 		tpl := gomplate.Template{
 			Expression: expr,
 			CacheKey:   "db.change.exclusion:" + expr,
-			CacheTime:  utils.RandomDurationBetween(2*time.Hour, 4*time.Hour),
+			CacheTime:  utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 		}
 		if res, err := ctx.RunTemplate(tpl, env); err != nil {
 			return false, fmt.Errorf("[%s] change exclusion expression failed (%s): %w", changeResult, expr, err)
