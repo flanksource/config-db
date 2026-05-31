@@ -4,6 +4,7 @@ _DS_Store
 vendor
 config-db
 scraped/
+bench-memory-results/
 
 tests/log.txt
 

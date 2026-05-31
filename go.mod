@@ -61,6 +61,7 @@ require (
 	github.com/chromedp/chromedp v0.15.1
 	github.com/eko/gocache/lib/v4 v4.2.3
 	github.com/evanphx/json-patch v5.9.11+incompatible
+	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/fjl/memsize v0.0.2
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid/v5 v5.4.0
@@ -210,7 +211,6 @@ require (
 	github.com/exaring/otelpgx v0.11.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fergusstrange/embedded-postgres v1.34.0 // indirect
 	github.com/flanksource/kubectl-neat v1.0.4 // indirect
 	github.com/flanksource/sandbox-runtime v1.0.2 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

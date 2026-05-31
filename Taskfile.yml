@@ -71,3 +71,42 @@ tasks:
     cmds:
       - npm install
       - npm run dev
+
+  bench:memory:envtest:
+    desc: "Ensure envtest kube-apiserver and etcd binaries are installed."
+    vars:
+      ENVTEST_K8S_VERSION: '{{.ENVTEST_K8S_VERSION | default "1.34.x"}}'
+      ENVTEST_DIR: '{{.ROOT_DIR}}/.bin/envtest'
+    cmds:
+      - mkdir -p {{.ENVTEST_DIR}}
+      - go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use {{.ENVTEST_K8S_VERSION}} --bin-dir {{.ENVTEST_DIR}} -p path > {{.ENVTEST_DIR}}/assets.path
+      - test -x "$(cat {{.ENVTEST_DIR}}/assets.path)/kube-apiserver"
+      - test -x "$(cat {{.ENVTEST_DIR}}/assets.path)/etcd"
+
+  bench:memory:build:
+    desc: "Build config-db binary for memory benchmark."
+    cmds:
+      - mkdir -p .bin
+      - go build -o .bin/config-db .
+
+  bench:memory:
+    desc: "Run the sealed config-db Kubernetes watch memory benchmark."
+    deps: [bench:memory:envtest, bench:memory:build]
+    vars:
+      BENCH_DB_URL: '{{.BENCH_DB_URL | default ""}}'
+      ARTIFACTS_DIR:
+        sh: 'echo "${ARTIFACTS_DIR:-bench-memory-results/$(date +%Y%m%d-%H%M%S)}"'
+      TEST_TIMEOUT: '{{.TEST_TIMEOUT | default "3h"}}'
+    cmds:
+      - mkdir -p {{.ARTIFACTS_DIR}}
+      - |
+        KUBEBUILDER_ASSETS="$(cat .bin/envtest/assets.path)" \
+        CONFIG_DB_MEMORY_BENCH=1 \
+        CONFIG_DB_BIN="{{.ROOT_DIR}}/.bin/config-db" \
+        BENCH_DB_URL='{{.BENCH_DB_URL}}' \
+        BENCH_ARTIFACTS_DIR='{{.ARTIFACTS_DIR}}' \
+        go test ./bench/memory \
+          -run '^TestConfigDBKubernetesWatchMemory$' \
+          -count=1 \
+          -timeout {{.TEST_TIMEOUT}} \
+          -v
