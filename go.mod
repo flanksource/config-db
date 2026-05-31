@@ -8,8 +8,8 @@ require (
 	github.com/flanksource/commons v1.52.0
 	github.com/flanksource/deps v1.0.34
 	github.com/flanksource/duty v1.0.1317
-	github.com/flanksource/gomplate/v3 v3.24.81
-	github.com/flanksource/is-healthy v1.0.87
+	github.com/flanksource/gomplate/v3 v3.24.82
+	github.com/flanksource/is-healthy v1.0.88
 	github.com/flanksource/ketall v1.1.9
 	github.com/flanksource/kopper v1.0.22
 )
@@ -105,7 +105,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.31.1
 	k8s.io/apimachinery v0.36.1
-	k8s.io/client-go v0.35.4
+	k8s.io/client-go v0.36.1
 	sigs.k8s.io/controller-runtime v0.23.3
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -451,7 +451,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/gosimple/slug v1.15.0 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
-	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/hairyhenderson/toml v0.4.2-0.20210923231440-40456b8e66cf // indirect
 	github.com/hairyhenderson/yaml v0.0.0-20220618171115-2d35fca545ce // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -509,8 +508,8 @@ require (
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/api v0.35.4
-	k8s.io/apiextensions-apiserver v0.35.4
+	k8s.io/api v0.36.1
+	k8s.io/apiextensions-apiserver v0.36.1
 	k8s.io/cli-runtime v0.32.2 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
