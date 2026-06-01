@@ -17,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             bun
@@ -48,7 +48,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             bun
@@ -99,7 +99,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             bun
@@ -134,7 +134,7 @@ jobs:
         with:
           go-version: 1.26.x
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
@@ -147,7 +147,7 @@ jobs:
           restore-keys: |
             cache-
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             bun
@@ -193,7 +193,7 @@ jobs:
           kubectl get pods -A
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           file: ./build/Dockerfile
@@ -236,7 +236,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             bun
@@ -276,7 +276,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             etcd@v3.5.23
