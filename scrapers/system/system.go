@@ -292,7 +292,7 @@ func scrapePlaybookAccess(ctx api.ScrapeContext, scraperID uuid.UUID, users []mo
 					ConfigID:            playbookID,
 					ExternalUserAliases: []string{"people:" + personID},
 					ExternalRoleAliases: []string{"role:" + action},
-					ScraperID:           &scraperID,
+					OwnerScraperID:      &scraperID,
 					Source:              &source,
 					CreatedAt:           time.Now(),
 					ConfigExternalID:    v1.ExternalID{ConfigID: playbookID.String(), ConfigType: "MissionControl::Playbook"},
