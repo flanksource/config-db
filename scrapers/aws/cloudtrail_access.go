@@ -18,9 +18,9 @@ import (
 // Actions OIDC, and EKS IRSA — the current code only matches "AssumeRole"
 // and silently drops the other two.
 var assumeRoleEventNames = map[string]struct{}{
-	"AssumeRole":                 {},
-	"AssumeRoleWithSAML":         {},
-	"AssumeRoleWithWebIdentity":  {},
+	"AssumeRole":                {},
+	"AssumeRoleWithSAML":        {},
+	"AssumeRoleWithWebIdentity": {},
 }
 
 func isAssumeRoleEvent(eventName string) bool {

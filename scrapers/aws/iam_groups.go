@@ -6,8 +6,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/utils"
-	"github.com/flanksource/duty/types"
 	dutymodels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/lib/pq"
 	"github.com/samber/lo"
 )

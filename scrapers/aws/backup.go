@@ -258,8 +258,8 @@ func backupJobToChange(ctx *AWSContext, job backupTypes.BackupJob) (v1.ChangeRes
 
 	typed := types.Backup{
 		Event: types.Event{
-			ID:        lo.FromPtr(job.BackupJobId),
-			Timestamp: timeToRFC3339(job.CreationDate),
+			ID:         lo.FromPtr(job.BackupJobId),
+			Timestamp:  timeToRFC3339(job.CreationDate),
 			Properties: backupJobProperties(job),
 		},
 		BackupType:   types.BackupTypeSnapshot,
@@ -417,8 +417,8 @@ func recoveryPointToChange(ctx *AWSContext, vault backupTypes.BackupVaultListMem
 
 	typed := types.Backup{
 		Event: types.Event{
-			ID:        arn,
-			Timestamp: timeToRFC3339(rp.CreationDate),
+			ID:         arn,
+			Timestamp:  timeToRFC3339(rp.CreationDate),
 			Properties: recoveryPointProperties(rp, vault),
 		},
 		BackupType:   types.BackupTypeSnapshot,

@@ -41,4 +41,3 @@ func TestNewStaticServerPreservesReplayFields(t *testing.T) {
 	assert.Equal(t, lastSummary, got.LastScrapeSummary)
 	assert.True(t, got.Done)
 }
-

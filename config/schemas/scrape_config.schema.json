@@ -121,6 +121,9 @@
           },
           "type": "array"
         },
+        "exclusions": {
+          "$ref": "#/$defs/AWSExclusions"
+        },
         "costReporting": {
           "$ref": "#/$defs/CostReporting"
         }
@@ -158,6 +161,32 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "AWSExclusion": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "AWSExclusion matches a scraped item by type, name, and/or tags.\nEmpty fields are wildcards. Type and Name accept comma-separated patterns\nand are matched via collections.MatchItems, so glob (`*`, `prefix*`,\n`*suffix*`) and negation (`!pattern`) are supported. A rule matches when\nALL populated fields match (AND)."
+    },
+    "AWSExclusions": {
+      "items": {
+        "$ref": "#/$defs/AWSExclusion"
+      },
+      "type": "array",
+      "description": "AWSExclusions is an OR-combined list of AWSExclusion rules. An item is\nexcluded when ANY rule matches."
     },
     "AWSS3": {
       "properties": {
