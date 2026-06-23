@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"time"
 
-	cloudtrailTypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
-	backupTypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	backupTypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
+	cloudtrailTypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/flanksource/duty/types"
 	"github.com/samber/lo"

@@ -101,7 +101,3 @@ type ScrapePluginList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ScrapePlugin `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&ScrapePlugin{}, &ScrapePluginList{})
-}

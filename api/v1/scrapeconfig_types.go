@@ -232,7 +232,3 @@ type ScrapeConfigList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ScrapeConfig `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&ScrapeConfig{}, &ScrapeConfigList{})
-}

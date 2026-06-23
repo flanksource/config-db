@@ -26,13 +26,13 @@ var backupSnapshotEventNames = map[string]struct{}{
 // backupRestoreEventNames are CloudTrail EventNames that represent a
 // restore operation across RDS, EBS, and the AWS Backup service.
 var backupRestoreEventNames = map[string]struct{}{
-	"RestoreDBInstanceFromDBSnapshot":    {},
-	"RestoreDBInstanceToPointInTime":     {},
-	"RestoreDBClusterFromSnapshot":       {},
-	"RestoreDBClusterToPointInTime":      {},
-	"CreateVolumeFromSnapshot":           {}, // EBS
-	"CreateVolume":                       {}, // EBS (when SnapshotId is set)
-	"StartRestoreJob":                    {}, // AWS Backup service
+	"RestoreDBInstanceFromDBSnapshot": {},
+	"RestoreDBInstanceToPointInTime":  {},
+	"RestoreDBClusterFromSnapshot":    {},
+	"RestoreDBClusterToPointInTime":   {},
+	"CreateVolumeFromSnapshot":        {}, // EBS
+	"CreateVolume":                    {}, // EBS (when SnapshotId is set)
+	"StartRestoreJob":                 {}, // AWS Backup service
 }
 
 // classifyBackupEvent inspects a CloudTrail event name and — if it is a

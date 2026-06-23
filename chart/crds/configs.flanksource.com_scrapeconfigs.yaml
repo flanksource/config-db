@@ -142,6 +142,28 @@ spec:
                       items:
                         type: string
                       type: array
+                    exclusions:
+                      description: |-
+                        AWSExclusions is an OR-combined list of AWSExclusion rules. An item is
+                        excluded when ANY rule matches.
+                      items:
+                        description: |-
+                          AWSExclusion matches a scraped item by type, name, and/or tags.
+                          Empty fields are wildcards. Type and Name accept comma-separated patterns
+                          and are matched via collections.MatchItems, so glob (`*`, `prefix*`,
+                          `*suffix*`) and negation (`!pattern`) are supported. A rule matches when
+                          ALL populated fields match (AND).
+                        properties:
+                          name:
+                            type: string
+                          tags:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          type:
+                            type: string
+                        type: object
+                      type: array
                     format:
                       description: Format of config item, defaults to JSON, available
                         options are JSON, properties

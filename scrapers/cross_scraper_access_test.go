@@ -1,8 +1,8 @@
 package scrapers
 
 import (
-	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
 	"github.com/flanksource/config-db/db/models"
 	dutymodels "github.com/flanksource/duty/models"
 	. "github.com/onsi/ginkgo/v2"
