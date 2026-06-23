@@ -109,7 +109,7 @@ func benchPodEnv(withNestedConfig bool) map[string]any {
 	return env
 }
 
-func benchExtractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias []v1.LocationOrAlias) ([]string, error) {
+func benchExtractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias []v1.LocationOrAlias, cacheKeyPrefix string) ([]string, error) {
 	var output []string
 	for _, l := range locationOrAlias {
 		if len(l.Values) == 0 {
@@ -124,7 +124,7 @@ func benchExtractLocation(ctx api.ScrapeContext, env map[string]any, locationOrA
 		if l.Filter != "" {
 			filterOutput, err := ctx.RunTemplateBool(gomplate.Template{
 				Expression: string(l.Filter),
-				CacheKey:   "processors.location.filter:" + string(l.Filter),
+				CacheKey:   cacheKeyPrefix + "processors.location.filter:" + string(l.Filter),
 				CacheTime:  utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 			}, env)
 			if err != nil {
@@ -139,7 +139,7 @@ func benchExtractLocation(ctx api.ScrapeContext, env map[string]any, locationOrA
 		for _, value := range l.Values {
 			v, err := gomplate.RunTemplate(env, gomplate.Template{
 				Template:       value,
-				CacheKey:       "extract.location.gomplate:" + value,
+				CacheKey:       cacheKeyPrefix + "extract.location.gomplate:" + value,
 				CacheTime:      utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 				ValueFunctions: true,
 				DelimSets: []gomplate.Delims{
@@ -163,7 +163,6 @@ func benchExtractLocation(ctx api.ScrapeContext, env map[string]any, locationOrA
 // templates the location value, matching the filter/value path in
 // scrapers/processors/json.go.
 func BenchmarkLocationFilter(b *testing.B) {
-	ctx := benchScrapeContext()
 	locations := []v1.LocationOrAlias{{
 		Filter: types.CelExpression(`config_type == "Kubernetes::Pod"`),
 		Values: []string{"kubernetes/cluster/{{.namespace}}/{{.name}}"},
@@ -175,11 +174,18 @@ func BenchmarkLocationFilter(b *testing.B) {
 			name = "largeEnv"
 		}
 		b.Run(name, func(b *testing.B) {
+			ctx := benchScrapeContext()
 			env := benchPodEnv(withConfig)
+			cacheKeyPrefix := b.Name() + ":"
+
+			if _, err := benchExtractLocation(ctx, env, locations, cacheKeyPrefix); err != nil {
+				b.Fatal(err)
+			}
+
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				out, err := benchExtractLocation(ctx, env, locations)
+				out, err := benchExtractLocation(ctx, env, locations, cacheKeyPrefix)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -191,11 +197,11 @@ func BenchmarkLocationFilter(b *testing.B) {
 
 // BenchmarkRunTemplateBool isolates the CEL expression evaluation (no go-template
 // value rendering) — i.e. one ctx.RunTemplateBool with an explicit CacheKey, so
-// the compiled program is served from cache on every iteration after the first.
-// Any allocation that remains is the per-call GetCelEnv + Serialize + closure
-// construction overhead that runs regardless of the program cache.
+// the compiled program is served from cache on every measured iteration after an
+// untimed warm-up. Any allocation that remains is the per-call GetCelEnv +
+// Serialize + closure construction overhead that runs regardless of the program
+// cache.
 func BenchmarkRunTemplateBool(b *testing.B) {
-	ctx := benchScrapeContext()
 	tmpl := gomplate.Template{
 		Expression: `config_type == "Kubernetes::Pod"`,
 		CacheKey:   "bench.location.filter:config_type == Kubernetes::Pod",
@@ -207,11 +213,19 @@ func BenchmarkRunTemplateBool(b *testing.B) {
 			name = "largeEnv"
 		}
 		b.Run(name, func(b *testing.B) {
+			ctx := benchScrapeContext()
 			env := benchPodEnv(withConfig)
+			caseTmpl := tmpl
+			caseTmpl.CacheKey = b.Name() + ":" + tmpl.CacheKey
+
+			if _, err := ctx.RunTemplateBool(caseTmpl, env); err != nil {
+				b.Fatal(err)
+			}
+
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				ok, err := ctx.RunTemplateBool(tmpl, env)
+				ok, err := ctx.RunTemplateBool(caseTmpl, env)
 				if err != nil {
 					b.Fatal(err)
 				}
