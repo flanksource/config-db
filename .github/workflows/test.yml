@@ -11,13 +11,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
         with:
           go-version: 1.26.x
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             bun
@@ -25,7 +25,7 @@ jobs:
             powershell
             postgrest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v4
         with:
           path: |
             ~/go/pkg/mod
@@ -42,13 +42,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
         with:
           go-version: 1.26.x
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             bun
@@ -93,13 +93,13 @@ jobs:
           --ulimit nofile=65536:65536
     steps:
       - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
         with:
           go-version: 1.26.x
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             bun
@@ -107,7 +107,7 @@ jobs:
             powershell
             postgrest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v4
         with:
           path: |
             ~/go/pkg/mod
@@ -130,14 +130,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
         with:
           go-version: 1.26.x
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v4
         with:
           path: |
             ~/go/pkg/mod
@@ -147,7 +147,7 @@ jobs:
           restore-keys: |
             cache-
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             bun
@@ -177,13 +177,13 @@ jobs:
           echo "Disk space difference (in KB): $difference"
 
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Kubernetes KinD Cluster
         uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2
 
       - name: Install Helm
-        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
 
       - name: Verify cluster is ready
         run: |
@@ -193,7 +193,7 @@ jobs:
           kubectl get pods -A
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           file: ./build/Dockerfile
@@ -230,13 +230,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
         with:
           go-version: 1.26.x
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             bun
@@ -247,7 +247,7 @@ jobs:
             kube-apiserver@v1.34.0
             kubectl@v1.34.0
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v4
         with:
           path: |
             ~/go/pkg/mod
@@ -268,22 +268,22 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v5
         with:
           go-version: 1.26.x
       - name: Setup kubernetes cluster
         uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@1e2d3aa46edc0971b3b3a15e3fb35ed252304aeb # v1.0.35
         with:
           tools: |
             etcd@v3.5.23
             kube-apiserver@v1.34.0
             kubectl@v1.34.0
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v4
         with:
           path: |
             ~/go/pkg/mod
