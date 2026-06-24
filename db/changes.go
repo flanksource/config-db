@@ -1,76 +1,67 @@
 package db
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/flanksource/config-db/api"
 	"github.com/flanksource/config-db/db/models"
 	"github.com/flanksource/duty/context"
-	"github.com/patrickmn/go-cache"
+	dutyModels "github.com/flanksource/duty/models"
 )
 
-var ChangeCacheByFingerprint = cache.New(time.Hour, time.Hour)
-
-func changeFingeprintCacheKey(configID, fingerprint string) string {
-	return fmt.Sprintf("%s:%s", configID, fingerprint)
-}
-
 func InitChangeFingerprintCache(ctx context.Context, window time.Duration) error {
-	var changes []*models.ConfigChange
-	if err := ctx.DB().Where("fingerprint IS NOT NULL").Where(fmt.Sprintf("created_at >= NOW() - INTERVAL '%d SECOND'", int(window.Seconds()))).Find(&changes).Error; err != nil {
-		return err
-	}
-
-	ctx.Logger.Debugf("initializing changes cache with %d changes", len(changes))
-
-	for _, c := range changes {
-		key := changeFingeprintCacheKey(c.ConfigID, *c.Fingerprint)
-		ChangeCacheByFingerprint.Set(key, c.ID, time.Until(c.CreatedAt.Add(window)))
-	}
-
-	return nil
+	return dutyModels.InitChangeFingerprintCache(ctx.DB(), window, ctx.Logger.Debugf)
 }
 
-func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*models.ConfigChange, []models.ConfigChangeUpdate) {
-	if len(changes) == 0 {
-		return nil, nil
-	}
+// configChangeUpdate keeps the rest of config-db working with its local
+// ConfigChange model while duty owns the dedupe decision/result shape.
+type configChangeUpdate struct {
+	Change         *models.ConfigChange
+	CountIncrement int
+	FirstInBatch   bool
+}
 
-	var nonDuped []*models.ConfigChange
-	var fingerprinted = map[string]models.ConfigChangeUpdate{}
+// dedupChanges is a temporary compatibility shim around duty's ConfigChange
+// deduper.
+//
+// duty now owns fingerprint cache initialization and dedupe behavior, but
+// config-db still uses its local db/models.ConfigChange in the scrape pipeline.
+// Until that model is fully replaced with duty/models.ConfigChange, this helper
+// projects the fields required by duty's deduper (ID, ConfigID, Fingerprint),
+// calls dutyModels.DedupConfigChanges, then maps the dedupe decisions back onto
+// the original config-db change objects.
+func dedupChanges(window time.Duration, changes []*models.ConfigChange) ([]*models.ConfigChange, []configChangeUpdate) {
+	dutyChanges := make([]*dutyModels.ConfigChange, 0, len(changes))
+	originals := make(map[*dutyModels.ConfigChange]*models.ConfigChange, len(changes))
 
 	for _, change := range changes {
-		if change.Fingerprint == nil {
-			nonDuped = append(nonDuped, change)
-			continue
+		dutyChange := &dutyModels.ConfigChange{
+			ID:          change.ID,
+			ConfigID:    change.ConfigID,
+			Fingerprint: change.Fingerprint,
 		}
-
-		key := changeFingeprintCacheKey(change.ConfigID, *change.Fingerprint)
-		if existingChangeID, ok := ChangeCacheByFingerprint.Get(key); !ok {
-			ChangeCacheByFingerprint.Set(key, change.ID, window)
-			fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: 0, FirstInBatch: true}
-		} else {
-			change.ID = existingChangeID.(string)
-			ChangeCacheByFingerprint.Set(key, change.ID, window) // Refresh the cache expiry
-
-			if existing, ok := fingerprinted[change.ID]; ok {
-				// Preserve the original change, just increment the count
-				fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: existing.Change, CountIncrement: existing.CountIncrement + 1, FirstInBatch: existing.FirstInBatch}
-			} else {
-				fingerprinted[change.ID] = models.ConfigChangeUpdate{Change: change, CountIncrement: 1, FirstInBatch: false}
-			}
-		}
+		dutyChanges = append(dutyChanges, dutyChange)
+		originals[dutyChange] = change
 	}
 
-	var deduped []models.ConfigChangeUpdate
-	for _, v := range fingerprinted {
-		if v.FirstInBatch || v.CountIncrement == 0 {
-			// First occurrence in the batch will be inserted
-			nonDuped = append(nonDuped, v.Change)
-		} else {
-			deduped = append(deduped, v)
-		}
+	nonDupedDuty, dedupedDuty := dutyModels.DedupConfigChanges(window, dutyChanges)
+
+	nonDuped := make([]*models.ConfigChange, 0, len(nonDupedDuty))
+	for _, dutyChange := range nonDupedDuty {
+		change := originals[dutyChange]
+		change.ID = dutyChange.ID
+		nonDuped = append(nonDuped, change)
+	}
+
+	deduped := make([]configChangeUpdate, 0, len(dedupedDuty))
+	for _, dutyUpdate := range dedupedDuty {
+		change := originals[dutyUpdate.Change]
+		change.ID = dutyUpdate.Change.ID
+		deduped = append(deduped, configChangeUpdate{
+			Change:         change,
+			CountIncrement: dutyUpdate.CountIncrement,
+			FirstInBatch:   dutyUpdate.FirstInBatch,
+		})
 	}
 
 	return nonDuped, deduped

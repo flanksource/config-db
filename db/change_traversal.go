@@ -25,10 +25,7 @@ func resolveChange(change *v1.ChangeResult, action string, targetConfigID string
 		ExternalCreatedBy: change.CreatedBy,
 		CreatedAt:         change.CreatedAt,
 		Action:            action,
-	}
-
-	if change.Diff != nil {
-		change.Resolved.Diff = change.Diff
+		Diff:              change.Diff,
 	}
 }
 

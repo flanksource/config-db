@@ -7,13 +7,9 @@ import (
 	"runtime"
 	"runtime/debug"
 	"testing"
-	"time"
 
-	"github.com/flanksource/config-db/db/models"
-	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/samber/lo"
 	"github.com/shirou/gopsutil/v3/process"
 )
 
@@ -33,56 +29,6 @@ var _ = Describe("generateDiff", func() {
 		Entry("simple", "testdata/simple-new.json", "testdata/simple-old.json", "testdata/simple.diff"),
 		Entry("person", "testdata/person-new.json", "testdata/person-old.json", "testdata/person.diff"),
 	)
-})
-
-var _ = Describe("dedupChanges", func() {
-	It("deduplicates changes by fingerprint and separates non-duplicates", func() {
-		abcKey := changeFingeprintCacheKey("dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", "abc")
-		ChangeCacheByFingerprint.Set(abcKey, "8b9d2659-7a11-46ff-bdff-1c4e8964c437", time.Hour)
-		defer func() {
-			// Clean up inserted cache keys so they don't leak into other specs
-			ChangeCacheByFingerprint.Delete(abcKey)
-			ChangeCacheByFingerprint.Delete(changeFingeprintCacheKey("dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", "xyz"))
-		}()
-
-		changes := []*models.ConfigChange{
-			{ID: "8b9d2659-7a11-46ff-bdff-1c4e8964c437", CreatedAt: time.Date(2024, 01, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "first", Count: 1},
-			{ID: uuid.NewString(), CreatedAt: time.Date(2024, 02, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "second", Count: 1},
-			{ID: uuid.NewString(), CreatedAt: time.Date(2024, 03, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "third", Count: 1},
-			{ID: uuid.NewString(), CreatedAt: time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("abc"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "fourth", Count: 1},
-			{ID: "01eda583-3f5e-4c44-851f-93ac73272b92", CreatedAt: time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("xyz"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "different", Count: 1},
-			{ID: uuid.NewString(), CreatedAt: time.Date(2024, 04, 03, 0, 0, 0, 0, time.UTC), Fingerprint: lo.ToPtr("xyz"), ConfigID: "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d", Summary: "different two", Count: 1},
-		}
-
-		expectedDeduped := []models.ConfigChangeUpdate{
-			{
-				Change: &models.ConfigChange{
-					ID:          "8b9d2659-7a11-46ff-bdff-1c4e8964c437",
-					CreatedAt:   time.Date(2024, 01, 02, 0, 0, 0, 0, time.UTC),
-					Fingerprint: lo.ToPtr("abc"),
-					ConfigID:    "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d",
-					Summary:     "first",
-					Count:       1,
-				},
-				CountIncrement: 4,
-			},
-		}
-
-		expectedNonDuped := []*models.ConfigChange{
-			{
-				ID:          "01eda583-3f5e-4c44-851f-93ac73272b92",
-				CreatedAt:   time.Date(2024, 04, 02, 0, 0, 0, 0, time.UTC),
-				Fingerprint: lo.ToPtr("xyz"),
-				ConfigID:    "dae6b3f5-bc26-48ac-8ad4-06e5efbb2a7d",
-				Summary:     "different",
-				Count:       1,
-			},
-		}
-
-		nonDuped, deduped := dedupChanges(time.Hour, changes)
-		Expect(deduped).To(Equal(expectedDeduped))
-		Expect(nonDuped).To(Equal(expectedNonDuped))
-	})
 })
 
 // go test -benchmem -run=^$ -bench ^BenchmarkDiffGenerator$ github.com/flanksource/config-db/db -count=5 -benchtime=10s -v -memprofile memprofile.out -cpuprofile profile.out
