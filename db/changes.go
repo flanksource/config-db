@@ -10,7 +10,7 @@ import (
 )
 
 func InitChangeFingerprintCache(ctx context.Context, window time.Duration) error {
-	return dutyModels.InitChangeFingerprintCache(ctx.DB(), window, ctx.Logger.Debugf)
+	return dutyModels.InitChangeFingerprintCache(ctx.DB(), window)
 }
 
 // configChangeUpdate keeps the rest of config-db working with its local
