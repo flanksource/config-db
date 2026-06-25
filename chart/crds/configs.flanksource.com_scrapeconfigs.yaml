@@ -5924,11 +5924,17 @@ spec:
                     repositories:
                       description: Repositories is the list of repositories to scrape
                       items:
-                        description: GitHubRepository specifies a repository to scrape
+                        description: GitHubRepository specifies a repository or repository
+                          selector to scrape.
                         properties:
                           owner:
                             type: string
                           repo:
+                            description: Exact repository name or comma-separated
+                              collections.MatchItems patterns (`*`, `prefix*`, `*suffix`,
+                              `!name`). Pattern selectors discover matching non-archived
+                              repositories for owner and must be the only repository
+                              entry.
                             type: string
                         required:
                         - owner

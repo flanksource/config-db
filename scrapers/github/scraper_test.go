@@ -8,11 +8,45 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
+	gogithub "github.com/google/go-github/v73/github"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("GitHubScraper", func() {
+	Context("repository selectors", func() {
+		DescribeTable("detects selector syntax",
+			func(repo string, expected bool) {
+				Expect(isRepositorySelector(repo)).To(Equal(expected))
+			},
+			Entry("exact repo", "duty", false),
+			Entry("wildcard", "*", true),
+			Entry("prefix wildcard", "config-*", true),
+			Entry("comma-separated allow-list", "duty,config-db", true),
+			Entry("exclusion-only", "!archive-*", true),
+		)
+
+		It("splits MatchItems repo patterns", func() {
+			Expect(splitRepositoryPatterns("duty, config-*, !config-test")).To(Equal([]string{"duty", "config-*", "!config-test"}))
+		})
+
+		It("selects matching repositories and ignores archived repositories", func() {
+			repos := []*gogithub.Repository{
+				{Name: gogithub.Ptr("config-db"), Owner: &gogithub.User{Login: gogithub.Ptr("flanksource")}},
+				{Name: gogithub.Ptr("config-test"), Owner: &gogithub.User{Login: gogithub.Ptr("flanksource")}},
+				{Name: gogithub.Ptr("duty"), Owner: &gogithub.User{Login: gogithub.Ptr("flanksource")}},
+				{Name: gogithub.Ptr("archived"), Owner: &gogithub.User{Login: gogithub.Ptr("flanksource")}, Archived: gogithub.Ptr(true)},
+			}
+
+			matched := matchingRepositoryConfigs("flanksource", "*,!config-test", repos)
+
+			Expect(matched).To(Equal([]v1.GitHubRepository{
+				{Owner: "flanksource", Repo: "config-db"},
+				{Owner: "flanksource", Repo: "duty"},
+			}))
+		})
+	})
+
 	Context("with security and OpenSSF enabled", func() {
 		It("should scrape repository config and analysis results", func() {
 			if os.Getenv("GITHUB_TOKEN") == "" {

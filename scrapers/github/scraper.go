@@ -28,7 +28,12 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
 	for _, config := range ctx.ScrapeConfig().Spec.GitHub {
-		for _, repoConfig := range config.Repositories {
+		repositories, rateLimited := resolveRepositoryConfigs(ctx, config, &results)
+		if rateLimited {
+			return results
+		}
+
+		for _, repoConfig := range repositories {
 			if err := ctx.Err(); err != nil {
 				return results
 			}
@@ -99,6 +104,113 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	}
 
 	return results
+}
+
+func resolveRepositoryConfigs(ctx api.ScrapeContext, config v1.GitHub, results *v1.ScrapeResults) ([]v1.GitHubRepository, bool) {
+	if !hasRepositorySelector(config.Repositories) {
+		return config.Repositories, false
+	}
+
+	if len(config.Repositories) != 1 {
+		results.Errorf(
+			fmt.Errorf("repository selector must be the only repository entry in a GitHub scraper"),
+			"invalid GitHub repository selector",
+		)
+		return nil, false
+	}
+
+	repoConfig := config.Repositories[0]
+	owner := strings.TrimSpace(repoConfig.Owner)
+	if owner == "" {
+		results.Errorf(fmt.Errorf("owner is required"), "invalid GitHub repository selector")
+		return nil, false
+	}
+
+	client, err := NewGitHubClient(ctx, config, owner, "")
+	if err != nil {
+		results.Errorf(err, "failed to create GitHub client for %s", owner)
+		return nil, false
+	}
+
+	if shouldPause, duration, err := client.ShouldPauseForRateLimit(ctx); err != nil {
+		results.Errorf(err, "failed to check rate limit for %s", owner)
+		return nil, false
+	} else if shouldPause {
+		resetAt := time.Now().Add(duration)
+		results.RateLimited(fmt.Sprintf("GitHub API rate limit for %s", owner), &resetAt)
+		return nil, true
+	}
+
+	repos, err := client.ListRepositoriesForOwner(ctx, owner)
+	if err != nil {
+		results.Errorf(err, "failed to list GitHub repositories for %s", owner)
+		return nil, false
+	}
+
+	matched := matchingRepositoryConfigs(owner, repoConfig.Repo, repos)
+	ctx.Logger.V(2).Infof("resolved GitHub repository selector %s/%q to %d repositories", owner, repoConfig.Repo, len(matched))
+	return matched, false
+}
+
+func hasRepositorySelector(repositories []v1.GitHubRepository) bool {
+	for _, repo := range repositories {
+		if isRepositorySelector(repo.Repo) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isRepositorySelector(repo string) bool {
+	repo = strings.TrimSpace(repo)
+	return repo == "" || strings.Contains(repo, "*") || strings.Contains(repo, ",") || strings.HasPrefix(repo, "!")
+}
+
+func splitRepositoryPatterns(repo string) []string {
+	repo = strings.TrimSpace(repo)
+	if repo == "" {
+		return []string{"*"}
+	}
+
+	var patterns []string
+	for _, pattern := range strings.Split(repo, ",") {
+		pattern = strings.TrimSpace(pattern)
+		if pattern != "" {
+			patterns = append(patterns, pattern)
+		}
+	}
+
+	if len(patterns) == 0 {
+		return []string{"*"}
+	}
+
+	return patterns
+}
+
+func matchingRepositoryConfigs(owner, repoPattern string, repos []*github.Repository) []v1.GitHubRepository {
+	patterns := splitRepositoryPatterns(repoPattern)
+	var matched []v1.GitHubRepository
+
+	for _, repo := range repos {
+		if repo.GetArchived() {
+			continue
+		}
+
+		repoName := repo.GetName()
+		if repoName == "" || !collections.MatchItems(repoName, patterns...) {
+			continue
+		}
+
+		repoOwner := owner
+		if apiOwner := repo.GetOwner().GetLogin(); apiOwner != "" {
+			repoOwner = apiOwner
+		}
+
+		matched = append(matched, v1.GitHubRepository{Owner: repoOwner, Repo: repoName})
+	}
+
+	return matched
 }
 
 func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubRepository, alerts *allAlerts, scorecard *ScorecardResponse) v1.ScrapeResult {

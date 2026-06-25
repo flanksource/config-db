@@ -294,7 +294,8 @@
           "type": "string"
         },
         "repo": {
-          "type": "string"
+          "type": "string",
+          "description": "Exact repository name or comma-separated collections.MatchItems patterns (`*`, `prefix*`, `*suffix`, `!name`). Pattern selectors discover matching non-archived repositories for owner and must be the only repository entry."
         }
       },
       "additionalProperties": false,
@@ -303,7 +304,7 @@
         "owner",
         "repo"
       ],
-      "description": "GitHubRepository specifies a repository to scrape"
+      "description": "GitHubRepository specifies a repository or repository selector to scrape."
     },
     "GitHubSecurityFilters": {
       "properties": {
