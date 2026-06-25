@@ -1,0 +1,18 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: github-repo-selectors
+spec:
+  schedule: '@every 6h'
+  github:
+    - repositories:
+        # Repo selectors use collections.MatchItems syntax and are resolved
+        # against all visible, non-archived repositories for the owner.
+        - owner: flanksource
+          repo: config-db,mission-control
+        # Overlapping selectors are deduped per GitHub scraper config.
+        - owner: flanksource
+          repo: '*control'
+        # Exact repositories can be mixed with selectors.
+        - owner: flanksource
+          repo: duty

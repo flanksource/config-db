@@ -53,10 +53,13 @@ type GitHub struct {
 	SecurityFilters GitHubSecurityFilters `yaml:"securityFilters,omitempty" json:"securityFilters,omitempty"`
 }
 
-// GitHubRepository specifies a repository to scrape
+// GitHubRepository specifies a repository or repository selector to scrape.
 type GitHubRepository struct {
 	Owner string `yaml:"owner" json:"owner"`
-	Repo  string `yaml:"repo" json:"repo"`
+
+	// Repo can be an exact repository name or comma-separated collections.MatchItems patterns.
+	// Pattern selectors discover matching non-archived repositories for Owner.
+	Repo string `yaml:"repo" json:"repo"`
 }
 
 // GitHubSecurityFilters defines filtering options for security alerts

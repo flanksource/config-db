@@ -6,6 +6,7 @@ import (
 	"fmt"
 	gohttp "net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/go-github/v73/github"
@@ -23,6 +24,11 @@ type GitHubClient struct {
 	api.ScrapeContext
 	owner string
 	repo  string
+
+	// authenticated is true when this client was created with a GitHub token.
+	// It lets user-owner selectors use /user/repos for private repos owned by
+	// the authenticated user instead of the public-only /users/{user}/repos API.
+	authenticated bool
 }
 
 func NewGitHubClient(ctx api.ScrapeContext, config v1.GitHub, owner, repo string) (*GitHubClient, error) {
@@ -58,6 +64,7 @@ func NewGitHubClient(ctx api.ScrapeContext, config v1.GitHub, owner, repo string
 		Client:        client,
 		owner:         owner,
 		repo:          repo,
+		authenticated: token != "",
 	}, nil
 }
 
@@ -171,6 +178,115 @@ func (c *GitHubClient) ShouldPauseForRateLimit(ctx context.Context) (bool, time.
 	}
 
 	return false, 0, nil
+}
+
+func (c *GitHubClient) ListRepositoriesForOwner(ctx context.Context, owner string) ([]*github.Repository, error) {
+	ownerInfo, _, err := c.Client.Users.Get(ctx, owner)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GitHub owner %s: %w", owner, err)
+	}
+
+	if ownerInfo.GetType() == "Organization" {
+		return c.ListOrganizationRepositories(ctx, owner)
+	}
+
+	if c.authenticated && c.isAuthenticatedOwner(ctx, owner) {
+		return c.ListAuthenticatedOwnerRepositories(ctx)
+	}
+
+	return c.ListUserRepositories(ctx, owner)
+}
+
+func (c *GitHubClient) ListOrganizationRepositories(ctx context.Context, owner string) ([]*github.Repository, error) {
+	var allRepos []*github.Repository
+	opts := &github.RepositoryListByOrgOptions{
+		Type:      "all",
+		Sort:      "full_name",
+		Direction: "asc",
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	}
+
+	for {
+		repos, resp, err := c.Client.Repositories.ListByOrg(ctx, owner, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list repositories for organization %s: %w", owner, err)
+		}
+
+		allRepos = append(allRepos, repos...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allRepos, nil
+}
+
+func (c *GitHubClient) ListUserRepositories(ctx context.Context, owner string) ([]*github.Repository, error) {
+	var allRepos []*github.Repository
+	opts := &github.RepositoryListByUserOptions{
+		Type:      "owner",
+		Sort:      "full_name",
+		Direction: "asc",
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	}
+
+	for {
+		repos, resp, err := c.Client.Repositories.ListByUser(ctx, owner, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list repositories for user %s: %w", owner, err)
+		}
+
+		allRepos = append(allRepos, repos...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allRepos, nil
+}
+
+func (c *GitHubClient) ListAuthenticatedOwnerRepositories(ctx context.Context) ([]*github.Repository, error) {
+	var allRepos []*github.Repository
+	opts := &github.RepositoryListByAuthenticatedUserOptions{
+		Visibility:  "all",
+		Affiliation: "owner",
+		Sort:        "full_name",
+		Direction:   "asc",
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	}
+
+	for {
+		repos, resp, err := c.Client.Repositories.ListByAuthenticatedUser(ctx, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list repositories for authenticated user: %w", err)
+		}
+
+		allRepos = append(allRepos, repos...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allRepos, nil
+}
+
+func (c *GitHubClient) isAuthenticatedOwner(ctx context.Context, owner string) bool {
+	user, _, err := c.Client.Users.Get(ctx, "")
+	if err != nil {
+		c.ScrapeContext.Logger.V(3).Infof("failed to get authenticated GitHub user: %v", err)
+		return false
+	}
+
+	return strings.EqualFold(user.GetLogin(), owner)
 }
 
 type GitHubActionsClient struct {
