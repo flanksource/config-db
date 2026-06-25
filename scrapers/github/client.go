@@ -22,8 +22,12 @@ const defaultWorkflowRunMaxAge = 7 * 24 * time.Hour
 type GitHubClient struct {
 	*github.Client
 	api.ScrapeContext
-	owner         string
-	repo          string
+	owner string
+	repo  string
+
+	// authenticated is true when this client was created with a GitHub token.
+	// It lets user-owner selectors use /user/repos for private repos owned by
+	// the authenticated user instead of the public-only /users/{user}/repos API.
 	authenticated bool
 }
 
