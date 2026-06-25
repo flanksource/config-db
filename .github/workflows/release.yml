@@ -4,28 +4,19 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
+permissions: {} # start with no permission
 
 jobs:
-  semantic-release:
-    runs-on: ubuntu-latest
+  create-release:
     permissions:
       contents: write
       issues: write
       pull-requests: write
-    outputs:
-      release-version: ${{ steps.semantic.outputs.release-version }}
-      new-release-published: ${{ steps.semantic.outputs.new-release-published }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: codfish/semantic-release-action@6abd188d2458e2fd6c99073454f6cc49196362e8 # v5.0.0
-        id: semantic
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: flanksource/action-workflows/.github/workflows/create-release.yml@a7df3dcb783c34338e46318364e99c0ada62bcd9
   binary:
     runs-on: ubuntu-latest
-    needs: semantic-release
+    needs: create-release
+    if: needs.create-release.outputs.published == 'true'
     permissions:
       contents: write
     steps:
@@ -54,17 +45,18 @@ jobs:
 
       - run: make release
         env:
-          VERSION: v${{ needs.semantic-release.outputs.release-version }}
+          VERSION: v${{ needs.create-release.outputs.version }}
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ./.release/*
-          tag: v${{ needs.semantic-release.outputs.release-version }}
+          tag: v${{ needs.create-release.outputs.version }}
           overwrite: true
           file_glob: true
   docker:
-    needs: semantic-release
+    needs: create-release
+    if: needs.create-release.outputs.published == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -99,7 +91,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
           snapshot: true
           dockerfile: build/Dockerfile
-          tags: "latest,v${{ needs.semantic-release.outputs.release-version }}"
+          tags: "latest,v${{ needs.create-release.outputs.version }}"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v5
@@ -119,15 +111,17 @@ jobs:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
           REGISTRY_ALIAS: k4y9r6y5
           REPOSITORY: config-db
-          IMAGE_TAG: "v${{ needs.semantic-release.outputs.release-version }}"
+          IMAGE_TAG: "v${{ needs.create-release.outputs.version }}"
         run: |
           docker build -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG -f build/Dockerfile .
           docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
 
   helm:
     runs-on: ubuntu-latest
-    needs: [semantic-release, docker]
-    if: needs.semantic-release.outputs.new-release-published == 'true'
+    needs: [create-release, docker]
+    if: needs.create-release.outputs.published == 'true'
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set version
@@ -161,12 +155,15 @@ jobs:
           path: config-db-*.tgz
 
   push-helm-chart:
-    needs: [semantic-release, helm]
-    if: needs.semantic-release.outputs.new-release-published == 'true'
+    needs: [create-release, helm]
+    if: needs.create-release.outputs.published == 'true'
+    permissions:
+      actions: read
+      contents: read
     uses: flanksource/action-workflows/.github/workflows/push-helm-chart.yml@4b41aaf6cf7727789c0d21cd0bc262e850ba543f # main
     with:
       filename_regex: "config-db-*.tgz"
-      version: ${{ needs.semantic-release.outputs.release-version }}
-      pr_title: "Release ${{ needs.semantic-release.outputs.release-version }} of flanksource/config-db"
+      version: ${{ needs.create-release.outputs.version }}
+      pr_title: "Release ${{ needs.create-release.outputs.version }} of flanksource/config-db"
     secrets:
       token: ${{ secrets.FLANKBOT }}
