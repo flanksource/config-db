@@ -45,6 +45,30 @@ var _ = Describe("GitHubScraper", func() {
 				{Owner: "flanksource", Repo: "duty"},
 			}))
 		})
+
+		It("dedupes overlapping selectors and exact repositories", func() {
+			repos := []*gogithub.Repository{
+				{Name: gogithub.Ptr("mission-control"), Owner: &gogithub.User{Login: gogithub.Ptr("flanksource")}},
+				{Name: gogithub.Ptr("mission-control-ui"), Owner: &gogithub.User{Login: gogithub.Ptr("flanksource")}},
+			}
+
+			seen := make(map[string]struct{})
+			var resolved []v1.GitHubRepository
+			for _, repo := range matchingRepositoryConfigs("flanksource", "*control", repos) {
+				resolved = appendRepositoryConfig(resolved, seen, repo)
+			}
+			for _, repo := range matchingRepositoryConfigs("flanksource", "mission*", repos) {
+				resolved = appendRepositoryConfig(resolved, seen, repo)
+			}
+			resolved = appendRepositoryConfig(resolved, seen, v1.GitHubRepository{Owner: "flanksource", Repo: "duty"})
+			resolved = appendRepositoryConfig(resolved, seen, v1.GitHubRepository{Owner: "FlankSource", Repo: "MISSION-CONTROL"})
+
+			Expect(resolved).To(Equal([]v1.GitHubRepository{
+				{Owner: "flanksource", Repo: "mission-control"},
+				{Owner: "flanksource", Repo: "mission-control-ui"},
+				{Owner: "flanksource", Repo: "duty"},
+			}))
+		})
 	})
 
 	Context("with security and OpenSSF enabled", func() {

@@ -5933,8 +5933,7 @@ spec:
                             description: Exact repository name or comma-separated
                               collections.MatchItems patterns (`*`, `prefix*`, `*suffix`,
                               `!name`). Pattern selectors discover matching non-archived
-                              repositories for owner and must be the only repository
-                              entry.
+                              repositories for owner.
                             type: string
                         required:
                         - owner

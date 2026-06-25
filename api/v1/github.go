@@ -58,7 +58,7 @@ type GitHubRepository struct {
 	Owner string `yaml:"owner" json:"owner"`
 
 	// Repo can be an exact repository name or comma-separated collections.MatchItems patterns.
-	// Pattern selectors discover matching non-archived repositories for Owner and must be the only repository entry.
+	// Pattern selectors discover matching non-archived repositories for Owner.
 	Repo string `yaml:"repo" json:"repo"`
 }
 

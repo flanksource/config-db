@@ -107,59 +107,79 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 }
 
 func resolveRepositoryConfigs(ctx api.ScrapeContext, config v1.GitHub, results *v1.ScrapeResults) ([]v1.GitHubRepository, bool) {
-	if !hasRepositorySelector(config.Repositories) {
-		return config.Repositories, false
-	}
+	var resolved []v1.GitHubRepository
+	seen := make(map[string]struct{})
+	ownerRepos := make(map[string][]*github.Repository)
 
-	if len(config.Repositories) != 1 {
-		results.Errorf(
-			fmt.Errorf("repository selector must be the only repository entry in a GitHub scraper"),
-			"invalid GitHub repository selector",
-		)
-		return nil, false
-	}
+	for _, repoConfig := range config.Repositories {
+		owner := strings.TrimSpace(repoConfig.Owner)
+		if owner == "" {
+			results.Errorf(fmt.Errorf("owner is required"), "invalid GitHub repository")
+			continue
+		}
 
-	repoConfig := config.Repositories[0]
-	owner := strings.TrimSpace(repoConfig.Owner)
-	if owner == "" {
-		results.Errorf(fmt.Errorf("owner is required"), "invalid GitHub repository selector")
-		return nil, false
-	}
+		repoConfig.Owner = owner
+		repoConfig.Repo = strings.TrimSpace(repoConfig.Repo)
 
-	client, err := NewGitHubClient(ctx, config, owner, "")
-	if err != nil {
-		results.Errorf(err, "failed to create GitHub client for %s", owner)
-		return nil, false
-	}
+		if !isRepositorySelector(repoConfig.Repo) {
+			resolved = appendRepositoryConfig(resolved, seen, repoConfig)
+			continue
+		}
 
-	if shouldPause, duration, err := client.ShouldPauseForRateLimit(ctx); err != nil {
-		results.Errorf(err, "failed to check rate limit for %s", owner)
-		return nil, false
-	} else if shouldPause {
-		resetAt := time.Now().Add(duration)
-		results.RateLimited(fmt.Sprintf("GitHub API rate limit for %s", owner), &resetAt)
-		return nil, true
-	}
+		ownerKey := strings.ToLower(owner)
+		repos, ok := ownerRepos[ownerKey]
+		if !ok {
+			client, err := NewGitHubClient(ctx, config, owner, "")
+			if err != nil {
+				results.Errorf(err, "failed to create GitHub client for %s", owner)
+				continue
+			}
 
-	repos, err := client.ListRepositoriesForOwner(ctx, owner)
-	if err != nil {
-		results.Errorf(err, "failed to list GitHub repositories for %s", owner)
-		return nil, false
-	}
+			if shouldPause, duration, err := client.ShouldPauseForRateLimit(ctx); err != nil {
+				results.Errorf(err, "failed to check rate limit for %s", owner)
+				continue
+			} else if shouldPause {
+				resetAt := time.Now().Add(duration)
+				results.RateLimited(fmt.Sprintf("GitHub API rate limit for %s", owner), &resetAt)
+				return nil, true
+			}
 
-	matched := matchingRepositoryConfigs(owner, repoConfig.Repo, repos)
-	ctx.Logger.V(2).Infof("resolved GitHub repository selector %s/%q to %d repositories", owner, repoConfig.Repo, len(matched))
-	return matched, false
-}
+			repos, err = client.ListRepositoriesForOwner(ctx, owner)
+			if err != nil {
+				results.Errorf(err, "failed to list GitHub repositories for %s", owner)
+				continue
+			}
+			ownerRepos[ownerKey] = repos
+		}
 
-func hasRepositorySelector(repositories []v1.GitHubRepository) bool {
-	for _, repo := range repositories {
-		if isRepositorySelector(repo.Repo) {
-			return true
+		matched := matchingRepositoryConfigs(owner, repoConfig.Repo, repos)
+		ctx.Logger.V(2).Infof("resolved GitHub repository selector %s/%q to %d repositories", owner, repoConfig.Repo, len(matched))
+		for _, repo := range matched {
+			resolved = appendRepositoryConfig(resolved, seen, repo)
 		}
 	}
 
-	return false
+	return resolved, false
+}
+
+func appendRepositoryConfig(repositories []v1.GitHubRepository, seen map[string]struct{}, repo v1.GitHubRepository) []v1.GitHubRepository {
+	repo.Owner = strings.TrimSpace(repo.Owner)
+	repo.Repo = strings.TrimSpace(repo.Repo)
+	if repo.Owner == "" || repo.Repo == "" {
+		return repositories
+	}
+
+	key := repositoryKey(repo.Owner, repo.Repo)
+	if _, ok := seen[key]; ok {
+		return repositories
+	}
+
+	seen[key] = struct{}{}
+	return append(repositories, repo)
+}
+
+func repositoryKey(owner, repo string) string {
+	return strings.ToLower(strings.TrimSpace(owner) + "/" + strings.TrimSpace(repo))
 }
 
 func isRepositorySelector(repo string) bool {
