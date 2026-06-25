@@ -196,18 +196,34 @@ func (c *GitHubClient) GetSecretScanningAlerts(ctx context.Context, opts AlertLi
 	return allAlerts, nil
 }
 
+func githubRateLimitPauseThreshold(limit int) int {
+	threshold := limit / 10
+	if threshold < 1 {
+		return 1
+	}
+	if threshold > 100 {
+		return 100
+	}
+	return threshold
+}
+
 func (c *GitHubClient) ShouldPauseForRateLimit(ctx context.Context) (bool, time.Duration, error) {
 	rateLimits, _, err := c.Client.RateLimit.Get(ctx)
 	if err != nil {
 		return false, 0, err
 	}
+	if rateLimits == nil || rateLimits.Core == nil {
+		return false, 0, nil
+	}
 
-	c.ScrapeContext.Logger.V(3).Infof("GitHub rate limit: remaining=%d, limit=%d",
-		rateLimits.Core.Remaining, rateLimits.Core.Limit)
+	core := rateLimits.Core
+	threshold := githubRateLimitPauseThreshold(core.Limit)
 
-	const threshold = 100
-	if rateLimits.Core.Remaining < threshold {
-		waitDuration := time.Until(rateLimits.Core.Reset.Time)
+	c.ScrapeContext.Logger.V(3).Infof("GitHub rate limit: remaining=%d, limit=%d, threshold=%d",
+		core.Remaining, core.Limit, threshold)
+
+	if core.Remaining < threshold {
+		waitDuration := time.Until(core.Reset.Time)
 		return true, waitDuration, nil
 	}
 
