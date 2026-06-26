@@ -99,7 +99,7 @@ func (c *GitHubClient) GetDependabotAlerts(ctx context.Context, opts AlertListOp
 	for {
 		alerts, resp, err := c.Client.Dependabot.ListRepoAlerts(ctx, c.owner, c.repo, reqOpts)
 		if err != nil {
-			if isNotFound(err) {
+			if isNotFound(err) || isDependabotAlertsDisabled(err) {
 				return allAlerts, nil
 			}
 			return nil, fmt.Errorf("failed to fetch Dependabot alerts: %w", err)
@@ -111,6 +111,14 @@ func (c *GitHubClient) GetDependabotAlerts(ctx context.Context, opts AlertListOp
 		reqOpts.ListCursorOptions.Cursor = resp.Cursor
 	}
 	return allAlerts, nil
+}
+
+func (c *GitHubClient) GetDependabotAlertsEnabled(ctx context.Context) (bool, error) {
+	enabled, _, err := c.Client.Repositories.GetVulnerabilityAlerts(ctx, c.owner, c.repo)
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch Dependabot alerts status: %w", err)
+	}
+	return enabled, nil
 }
 
 func (c *GitHubClient) GetCodeScanningAlerts(ctx context.Context, opts AlertListOptions) ([]*github.Alert, error) {
@@ -125,7 +133,7 @@ func (c *GitHubClient) GetCodeScanningAlerts(ctx context.Context, opts AlertList
 	for {
 		alerts, resp, err := c.Client.CodeScanning.ListAlertsForRepo(ctx, c.owner, c.repo, reqOpts)
 		if err != nil {
-			if isNotFound(err) {
+			if isNotFound(err) || isCodeScanningDisabled(err) {
 				return allAlerts, nil
 			}
 			return nil, fmt.Errorf("failed to fetch code scanning alerts: %w", err)
@@ -139,6 +147,44 @@ func (c *GitHubClient) GetCodeScanningAlerts(ctx context.Context, opts AlertList
 	return allAlerts, nil
 }
 
+func (c *GitHubClient) IsCodeScanningConfigured(ctx context.Context) (bool, error) {
+	opts := &github.AnalysesListOptions{ListOptions: github.ListOptions{PerPage: 1}}
+	_, _, err := c.Client.CodeScanning.ListAnalysesForRepo(ctx, c.owner, c.repo, opts)
+	if err != nil {
+		if isNotFound(err) || isCodeScanningDisabled(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to fetch code scanning analyses: %w", err)
+	}
+	return true, nil
+}
+
+func isDependabotAlertsDisabled(err error) bool {
+	msg, ok := forbiddenMessage(err)
+	return ok && strings.Contains(msg, "dependabot alerts are disabled")
+}
+
+func isCodeScanningDisabled(err error) bool {
+	msg, ok := forbiddenMessage(err)
+	return ok && (strings.Contains(msg, "code security must be enabled") ||
+		strings.Contains(msg, "code scanning is not enabled") ||
+		strings.Contains(msg, "advanced security must be enabled"))
+}
+
+func isSecretScanningDisabled(err error) bool {
+	msg, ok := forbiddenMessage(err)
+	return ok && strings.Contains(msg, "secret scanning") &&
+		(strings.Contains(msg, "not enabled") || strings.Contains(msg, "disabled"))
+}
+
+func forbiddenMessage(err error) (string, bool) {
+	var errResp *github.ErrorResponse
+	if !errors.As(err, &errResp) || errResp.Response == nil || errResp.Response.StatusCode != gohttp.StatusForbidden {
+		return "", false
+	}
+	return strings.ToLower(errResp.Message), true
+}
+
 func (c *GitHubClient) GetSecretScanningAlerts(ctx context.Context, opts AlertListOptions) ([]*github.SecretScanningAlert, error) {
 	var allAlerts []*github.SecretScanningAlert
 	reqOpts := &github.SecretScanningAlertListOptions{
@@ -148,7 +194,7 @@ func (c *GitHubClient) GetSecretScanningAlerts(ctx context.Context, opts AlertLi
 	for {
 		alerts, resp, err := c.Client.SecretScanning.ListAlertsForRepo(ctx, c.owner, c.repo, reqOpts)
 		if err != nil {
-			if isNotFound(err) {
+			if isNotFound(err) || isSecretScanningDisabled(err) {
 				return allAlerts, nil
 			}
 			return nil, fmt.Errorf("failed to fetch secret scanning alerts: %w", err)
