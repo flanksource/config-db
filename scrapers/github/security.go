@@ -3,6 +3,7 @@ package github
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -24,7 +25,7 @@ type allAlerts struct {
 	counts         alertCounts
 }
 
-func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1.GitHub, repoFullName string, securityFeatures []securityFeatureStatus) (*allAlerts, error) {
+func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1.GitHub, repo *github.Repository, repoFullName string) (*allAlerts, error) {
 	alerts := &allAlerts{}
 
 	filters := config.SecurityFilters
@@ -40,29 +41,27 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 
 	var errs []error
 
-	if !isSecurityFeatureDisabled(securityFeatures, "dependabot-alerts") {
-		dependabotAlerts, err := client.GetDependabotAlerts(ctx, opts)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("dependabot: %w", err))
-		} else {
-			alerts.dependabot = dependabotAlerts
-		}
+	// Dependabot and code scanning alerts are always fetched; the client tolerates
+	// the disabled case (404/403) and returns no alerts, so a dedicated enablement
+	// probe would only add an API call without saving one.
+	dependabotAlerts, err := client.GetDependabotAlerts(ctx, opts)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("dependabot: %w", err))
 	} else {
-		ctx.Debugf("skipping Dependabot alerts for %s: Dependabot alerts disabled", repoFullName)
+		alerts.dependabot = dependabotAlerts
 	}
 
-	if !isSecurityFeatureDisabled(securityFeatures, "code-scanning") {
-		codeScanAlerts, err := client.GetCodeScanningAlerts(ctx, opts)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("code scanning: %w", err))
-		} else {
-			alerts.codeScanning = codeScanAlerts
-		}
+	codeScanAlerts, err := client.GetCodeScanningAlerts(ctx, opts)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("code scanning: %w", err))
 	} else {
-		ctx.Debugf("skipping code scanning alerts for %s: code scanning disabled", repoFullName)
+		alerts.codeScanning = codeScanAlerts
 	}
 
-	if !isSecurityFeatureDisabled(securityFeatures, "secret-scanning") {
+	// Secret scanning enablement is exposed for free on the repository object
+	// (only when the token has admin access). Skip the fetch when it is explicitly
+	// disabled; otherwise fall back to fetching and tolerating 404/403.
+	if secretScanningEnabled(repo) {
 		secretAlerts, err := client.GetSecretScanningAlerts(ctx, opts)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("secret scanning: %w", err))
@@ -93,13 +92,13 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 	return alerts, errors.Join(errs...)
 }
 
-func isSecurityFeatureDisabled(features []securityFeatureStatus, key string) bool {
-	for _, feature := range features {
-		if feature.Key == key {
-			return !feature.Enabled
-		}
-	}
-	return false
+// secretScanningEnabled reports whether secret scanning is enabled for the repo.
+// The status is only populated when the token has admin access on the repository;
+// when it is absent we return true so the alert fetch still runs and tolerates
+// the disabled case via 404/403.
+func secretScanningEnabled(repo *github.Repository) bool {
+	status := repo.GetSecurityAndAnalysis().GetSecretScanning().GetStatus()
+	return status == "" || strings.EqualFold(status, "enabled")
 }
 
 func countAlertSeverity(counts *alertCounts, severity string) {

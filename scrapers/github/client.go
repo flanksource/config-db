@@ -113,14 +113,6 @@ func (c *GitHubClient) GetDependabotAlerts(ctx context.Context, opts AlertListOp
 	return allAlerts, nil
 }
 
-func (c *GitHubClient) GetDependabotAlertsEnabled(ctx context.Context) (bool, error) {
-	enabled, _, err := c.Client.Repositories.GetVulnerabilityAlerts(ctx, c.owner, c.repo)
-	if err != nil {
-		return false, fmt.Errorf("failed to fetch Dependabot alerts status: %w", err)
-	}
-	return enabled, nil
-}
-
 func (c *GitHubClient) GetCodeScanningAlerts(ctx context.Context, opts AlertListOptions) ([]*github.Alert, error) {
 	var allAlerts []*github.Alert
 	reqOpts := &github.AlertListOptions{
@@ -147,18 +139,14 @@ func (c *GitHubClient) GetCodeScanningAlerts(ctx context.Context, opts AlertList
 	return allAlerts, nil
 }
 
-func (c *GitHubClient) IsCodeScanningConfigured(ctx context.Context) (bool, error) {
-	opts := &github.AnalysesListOptions{ListOptions: github.ListOptions{PerPage: 1}}
-	_, _, err := c.Client.CodeScanning.ListAnalysesForRepo(ctx, c.owner, c.repo, opts)
-	if err != nil {
-		if isNotFound(err) || isCodeScanningDisabled(err) {
-			return false, nil
-		}
-		return false, fmt.Errorf("failed to fetch code scanning analyses: %w", err)
-	}
-	return true, nil
-}
-
+// GitHub returns a 403 (not a 404) when a security feature is turned off for a
+// repository, but provides no machine-readable code to distinguish that from a
+// genuine permission error (missing token scope, SAML SSO). ErrorResponse.Errors
+// carries a structured Code only for 422 validation errors; these 403s populate
+// only Message and DocumentationURL. So matching the message text is the only way
+// to tell "feature disabled" (swallow as zero alerts) apart from "forbidden for
+// another reason" (propagate). If GitHub rewords these messages, the call reverts
+// to surfacing the error rather than silently dropping data.
 func isDependabotAlertsDisabled(err error) bool {
 	msg, ok := forbiddenMessage(err)
 	return ok && strings.Contains(msg, "dependabot alerts are disabled")
