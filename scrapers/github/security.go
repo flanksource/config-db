@@ -24,7 +24,7 @@ type allAlerts struct {
 	counts         alertCounts
 }
 
-func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1.GitHub, repoFullName string) (*allAlerts, error) {
+func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1.GitHub, repoFullName string, securityFeatures []securityFeatureStatus) (*allAlerts, error) {
 	alerts := &allAlerts{}
 
 	filters := config.SecurityFilters
@@ -40,25 +40,37 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 
 	var errs []error
 
-	dependabotAlerts, err := client.GetDependabotAlerts(ctx, opts)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("dependabot: %w", err))
+	if !isSecurityFeatureDisabled(securityFeatures, "dependabot-alerts") {
+		dependabotAlerts, err := client.GetDependabotAlerts(ctx, opts)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("dependabot: %w", err))
+		} else {
+			alerts.dependabot = dependabotAlerts
+		}
 	} else {
-		alerts.dependabot = dependabotAlerts
+		ctx.Debugf("skipping Dependabot alerts for %s: Dependabot alerts disabled", repoFullName)
 	}
 
-	codeScanAlerts, err := client.GetCodeScanningAlerts(ctx, opts)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("code scanning: %w", err))
+	if !isSecurityFeatureDisabled(securityFeatures, "code-scanning") {
+		codeScanAlerts, err := client.GetCodeScanningAlerts(ctx, opts)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("code scanning: %w", err))
+		} else {
+			alerts.codeScanning = codeScanAlerts
+		}
 	} else {
-		alerts.codeScanning = codeScanAlerts
+		ctx.Debugf("skipping code scanning alerts for %s: code scanning disabled", repoFullName)
 	}
 
-	secretAlerts, err := client.GetSecretScanningAlerts(ctx, opts)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("secret scanning: %w", err))
+	if !isSecurityFeatureDisabled(securityFeatures, "secret-scanning") {
+		secretAlerts, err := client.GetSecretScanningAlerts(ctx, opts)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("secret scanning: %w", err))
+		} else {
+			alerts.secretScanning = secretAlerts
+		}
 	} else {
-		alerts.secretScanning = secretAlerts
+		ctx.Debugf("skipping secret scanning alerts for %s: secret scanning disabled", repoFullName)
 	}
 
 	for _, alert := range alerts.dependabot {
@@ -79,6 +91,15 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 		repoFullName, len(alerts.dependabot), len(alerts.codeScanning), len(alerts.secretScanning))
 
 	return alerts, errors.Join(errs...)
+}
+
+func isSecurityFeatureDisabled(features []securityFeatureStatus, key string) bool {
+	for _, feature := range features {
+		if feature.Key == key {
+			return !feature.Enabled
+		}
+	}
+	return false
 }
 
 func countAlertSeverity(counts *alertCounts, severity string) {
