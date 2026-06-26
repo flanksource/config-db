@@ -31,7 +31,14 @@ type scorecardCacheEntry struct {
 	scorecard *ScorecardResponse
 }
 
-var scorecardCache = sync.Map{}
+var (
+	// ErrOpenSSFScorecardNotAssessed indicates the public OpenSSF Scorecard API
+	// has no result for the repository. This is expected for many repositories
+	// and should not be counted as a scrape error.
+	ErrOpenSSFScorecardNotAssessed = errors.New("repository not found or not assessed by OpenSSF Scorecard")
+
+	scorecardCache = sync.Map{}
+)
 
 // flexDateFormats lists all time formats the OpenSSF Scorecard API has been
 // observed to return for the "date" field, in preference order.
@@ -127,6 +134,10 @@ func scrapeOpenSSFScorecard(ctx api.ScrapeContext, repoConfig v1.GitHubRepositor
 
 	scorecard, err := fetchScorecard(ctx, repoConfig.Owner, repoConfig.Repo)
 	if err != nil {
+		if errors.Is(err, ErrOpenSSFScorecardNotAssessed) {
+			ctx.Debugf("OpenSSF scorecard not assessed for %s", repoFullName)
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -166,7 +177,7 @@ func fetchScorecard(ctx context.Context, owner, repo string) (*ScorecardResponse
 		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode == http.StatusNotFound {
-			return nil, fmt.Errorf("repository not found or not assessed by OpenSSF Scorecard (404)")
+			return nil, fmt.Errorf("%w (404)", ErrOpenSSFScorecardNotAssessed)
 		}
 		if resp.StatusCode >= 500 {
 			lastErr = fmt.Errorf("server error: %d", resp.StatusCode)
