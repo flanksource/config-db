@@ -69,8 +69,6 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			var alerts *allAlerts
 			if config.Security {
 				securityFeatures := scrapeSecurityFeatureStatuses(ctx, client, repo, repoFullName)
-				createSecurityFeatureStatusAnalyses(&results, externalConfigID, securityFeatures)
-
 				alerts, err = scrapeSecurityAlerts(ctx, client, config, repoFullName, securityFeatures)
 				if err != nil {
 					results.Errorf(err, "failed to scrape security alerts for %s", repoFullName)
