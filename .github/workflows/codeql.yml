@@ -11,15 +11,10 @@
 #
 name: "CodeQL"
 on:
-  # FIXME disable codeql for now as it does not complete due to complile time of Azure SDK's
-  # push:
-  #   branches: ["main"]
-  #   paths:
-  #     - "**.go"
-  # pull_request:
-  #   branches: ["main"]
-  #   paths:
-  #     - "**.go"
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
   schedule:
     - cron: "0 0 * * *"
 
