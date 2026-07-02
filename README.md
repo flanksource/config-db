@@ -1,5 +1,7 @@
 # config-db
 
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/flanksource/config-db/badge)](https://securityscorecards.dev/viewer/?uri=github.com/flanksource/config-db)
+
 **config-db** is developer first, JSON based configuration management database (CMDB)
 
 ## Setup
