@@ -85,20 +85,14 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			result := buildRepositoryResult(repo, repoConfig, alerts, scorecard)
 			results = append(results, result)
 
-			var openssfCheckNames map[string]bool
-			if scorecard != nil {
-				openssfCheckNames = make(map[string]bool, len(scorecard.Checks))
-				for _, check := range scorecard.Checks {
-					openssfCheckNames[check.Name] = true
-				}
-			}
+			openssfCodeScanningURLs := codeScanningURLsByOpenSSFCheckName(externalConfigID, alerts)
 
 			if alerts != nil {
-				createAlertAnalyses(ctx, &results, externalConfigID, alerts, openssfCheckNames)
+				createAlertAnalyses(ctx, &results, externalConfigID, alerts, scorecard != nil)
 			}
 
 			if scorecard != nil {
-				createScorecardAnalyses(ctx, &results, externalConfigID, repoConfig, scorecard)
+				createScorecardAnalyses(ctx, &results, externalConfigID, repoConfig, scorecard, openssfCodeScanningURLs)
 			}
 		}
 	}
@@ -250,8 +244,12 @@ func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubReposito
 	healthStatus := health.HealthStatus{Health: health.HealthHealthy, Ready: true, Message: "No issues"}
 
 	if alerts != nil {
-		properties = append(properties, alertProperties(alerts)...)
-		healthStatus = calculateAlertHealthStatus(alerts)
+		counts := alerts.counts
+		if scorecard != nil {
+			counts = alerts.countsExcludingOpenSSFCodeScanning()
+		}
+		properties = append(properties, alertProperties(counts)...)
+		healthStatus = calculateAlertHealthStatus(counts)
 	}
 
 	if scorecard != nil {
@@ -278,12 +276,12 @@ func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubReposito
 	return result.WithHealthStatus(healthStatus)
 }
 
-func alertProperties(alerts *allAlerts) []*types.Property {
+func alertProperties(counts alertCounts) []*types.Property {
 	return []*types.Property{
-		{Name: "Critical Alerts", Type: "number", Text: fmt.Sprintf("%d", alerts.counts.critical)},
-		{Name: "High Alerts", Type: "number", Text: fmt.Sprintf("%d", alerts.counts.high)},
-		{Name: "Medium Alerts", Type: "number", Text: fmt.Sprintf("%d", alerts.counts.medium)},
-		{Name: "Low Alerts", Type: "number", Text: fmt.Sprintf("%d", alerts.counts.low)},
+		{Name: "Critical Alerts", Type: "number", Text: fmt.Sprintf("%d", counts.critical)},
+		{Name: "High Alerts", Type: "number", Text: fmt.Sprintf("%d", counts.high)},
+		{Name: "Medium Alerts", Type: "number", Text: fmt.Sprintf("%d", counts.medium)},
+		{Name: "Low Alerts", Type: "number", Text: fmt.Sprintf("%d", counts.low)},
 	}
 }
 
@@ -306,7 +304,148 @@ func scorecardProperties(owner, repo string, scorecard *ScorecardResponse) []*ty
 	}
 }
 
-func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, externalConfigID string, alerts *allAlerts, openssfCheckNames map[string]bool) {
+func codeScanningURLsByOpenSSFCheckName(externalConfigID string, alerts *allAlerts) map[string]string {
+	if alerts == nil {
+		return nil
+	}
+
+	urls := make(map[string]string)
+	for _, alert := range alerts.codeScanning {
+		checkName, ok := openSSFCodeScanningCheckName(alert)
+		if !ok || checkName == "" {
+			continue
+		}
+		if _, exists := urls[checkName]; exists {
+			continue
+		}
+		if url := codeScanningAlertURL(externalConfigID, alert); url != "" {
+			urls[checkName] = url
+		}
+	}
+
+	if len(urls) == 0 {
+		return nil
+	}
+	return urls
+}
+
+func codeScanningAlertURL(externalConfigID string, alert *github.Alert) string {
+	if alert == nil {
+		return ""
+	}
+	if htmlURL := alert.GetHTMLURL(); htmlURL != "" {
+		return htmlURL
+	}
+
+	repoFullName := strings.TrimPrefix(externalConfigID, "github/")
+	if repoFullName == "" || alert.GetNumber() == 0 {
+		return ""
+	}
+	return fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", repoFullName, alert.GetNumber())
+}
+
+func isOpenSSFCodeScanningAlert(alert *github.Alert) bool {
+	return isScorecardTool(alert.GetTool())
+}
+
+func isScorecardTool(tool *github.Tool) bool {
+	toolName := strings.ToLower(strings.TrimSpace(tool.GetName()))
+	return strings.Contains(toolName, "scorecard")
+}
+
+func openSSFCodeScanningCheckName(alert *github.Alert) (string, bool) {
+	if !isOpenSSFCodeScanningAlert(alert) {
+		return "", false
+	}
+
+	if checkName := openSSFCheckNameFromValue(codeScanningRuleDescription(alert)); checkName != "" {
+		return checkName, true
+	}
+	if checkName := openSSFCheckNameFromValue(codeScanningRuleID(alert)); checkName != "" {
+		return checkName, true
+	}
+	return "", false
+}
+
+func codeScanningRuleID(alert *github.Alert) string {
+	if alert == nil {
+		return ""
+	}
+	if rule := alert.GetRule(); rule != nil {
+		if id := strings.TrimSpace(rule.GetID()); id != "" {
+			return id
+		}
+	}
+	return strings.TrimSpace(alert.GetRuleID())
+}
+
+func codeScanningRuleDescription(alert *github.Alert) string {
+	if alert == nil {
+		return ""
+	}
+	if rule := alert.GetRule(); rule != nil {
+		if desc := strings.TrimSpace(rule.GetDescription()); desc != "" {
+			return desc
+		}
+	}
+	if desc := strings.TrimSpace(alert.GetRuleDescription()); desc != "" {
+		return desc
+	}
+	if rule := alert.GetRule(); rule != nil {
+		return strings.TrimSpace(rule.GetName())
+	}
+	return ""
+}
+
+func codeScanningSecuritySeverity(alert *github.Alert) string {
+	if alert == nil {
+		return ""
+	}
+	if rule := alert.GetRule(); rule != nil {
+		if severity := strings.TrimSpace(rule.GetSecuritySeverityLevel()); severity != "" {
+			return severity
+		}
+	}
+	return strings.TrimSpace(alert.GetRuleSeverity())
+}
+
+func codeScanningAlertSeverity(alert *github.Alert) string {
+	if alert == nil {
+		return ""
+	}
+	if rule := alert.GetRule(); rule != nil {
+		if severity := strings.TrimSpace(rule.GetSeverity()); severity != "" {
+			return severity
+		}
+	}
+	return strings.TrimSpace(alert.GetRuleSeverity())
+}
+
+func openSSFCheckNameFromValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if _, ok := checkRiskLevel[value]; ok {
+		return value
+	}
+
+	normalized := normalizeOpenSSFIdentifier(value)
+	for checkName := range checkRiskLevel {
+		checkNormalized := normalizeOpenSSFIdentifier(checkName)
+		if normalized == checkNormalized || normalized == checkNormalized+"id" {
+			return checkName
+		}
+	}
+	return ""
+}
+
+func normalizeOpenSSFIdentifier(value string) string {
+	replacer := strings.NewReplacer("-", "", "_", "", " ", "", ".", "", "/", "", ":", "")
+	return strings.ToLower(replacer.Replace(strings.TrimSpace(value)))
+}
+
+func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, externalConfigID string, alerts *allAlerts, hasOpenSSFScorecard bool) {
 	for _, alert := range alerts.dependabot {
 		a := results.Analysis(
 			fmt.Sprintf("dependabot/%d", alert.GetNumber()),
@@ -421,8 +560,17 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 	}
 
 	for _, alert := range alerts.codeScanning {
-		if openssfCheckNames[alert.Rule.GetDescription()] {
-			ctx.Debugf("skipping code scanning alert %d (covered by OpenSSF check %s)", alert.GetNumber(), alert.Rule.GetDescription())
+		ruleID := codeScanningRuleID(alert)
+		ruleDescription := codeScanningRuleDescription(alert)
+		if hasOpenSSFScorecard && isOpenSSFCodeScanningAlert(alert) {
+			checkName, _ := openSSFCodeScanningCheckName(alert)
+			ctx.Debugf(
+				"skipping OpenSSF Scorecard code scanning alert %d (covered by OpenSSF API): check=%s rule=%s tool=%s",
+				alert.GetNumber(),
+				checkName,
+				ruleDescription,
+				alert.GetTool().GetName(),
+			)
 			continue
 		}
 
@@ -434,10 +582,10 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			a.ExternalAnalysisID = externalAnalysisID
 		}
 		a.AnalysisType = models.AnalysisTypeSecurity
-		a.Severity = mapGitHubSeverity(alert.Rule.GetSecuritySeverityLevel())
+		a.Severity = mapGitHubSeverity(codeScanningSecuritySeverity(alert))
 		a.Source = "GitHub Code Scanning"
-		a.Analyzer = alert.Rule.GetID()
-		a.Summary = alert.Rule.GetDescription()
+		a.Analyzer = ruleID
+		a.Summary = ruleDescription
 		a.Status = alert.GetState()
 		if alert.CreatedAt != nil {
 			t := alert.CreatedAt.Time
@@ -450,14 +598,14 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 		a.Message(alert.GetMostRecentInstance().GetMessage().GetText())
 		a.Analysis, _ = collections.ToJSONMap(alert)
 
-		repoFullName := strings.TrimPrefix(externalConfigID, "github/")
-		codeScanningURL := fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", repoFullName, alert.GetNumber())
-		a.Properties = append(a.Properties, &types.Property{
-			Name:  "URL",
-			Text:  codeScanningURL,
-			Type:  "url",
-			Links: []types.Link{{URL: codeScanningURL, Type: "url"}},
-		})
+		if codeScanningURL := codeScanningAlertURL(externalConfigID, alert); codeScanningURL != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "URL",
+				Text:  codeScanningURL,
+				Type:  "url",
+				Links: []types.Link{{URL: codeScanningURL, Type: "url"}},
+			})
+		}
 		if tool := alert.GetTool(); tool != nil {
 			toolText := tool.GetName()
 			if ver := tool.GetVersion(); ver != "" {

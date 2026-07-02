@@ -209,7 +209,7 @@ func isRetryable(err error) bool {
 	return strings.Contains(err.Error(), "server error") || strings.Contains(err.Error(), "connection")
 }
 
-func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, externalConfigID string, _ v1.GitHubRepository, scorecard *ScorecardResponse) {
+func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, externalConfigID string, _ v1.GitHubRepository, scorecard *ScorecardResponse, codeScanningURLsByCheckName map[string]string) {
 	for _, check := range scorecard.Checks {
 		a := results.Analysis(check.Name, ConfigTypeRepository, externalConfigID)
 		a.ExternalAnalysisID = fmt.Sprintf("%s::openssf/%s", v1.NormalizeExternalID(externalConfigID), check.Name)
@@ -248,6 +248,14 @@ func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, e
 				Text:  check.Documentation.Short,
 				Type:  "url",
 				Links: []types.Link{{URL: check.Documentation.URL, Type: "documentation"}},
+			})
+		}
+		if url := codeScanningURLsByCheckName[check.Name]; url != "" {
+			a.Properties = append(a.Properties, &types.Property{
+				Name:  "GitHub Code Scanning Alert",
+				Text:  url,
+				Type:  "url",
+				Links: []types.Link{{URL: url, Type: "url"}},
 			})
 		}
 	}

@@ -77,7 +77,7 @@ func scrapeSecurityAlerts(ctx api.ScrapeContext, client *GitHubClient, config v1
 	}
 
 	for _, alert := range alerts.codeScanning {
-		countAlertSeverity(&alerts.counts, alert.Rule.GetSeverity())
+		countAlertSeverity(&alerts.counts, codeScanningAlertSeverity(alert))
 	}
 
 	// Secret scanning alerts don't have a severity field in the GitHub API,
@@ -114,9 +114,30 @@ func countAlertSeverity(counts *alertCounts, severity string) {
 	}
 }
 
-func calculateAlertHealthStatus(alerts *allAlerts) health.HealthStatus {
+func (alerts *allAlerts) countsExcludingOpenSSFCodeScanning() alertCounts {
+	var counts alertCounts
+	if alerts == nil {
+		return counts
+	}
+
+	for _, alert := range alerts.dependabot {
+		countAlertSeverity(&counts, alert.SecurityAdvisory.GetSeverity())
+	}
+	for _, alert := range alerts.codeScanning {
+		if isOpenSSFCodeScanningAlert(alert) {
+			continue
+		}
+		countAlertSeverity(&counts, codeScanningAlertSeverity(alert))
+	}
+	for range alerts.secretScanning {
+		counts.high++
+	}
+
+	return counts
+}
+
+func calculateAlertHealthStatus(counts alertCounts) health.HealthStatus {
 	status := health.HealthStatus{Health: health.HealthHealthy, Ready: true}
-	counts := alerts.counts
 
 	if counts.critical > 0 {
 		status.Health = health.HealthUnhealthy
