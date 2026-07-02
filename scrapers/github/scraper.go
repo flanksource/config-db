@@ -92,13 +92,14 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					openssfCheckNames[check.Name] = true
 				}
 			}
+			openssfCodeScanningURLs := codeScanningURLsByCheckName(externalConfigID, alerts, openssfCheckNames)
 
 			if alerts != nil {
 				createAlertAnalyses(ctx, &results, externalConfigID, alerts, openssfCheckNames)
 			}
 
 			if scorecard != nil {
-				createScorecardAnalyses(ctx, &results, externalConfigID, repoConfig, scorecard)
+				createScorecardAnalyses(ctx, &results, externalConfigID, repoConfig, scorecard, openssfCodeScanningURLs)
 			}
 		}
 	}
@@ -450,8 +451,7 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 		a.Message(alert.GetMostRecentInstance().GetMessage().GetText())
 		a.Analysis, _ = collections.ToJSONMap(alert)
 
-		repoFullName := strings.TrimPrefix(externalConfigID, "github/")
-		codeScanningURL := fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", repoFullName, alert.GetNumber())
+		codeScanningURL := codeScanningAlertURL(externalConfigID, alert)
 		a.Properties = append(a.Properties, &types.Property{
 			Name:  "URL",
 			Text:  codeScanningURL,
@@ -542,6 +542,44 @@ func createAlertAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, exter
 			})
 		}
 	}
+}
+
+func codeScanningURLsByCheckName(externalConfigID string, alerts *allAlerts, openssfCheckNames map[string]bool) map[string]string {
+	if alerts == nil || len(openssfCheckNames) == 0 {
+		return nil
+	}
+
+	urls := make(map[string]string)
+	for _, alert := range alerts.codeScanning {
+		if alert == nil || alert.Rule == nil {
+			continue
+		}
+
+		checkName := alert.Rule.GetDescription()
+		if !openssfCheckNames[checkName] {
+			continue
+		}
+		if _, exists := urls[checkName]; exists {
+			continue
+		}
+
+		if url := codeScanningAlertURL(externalConfigID, alert); url != "" {
+			urls[checkName] = url
+		}
+	}
+
+	return urls
+}
+
+func codeScanningAlertURL(externalConfigID string, alert *github.Alert) string {
+	if alert == nil {
+		return ""
+	}
+	if alert.GetNumber() > 0 {
+		repoFullName := strings.TrimPrefix(externalConfigID, "github/")
+		return fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", repoFullName, alert.GetNumber())
+	}
+	return alert.GetHTMLURL()
 }
 
 // badgeColor returns muted Tailwind classes for a "higher is better" ratio.

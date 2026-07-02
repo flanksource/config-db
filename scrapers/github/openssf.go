@@ -209,7 +209,7 @@ func isRetryable(err error) bool {
 	return strings.Contains(err.Error(), "server error") || strings.Contains(err.Error(), "connection")
 }
 
-func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, externalConfigID string, _ v1.GitHubRepository, scorecard *ScorecardResponse) {
+func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, externalConfigID string, _ v1.GitHubRepository, scorecard *ScorecardResponse, codeScanningURLs map[string]string) {
 	for _, check := range scorecard.Checks {
 		a := results.Analysis(check.Name, ConfigTypeRepository, externalConfigID)
 		a.ExternalAnalysisID = fmt.Sprintf("%s::openssf/%s", v1.NormalizeExternalID(externalConfigID), check.Name)
@@ -231,6 +231,11 @@ func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, e
 			a.Message(detail)
 		}
 
+		documentationURL := check.Documentation.URL
+		if url := codeScanningURLs[check.Name]; url != "" {
+			documentationURL = url
+			check.Documentation.URL = url
+		}
 		a.Analysis, _ = collections.ToJSONMap(check)
 
 		scoreVal := int64(check.Score)
@@ -242,12 +247,12 @@ func createScorecardAnalyses(ctx api.ScrapeContext, results *v1.ScrapeResults, e
 			Type:  "badge",
 			Color: badgeColor(scoreVal, maxScore),
 		})
-		if check.Documentation.URL != "" {
+		if documentationURL != "" {
 			a.Properties = append(a.Properties, &types.Property{
 				Name:  "Documentation",
 				Text:  check.Documentation.Short,
 				Type:  "url",
-				Links: []types.Link{{URL: check.Documentation.URL, Type: "documentation"}},
+				Links: []types.Link{{URL: documentationURL, Type: "documentation"}},
 			})
 		}
 	}

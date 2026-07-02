@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	dutyCtx "github.com/flanksource/duty/context"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -53,5 +56,43 @@ var _ = Describe("FlexTime", func() {
 		Expect(resp.Date.Year()).To(Equal(2026))
 		Expect(resp.Date.Hour()).To(Equal(0))
 		Expect(resp.Date.Minute()).To(Equal(43))
+	})
+
+	It("uses matching GitHub code scanning URLs for OpenSSF documentation links", func() {
+		ctx := api.NewScrapeContext(dutyCtx.New())
+		var results v1.ScrapeResults
+		codeScanningURL := "https://github.com/flanksource/duty/security/code-scanning/32"
+		scorecard := &ScorecardResponse{
+			Date: FlexTime{Time: time.Date(2026, time.July, 2, 8, 10, 42, 0, time.UTC)},
+			Checks: []CheckResult{{
+				Name:   "Vulnerabilities",
+				Score:  3,
+				Reason: "7 existing vulnerabilities detected",
+				Documentation: Documentation{
+					Short: "Determines if the project has open, known unfixed vulnerabilities.",
+					URL:   "https://github.com/ossf/scorecard/blob/main/docs/checks.md#vulnerabilities",
+				},
+			}},
+		}
+
+		createScorecardAnalyses(ctx, &results, "github/flanksource/duty", v1.GitHubRepository{}, scorecard, map[string]string{
+			"Vulnerabilities": codeScanningURL,
+		})
+
+		Expect(results).To(HaveLen(1))
+		analysis := results[0].AnalysisResult
+		Expect(analysis).ToNot(BeNil())
+
+		documentation, ok := analysis.Analysis["documentation"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(documentation["url"]).To(Equal(codeScanningURL))
+
+		var propertyURL string
+		for _, property := range analysis.Properties {
+			if property.Name == "Documentation" && len(property.Links) > 0 {
+				propertyURL = property.Links[0].URL
+			}
+		}
+		Expect(propertyURL).To(Equal(codeScanningURL))
 	})
 })
