@@ -96,6 +96,12 @@ jobs:
           dockerfile: build/Dockerfile
           tags: "latest,v${{ needs.create-release.outputs.version }}"
 
+      - name: Login to DockerHub Registry
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
       - name: Sign DockerHub image digest
         env:
           IMAGE: flanksource/config-db:v${{ needs.create-release.outputs.version }}
