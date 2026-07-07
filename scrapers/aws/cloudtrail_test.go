@@ -1,6 +1,8 @@
 package aws
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"testing"
 	"time"
@@ -18,6 +20,62 @@ func TestAWS(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "AWS Suite")
 }
+
+var _ = Describe("CloudTrail S3 records", func() {
+	It("adapts a raw S3 CloudTrail record to an SDK event", func() {
+		raw := json.RawMessage(`{
+			"eventID":"evt-1",
+			"eventName":"PutImage",
+			"eventSource":"ecr.amazonaws.com",
+			"eventTime":"2026-07-07T05:20:00Z",
+			"readOnly":false,
+			"resources":[{"ARN":"arn:aws:ecr:eu-west-1:123456789012:repository/app","type":"AWS::ECR::Repository"}]
+		}`)
+
+		event, err := cloudtrailRawRecordToEvent(raw)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(lo.FromPtr(event.EventId)).To(Equal("evt-1"))
+		Expect(lo.FromPtr(event.EventName)).To(Equal("PutImage"))
+		Expect(lo.FromPtr(event.EventSource)).To(Equal("ecr.amazonaws.com"))
+		Expect(lo.FromPtr(event.ReadOnly)).To(Equal("false"))
+		Expect(event.EventTime).ToNot(BeNil())
+		Expect(event.EventTime.UTC()).To(Equal(time.Date(2026, 7, 7, 5, 20, 0, 0, time.UTC)))
+		Expect(event.Resources).To(HaveLen(1))
+		Expect(lo.FromPtr(event.Resources[0].ResourceName)).To(Equal("arn:aws:ecr:eu-west-1:123456789012:repository/app"))
+		Expect(lo.FromPtr(event.Resources[0].ResourceType)).To(Equal("AWS::ECR::Repository"))
+		Expect(lo.FromPtr(event.CloudTrailEvent)).To(ContainSubstring("\"eventID\":\"evt-1\""))
+	})
+
+	It("decodes a gzipped S3 log file and produces a CloudTrail change", func() {
+		record := `{
+			"eventID":"evt-2",
+			"eventName":"PutImage",
+			"eventSource":"ecr.amazonaws.com",
+			"eventTime":"2026-07-07T05:21:00Z",
+			"readOnly":false,
+			"userIdentity":{"type":"IAMUser","userName":"alice","arn":"arn:aws:iam::123456789012:user/alice"},
+			"resources":[{"ARN":"arn:aws:ecr:eu-west-1:123456789012:repository/app","type":"AWS::ECR::Repository"}]
+		}`
+		var buf bytes.Buffer
+		gz := gzip.NewWriter(&buf)
+		_, err := gz.Write([]byte(`{"Records":[` + record + `]}`))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(gz.Close()).To(Succeed())
+
+		events, err := decodeCloudTrailS3LogFile(bytes.NewReader(buf.Bytes()))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(events).To(HaveLen(1))
+
+		change, err := cloudtrailEventToChange(events[0], types.Resource{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(change.ExternalChangeID).To(Equal("evt-2"))
+		Expect(change.ChangeType).To(Equal("PutImage"))
+		Expect(change.CreatedAt.UTC()).To(Equal(time.Date(2026, 7, 7, 5, 21, 0, 0, time.UTC)))
+		Expect(lo.FromPtr(change.CreatedBy)).To(Equal("alice"))
+		Expect(change.ExternalID).To(Equal("arn:aws:ecr:eu-west-1:123456789012:repository/app"))
+		Expect(change.ConfigType).To(Equal("AWS::ECR::Repository"))
+	})
+})
 
 var _ = Describe("CloudTrailEventToChange", func() {
 	type testCase struct {

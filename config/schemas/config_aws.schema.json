@@ -214,10 +214,32 @@
         },
         "maxAge": {
           "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "s3": {
+          "$ref": "#/$defs/CloudTrailS3"
         }
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "CloudTrailS3": {
+      "properties": {
+        "bucket": {
+          "type": "string"
+        },
+        "bucketRegion": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CloudTrailS3 configures CloudTrail log ingestion from an existing S3 bucket."
     },
     "ConfigFieldExclusion": {
       "properties": {

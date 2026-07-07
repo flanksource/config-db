@@ -100,6 +100,19 @@ spec:
                           type: array
                         maxAge:
                           type: string
+                        s3:
+                          description: CloudTrailS3 configures CloudTrail log ingestion
+                            from an existing S3 bucket.
+                          properties:
+                            bucket:
+                              type: string
+                            bucketRegion:
+                              type: string
+                            prefix:
+                              type: string
+                          type: object
+                        source:
+                          type: string
                       type: object
                     compliance:
                       type: boolean

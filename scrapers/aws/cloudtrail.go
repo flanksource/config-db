@@ -1,8 +1,14 @@
 package aws
 
 import (
+	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -10,10 +16,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go/ptr"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/samber/lo"
 
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
@@ -56,6 +64,9 @@ func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<-
 
 var LastEventTime = sync.Map{}
 
+var cloudTrailS3Cursors sync.Map
+var cloudTrailS3PendingCursors sync.Map
+
 type CloudTrailEvent struct {
 	AWSRegion          string `json:"awsRegion"`
 	RecipientAccountID string `json:"recipientAccountId"`
@@ -91,8 +102,32 @@ func (t *CloudTrailEvent) FromJSON(j string) error {
 	return json.Unmarshal([]byte(j), t)
 }
 
+type cloudtrailLogFile struct {
+	Records []json.RawMessage `json:"Records"`
+}
+
+type cloudtrailS3Cursor struct {
+	LastKey      string     `json:"last_key,omitempty"`
+	LastModified *time.Time `json:"last_modified,omitempty"`
+}
+
+type cloudtrailS3PendingCursor struct {
+	RunID  string
+	Cursor cloudtrailS3Cursor
+}
+
+type cloudtrailS3Object struct {
+	Key          string
+	LastModified *time.Time
+}
+
 func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
 	if config.Excludes("cloudtrail") {
+		return
+	}
+
+	if config.CloudTrail.SourceType() == "s3" {
+		aws.cloudtrailS3(ctx, config, results)
 		return
 	}
 
@@ -113,46 +148,14 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 			}
 
 			count++
-			if containsAny(config.CloudTrail.Exclude, *event.EventName) {
+			ignoredEvent, err := aws.processCloudTrailEvent(ctx, config, results, aggregator, event)
+			if err != nil {
+				results.Errorf(err, "failed to convert cloudtrail event to change")
 				ignored++
 				continue
 			}
-
-			if isAssumeRoleEvent(lo.FromPtr(event.EventName)) {
-				var ctEvent CloudTrailEvent
-				if err := ctEvent.FromJSON(ptr.ToString(event.CloudTrailEvent)); err != nil {
-					ctx.Logger.V(2).Infof("failed to parse AssumeRole event: %v", err)
-					ignored++
-					continue
-				}
-				if err := aggregator.addAssumeRole(event, ctEvent); err != nil {
-					ctx.Logger.V(2).Infof("failed to aggregate AssumeRole event: %v", err)
-					ignored++
-				}
-				continue
-			}
-
-			// Ignore ReadOnly events other than AssumeRole
-			if lo.FromPtr(event.ReadOnly) == "true" {
-				continue
-			}
-
-			// If there's no resource, we add an empty resource as
-			// we still want to have a change representing it.
-			if len(event.Resources) == 0 {
-				event.Resources = []types.Resource{{}}
-			}
-
-			for _, resource := range event.Resources {
-				change, err := cloudtrailEventToChange(event, resource)
-				if err != nil {
-					results.Errorf(err, "failed to convert cloudtrail event to change")
-					ignored++
-					continue
-				}
-
-				change.Source = fmt.Sprintf("AWS::CloudTrail::%s:%s", ctx.Session.Region, *ctx.Caller.Account)
-				results.AddChange(config.BaseScraper, *change)
+			if ignoredEvent {
+				ignored++
 			}
 		}
 
@@ -175,6 +178,321 @@ func (aws Scraper) cloudtrail(ctx *AWSContext, config v1.AWS, results *v1.Scrape
 		results.Errorf(err, "Failed to describe cloudtrail events")
 	}
 	wg.Wait()
+}
+
+func (aws Scraper) processCloudTrailEvent(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults, aggregator *accessLogAggregator, event types.Event) (bool, error) {
+	eventName := lo.FromPtr(event.EventName)
+	if containsAny(config.CloudTrail.Exclude, eventName) {
+		return true, nil
+	}
+
+	if isAssumeRoleEvent(eventName) {
+		var ctEvent CloudTrailEvent
+		if err := ctEvent.FromJSON(ptr.ToString(event.CloudTrailEvent)); err != nil {
+			ctx.Logger.V(2).Infof("failed to parse AssumeRole event: %v", err)
+			return true, nil
+		}
+		if err := aggregator.addAssumeRole(event, ctEvent); err != nil {
+			ctx.Logger.V(2).Infof("failed to aggregate AssumeRole event: %v", err)
+			return true, nil
+		}
+		return false, nil
+	}
+
+	if lo.FromPtr(event.ReadOnly) == "true" {
+		return false, nil
+	}
+
+	if len(event.Resources) == 0 {
+		event.Resources = []types.Resource{{}}
+	}
+
+	for _, resource := range event.Resources {
+		change, err := cloudtrailEventToChange(event, resource)
+		if err != nil {
+			return false, err
+		}
+
+		change.Source = fmt.Sprintf("AWS::CloudTrail::%s:%s", ctx.Session.Region, *ctx.Caller.Account)
+		results.AddChange(config.BaseScraper, *change)
+	}
+	return false, nil
+}
+
+// cloudtrailS3 reads CloudTrail log files from S3 and emits the same changes/access logs as the API path.
+func (aws Scraper) cloudtrailS3(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
+	s3Config := config.CloudTrail.S3
+	if s3Config == nil || s3Config.Bucket == "" {
+		results.Errorf(fmt.Errorf("cloudtrail.s3.bucket is required when cloudtrail source is s3"), "failed to scrape cloudtrail s3")
+		return
+	}
+	if ctx.Session.Region == "" {
+		results.Errorf(fmt.Errorf("aws region is required to read cloudtrail logs from s3"), "failed to scrape cloudtrail s3")
+		return
+	}
+
+	rootPrefix := cloudtrailS3RootPrefix(ctx, config.CloudTrail)
+	cursorKey := cloudtrailS3CursorKey(s3Config.Bucket, ctx.Session.Region, rootPrefix)
+	cursor, _ := cloudtrailS3CursorFromMemory(cursorKey)
+
+	session := ctx.Session.Copy()
+	if s3Config.BucketRegion != "" {
+		session.Region = s3Config.BucketRegion
+	}
+	client := s3.NewFromConfig(session, getEndpointResolver[s3.Options](config))
+
+	now := time.Now().UTC()
+	start := now.Add(-config.CloudTrail.GetMaxAge()).UTC()
+	if cursor.LastModified != nil {
+		start = cursor.LastModified.UTC()
+	}
+
+	ctx.Logger.V(2).Infof("scraping cloudtrail from s3 bucket=%s prefix=%s region=%s", s3Config.Bucket, rootPrefix, ctx.Session.Region)
+	objects, err := aws.listCloudTrailS3Objects(ctx, client, s3Config.Bucket, rootPrefix, ctx.Session.Region, start, now)
+	if err != nil {
+		results.Errorf(err, "failed to list cloudtrail s3 logs")
+		return
+	}
+
+	aggregator := newAccessLogAggregator()
+	count := 0
+	ignored := 0
+	processedFiles := 0
+	latest := cursor
+	for _, object := range objects {
+		if !cloudtrailS3ObjectAfterCursor(object, cursor) {
+			continue
+		}
+
+		events, err := aws.readCloudTrailS3Object(ctx, client, s3Config.Bucket, object.Key)
+		if err != nil {
+			results.Errorf(err, "failed to read cloudtrail s3 object %s", object.Key)
+			return
+		}
+
+		for _, event := range events {
+			count++
+			ignoredEvent, err := aws.processCloudTrailEvent(ctx, config, results, aggregator, event)
+			if err != nil {
+				results.Errorf(err, "failed to convert cloudtrail s3 event from %s", object.Key)
+				return
+			}
+			if ignoredEvent {
+				ignored++
+			}
+		}
+
+		processedFiles++
+		latest.LastKey = object.Key
+		if object.LastModified != nil {
+			lastModified := object.LastModified.UTC()
+			latest.LastModified = &lastModified
+		}
+	}
+
+	if !aggregator.isEmpty() {
+		*results = append(*results, aggregator.flush())
+	}
+	if processedFiles > 0 {
+		cloudTrailS3PendingCursors.Store(cursorKey, cloudtrailS3PendingCursor{RunID: cloudtrailRunID(ctx.ScrapeContext), Cursor: latest})
+	}
+	ctx.Logger.V(3).Infof("processed %d cloudtrail s3 events from %d files, changes=%d ignored=%d", count, processedFiles, len(*results), ignored)
+}
+
+func (aws Scraper) listCloudTrailS3Objects(ctx *AWSContext, client *s3.Client, bucket, rootPrefix, region string, start, end time.Time) ([]cloudtrailS3Object, error) {
+	var objects []cloudtrailS3Object
+	for _, prefix := range cloudtrailS3DatePrefixes(rootPrefix, region, start, end) {
+		paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
+			Bucket: lo.ToPtr(bucket),
+			Prefix: lo.ToPtr(prefix),
+		})
+		for paginator.HasMorePages() {
+			page, err := paginator.NextPage(ctx)
+			if err != nil {
+				return nil, err
+			}
+			for _, object := range page.Contents {
+				key := lo.FromPtr(object.Key)
+				if key == "" || !strings.HasSuffix(key, ".json.gz") {
+					continue
+				}
+				objects = append(objects, cloudtrailS3Object{Key: key, LastModified: object.LastModified})
+			}
+		}
+	}
+
+	sort.Slice(objects, func(i, j int) bool {
+		return objects[i].Key < objects[j].Key
+	})
+	return objects, nil
+}
+
+func (aws Scraper) readCloudTrailS3Object(ctx *AWSContext, client *s3.Client, bucket, key string) ([]types.Event, error) {
+	object, err := client.GetObject(ctx, &s3.GetObjectInput{Bucket: lo.ToPtr(bucket), Key: lo.ToPtr(key)})
+	if err != nil {
+		return nil, err
+	}
+	defer object.Body.Close()
+
+	events, err := decodeCloudTrailS3LogFile(object.Body)
+	if err != nil {
+		return nil, fmt.Errorf("decode %s: %w", key, err)
+	}
+	return events, nil
+}
+
+// decodeCloudTrailS3LogFile expands one gzipped CloudTrail log envelope into SDK-like events.
+func decodeCloudTrailS3LogFile(r io.Reader) ([]types.Event, error) {
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, err
+	}
+	defer gz.Close()
+
+	var logFile cloudtrailLogFile
+	if err := json.NewDecoder(gz).Decode(&logFile); err != nil {
+		return nil, err
+	}
+
+	events := make([]types.Event, 0, len(logFile.Records))
+	for i, raw := range logFile.Records {
+		event, err := cloudtrailRawRecordToEvent(raw)
+		if err != nil {
+			return nil, fmt.Errorf("record %d: %w", i, err)
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+// cloudtrailRawRecordToEvent adapts S3 CloudTrail JSON records to the LookupEvents shape used downstream.
+func cloudtrailRawRecordToEvent(raw json.RawMessage) (types.Event, error) {
+	var record struct {
+		EventID     string            `json:"eventID"`
+		EventName   string            `json:"eventName"`
+		EventSource string            `json:"eventSource"`
+		EventTime   *time.Time        `json:"eventTime"`
+		ReadOnly    any               `json:"readOnly"`
+		Resources   []json.RawMessage `json:"resources"`
+	}
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return types.Event{}, err
+	}
+
+	event := types.Event{
+		CloudTrailEvent: lo.ToPtr(string(raw)),
+		EventId:         lo.ToPtr(record.EventID),
+		EventName:       lo.ToPtr(record.EventName),
+		EventSource:     lo.ToPtr(record.EventSource),
+		ReadOnly:        cloudtrailReadOnly(record.ReadOnly),
+	}
+	if record.EventTime != nil {
+		eventTime := record.EventTime.UTC()
+		event.EventTime = &eventTime
+	}
+
+	for _, rawResource := range record.Resources {
+		resource := cloudtrailRawResourceToSDKResource(rawResource)
+		event.Resources = append(event.Resources, resource)
+	}
+	return event, nil
+}
+
+func cloudtrailRawResourceToSDKResource(raw json.RawMessage) types.Resource {
+	var resource struct {
+		ARN          string `json:"ARN"`
+		ResourceName string `json:"resourceName"`
+		ResourceType string `json:"resourceType"`
+		Type         string `json:"type"`
+	}
+	_ = json.Unmarshal(raw, &resource)
+
+	name := resource.ResourceName
+	if name == "" {
+		name = resource.ARN
+	}
+	resourceType := resource.ResourceType
+	if resourceType == "" {
+		resourceType = resource.Type
+	}
+	return types.Resource{ResourceName: lo.ToPtr(name), ResourceType: lo.ToPtr(resourceType)}
+}
+
+func cloudtrailReadOnly(v any) *string {
+	switch value := v.(type) {
+	case bool:
+		return lo.ToPtr(strconv.FormatBool(value))
+	case string:
+		if value == "" {
+			return nil
+		}
+		return lo.ToPtr(value)
+	default:
+		return nil
+	}
+}
+
+func cloudtrailS3RootPrefix(ctx *AWSContext, config v1.CloudTrail) string {
+	if config.S3 != nil && config.S3.Prefix != "" {
+		return strings.Trim(config.S3.Prefix, "/")
+	}
+	return fmt.Sprintf("AWSLogs/%s/CloudTrail", lo.FromPtr(ctx.Caller.Account))
+}
+
+func cloudtrailS3CursorKey(bucket, region, prefix string) string {
+	sum := sha256.Sum256([]byte(prefix))
+	return fmt.Sprintf("aws.cloudtrail.s3.%s.%s.%s", bucket, region, hex.EncodeToString(sum[:])[:12])
+}
+
+func cloudtrailRunID(ctx api.ScrapeContext) string {
+	return ctx.JobHistory().ID.String()
+}
+
+func cloudtrailS3CursorFromMemory(cursorKey string) (cloudtrailS3Cursor, bool) {
+	raw, ok := cloudTrailS3Cursors.Load(cursorKey)
+	if !ok {
+		return cloudtrailS3Cursor{}, false
+	}
+	cursor, ok := raw.(cloudtrailS3Cursor)
+	return cursor, ok
+}
+
+func promoteCloudTrailS3Cursors(runID string) {
+	cloudTrailS3PendingCursors.Range(func(key, value any) bool {
+		pending, ok := value.(cloudtrailS3PendingCursor)
+		if !ok || pending.RunID != runID {
+			return true
+		}
+		cloudTrailS3Cursors.Store(key, pending.Cursor)
+		cloudTrailS3PendingCursors.Delete(key)
+		return true
+	})
+}
+
+// AfterSave promotes CloudTrail S3 cursors only after the scrape batch is persisted.
+func (aws Scraper) AfterSave(ctx api.ScrapeContext, _ v1.ScrapeResults) {
+	promoteCloudTrailS3Cursors(cloudtrailRunID(ctx))
+}
+
+func cloudtrailS3DatePrefixes(rootPrefix, region string, start, end time.Time) []string {
+	rootPrefix = strings.Trim(rootPrefix, "/")
+	startDay := time.Date(start.UTC().Year(), start.UTC().Month(), start.UTC().Day(), 0, 0, 0, 0, time.UTC)
+	endDay := time.Date(end.UTC().Year(), end.UTC().Month(), end.UTC().Day(), 0, 0, 0, 0, time.UTC)
+	prefixes := []string{}
+	for day := startDay; !day.After(endDay); day = day.AddDate(0, 0, 1) {
+		prefixes = append(prefixes, fmt.Sprintf("%s/%s/%04d/%02d/%02d/", rootPrefix, region, day.Year(), day.Month(), day.Day()))
+	}
+	return prefixes
+}
+
+func cloudtrailS3ObjectAfterCursor(object cloudtrailS3Object, cursor cloudtrailS3Cursor) bool {
+	if cursor.LastKey != "" {
+		return object.Key > cursor.LastKey
+	}
+	if cursor.LastModified != nil && object.LastModified != nil {
+		return object.LastModified.After(*cursor.LastModified)
+	}
+	return true
 }
 
 func containsAny(a []string, v string) bool {

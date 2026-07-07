@@ -351,6 +351,7 @@ func scrapeAndStore(ctx api.ScrapeContext) ([]v1.ScrapeResult, *v1.ScrapeSummary
 		if saveErr != nil {
 			return results, nil, beforeOnlyPair(), errors.Join(scrapeErr, fmt.Errorf("failed to save results to db: %w", saveErr))
 		}
+		scrapers.AfterSave(ctx, results)
 		logger.Infof("Exported %d resources to DB: %s (%s)", len(results), summary.PrettyShort(), timer.End())
 
 		afterSnapshot, captureErr := db.CaptureScrapeSnapshot(ctx, runStart)

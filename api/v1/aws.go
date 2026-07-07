@@ -100,20 +100,48 @@ func (aws AWS) ShouldExclude(configType, name string, tags map[string]string) bo
 }
 
 type CloudTrail struct {
-	Exclude []string `json:"exclude,omitempty"`
-	MaxAge  string   `json:"maxAge,omitempty"`
+	Exclude []string      `json:"exclude,omitempty"`
+	MaxAge  string        `json:"maxAge,omitempty"`
+	Source  string        `json:"source,omitempty"`
+	S3      *CloudTrailS3 `json:"s3,omitempty"`
 }
 
+// CloudTrailS3 configures CloudTrail log ingestion from an existing S3 bucket.
+type CloudTrailS3 struct {
+	Bucket       string `json:"bucket,omitempty"`
+	BucketRegion string `json:"bucketRegion,omitempty"`
+	Prefix       string `json:"prefix,omitempty"`
+}
+
+// SourceType resolves the CloudTrail event source while preserving API backward compatibility.
+func (c CloudTrail) SourceType() string {
+	switch strings.ToLower(c.Source) {
+	case "s3":
+		return "s3"
+	case "api", "":
+		if c.Source == "" && c.S3 != nil && c.S3.Bucket != "" {
+			return "s3"
+		}
+		return "api"
+	default:
+		return "api"
+	}
+}
+
+// GetMaxAge returns the configured CloudTrail lookback window or the source-specific default.
 func (c CloudTrail) GetMaxAge() time.Duration {
-	if c.MaxAge == "" {
-		return 7 * 24 * time.Hour
-	}
-	d, err := time.ParseDuration(c.MaxAge)
-	if err != nil {
+	if c.MaxAge != "" {
+		d, err := time.ParseDuration(c.MaxAge)
+		if err == nil {
+			return d
+		}
 		logger.Warnf("Invalid cloudtrail max age %s: %v", c.MaxAge, err)
-		return 7 * 24 * time.Hour
 	}
-	return d
+
+	if c.SourceType() == "s3" {
+		return 14 * 24 * time.Hour
+	}
+	return 7 * 24 * time.Hour
 }
 
 type CostReporting struct {
