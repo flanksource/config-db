@@ -165,10 +165,7 @@ var Run = &cobra.Command{
 				uiServer.UpdateScraper(scraperConfigs[i].Name, scrapeui.ScraperRunning, nil, nil, nil)
 			}
 
-			scrapeCtx, cancel, cancelTimeout := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i]).
-				WithTimeout(dutyCtx.Properties().Duration("scraper.timeout", 4*time.Hour))
-			defer cancelTimeout()
-			shutdown.AddHook(func() { defer cancel() })
+			scrapeCtx := api.NewScrapeContext(dutyCtx).WithScrapeConfig(&scraperConfigs[i])
 
 			if save && dutyapi.DefaultConfig.ConnectionString != "" {
 				prev := scrapers.GetLastScrapeSummary(dutyCtx, string(scraperConfigs[i].GetUID()))
