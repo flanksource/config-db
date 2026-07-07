@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/flanksource/clicky"
 	"github.com/flanksource/clicky/api"
+	"github.com/flanksource/commons/duration"
 	"github.com/flanksource/config-db/utils"
 
 	"github.com/google/uuid"
@@ -75,7 +77,11 @@ type ScraperSpec struct {
 	LogLevel string `json:"logLevel,omitempty" yaml:"logLevel,omitempty"`
 
 	// Schedule is a cron expression for when to run the scraper. Example: `@every 1m`, `0 */6 * * *` (every 6 hours)
-	Schedule       string           `json:"schedule,omitempty" yaml:"schedule,omitempty"`
+	Schedule string `json:"schedule,omitempty" yaml:"schedule,omitempty"`
+
+	// Timeout is the maximum duration for a scrape run. Uses duration strings, e.g. "30m", "1h", "1d".
+	Timeout string `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+
 	GCP            []GCP            `json:"gcp,omitempty" yaml:"gcp,omitempty"`
 	AWS            []AWS            `json:"aws,omitempty" yaml:"aws,omitempty"`
 	File           []File           `json:"file,omitempty" yaml:"file,omitempty"`
@@ -107,6 +113,19 @@ type ScraperSpec struct {
 
 	// Full flag when set will try to extract out changes from the scraped config.
 	Full bool `json:"full,omitempty"`
+}
+
+// TimeoutDuration returns the configured scrape timeout, falling back to defaultTimeout.
+func (c ScraperSpec) TimeoutDuration(defaultTimeout time.Duration) (time.Duration, error) {
+	if c.Timeout == "" {
+		return defaultTimeout, nil
+	}
+
+	timeout, err := duration.ParseDuration(c.Timeout)
+	if err != nil {
+		return 0, fmt.Errorf("invalid scraper timeout %q: %w", c.Timeout, err)
+	}
+	return time.Duration(timeout), nil
 }
 
 func (c ScraperSpec) ApplyPlugin(plugins []ScrapePluginSpec) ScraperSpec {

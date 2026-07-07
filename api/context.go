@@ -1,10 +1,8 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/flanksource/commons/har"
 	"github.com/flanksource/commons/logger"
@@ -153,14 +151,6 @@ func (ctx ScrapeContext) WithScrapeConfig(scraper *v1.ScrapeConfig, plugins ...v
 		ctx.temp = c.(*TempCache)
 	}
 	return ctx
-}
-
-func (ctx ScrapeContext) WithTimeout(timeout time.Duration) (c ScrapeContext, cancel context.CancelFunc, cancelTimeout context.CancelFunc) {
-
-	ctx.Context, cancelTimeout = ctx.Context.WithTimeout(ctx.Properties().Duration("scraper.timeout", 4*time.Hour))
-	c2, cancel := context.WithCancel(ctx.Context)
-	ctx.Context = ctx.Context.Wrap(c2)
-	return ctx, cancel, cancelTimeout
 }
 
 func (ctx ScrapeContext) WithJobHistory(jobHistory *models.JobHistory) ScrapeContext {

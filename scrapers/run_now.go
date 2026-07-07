@@ -20,10 +20,7 @@ import (
 	"github.com/flanksource/config-db/db"
 )
 
-const (
-	runNowTimeout         = 30 * time.Minute
-	runNowRequestMaxBytes = 8 * 1024
-)
+const runNowRequestMaxBytes = 8 * 1024
 
 type runNowResponse struct {
 	JobHistoryID string `json:"job_history_id,omitempty"`
@@ -73,11 +70,9 @@ func runNowSync(c echo.Context, baseCtx context.Context, configScraper v1.Scrape
 		err  error
 	}, 1)
 	go func() {
-		ctx, cancel := context.New().
+		ctx := context.New().
 			WithDB(baseCtx.DB(), baseCtx.Pool()).
-			WithSubject(baseCtx.Subject()).
-			WithTimeout(runNowTimeout)
-		defer cancel()
+			WithSubject(baseCtx.Subject())
 
 		scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(&configScraper)
 		j := newScraperJob(scrapeCtx, runOpts...)
@@ -115,11 +110,9 @@ func runNowSync(c echo.Context, baseCtx context.Context, configScraper v1.Scrape
 func runNowAsync(c echo.Context, baseCtx context.Context, scraper models.ConfigScraper, configScraper v1.ScrapeConfig, runOpts ...RunScraperOption) error {
 	startedAt := time.Now().UTC()
 	go func() {
-		ctx, cancel := context.New().
+		ctx := context.New().
 			WithDB(baseCtx.DB(), baseCtx.Pool()).
-			WithSubject(baseCtx.Subject()).
-			WithTimeout(runNowTimeout)
-		defer cancel()
+			WithSubject(baseCtx.Subject())
 
 		scrapeCtx := api.NewScrapeContext(ctx).WithScrapeConfig(&configScraper)
 		j := newScraperJob(scrapeCtx, runOpts...)

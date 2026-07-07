@@ -24,6 +24,7 @@ type contextKey string
 
 const (
 	contextKeyScrapeStart contextKey = "scrape_start_time"
+	defaultScraperTimeout            = 4 * time.Hour
 )
 
 // Cache store to be used by watch jobs
@@ -206,6 +207,16 @@ func UpdateStaleConfigItems(ctx api.ScrapeContext, results v1.ScrapeResults) err
 
 // Run ...
 func Run(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
+	timeout, err := ctx.ScrapeConfig().Spec.
+		TimeoutDuration(ctx.Properties().Duration("scraper.timeout", defaultScraperTimeout))
+	if err != nil {
+		return nil, err
+	}
+
+	timedContext, cancel := ctx.Context.WithTimeout(timeout)
+	defer cancel()
+	ctx.Context = timedContext
+
 	plugins, err := db.LoadAllPlugins(ctx.DutyContext())
 	if err != nil {
 		return nil, ctx.Oops().Wrapf(err, "failed to load plugins")
