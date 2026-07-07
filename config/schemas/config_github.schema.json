@@ -295,7 +295,7 @@
         },
         "repo": {
           "type": "string",
-          "description": "Exact repository name or comma-separated collections.MatchItems patterns (`*`, `prefix*`, `*suffix`, `!name`). Pattern selectors discover matching non-archived repositories for owner."
+          "description": "Repo can be an exact repository name or comma-separated collections.MatchItems patterns.\nPattern selectors discover matching non-archived repositories for Owner."
         }
       },
       "additionalProperties": false,
