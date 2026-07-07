@@ -332,7 +332,7 @@ func (aws Scraper) readCloudTrailS3Object(ctx *AWSContext, client *s3.Client, bu
 	if err != nil {
 		return nil, err
 	}
-	defer object.Body.Close()
+	defer func() { _ = object.Body.Close() }()
 
 	events, err := decodeCloudTrailS3LogFile(object.Body)
 	if err != nil {
@@ -347,7 +347,7 @@ func decodeCloudTrailS3LogFile(r io.Reader) ([]types.Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	var logFile cloudtrailLogFile
 	if err := json.NewDecoder(gz).Decode(&logFile); err != nil {
