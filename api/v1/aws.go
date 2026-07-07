@@ -138,9 +138,6 @@ func (c CloudTrail) GetMaxAge() time.Duration {
 		logger.Warnf("Invalid cloudtrail max age %s: %v", c.MaxAge, err)
 	}
 
-	if c.SourceType() == "s3" {
-		return 14 * 24 * time.Hour
-	}
 	return 7 * 24 * time.Hour
 }
 

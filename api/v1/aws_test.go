@@ -24,8 +24,8 @@ var _ = Describe("AWS", func() {
 			Expect(config.GetMaxAge()).To(Equal(want))
 		},
 		Entry("api default", CloudTrail{}, 7*24*time.Hour),
-		Entry("s3 default", CloudTrail{Source: "s3"}, 14*24*time.Hour),
-		Entry("implicit s3 default", CloudTrail{S3: &CloudTrailS3{Bucket: "logs"}}, 14*24*time.Hour),
+		Entry("s3 default", CloudTrail{Source: "s3"}, 7*24*time.Hour),
+		Entry("implicit s3 default", CloudTrail{S3: &CloudTrailS3{Bucket: "logs"}}, 7*24*time.Hour),
 		Entry("explicit overrides api", CloudTrail{MaxAge: "30m"}, 30*time.Minute),
 		Entry("explicit overrides s3", CloudTrail{Source: "s3", MaxAge: "1h"}, time.Hour),
 	)

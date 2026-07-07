@@ -29,24 +29,6 @@ const (
 // Cache store to be used by watch jobs
 var TempCacheStore syncmap.SyncMap[string, *api.TempCache]
 
-type afterSaveScraper interface {
-	AfterSave(ctx api.ScrapeContext, results v1.ScrapeResults)
-}
-
-// AfterSave notifies scrapers that the current batch was saved successfully.
-func AfterSave(ctx api.ScrapeContext, results v1.ScrapeResults) {
-	for _, scraper := range All {
-		if !scraper.CanScrape(ctx.ScrapeConfig().Spec) {
-			continue
-		}
-		hook, ok := scraper.(afterSaveScraper)
-		if !ok {
-			continue
-		}
-		hook.AfterSave(ctx, results)
-	}
-}
-
 type ScrapeOutput struct {
 	Total            int // all configs & changes
 	Summary          v1.ScrapeSummary
@@ -160,7 +142,6 @@ func RunScraper(ctx api.ScrapeContext, opts ...RunScraperOption) (*ScrapeOutput,
 	if err != nil {
 		return nil, fmt.Errorf("failed to save results: %w", err)
 	}
-	AfterSave(ctx, results)
 
 	if err := UpdateStaleConfigItems(ctx, results); err != nil {
 		return nil, fmt.Errorf("failed to update stale config items: %w", err)

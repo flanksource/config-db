@@ -21,7 +21,6 @@ import (
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/samber/lo"
 
-	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
@@ -65,7 +64,6 @@ func lookupEvents(ctx *AWSContext, input *cloudtrail.LookupEventsInput, c chan<-
 var LastEventTime = sync.Map{}
 
 var cloudTrailS3Cursors sync.Map
-var cloudTrailS3PendingCursors sync.Map
 
 type CloudTrailEvent struct {
 	AWSRegion          string `json:"awsRegion"`
@@ -109,11 +107,6 @@ type cloudtrailLogFile struct {
 type cloudtrailS3Cursor struct {
 	LastKey      string     `json:"last_key,omitempty"`
 	LastModified *time.Time `json:"last_modified,omitempty"`
-}
-
-type cloudtrailS3PendingCursor struct {
-	RunID  string
-	Cursor cloudtrailS3Cursor
 }
 
 type cloudtrailS3Object struct {
@@ -294,7 +287,7 @@ func (aws Scraper) cloudtrailS3(ctx *AWSContext, config v1.AWS, results *v1.Scra
 		*results = append(*results, aggregator.flush())
 	}
 	if processedFiles > 0 {
-		cloudTrailS3PendingCursors.Store(cursorKey, cloudtrailS3PendingCursor{RunID: cloudtrailRunID(ctx.ScrapeContext), Cursor: latest})
+		cloudTrailS3Cursors.Store(cursorKey, latest)
 	}
 	ctx.Logger.V(3).Infof("processed %d cloudtrail s3 events from %d files, changes=%d ignored=%d", count, processedFiles, len(*results), ignored)
 }
@@ -444,10 +437,6 @@ func cloudtrailS3CursorKey(bucket, region, prefix string) string {
 	return fmt.Sprintf("aws.cloudtrail.s3.%s.%s.%s", bucket, region, hex.EncodeToString(sum[:])[:12])
 }
 
-func cloudtrailRunID(ctx api.ScrapeContext) string {
-	return ctx.JobHistory().ID.String()
-}
-
 func cloudtrailS3CursorFromMemory(cursorKey string) (cloudtrailS3Cursor, bool) {
 	raw, ok := cloudTrailS3Cursors.Load(cursorKey)
 	if !ok {
@@ -455,23 +444,6 @@ func cloudtrailS3CursorFromMemory(cursorKey string) (cloudtrailS3Cursor, bool) {
 	}
 	cursor, ok := raw.(cloudtrailS3Cursor)
 	return cursor, ok
-}
-
-func promoteCloudTrailS3Cursors(runID string) {
-	cloudTrailS3PendingCursors.Range(func(key, value any) bool {
-		pending, ok := value.(cloudtrailS3PendingCursor)
-		if !ok || pending.RunID != runID {
-			return true
-		}
-		cloudTrailS3Cursors.Store(key, pending.Cursor)
-		cloudTrailS3PendingCursors.Delete(key)
-		return true
-	})
-}
-
-// AfterSave promotes CloudTrail S3 cursors only after the scrape batch is persisted.
-func (aws Scraper) AfterSave(ctx api.ScrapeContext, _ v1.ScrapeResults) {
-	promoteCloudTrailS3Cursors(cloudtrailRunID(ctx))
 }
 
 func cloudtrailS3DatePrefixes(rootPrefix, region string, start, end time.Time) []string {
