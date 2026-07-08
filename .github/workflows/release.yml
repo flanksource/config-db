@@ -57,92 +57,23 @@ jobs:
   docker:
     needs: create-release
     if: needs.create-release.outputs.published == 'true'
-    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
-        with:
-          egress-policy: audit
-
-      - name: Free up disk space
-        run: |
-          initial_space=$(df / | grep / | awk '{print $4}')
-          docker system prune -af
-          rm -rf /usr/share/dotnet
-          rm -rf /opt/ghc
-          rm -rf /usr/local/share/boost
-          rm -rf $AGENT_TOOLSDIRECTORY
-          rm -rf /opt/hostedtoolcache
-
-          final_space=$(df / | grep / | awk '{print $4}')
-          difference=$((final_space - initial_space))
-          echo "Disk space difference (in KB): $difference"
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install cosign
-        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
-
-      - name: Publish to DockerHub Registry
-        uses: elgohr/Publish-Docker-Github-Action@cba9ef01f060d055caf693f34a0ed92d361f2ab1 # v5
-        with:
-          name: flanksource/config-db
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          snapshot: true
-          dockerfile: build/Dockerfile
-          tags: "latest,v${{ needs.create-release.outputs.version }}"
-
-      - name: Login to DockerHub Registry
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Sign DockerHub image digest
-        env:
-          IMAGE: flanksource/config-db:v${{ needs.create-release.outputs.version }}
-        run: |
-          digest=$(docker buildx imagetools inspect "$IMAGE" --format '{{.Manifest.Digest}}')
-          cosign sign --yes "flanksource/config-db@${digest}"
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v5
-        with:
-          aws-access-key-id: ${{ secrets.ECR_AWS_ACCESS_KEY }}
-          aws-secret-access-key: ${{ secrets.ECR_AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Login to Amazon ECR Public
-        id: login-ecr-public
-        uses: aws-actions/amazon-ecr-login@376925c9d111252e87ae59691e5a442dd100ef6a # v2
-        with:
-          registry-type: public
-
-      - name: Publish to ECR Public
-        env:
-          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
-          REGISTRY_ALIAS: k4y9r6y5
-          REPOSITORY: config-db
-          IMAGE_TAG: "v${{ needs.create-release.outputs.version }}"
-        run: |
-          image="$REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG"
-          docker build -t "$image" -f build/Dockerfile .
-          docker push "$image"
-
-      - name: Sign ECR Public image digest
-        env:
-          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
-          REGISTRY_ALIAS: k4y9r6y5
-          REPOSITORY: config-db
-          IMAGE_TAG: "v${{ needs.create-release.outputs.version }}"
-        run: |
-          image="$REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG"
-          digest=$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')
-          cosign sign --yes "$REGISTRY/$REGISTRY_ALIAS/$REPOSITORY@${digest}"
+    uses: flanksource/action-workflows/.github/workflows/publish-docker-image.yml@df2df1bb53811b598f44b2561c28172ffc36fc88
+    with:
+      dockerfile: build/Dockerfile
+      image_tags: |
+        docker.io/flanksource/config-db:v${{ needs.create-release.outputs.version }}
+        docker.io/flanksource/config-db:latest
+        public.ecr.aws/k4y9r6y5/config-db:v${{ needs.create-release.outputs.version }}
+      login_to_ecr: true
+      ecr_registry_type: public
+    secrets:
+      docker_username: ${{ secrets.DOCKER_USERNAME }}
+      docker_password: ${{ secrets.DOCKER_PASSWORD }}
+      aws_access_key_id: ${{ secrets.ECR_AWS_ACCESS_KEY }}
+      aws_secret_access_key: ${{ secrets.ECR_AWS_SECRET_ACCESS_KEY }}
 
   helm:
     runs-on: ubuntu-latest
