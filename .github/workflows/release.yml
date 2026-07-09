@@ -13,6 +13,8 @@ jobs:
       issues: write
       pull-requests: write
     uses: flanksource/action-workflows/.github/workflows/create-release.yml@a7df3dcb783c34338e46318364e99c0ada62bcd9
+    secrets:
+      token: ${{ secrets.FLANKBOT }}
   binary:
     runs-on: ubuntu-latest
     needs: create-release
