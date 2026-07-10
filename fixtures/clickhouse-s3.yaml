@@ -1,0 +1,32 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: clickhouse-s3-cloudtrail
+spec:
+  clickhouse:
+    - awsS3:
+        accessKey:
+          value: clickhouse-s3-access-key
+        secretKey:
+          value: clickhouse-s3-secret-key
+        region:
+          - us-east-1
+        endpoint: http://minio:9000
+        bucket: cloudtrail
+        path: AWSLogs/123456789012/CloudTrail/us-east-1/2026/07/10/*.json.gz
+        table: cloudtrail
+        format: JSONAsString
+        structure: json String
+        compression: gzip
+      query: |
+        SELECT
+          JSONExtractString(event, 'eventID') AS event_id,
+          JSONExtractString(event, 'eventName') AS event_name,
+          JSONExtractString(event, 'eventSource') AS event_source,
+          JSONExtractString(event, 'awsRegion') AS aws_region
+        FROM cloudtrail
+        ARRAY JOIN JSONExtractArrayRaw(json, 'Records') AS event
+        ORDER BY event_id
+      type: AWS::CloudTrail::Event
+      id: $.event_id
+      name: $.event_name

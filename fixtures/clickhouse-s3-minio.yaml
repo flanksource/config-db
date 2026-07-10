@@ -1,0 +1,214 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: clickhouse-s3-minio-credentials
+type: Opaque
+stringData:
+  access-key: clickhouse-s3-access-key
+  secret-key: clickhouse-s3-secret-key
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-s3-cloudtrail
+data:
+  cloudtrail.json: |
+    {
+      "Records": [
+        {
+          "eventVersion": "1.11",
+          "userIdentity": {
+            "type": "IAMUser",
+            "principalId": "AIDAEXAMPLEUSER",
+            "arn": "arn:aws:iam::123456789012:user/config-db-ci",
+            "accountId": "123456789012",
+            "accessKeyId": "AKIAEXAMPLEKEY",
+            "userName": "config-db-ci"
+          },
+          "eventTime": "2026-07-10T12:00:00Z",
+          "eventSource": "s3.amazonaws.com",
+          "eventName": "CreateBucket",
+          "awsRegion": "us-east-1",
+          "sourceIPAddress": "192.0.2.10",
+          "userAgent": "aws-cli/2.27.0",
+          "requestParameters": {
+            "bucketName": "config-db-cloudtrail-e2e"
+          },
+          "responseElements": null,
+          "requestID": "1111111111111111",
+          "eventID": "11111111-1111-4111-8111-111111111111",
+          "readOnly": false,
+          "eventType": "AwsApiCall",
+          "managementEvent": true,
+          "recipientAccountId": "123456789012",
+          "eventCategory": "Management",
+          "tlsDetails": {
+            "tlsVersion": "TLSv1.3",
+            "cipherSuite": "TLS_AES_128_GCM_SHA256",
+            "clientProvidedHostHeader": "s3.amazonaws.com"
+          }
+        },
+        {
+          "eventVersion": "1.11",
+          "userIdentity": {
+            "type": "IAMUser",
+            "principalId": "AIDAEXAMPLEUSER",
+            "arn": "arn:aws:iam::123456789012:user/config-db-ci",
+            "accountId": "123456789012",
+            "accessKeyId": "AKIAEXAMPLEKEY",
+            "userName": "config-db-ci"
+          },
+          "eventTime": "2026-07-10T12:01:00Z",
+          "eventSource": "s3.amazonaws.com",
+          "eventName": "PutBucketEncryption",
+          "awsRegion": "us-east-1",
+          "sourceIPAddress": "192.0.2.10",
+          "userAgent": "aws-cli/2.27.0",
+          "requestParameters": {
+            "bucketName": "config-db-cloudtrail-e2e",
+            "ServerSideEncryptionConfiguration": {
+              "Rule": {
+                "ApplyServerSideEncryptionByDefault": {
+                  "SSEAlgorithm": "AES256"
+                }
+              }
+            }
+          },
+          "responseElements": null,
+          "requestID": "2222222222222222",
+          "eventID": "22222222-2222-4222-8222-222222222222",
+          "readOnly": false,
+          "eventType": "AwsApiCall",
+          "managementEvent": true,
+          "recipientAccountId": "123456789012",
+          "eventCategory": "Management",
+          "tlsDetails": {
+            "tlsVersion": "TLSv1.3",
+            "cipherSuite": "TLS_AES_128_GCM_SHA256",
+            "clientProvidedHostHeader": "s3.amazonaws.com"
+          }
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+          args:
+            - server
+            - /data
+            - --console-address
+            - :9001
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-s3-minio-credentials
+                  key: access-key
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-s3-minio-credentials
+                  key: secret-key
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: api
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+    - name: console
+      port: 9001
+      targetPort: console
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: clickhouse-s3-seed
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: compress-cloudtrail
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - gzip -c /fixture/cloudtrail.json > /data/cloudtrail.json.gz
+          volumeMounts:
+            - name: fixture
+              mountPath: /fixture
+            - name: data
+              mountPath: /data
+      containers:
+        - name: seed
+          image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              until mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" && mc ready local; do
+                sleep 2
+              done
+              mc mb --ignore-existing local/cloudtrail
+              mc cp /data/cloudtrail.json.gz local/cloudtrail/AWSLogs/123456789012/CloudTrail/us-east-1/2026/07/10/123456789012_CloudTrail_us-east-1_20260710T1200Z_config-db.json.gz
+              mc stat local/cloudtrail/AWSLogs/123456789012/CloudTrail/us-east-1/2026/07/10/123456789012_CloudTrail_us-east-1_20260710T1200Z_config-db.json.gz
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-s3-minio-credentials
+                  key: access-key
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-s3-minio-credentials
+                  key: secret-key
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: fixture
+          configMap:
+            name: clickhouse-s3-cloudtrail
+        - name: data
+          emptyDir: {}

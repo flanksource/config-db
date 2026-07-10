@@ -161,9 +161,13 @@ func createNamedCollectionForStorage(ctx api.ScrapeContext, config v1.Clickhouse
 // queryAWSS3TemporaryTable pins one ClickHouse session so the S3 temp table and
 // its credentials are visible only to the user query running in that session.
 func queryAWSS3TemporaryTable(ctx api.ScrapeContext, config v1.Clickhouse, db *sql.DB) (*cdbsql.SQLDetails, error) {
+	if config.AWSS3 == nil {
+		return nil, fmt.Errorf("awsS3 configuration is required")
+	}
+
 	conn, err := db.Conn(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to pin clickhouse connection: %w", err)
 	}
 	defer conn.Close() //nolint:errcheck
 
@@ -176,20 +180,29 @@ func queryAWSS3TemporaryTable(ctx api.ScrapeContext, config v1.Clickhouse, db *s
 // createAWSS3TemporaryTable resolves whatever AWS auth the scraper has into
 // SigV4 credentials and installs them in a connection-scoped S3 table.
 func createAWSS3TemporaryTable(ctx api.ScrapeContext, conn *sql.Conn, s3Config *v1.AWSS3) error {
+	if s3Config == nil {
+		return fmt.Errorf("awsS3 configuration is required")
+	}
+
 	awsConnection := s3Config.AWSConnection
 	if awsConnection == nil {
 		awsConnection = &v1.AWSConnection{}
 	}
 
-	region := firstNonEmpty(firstRegion(awsConnection.Regions), os.Getenv("AWS_REGION"), os.Getenv("AWS_DEFAULT_REGION"))
+	// Leave the region empty when the scraper does not specify one so Populate
+	// can use connection properties before the AWS SDK applies ambient defaults.
+	region := firstRegion(awsConnection.Regions)
 	awsConn := awsConnection.ToDutyAWSConnection(region)
 	if err := awsConn.Populate(ctx); err != nil {
-		return err
+		return fmt.Errorf("failed to resolve AWS connection: %w", err)
 	}
 
 	session, err := awsConn.Client(ctx.Context)
 	if err != nil {
 		return fmt.Errorf("failed to create AWS session: %w", err)
+	}
+	if session.Credentials == nil {
+		return fmt.Errorf("AWS session has no credential provider")
 	}
 	creds, err := session.Credentials.Retrieve(ctx)
 	if err != nil {
@@ -199,15 +212,22 @@ func createAWSS3TemporaryTable(ctx api.ScrapeContext, conn *sql.Conn, s3Config *
 		return fmt.Errorf("AWS credentials resolved without access key or secret key")
 	}
 
-	cmd, err := awss3TemporaryTableSQL(s3Config, creds, region)
+	resolvedConfig, resolvedRegion := resolveAWSS3Config(s3Config, awsConn.Endpoint, awsConn.Region, session.Region)
+	cmd, err := awss3TemporaryTableSQL(resolvedConfig, creds, resolvedRegion)
 	if err != nil {
 		return err
 	}
-	_, err = conn.ExecContext(ctx, cmd)
-	return err
+	if _, err := conn.ExecContext(ctx, cmd); err != nil {
+		return fmt.Errorf("failed to create clickhouse S3 temporary table %q: %w", lo.CoalesceOrEmpty(s3Config.Table, "cloudtrail"), err)
+	}
+	return nil
 }
 
 func awss3TemporaryTableSQL(s3Config *v1.AWSS3, creds awssdk.Credentials, region string) (string, error) {
+	if s3Config == nil {
+		return "", fmt.Errorf("awsS3 configuration is required")
+	}
+
 	table := lo.CoalesceOrEmpty(s3Config.Table, "cloudtrail")
 	if err := validateClickhouseIdentifier(table); err != nil {
 		return "", err
@@ -218,28 +238,37 @@ func awss3TemporaryTableSQL(s3Config *v1.AWSS3, creds awssdk.Credentials, region
 		return "", fmt.Errorf("awsS3.bucket is required")
 	}
 
-	structure := lo.CoalesceOrEmpty(s3Config.Structure, "json String")
+	structure := strings.TrimSpace(lo.CoalesceOrEmpty(s3Config.Structure, "json String"))
+	if structure == "" {
+		return "", fmt.Errorf("awsS3.structure is required")
+	}
 	format := lo.CoalesceOrEmpty(s3Config.Format, "JSONAsString")
 	args := []string{clickhouseString(s3URL), clickhouseString(creds.AccessKeyID), clickhouseString(creds.SecretAccessKey)}
 	if creds.SessionToken != "" {
 		args = append(args, clickhouseString(creds.SessionToken))
 	}
-	args = append(args, clickhouseString(format), clickhouseString(structure))
+	args = append(args, clickhouseString(format))
 	if s3Config.Compression != "" {
 		args = append(args, clickhouseString(s3Config.Compression))
 	}
 
-	return fmt.Sprintf("CREATE TEMPORARY TABLE %s AS s3(%s);", table, strings.Join(args, ",")), nil
+	return fmt.Sprintf("CREATE TEMPORARY TABLE %s (%s) ENGINE = S3(%s);", table, structure, strings.Join(args, ",")), nil
 }
 
 func awsS3URL(s3Config *v1.AWSS3, region string) string {
-	if s3Config.Bucket == "" {
+	if s3Config == nil || s3Config.Bucket == "" {
 		return ""
 	}
 
 	path := strings.Trim(s3Config.Path, "/")
 	endpoint := strings.TrimRight(s3Config.Endpoint, "/")
 	if endpoint == "" {
+		if strings.Contains(s3Config.Bucket, ".") {
+			if region != "" {
+				return joinURLParts(fmt.Sprintf("https://s3.%s.amazonaws.com", region), s3Config.Bucket, path)
+			}
+			return joinURLParts("https://s3.amazonaws.com", s3Config.Bucket, path)
+		}
 		if region != "" {
 			return joinURLParts(fmt.Sprintf("https://%s.s3.%s.amazonaws.com", s3Config.Bucket, region), path)
 		}
@@ -253,6 +282,14 @@ func awsS3URL(s3Config *v1.AWSS3, region string) string {
 		return joinURLParts(strings.ReplaceAll(endpoint, "{bucket}", s3Config.Bucket), path)
 	}
 	return joinURLParts(endpoint, s3Config.Bucket, path)
+}
+
+// resolveAWSS3Config applies values discovered while hydrating the AWS
+// connection without overriding fields set directly on the S3 scraper.
+func resolveAWSS3Config(s3Config *v1.AWSS3, connectionEndpoint, connectionRegion, clientRegion string) (*v1.AWSS3, string) {
+	resolved := *s3Config
+	resolved.Endpoint = firstNonEmpty(s3Config.Endpoint, connectionEndpoint)
+	return &resolved, firstNonEmpty(connectionRegion, clientRegion)
 }
 
 func firstRegion(regions []string) string {
@@ -291,6 +328,7 @@ func validateClickhouseIdentifier(name string) error {
 }
 
 func clickhouseString(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
 	value = strings.ReplaceAll(value, `'`, `''`)
 	return "'" + value + "'"
 }

@@ -214,21 +214,56 @@ jobs:
           helm install config-db config-db-1.0.0.tgz \
             --namespace default \
             --set clickhouse.enabled=true \
-            --set imageRegistry="kind-registry:5000"
+            --set imageRegistry="kind-registry:5000" \
+            --wait \
+            --timeout 5m
 
       - name: Check pod status
         run: |
-          sleep 60
           kubectl get pods
           kubectl describe pods
-          sleep 60
-          kubectl get pods
-          kubectl describe pods
+
+      - name: Deploy and seed MinIO
+        run: |
+          kubectl apply -f fixtures/clickhouse-s3-minio.yaml
+          kubectl rollout status deployment/minio --timeout=180s
+          kubectl wait --for=condition=complete job/clickhouse-s3-seed --timeout=180s || {
+            kubectl logs job/clickhouse-s3-seed --all-containers
+            exit 1
+          }
+          kubectl logs job/clickhouse-s3-seed
 
       - name: Run clickhouse fixture
         run: |
           kubectl cp fixtures/clickhouse.yaml config-db-0:/app/clickhouse.yaml
-          kubectl exec -it config-db-0 -- /app/config-db run /app/clickhouse.yaml
+          kubectl exec config-db-0 -- /app/config-db run /app/clickhouse.yaml
+
+      - name: Run ClickHouse S3 CloudTrail fixture
+        run: |
+          kubectl cp fixtures/clickhouse-s3.yaml config-db-0:/app/clickhouse-s3.yaml
+          kubectl exec config-db-0 -- /app/config-db run --json /app/clickhouse-s3.yaml > clickhouse-s3-results.json
+          cat clickhouse-s3-results.json
+          jq -e '
+            [.results.configs[] | {
+              id,
+              event_name: .config.event_name,
+              event_source: .config.event_source,
+              aws_region: .config.aws_region
+            }] == [
+              {
+                "id": "11111111-1111-4111-8111-111111111111",
+                "event_name": "CreateBucket",
+                "event_source": "s3.amazonaws.com",
+                "aws_region": "us-east-1"
+              },
+              {
+                "id": "22222222-2222-4222-8222-222222222222",
+                "event_name": "PutBucketEncryption",
+                "event_source": "s3.amazonaws.com",
+                "aws_region": "us-east-1"
+              }
+            ]
+          ' clickhouse-s3-results.json
 
   test-slim:
     runs-on: ubuntu-latest
