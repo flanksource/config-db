@@ -6,6 +6,8 @@ import (
 	"github.com/flanksource/duty/types"
 )
 
+const GitHubOrganization = "GitHub::Organization"
+
 // GitHubActions scraper scrapes the workflow and its runs based on the given filter.
 // By default, it fetches the last 7 days of workflow runs (Configurable via property: scrapers.githubactions.maxAge)
 type GitHubActions struct {

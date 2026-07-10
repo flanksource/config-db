@@ -18,7 +18,7 @@ import (
 )
 
 // List of types which should not have scraper_id
-var ScraperLessTypes = []string{AWSRegion, AWSAvailabilityZone}
+var ScraperLessTypes = []string{AWSRegion, AWSAvailabilityZone, GitHubOrganization}
 
 // ConfigQuery defines a query that exports config items as JSON files for use in scripts.
 type ConfigQuery struct {
