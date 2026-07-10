@@ -29,7 +29,7 @@ func ConsumePubSubJobFunc(sc api.ScrapeContext, config v1.PubSub) *job.Job {
 		Retention:    job.RetentionFailed,
 		Schedule:     "@every 1m",
 		ResourceID:   string(sc.ScrapeConfig().GetUID()),
-		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
+		Aliases:      []string{fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name)},
 		ResourceType: job.ResourceTypeScraper,
 		Fn: func(jobCtx job.JobRuntime) error {
 			plugins, err := db.LoadAllPlugins(jobCtx.Context)
