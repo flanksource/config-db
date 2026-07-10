@@ -2361,8 +2361,6 @@ spec:
                           type: string
                         bucket:
                           type: string
-                        compression:
-                          type: string
                         connection:
                           description: ConnectionName of the connection. It'll be
                             used to populate the endpoint, accessKey and secretKey.
@@ -2424,8 +2422,6 @@ spec:
                           description: Skip TLS verify when connecting to aws
                           type: boolean
                         structure:
-                          type: string
-                        table:
                           type: string
                       type: object
                     azureBlobStorage:

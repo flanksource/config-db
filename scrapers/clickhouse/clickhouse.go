@@ -38,6 +38,8 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 		if config.AWSS3 != nil {
+			// ClickHouse keeps temporary tables on the connection that created them.
+			// Use one connection and close it after the scrape so the AWS credentials do not remain.
 			db.SetMaxOpenConns(1)
 			db.SetMaxIdleConns(0)
 		}
@@ -83,6 +85,11 @@ type NamedCollection struct {
 	Name   string
 	Values map[string]string
 }
+
+// awsS3TemporaryTableName is the table available to an S3 scrape query. The scraper
+// creates it just before running the query and removes it by closing the connection,
+// so users always query this name instead of configuring a table that only lives for one scrape.
+const awsS3TemporaryTableName = "scrape_table"
 
 var clickhouseIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
@@ -218,7 +225,7 @@ func createAWSS3TemporaryTable(ctx api.ScrapeContext, conn *sql.Conn, s3Config *
 		return err
 	}
 	if _, err := conn.ExecContext(ctx, cmd); err != nil {
-		return fmt.Errorf("failed to create clickhouse S3 temporary table %q: %w", lo.CoalesceOrEmpty(s3Config.Table, "cloudtrail"), err)
+		return fmt.Errorf("failed to create clickhouse S3 temporary table %q: %w", awsS3TemporaryTableName, err)
 	}
 	return nil
 }
@@ -226,11 +233,6 @@ func createAWSS3TemporaryTable(ctx api.ScrapeContext, conn *sql.Conn, s3Config *
 func awss3TemporaryTableSQL(s3Config *v1.AWSS3, creds awssdk.Credentials, region string) (string, error) {
 	if s3Config == nil {
 		return "", fmt.Errorf("awsS3 configuration is required")
-	}
-
-	table := lo.CoalesceOrEmpty(s3Config.Table, "cloudtrail")
-	if err := validateClickhouseIdentifier(table); err != nil {
-		return "", err
 	}
 
 	s3URL := awsS3URL(s3Config, region)
@@ -248,11 +250,8 @@ func awss3TemporaryTableSQL(s3Config *v1.AWSS3, creds awssdk.Credentials, region
 		args = append(args, clickhouseString(creds.SessionToken))
 	}
 	args = append(args, clickhouseString(format))
-	if s3Config.Compression != "" {
-		args = append(args, clickhouseString(s3Config.Compression))
-	}
 
-	return fmt.Sprintf("CREATE TEMPORARY TABLE %s (%s) ENGINE = S3(%s);", table, structure, strings.Join(args, ",")), nil
+	return fmt.Sprintf("CREATE TEMPORARY TABLE %s (%s) ENGINE = S3(%s);", awsS3TemporaryTableName, structure, strings.Join(args, ",")), nil
 }
 
 func awsS3URL(s3Config *v1.AWSS3, region string) string {

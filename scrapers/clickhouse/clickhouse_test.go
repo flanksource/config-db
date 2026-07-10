@@ -42,12 +42,10 @@ func TestNamedCollectionRejectsInvalidIdentifier(t *testing.T) {
 
 func TestAWSS3TemporaryTableSQL(t *testing.T) {
 	cmd, err := awss3TemporaryTableSQL(&v1.AWSS3{
-		Bucket:      "cloudtrail",
-		Path:        "AWSLogs/123/*.json.gz",
-		Table:       "cloudtrail",
-		Format:      "JSONAsString",
-		Structure:   "json String",
-		Compression: "gzip",
+		Bucket:    "cloudtrail",
+		Path:      "AWSLogs/123/*.json.gz",
+		Format:    "JSONAsString",
+		Structure: "json String",
 	}, awssdk.Credentials{
 		AccessKeyID:     "ASIA",
 		SecretAccessKey: `sec'ret\value`,
@@ -57,7 +55,7 @@ func TestAWSS3TemporaryTableSQL(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	want := `CREATE TEMPORARY TABLE cloudtrail (json String) ENGINE = S3('https://cloudtrail.s3.us-east-1.amazonaws.com/AWSLogs/123/*.json.gz','ASIA','sec''ret\\value','token','JSONAsString','gzip');`
+	want := `CREATE TEMPORARY TABLE scrape_table (json String) ENGINE = S3('https://cloudtrail.s3.us-east-1.amazonaws.com/AWSLogs/123/*.json.gz','ASIA','sec''ret\\value','token','JSONAsString');`
 	if cmd != want {
 		t.Fatalf("expected %q, got %q", want, cmd)
 	}
@@ -69,7 +67,7 @@ func TestAWSS3TemporaryTableSQLDefaults(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	want := "CREATE TEMPORARY TABLE cloudtrail (json String) ENGINE = S3('https://cloudtrail.s3.amazonaws.com','AKIA','secret','JSONAsString');"
+	want := "CREATE TEMPORARY TABLE scrape_table (json String) ENGINE = S3('https://cloudtrail.s3.amazonaws.com','AKIA','secret','JSONAsString');"
 	if cmd != want {
 		t.Fatalf("expected %q, got %q", want, cmd)
 	}
@@ -82,7 +80,6 @@ func TestAWSS3TemporaryTableSQLValidation(t *testing.T) {
 	}{
 		{name: "nil config"},
 		{name: "missing bucket", config: &v1.AWSS3{}},
-		{name: "invalid table identifier", config: &v1.AWSS3{Bucket: "cloudtrail", Table: "events; DROP TABLE events"}},
 		{name: "blank structure", config: &v1.AWSS3{Bucket: "cloudtrail", Structure: "  "}},
 	}
 

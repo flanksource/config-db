@@ -14,17 +14,15 @@ spec:
         endpoint: http://minio:9000
         bucket: cloudtrail
         path: AWSLogs/123456789012/CloudTrail/us-east-1/2026/07/10/*.json.gz
-        table: cloudtrail
         format: JSONAsString
         structure: json String
-        compression: gzip
       query: |
         SELECT
           JSONExtractString(event, 'eventID') AS event_id,
           JSONExtractString(event, 'eventName') AS event_name,
           JSONExtractString(event, 'eventSource') AS event_source,
           JSONExtractString(event, 'awsRegion') AS aws_region
-        FROM cloudtrail
+        FROM scrape_table
         ARRAY JOIN JSONExtractArrayRaw(json, 'Records') AS event
         ORDER BY event_id
       type: AWS::CloudTrail::Event
