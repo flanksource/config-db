@@ -50,7 +50,7 @@ func ConsumeKubernetesWatchJobFunc(sc api.ScrapeContext, config v1.Kubernetes, q
 		Retention:    job.RetentionFailed,
 		Schedule:     "@every 3s",
 		ResourceID:   string(sc.ScrapeConfig().GetUID()),
-		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
+		Aliases:      []string{fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name)},
 		ResourceType: job.ResourceTypeScraper,
 		Fn: func(jobCtx job.JobRuntime) error {
 			plugins, err := db.LoadAllPlugins(jobCtx.Context)

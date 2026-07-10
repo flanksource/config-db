@@ -282,7 +282,7 @@ func newScraperJob(sc api.ScrapeContext, overrides ...RunScraperOption) *job.Job
 		Retention:    job.RetentionBalanced,
 		ResourceID:   sc.ScraperID(),
 		ResourceType: job.ResourceTypeScraper,
-		ID:           fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name),
+		Aliases:      []string{fmt.Sprintf("%s/%s", sc.ScrapeConfig().Namespace, sc.ScrapeConfig().Name)},
 		Fn: func(jr job.JobRuntime) error {
 			runLogger := logger.NewWithWriter(os.Stderr)
 			runLogger.SetLogLevel(jr.Logger.GetLevel())
