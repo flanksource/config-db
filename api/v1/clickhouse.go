@@ -2,6 +2,8 @@ package v1
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/flanksource/duty/connection"
 )
@@ -36,14 +38,27 @@ type AWSS3 struct {
 	Structure string `json:"structure,omitempty"`
 }
 
+// GetAccountKeyCommand returns the Azure CLI command used to resolve the
+// storage account key without requiring an additional JSON processor.
 func (az AzureBlobStorage) GetAccountKeyCommand() string {
-	return fmt.Sprintf(`az storage account keys list -n %s | jq -r '.[0].value'`, az.Account)
+	return fmt.Sprintf(`az storage account keys list --account-name %s --query '[0].value' --output tsv`, shellQuote(az.Account))
 }
 
+// GetConnectionString builds a cloud connection string for suffixes and a
+// BlobEndpoint connection string when endpoint is a complete URL.
 func (az AzureBlobStorage) GetConnectionString(accKey string) string {
-	ep := "core.windows.net"
-	if az.EndpointSuffix != "" {
-		ep = az.EndpointSuffix
+	endpoint := strings.TrimSpace(az.EndpointSuffix)
+	if parsed, err := url.Parse(endpoint); err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != "" {
+		parsed.Path = strings.TrimRight(parsed.Path, "/")
+		return fmt.Sprintf("DefaultEndpointsProtocol=%s;AccountName=%s;AccountKey=%s;BlobEndpoint=%s", parsed.Scheme, az.Account, accKey, parsed.String())
 	}
-	return fmt.Sprintf("DefaultEndpointsProtocol=https;AccountName=%s;AccountKey=%s;EndpointSuffix=%s", az.Account, accKey, ep)
+
+	if endpoint == "" {
+		endpoint = "core.windows.net"
+	}
+	return fmt.Sprintf("DefaultEndpointsProtocol=https;AccountName=%s;AccountKey=%s;EndpointSuffix=%s", az.Account, accKey, endpoint)
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
