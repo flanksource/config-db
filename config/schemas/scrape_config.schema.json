@@ -221,6 +221,18 @@
         },
         "path": {
           "type": "string"
+        },
+        "table": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "structure": {
+          "type": "string"
+        },
+        "compression": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

@@ -29,9 +29,13 @@ type AzureBlobStorage struct {
 type AWSS3 struct {
 	*AWSConnection `yaml:",inline" json:",inline"`
 
-	Bucket   string `json:"bucket,omitempty"`
-	Path     string `json:"path,omitempty"`
-	Endpoint string `json:"endpoint,omitempty"`
+	Bucket      string `json:"bucket,omitempty"`
+	Path        string `json:"path,omitempty"`
+	Endpoint    string `json:"endpoint,omitempty"`
+	Table       string `json:"table,omitempty"`
+	Format      string `json:"format,omitempty"`
+	Structure   string `json:"structure,omitempty"`
+	Compression string `json:"compression,omitempty"`
 }
 
 func (az AzureBlobStorage) GetAccountKeyCommand() string {
