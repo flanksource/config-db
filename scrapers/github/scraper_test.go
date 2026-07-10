@@ -71,6 +71,74 @@ var _ = Describe("GitHubScraper", func() {
 		})
 	})
 
+	Context("organizations and relationships", func() {
+		It("creates a scraperless organization config for organization-owned repositories", func() {
+			owner := &gogithub.User{
+				Login:   gogithub.Ptr("flanksource"),
+				Type:    gogithub.Ptr("Organization"),
+				HTMLURL: gogithub.Ptr("https://github.com/flanksource"),
+			}
+
+			result := buildOrganizationResult(owner)
+
+			Expect(result.Type).To(Equal(ConfigTypeOrganization))
+			Expect(result.ID).To(Equal("github/flanksource"))
+			Expect(result.Name).To(Equal("flanksource"))
+			Expect(result.ConfigClass).To(Equal("Organization"))
+			Expect(result.ScraperLess).To(BeTrue())
+			Expect(v1.ScraperLessTypes).To(ContainElement(ConfigTypeOrganization))
+			Expect(result.Properties).To(HaveLen(1))
+			Expect(result.Properties[0].Text).To(Equal("https://github.com/flanksource"))
+		})
+
+		It("dedupes organization configs and relates repositories to the shared organization", func() {
+			owner := &gogithub.User{
+				Login: gogithub.Ptr("flanksource"),
+				Type:  gogithub.Ptr("Organization"),
+			}
+			repo := &gogithub.Repository{
+				Name:     gogithub.Ptr("config-db"),
+				FullName: gogithub.Ptr("flanksource/config-db"),
+				HTMLURL:  gogithub.Ptr("https://github.com/flanksource/config-db"),
+				Owner:    owner,
+			}
+
+			var results v1.ScrapeResults
+			seen := make(map[string]struct{})
+			appendOrganizationResult(&results, seen, owner)
+			appendOrganizationResult(&results, seen, owner)
+
+			Expect(results).To(HaveLen(1))
+
+			result := buildRepositoryResult(repo, v1.GitHubRepository{Owner: "flanksource", Repo: "config-db"}, nil, nil)
+
+			Expect(result.RelationshipResults).To(HaveLen(1))
+			relationship := result.RelationshipResults[0]
+			Expect(relationship.ConfigExternalID).To(Equal(v1.ExternalID{
+				ConfigType: ConfigTypeOrganization,
+				ExternalID: "github/flanksource",
+				ScraperID:  "all",
+			}))
+			Expect(relationship.RelatedExternalID).To(Equal(v1.ExternalID{
+				ConfigType: ConfigTypeRepository,
+				ExternalID: "github/flanksource/config-db",
+			}))
+			Expect(relationship.Relationship).To(Equal(RelationshipGitHubOrganizationRepository))
+		})
+
+		It("does not create an organization relationship for user-owned repositories", func() {
+			repo := &gogithub.Repository{
+				Name:    gogithub.Ptr("dotfiles"),
+				HTMLURL: gogithub.Ptr("https://github.com/aditya/dotfiles"),
+				Owner:   &gogithub.User{Login: gogithub.Ptr("aditya"), Type: gogithub.Ptr("User")},
+			}
+
+			result := buildRepositoryResult(repo, v1.GitHubRepository{Owner: "aditya", Repo: "dotfiles"}, nil, nil)
+
+			Expect(result.RelationshipResults).To(BeEmpty())
+		})
+	})
+
 	Context("OpenSSF code scanning dedupe", func() {
 		newCodeScanningAlert := func(number int, toolName, ruleID, ruleDescription string) *gogithub.Alert {
 			alert := &gogithub.Alert{
@@ -212,19 +280,27 @@ var _ = Describe("GitHubScraper", func() {
 
 			results := scraper.Scrape(ctx)
 
-			var configs []v1.ScrapeResult
+			var configs, repoConfigs, orgConfigs []v1.ScrapeResult
 			var analyses []v1.ScrapeResult
 			for _, r := range results {
 				if r.Config != nil {
 					configs = append(configs, r)
+					switch r.Type {
+					case ConfigTypeRepository:
+						repoConfigs = append(repoConfigs, r)
+					case ConfigTypeOrganization:
+						orgConfigs = append(orgConfigs, r)
+					}
 				} else if r.AnalysisResult != nil {
 					analyses = append(analyses, r)
 				}
 			}
 
-			Expect(configs).To(HaveLen(1), "expected exactly 1 GitHub::Repository config item")
+			Expect(repoConfigs).To(HaveLen(1), "expected exactly 1 GitHub::Repository config item")
+			Expect(orgConfigs).To(HaveLen(1), "expected exactly 1 GitHub::Organization config item")
+			Expect(orgConfigs[0].ScraperLess).To(BeTrue())
 
-			repo := configs[0]
+			repo := repoConfigs[0]
 			Expect(repo.Type).To(Equal("GitHub::Repository"))
 			Expect(repo.ID).To(Equal("github/flanksource/canary-checker"))
 			Expect(repo.Name).To(Equal("flanksource/canary-checker"))
@@ -307,17 +383,26 @@ var _ = Describe("GitHubScraper", func() {
 			ctx := api.NewScrapeContext(dutyCtx.New()).WithScrapeConfig(&scrapeConfig)
 			results := GithubScraper{}.Scrape(ctx)
 
-			var configs, analyses []v1.ScrapeResult
+			var configs, repoConfigs, orgConfigs, analyses []v1.ScrapeResult
 			for _, r := range results {
 				if r.Config != nil {
 					configs = append(configs, r)
+					switch r.Type {
+					case ConfigTypeRepository:
+						repoConfigs = append(repoConfigs, r)
+					case ConfigTypeOrganization:
+						orgConfigs = append(orgConfigs, r)
+					}
 				} else if r.AnalysisResult != nil {
 					analyses = append(analyses, r)
 				}
 			}
 
-			Expect(configs).To(HaveLen(1))
-			Expect(configs[0].Type).To(Equal("GitHub::Repository"))
+			Expect(configs).To(HaveLen(2))
+			Expect(repoConfigs).To(HaveLen(1))
+			Expect(repoConfigs[0].Type).To(Equal("GitHub::Repository"))
+			Expect(orgConfigs).To(HaveLen(1))
+			Expect(orgConfigs[0].ScraperLess).To(BeTrue())
 
 			var hasVulnerabilities bool
 			for _, a := range analyses {

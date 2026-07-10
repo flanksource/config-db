@@ -15,7 +15,10 @@ import (
 )
 
 const (
-	ConfigTypeRepository = "GitHub::Repository"
+	ConfigTypeRepository   = "GitHub::Repository"
+	ConfigTypeOrganization = v1.GitHubOrganization
+
+	RelationshipGitHubOrganizationRepository = "GitHubOrganizationRepository"
 )
 
 type GithubScraper struct{}
@@ -26,6 +29,7 @@ func (gh GithubScraper) CanScrape(spec v1.ScraperSpec) bool {
 
 func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
+	organizations := make(map[string]struct{})
 
 	for _, config := range ctx.ScrapeConfig().Spec.GitHub {
 		repositories, rateLimited := resolveRepositoryConfigs(ctx, config, &results)
@@ -64,7 +68,11 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				continue
 			}
 
-			externalConfigID := fmt.Sprintf("github/%s", repoFullName)
+			if owner := repositoryOrganizationOwner(repo); owner != nil {
+				appendOrganizationResult(&results, organizations, owner)
+			}
+
+			externalConfigID := githubRepositoryExternalID(repoConfig.Owner, repoConfig.Repo)
 
 			var alerts *allAlerts
 			if config.Security {
@@ -227,9 +235,62 @@ func matchingRepositoryConfigs(owner, repoPattern string, repos []*github.Reposi
 	return matched
 }
 
+func appendOrganizationResult(results *v1.ScrapeResults, seen map[string]struct{}, owner *github.User) {
+	if owner == nil || owner.GetLogin() == "" {
+		return
+	}
+
+	externalConfigID := githubOrganizationExternalID(owner.GetLogin())
+	if _, ok := seen[externalConfigID]; ok {
+		return
+	}
+
+	seen[externalConfigID] = struct{}{}
+	*results = append(*results, buildOrganizationResult(owner))
+}
+
+func buildOrganizationResult(owner *github.User) v1.ScrapeResult {
+	login := owner.GetLogin()
+	externalConfigID := githubOrganizationExternalID(login)
+
+	var properties []*types.Property
+	if url := owner.GetHTMLURL(); url != "" {
+		properties = append(properties, &types.Property{
+			Name:  "URL",
+			Type:  "url",
+			Text:  url,
+			Links: []types.Link{{URL: url, Type: "url"}},
+		})
+	}
+
+	return v1.ScrapeResult{
+		Type:        ConfigTypeOrganization,
+		ID:          externalConfigID,
+		Name:        login,
+		ConfigClass: "Organization",
+		Config:      sanitizeActor(owner),
+		Tags: v1.JSONStringMap{
+			"owner": login,
+		},
+		CreatedAt:   owner.CreatedAt.GetTime(),
+		Properties:  properties,
+		ScraperLess: true,
+	}
+}
+
+func repositoryOrganizationOwner(repo *github.Repository) *github.User {
+	if repo == nil ||
+		repo.Owner == nil ||
+		repo.Owner.GetLogin() == "" ||
+		!strings.EqualFold(repo.Owner.GetType(), "Organization") {
+		return nil
+	}
+	return repo.Owner
+}
+
 func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubRepository, alerts *allAlerts, scorecard *ScorecardResponse) v1.ScrapeResult {
 	repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
-	externalConfigID := fmt.Sprintf("github/%s", repoFullName)
+	externalConfigID := githubRepositoryExternalID(repoConfig.Owner, repoConfig.Repo)
 
 	var properties []*types.Property
 	properties = append(properties, &types.Property{
@@ -273,7 +334,38 @@ func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubReposito
 		Properties: properties,
 	}
 
+	if owner := repositoryOrganizationOwner(repo); owner != nil {
+		result.RelationshipResults = append(result.RelationshipResults, githubOrganizationRepositoryRelationship(
+			owner.GetLogin(),
+			repoConfig.Owner,
+			repoConfig.Repo,
+		))
+	}
+
 	return result.WithHealthStatus(healthStatus)
+}
+
+func githubOrganizationRepositoryRelationship(owner, repoOwner, repo string) v1.RelationshipResult {
+	return v1.RelationshipResult{
+		ConfigExternalID: v1.ExternalID{
+			ConfigType: ConfigTypeOrganization,
+			ExternalID: githubOrganizationExternalID(owner),
+			ScraperID:  "all",
+		},
+		RelatedExternalID: v1.ExternalID{
+			ConfigType: ConfigTypeRepository,
+			ExternalID: githubRepositoryExternalID(repoOwner, repo),
+		},
+		Relationship: RelationshipGitHubOrganizationRepository,
+	}
+}
+
+func githubOrganizationExternalID(owner string) string {
+	return fmt.Sprintf("github/%s", strings.TrimSpace(owner))
+}
+
+func githubRepositoryExternalID(owner, repo string) string {
+	return fmt.Sprintf("github/%s/%s", strings.TrimSpace(owner), strings.TrimSpace(repo))
 }
 
 func alertProperties(counts alertCounts) []*types.Property {
