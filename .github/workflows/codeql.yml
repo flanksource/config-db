@@ -51,7 +51,7 @@ jobs:
         uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
         with:
           languages: go
-          dependency-caching: true
+          dependency-caching: false
 
       # Build with slim tag to exclude heavy cloud provider dependencies (AWS/Azure/GCP SDKs)
       - name: Build
