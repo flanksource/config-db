@@ -55,7 +55,7 @@ jobs:
 
       # Build with slim tag to exclude heavy cloud provider dependencies (AWS/Azure/GCP SDKs)
       - name: Build
-        run: go build -tags slim ./...
+        run: go build -mod=mod -tags slim ./...
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
