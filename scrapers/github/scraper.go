@@ -90,7 +90,21 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				}
 			}
 
-			result := buildRepositoryResult(repo, repoConfig, alerts, scorecard)
+			result := buildRepositoryResult(repo, repoConfig, config.BaseScraper, alerts, scorecard)
+			if config.Permissions != nil && config.Permissions.Enabled {
+				access, err := fetchRepositoryAccess(ctx, repositoryAccessFetchOptions{
+					Client:     client,
+					Repository: repo,
+				})
+				if err != nil {
+					results.Errorf(err, "failed to fetch repository permissions for %s", repoFullName)
+				} else {
+					result.ExternalUsers = access.Users
+					result.ExternalGroups = access.Groups
+					result.ExternalRoles = access.Roles
+					result.ConfigAccess = access.Access
+				}
+			}
 			results = append(results, result)
 
 			openssfCodeScanningURLs := codeScanningURLsByOpenSSFCheckName(externalConfigID, alerts)
@@ -288,7 +302,13 @@ func repositoryOrganizationOwner(repo *github.Repository) *github.User {
 	return repo.Owner
 }
 
-func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubRepository, alerts *allAlerts, scorecard *ScorecardResponse) v1.ScrapeResult {
+func buildRepositoryResult(
+	repo *github.Repository,
+	repoConfig v1.GitHubRepository,
+	baseScraper v1.BaseScraper,
+	alerts *allAlerts,
+	scorecard *ScorecardResponse,
+) v1.ScrapeResult {
 	repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
 	externalConfigID := githubRepositoryExternalID(repoConfig.Owner, repoConfig.Repo)
 
@@ -301,6 +321,11 @@ func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubReposito
 			{URL: repo.GetHTMLURL(), Type: "url"},
 		},
 	})
+	properties = append(properties, &types.Property{Name: "Forked", Type: "badge", Text: fmt.Sprintf("%t", repo.GetFork())})
+	if license := repo.GetLicense().GetSPDXID(); license != "" {
+		properties = append(properties, &types.Property{Name: "License", Type: "badge", Text: license})
+	}
+	properties = append(properties, &types.Property{Name: "Archived", Type: "badge", Text: fmt.Sprintf("%t", repo.GetArchived())})
 
 	healthStatus := health.HealthStatus{Health: health.HealthHealthy, Ready: true, Message: "No issues"}
 
@@ -321,6 +346,7 @@ func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubReposito
 	}
 
 	result := v1.ScrapeResult{
+		BaseScraper: baseScraper,
 		Type:        ConfigTypeRepository,
 		ID:          externalConfigID,
 		Name:        repoFullName,
@@ -332,6 +358,13 @@ func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubReposito
 		},
 		CreatedAt:  repo.CreatedAt.GetTime(),
 		Properties: properties,
+	}
+
+	for _, topic := range repo.Topics {
+		topic = strings.TrimSpace(topic)
+		if topic != "" {
+			result.Tags["topic/"+topic] = "true"
+		}
 	}
 
 	if owner := repositoryOrganizationOwner(repo); owner != nil {

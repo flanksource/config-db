@@ -51,8 +51,18 @@ type GitHub struct {
 	// OpenSSF enables fetching OpenSSF Scorecard data
 	OpenSSF bool `yaml:"openssf,omitempty" json:"openssf,omitempty"`
 
+	// Permissions configures repository collaborator and team access collection
+	Permissions *GitHubPermissions `yaml:"permissions,omitempty" json:"permissions,omitempty"`
+
 	// SecurityFilters for security alerts (only used when security=true)
 	SecurityFilters GitHubSecurityFilters `yaml:"securityFilters,omitempty" json:"securityFilters,omitempty"`
+}
+
+// GitHubPermissions configures repository RBAC collection.
+type GitHubPermissions struct {
+	// Enabled maps effective collaborators and repository teams to external users,
+	// groups, roles, and config access records.
+	Enabled bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 }
 
 // GitHubRepository specifies a repository or repository selector to scrape.

@@ -110,7 +110,7 @@ var _ = Describe("GitHubScraper", func() {
 
 			Expect(results).To(HaveLen(1))
 
-			result := buildRepositoryResult(repo, v1.GitHubRepository{Owner: "flanksource", Repo: "config-db"}, nil, nil)
+			result := buildRepositoryResult(repo, v1.GitHubRepository{Owner: "flanksource", Repo: "config-db"}, v1.BaseScraper{}, nil, nil)
 
 			Expect(result.RelationshipResults).To(HaveLen(1))
 			relationship := result.RelationshipResults[0]
@@ -133,7 +133,7 @@ var _ = Describe("GitHubScraper", func() {
 				Owner:   &gogithub.User{Login: gogithub.Ptr("aditya"), Type: gogithub.Ptr("User")},
 			}
 
-			result := buildRepositoryResult(repo, v1.GitHubRepository{Owner: "aditya", Repo: "dotfiles"}, nil, nil)
+			result := buildRepositoryResult(repo, v1.GitHubRepository{Owner: "aditya", Repo: "dotfiles"}, v1.BaseScraper{}, nil, nil)
 
 			Expect(result.RelationshipResults).To(BeEmpty())
 		})

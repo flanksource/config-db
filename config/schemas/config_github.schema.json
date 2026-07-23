@@ -276,6 +276,10 @@
           "type": "boolean",
           "description": "OpenSSF enables fetching OpenSSF Scorecard data"
         },
+        "permissions": {
+          "$ref": "#/$defs/GitHubPermissions",
+          "description": "Permissions configures repository collaborator and team access collection"
+        },
         "securityFilters": {
           "$ref": "#/$defs/GitHubSecurityFilters",
           "description": "SecurityFilters for security alerts (only used when security=true)"
@@ -287,6 +291,17 @@
         "repositories"
       ],
       "description": "GitHub scraper creates GitHub::Repository config items and optionally\nattaches security alerts and OpenSSF scorecard results as analyses."
+    },
+    "GitHubPermissions": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled maps effective collaborators and repository teams to external users,\ngroups, roles, and config access records."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "GitHubPermissions configures repository RBAC collection."
     },
     "GitHubRepository": {
       "properties": {
