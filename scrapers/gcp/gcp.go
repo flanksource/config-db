@@ -50,7 +50,9 @@ func NewGCPContext(ctx api.ScrapeContext, gcpConfig v1.GCP) (*GCPContext, error)
 
 	if creds != "" {
 		gcpConfig.GCPConnection.Credentials = &types.EnvVar{ValueStatic: creds}
-		tokenSource, err := gcpConfig.GCPConnection.TokenSource(ctx.Context, "https://www.googleapis.com/auth/cloud-platform")
+		tokenSource, err := gcpConfig.GCPConnection.TokenSource(ctx.Context,
+			"https://www.googleapis.com/auth/cloud-platform",
+			"https://www.googleapis.com/auth/cloud-identity.groups.readonly")
 		if err != nil {
 			return nil, fmt.Errorf("error getting credentials from json: %w", err)
 		}
@@ -172,6 +174,10 @@ var defaultIgnoreList = []string{
 	"compute.googleapis.com/InstanceSettings",
 	"serviceusage.googleapis.com/Service",
 	"cloudkms.googleapis.com/CryptoKeyVersion",
+	// The IAM-policy scraper is the single authority for GCP::IAMRole config
+	// items (created per bound role and enriched via the IAM Admin API), so the
+	// role asset is suppressed here to avoid a duplicate GCP::Role config item.
+	"iam.googleapis.com/Role",
 }
 
 func generateConsistentID(input string) uuid.UUID {
@@ -362,11 +368,24 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 
 		if gcpConfig.Includes(v1.IncludeIAMPolicy) {
-			iamPolicyResults, err := gcp.FetchIAMPolicies(gcpCtx, gcpConfig)
+			iamPolicyResults, groupEmails, err := gcp.FetchIAMPolicies(gcpCtx, gcpConfig)
 			if err != nil {
 				allResults.Errorf(err, "failed to fetch GCP IAM policies for project %s", gcpConfig.Project)
 			} else {
 				allResults = append(allResults, iamPolicyResults...)
+
+				// Group-membership expansion runs by default alongside IAM
+				// policy so group grants unwrap to their members. It needs the
+				// Cloud Identity groups.readonly scope; disable per project with
+				// exclude: [IAMGroupMembers] when the scrape SA lacks it.
+				if gcpConfig.Includes(v1.IncludeGroupMembers) && !gcpConfig.Excludes(v1.IncludeGroupMembers) {
+					memberResults, err := gcp.FetchGroupMemberships(gcpCtx, gcpConfig, groupEmails)
+					if err != nil {
+						allResults.Errorf(err, "failed to fetch GCP group memberships for project %s", gcpConfig.Project)
+					} else {
+						allResults = append(allResults, memberResults...)
+					}
+				}
 			}
 		}
 

@@ -8,10 +8,15 @@ spec:
     - project: workload-prod-eu-02
       exclude:
         - SecurityCenter
+        #- IAMGroupMembers  # disable Google-group expansion (needs Cloud Identity groups.readonly)
       #connection: connection://mc/gcloud-flanksource
       #include:
         #- storage.googleapis.com/Bucket
         #- container.googleapis.com/Cluster
+        # IAMPolicy (RBAC: users/groups/service-accounts -> roles) and
+        # IAMGroupMembers (expand Google group membership) run by default.
+        # AuditLogs is opt-in and only runs when listed here:
+        #- AuditLogs         # access history from the BigQuery audit-log dataset
       #auditLogs:
         #dataset: default._AllLogs
         #since: 30d
