@@ -274,7 +274,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Include is a list of GCP asset types to scrape.\nReference: https://cloud.google.com/asset-inventory/docs/supported-asset-types\nExample: storage.googleapis.com/Bucket"
+          "description": "Include is a list of GCP asset types to scrape, and/or feature flags that\nenable non-asset scrapers.\nAsset types reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types\nExample asset type: storage.googleapis.com/Bucket\nFeature flags: IAMPolicy (RBAC access from IAM policy bindings) and\nIAMGroupMembers (expand Google group membership via the Cloud Identity\ngroups.readonly scope) both run by default; disable group expansion with\nexclude: [IAMGroupMembers]. AuditLogs (BigQuery audit-log access) is opt-in."
         },
         "exclude": {
           "items": {

@@ -34,14 +34,15 @@ const (
 
 const (
 	// Feature flags for GCP scraper
-	IncludeIAMPolicy = "IAMPolicy"
-	IncludeAuditLogs = "AuditLogs"
+	IncludeIAMPolicy    = "IAMPolicy"
+	IncludeAuditLogs    = "AuditLogs"
+	IncludeGroupMembers = "IAMGroupMembers"
 
 	ExcludeSecurityCenter = "SecurityCenter"
 )
 
 var (
-	AllIncludes = []string{IncludeIAMPolicy, IncludeAuditLogs}
+	AllIncludes = []string{IncludeIAMPolicy, IncludeAuditLogs, IncludeGroupMembers}
 )
 
 type GCP struct {
@@ -49,9 +50,14 @@ type GCP struct {
 	connection.GCPConnection `json:",inline"`
 	Project                  string `json:"project"`
 
-	// Include is a list of GCP asset types to scrape.
-	// Reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types
-	// Example: storage.googleapis.com/Bucket
+	// Include is a list of GCP asset types to scrape, and/or feature flags that
+	// enable non-asset scrapers.
+	// Asset types reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types
+	// Example asset type: storage.googleapis.com/Bucket
+	// Feature flags: IAMPolicy (RBAC access from IAM policy bindings) and
+	// IAMGroupMembers (expand Google group membership via the Cloud Identity
+	// groups.readonly scope) both run by default; disable group expansion with
+	// exclude: [IAMGroupMembers]. AuditLogs (BigQuery audit-log access) is opt-in.
 	Include []string `json:"include,omitempty"`
 
 	// Exclude is a list of GCP asset types to exclude from scraping.

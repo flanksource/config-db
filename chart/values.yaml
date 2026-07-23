@@ -615,6 +615,13 @@ plugins:
   # @schema
   enabled: true
 
+  # @schema
+  # required: false
+  # type: boolean
+  # @schema
+  # -- Enable GitHub repository metadata properties
+  github: true
+
   locations:
     # @schema
     # required: false

@@ -533,6 +533,12 @@
           "title": "enabled",
           "type": "boolean"
         },
+        "github": {
+          "default": true,
+          "description": "Enable GitHub repository metadata properties",
+          "title": "github",
+          "type": "boolean"
+        },
         "locations": {
           "properties": {
             "aws": {
