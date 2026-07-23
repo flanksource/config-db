@@ -1971,6 +1971,10 @@
           "type": "boolean",
           "description": "OpenSSF enables fetching OpenSSF Scorecard data"
         },
+        "permissions": {
+          "$ref": "#/$defs/GitHubPermissions",
+          "description": "Permissions configures repository collaborator and team access collection"
+        },
         "securityFilters": {
           "$ref": "#/$defs/GitHubSecurityFilters",
           "description": "SecurityFilters for security alerts (only used when security=true)"
@@ -2092,6 +2096,17 @@
         "repository"
       ],
       "description": "GitHubActions scraper scrapes the workflow and its runs based on the given filter.\nBy default, it fetches the last 7 days of workflow runs (Configurable via property: scrapers.githubactions.maxAge)"
+    },
+    "GitHubPermissions": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled maps effective collaborators and repository teams to external users,\ngroups, roles, and config access records."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "GitHubPermissions configures repository RBAC collection."
     },
     "GitHubRepository": {
       "properties": {

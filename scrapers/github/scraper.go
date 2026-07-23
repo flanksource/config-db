@@ -91,6 +91,20 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 
 			result := buildRepositoryResult(repo, repoConfig, config.BaseScraper, alerts, scorecard)
+			if config.Permissions != nil && config.Permissions.Enabled {
+				access, err := fetchRepositoryAccess(ctx, repositoryAccessFetchOptions{
+					Client:     client,
+					Repository: repo,
+				})
+				if err != nil {
+					results.Errorf(err, "failed to fetch repository permissions for %s", repoFullName)
+				} else {
+					result.ExternalUsers = access.Users
+					result.ExternalGroups = access.Groups
+					result.ExternalRoles = access.Roles
+					result.ConfigAccess = access.Access
+				}
+			}
 			results = append(results, result)
 
 			openssfCodeScanningURLs := codeScanningURLsByOpenSSFCheckName(externalConfigID, alerts)
@@ -307,6 +321,11 @@ func buildRepositoryResult(
 			{URL: repo.GetHTMLURL(), Type: "url"},
 		},
 	})
+	properties = append(properties, &types.Property{Name: "Forked", Type: "badge", Text: fmt.Sprintf("%t", repo.GetFork())})
+	if license := repo.GetLicense().GetSPDXID(); license != "" {
+		properties = append(properties, &types.Property{Name: "License", Type: "badge", Text: license})
+	}
+	properties = append(properties, &types.Property{Name: "Archived", Type: "badge", Text: fmt.Sprintf("%t", repo.GetArchived())})
 
 	healthStatus := health.HealthStatus{Health: health.HealthHealthy, Ready: true, Message: "No issues"}
 
