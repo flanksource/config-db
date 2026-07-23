@@ -5915,6 +5915,16 @@ spec:
                     openssf:
                       description: OpenSSF enables fetching OpenSSF Scorecard data
                       type: boolean
+                    permissions:
+                      description: Permissions configures repository collaborator
+                        and team access collection
+                      properties:
+                        enabled:
+                          description: |-
+                            Enabled maps effective collaborators and repository teams to external users,
+                            groups, roles, and config access records.
+                          type: boolean
+                      type: object
                     personalAccessToken:
                       properties:
                         name:
