@@ -207,7 +207,22 @@ func sanitizeRepository(repo *github.Repository) *github.Repository {
 		Archived:        repo.Archived,
 		Disabled:        repo.Disabled,
 		Topics:          repo.Topics,
+		License:         sanitizeLicense(repo.License),
 		Owner:           sanitizeActor(repo.Owner),
+	}
+}
+
+func sanitizeLicense(license *github.License) *github.License {
+	if license == nil {
+		return nil
+	}
+
+	return &github.License{
+		Key:     license.Key,
+		Name:    license.Name,
+		URL:     license.URL,
+		SPDXID:  license.SPDXID,
+		HTMLURL: license.HTMLURL,
 	}
 }
 

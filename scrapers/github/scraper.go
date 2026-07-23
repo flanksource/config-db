@@ -90,7 +90,7 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 				}
 			}
 
-			result := buildRepositoryResult(repo, repoConfig, alerts, scorecard)
+			result := buildRepositoryResult(repo, repoConfig, config.BaseScraper, alerts, scorecard)
 			results = append(results, result)
 
 			openssfCodeScanningURLs := codeScanningURLsByOpenSSFCheckName(externalConfigID, alerts)
@@ -288,7 +288,13 @@ func repositoryOrganizationOwner(repo *github.Repository) *github.User {
 	return repo.Owner
 }
 
-func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubRepository, alerts *allAlerts, scorecard *ScorecardResponse) v1.ScrapeResult {
+func buildRepositoryResult(
+	repo *github.Repository,
+	repoConfig v1.GitHubRepository,
+	baseScraper v1.BaseScraper,
+	alerts *allAlerts,
+	scorecard *ScorecardResponse,
+) v1.ScrapeResult {
 	repoFullName := fmt.Sprintf("%s/%s", repoConfig.Owner, repoConfig.Repo)
 	externalConfigID := githubRepositoryExternalID(repoConfig.Owner, repoConfig.Repo)
 
@@ -321,6 +327,7 @@ func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubReposito
 	}
 
 	result := v1.ScrapeResult{
+		BaseScraper: baseScraper,
 		Type:        ConfigTypeRepository,
 		ID:          externalConfigID,
 		Name:        repoFullName,
@@ -332,6 +339,13 @@ func buildRepositoryResult(repo *github.Repository, repoConfig v1.GitHubReposito
 		},
 		CreatedAt:  repo.CreatedAt.GetTime(),
 		Properties: properties,
+	}
+
+	for _, topic := range repo.Topics {
+		topic = strings.TrimSpace(topic)
+		if topic != "" {
+			result.Tags["topic/"+topic] = "true"
+		}
 	}
 
 	if owner := repositoryOrganizationOwner(repo); owner != nil {
