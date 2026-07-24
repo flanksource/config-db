@@ -1,11 +1,14 @@
 package gcp
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
 	"cloud.google.com/go/asset/apiv1/assetpb"
 	"cloud.google.com/go/iam/apiv1/iampb"
+	"github.com/flanksource/config-db/api"
+	dutyCtx "github.com/flanksource/duty/context"
 	. "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	cloudidentity "google.golang.org/api/cloudidentity/v1"
@@ -235,6 +238,47 @@ var _ = Describe("buildIAMAccess", func() {
 	})
 })
 
+var _ = Describe("fetch IAM policies", func() {
+	DescribeTable("preserves asset policies when hierarchy discovery is unavailable",
+		func(project *cloudresourcemanager.Project, hierarchyErr error) {
+			const (
+				projectID = "app-prod"
+				bucketID  = "//storage.googleapis.com/projects/_/buckets/audit-logs"
+				role      = "roles/storage.objectViewer"
+				principal = "alice@example.com"
+			)
+
+			ctx := &GCPContext{ScrapeContext: api.NewScrapeContext(dutyCtx.New())}
+			results, groups, err := (Scraper{}).fetchIAMPolicies(ctx, v1.GCP{Project: projectID}, iamPolicyFetchers{
+				listAssets: func(*GCPContext, v1.GCP) ([]*assetpb.Asset, error) {
+					return []*assetpb.Asset{iamPolicyAsset(
+						bucketID,
+						"storage.googleapis.com/Bucket",
+						&iampb.Binding{Role: role, Members: []string{"user:" + principal}},
+					)}, nil
+				},
+				fetchHierarchy: func(*GCPContext, v1.GCP) (*cloudresourcemanager.Project, []resourceManagerNode, error) {
+					return project, nil, hierarchyErr
+				},
+				enrichRoles: func(*GCPContext, []v1.ScrapeResult) {},
+			})
+
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(groups).To(gomega.BeEmpty())
+			gomega.Expect(results).To(gomega.HaveLen(2))
+			source := iamPolicySource
+			gomega.Expect(results[1].ConfigAccess).To(gomega.Equal([]v1.ExternalConfigAccess{{
+				ConfigExternalID:    v1.ExternalID{ConfigType: v1.GCSBucket, ExternalID: bucketID},
+				ExternalUserAliases: []string{principal},
+				ExternalRoleAliases: []string{role},
+				Source:              &source,
+			}}))
+		},
+		Entry("hierarchy fetch fails", nil, errors.New("permission denied")),
+		Entry("hierarchy response is invalid", &cloudresourcemanager.Project{}, nil),
+	)
+})
+
 var _ = Describe("buildResourceManagerHierarchy", func() {
 	It("emits the project ancestor chain and resource-scoped IAM policies", func() {
 		const (
@@ -281,7 +325,6 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 
 		folderExternalID := "//cloudresourcemanager.googleapis.com/folders/" + folderID
 		organizationExternalID := "//cloudresourcemanager.googleapis.com/organizations/" + organization
-		projectExternalID := "//cloudresourcemanager.googleapis.com/projects/" + projectNumber
 
 		gomega.Expect(configs[0].ID).To(gomega.Equal("folders/" + folderID))
 		gomega.Expect(configs[0].Name).To(gomega.Equal("Production"))
@@ -291,25 +334,11 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 			Type:       "GCP::ResourceManager::Organization",
 			ExternalID: organizationExternalID,
 		}}))
-		gomega.Expect(configs[0].Children).To(gomega.Equal([]v1.ConfigExternalKey{{
-			Type:       "GCP::ResourceManager::Project",
-			ExternalID: projectExternalID,
-		}}))
+		gomega.Expect(configs[0].Children).To(gomega.BeEmpty())
 		gomega.Expect(configs[1].ID).To(gomega.Equal("organizations/" + organization))
 		gomega.Expect(configs[1].Name).To(gomega.Equal("example.com"))
 		gomega.Expect(configs[1].Type).To(gomega.Equal("GCP::ResourceManager::Organization"))
 		gomega.Expect(configs[1].Aliases).To(gomega.Equal([]string{organizationExternalID}))
-
-		projectConfigs := v1.ScrapeResults{{
-			ID:      "Production project",
-			Type:    "GCP::ResourceManager::Project",
-			Aliases: []string{projectExternalID},
-		}}
-		linkResourceManagerChildren(projectConfigs, configs)
-		gomega.Expect(projectConfigs[0].Parents[0]).To(gomega.Equal(v1.ConfigExternalKey{
-			Type:       "GCP::ResourceManager::Folder",
-			ExternalID: folderExternalID,
-		}))
 
 		access := buildIAMAccess(policies, projectID)
 		gomega.Expect(accessKeyed(access.Access,

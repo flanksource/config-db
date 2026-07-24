@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -70,6 +71,18 @@ func scrapeOrganizations(
 	repositories []v1.GitHubRepository,
 	seen map[string]struct{},
 ) v1.ScrapeResults {
+	return scrapeOrganizationsWithClientFactory(ctx, config, repositories, seen, NewGitHubClient)
+}
+
+type githubClientFactory func(api.ScrapeContext, v1.GitHub, string, string) (*GitHubClient, error)
+
+func scrapeOrganizationsWithClientFactory(
+	ctx api.ScrapeContext,
+	config v1.GitHub,
+	repositories []v1.GitHubRepository,
+	seen map[string]struct{},
+	newClient githubClientFactory,
+) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
 	for _, orgConfig := range config.Organizations {
@@ -85,10 +98,21 @@ func scrapeOrganizations(
 
 		ctx.Logger.V(2).Infof("scraping GitHub organization: %s", orgConfig.Name)
 
-		client, err := NewGitHubClient(ctx, config, orgConfig.Name, "")
+		client, err := newClient(ctx, config, orgConfig.Name, "")
 		if err != nil {
 			results.Errorf(err, "failed to create GitHub client for %s", orgConfig.Name)
 			continue
+		}
+
+		if shouldPause, duration, err := client.ShouldPauseForRateLimit(ctx); err != nil {
+			results.Errorf(err, "failed to check rate limit for %s", orgConfig.Name)
+			continue
+		} else if shouldPause {
+			resetAt := time.Now().Add(duration)
+			return results.RateLimited(
+				fmt.Sprintf("GitHub API rate limit for %s", orgConfig.Name),
+				&resetAt,
+			)
 		}
 
 		organization, _, err := client.Client.Organizations.Get(ctx, orgConfig.Name)

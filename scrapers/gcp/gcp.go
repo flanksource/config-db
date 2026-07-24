@@ -372,7 +372,6 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			if err != nil {
 				allResults.Errorf(err, "failed to fetch GCP IAM policies for project %s", gcpConfig.Project)
 			} else {
-				linkResourceManagerChildren(allResults, iamPolicyResults)
 				allResults = append(allResults, iamPolicyResults...)
 
 				// Group-membership expansion runs by default alongside IAM

@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/duty/models"
 	"github.com/lib/pq"
 	"github.com/samber/lo"
+	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v3"
 	"google.golang.org/api/iterator"
 )
 
@@ -216,28 +217,43 @@ func roleType(role string) string {
 	return "Custom"
 }
 
+type iamPolicyFetchers struct {
+	listAssets     func(*GCPContext, v1.GCP) ([]*assetpb.Asset, error)
+	fetchHierarchy func(*GCPContext, v1.GCP) (*cloudresourcemanager.Project, []resourceManagerNode, error)
+	enrichRoles    func(*GCPContext, []v1.ScrapeResult)
+}
+
 // FetchIAMPolicies reads Cloud Asset Inventory IAM policies for the project and
 // emits role config items, external identities, and grant edges. The returned
 // group emails are the real Google groups discovered in bindings, for optional
 // membership expansion by the caller.
-func (Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, []string, error) {
-	assets, err := listIAMPolicyAssets(ctx, config)
+func (scraper Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, []string, error) {
+	return scraper.fetchIAMPolicies(ctx, config, iamPolicyFetchers{
+		listAssets:     listIAMPolicyAssets,
+		fetchHierarchy: fetchResourceManagerHierarchy,
+		enrichRoles:    enrichRoleConfigs,
+	})
+}
+
+func (Scraper) fetchIAMPolicies(ctx *GCPContext, config v1.GCP, fetchers iamPolicyFetchers) (v1.ScrapeResults, []string, error) {
+	assets, err := fetchers.listAssets(ctx, config)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	project, nodes, err := fetchResourceManagerHierarchy(ctx, config)
+	var hierarchyResults v1.ScrapeResults
+	project, nodes, err := fetchers.fetchHierarchy(ctx, config)
 	if err != nil {
-		return nil, nil, err
+		ctx.Warnf("gcp iam policies: resource hierarchy unavailable: %v", err)
+	} else if hierarchy, policies, err := buildResourceManagerHierarchy(project, nodes, config.BaseScraper); err != nil {
+		ctx.Warnf("gcp iam policies: invalid resource hierarchy: %v", err)
+	} else {
+		hierarchyResults = hierarchy
+		assets = append(assets, policies...)
 	}
-	hierarchyResults, hierarchyPolicies, err := buildResourceManagerHierarchy(project, nodes, config.BaseScraper)
-	if err != nil {
-		return nil, nil, err
-	}
-	assets = append(assets, hierarchyPolicies...)
 
 	access := buildIAMAccess(assets, config.Project)
-	enrichRoleConfigs(ctx, access.RoleConfigs)
+	fetchers.enrichRoles(ctx, access.RoleConfigs)
 
 	results := hierarchyResults
 	for i := range access.RoleConfigs {
