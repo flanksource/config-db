@@ -5353,9 +5353,14 @@ spec:
                       type: string
                     include:
                       description: |-
-                        Include is a list of GCP asset types to scrape.
-                        Reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types
-                        Example: storage.googleapis.com/Bucket
+                        Include is a list of GCP asset types to scrape, and/or feature flags that
+                        enable non-asset scrapers.
+                        Asset types reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types
+                        Example asset type: storage.googleapis.com/Bucket
+                        Feature flags: IAMPolicy (RBAC access from IAM policy bindings) and
+                        IAMGroupMembers (expand Google group membership via the Cloud Identity
+                        groups.readonly scope) both run by default; disable group expansion with
+                        exclude: [IAMGroupMembers]. AuditLogs (BigQuery audit-log access) is opt-in.
                       items:
                         type: string
                       type: array
@@ -5915,6 +5920,41 @@ spec:
                     openssf:
                       description: OpenSSF enables fetching OpenSSF Scorecard data
                       type: boolean
+                    organizations:
+                      description: |-
+                        Organizations to scrape for settings, installed apps and membership.
+                        Repository owners are always attached to their organization, but only
+                        organizations listed here are scraped beyond their name.
+                      items:
+                        description: |-
+                          GitHubOrganization specifies an organization to scrape and how deeply.
+                          Settings and Apps require a token with admin:org, Members requires read:org.
+                        properties:
+                          apps:
+                            description: |-
+                              Apps collects installed GitHub App installations and the repositories
+                              they can access.
+                            type: boolean
+                          members:
+                            description: |-
+                              Members collects organization members and their organization role,
+                              teams, team membership and team to repository grants.
+                            type: boolean
+                          name:
+                            description: Name is the organization login, e.g. acme
+                            type: string
+                          settings:
+                            description: |-
+                              Settings collects organization security and policy settings: 2FA
+                              requirement, default repository permission, member repository and page
+                              creation policy, Advanced Security / Dependabot / secret scanning
+                              defaults for new repositories, Actions permissions, repository rulesets
+                              and code security configurations.
+                            type: boolean
+                        required:
+                        - name
+                        type: object
+                      type: array
                     permissions:
                       description: Permissions configures repository collaborator
                         and team access collection
