@@ -261,6 +261,13 @@
           "type": "array",
           "description": "Repositories is the list of repositories to scrape"
         },
+        "organizations": {
+          "items": {
+            "$ref": "#/$defs/GitHubOrganization"
+          },
+          "type": "array",
+          "description": "Organizations to scrape for settings, installed apps and membership.\nRepository owners are always attached to their organization, but only\norganizations listed here are scraped beyond their name."
+        },
         "personalAccessToken": {
           "$ref": "#/$defs/EnvVar"
         },
@@ -291,6 +298,32 @@
         "repositories"
       ],
       "description": "GitHub scraper creates GitHub::Repository config items and optionally\nattaches security alerts and OpenSSF scorecard results as analyses."
+    },
+    "GitHubOrganization": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name is the organization login, e.g. acme"
+        },
+        "settings": {
+          "type": "boolean",
+          "description": "Settings collects organization security and policy settings: 2FA\nrequirement, default repository permission, member repository and page\ncreation policy, Advanced Security / Dependabot / secret scanning\ndefaults for new repositories, Actions permissions, repository rulesets\nand code security configurations."
+        },
+        "apps": {
+          "type": "boolean",
+          "description": "Apps collects installed GitHub App installations and the repositories\nthey can access."
+        },
+        "members": {
+          "type": "boolean",
+          "description": "Members collects organization members and their organization role,\nteams, team membership and team to repository grants."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "description": "GitHubOrganization specifies an organization to scrape and how deeply.\nSettings and Apps require a token with admin:org, Members requires read:org."
     },
     "GitHubPermissions": {
       "properties": {
