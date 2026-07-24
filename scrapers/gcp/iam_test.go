@@ -334,11 +334,15 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 			Type:       "GCP::ResourceManager::Organization",
 			ExternalID: organizationExternalID,
 		}}))
-		gomega.Expect(configs[0].Children).To(gomega.BeEmpty())
+		gomega.Expect(configs[0].Children).To(gomega.Equal([]v1.ConfigExternalKey{{
+			Type:       "GCP::ResourceManager::Project",
+			ExternalID: "//cloudresourcemanager.googleapis.com/projects/" + projectNumber,
+		}}))
 		gomega.Expect(configs[1].ID).To(gomega.Equal("organizations/" + organization))
 		gomega.Expect(configs[1].Name).To(gomega.Equal("example.com"))
 		gomega.Expect(configs[1].Type).To(gomega.Equal("GCP::ResourceManager::Organization"))
 		gomega.Expect(configs[1].Aliases).To(gomega.Equal([]string{organizationExternalID}))
+		gomega.Expect(configs[1].Children).To(gomega.BeEmpty())
 
 		access := buildIAMAccess(policies, projectID)
 		gomega.Expect(accessKeyed(access.Access,
