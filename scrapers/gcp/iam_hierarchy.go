@@ -100,14 +100,23 @@ func buildResourceManagerHierarchy(project *cloudresourcemanager.Project, nodes 
 	if project == nil || project.Name == "" {
 		return nil, nil, fmt.Errorf("GCP project hierarchy root has no resource name")
 	}
-	if _, err := resourceManagerMetadataForName(project.Name); err != nil {
+	projectMetadata, err := resourceManagerMetadataForName(project.Name)
+	if err != nil {
 		return nil, nil, err
+	}
+
+	// The project itself is emitted by the asset inventory loop (see the
+	// cloudresourcemanager.googleapis.com/Project mapping in types.go); link the
+	// deepest ancestor to it rather than emitting a second, conflicting result.
+	projectKey := v1.ConfigExternalKey{
+		Type:       "GCP::" + projectMetadata.ConfigClass,
+		ExternalID: resourceManagerPrefix + project.Name,
 	}
 
 	expectedName := project.Parent
 	var results v1.ScrapeResults
 	var policies []*assetpb.Asset
-	for _, node := range nodes {
+	for i, node := range nodes {
 		metadata, err := node.metadata()
 		if err != nil {
 			return nil, nil, err
@@ -128,6 +137,9 @@ func buildResourceManagerHierarchy(project *cloudresourcemanager.Project, nodes 
 		}
 		if result.Name == "" {
 			result.Name = metadata.Name
+		}
+		if i == 0 {
+			result.Children = []v1.ConfigExternalKey{projectKey}
 		}
 		if metadata.Parent != "" {
 			parentMetadata, err := resourceManagerMetadataForName(metadata.Parent)

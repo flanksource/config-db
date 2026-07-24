@@ -173,6 +173,13 @@ func (c *GitHubClient) ListOrganizationInstallations(ctx context.Context, org st
 // ListInstallationRepositories uses the user access-token endpoint because
 // GitHubClient has a configured user/PAT token; Apps.ListRepos requires an
 // installation token, which this scraper cannot create from those credentials.
+//
+// This endpoint therefore returns the installation grant intersected with what
+// the authenticated user can see, not the raw grant. In practice the two match:
+// discovering installations at all goes through Organizations.ListInstallations,
+// which requires admin:org — an org owner, who can see every repository in the
+// org. The intersection cannot be detected either, since the response's
+// TotalCount is scoped to the same user.
 func (c *GitHubClient) ListInstallationRepositories(ctx context.Context, installationID int64) ([]*github.Repository, error) {
 	var repositories []*github.Repository
 	options := &github.ListOptions{PerPage: 100}
