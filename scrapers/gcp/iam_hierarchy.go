@@ -100,15 +100,14 @@ func buildResourceManagerHierarchy(project *cloudresourcemanager.Project, nodes 
 	if project == nil || project.Name == "" {
 		return nil, nil, fmt.Errorf("GCP project hierarchy root has no resource name")
 	}
-	projectMetadata, err := resourceManagerMetadataForName(project.Name)
-	if err != nil {
+	if _, err := resourceManagerMetadataForName(project.Name); err != nil {
 		return nil, nil, err
 	}
 
 	expectedName := project.Parent
 	var results v1.ScrapeResults
 	var policies []*assetpb.Asset
-	for i, node := range nodes {
+	for _, node := range nodes {
 		metadata, err := node.metadata()
 		if err != nil {
 			return nil, nil, err
@@ -138,12 +137,6 @@ func buildResourceManagerHierarchy(project *cloudresourcemanager.Project, nodes 
 			result.Parents = []v1.ConfigExternalKey{{
 				Type:       "GCP::" + parentMetadata.ConfigClass,
 				ExternalID: resourceManagerPrefix + metadata.Parent,
-			}}
-		}
-		if i == 0 {
-			result.Children = []v1.ConfigExternalKey{{
-				Type:       "GCP::" + projectMetadata.ConfigClass,
-				ExternalID: resourceManagerPrefix + project.Name,
 			}}
 		}
 		results = append(results, result)
@@ -216,44 +209,4 @@ func resourceManagerIAMPolicy(policy *cloudresourcemanager.Policy) *iampb.Policy
 		Version:  int32(policy.Version),
 		Bindings: bindings,
 	}
-}
-
-func linkResourceManagerChildren(results, hierarchy v1.ScrapeResults) {
-	for _, parent := range hierarchy {
-		if !strings.HasPrefix(parent.Type, "GCP::ResourceManager::") || len(parent.Aliases) == 0 {
-			continue
-		}
-		parentKey := v1.ConfigExternalKey{Type: parent.Type, ExternalID: parent.Aliases[0]}
-		for _, child := range parent.Children {
-			for i := range results {
-				if results[i].Type != child.Type || !resultHasExternalID(results[i], child.ExternalID) {
-					continue
-				}
-				if !configKeyExists(results[i].Parents, parentKey) {
-					results[i].Parents = append([]v1.ConfigExternalKey{parentKey}, results[i].Parents...)
-				}
-			}
-		}
-	}
-}
-
-func resultHasExternalID(result v1.ScrapeResult, externalID string) bool {
-	if result.ID == externalID {
-		return true
-	}
-	for _, alias := range result.Aliases {
-		if alias == externalID {
-			return true
-		}
-	}
-	return false
-}
-
-func configKeyExists(keys []v1.ConfigExternalKey, target v1.ConfigExternalKey) bool {
-	for _, key := range keys {
-		if key == target {
-			return true
-		}
-	}
-	return false
 }

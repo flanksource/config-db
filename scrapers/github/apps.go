@@ -170,6 +170,9 @@ func (c *GitHubClient) ListOrganizationInstallations(ctx context.Context, org st
 	}
 }
 
+// ListInstallationRepositories uses the user access-token endpoint because
+// GitHubClient has a configured user/PAT token; Apps.ListRepos requires an
+// installation token, which this scraper cannot create from those credentials.
 func (c *GitHubClient) ListInstallationRepositories(ctx context.Context, installationID int64) ([]*github.Repository, error) {
 	var repositories []*github.Repository
 	options := &github.ListOptions{PerPage: 100}

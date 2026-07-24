@@ -1,9 +1,11 @@
 package github
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"time"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -122,5 +124,54 @@ var _ = Describe("GitHub organization settings", func() {
 		Expect(sanitized.ReposURL).To(BeNil())
 		Expect(sanitized.Plan).To(BeNil())
 		Expect(sanitized.GetTwoFactorRequirementEnabled()).To(BeTrue())
+	})
+})
+
+var _ = Describe("GitHub organization scraping", func() {
+	It("stops before fetching an organization when the API rate limit is exhausted", func() {
+		const rateLimitResetUnix = int64(4102444800)
+		var organizationRequested bool
+
+		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			switch request.URL.Path {
+			case "/rate_limit":
+				_, _ = fmt.Fprintf(
+					response,
+					`{"resources":{"core":{"limit":5000,"remaining":0,"reset":%d}}}`,
+					rateLimitResetUnix,
+				)
+			case "/orgs/acme":
+				organizationRequested = true
+				_, _ = response.Write([]byte(`{"login":"acme"}`))
+			default:
+				http.NotFound(response, request)
+			}
+		}))
+		defer server.Close()
+
+		baseURL, err := url.Parse(server.URL + "/")
+		Expect(err).NotTo(HaveOccurred())
+		apiClient := gogithub.NewClient(server.Client())
+		apiClient.BaseURL = baseURL
+
+		scrapeContext := api.NewScrapeContext(dutyCtx.New())
+		results := scrapeOrganizationsWithClientFactory(
+			scrapeContext,
+			v1.GitHub{Organizations: []v1.GitHubOrganization{{Name: "acme"}}},
+			nil,
+			map[string]struct{}{},
+			func(ctx api.ScrapeContext, _ v1.GitHub, owner, repo string) (*GitHubClient, error) {
+				return &GitHubClient{
+					Client:        apiClient,
+					ScrapeContext: ctx,
+					owner:         owner,
+					repo:          repo,
+				}, nil
+			},
+		)
+
+		Expect(results.IsRateLimited()).To(BeTrue())
+		Expect(*results.GetRateLimitResetAt()).To(BeTemporally("~", time.Unix(rateLimitResetUnix, 0), time.Second))
+		Expect(organizationRequested).To(BeFalse())
 	})
 })
