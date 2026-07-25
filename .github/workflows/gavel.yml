@@ -17,6 +17,44 @@ jobs:
       issues: write
     name: gavel
     runs-on: ubuntu-latest
+    # gavel discovers and runs every suite in the repo, so this job needs the
+    # union of the prerequisites the individual jobs in test.yml set up.
+    env:
+      DUTY_DB_DISABLE_RLS: "true"
+      LOKI_URL: http://localhost:3100
+      OPENSEARCH_URL: http://localhost:9200
+      # benchmark.yml runs the large sizes on a 20m timeout of its own. gavel
+      # runs ./bench under its default per-package timeout, which N=10000 cannot
+      # fit, so keep it to the size the benchstat report is built from.
+      CONFIG_DB_BENCH_SIZES: "1000"
+    services:
+      loki:
+        image: grafana/loki:3.5.1
+        ports:
+          - 3100:3100
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      opensearch:
+        image: opensearchproject/opensearch:2.11.1
+        ports:
+          - 9200:9200
+          - 9600:9600
+        env:
+          discovery.type: single-node
+          plugins.security.disabled: true
+          bootstrap.memory_lock: true
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+        options: >-
+          --health-cmd "curl -f http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 30s
+          --ulimit memlock=-1:-1
+          --ulimit nofile=65536:65536
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -27,15 +65,49 @@ jobs:
         with:
           go-version: 1.26.x
 
+      - name: Install deps
+        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        with:
+          tools: |
+            bun
+            uv
+            powershell
+            postgrest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Cache Go modules
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
         with:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+            .bin
+          # The Makefile pins every tool version that lands in .bin, so hash it
+          # rather than .bin itself (which does not exist yet at this point).
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ hashFiles('Makefile') }}
           restore-keys: |
             ${{ runner.os }}-go-
+
+      # ./scrapers boots envtest with a hard-coded BinaryAssetsDirectory of .bin.
+      - name: Setup envtest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: make envtest
+
+      # gavel only downloads its own golangci-lint when none is on PATH, and
+      # that download has shipped a wrong-arch binary (exec format error).
+      # Install the repo-pinned version and put .bin on PATH so gavel uses it.
+      - name: Install golangci-lint
+        run: |
+          make golangci-lint
+          echo "$PWD/.bin" >> "$GITHUB_PATH"
+
+      # gavel lints cmd/scrapeui/frontend with tsc, which resolves typescript
+      # out of that package's own node_modules.
+      - name: Install scrape UI dependencies
+        run: |
+          npm install --global pnpm
+          pnpm --dir ./cmd/scrapeui/frontend install --frozen-lockfile --prefer-offline
 
       # Advisory initially: existing test.yml / lint.yml remain the blocking gates.
       # Flip fail-on-error to "true" after a few PRs confirm the output is reliable.
