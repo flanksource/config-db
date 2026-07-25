@@ -22,7 +22,9 @@ export function JsonView({ data, name, depth = 0 }: Props) {
   }
 
   const isArray = Array.isArray(data);
-  const entries = isArray ? data.map((v: any, i: number) => [i, v]) : Object.entries(data);
+  const entries: [string | number, any][] = isArray
+    ? data.map((v: any, i: number): [number, any] => [i, v])
+    : Object.entries(data);
   const bracket = isArray ? ['[', ']'] : ['{', '}'];
 
   if (entries.length === 0) {
@@ -43,7 +45,7 @@ export function JsonView({ data, name, depth = 0 }: Props) {
       </span>
       {open && (
         <>
-          {entries.map(([key, val]: [any, any]) => (
+          {entries.map(([key, val]) => (
             <div key={key} class="pl-3 border-l border-gray-200 ml-1">
               {typeof val === 'object' && val !== null ? (
                 <JsonView data={val} name={String(key)} depth={depth + 1} />
