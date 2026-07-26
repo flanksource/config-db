@@ -148,7 +148,7 @@ func resolveRepositoryConfigs(ctx api.ScrapeContext, config v1.GitHub, results *
 		repoConfig.Owner = owner
 		repoConfig.Repo = strings.TrimSpace(repoConfig.Repo)
 
-		if !isRepositorySelector(repoConfig.Repo) {
+		if !requiresRepositoryDiscovery(repoConfig) {
 			resolved = appendRepositoryConfig(resolved, seen, repoConfig)
 			continue
 		}
@@ -179,8 +179,8 @@ func resolveRepositoryConfigs(ctx api.ScrapeContext, config v1.GitHub, results *
 			ownerRepos[ownerKey] = repos
 		}
 
-		matched := matchingRepositoryConfigs(owner, repoConfig.Repo, repos)
-		ctx.Logger.V(2).Infof("resolved GitHub repository selector %s/%q to %d repositories", owner, repoConfig.Repo, len(matched))
+		matched := matchingRepositoryConfigs(owner, repoConfig, repos)
+		ctx.Logger.V(2).Infof("resolved GitHub repository selector %s/%q with topics %v to %d repositories", owner, repoConfig.Repo, repoConfig.Topics, len(matched))
 		for _, repo := range matched {
 			resolved = appendRepositoryConfig(resolved, seen, repo)
 		}
@@ -214,6 +214,10 @@ func isRepositorySelector(repo string) bool {
 	return repo == "" || strings.Contains(repo, "*") || strings.Contains(repo, ",") || strings.HasPrefix(repo, "!")
 }
 
+func requiresRepositoryDiscovery(repo v1.GitHubRepository) bool {
+	return isRepositorySelector(repo.Repo) || len(repo.Topics) > 0
+}
+
 func splitRepositoryPatterns(repo string) []string {
 	repo = strings.TrimSpace(repo)
 	if repo == "" {
@@ -235,8 +239,8 @@ func splitRepositoryPatterns(repo string) []string {
 	return patterns
 }
 
-func matchingRepositoryConfigs(owner, repoPattern string, repos []*github.Repository) []v1.GitHubRepository {
-	patterns := splitRepositoryPatterns(repoPattern)
+func matchingRepositoryConfigs(owner string, selector v1.GitHubRepository, repos []*github.Repository) []v1.GitHubRepository {
+	patterns := splitRepositoryPatterns(selector.Repo)
 	var matched []v1.GitHubRepository
 
 	for _, repo := range repos {
@@ -245,7 +249,7 @@ func matchingRepositoryConfigs(owner, repoPattern string, repos []*github.Reposi
 		}
 
 		repoName := repo.GetName()
-		if repoName == "" || !collections.MatchItems(repoName, patterns...) {
+		if repoName == "" || !collections.MatchItems(repoName, patterns...) || !matchesRepositoryTopics(repo.Topics, selector.Topics) {
 			continue
 		}
 
@@ -258,6 +262,24 @@ func matchingRepositoryConfigs(owner, repoPattern string, repos []*github.Reposi
 	}
 
 	return matched
+}
+
+func matchesRepositoryTopics(topics []string, filters types.MatchExpressions) bool {
+	if len(filters) == 0 {
+		return true
+	}
+
+	patterns := make([]string, len(filters))
+	for i, filter := range filters {
+		patterns[i] = string(filter)
+	}
+
+	if len(topics) == 0 {
+		return collections.IsExclusionOnlyPatterns(patterns)
+	}
+
+	matched, negated := collections.MatchAny(topics, patterns...)
+	return matched && !negated
 }
 
 func appendOrganizationResult(results *v1.ScrapeResults, seen map[string]struct{}, owner *github.User) {

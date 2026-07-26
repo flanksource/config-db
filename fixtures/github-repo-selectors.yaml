@@ -13,6 +13,13 @@ spec:
         # Overlapping selectors are deduped per GitHub scraper config.
         - owner: flanksource
           repo: '*control'
+        # Topic filters use MatchItems syntax and further restrict repo matches.
+        # Negated topic matches take precedence over positive matches.
+        - owner: flanksource
+          repo: '*'
+          topics:
+            - kubernetes
+            - '!deprecated'
         # Exact repositories can be mixed with selectors.
         - owner: flanksource
           repo: duty

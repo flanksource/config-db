@@ -101,6 +101,10 @@ type GitHubRepository struct {
 	// Repo can be an exact repository name or comma-separated collections.MatchItems patterns.
 	// Pattern selectors discover matching non-archived repositories for Owner.
 	Repo string `yaml:"repo" json:"repo"`
+
+	// Topics filters repositories by GitHub topic using collections.MatchItems patterns.
+	// A repository is included when at least one topic matches; negated patterns take precedence.
+	Topics types.MatchExpressions `yaml:"topics,omitempty" json:"topics,omitempty"`
 }
 
 // GitHubSecurityFilters defines filtering options for security alerts

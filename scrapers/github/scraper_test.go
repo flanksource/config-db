@@ -8,6 +8,7 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	gogithub "github.com/google/go-github/v73/github"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -30,6 +31,11 @@ var _ = Describe("GitHubScraper", func() {
 			Expect(splitRepositoryPatterns("duty, config-*, !config-test")).To(Equal([]string{"duty", "config-*", "!config-test"}))
 		})
 
+		It("discovers exact repositories when topic filters are configured", func() {
+			Expect(requiresRepositoryDiscovery(v1.GitHubRepository{Repo: "duty"})).To(BeFalse())
+			Expect(requiresRepositoryDiscovery(v1.GitHubRepository{Repo: "duty", Topics: types.MatchExpressions{"go"}})).To(BeTrue())
+		})
+
 		It("selects matching repositories and ignores archived repositories", func() {
 			repos := []*gogithub.Repository{
 				{Name: gogithub.Ptr("config-db"), Owner: &gogithub.User{Login: gogithub.Ptr("flanksource")}},
@@ -38,11 +44,45 @@ var _ = Describe("GitHubScraper", func() {
 				{Name: gogithub.Ptr("archived"), Owner: &gogithub.User{Login: gogithub.Ptr("flanksource")}, Archived: gogithub.Ptr(true)},
 			}
 
-			matched := matchingRepositoryConfigs("flanksource", "*,!config-test", repos)
+			matched := matchingRepositoryConfigs("flanksource", v1.GitHubRepository{Repo: "*,!config-test"}, repos)
 
 			Expect(matched).To(Equal([]v1.GitHubRepository{
 				{Owner: "flanksource", Repo: "config-db"},
 				{Owner: "flanksource", Repo: "duty"},
+			}))
+		})
+
+		It("filters repositories by topics using MatchItems semantics", func() {
+			repos := []*gogithub.Repository{
+				{Name: gogithub.Ptr("config-db"), Topics: []string{"golang", "observability"}},
+				{Name: gogithub.Ptr("config-test"), Topics: []string{"golang", "test"}},
+				{Name: gogithub.Ptr("frontend"), Topics: []string{"typescript"}},
+				{Name: gogithub.Ptr("topicless")},
+			}
+
+			matched := matchingRepositoryConfigs("flanksource", v1.GitHubRepository{
+				Repo:   "config-*",
+				Topics: types.MatchExpressions{"go*", "!test"},
+			}, repos)
+
+			Expect(matched).To(Equal([]v1.GitHubRepository{{Owner: "flanksource", Repo: "config-db"}}))
+		})
+
+		It("allows topicless repositories through exclusion-only topic filters", func() {
+			repos := []*gogithub.Repository{
+				{Name: gogithub.Ptr("active"), Topics: []string{"golang"}},
+				{Name: gogithub.Ptr("deprecated"), Topics: []string{"deprecated"}},
+				{Name: gogithub.Ptr("topicless")},
+			}
+
+			matched := matchingRepositoryConfigs("flanksource", v1.GitHubRepository{
+				Repo:   "*",
+				Topics: types.MatchExpressions{"!deprecated"},
+			}, repos)
+
+			Expect(matched).To(Equal([]v1.GitHubRepository{
+				{Owner: "flanksource", Repo: "active"},
+				{Owner: "flanksource", Repo: "topicless"},
 			}))
 		})
 
@@ -54,10 +94,10 @@ var _ = Describe("GitHubScraper", func() {
 
 			seen := make(map[string]struct{})
 			var resolved []v1.GitHubRepository
-			for _, repo := range matchingRepositoryConfigs("flanksource", "*control", repos) {
+			for _, repo := range matchingRepositoryConfigs("flanksource", v1.GitHubRepository{Repo: "*control"}, repos) {
 				resolved = appendRepositoryConfig(resolved, seen, repo)
 			}
-			for _, repo := range matchingRepositoryConfigs("flanksource", "mission*", repos) {
+			for _, repo := range matchingRepositoryConfigs("flanksource", v1.GitHubRepository{Repo: "mission*"}, repos) {
 				resolved = appendRepositoryConfig(resolved, seen, repo)
 			}
 			resolved = appendRepositoryConfig(resolved, seen, v1.GitHubRepository{Owner: "flanksource", Repo: "duty"})
