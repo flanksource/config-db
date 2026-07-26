@@ -12,9 +12,9 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    uses: flanksource/action-workflows/.github/workflows/create-release.yml@main
+    uses: flanksource/action-workflows/.github/workflows/create-release.yml@6e3308211f3e1694e187ea2057c24978e5a01c2f
     secrets:
-      token: ${{ secrets.GITHUB_TOKEN }}
+      token: ${{ secrets.FLANKBOT }}
   binary:
     runs-on: ubuntu-latest
     needs: create-release
