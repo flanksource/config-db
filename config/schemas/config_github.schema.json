@@ -311,6 +311,10 @@
         "repo": {
           "type": "string",
           "description": "Repo can be an exact repository name or comma-separated collections.MatchItems patterns.\nPattern selectors discover matching non-archived repositories for Owner."
+        },
+        "topics": {
+          "$ref": "#/$defs/MatchExpressions",
+          "description": "Topics filters repositories by GitHub topic using collections.MatchItems patterns.\nA repository is included when at least one topic matches; negated patterns take precedence."
         }
       },
       "additionalProperties": false,
@@ -452,6 +456,12 @@
     "MaskList": {
       "items": {
         "$ref": "#/$defs/Mask"
+      },
+      "type": "array"
+    },
+    "MatchExpressions": {
+      "items": {
+        "type": "string"
       },
       "type": "array"
     },
