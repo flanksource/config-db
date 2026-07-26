@@ -10,6 +10,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Mirrors the `test` job in test.yml: same runner, timeout, provisioning and
+  # scope. The only differences are the ones gavel itself requires — write
+  # permissions for the sticky PR comment, an explicit `make envtest` (gavel
+  # invokes packages directly instead of going through `make test`, so it does
+  # not pick up envtest via the target's prerequisites), and the two package
+  # ignores that reproduce `gotest`'s --skip-package=tests/e2e plus the ginkgo
+  # runner's inability to run ./bench's Go benchmarks.
   gavel:
     permissions:
       contents: read
@@ -17,54 +24,14 @@ jobs:
       issues: write
     name: gavel
     runs-on: ubuntu-latest
-    # gavel discovers and runs every suite in the repo, so this job needs the
-    # union of the prerequisites the individual jobs in test.yml set up.
-    env:
-      DUTY_DB_DISABLE_RLS: "true"
-      LOKI_URL: http://localhost:3100
-      OPENSEARCH_URL: http://localhost:9200
-      # benchmark.yml runs the large sizes on a 20m timeout of its own. gavel
-      # runs ./bench under its default per-package timeout, which N=10000 cannot
-      # fit, so keep it to the size the benchstat report is built from.
-      CONFIG_DB_BENCH_SIZES: "1000"
-    services:
-      loki:
-        image: grafana/loki:3.5.1
-        ports:
-          - 3100:3100
-        options: >-
-          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      opensearch:
-        image: opensearchproject/opensearch:2.11.1
-        ports:
-          - 9200:9200
-          - 9600:9600
-        env:
-          discovery.type: single-node
-          plugins.security.disabled: true
-          bootstrap.memory_lock: true
-          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
-        options: >-
-          --health-cmd "curl -f http://localhost:9200/_cluster/health || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          --health-start-period 30s
-          --ulimit memlock=-1:-1
-          --ulimit nofile=65536:65536
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-
       - name: Install Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: 1.26.x
-
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -74,49 +41,23 @@ jobs:
             powershell
             postgrest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cache Go modules
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
         with:
           path: |
-            ~/.cache/go-build
             ~/go/pkg/mod
+            ~/.cache/go-build
             .bin
-          # The Makefile pins every tool version that lands in .bin, so hash it
-          # rather than .bin itself (which does not exist yet at this point).
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ hashFiles('Makefile') }}
+          key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
           restore-keys: |
-            ${{ runner.os }}-go-
-
+            cache-
       # ./scrapers boots envtest with a hard-coded BinaryAssetsDirectory of .bin.
       - name: Setup envtest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make envtest
-
-      # gavel only downloads its own golangci-lint when none is on PATH, and
-      # that download has shipped a wrong-arch binary (exec format error).
-      # Install the repo-pinned version and put .bin on PATH so gavel uses it.
-      - name: Install golangci-lint
-        run: |
-          make golangci-lint
-          echo "$PWD/.bin" >> "$GITHUB_PATH"
-
-      # The runner image already ships a corepack-managed pnpm shim in
-      # /usr/local/bin, so `npm install --global pnpm` fails with EEXIST. Use the
-      # official action, which pins the version and installs onto PATH instead.
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: 10.34.5
-
-      # gavel lints cmd/scrapeui/frontend with tsc, which resolves typescript
-      # out of that package's own node_modules.
-      - name: Install scrape UI dependencies
-        run: pnpm --dir ./cmd/scrapeui/frontend install --frozen-lockfile --prefer-offline
-
       - uses: flanksource/gavel@main
         with:
-          args: test --lint
+          args: test --ignore tests/e2e --ignore bench
           version: latest
           comment: "true"
           comment-header: gavel
