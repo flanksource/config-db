@@ -109,13 +109,11 @@ jobs:
           npm install --global pnpm
           pnpm --dir ./cmd/scrapeui/frontend install --frozen-lockfile --prefer-offline
 
-      # Advisory initially: existing test.yml / lint.yml remain the blocking gates.
-      # Flip fail-on-error to "true" after a few PRs confirm the output is reliable.
       - uses: flanksource/gavel@main
         with:
           args: test --lint
           version: latest
           comment: "true"
           comment-header: gavel
-          fail-on-error: "false"
+          fail-on-error: "true"
           artifact-name: gavel-results
