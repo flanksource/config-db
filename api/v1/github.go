@@ -6,7 +6,9 @@ import (
 	"github.com/flanksource/duty/types"
 )
 
-const GitHubOrganization = "GitHub::Organization"
+// GitHubOrganizationConfigType is the config type of the organization config
+// item, distinct from the GitHubOrganization spec below.
+const GitHubOrganizationConfigType = "GitHub::Organization"
 
 // GitHubActions scraper scrapes the workflow and its runs based on the given filter.
 // By default, it fetches the last 7 days of workflow runs (Configurable via property: scrapers.githubactions.maxAge)
@@ -40,6 +42,11 @@ type GitHub struct {
 	// Repositories is the list of repositories to scrape
 	Repositories []GitHubRepository `yaml:"repositories" json:"repositories"`
 
+	// Organizations to scrape for settings, installed apps and membership.
+	// Repository owners are always attached to their organization, but only
+	// organizations listed here are scraped beyond their name.
+	Organizations []GitHubOrganization `yaml:"organizations,omitempty" json:"organizations,omitempty"`
+
 	PersonalAccessToken types.EnvVar `yaml:"personalAccessToken,omitempty" json:"personalAccessToken,omitempty"`
 
 	// ConnectionName, if provided, will be used to populate personalAccessToken
@@ -63,6 +70,28 @@ type GitHubPermissions struct {
 	// Enabled maps effective collaborators and repository teams to external users,
 	// groups, roles, and config access records.
 	Enabled bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+}
+
+// GitHubOrganization specifies an organization to scrape and how deeply.
+// Settings and Apps require a token with admin:org, Members requires read:org.
+type GitHubOrganization struct {
+	// Name is the organization login, e.g. acme
+	Name string `yaml:"name" json:"name"`
+
+	// Settings collects organization security and policy settings: 2FA
+	// requirement, default repository permission, member repository and page
+	// creation policy, Advanced Security / Dependabot / secret scanning
+	// defaults for new repositories, Actions permissions, repository rulesets
+	// and code security configurations.
+	Settings bool `yaml:"settings,omitempty" json:"settings,omitempty"`
+
+	// Apps collects installed GitHub App installations and the repositories
+	// they can access.
+	Apps bool `yaml:"apps,omitempty" json:"apps,omitempty"`
+
+	// Members collects organization members and their organization role,
+	// teams, team membership and team to repository grants.
+	Members bool `yaml:"members,omitempty" json:"members,omitempty"`
 }
 
 // GitHubRepository specifies a repository or repository selector to scrape.

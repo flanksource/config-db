@@ -1,0 +1,421 @@
+package github
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	"github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
+	"github.com/google/go-github/v73/github"
+	"github.com/lib/pq"
+)
+
+const appInstallationSource = "github-app-installation"
+
+// nonRepositoryPermissionPrefix marks the permissions GitHub scopes to the
+// organization rather than to its repositories. They are excluded when
+// collapsing an installation's permission set into a repository role so that,
+// say, organization_administration:write does not read as repository admin.
+const nonRepositoryPermissionPrefix = "organization_"
+
+// nonRepositoryPermissions are the remaining organization- and user-scoped
+// permission names that do not carry the organization_ prefix. Anything not
+// listed here counts towards the repository role, so a permission GitHub adds
+// later is included rather than silently dropped.
+var nonRepositoryPermissions = map[string]struct{}{
+	"blocking":                    {},
+	"codespaces_lifecycle_admin":  {},
+	"codespaces_user_secrets":     {},
+	"copilot_messages":            {},
+	"emails":                      {},
+	"followers":                   {},
+	"gists":                       {},
+	"git_signing_ssh_public_keys": {},
+	"gpg_keys":                    {},
+	"interaction_limits":          {},
+	"keys":                        {},
+	"members":                     {},
+	"plan":                        {},
+	"profile":                     {},
+	"starring":                    {},
+	"team_discussions":            {},
+	"user_events":                 {},
+	"watching":                    {},
+}
+
+// appInstallationConfig is the config payload for a GitHub::AppInstallation.
+// Permissions is the flat form of the installation's permission set; the
+// repository role derived from it is deliberately coarse, so keeping the map
+// means no grant detail is lost.
+type appInstallationConfig struct {
+	Installation *github.Installation `json:"installation"`
+	Permissions  map[string]string    `json:"permissions,omitempty"`
+}
+
+type appInstallations struct {
+	Results v1.ScrapeResults
+	Users   []models.ExternalUser
+	Roles   []models.ExternalRole
+	Access  []v1.ExternalConfigAccess
+}
+
+// installationRepositories pairs an installation with the repositories it can
+// reach that are also in the scrape's resolved repository set.
+type installationRepositories struct {
+	Installation *github.Installation
+	Repositories []string
+}
+
+type appInstallationInput struct {
+	Owner         string
+	BaseScraper   v1.BaseScraper
+	Installations []installationRepositories
+}
+
+func scrapeAppInstallations(ctx api.ScrapeContext, scrape *organizationScrape) (appInstallations, v1.ScrapeResults) {
+	var errs v1.ScrapeResults
+	org := scrape.name()
+
+	installations, err := scrape.client.ListOrganizationInstallations(ctx, org)
+	if err != nil {
+		errs.Errorf(err, "failed to list app installations for GitHub organization %s", org)
+		return appInstallations{}, errs
+	}
+
+	input := appInstallationInput{Owner: org, BaseScraper: scrape.spec.BaseScraper}
+	for _, installation := range installations {
+		repositories, err := resolveInstallationRepositories(ctx, scrape, installation)
+		if err != nil {
+			errs.Errorf(err, "failed to list repositories for GitHub app installation %s/%d",
+				installation.GetAppSlug(), installation.GetID())
+			continue
+		}
+		input.Installations = append(input.Installations, installationRepositories{
+			Installation: installation,
+			Repositories: repositories,
+		})
+	}
+
+	result, err := buildAppInstallations(input)
+	if err != nil {
+		errs.Errorf(err, "failed to map app installations for GitHub organization %s", org)
+		return appInstallations{}, errs
+	}
+
+	return result, errs
+}
+
+// resolveInstallationRepositories restricts an installation's reachable
+// repositories to the ones this scrape produces config items for. Repositories
+// outside the scrape are reported so a narrow `repositories:` selector never
+// looks like full coverage.
+func resolveInstallationRepositories(
+	ctx api.ScrapeContext,
+	scrape *organizationScrape,
+	installation *github.Installation,
+) ([]string, error) {
+	if installation.GetRepositorySelection() == "all" {
+		names := make([]string, 0, len(scrape.repositories))
+		for _, repo := range scrape.repositories {
+			names = append(names, repo.Repo)
+		}
+		sort.Strings(names)
+		return names, nil
+	}
+
+	granted, err := scrape.client.ListInstallationRepositories(ctx, installation.GetID())
+	if err != nil {
+		return nil, err
+	}
+
+	var names []string
+	var outOfScope int
+	for _, repo := range granted {
+		if name := repo.GetName(); scrape.hasRepository(name) {
+			names = append(names, name)
+		} else {
+			outOfScope++
+		}
+	}
+
+	if outOfScope > 0 {
+		ctx.Logger.V(2).Infof(
+			"github app installation %s/%d: %d of %d repositories are outside the scrape and were skipped",
+			installation.GetAppSlug(), installation.GetID(), outOfScope, len(granted))
+	}
+
+	sort.Strings(names)
+	return names, nil
+}
+
+func (c *GitHubClient) ListOrganizationInstallations(ctx context.Context, org string) ([]*github.Installation, error) {
+	var installations []*github.Installation
+	options := &github.ListOptions{PerPage: 100}
+
+	for {
+		page, response, err := c.Client.Organizations.ListInstallations(ctx, org, options)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list app installations for github organization %s: %w", org, err)
+		}
+		installations = append(installations, page.Installations...)
+		if response.NextPage == 0 {
+			return installations, nil
+		}
+		options.Page = response.NextPage
+	}
+}
+
+// ListInstallationRepositories uses the user access-token endpoint because
+// GitHubClient has a configured user/PAT token; Apps.ListRepos requires an
+// installation token, which this scraper cannot create from those credentials.
+//
+// This endpoint therefore returns the installation grant intersected with what
+// the authenticated user can see, not the raw grant. In practice the two match:
+// discovering installations at all goes through Organizations.ListInstallations,
+// which requires admin:org — an org owner, who can see every repository in the
+// org. The intersection cannot be detected either, since the response's
+// TotalCount is scoped to the same user.
+func (c *GitHubClient) ListInstallationRepositories(ctx context.Context, installationID int64) ([]*github.Repository, error) {
+	var repositories []*github.Repository
+	options := &github.ListOptions{PerPage: 100}
+
+	for {
+		page, response, err := c.Client.Apps.ListUserRepos(ctx, installationID, options)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list repositories for github app installation %d: %w", installationID, err)
+		}
+		repositories = append(repositories, page.Repositories...)
+		if response.NextPage == 0 {
+			return repositories, nil
+		}
+		options.Page = response.NextPage
+	}
+}
+
+func buildAppInstallations(input appInstallationInput) (appInstallations, error) {
+	var result appInstallations
+	seenRoles := make(map[string]struct{})
+
+	for _, installed := range input.Installations {
+		installation := installed.Installation
+		if installation == nil {
+			return appInstallations{}, fmt.Errorf("returned a nil app installation")
+		}
+
+		alias, err := githubAppAlias(installation)
+		if err != nil {
+			return appInstallations{}, fmt.Errorf("invalid github app installation %d: %w", installation.GetID(), err)
+		}
+
+		permissions, err := installationPermissionMap(installation.Permissions)
+		if err != nil {
+			return appInstallations{}, fmt.Errorf("github app %q: %w", installation.GetAppSlug(), err)
+		}
+
+		role, err := effectiveInstallationRole(permissions)
+		if err != nil {
+			return appInstallations{}, fmt.Errorf("github app %q: %w", installation.GetAppSlug(), err)
+		}
+
+		result.Results = append(result.Results, buildAppInstallationResult(input, installed, permissions))
+		result.Users = append(result.Users, models.ExternalUser{
+			Aliases:  pq.StringArray{alias},
+			Name:     installation.GetAppSlug(),
+			Tenant:   input.Owner,
+			UserType: "GitHub::App",
+		})
+
+		roleAlias := githubRepositoryRoleAlias(input.Owner, role)
+		if _, ok := seenRoles[roleAlias]; !ok {
+			seenRoles[roleAlias] = struct{}{}
+			result.Roles = append(result.Roles, models.ExternalRole{
+				Tenant:   input.Owner,
+				Aliases:  pq.StringArray{roleAlias},
+				RoleType: "GitHub::Repository",
+				Name:     role,
+			})
+		}
+
+		for _, repo := range installed.Repositories {
+			result.Access = append(result.Access, v1.ExternalConfigAccess{
+				Source: github.Ptr(appInstallationSource),
+				ConfigExternalID: v1.ExternalID{
+					ConfigType: ConfigTypeRepository,
+					ExternalID: githubRepositoryExternalID(input.Owner, repo),
+				},
+				ExternalUserAliases: []string{alias},
+				ExternalRoleAliases: []string{roleAlias},
+			})
+		}
+	}
+
+	return result, nil
+}
+
+func buildAppInstallationResult(
+	input appInstallationInput,
+	installed installationRepositories,
+	permissions map[string]string,
+) v1.ScrapeResult {
+	installation := installed.Installation
+	externalConfigID := githubAppInstallationExternalID(input.Owner, installation.GetID())
+
+	properties := []*types.Property{
+		{Name: "Repository Selection", Type: "badge", Text: installation.GetRepositorySelection()},
+		{Name: "Repositories", Type: "number", Text: fmt.Sprintf("%d", len(installed.Repositories))},
+		{Name: "Suspended", Type: "badge", Text: fmt.Sprintf("%t", installation.SuspendedAt != nil)},
+	}
+	if url := installation.GetHTMLURL(); url != "" {
+		properties = append(properties, &types.Property{
+			Name:  "URL",
+			Type:  "url",
+			Text:  url,
+			Links: []types.Link{{URL: url, Type: "url"}},
+		})
+	}
+
+	relationships := []v1.RelationshipResult{{
+		ConfigExternalID: v1.ExternalID{
+			ConfigType: ConfigTypeOrganization,
+			ExternalID: githubOrganizationExternalID(input.Owner),
+			ScraperID:  "all",
+		},
+		RelatedExternalID: v1.ExternalID{
+			ConfigType: ConfigTypeAppInstallation,
+			ExternalID: externalConfigID,
+		},
+		Relationship: RelationshipGitHubOrganizationAppInstallation,
+	}}
+
+	for _, repo := range installed.Repositories {
+		relationships = append(relationships, v1.RelationshipResult{
+			ConfigExternalID: v1.ExternalID{
+				ConfigType: ConfigTypeAppInstallation,
+				ExternalID: externalConfigID,
+			},
+			RelatedExternalID: v1.ExternalID{
+				ConfigType: ConfigTypeRepository,
+				ExternalID: githubRepositoryExternalID(input.Owner, repo),
+			},
+			Relationship: RelationshipGitHubAppInstallationRepository,
+		})
+	}
+
+	return v1.ScrapeResult{
+		BaseScraper: input.BaseScraper,
+		Type:        ConfigTypeAppInstallation,
+		ID:          externalConfigID,
+		Name:        installation.GetAppSlug(),
+		ConfigClass: "AppInstallation",
+		Config: appInstallationConfig{
+			Installation: sanitizeInstallation(installation),
+			Permissions:  permissions,
+		},
+		Tags: v1.JSONStringMap{
+			"owner": input.Owner,
+			"app":   installation.GetAppSlug(),
+		},
+		CreatedAt:           installation.CreatedAt.GetTime(),
+		Properties:          properties,
+		RelationshipResults: relationships,
+	}
+}
+
+// installationPermissionMap flattens the permission struct into its wire form.
+// InstallationPermissions is a flat struct of *string with omitempty json tags,
+// so a round trip yields exactly the permissions GitHub granted.
+func installationPermissionMap(permissions *github.InstallationPermissions) (map[string]string, error) {
+	if permissions == nil {
+		return nil, nil
+	}
+
+	encoded, err := json.Marshal(permissions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode installation permissions: %w", err)
+	}
+
+	var flattened map[string]string
+	if err := json.Unmarshal(encoded, &flattened); err != nil {
+		return nil, fmt.Errorf("failed to decode installation permissions: %w", err)
+	}
+
+	return flattened, nil
+}
+
+// effectiveInstallationRole collapses an installation's permission set into the
+// repository role vocabulary shared with collaborators and teams, so apps show
+// up alongside users in the access view.
+func effectiveInstallationRole(permissions map[string]string) (string, error) {
+	var write bool
+	var read bool
+
+	for permission, level := range permissions {
+		if strings.HasPrefix(permission, nonRepositoryPermissionPrefix) {
+			continue
+		}
+		if _, ok := nonRepositoryPermissions[permission]; ok {
+			continue
+		}
+
+		switch strings.ToLower(strings.TrimSpace(level)) {
+		case "admin":
+			return "admin", nil
+		case "write":
+			if permission == "administration" {
+				return "admin", nil
+			}
+			write = true
+		case "read":
+			read = true
+		}
+	}
+
+	switch {
+	case write:
+		return "write", nil
+	case read:
+		return "read", nil
+	default:
+		return "", fmt.Errorf("missing effective repository role")
+	}
+}
+
+func githubAppAlias(installation *github.Installation) (string, error) {
+	if installation.GetAppID() == 0 {
+		return "", fmt.Errorf("missing stable github app ID")
+	}
+	if strings.TrimSpace(installation.GetAppSlug()) == "" {
+		return "", fmt.Errorf("missing github app slug for app ID %d", installation.GetAppID())
+	}
+	return fmt.Sprintf("github://app/%d", installation.GetAppID()), nil
+}
+
+func sanitizeInstallation(installation *github.Installation) *github.Installation {
+	if installation == nil {
+		return nil
+	}
+
+	return &github.Installation{
+		ID:                  installation.ID,
+		NodeID:              installation.NodeID,
+		AppID:               installation.AppID,
+		AppSlug:             installation.AppSlug,
+		TargetID:            installation.TargetID,
+		TargetType:          installation.TargetType,
+		Account:             sanitizeActor(installation.Account),
+		HTMLURL:             installation.HTMLURL,
+		RepositorySelection: installation.RepositorySelection,
+		Events:              installation.Events,
+		SingleFileName:      installation.SingleFileName,
+		SingleFilePaths:     installation.SingleFilePaths,
+		SuspendedBy:         sanitizeActor(installation.SuspendedBy),
+		SuspendedAt:         installation.SuspendedAt,
+		CreatedAt:           installation.CreatedAt,
+		UpdatedAt:           installation.UpdatedAt,
+	}
+}

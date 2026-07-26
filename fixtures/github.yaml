@@ -12,3 +12,10 @@ spec:
       repositories:
         - owner: flanksource
           repo: duty
+      # settings and apps need a token with admin:org held by an organization
+      # owner, members needs read:org.
+      organizations:
+        - name: flanksource
+          settings: true
+          apps: true
+          members: true

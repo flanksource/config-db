@@ -15,10 +15,16 @@ import (
 )
 
 const (
-	ConfigTypeRepository   = "GitHub::Repository"
-	ConfigTypeOrganization = v1.GitHubOrganization
+	ConfigTypeRepository                = "GitHub::Repository"
+	ConfigTypeOrganization              = v1.GitHubOrganizationConfigType
+	ConfigTypeAppInstallation           = "GitHub::AppInstallation"
+	ConfigTypeCodeSecurityConfiguration = "GitHub::CodeSecurityConfiguration"
 
-	RelationshipGitHubOrganizationRepository = "GitHubOrganizationRepository"
+	RelationshipGitHubOrganizationRepository                = "GitHubOrganizationRepository"
+	RelationshipGitHubOrganizationAppInstallation           = "GitHubOrganizationAppInstallation"
+	RelationshipGitHubAppInstallationRepository             = "GitHubAppInstallationRepository"
+	RelationshipGitHubOrganizationCodeSecurityConfiguration = "GitHubOrganizationCodeSecurityConfiguration"
+	RelationshipGitHubCodeSecurityConfigurationRepository   = "GitHubCodeSecurityConfigurationRepository"
 )
 
 type GithubScraper struct{}
@@ -36,6 +42,11 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		if rateLimited {
 			return results
 		}
+
+		// Configured organizations are scraped first so their richer result claims
+		// the seen-set before appendOrganizationResult can add the thin
+		// owner-derived one for the same organization.
+		results = append(results, scrapeOrganizations(ctx, config, repositories, organizations)...)
 
 		for _, repoConfig := range repositories {
 			if err := ctx.Err(); err != nil {
@@ -395,6 +406,14 @@ func githubOrganizationRepositoryRelationship(owner, repoOwner, repo string) v1.
 
 func githubOrganizationExternalID(owner string) string {
 	return fmt.Sprintf("github/%s", strings.TrimSpace(owner))
+}
+
+func githubAppInstallationExternalID(owner string, installationID int64) string {
+	return fmt.Sprintf("github/%s/installation/%d", strings.TrimSpace(owner), installationID)
+}
+
+func githubCodeSecurityConfigurationExternalID(owner string, configurationID int64) string {
+	return fmt.Sprintf("github/%s/code-security-configuration/%d", strings.TrimSpace(owner), configurationID)
 }
 
 func githubRepositoryExternalID(owner, repo string) string {
