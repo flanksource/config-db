@@ -1,13 +1,18 @@
 package gcp
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
 	"cloud.google.com/go/asset/apiv1/assetpb"
 	"cloud.google.com/go/iam/apiv1/iampb"
+	"github.com/flanksource/config-db/api"
+	dutyCtx "github.com/flanksource/duty/context"
+	. "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	cloudidentity "google.golang.org/api/cloudidentity/v1"
+	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v3"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 )
@@ -172,12 +177,15 @@ func findRoleConfig(res []v1.ScrapeResult, role string) *v1.ScrapeResult {
 	return nil
 }
 
-// accessKeyed returns the access row for (principalAlias, role), matching either
-// the user- or group-alias slot.
-func accessKeyed(accesses []v1.ExternalConfigAccess, principalAlias, role string) *v1.ExternalConfigAccess {
+// accessKeyed returns the access row for (resource, principalAlias, role),
+// matching either the user- or group-alias slot.
+func accessKeyed(accesses []v1.ExternalConfigAccess, resource v1.ExternalID, principalAlias, role string) *v1.ExternalConfigAccess {
 	for i := range accesses {
 		a := &accesses[i]
-		if a.ConfigExternalID.ExternalID != role {
+		if a.ConfigExternalID.ConfigType != resource.ConfigType ||
+			a.ConfigExternalID.ExternalID != resource.ExternalID ||
+			len(a.ExternalRoleAliases) != 1 ||
+			a.ExternalRoleAliases[0] != role {
 			continue
 		}
 		if len(a.ExternalUserAliases) == 1 && a.ExternalUserAliases[0] == principalAlias {
@@ -190,6 +198,164 @@ func accessKeyed(accesses []v1.ExternalConfigAccess, principalAlias, role string
 	return nil
 }
 
+var _ = Describe("buildIAMAccess", func() {
+	It("keeps one config access per GCP resource, principal, and role", func() {
+		const (
+			project   = "my-project"
+			principal = "worker@my-project.iam.gserviceaccount.com"
+			role      = "roles/viewer"
+		)
+		projectName := "//cloudresourcemanager.googleapis.com/projects/my-project"
+		bucketName := "//storage.googleapis.com/projects/_/buckets/my-bucket"
+
+		result := buildIAMAccess([]*assetpb.Asset{
+			iamPolicyAsset(projectName, "cloudresourcemanager.googleapis.com/Project",
+				&iampb.Binding{Role: role, Members: []string{"serviceAccount:" + principal}},
+			),
+			iamPolicyAsset(bucketName, "storage.googleapis.com/Bucket",
+				&iampb.Binding{Role: role, Members: []string{
+					"serviceAccount:" + principal,
+					"serviceAccount:" + principal,
+				}},
+			),
+		}, project)
+
+		source := iamPolicySource
+		gomega.Expect(result.Access).To(gomega.ConsistOf(
+			v1.ExternalConfigAccess{
+				ConfigExternalID:    v1.ExternalID{ConfigType: "GCP::ResourceManager::Project", ExternalID: projectName},
+				ExternalUserAliases: []string{principal},
+				ExternalRoleAliases: []string{role},
+				Source:              &source,
+			},
+			v1.ExternalConfigAccess{
+				ConfigExternalID:    v1.ExternalID{ConfigType: v1.GCSBucket, ExternalID: bucketName},
+				ExternalUserAliases: []string{principal},
+				ExternalRoleAliases: []string{role},
+				Source:              &source,
+			},
+		))
+	})
+})
+
+var _ = Describe("fetch IAM policies", func() {
+	DescribeTable("preserves asset policies when hierarchy discovery is unavailable",
+		func(project *cloudresourcemanager.Project, hierarchyErr error) {
+			const (
+				projectID = "app-prod"
+				bucketID  = "//storage.googleapis.com/projects/_/buckets/audit-logs"
+				role      = "roles/storage.objectViewer"
+				principal = "alice@example.com"
+			)
+
+			ctx := &GCPContext{ScrapeContext: api.NewScrapeContext(dutyCtx.New())}
+			results, groups, err := (Scraper{}).fetchIAMPolicies(ctx, v1.GCP{Project: projectID}, iamPolicyFetchers{
+				listAssets: func(*GCPContext, v1.GCP) ([]*assetpb.Asset, error) {
+					return []*assetpb.Asset{iamPolicyAsset(
+						bucketID,
+						"storage.googleapis.com/Bucket",
+						&iampb.Binding{Role: role, Members: []string{"user:" + principal}},
+					)}, nil
+				},
+				fetchHierarchy: func(*GCPContext, v1.GCP) (*cloudresourcemanager.Project, []resourceManagerNode, error) {
+					return project, nil, hierarchyErr
+				},
+				enrichRoles: func(*GCPContext, []v1.ScrapeResult) {},
+			})
+
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(groups).To(gomega.BeEmpty())
+			gomega.Expect(results).To(gomega.HaveLen(2))
+			source := iamPolicySource
+			gomega.Expect(results[1].ConfigAccess).To(gomega.Equal([]v1.ExternalConfigAccess{{
+				ConfigExternalID:    v1.ExternalID{ConfigType: v1.GCSBucket, ExternalID: bucketID},
+				ExternalUserAliases: []string{principal},
+				ExternalRoleAliases: []string{role},
+				Source:              &source,
+			}}))
+		},
+		Entry("hierarchy fetch fails", nil, errors.New("permission denied")),
+		Entry("hierarchy response is invalid", &cloudresourcemanager.Project{}, nil),
+	)
+})
+
+var _ = Describe("buildResourceManagerHierarchy", func() {
+	It("emits the project ancestor chain and resource-scoped IAM policies", func() {
+		const (
+			projectID     = "app-prod"
+			projectNumber = "123456789"
+			folderID      = "456789123"
+			organization  = "789123456"
+			principal     = "moshe@example.com"
+		)
+
+		project := &cloudresourcemanager.Project{
+			Name:      "projects/" + projectNumber,
+			ProjectId: projectID,
+			Parent:    "folders/" + folderID,
+		}
+		nodes := []resourceManagerNode{
+			{
+				Resource: &cloudresourcemanager.Folder{
+					Name:        "folders/" + folderID,
+					DisplayName: "Production",
+					Parent:      "organizations/" + organization,
+					State:       "ACTIVE",
+				},
+				Policy: &cloudresourcemanager.Policy{Bindings: []*cloudresourcemanager.Binding{
+					{Role: "roles/resourcemanager.folderViewer", Members: []string{"user:" + principal}},
+				}},
+			},
+			{
+				Resource: &cloudresourcemanager.Organization{
+					Name:        "organizations/" + organization,
+					DisplayName: "example.com",
+					State:       "ACTIVE",
+				},
+				Policy: &cloudresourcemanager.Policy{Bindings: []*cloudresourcemanager.Binding{
+					{Role: "roles/resourcemanager.organizationAdmin", Members: []string{"user:" + principal}},
+				}},
+			},
+		}
+
+		configs, policies, err := buildResourceManagerHierarchy(project, nodes, v1.BaseScraper{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		gomega.Expect(configs).To(gomega.HaveLen(2))
+		gomega.Expect(policies).To(gomega.HaveLen(2))
+
+		folderExternalID := "//cloudresourcemanager.googleapis.com/folders/" + folderID
+		organizationExternalID := "//cloudresourcemanager.googleapis.com/organizations/" + organization
+
+		gomega.Expect(configs[0].ID).To(gomega.Equal("folders/" + folderID))
+		gomega.Expect(configs[0].Name).To(gomega.Equal("Production"))
+		gomega.Expect(configs[0].Type).To(gomega.Equal("GCP::ResourceManager::Folder"))
+		gomega.Expect(configs[0].Aliases).To(gomega.Equal([]string{folderExternalID}))
+		gomega.Expect(configs[0].Parents).To(gomega.Equal([]v1.ConfigExternalKey{{
+			Type:       "GCP::ResourceManager::Organization",
+			ExternalID: organizationExternalID,
+		}}))
+		gomega.Expect(configs[0].Children).To(gomega.Equal([]v1.ConfigExternalKey{{
+			Type:       "GCP::ResourceManager::Project",
+			ExternalID: "//cloudresourcemanager.googleapis.com/projects/" + projectNumber,
+		}}))
+		gomega.Expect(configs[1].ID).To(gomega.Equal("organizations/" + organization))
+		gomega.Expect(configs[1].Name).To(gomega.Equal("example.com"))
+		gomega.Expect(configs[1].Type).To(gomega.Equal("GCP::ResourceManager::Organization"))
+		gomega.Expect(configs[1].Aliases).To(gomega.Equal([]string{organizationExternalID}))
+		gomega.Expect(configs[1].Children).To(gomega.BeEmpty())
+
+		access := buildIAMAccess(policies, projectID)
+		gomega.Expect(accessKeyed(access.Access,
+			v1.ExternalID{ConfigType: "GCP::ResourceManager::Folder", ExternalID: folderExternalID},
+			principal, "roles/resourcemanager.folderViewer",
+		)).ToNot(gomega.BeNil())
+		gomega.Expect(accessKeyed(access.Access,
+			v1.ExternalID{ConfigType: "GCP::ResourceManager::Organization", ExternalID: organizationExternalID},
+			principal, "roles/resourcemanager.organizationAdmin",
+		)).ToNot(gomega.BeNil())
+	})
+})
+
 func TestBuildIAMAccess(t *testing.T) {
 	g := gomega.NewWithT(t)
 
@@ -201,6 +367,8 @@ func TestBuildIAMAccess(t *testing.T) {
 	)
 	projectName := "//cloudresourcemanager.googleapis.com/projects/my-project"
 	bucketName := "//storage.googleapis.com/projects/_/buckets/my-bucket"
+	projectResource := v1.ExternalID{ConfigType: "GCP::ResourceManager::Project", ExternalID: projectName}
+	bucketResource := v1.ExternalID{ConfigType: v1.GCSBucket, ExternalID: bucketName}
 
 	assets := []*assetpb.Asset{
 		iamPolicyAsset(projectName, "cloudresourcemanager.googleapis.com/Project",
@@ -218,7 +386,7 @@ func TestBuildIAMAccess(t *testing.T) {
 			}},
 		),
 		iamPolicyAsset(bucketName, "storage.googleapis.com/Bucket",
-			// alice+storage.admin repeats across resources -> single access row.
+			// alice+storage.admin repeats across resources -> separate access row.
 			&iampb.Binding{Role: roleStorage, Members: []string{
 				"user:alice@example.com",
 			}},
@@ -253,20 +421,24 @@ func TestBuildIAMAccess(t *testing.T) {
 	ownerRC := findRoleConfig(res.RoleConfigs, roleOwner)
 	g.Expect(ownerRC.RelationshipResults).To(gomega.HaveLen(1))
 
-	// Exactly one access row per (principal, role): the repeated alice+storage.admin collapses.
-	g.Expect(res.Access).To(gomega.HaveLen(6))
-	for _, tc := range []struct{ principal, role string }{
-		{"alice@example.com", roleOwner},
-		{"admins@example.com", roleOwner},
-		{"domain:example.com", roleOwner},
-		{"alice@example.com", roleStorage},
-		{"sa@my-project.iam.gserviceaccount.com", roleStorage},
-		{"carol@example.com", roleCustom},
+	// Exactly one access row per (resource, principal, role).
+	g.Expect(res.Access).To(gomega.HaveLen(7))
+	for _, tc := range []struct {
+		resource        v1.ExternalID
+		principal, role string
+	}{
+		{projectResource, "alice@example.com", roleOwner},
+		{projectResource, "admins@example.com", roleOwner},
+		{projectResource, "domain:example.com", roleOwner},
+		{projectResource, "alice@example.com", roleStorage},
+		{projectResource, "sa@my-project.iam.gserviceaccount.com", roleStorage},
+		{projectResource, "carol@example.com", roleCustom},
+		{bucketResource, "alice@example.com", roleStorage},
 	} {
-		a := accessKeyed(res.Access, tc.principal, tc.role)
-		g.Expect(a).ToNot(gomega.BeNil(), "missing access (%s -> %s)", tc.principal, tc.role)
+		a := accessKeyed(res.Access, tc.resource, tc.principal, tc.role)
+		g.Expect(a).ToNot(gomega.BeNil(), "missing access (%s -> %s on %s)", tc.principal, tc.role, tc.resource.ExternalID)
 		g.Expect(a.ExternalRoleAliases).To(gomega.Equal([]string{tc.role}))
-		g.Expect(a.ConfigExternalID).To(gomega.Equal(v1.ExternalID{ConfigType: v1.IAMRole, ExternalID: tc.role}))
+		g.Expect(a.ConfigExternalID).To(gomega.Equal(tc.resource))
 	}
 
 	// group: and domain: land as ExternalGroups, not ExternalUsers.

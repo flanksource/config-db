@@ -10,6 +10,7 @@ import (
 	"github.com/flanksource/duty/models"
 	"github.com/lib/pq"
 	"github.com/samber/lo"
+	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v3"
 	"google.golang.org/api/iterator"
 )
 
@@ -59,8 +60,7 @@ type iamAccessResult struct {
 	Roles       []models.ExternalRole
 	Users       []models.ExternalUser
 	Groups      []models.ExternalGroup
-	// Access holds one row per (principal, role), independent of how many
-	// resources the pair is bound on.
+	// Access holds one row per (resource, principal, role).
 	Access []v1.ExternalConfigAccess
 	// GroupEmails are the real Google-group emails eligible for membership
 	// expansion (excludes domain / all-users pseudo-principals).
@@ -68,7 +68,7 @@ type iamAccessResult struct {
 }
 
 // buildIAMAccess collapses IAM policy bindings across all assets into role
-// config items, external identities, and per-(principal, role) grant edges.
+// config items, external identities, and per-(resource, principal, role) grant edges.
 // Pure and unit-tested; persistence resolves everything by alias.
 func buildIAMAccess(assets []*assetpb.Asset, project string) iamAccessResult {
 	var res iamAccessResult
@@ -105,7 +105,7 @@ func buildIAMAccess(assets []*assetpb.Asset, project string) iamAccessResult {
 				})
 			}
 
-			if rrKey := role + "\x00" + a.Name; !contains(seenRoleResource, rrKey) {
+			if rrKey := role + "\x00" + resourceType + "\x00" + a.Name; !contains(seenRoleResource, rrKey) {
 				seenRoleResource[rrKey] = struct{}{}
 				res.RoleConfigs[idx].RelationshipResults = append(res.RoleConfigs[idx].RelationshipResults,
 					v1.RelationshipResult{
@@ -121,14 +121,14 @@ func buildIAMAccess(assets []*assetpb.Asset, project string) iamAccessResult {
 					continue
 				}
 
-				if accessKey := p.Alias + "\x00" + role; contains(seenAccess, accessKey) {
+				if accessKey := resourceType + "\x00" + a.Name + "\x00" + p.Alias + "\x00" + role; contains(seenAccess, accessKey) {
 					continue
 				} else {
 					seenAccess[accessKey] = struct{}{}
 				}
 
 				access := v1.ExternalConfigAccess{
-					ConfigExternalID:    v1.ExternalID{ConfigType: v1.IAMRole, ExternalID: role},
+					ConfigExternalID:    v1.ExternalID{ConfigType: resourceType, ExternalID: a.Name},
 					ExternalRoleAliases: []string{role},
 					Source:              lo.ToPtr(iamPolicySource),
 				}
@@ -217,20 +217,45 @@ func roleType(role string) string {
 	return "Custom"
 }
 
+type iamPolicyFetchers struct {
+	listAssets     func(*GCPContext, v1.GCP) ([]*assetpb.Asset, error)
+	fetchHierarchy func(*GCPContext, v1.GCP) (*cloudresourcemanager.Project, []resourceManagerNode, error)
+	enrichRoles    func(*GCPContext, []v1.ScrapeResult)
+}
+
 // FetchIAMPolicies reads Cloud Asset Inventory IAM policies for the project and
 // emits role config items, external identities, and grant edges. The returned
 // group emails are the real Google groups discovered in bindings, for optional
 // membership expansion by the caller.
-func (Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, []string, error) {
-	assets, err := listIAMPolicyAssets(ctx, config)
+func (scraper Scraper) FetchIAMPolicies(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, []string, error) {
+	return scraper.fetchIAMPolicies(ctx, config, iamPolicyFetchers{
+		listAssets:     listIAMPolicyAssets,
+		fetchHierarchy: fetchResourceManagerHierarchy,
+		enrichRoles:    enrichRoleConfigs,
+	})
+}
+
+func (Scraper) fetchIAMPolicies(ctx *GCPContext, config v1.GCP, fetchers iamPolicyFetchers) (v1.ScrapeResults, []string, error) {
+	assets, err := fetchers.listAssets(ctx, config)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	access := buildIAMAccess(assets, config.Project)
-	enrichRoleConfigs(ctx, access.RoleConfigs)
+	var hierarchyResults v1.ScrapeResults
+	project, nodes, err := fetchers.fetchHierarchy(ctx, config)
+	if err != nil {
+		ctx.Warnf("gcp iam policies: resource hierarchy unavailable: %v", err)
+	} else if hierarchy, policies, err := buildResourceManagerHierarchy(project, nodes, config.BaseScraper); err != nil {
+		ctx.Warnf("gcp iam policies: invalid resource hierarchy: %v", err)
+	} else {
+		hierarchyResults = hierarchy
+		assets = append(assets, policies...)
+	}
 
-	var results v1.ScrapeResults
+	access := buildIAMAccess(assets, config.Project)
+	fetchers.enrichRoles(ctx, access.RoleConfigs)
+
+	results := hierarchyResults
 	for i := range access.RoleConfigs {
 		access.RoleConfigs[i].BaseScraper = config.BaseScraper
 		results = append(results, access.RoleConfigs[i])
