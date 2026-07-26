@@ -102,12 +102,17 @@ jobs:
           make golangci-lint
           echo "$PWD/.bin" >> "$GITHUB_PATH"
 
+      # The runner image already ships a corepack-managed pnpm shim in
+      # /usr/local/bin, so `npm install --global pnpm` fails with EEXIST. Use the
+      # official action, which pins the version and installs onto PATH instead.
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.34.5
+
       # gavel lints cmd/scrapeui/frontend with tsc, which resolves typescript
       # out of that package's own node_modules.
       - name: Install scrape UI dependencies
-        run: |
-          npm install --global pnpm
-          pnpm --dir ./cmd/scrapeui/frontend install --frozen-lockfile --prefer-offline
+        run: pnpm --dir ./cmd/scrapeui/frontend install --frozen-lockfile --prefer-offline
 
       - uses: flanksource/gavel@main
         with:
