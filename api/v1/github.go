@@ -103,7 +103,8 @@ type GitHubRepository struct {
 	Repo string `yaml:"repo" json:"repo"`
 
 	// Topics filters repositories by GitHub topic using collections.MatchItems patterns.
-	// A repository is included when at least one topic matches; negated patterns take precedence.
+	// A repository is included when at least one positive pattern matches; negated patterns take precedence.
+	// If all patterns are negated, a repository is included when none of its topics match an exclusion.
 	Topics types.MatchExpressions `yaml:"topics,omitempty" json:"topics,omitempty"`
 }
 

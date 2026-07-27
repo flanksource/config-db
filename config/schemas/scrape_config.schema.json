@@ -2152,7 +2152,7 @@
         },
         "topics": {
           "$ref": "#/$defs/MatchExpressions",
-          "description": "Topics filters repositories by GitHub topic using collections.MatchItems patterns.\nA repository is included when at least one topic matches; negated patterns take precedence."
+          "description": "Topics filters repositories by GitHub topic using collections.MatchItems patterns.\nA repository is included when at least one positive pattern matches; negated patterns take precedence.\nIf all patterns are negated, a repository is included when none of its topics match an exclusion."
         }
       },
       "additionalProperties": false,
