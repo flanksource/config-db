@@ -1,7 +1,6 @@
 package github
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -68,7 +67,8 @@ var _ = Describe("GitHub app installations", func() {
 						Metadata: gogithub.Ptr("read"),
 					},
 				},
-				Repositories: []string{"telemetry"},
+				Repositories:      []string{"telemetry"},
+				RepositoriesKnown: true,
 			}},
 		})
 
@@ -124,6 +124,66 @@ var _ = Describe("GitHub app installations", func() {
 		}))
 	})
 
+	It("keeps an organization-only installation without inventing repository access", func() {
+		result, err := buildAppInstallations(appInstallationInput{
+			Owner: "acme",
+			Installations: []installationRepositories{{
+				Installation: &gogithub.Installation{
+					ID:                  gogithub.Ptr[int64](5001),
+					AppID:               gogithub.Ptr[int64](301),
+					AppSlug:             gogithub.Ptr("policy-bot"),
+					RepositorySelection: gogithub.Ptr("selected"),
+					Permissions: &gogithub.InstallationPermissions{
+						OrganizationAdministration: gogithub.Ptr("write"),
+					},
+				},
+			}},
+		})
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Results).To(HaveLen(1))
+		Expect(result.Users).To(HaveLen(1))
+		Expect(result.Roles).To(BeEmpty())
+		Expect(result.Access).To(BeEmpty())
+	})
+
+	It("uses only the organization endpoint for selected installations", func() {
+		var requestedPaths []string
+		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			requestedPaths = append(requestedPaths, request.URL.Path)
+			if request.URL.Path != "/orgs/acme/installations" {
+				http.NotFound(response, request)
+				return
+			}
+			_, _ = response.Write([]byte(`{"total_count":1,"installations":[{
+				"id":5001,
+				"app_id":301,
+				"app_slug":"release-bot",
+				"repository_selection":"selected",
+				"permissions":{"contents":"write","metadata":"read"}
+			}]}`))
+		}))
+		defer server.Close()
+
+		baseURL, err := url.Parse(server.URL + "/")
+		Expect(err).NotTo(HaveOccurred())
+		apiClient := gogithub.NewClient(server.Client())
+		apiClient.BaseURL = baseURL
+
+		result, errs := scrapeAppInstallations(
+			api.NewScrapeContext(dutyCtx.New()),
+			&organizationScrape{
+				client: &GitHubClient{Client: apiClient, owner: "acme"},
+				org:    v1.GitHubOrganization{Name: "acme", Apps: true},
+			},
+		)
+
+		Expect(errs).To(BeEmpty())
+		Expect(requestedPaths).To(Equal([]string{"/orgs/acme/installations"}))
+		Expect(result.Results).To(HaveLen(1))
+		Expect(result.Access).To(BeEmpty())
+	})
+
 	It("rejects an installation without a stable app ID", func() {
 		_, err := buildAppInstallations(appInstallationInput{
 			Owner: "acme",
@@ -152,8 +212,7 @@ var _ = Describe("GitHub app installations", func() {
 		It("uses the scraped repository set for an all-repositories installation", func() {
 			scrape := scrapeFor(&GitHubClient{Client: gogithub.NewClient(nil), owner: "acme"})
 
-			repositories, err := resolveInstallationRepositories(
-				api.NewScrapeContext(dutyCtx.New()),
+			repositories, known := resolveInstallationRepositories(
 				scrape,
 				&gogithub.Installation{
 					ID:                  gogithub.Ptr[int64](5001),
@@ -161,41 +220,14 @@ var _ = Describe("GitHub app installations", func() {
 				},
 			)
 
-			Expect(err).NotTo(HaveOccurred())
+			Expect(known).To(BeTrue())
 			Expect(repositories).To(Equal([]string{"billing", "telemetry"}))
 		})
 
-		It("excludes selected repositories that are outside the scrape", func() {
-			var server *httptest.Server
-			server = httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-				if request.URL.Path != "/user/installations/5001/repositories" {
-					http.NotFound(response, request)
-					return
-				}
+		It("does not infer repository grants for a selected installation", func() {
+			scrape := scrapeFor(&GitHubClient{Client: gogithub.NewClient(nil), owner: "acme"})
 
-				if request.URL.Query().Get("page") == "2" {
-					_, _ = response.Write([]byte(`{"total_count":3,"repositories":[{"id":3,"name":"unscraped"}]}`))
-					return
-				}
-
-				response.Header().Set(
-					"Link",
-					fmt.Sprintf("<%s%s?page=2&per_page=100>; rel=\"next\"", server.URL, request.URL.Path),
-				)
-				_, _ = response.Write(
-					[]byte(`{"total_count":3,"repositories":[{"id":1,"name":"telemetry"},{"id":2,"name":"billing"}]}`),
-				)
-			}))
-			defer server.Close()
-
-			baseURL, err := url.Parse(server.URL + "/")
-			Expect(err).NotTo(HaveOccurred())
-			apiClient := gogithub.NewClient(server.Client())
-			apiClient.BaseURL = baseURL
-			scrape := scrapeFor(&GitHubClient{Client: apiClient, owner: "acme"})
-
-			repositories, err := resolveInstallationRepositories(
-				api.NewScrapeContext(dutyCtx.New()),
+			repositories, known := resolveInstallationRepositories(
 				scrape,
 				&gogithub.Installation{
 					ID:                  gogithub.Ptr[int64](5001),
@@ -204,8 +236,8 @@ var _ = Describe("GitHub app installations", func() {
 				},
 			)
 
-			Expect(err).NotTo(HaveOccurred())
-			Expect(repositories).To(Equal([]string{"billing", "telemetry"}))
+			Expect(known).To(BeFalse())
+			Expect(repositories).To(BeEmpty())
 		})
 	})
 

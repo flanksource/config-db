@@ -28,6 +28,31 @@ To explicitly run scraping with a particular configuration:
 
 See `fixtures/` for example scraping configurations.
 
+### Diagnose a scraper
+
+Run read-only doctor checks for a local scrape configuration:
+
+```bash
+./.bin/config-db doctor fixtures/github-doctor.yaml
+```
+
+Pass a persisted scraper UUID instead when a database is configured:
+
+```bash
+DB_URL=postgres://<username>:<password>@localhost:5432/<db_name> ./.bin/config-db doctor <scraper-id>
+```
+
+The GitHub doctor checks only the endpoint families enabled by the scraper configuration. It reports GitHub's accepted fine-grained permissions and OAuth scopes, any OAuth scopes explicitly reported for the token, and whether each request succeeded, was denied, or was skipped because the feature is disabled. A successful authenticated request is evidence that the configured token can perform that operation; it is not presented as a complete list of fine-grained token grants.
+
+Organization rulesets are checked only when `organizations[].rulesets` is enabled. GitHub requires the fine-grained `organization_administration=write` permission to read organization repository rulesets, so the doctor reports that documented requirement even when a denied response omits the permission header. App installation checks use `GET /orgs/{org}/installations`, which requires `organization_administration=read`; selected repository grants are not inferred because that organization endpoint does not expose them.
+
+Use Clicky output flags for machine-readable or alternate output:
+
+```bash
+./.bin/config-db doctor fixtures/github-doctor.yaml --json
+./.bin/config-db doctor fixtures/github-doctor.yaml --format markdown
+```
+
 ## Principles
 
 * **JSON Based** - Configuration is stored in JSON, with changes recorded as JSON patches that enables highly structured search.

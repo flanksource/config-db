@@ -140,14 +140,28 @@ func scrapeOrganization(ctx api.ScrapeContext, scrape *organizationScrape) v1.Sc
 	payload := organizationConfig{Organization: sanitizeOrganization(scrape.organization)}
 	properties := organizationProperties(scrape.organization)
 
-	if scrape.org.Settings {
+	if scrape.org.Settings || scrape.org.Rulesets {
 		settings, errs := fetchOrganizationSettings(ctx, scrape)
 		results = append(results, errs...)
-		payload.Actions = settings.Actions
-		payload.Rulesets = settings.Rulesets
-		payload.Roles = settings.Roles
-		properties = append(properties, organizationSettingsProperties(scrape.organization, settings)...)
 
+		if scrape.org.Settings {
+			payload.Actions = settings.Actions
+			payload.Roles = settings.Roles
+			properties = append(properties, organizationSettingsProperties(scrape.organization)...)
+		}
+		if scrape.org.Rulesets {
+			payload.Rulesets = settings.Rulesets
+			if len(settings.Rulesets) > 0 {
+				properties = append(properties, &types.Property{
+					Name: "Rulesets",
+					Type: "number",
+					Text: fmt.Sprintf("%d", len(settings.Rulesets)),
+				})
+			}
+		}
+	}
+
+	if scrape.org.Settings {
 		results = append(results, scrapeCodeSecurityConfigurations(ctx, scrape)...)
 	}
 
@@ -200,52 +214,56 @@ func fetchOrganizationSettings(ctx api.ScrapeContext, scrape *organizationScrape
 	var results v1.ScrapeResults
 	org := scrape.name()
 
-	// The security and policy fields are only returned to organization owners
-	// holding admin:org; for anyone else GitHub silently omits them rather than
-	// failing, so an absent default_repository_permission is the sentinel.
-	if scrape.organization.DefaultRepoPermission == nil {
-		results.Errorf(
-			fmt.Errorf("settings require a token with the admin:org scope held by an organization owner"),
-			"incomplete settings for GitHub organization %s", org,
-		)
-	}
+	if scrape.org.Settings {
+		// The security and policy fields are only returned to organization owners
+		// holding admin:org; for anyone else GitHub silently omits them rather than
+		// failing, so an absent default_repository_permission is the sentinel.
+		if scrape.organization.DefaultRepoPermission == nil {
+			results.Errorf(
+				fmt.Errorf("settings require a token with the admin:org scope held by an organization owner"),
+				"incomplete settings for GitHub organization %s", org,
+			)
+		}
 
-	permissions, _, err := scrape.client.Client.Actions.GetActionsPermissions(ctx, org)
-	switch {
-	case err != nil && isOrganizationFeatureUnavailable(err):
-		ctx.Logger.V(2).Infof("skipping actions permissions for %s: %v", org, err)
-	case err != nil:
-		results.Errorf(err, "failed to get actions permissions for GitHub organization %s", org)
-	default:
-		settings.Actions = &organizationActions{Permissions: permissions}
-		if permissions.GetAllowedActions() == "selected" {
-			allowed, _, err := scrape.client.Client.Actions.GetActionsAllowed(ctx, org)
-			if err != nil {
-				results.Errorf(err, "failed to get allowed actions for GitHub organization %s", org)
-			} else {
-				settings.Actions.Allowed = allowed
+		permissions, _, err := scrape.client.Client.Actions.GetActionsPermissions(ctx, org)
+		switch {
+		case err != nil && isOrganizationFeatureUnavailable(err):
+			ctx.Logger.V(2).Infof("skipping actions permissions for %s: %v", org, err)
+		case err != nil:
+			results.Errorf(err, "failed to get actions permissions for GitHub organization %s", org)
+		default:
+			settings.Actions = &organizationActions{Permissions: permissions}
+			if permissions.GetAllowedActions() == "selected" {
+				allowed, _, err := scrape.client.Client.Actions.GetActionsAllowed(ctx, org)
+				if err != nil {
+					results.Errorf(err, "failed to get allowed actions for GitHub organization %s", org)
+				} else {
+					settings.Actions.Allowed = allowed
+				}
 			}
+		}
+
+		roles, err := scrape.client.ListOrganizationRoles(ctx, org)
+		switch {
+		case err != nil && isOrganizationFeatureUnavailable(err):
+			ctx.Logger.V(2).Infof("skipping organization roles for %s: %v", org, err)
+		case err != nil:
+			results.Errorf(err, "failed to list roles for GitHub organization %s", org)
+		default:
+			settings.Roles = roles
 		}
 	}
 
-	rulesets, err := scrape.client.ListOrganizationRulesets(ctx, org)
-	switch {
-	case err != nil && isOrganizationFeatureUnavailable(err):
-		ctx.Logger.V(2).Infof("skipping rulesets for %s: %v", org, err)
-	case err != nil:
-		results.Errorf(err, "failed to list rulesets for GitHub organization %s", org)
-	default:
-		settings.Rulesets = rulesets
-	}
-
-	roles, err := scrape.client.ListOrganizationRoles(ctx, org)
-	switch {
-	case err != nil && isOrganizationFeatureUnavailable(err):
-		ctx.Logger.V(2).Infof("skipping organization roles for %s: %v", org, err)
-	case err != nil:
-		results.Errorf(err, "failed to list roles for GitHub organization %s", org)
-	default:
-		settings.Roles = roles
+	if scrape.org.Rulesets {
+		rulesets, err := scrape.client.ListOrganizationRulesets(ctx, org)
+		switch {
+		case err != nil && isOrganizationFeatureUnavailable(err):
+			ctx.Logger.V(2).Infof("skipping rulesets for %s: %v", org, err)
+		case err != nil:
+			results.Errorf(err, "failed to list rulesets for GitHub organization %s", org)
+		default:
+			settings.Rulesets = rulesets
+		}
 	}
 
 	return settings, results
@@ -377,7 +395,7 @@ func organizationProperties(org *github.Organization) []*types.Property {
 	}}
 }
 
-func organizationSettingsProperties(org *github.Organization, settings organizationSettings) []*types.Property {
+func organizationSettingsProperties(org *github.Organization) []*types.Property {
 	properties := []*types.Property{
 		booleanBadge("2FA Required", org.TwoFactorRequirementEnabled),
 		booleanBadge("Advanced Security", org.AdvancedSecurityEnabledForNewRepos),
@@ -390,14 +408,6 @@ func organizationSettingsProperties(org *github.Organization, settings organizat
 			Name: "Default Repository Permission",
 			Type: "badge",
 			Text: permission,
-		})
-	}
-
-	if len(settings.Rulesets) > 0 {
-		properties = append(properties, &types.Property{
-			Name: "Rulesets",
-			Type: "number",
-			Text: fmt.Sprintf("%d", len(settings.Rulesets)),
 		})
 	}
 
@@ -440,16 +450,16 @@ func sanitizeOrganization(org *github.Organization) *github.Organization {
 		HasRepositoryProjects:       org.HasRepositoryProjects,
 		TwoFactorRequirementEnabled: org.TwoFactorRequirementEnabled,
 
-		DefaultRepoPermission:                org.DefaultRepoPermission,
-		MembersCanCreateRepos:                org.MembersCanCreateRepos,
-		MembersCanCreatePublicRepos:          org.MembersCanCreatePublicRepos,
-		MembersCanCreatePrivateRepos:         org.MembersCanCreatePrivateRepos,
-		MembersCanCreateInternalRepos:        org.MembersCanCreateInternalRepos,
-		MembersCanForkPrivateRepos:           org.MembersCanForkPrivateRepos,
-		MembersCanCreatePages:                org.MembersCanCreatePages,
-		MembersCanCreatePublicPages:          org.MembersCanCreatePublicPages,
-		MembersCanCreatePrivatePages:         org.MembersCanCreatePrivatePages,
-		WebCommitSignoffRequired:             org.WebCommitSignoffRequired,
+		DefaultRepoPermission:         org.DefaultRepoPermission,
+		MembersCanCreateRepos:         org.MembersCanCreateRepos,
+		MembersCanCreatePublicRepos:   org.MembersCanCreatePublicRepos,
+		MembersCanCreatePrivateRepos:  org.MembersCanCreatePrivateRepos,
+		MembersCanCreateInternalRepos: org.MembersCanCreateInternalRepos,
+		MembersCanForkPrivateRepos:    org.MembersCanForkPrivateRepos,
+		MembersCanCreatePages:         org.MembersCanCreatePages,
+		MembersCanCreatePublicPages:   org.MembersCanCreatePublicPages,
+		MembersCanCreatePrivatePages:  org.MembersCanCreatePrivatePages,
+		WebCommitSignoffRequired:      org.WebCommitSignoffRequired,
 
 		AdvancedSecurityEnabledForNewRepos:             org.AdvancedSecurityEnabledForNewRepos,
 		DependabotAlertsEnabledForNewRepos:             org.DependabotAlertsEnabledForNewRepos,

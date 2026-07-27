@@ -2112,11 +2112,15 @@
         },
         "settings": {
           "type": "boolean",
-          "description": "Settings collects organization security and policy settings: 2FA\nrequirement, default repository permission, member repository and page\ncreation policy, Advanced Security / Dependabot / secret scanning\ndefaults for new repositories, Actions permissions, repository rulesets\nand code security configurations."
+          "description": "Settings collects organization security and policy settings: 2FA\nrequirement, default repository permission, member repository and page\ncreation policy, Advanced Security / Dependabot / secret scanning\ndefaults for new repositories, Actions permissions, custom organization\nroles and code security configurations."
+        },
+        "rulesets": {
+          "type": "boolean",
+          "description": "Rulesets collects organization repository rulesets. GitHub requires the\norganization Administration write permission even though this is a\nread-only API operation."
         },
         "apps": {
           "type": "boolean",
-          "description": "Apps collects installed GitHub App installations and the repositories\nthey can access."
+          "description": "Apps collects installed GitHub App installations. Installations granted\nto all repositories are related to the configured repository set; GitHub's\norganization endpoint does not expose selected repository grants."
         },
         "members": {
           "type": "boolean",
@@ -2128,7 +2132,7 @@
       "required": [
         "name"
       ],
-      "description": "GitHubOrganization specifies an organization to scrape and how deeply.\nSettings and Apps require a token with admin:org, Members requires read:org."
+      "description": "GitHubOrganization specifies an organization to scrape and how deeply.\nSettings and Apps require organization administration read access, Rulesets\nrequires organization administration write access, and Members requires\norganization members read access."
     },
     "GitHubPermissions": {
       "properties": {

@@ -5928,12 +5928,15 @@ spec:
                       items:
                         description: |-
                           GitHubOrganization specifies an organization to scrape and how deeply.
-                          Settings and Apps require a token with admin:org, Members requires read:org.
+                          Settings and Apps require organization administration read access, Rulesets
+                          requires organization administration write access, and Members requires
+                          organization members read access.
                         properties:
                           apps:
                             description: |-
-                              Apps collects installed GitHub App installations and the repositories
-                              they can access.
+                              Apps collects installed GitHub App installations. Installations granted
+                              to all repositories are related to the configured repository set; GitHub's
+                              organization endpoint does not expose selected repository grants.
                             type: boolean
                           members:
                             description: |-
@@ -5943,13 +5946,19 @@ spec:
                           name:
                             description: Name is the organization login, e.g. acme
                             type: string
+                          rulesets:
+                            description: |-
+                              Rulesets collects organization repository rulesets. GitHub requires the
+                              organization Administration write permission even though this is a
+                              read-only API operation.
+                            type: boolean
                           settings:
                             description: |-
                               Settings collects organization security and policy settings: 2FA
                               requirement, default repository permission, member repository and page
                               creation policy, Advanced Security / Dependabot / secret scanning
-                              defaults for new repositories, Actions permissions, repository rulesets
-                              and code security configurations.
+                              defaults for new repositories, Actions permissions, custom organization
+                              roles and code security configurations.
                             type: boolean
                         required:
                         - name
