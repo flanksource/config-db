@@ -1,0 +1,9 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: github-doctor
+spec:
+  github:
+    - repositories:
+        - owner: flanksource
+          repo: config-db

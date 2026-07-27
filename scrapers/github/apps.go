@@ -67,8 +67,9 @@ type appInstallations struct {
 // installationRepositories pairs an installation with the repositories it can
 // reach that are also in the scrape's resolved repository set.
 type installationRepositories struct {
-	Installation *github.Installation
-	Repositories []string
+	Installation      *github.Installation
+	Repositories      []string
+	RepositoriesKnown bool
 }
 
 type appInstallationInput struct {
@@ -89,15 +90,11 @@ func scrapeAppInstallations(ctx api.ScrapeContext, scrape *organizationScrape) (
 
 	input := appInstallationInput{Owner: org, BaseScraper: scrape.spec.BaseScraper}
 	for _, installation := range installations {
-		repositories, err := resolveInstallationRepositories(ctx, scrape, installation)
-		if err != nil {
-			errs.Errorf(err, "failed to list repositories for GitHub app installation %s/%d",
-				installation.GetAppSlug(), installation.GetID())
-			continue
-		}
+		repositories, known := resolveInstallationRepositories(scrape, installation)
 		input.Installations = append(input.Installations, installationRepositories{
-			Installation: installation,
-			Repositories: repositories,
+			Installation:      installation,
+			Repositories:      repositories,
+			RepositoriesKnown: known,
 		})
 	}
 
@@ -110,47 +107,23 @@ func scrapeAppInstallations(ctx api.ScrapeContext, scrape *organizationScrape) (
 	return result, errs
 }
 
-// resolveInstallationRepositories restricts an installation's reachable
-// repositories to the ones this scrape produces config items for. Repositories
-// outside the scrape are reported so a narrow `repositories:` selector never
-// looks like full coverage.
+// resolveInstallationRepositories returns exact repository grants only when
+// the organization endpoint says the installation covers all repositories.
+// That endpoint does not expose the repository names for selected grants.
 func resolveInstallationRepositories(
-	ctx api.ScrapeContext,
 	scrape *organizationScrape,
 	installation *github.Installation,
-) ([]string, error) {
-	if installation.GetRepositorySelection() == "all" {
-		names := make([]string, 0, len(scrape.repositories))
-		for _, repo := range scrape.repositories {
-			names = append(names, repo.Repo)
-		}
-		sort.Strings(names)
-		return names, nil
+) ([]string, bool) {
+	if installation.GetRepositorySelection() != "all" {
+		return nil, false
 	}
 
-	granted, err := scrape.client.ListInstallationRepositories(ctx, installation.GetID())
-	if err != nil {
-		return nil, err
+	names := make([]string, 0, len(scrape.repositories))
+	for _, repo := range scrape.repositories {
+		names = append(names, repo.Repo)
 	}
-
-	var names []string
-	var outOfScope int
-	for _, repo := range granted {
-		if name := repo.GetName(); scrape.hasRepository(name) {
-			names = append(names, name)
-		} else {
-			outOfScope++
-		}
-	}
-
-	if outOfScope > 0 {
-		ctx.Logger.V(2).Infof(
-			"github app installation %s/%d: %d of %d repositories are outside the scrape and were skipped",
-			installation.GetAppSlug(), installation.GetID(), outOfScope, len(granted))
-	}
-
 	sort.Strings(names)
-	return names, nil
+	return names, true
 }
 
 func (c *GitHubClient) ListOrganizationInstallations(ctx context.Context, org string) ([]*github.Installation, error) {
@@ -165,33 +138,6 @@ func (c *GitHubClient) ListOrganizationInstallations(ctx context.Context, org st
 		installations = append(installations, page.Installations...)
 		if response.NextPage == 0 {
 			return installations, nil
-		}
-		options.Page = response.NextPage
-	}
-}
-
-// ListInstallationRepositories uses the user access-token endpoint because
-// GitHubClient has a configured user/PAT token; Apps.ListRepos requires an
-// installation token, which this scraper cannot create from those credentials.
-//
-// This endpoint therefore returns the installation grant intersected with what
-// the authenticated user can see, not the raw grant. In practice the two match:
-// discovering installations at all goes through Organizations.ListInstallations,
-// which requires admin:org — an org owner, who can see every repository in the
-// org. The intersection cannot be detected either, since the response's
-// TotalCount is scoped to the same user.
-func (c *GitHubClient) ListInstallationRepositories(ctx context.Context, installationID int64) ([]*github.Repository, error) {
-	var repositories []*github.Repository
-	options := &github.ListOptions{PerPage: 100}
-
-	for {
-		page, response, err := c.Client.Apps.ListUserRepos(ctx, installationID, options)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list repositories for github app installation %d: %w", installationID, err)
-		}
-		repositories = append(repositories, page.Repositories...)
-		if response.NextPage == 0 {
-			return repositories, nil
 		}
 		options.Page = response.NextPage
 	}
@@ -217,11 +163,6 @@ func buildAppInstallations(input appInstallationInput) (appInstallations, error)
 			return appInstallations{}, fmt.Errorf("github app %q: %w", installation.GetAppSlug(), err)
 		}
 
-		role, err := effectiveInstallationRole(permissions)
-		if err != nil {
-			return appInstallations{}, fmt.Errorf("github app %q: %w", installation.GetAppSlug(), err)
-		}
-
 		result.Results = append(result.Results, buildAppInstallationResult(input, installed, permissions))
 		result.Users = append(result.Users, models.ExternalUser{
 			Aliases:  pq.StringArray{alias},
@@ -230,6 +171,14 @@ func buildAppInstallations(input appInstallationInput) (appInstallations, error)
 			UserType: "GitHub::App",
 		})
 
+		if len(installed.Repositories) == 0 {
+			continue
+		}
+
+		role, err := effectiveInstallationRole(permissions)
+		if err != nil {
+			return appInstallations{}, fmt.Errorf("github app %q: %w", installation.GetAppSlug(), err)
+		}
 		roleAlias := githubRepositoryRoleAlias(input.Owner, role)
 		if _, ok := seenRoles[roleAlias]; !ok {
 			seenRoles[roleAlias] = struct{}{}
@@ -267,8 +216,14 @@ func buildAppInstallationResult(
 
 	properties := []*types.Property{
 		{Name: "Repository Selection", Type: "badge", Text: installation.GetRepositorySelection()},
-		{Name: "Repositories", Type: "number", Text: fmt.Sprintf("%d", len(installed.Repositories))},
 		{Name: "Suspended", Type: "badge", Text: fmt.Sprintf("%t", installation.SuspendedAt != nil)},
+	}
+	if installed.RepositoriesKnown {
+		properties = append(properties, &types.Property{
+			Name: "Repositories",
+			Type: "number",
+			Text: fmt.Sprintf("%d", len(installed.Repositories)),
+		})
 	}
 	if url := installation.GetHTMLURL(); url != "" {
 		properties = append(properties, &types.Property{

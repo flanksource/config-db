@@ -23,3 +23,7 @@ type Scraper interface {
 	Scrape(ctx ScrapeContext) v1.ScrapeResults
 	CanScrape(config v1.ScraperSpec) bool
 }
+
+type Doctor interface {
+	Doctor(ctx ScrapeContext) (v1.DoctorResults, error)
+}

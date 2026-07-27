@@ -42,23 +42,26 @@ var _ = Describe("GitHub organization settings", func() {
 	}
 
 	It("collects actions, rulesets and role holders for an owner token", func() {
+		scrape := settingsScrape(
+			&gogithub.Organization{
+				Login:                 gogithub.Ptr("acme"),
+				DefaultRepoPermission: gogithub.Ptr("read"),
+			},
+			map[string]string{
+				"/orgs/acme/actions/permissions":                  `{"enabled_repositories":"all","allowed_actions":"selected"}`,
+				"/orgs/acme/actions/permissions/selected-actions": `{"github_owned_allowed":true,"verified_allowed":false,"patterns_allowed":["acme/*"]}`,
+				"/orgs/acme/rulesets":                             `[{"id":11,"name":"protect-default-branch","enforcement":"active"}]`,
+				"/orgs/acme/organization-roles": `{"total_count":1,` +
+					`"roles":[{"id":8132,"name":"security_manager","organization":{"login":"acme"}}]}`,
+				"/orgs/acme/organization-roles/8132/teams": `[{"id":202,"name":"Security","slug":"security"}]`,
+				"/orgs/acme/organization-roles/8132/users": `[{"id":101,"login":"alice"}]`,
+			},
+		)
+		scrape.org.Rulesets = true
+
 		settings, errs := fetchOrganizationSettings(
 			api.NewScrapeContext(dutyCtx.New()),
-			settingsScrape(
-				&gogithub.Organization{
-					Login:                 gogithub.Ptr("acme"),
-					DefaultRepoPermission: gogithub.Ptr("read"),
-				},
-				map[string]string{
-					"/orgs/acme/actions/permissions":                  `{"enabled_repositories":"all","allowed_actions":"selected"}`,
-					"/orgs/acme/actions/permissions/selected-actions": `{"github_owned_allowed":true,"verified_allowed":false,"patterns_allowed":["acme/*"]}`,
-					"/orgs/acme/rulesets":                             `[{"id":11,"name":"protect-default-branch","enforcement":"active"}]`,
-					"/orgs/acme/organization-roles": `{"total_count":1,` +
-						`"roles":[{"id":8132,"name":"security_manager","organization":{"login":"acme"}}]}`,
-					"/orgs/acme/organization-roles/8132/teams": `[{"id":202,"name":"Security","slug":"security"}]`,
-					"/orgs/acme/organization-roles/8132/users": `[{"id":101,"login":"alice"}]`,
-				},
-			),
+			scrape,
 		)
 
 		Expect(errs).To(BeEmpty())
@@ -71,6 +74,42 @@ var _ = Describe("GitHub organization settings", func() {
 			Teams: []string{"security"},
 			Users: []string{"alice"},
 		}}))
+	})
+
+	It("does not collect rulesets unless explicitly enabled", func() {
+		settings, errs := fetchOrganizationSettings(
+			api.NewScrapeContext(dutyCtx.New()),
+			settingsScrape(
+				&gogithub.Organization{
+					Login:                 gogithub.Ptr("acme"),
+					DefaultRepoPermission: gogithub.Ptr("read"),
+				},
+				map[string]string{
+					"/orgs/acme/rulesets": `[{"id":11,"name":"protect-default-branch","enforcement":"active"}]`,
+				},
+			),
+		)
+
+		Expect(errs).To(BeEmpty())
+		Expect(settings.Rulesets).To(BeEmpty())
+	})
+
+	It("collects rulesets independently of organization settings", func() {
+		scrape := settingsScrape(
+			&gogithub.Organization{Login: gogithub.Ptr("acme")},
+			map[string]string{
+				"/orgs/acme/rulesets": `[{"id":11,"name":"protect-default-branch","enforcement":"active"}]`,
+			},
+		)
+		scrape.org.Settings = false
+		scrape.org.Rulesets = true
+
+		settings, errs := fetchOrganizationSettings(api.NewScrapeContext(dutyCtx.New()), scrape)
+
+		Expect(errs).To(BeEmpty())
+		Expect(settings.Actions).To(BeNil())
+		Expect(settings.Roles).To(BeEmpty())
+		Expect(settings.Rulesets).To(HaveLen(1))
 	})
 
 	It("fails loudly when the token cannot read the organization policy fields", func() {
@@ -103,7 +142,7 @@ var _ = Describe("GitHub organization settings", func() {
 	})
 
 	It("renders an unreadable boolean setting as unknown rather than false", func() {
-		properties := organizationSettingsProperties(&gogithub.Organization{}, organizationSettings{})
+		properties := organizationSettingsProperties(&gogithub.Organization{})
 
 		Expect(properties[0].Name).To(Equal("2FA Required"))
 		Expect(properties[0].Text).To(Equal("unknown"))
