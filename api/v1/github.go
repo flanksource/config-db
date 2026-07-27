@@ -73,7 +73,9 @@ type GitHubPermissions struct {
 }
 
 // GitHubOrganization specifies an organization to scrape and how deeply.
-// Settings and Apps require a token with admin:org, Members requires read:org.
+// Settings and Apps require organization administration read access, Rulesets
+// requires organization administration write access, and Members requires
+// organization members read access.
 type GitHubOrganization struct {
 	// Name is the organization login, e.g. acme
 	Name string `yaml:"name" json:"name"`
@@ -81,12 +83,18 @@ type GitHubOrganization struct {
 	// Settings collects organization security and policy settings: 2FA
 	// requirement, default repository permission, member repository and page
 	// creation policy, Advanced Security / Dependabot / secret scanning
-	// defaults for new repositories, Actions permissions, repository rulesets
-	// and code security configurations.
+	// defaults for new repositories, Actions permissions, custom organization
+	// roles and code security configurations.
 	Settings bool `yaml:"settings,omitempty" json:"settings,omitempty"`
 
-	// Apps collects installed GitHub App installations and the repositories
-	// they can access.
+	// Rulesets collects organization repository rulesets. GitHub requires the
+	// organization Administration write permission even though this is a
+	// read-only API operation.
+	Rulesets bool `yaml:"rulesets,omitempty" json:"rulesets,omitempty"`
+
+	// Apps collects installed GitHub App installations. Installations granted
+	// to all repositories are related to the configured repository set; GitHub's
+	// organization endpoint does not expose selected repository grants.
 	Apps bool `yaml:"apps,omitempty" json:"apps,omitempty"`
 
 	// Members collects organization members and their organization role,
