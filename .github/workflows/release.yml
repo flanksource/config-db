@@ -66,6 +66,7 @@ jobs:
     uses: flanksource/action-workflows/.github/workflows/publish-docker-image.yml@df2df1bb53811b598f44b2561c28172ffc36fc88
     with:
       dockerfile: build/Dockerfile
+      platforms: linux/amd64,linux/arm64
       image_tags: |
         docker.io/flanksource/config-db:v${{ needs.create-release.outputs.version }}
         docker.io/flanksource/config-db:latest
