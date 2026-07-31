@@ -1009,6 +1009,11 @@ func (in *GitHub) DeepCopyInto(out *GitHub) {
 		*out = make([]GitHubOrganization, len(*in))
 		copy(*out, *in)
 	}
+	if in.Organizations != nil {
+		in, out := &in.Organizations, &out.Organizations
+		*out = make([]GitHubOrganization, len(*in))
+		copy(*out, *in)
+	}
 	in.PersonalAccessToken.DeepCopyInto(&out.PersonalAccessToken)
 	if in.Permissions != nil {
 		in, out := &in.Permissions, &out.Permissions
