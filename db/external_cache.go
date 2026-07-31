@@ -107,39 +107,106 @@ func getEntityIDCache[T externalEntityWithID]() *typedCache[uuid.UUID] {
 	}
 }
 
+type externalEntityIDAliases struct {
+	ID      uuid.UUID
+	Aliases pq.StringArray `gorm:"type:text[]"`
+}
+
+type externalUserAliasMapping struct {
+	ExternalUserID uuid.UUID
+	Alias          string
+}
+
+func externalUserAliasTableExists(db *gorm.DB) (bool, error) {
+	if db == nil {
+		return false, nil
+	}
+	var exists bool
+	if err := db.Raw("SELECT to_regclass('public.external_user_aliases') IS NOT NULL").Scan(&exists).Error; err != nil {
+		return false, fmt.Errorf("check external_user_aliases table: %w", err)
+	}
+	return exists, nil
+}
+
+func warmExternalEntityCache(ctx dutycontext.Context, table string, aliasCache, idCache *typedCache[uuid.UUID]) int {
+	var rows []externalEntityIDAliases
+	if err := ctx.DB().Table(table).
+		Select("id, aliases").
+		Where("deleted_at IS NULL").
+		Find(&rows).Error; err != nil {
+		logger.Errorf("failed to warm %s cache: %v", table, err)
+		return 0
+	}
+	for _, row := range rows {
+		for _, alias := range row.Aliases {
+			if norm := v1.NormalizeExternalID(alias); norm != "" {
+				aliasCache.Set(norm, row.ID)
+			}
+		}
+		idCache.Set(row.ID.String(), row.ID)
+	}
+	return len(rows)
+}
+
+func warmExternalUserAliasMappings(ctx dutycontext.Context) int {
+	exists, err := externalUserAliasTableExists(ctx.DB())
+	if err != nil {
+		logger.Errorf("failed to inspect external_user_aliases: %v", err)
+		return 0
+	}
+	if !exists {
+		return 0
+	}
+
+	var mappings []externalUserAliasMapping
+	if err := ctx.DB().Table("external_user_aliases eua").
+		Select("eua.external_user_id, eua.alias").
+		Joins("JOIN external_users eu ON eu.id = eua.external_user_id AND eu.deleted_at IS NULL").
+		Where("eua.deleted_at IS NULL").
+		Find(&mappings).Error; err != nil {
+		logger.Errorf("failed to warm external_user_aliases cache: %v", err)
+		return 0
+	}
+
+	for _, mapping := range mappings {
+		norm := v1.NormalizeExternalID(mapping.Alias)
+		if norm == "" {
+			continue
+		}
+		ExternalUserCache.Set(norm, mapping.ExternalUserID)
+		if historicalID, err := uuid.Parse(norm); err == nil && historicalID != uuid.Nil {
+			ExternalUserIDCache.Set(historicalID.String(), mapping.ExternalUserID)
+		}
+	}
+	return len(mappings)
+}
+
+// RefreshExternalUserCaches reloads user aliases and ID redirects after a
+// manual alias or merge notification.
+func RefreshExternalUserCaches(ctx dutycontext.Context) {
+	ExternalUserCache.Flush()
+	ExternalUserIDCache.Flush()
+	users := warmExternalEntityCache(ctx, "external_users", ExternalUserCache, ExternalUserIDCache)
+	mappings := warmExternalUserAliasMappings(ctx)
+	logger.Infof("warmed external_users cache with %d entities and %d mappings", users, mappings)
+}
+
 // WarmExternalEntityCaches pre-fills the user/role/group alias caches from the database.
 func WarmExternalEntityCaches(ctx dutycontext.Context) {
-	type idAliases struct {
-		ID      uuid.UUID
-		Aliases pq.StringArray `gorm:"type:text[]"`
-	}
+	RefreshExternalUserCaches(ctx)
 
 	for _, table := range []struct {
 		name       string
 		aliasCache *typedCache[uuid.UUID]
 		idCache    *typedCache[uuid.UUID]
 	}{
-		{"external_users", ExternalUserCache, ExternalUserIDCache},
 		{"external_roles", ExternalRoleCache, ExternalRoleIDCache},
 		{"external_groups", ExternalGroupCache, ExternalGroupIDCache},
 	} {
-		var rows []idAliases
-		if err := ctx.DB().Table(table.name).
-			Select("id, aliases").
-			Where("deleted_at IS NULL").
-			Find(&rows).Error; err != nil {
-			logger.Errorf("failed to warm %s cache: %v", table.name, err)
-			continue
-		}
-		for _, row := range rows {
-			for _, alias := range row.Aliases {
-				if norm := v1.NormalizeExternalID(alias); norm != "" {
-					table.aliasCache.Set(norm, row.ID)
-				}
-			}
-			table.idCache.Set(row.ID.String(), row.ID)
-		}
-		logger.Infof("warmed %s cache with %d entities", table.name, len(rows))
+		table.aliasCache.Flush()
+		table.idCache.Flush()
+		count := warmExternalEntityCache(ctx, table.name, table.aliasCache, table.idCache)
+		logger.Infof("warmed %s cache with %d entities", table.name, count)
 	}
 }
 
@@ -208,6 +275,49 @@ func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uu
 	return winner, nil
 }
 
+// findExternalUserIDsInAliasMapping resolves normalized keys through the
+// durable mapping table. It is kept separate from aliases-array lookup so
+// manual mappings can take precedence while rolling upgrades can still run
+// against a Duty schema that does not have the table yet.
+func findExternalUserIDsInAliasMapping(ctx api.ScrapeContext, aliases []string) ([]uuid.UUID, error) {
+	exists, err := externalUserAliasTableExists(ctx.DB())
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
+	}
+
+	normalized := normalizeExternalAliases(aliases)
+	if len(normalized) == 0 {
+		return nil, nil
+	}
+
+	var mappings []externalUserAliasMapping
+	if err := ctx.DB().Table("external_user_aliases eua").
+		Select("eua.external_user_id, eua.alias").
+		Joins("JOIN external_users eu ON eu.id = eua.external_user_id AND eu.deleted_at IS NULL").
+		Where("eua.deleted_at IS NULL AND eua.alias IN ?", normalized).
+		Find(&mappings).Error; err != nil {
+		return nil, fmt.Errorf("query external user alias mappings: %w", err)
+	}
+
+	seen := make(map[uuid.UUID]struct{}, len(mappings))
+	ids := make([]uuid.UUID, 0, len(mappings))
+	for _, mapping := range mappings {
+		if _, ok := seen[mapping.ExternalUserID]; !ok {
+			seen[mapping.ExternalUserID] = struct{}{}
+			ids = append(ids, mapping.ExternalUserID)
+		}
+		norm := v1.NormalizeExternalID(mapping.Alias)
+		ExternalUserCache.Set(norm, mapping.ExternalUserID)
+		if historicalID, err := uuid.Parse(norm); err == nil && historicalID != uuid.Nil {
+			ExternalUserIDCache.Set(historicalID.String(), mapping.ExternalUserID)
+		}
+	}
+	return ids, nil
+}
+
 // findAllExternalEntityIDsByAliases returns all distinct entity IDs that share any alias with the given set.
 func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeContext, aliases []string) ([]uuid.UUID, error) {
 	aliasCache := getEntityCache[T]()
@@ -237,8 +347,30 @@ func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeCon
 		misses = append(misses, norm)
 	}
 
+	var zero T
 	if len(misses) > 0 {
-		var zero T
+		if _, isUser := any(zero).(dutyModels.ExternalUser); isUser {
+			mappedIDs, err := findExternalUserIDsInAliasMapping(ctx, misses)
+			if err != nil {
+				return nil, err
+			}
+			for _, id := range mappedIDs {
+				seen[id] = true
+			}
+
+			// Mapping rows are authoritative. Only unresolved keys should fall
+			// back to the compatibility aliases array.
+			unmapped := misses[:0]
+			for _, alias := range misses {
+				if _, ok := aliasCache.Get(alias); !ok {
+					unmapped = append(unmapped, alias)
+				}
+			}
+			misses = unmapped
+		}
+	}
+
+	if len(misses) > 0 {
 		var rows []struct {
 			ID      uuid.UUID
 			Aliases pq.StringArray `gorm:"type:text[]"`

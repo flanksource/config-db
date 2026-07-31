@@ -267,6 +267,93 @@ func lookupExternalEntityIDByAliases(ctx api.ScrapeContext, table string, aliase
 	return rows[0].ID, nil
 }
 
+func findCachedExternalUserIDs(keys []string) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{})
+	var ids []uuid.UUID
+	for _, key := range keys {
+		norm := v1.NormalizeExternalID(key)
+		if norm == "" {
+			continue
+		}
+
+		var id uuid.UUID
+		var ok bool
+		if parsed, err := uuid.Parse(norm); err == nil && parsed != uuid.Nil {
+			id, ok = ExternalUserIDCache.Get(parsed.String())
+		}
+		if !ok {
+			id, ok = ExternalUserCache.Get(norm)
+			if ok {
+				if winner, redirected := ExternalUserIDCache.Get(id.String()); redirected {
+					id = winner
+				}
+			}
+		}
+		if !ok {
+			continue
+		}
+		if _, exists := seen[id]; !exists {
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// applyExternalUserAliasMapping gives durable mappings precedence over the
+// scraper-provided UUID. This is what prevents a merged external identity from
+// being recreated by a later scrape which still emits the duplicate's old ID.
+// If no ID or emitted alias has a mapping, email becomes the fallback alias.
+func applyExternalUserAliasMapping(ctx api.ScrapeContext, user *dutyModels.ExternalUser) error {
+	originalID := user.ID
+	lookupKeys := append([]string(nil), user.Aliases...)
+	if originalID != uuid.Nil {
+		lookupKeys = append([]string{originalID.String()}, lookupKeys...)
+	}
+
+	// Warmed mappings make the normal scrape path cache-only. A DB lookup is
+	// retained for new aliases and short-lived races before a notification has
+	// refreshed the process cache.
+	mappedIDs := findCachedExternalUserIDs(lookupKeys)
+	var err error
+	if len(mappedIDs) == 0 {
+		mappedIDs, err = findExternalUserIDsInAliasMapping(ctx, lookupKeys)
+		if err != nil {
+			return err
+		}
+	}
+	if len(mappedIDs) > 1 {
+		return fmt.Errorf("external user keys resolve to multiple canonical users: %v", mappedIDs)
+	}
+
+	// Email is intentionally weaker than a provider ID or explicit alias. It
+	// only participates when none of those keys has a durable mapping.
+	if len(mappedIDs) == 0 && user.Email != nil {
+		email := v1.NormalizeExternalID(*user.Email)
+		if email != "" {
+			user.Aliases = append(user.Aliases, email)
+			mappedIDs = findCachedExternalUserIDs([]string{email})
+			if len(mappedIDs) == 0 {
+				mappedIDs, err = findExternalUserIDsInAliasMapping(ctx, []string{email})
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	if len(mappedIDs) == 1 {
+		user.ID = mappedIDs[0]
+		if originalID != uuid.Nil && originalID != user.ID {
+			// Keep the emitted historical UUID in the compatibility alias array;
+			// Duty's trigger also persists it as a durable redirect.
+			user.Aliases = append(user.Aliases, originalID.String())
+		}
+	}
+	user.Aliases = canonicalizeAliases(user.Aliases)
+	return nil
+}
+
 func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalUser, int, error) {
 	var valid []dutyModels.ExternalUser
 	var skipped int
@@ -274,8 +361,11 @@ func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser
 	for i := range users {
 		u := &users[i]
 		u.ScraperID = lo.Ternary(u.ScraperID == uuid.Nil, lo.FromPtr(scraperID), u.ScraperID)
+		if err := applyExternalUserAliasMapping(ctx, u); err != nil {
+			return nil, 0, ctx.Oops().With("user", u.Name).Wrapf(err, "failed to apply external user alias mapping")
+		}
 		if u.ID == uuid.Nil && len(u.Aliases) == 0 {
-			ctx.Logger.Warnf("skipping external user %q with no ID and no aliases", u.Name)
+			ctx.Logger.Warnf("skipping external user %q with no ID, aliases, or email", u.Name)
 			skipped++
 			continue
 		}

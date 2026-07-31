@@ -63,10 +63,21 @@ func tableUpdatesHandler(ctx dutyContext.Context) {
 	notifyRouter := pg.NewNotifyRouter()
 	go notifyRouter.Run(ctx, "table_activity")
 
-	for range notifyRouter.GetOrCreateChannel("scrape_plugins") {
-		ctx.Logger.V(3).Infof("reloading plugins")
-		if _, err := db.ReloadAllScrapePlugins(ctx); err != nil {
-			logger.Errorf("failed to reload plugins: %w", err)
+	pluginUpdates := notifyRouter.GetOrCreateChannel("scrape_plugins")
+	// Alias changes can arrive in bursts during a merge. Signal mode squashes
+	// them into a single cache refresh instead of repeatedly warming the table.
+	aliasUpdates := notifyRouter.GetOrCreateBufferedChannel(0, "external_user_aliases")
+
+	for {
+		select {
+		case <-pluginUpdates:
+			ctx.Logger.V(3).Infof("reloading plugins")
+			if _, err := db.ReloadAllScrapePlugins(ctx); err != nil {
+				logger.Errorf("failed to reload plugins: %w", err)
+			}
+		case <-aliasUpdates:
+			ctx.Logger.V(3).Infof("reloading external user alias mappings")
+			db.RefreshExternalUserCaches(ctx)
 		}
 	}
 }
