@@ -63,7 +63,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: flanksource/action-workflows/.github/workflows/publish-docker-image.yml@df2df1bb53811b598f44b2561c28172ffc36fc88
+    uses: flanksource/action-workflows/.github/workflows/publish-multi-platform-docker-image.yml@c628197234fd2c4c3aebcb3c2b60dd399251adaf
     with:
       dockerfile: build/Dockerfile
       platforms: linux/amd64,linux/arm64
@@ -73,6 +73,7 @@ jobs:
         public.ecr.aws/k4y9r6y5/config-db:v${{ needs.create-release.outputs.version }}
       login_to_ecr: true
       ecr_registry_type: public
+      cache_mode: max
     secrets:
       docker_username: ${{ secrets.DOCKER_USERNAME }}
       docker_password: ${{ secrets.DOCKER_PASSWORD }}
