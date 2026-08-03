@@ -117,7 +117,9 @@ func parseFinding(finding *securitycenterpb.ListFindingsResponse_ListFindingsRes
 	return &analysis
 }
 
-func (gcp Scraper) ListFindings(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
+// ListFindings reads Security Center findings for parent, which is either a
+// single project or a whole organization.
+func (gcp Scraper) ListFindings(ctx *GCPContext, parent string) (v1.ScrapeResults, error) {
 	var results v1.ScrapeResults
 	client, err := securitycenter.NewClient(ctx, ctx.ClientOpts...)
 	if err != nil {
@@ -130,7 +132,7 @@ func (gcp Scraper) ListFindings(ctx *GCPContext, config v1.GCP) (v1.ScrapeResult
 	}()
 
 	req := &securitycenterpb.ListFindingsRequest{
-		Parent:   fmt.Sprintf("projects/%s/sources/-", config.Project),
+		Parent:   fmt.Sprintf("%s/sources/-", parent),
 		PageSize: 1000,
 	}
 

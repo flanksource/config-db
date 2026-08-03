@@ -129,6 +129,15 @@ func parseResourceData(asset *assetpb.Asset) ResourceData {
 	selfLink := data.Fields["selfLink"].GetStringValue()
 	selfLink2 := strings.TrimPrefix(selfLink, "https://www.googleapis.com/compute/v1/") // Certain references are without this prefix
 
+	aliases := []string{selfLink, selfLink2}
+
+	// A service account is also an IAM principal, where it is identified by
+	// email rather than by resource name. The alias is what ties the config item
+	// to the principal holding the grants.
+	if asset.AssetType == serviceAccountAssetType {
+		aliases = append(aliases, data.Fields["email"].GetStringValue())
+	}
+
 	return ResourceData{
 		ID:        id,
 		Name:      getName(asset),
@@ -137,7 +146,7 @@ func parseResourceData(asset *assetpb.Asset) ResourceData {
 		URL:       selfLink,
 		Zone:      strings.ToLower(zone),
 		Region:    strings.ToLower(region),
-		Aliases:   []string{selfLink, selfLink2},
+		Aliases:   lo.Compact(aliases),
 		Raw:       data,
 	}
 }
@@ -169,6 +178,8 @@ func getLink(rd ResourceData) *types.Property {
 		},
 	}
 }
+
+const serviceAccountAssetType = "iam.googleapis.com/ServiceAccount"
 
 var defaultIgnoreList = []string{
 	"compute.googleapis.com/InstanceSettings",
@@ -245,11 +256,13 @@ func processResults(results v1.ScrapeResults) v1.ScrapeResults {
 	return results
 }
 
-func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
+// FetchAllAssets lists every asset beneath parent, which is either a single
+// project or a whole organization.
+func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP, parent string) (v1.ScrapeResults, error) {
 	var results v1.ScrapeResults
 
 	req := &assetpb.ListAssetsRequest{
-		Parent:      fmt.Sprintf("projects/%s", config.Project),
+		Parent:      parent,
 		ContentType: assetpb.ContentType_RESOURCE,
 		AssetTypes:  []string{".*.googleapis.com.*"},
 		PageSize:    1000,
@@ -269,8 +282,13 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		}
 	}()
 
-	baseTags := []v1.Tag{{Name: "project", Value: config.Project}}
 	ignoreList := append(defaultIgnoreList, config.Exclude...)
+
+	// Ancestry is resolved after the listing completes: a project's own asset can
+	// arrive after the assets it owns, so the number→id mapping is only complete
+	// once every asset has streamed past.
+	resolver := newProjectResolver(projectFromParent(parent))
+	var ancestries []assetAncestry
 
 	it := assetClient.ListAssets(ctx, req)
 	for {
@@ -282,6 +300,8 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 			return nil, fmt.Errorf("error listing assets: %w", err)
 		}
 
+		resolver.record(asset)
+
 		if lo.Contains(ignoreList, asset.AssetType) {
 			continue
 		}
@@ -291,7 +311,7 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		configClass := parseGCPConfigClass(asset.AssetType)
 		configType := fmt.Sprintf("GCP::%s", configClass)
 
-		tags := baseTags
+		var tags []v1.Tag
 
 		region := rd.Region
 		if region != "" {
@@ -303,11 +323,6 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		}
 
 		relationships := RelationshipResolver(configType, rd)
-		// Add project as parent (if multiple parents are present, we use first available)
-		relationships.Parents = append(relationships.Parents, v1.ConfigExternalKey{
-			Type:       v1.GCPProject,
-			ExternalID: config.Project,
-		})
 
 		res := v1.ScrapeResult{
 			BaseScraper:         config.BaseScraper,
@@ -332,6 +347,40 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 		}
 
 		results = append(results, res)
+		ancestries = append(ancestries, assetAncestry{
+			ancestors:       asset.Ancestors,
+			isHierarchyNode: isResourceManagerNode(asset.AssetType),
+		})
+	}
+
+	for i := range results {
+		ancestry := ancestries[i]
+
+		if project := resolver.resolve(ancestry.ancestors); project != "" {
+			if results[i].Tags == nil {
+				results[i].Tags = map[string]string{}
+			}
+			results[i].Tags["project"] = project
+
+			if !ancestry.isHierarchyNode {
+				// Add project as parent (if multiple parents are present, we use first available)
+				results[i].Parents = append(results[i].Parents, v1.ConfigExternalKey{
+					Type:       v1.GCPProject,
+					ExternalID: project,
+				})
+			}
+		}
+
+		// Organizations, folders and projects hang off the hierarchy rather than
+		// off a project, so their parent comes straight from their ancestry.
+		if ancestry.isHierarchyNode {
+			parent, err := resourceManagerParent(ancestry.ancestors)
+			if err != nil {
+				ctx.Warnf("gcp assets: %v", err)
+			} else if parent != nil {
+				results[i].Parents = append(results[i].Parents, *parent)
+			}
+		}
 	}
 
 	return results, nil
@@ -341,69 +390,125 @@ func (Scraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.GCP) > 0
 }
 
+// scrapeParent runs the passes that are scoped to one asset-inventory root.
+func (gcp Scraper) scrapeParent(ctx *GCPContext, config v1.GCP, parent string) v1.ScrapeResults {
+	var results v1.ScrapeResults
+
+	if len(config.GetAssetTypes()) > 0 || len(config.Include) == 0 {
+		assetResults, err := gcp.FetchAllAssets(ctx, config, parent)
+		if err != nil {
+			results.Errorf(err, "failed to fetch GCP assets for %s", parent)
+			return results
+		}
+		results = append(results, assetResults...)
+
+		if backupResults, err := gcp.scrapeCloudSQLBackupsForAllInstances(ctx, config, parent, assetResults); err != nil {
+			results.Errorf(err, "failed to scrape Cloud SQL backups for %s", parent)
+		} else {
+			results = append(results, backupResults...)
+		}
+	}
+
+	if config.Includes(v1.IncludeIAMPolicy) {
+		iamPolicy, err := gcp.FetchIAMPolicies(ctx, config, parent)
+		if err != nil {
+			results.Errorf(err, "failed to fetch GCP IAM policies for %s", parent)
+			return results
+		}
+		results = append(results, iamPolicy.Results...)
+
+		// Group-membership expansion runs by default alongside IAM policy so
+		// group grants unwrap to their members. It needs the Cloud Identity
+		// groups.readonly scope; disable with exclude: [IAMGroupMembers] when
+		// the scrape service account lacks it.
+		if config.Includes(v1.IncludeGroupMembers) && !config.Excludes(v1.IncludeGroupMembers) {
+			memberResults, err := gcp.FetchGroupMemberships(ctx, config, iamPolicy.Scope, iamPolicy.GroupEmails)
+			if err != nil {
+				results.Errorf(err, "failed to fetch GCP group memberships for %s", parent)
+			} else {
+				results = append(results, memberResults...)
+			}
+		}
+	}
+
+	return results
+}
+
+// securityCenterParents returns the roots to read findings from: the
+// organization once when there is one, otherwise every scraped project.
+func securityCenterParents(config v1.GCP, parents []string) []string {
+	if config.IsOrgScoped() {
+		return []string{v1.OrganizationPrefix + config.OrganizationID()}
+	}
+	return parents
+}
+
+// auditLogProject returns the project holding the audit-log dataset: the one
+// configured explicitly, or the sole scraped project when it is unambiguous.
+func auditLogProject(config v1.GCP) string {
+	if config.AuditLogs.Project != "" {
+		return strings.TrimPrefix(config.AuditLogs.Project, v1.ProjectPrefix)
+	}
+	if projects := config.ConfiguredProjects(); len(projects) == 1 {
+		return projects[0]
+	}
+	return ""
+}
+
 func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	allResults := v1.ScrapeResults{}
 
 	for _, gcpConfig := range ctx.ScrapeConfig().Spec.GCP {
+		if err := gcpConfig.Validate(); err != nil {
+			allResults.Errorf(err, "invalid GCP scraper config")
+			continue
+		}
+
+		if !gcpConfig.IsOrgScoped() {
+			ctx.Warnf("gcp: no organization configured for %s, identities are tenanted by project", gcpConfig.Scope())
+		}
+
 		gcpCtx, err := NewGCPContext(ctx, gcpConfig)
 		if err != nil {
 			allResults.Errorf(err, "failed to create GCP context")
 			continue
 		}
 
-		if len(gcpConfig.GetAssetTypes()) > 0 || len(gcpConfig.Include) == 0 {
-			assetResults, err := gcp.FetchAllAssets(gcpCtx, gcpConfig)
-			if err != nil {
-				allResults.Errorf(err, "failed to fetch GCP assets")
-				continue
-			} else {
-				allResults = append(allResults, assetResults...)
-			}
-
-			if backupResults, err := gcp.scrapeCloudSQLBackupsForAllInstances(gcpCtx, gcpConfig, assetResults); err != nil {
-				allResults.Errorf(err, "failed to scrape Cloud SQL backups")
-			} else {
-				allResults = append(allResults, backupResults...)
-			}
+		parents, err := resolveParents(gcpCtx, gcpConfig)
+		if err != nil {
+			allResults.Errorf(err, "failed to resolve GCP scrape scope")
+			continue
+		}
+		if len(parents) == 0 {
+			ctx.Warnf("gcp: nothing to scrape for %s", gcpConfig.Scope())
+			continue
 		}
 
-		if gcpConfig.Includes(v1.IncludeIAMPolicy) {
-			iamPolicyResults, groupEmails, err := gcp.FetchIAMPolicies(gcpCtx, gcpConfig)
-			if err != nil {
-				allResults.Errorf(err, "failed to fetch GCP IAM policies for project %s", gcpConfig.Project)
-			} else {
-				allResults = append(allResults, iamPolicyResults...)
+		for _, parent := range parents {
+			allResults = append(allResults, gcp.scrapeParent(gcpCtx, gcpConfig, parent)...)
+		}
 
-				// Group-membership expansion runs by default alongside IAM
-				// policy so group grants unwrap to their members. It needs the
-				// Cloud Identity groups.readonly scope; disable per project with
-				// exclude: [IAMGroupMembers] when the scrape SA lacks it.
-				if gcpConfig.Includes(v1.IncludeGroupMembers) && !gcpConfig.Excludes(v1.IncludeGroupMembers) {
-					memberResults, err := gcp.FetchGroupMemberships(gcpCtx, gcpConfig, groupEmails)
-					if err != nil {
-						allResults.Errorf(err, "failed to fetch GCP group memberships for project %s", gcpConfig.Project)
-					} else {
-						allResults = append(allResults, memberResults...)
-					}
+		// Security Center findings cover the whole organization in one listing;
+		// without an organization they are read per project.
+		if !gcpConfig.Excludes(v1.ExcludeSecurityCenter) {
+			for _, parent := range securityCenterParents(gcpConfig, parents) {
+				if analysisResults, err := gcp.ListFindings(gcpCtx, parent); err != nil {
+					allResults.Errorf(err, "failed to scrape GCP Security Center findings for %s", parent)
+				} else {
+					allResults = append(allResults, analysisResults...)
 				}
 			}
 		}
 
-		// Audit logs must be enabled explicitly.
+		// Audit logs must be enabled explicitly. The dataset lives in a single
+		// project, so it is read once rather than per scraped project.
 		if gcpConfig.Includes(v1.IncludeAuditLogs) && len(gcpConfig.Include) > 0 {
-			accessLogResults, err := gcp.FetchAuditLogs(gcpCtx, gcpConfig)
-			if err != nil {
-				allResults.Errorf(err, "failed to fetch GCP access logs for project %s", gcpConfig.Project)
+			if project := auditLogProject(gcpConfig); project == "" {
+				ctx.Warnf("gcp: skipping audit logs for %s, set auditLogs.project to the project holding the dataset", gcpConfig.Scope())
+			} else if accessLogResults, err := gcp.FetchAuditLogs(gcpCtx, gcpConfig, project); err != nil {
+				allResults.Errorf(err, "failed to fetch GCP access logs for project %s", project)
 			} else {
 				allResults = append(allResults, accessLogResults...)
-			}
-		}
-
-		if !gcpConfig.Excludes(v1.ExcludeSecurityCenter) {
-			if analysisResults, err := gcp.ListFindings(gcpCtx, gcpConfig); err != nil {
-				allResults.Errorf(err, "failed to scrape GCP Security Center findings")
-			} else {
-				allResults = append(allResults, analysisResults...)
 			}
 		}
 	}

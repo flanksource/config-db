@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -48,16 +49,46 @@ var (
 type GCP struct {
 	BaseScraper              `json:",inline"`
 	connection.GCPConnection `json:",inline"`
-	Project                  string `json:"project"`
 
-	// Include is a list of GCP asset types to scrape, and/or feature flags that
-	// enable non-asset scrapers.
+	// Organization to scrape, given as an organization number ("1234567890") or a
+	// qualified name ("organizations/1234567890"). Its resource hierarchy and
+	// Security Center findings are scraped once, and every project beneath it is
+	// scraped unless projects narrows the set.
+	// Projects that belong to no organization can still be scraped by listing
+	// them in projects without an organization.
+	Organization string `json:"organization,omitempty"`
+
+	// Projects narrows the scrape to these projects, given as project ids
+	// ("gcp-proj-1") or qualified names ("projects/gcp-proj-1"). Empty means every
+	// project in the organization. Combined with an organization, only projects
+	// that actually belong to it are scraped.
+	Projects []string `json:"projects,omitempty"`
+
+	// Project is an alias for a single-entry projects list.
+	Project string `json:"project,omitempty"`
+
+	// Include holds GCP asset types and/or feature flags, and is a strict
+	// allowlist: leave it empty and everything except AuditLogs runs, but set it
+	// and only what is listed runs. Anything omitted is silently off, so narrowing
+	// one dimension turns the other off entirely:
+	//
+	//   include: [storage.googleapis.com/Bucket]   # buckets only, NO IAM/RBAC
+	//   include: [IAMPolicy]                       # IAM/RBAC only, NO assets
+	//
+	// List both to filter assets while keeping the rest:
+	//
+	//   include: [storage.googleapis.com/Bucket, IAMPolicy, IAMGroupMembers]
+	//
 	// Asset types reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types
-	// Example asset type: storage.googleapis.com/Bucket
-	// Feature flags: IAMPolicy (RBAC access from IAM policy bindings) and
-	// IAMGroupMembers (expand Google group membership via the Cloud Identity
-	// groups.readonly scope) both run by default; disable group expansion with
-	// exclude: [IAMGroupMembers]. AuditLogs (BigQuery audit-log access) is opt-in.
+	//
+	// Feature flags:
+	//   IAMPolicy       - RBAC access from IAM policy bindings, and the resource
+	//                     hierarchy (organization and folder config items), which
+	//                     is read as part of the same pass.
+	//   IAMGroupMembers - expand Google group membership via the Cloud Identity
+	//                     groups.readonly scope. Disable with exclude: [IAMGroupMembers].
+	//   AuditLogs       - BigQuery audit-log access. Opt-in: it runs only when
+	//                     listed here explicitly.
 	Include []string `json:"include,omitempty"`
 
 	// Exclude is a list of GCP asset types to exclude from scraping.
@@ -71,6 +102,11 @@ type GCPAuditLogs struct {
 	// BigQuery dataset to query audit logs from
 	// Example: "default._AllLogs"
 	Dataset string `json:"dataset,omitempty"`
+
+	// Project holding the BigQuery dataset. Defaults to the scraped project.
+	// An organization-scoped scrape must set this to the project its aggregated
+	// log sink writes to, since the organization itself holds no dataset.
+	Project string `json:"project,omitempty"`
 
 	// Time range to query audit logs (defaults to last 7 days if not specified)
 	// Examples: "24h", "7d", "30d"
@@ -90,6 +126,61 @@ type GCPAuditLogs struct {
 
 	// Filter methods matching these patterns
 	Methods types.MatchExpressions `json:"methods,omitempty"`
+}
+
+const (
+	ProjectPrefix      = "projects/"
+	OrganizationPrefix = "organizations/"
+)
+
+// Validate reports whether the config names anything to scrape.
+func (gcp GCP) Validate() error {
+	if gcp.Organization == "" && len(gcp.ConfiguredProjects()) == 0 {
+		return fmt.Errorf("one of organization or projects must be set")
+	}
+	return nil
+}
+
+// Scope describes what the scrape covers, for logs and error messages.
+func (gcp GCP) Scope() string {
+	if gcp.IsOrgScoped() {
+		return OrganizationPrefix + gcp.OrganizationID()
+	}
+	return strings.Join(gcp.ConfiguredProjects(), ", ")
+}
+
+// IsOrgScoped reports whether an organization was configured. Its hierarchy and
+// Security Center findings are then scraped once, on top of the per-project work.
+func (gcp GCP) IsOrgScoped() bool {
+	return gcp.Organization != ""
+}
+
+// OrganizationID returns the bare organization number, without the
+// organizations/ prefix. Empty when no organization is configured.
+func (gcp GCP) OrganizationID() string {
+	return strings.TrimPrefix(gcp.Organization, OrganizationPrefix)
+}
+
+// ConfiguredProjects returns the explicitly named projects as bare project ids,
+// merging the singular project alias. Empty means the scrape is not narrowed to
+// a subset, i.e. every project in the organization.
+func (gcp GCP) ConfiguredProjects() []string {
+	var projects []string
+	seen := make(map[string]struct{})
+
+	for _, project := range append(slices.Clone(gcp.Projects), gcp.Project) {
+		id := strings.TrimPrefix(project, ProjectPrefix)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		projects = append(projects, id)
+	}
+
+	return projects
 }
 
 func (gcp GCP) Includes(resource string) bool {

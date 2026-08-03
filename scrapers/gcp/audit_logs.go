@@ -125,8 +125,8 @@ group by email, permission, permission_type
 }
 
 // FetchAuditLogs fetches external roles and config accesses from BigQuery audit logs
-func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResults, error) {
-	bqClient, err := bigquery.NewClient(ctx, config.Project, ctx.ClientOpts...)
+func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP, project string) (v1.ScrapeResults, error) {
+	bqClient, err := bigquery.NewClient(ctx, project, ctx.ClientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BigQuery client: %w", err)
 	}
@@ -164,13 +164,13 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP) (v1.ScrapeResu
 
 		// All the audit logs are attached to the project config.
 		var resourceID v1.ExternalID
-		resourceID.ExternalID = fmt.Sprintf("https://www.googleapis.com/compute/v1/projects/%s", config.Project)
+		resourceID.ExternalID = fmt.Sprintf("https://www.googleapis.com/compute/v1/projects/%s", project)
 		resourceID.ConfigType = "GCP::Compute::Project"
 
 		uniquePermissions.Insert(row.Permission)
 
 		configAccesses = append(configAccesses, v1.ExternalConfigAccess{
-			ID:               generateConsistentID(fmt.Sprintf("%s::%s::%s::%s", config.Project, row.Email, row.Permission, row.PermissionType)).String(),
+			ID:               generateConsistentID(fmt.Sprintf("%s::%s::%s::%s", project, row.Email, row.Permission, row.PermissionType)).String(),
 			ExternalUserID:   lo.ToPtr(generateConsistentID(row.Email)),
 			ExternalRoleID:   lo.ToPtr(generateConsistentID(row.Permission)),
 			OwnerScraperID:   ctx.ScrapeConfig().GetPersistedID(),

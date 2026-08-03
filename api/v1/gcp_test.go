@@ -36,4 +36,57 @@ var _ = Describe("GCP", func() {
 			GCP{Include: []string{"storage.googleapis.com/Bucket", "compute.googleapis.com/Instance"}},
 			[]string{"storage.googleapis.com/Bucket", "compute.googleapis.com/Instance"}),
 	)
+
+	DescribeTable("ConfiguredProjects",
+		func(config GCP, expected []string) {
+			Expect(config.ConfiguredProjects()).To(Equal(expected))
+		},
+		Entry("nothing configured", GCP{}, nil),
+		Entry("singular project alias", GCP{Project: "gcp-proj-1"}, []string{"gcp-proj-1"}),
+		Entry("qualified names are trimmed",
+			GCP{Projects: []string{"projects/gcp-proj-1", "gcp-proj-2"}},
+			[]string{"gcp-proj-1", "gcp-proj-2"}),
+		Entry("alias merges with the list",
+			GCP{Project: "gcp-proj-1", Projects: []string{"gcp-proj-2"}},
+			[]string{"gcp-proj-2", "gcp-proj-1"}),
+		Entry("alias already in the list is not duplicated",
+			GCP{Project: "gcp-proj-1", Projects: []string{"projects/gcp-proj-1"}},
+			[]string{"gcp-proj-1"}),
+		Entry("blank entries are dropped",
+			GCP{Projects: []string{"", "gcp-proj-1"}},
+			[]string{"gcp-proj-1"}),
+	)
+
+	DescribeTable("Validate",
+		func(config GCP, expectErr bool) {
+			if expectErr {
+				Expect(config.Validate()).To(HaveOccurred())
+				return
+			}
+			Expect(config.Validate()).ToNot(HaveOccurred())
+		},
+		Entry("organization only", GCP{Organization: "1234567890"}, false),
+		Entry("projects only", GCP{Projects: []string{"gcp-proj-1"}}, false),
+		Entry("singular project only", GCP{Project: "gcp-proj-1"}, false),
+		Entry("organization and projects", GCP{Organization: "1234567890", Projects: []string{"gcp-proj-1"}}, false),
+		Entry("neither", GCP{}, true),
+	)
+
+	DescribeTable("IsOrgScoped",
+		func(config GCP, expected bool) {
+			Expect(config.IsOrgScoped()).To(Equal(expected))
+		},
+		Entry("projects only", GCP{Project: "gcp-proj-1"}, false),
+		Entry("organization set", GCP{Organization: "1234567890"}, true),
+		Entry("organization and projects", GCP{Organization: "1234567890", Projects: []string{"p"}}, true),
+	)
+
+	DescribeTable("OrganizationID",
+		func(config GCP, expected string) {
+			Expect(config.OrganizationID()).To(Equal(expected))
+		},
+		Entry("bare organization number", GCP{Organization: "1234567890"}, "1234567890"),
+		Entry("organization already qualified", GCP{Organization: "organizations/1234567890"}, "1234567890"),
+		Entry("no organization", GCP{Project: "gcp-proj-1"}, ""),
+	)
 })

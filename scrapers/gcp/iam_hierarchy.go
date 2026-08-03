@@ -26,43 +26,72 @@ type resourceManagerMetadata struct {
 	AssetType   string
 }
 
-func fetchResourceManagerHierarchy(ctx *GCPContext, config v1.GCP) (*cloudresourcemanager.Project, []resourceManagerNode, error) {
+// resourceHierarchy is the ancestor chain above a scraped root.
+type resourceHierarchy struct {
+	// Project is the hierarchy root, nil when the root is an organization.
+	Project *cloudresourcemanager.Project
+	Nodes   []resourceManagerNode
+	// OrganizationID is the organization the root belongs to. The parent chain
+	// names it before any node is read, so it survives a scrape service account
+	// that may not read the organization resource itself.
+	OrganizationID string
+}
+
+// fetchResourceManagerHierarchy walks upwards from parent. An organization root
+// has nothing above it, so it is returned as the sole node with a nil project;
+// the folders and projects beneath it arrive as assets instead.
+//
+// A node that cannot be read degrades the hierarchy config items but still yields
+// OrganizationID, so identities stay tenanted by organization.
+func fetchResourceManagerHierarchy(ctx *GCPContext, _ v1.GCP, parent string) (resourceHierarchy, error) {
 	service, err := cloudresourcemanager.NewService(ctx, ctx.ClientOpts...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create Cloud Resource Manager client: %w", err)
+		return resourceHierarchy{}, fmt.Errorf("create Cloud Resource Manager client: %w", err)
 	}
 
-	projectName := config.Project
-	if !strings.HasPrefix(projectName, "projects/") {
-		projectName = "projects/" + projectName
+	if projectFromParent(parent) == "" {
+		hierarchy := resourceHierarchy{OrganizationID: strings.TrimPrefix(parent, organizationPrefix)}
+		node, err := fetchResourceManagerNode(ctx, service, parent)
+		if err != nil {
+			return hierarchy, err
+		}
+		hierarchy.Nodes = []resourceManagerNode{node}
+		return hierarchy, nil
 	}
-	project, err := service.Projects.Get(projectName).Context(ctx).Do()
+
+	project, err := service.Projects.Get(parent).Context(ctx).Do()
 	if err != nil {
-		return nil, nil, fmt.Errorf("get GCP project hierarchy root %s: %w", projectName, err)
+		return resourceHierarchy{}, fmt.Errorf("get GCP project hierarchy root %s: %w", parent, err)
 	}
 
-	var nodes []resourceManagerNode
+	hierarchy := resourceHierarchy{Project: project}
 	visited := make(map[string]struct{})
 	for parent := project.Parent; parent != ""; {
 		if _, ok := visited[parent]; ok {
-			return nil, nil, fmt.Errorf("cyclic GCP resource hierarchy at %s", parent)
+			return hierarchy, fmt.Errorf("cyclic GCP resource hierarchy at %s", parent)
 		}
 		visited[parent] = struct{}{}
 
+		// Recorded before the read so an organization the caller may not read is
+		// still known.
+		if organization, ok := strings.CutPrefix(parent, organizationPrefix); ok {
+			hierarchy.OrganizationID = organization
+		}
+
 		node, err := fetchResourceManagerNode(ctx, service, parent)
 		if err != nil {
-			return nil, nil, err
+			return hierarchy, err
 		}
-		nodes = append(nodes, node)
+		hierarchy.Nodes = append(hierarchy.Nodes, node)
 
 		metadata, err := node.metadata()
 		if err != nil {
-			return nil, nil, err
+			return hierarchy, err
 		}
 		parent = metadata.Parent
 	}
 
-	return project, nodes, nil
+	return hierarchy, nil
 }
 
 func fetchResourceManagerNode(ctx *GCPContext, service *cloudresourcemanager.Service, name string) (resourceManagerNode, error) {
@@ -96,24 +125,38 @@ func fetchResourceManagerNode(ctx *GCPContext, service *cloudresourcemanager.Ser
 	}
 }
 
+// buildResourceManagerHierarchy turns the ancestor chain into config items and
+// IAM-policy assets. A nil project means the scrape is rooted at an organization,
+// where nodes holds just that organization and the descendants arrive as assets.
 func buildResourceManagerHierarchy(project *cloudresourcemanager.Project, nodes []resourceManagerNode, base v1.BaseScraper) (v1.ScrapeResults, []*assetpb.Asset, error) {
-	if project == nil || project.Name == "" {
-		return nil, nil, fmt.Errorf("GCP project hierarchy root has no resource name")
-	}
-	projectMetadata, err := resourceManagerMetadataForName(project.Name)
-	if err != nil {
-		return nil, nil, err
+	var projectKey *v1.ConfigExternalKey
+	var expectedName string
+
+	if project != nil {
+		if project.Name == "" {
+			return nil, nil, fmt.Errorf("GCP project hierarchy root has no resource name")
+		}
+		projectMetadata, err := resourceManagerMetadataForName(project.Name)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// The project itself is emitted by the asset inventory loop (see the
+		// cloudresourcemanager.googleapis.com/Project mapping in types.go); link the
+		// deepest ancestor to it rather than emitting a second, conflicting result.
+		projectKey = &v1.ConfigExternalKey{
+			Type:       "GCP::" + projectMetadata.ConfigClass,
+			ExternalID: resourceManagerPrefix + projectMetadata.Name,
+		}
+		expectedName = project.Parent
+	} else if len(nodes) > 0 {
+		metadata, err := nodes[0].metadata()
+		if err != nil {
+			return nil, nil, err
+		}
+		expectedName = metadata.Name
 	}
 
-	// The project itself is emitted by the asset inventory loop (see the
-	// cloudresourcemanager.googleapis.com/Project mapping in types.go); link the
-	// deepest ancestor to it rather than emitting a second, conflicting result.
-	projectKey := v1.ConfigExternalKey{
-		Type:       "GCP::" + projectMetadata.ConfigClass,
-		ExternalID: resourceManagerPrefix + project.Name,
-	}
-
-	expectedName := project.Parent
 	var results v1.ScrapeResults
 	var policies []*assetpb.Asset
 	for i, node := range nodes {
@@ -138,8 +181,8 @@ func buildResourceManagerHierarchy(project *cloudresourcemanager.Project, nodes 
 		if result.Name == "" {
 			result.Name = metadata.Name
 		}
-		if i == 0 {
-			result.Children = []v1.ConfigExternalKey{projectKey}
+		if i == 0 && projectKey != nil {
+			result.Children = []v1.ConfigExternalKey{*projectKey}
 		}
 		if metadata.Parent != "" {
 			parentMetadata, err := resourceManagerMetadataForName(metadata.Parent)

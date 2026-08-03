@@ -11,6 +11,7 @@ import (
 	dutyCtx "github.com/flanksource/duty/context"
 	. "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/samber/lo"
 	cloudidentity "google.golang.org/api/cloudidentity/v1"
 	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v3"
 
@@ -159,6 +160,12 @@ func TestTraverseGroupNestedFetchError(t *testing.T) {
 	g.Expect(err).To(gomega.HaveOccurred())
 }
 
+// projectIAMScope is the scope of a project-rooted scrape with no reachable
+// organization, which is what most of these tests exercise.
+func projectIAMScope(project string) iamScope {
+	return scopeFor(v1.ProjectPrefix+project, "")
+}
+
 func iamPolicyAsset(name, assetType string, bindings ...*iampb.Binding) *assetpb.Asset {
 	return &assetpb.Asset{
 		Name:      name,
@@ -218,7 +225,7 @@ var _ = Describe("buildIAMAccess", func() {
 					"serviceAccount:" + principal,
 				}},
 			),
-		}, project)
+		}, projectIAMScope(project))
 
 		source := iamPolicySource
 		gomega.Expect(result.Access).To(gomega.ConsistOf(
@@ -249,25 +256,38 @@ var _ = Describe("fetch IAM policies", func() {
 			)
 
 			ctx := &GCPContext{ScrapeContext: api.NewScrapeContext(dutyCtx.New())}
-			results, groups, err := (Scraper{}).fetchIAMPolicies(ctx, v1.GCP{Project: projectID}, iamPolicyFetchers{
-				listAssets: func(*GCPContext, v1.GCP) ([]*assetpb.Asset, error) {
+			iamPolicy, err := (Scraper{}).fetchIAMPolicies(ctx, v1.GCP{Project: projectID}, v1.ProjectPrefix+projectID, iamPolicyFetchers{
+				listAssets: func(*GCPContext, v1.GCP, string) ([]*assetpb.Asset, error) {
 					return []*assetpb.Asset{iamPolicyAsset(
 						bucketID,
 						"storage.googleapis.com/Bucket",
 						&iampb.Binding{Role: role, Members: []string{"user:" + principal}},
 					)}, nil
 				},
-				fetchHierarchy: func(*GCPContext, v1.GCP) (*cloudresourcemanager.Project, []resourceManagerNode, error) {
-					return project, nil, hierarchyErr
+				fetchHierarchy: func(*GCPContext, v1.GCP, string) (resourceHierarchy, error) {
+					return resourceHierarchy{Project: project}, hierarchyErr
 				},
 				enrichRoles: func(*GCPContext, []v1.ScrapeResult) {},
 			})
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(groups).To(gomega.BeEmpty())
-			gomega.Expect(results).To(gomega.HaveLen(2))
+			gomega.Expect(iamPolicy.GroupEmails).To(gomega.BeEmpty())
+			// No organization is reachable here, so the tenant stays the project.
+			gomega.Expect(iamPolicy.Scope.Tenant).To(gomega.Equal(projectID))
+
+			// An unreadable hierarchy is surfaced as a scraper error, not just a log
+			// line, because it silently costs the organization and folder configs.
+			hierarchyErrors := lo.Filter(iamPolicy.Results, func(r v1.ScrapeResult, _ int) bool {
+				return r.Error != nil
+			})
+			gomega.Expect(hierarchyErrors).To(gomega.HaveLen(1))
+			gomega.Expect(hierarchyErrors[0].Error.Error()).To(gomega.ContainSubstring("resource hierarchy"))
+
 			source := iamPolicySource
-			gomega.Expect(results[1].ConfigAccess).To(gomega.Equal([]v1.ExternalConfigAccess{{
+			accesses := lo.FlatMap(iamPolicy.Results, func(r v1.ScrapeResult, _ int) []v1.ExternalConfigAccess {
+				return r.ConfigAccess
+			})
+			gomega.Expect(accesses).To(gomega.Equal([]v1.ExternalConfigAccess{{
 				ConfigExternalID:    v1.ExternalID{ConfigType: v1.GCSBucket, ExternalID: bucketID},
 				ExternalUserAliases: []string{principal},
 				ExternalRoleAliases: []string{role},
@@ -344,7 +364,7 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 		gomega.Expect(configs[1].Aliases).To(gomega.Equal([]string{organizationExternalID}))
 		gomega.Expect(configs[1].Children).To(gomega.BeEmpty())
 
-		access := buildIAMAccess(policies, projectID)
+		access := buildIAMAccess(policies, projectIAMScope(projectID))
 		gomega.Expect(accessKeyed(access.Access,
 			v1.ExternalID{ConfigType: "GCP::ResourceManager::Folder", ExternalID: folderExternalID},
 			principal, "roles/resourcemanager.folderViewer",
@@ -393,7 +413,7 @@ func TestBuildIAMAccess(t *testing.T) {
 		),
 	}
 
-	res := buildIAMAccess(assets, project)
+	res := buildIAMAccess(assets, projectIAMScope(project))
 
 	// One GCP::IAMRole config item per distinct bound role.
 	g.Expect(res.RoleConfigs).To(gomega.HaveLen(3), "expected one config item per distinct role")

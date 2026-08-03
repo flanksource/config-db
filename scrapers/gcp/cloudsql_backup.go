@@ -1,6 +1,7 @@
 package gcp
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,31 +15,8 @@ import (
 )
 
 // scrapeCloudSQLBackupsForAllInstances finds Cloud SQL instances in the results and scrapes their backups
-func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config v1.GCP, results v1.ScrapeResults) (v1.ScrapeResults, error) {
-	var instances []instanceInfo
-	for _, result := range results {
-		if result.Type == v1.CloudSQLInstance {
-			instanceName := result.Name
-			instanceSelfLink := ""
-
-			// Try to get the self link from the config.
-			// This will be used as the external ID to link back to the SQL instance config item.
-			if result.Config != nil {
-				if configStruct, ok := result.Config.(*structpb.Struct); ok {
-					if selfLinkField, exists := configStruct.Fields["selfLink"]; exists {
-						instanceSelfLink = selfLinkField.GetStringValue()
-					}
-				}
-			}
-
-			if instanceSelfLink == "" {
-				instanceSelfLink = result.ID
-			}
-
-			instances = append(instances, instanceInfo{name: instanceName, selfLink: instanceSelfLink})
-		}
-	}
-
+func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config v1.GCP, parent string, results v1.ScrapeResults) (v1.ScrapeResults, error) {
+	instances := collectSQLInstances(results, projectFromParent(parent))
 	if len(instances) == 0 {
 		return nil, nil
 	}
@@ -59,8 +37,8 @@ func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config 
 		}
 	}
 
-	if operationChanges, err := gcp.scrapeOperations(ctx, config, sqlService, instances); err != nil {
-		scrapeResults.Errorf(err, "failed to scrape operations for project %s", config.Project)
+	if operationChanges, err := gcp.scrapeOperations(ctx, sqlService, instances); err != nil {
+		scrapeResults.Errorf(err, "failed to scrape Cloud SQL operations for %s", config.Scope())
 	} else {
 		allChanges = append(allChanges, operationChanges...)
 	}
@@ -77,6 +55,64 @@ func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config 
 type instanceInfo struct {
 	name     string
 	selfLink string
+	// project owns the instance. An organization-scoped scrape spans many
+	// projects, and Cloud SQL operations are listed one project at a time.
+	project string
+}
+
+// collectSQLInstances picks the Cloud SQL instances out of already-scraped
+// results, attributing each to its owning project and falling back to the
+// configured project when an asset carries no project tag.
+func collectSQLInstances(results v1.ScrapeResults, fallbackProject string) []instanceInfo {
+	var instances []instanceInfo
+	for _, result := range results {
+		if result.Type != v1.CloudSQLInstance {
+			continue
+		}
+
+		instanceSelfLink := ""
+
+		// Try to get the self link from the config.
+		// This will be used as the external ID to link back to the SQL instance config item.
+		if result.Config != nil {
+			if configStruct, ok := result.Config.(*structpb.Struct); ok {
+				if selfLinkField, exists := configStruct.Fields["selfLink"]; exists {
+					instanceSelfLink = selfLinkField.GetStringValue()
+				}
+			}
+		}
+
+		if instanceSelfLink == "" {
+			instanceSelfLink = result.ID
+		}
+
+		project := result.Tags["project"]
+		if project == "" {
+			project = fallbackProject
+		}
+
+		instances = append(instances, instanceInfo{
+			name:     result.Name,
+			selfLink: instanceSelfLink,
+			project:  project,
+		})
+	}
+
+	return instances
+}
+
+// instancesByProject groups instances by owning project so operations are listed
+// once per project. Instances with no resolvable project are dropped rather than
+// triggering a call against an empty project id.
+func instancesByProject(instances []instanceInfo) map[string][]instanceInfo {
+	grouped := make(map[string][]instanceInfo)
+	for _, instance := range instances {
+		if instance.project == "" {
+			continue
+		}
+		grouped[instance.project] = append(grouped[instance.project], instance)
+	}
+	return grouped
 }
 
 // scrapeBackupRuns scrapes Cloud SQL backup runs for a specific instance
@@ -127,9 +163,26 @@ func (gcp Scraper) scrapeBackupRuns(ctx *GCPContext, results v1.ScrapeResults, i
 	return changes, nil
 }
 
-// scrapeOperations scrapes Cloud SQL import/export operations for all instances
-func (gcp Scraper) scrapeOperations(ctx *GCPContext, config v1.GCP, service *sqladmin.Service, instances []instanceInfo) ([]v1.ChangeResult, error) {
-	ctx.Logger.V(3).Infof("scraping operations for project %s", config.Project)
+// scrapeOperations scrapes Cloud SQL import/export operations for all instances,
+// one call per project that owns an instance.
+func (gcp Scraper) scrapeOperations(ctx *GCPContext, service *sqladmin.Service, instances []instanceInfo) ([]v1.ChangeResult, error) {
+	var changes []v1.ChangeResult
+	var errs []error
+
+	for project, projectInstances := range instancesByProject(instances) {
+		projectChanges, err := gcp.scrapeProjectOperations(ctx, service, project, projectInstances)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		changes = append(changes, projectChanges...)
+	}
+
+	return changes, errors.Join(errs...)
+}
+
+func (gcp Scraper) scrapeProjectOperations(ctx *GCPContext, service *sqladmin.Service, project string, instances []instanceInfo) ([]v1.ChangeResult, error) {
+	ctx.Logger.V(3).Infof("scraping operations for project %s", project)
 
 	instanceMap := make(map[string]string) // instanceName -> selfLink
 	for _, instance := range instances {
@@ -138,7 +191,7 @@ func (gcp Scraper) scrapeOperations(ctx *GCPContext, config v1.GCP, service *sql
 
 	var changes []v1.ChangeResult
 
-	operationsCall := service.Operations.List(config.Project)
+	operationsCall := service.Operations.List(project)
 	err := operationsCall.Pages(ctx, func(operationsResp *sqladmin.OperationsListResponse) error {
 		for _, operation := range operationsResp.Items {
 			if operation.OperationType != "IMPORT" && operation.OperationType != "EXPORT" {
@@ -181,7 +234,7 @@ func (gcp Scraper) scrapeOperations(ctx *GCPContext, config v1.GCP, service *sql
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list operations: %w", err)
+		return nil, fmt.Errorf("failed to list operations for project %s: %w", project, err)
 	}
 
 	return changes, nil
