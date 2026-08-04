@@ -64,9 +64,10 @@ func tableUpdatesHandler(ctx dutyContext.Context) {
 	go notifyRouter.Run(ctx, "table_activity")
 
 	pluginUpdates := notifyRouter.GetOrCreateChannel("scrape_plugins")
-	// Alias changes can arrive in bursts during a merge. Signal mode squashes
-	// them into a single cache refresh instead of repeatedly warming the table.
-	aliasUpdates := notifyRouter.GetOrCreateBufferedChannel(0, "external_user_aliases")
+	// Source aliases and derived-index rows can change together during a merge.
+	// Route both notifications through one signal-mode channel so bursts collapse
+	// into a single source-of-truth cache refresh.
+	aliasUpdates := notifyRouter.GetOrCreateBufferedChannel(0, "external_users", "external_user_aliases")
 
 	for {
 		select {

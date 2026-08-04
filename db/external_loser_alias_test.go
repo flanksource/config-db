@@ -94,6 +94,23 @@ var _ = Describe("merge_and_upsert_external_users loser id alias migration", fun
 			)
 		}
 
+		if hasAliasIndex, err := externalUserAliasTableExists(DefaultContext.DB()); err == nil && hasAliasIndex {
+			migratedAlias := sharedAlias
+			if lo.Contains(losers, winnerID) {
+				migratedAlias = winnerAlias
+			}
+			var mergedAlias struct {
+				ExternalUserID uuid.UUID
+				Source         string
+			}
+			Expect(DefaultContext.DB().Table("external_user_aliases").
+				Select("external_user_id, source").
+				Where("alias = ? AND deleted_at IS NULL", migratedAlias).
+				Take(&mergedAlias).Error).NotTo(HaveOccurred())
+			Expect(mergedAlias.ExternalUserID).To(Equal(survivorID))
+			Expect(mergedAlias.Source).To(Equal("merge"))
+		}
+
 		// And the helper should resolve the loser id back to the survivor.
 		// Bypass the id-cache by deleting any stale entry for the loser.
 		for _, lid := range losers {

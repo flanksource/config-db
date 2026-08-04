@@ -300,10 +300,11 @@ func findCachedExternalUserIDs(keys []string) []uuid.UUID {
 	return ids
 }
 
-// applyExternalUserAliasMapping gives durable mappings precedence over the
-// scraper-provided UUID. This is what prevents a merged external identity from
-// being recreated by a later scrape which still emits the duplicate's old ID.
-// If no ID or emitted alias has a mapping, email becomes the fallback alias.
+// applyExternalUserAliasMapping resolves scraper keys through the normalized
+// index derived from external_users.aliases before considering a new user ID.
+// Historical IDs stored in the winner's aliases array therefore prevent a
+// merged identity from being recreated. If no ID or explicit alias resolves,
+// email becomes the fallback alias.
 func applyExternalUserAliasMapping(ctx api.ScrapeContext, user *dutyModels.ExternalUser) error {
 	originalID := user.ID
 	lookupKeys := append([]string(nil), user.Aliases...)
@@ -311,9 +312,9 @@ func applyExternalUserAliasMapping(ctx api.ScrapeContext, user *dutyModels.Exter
 		lookupKeys = append([]string{originalID.String()}, lookupKeys...)
 	}
 
-	// Warmed mappings make the normal scrape path cache-only. A DB lookup is
-	// retained for new aliases and short-lived races before a notification has
-	// refreshed the process cache.
+	// Warmed source aliases and their derived index make the normal scrape path
+	// cache-only. A DB lookup covers new aliases and short-lived notification
+	// races.
 	mappedIDs := findCachedExternalUserIDs(lookupKeys)
 	var err error
 	if len(mappedIDs) == 0 {
@@ -327,7 +328,7 @@ func applyExternalUserAliasMapping(ctx api.ScrapeContext, user *dutyModels.Exter
 	}
 
 	// Email is intentionally weaker than a provider ID or explicit alias. It
-	// only participates when none of those keys has a durable mapping.
+	// only participates when none of those keys resolves to a source alias.
 	if len(mappedIDs) == 0 && user.Email != nil {
 		email := v1.NormalizeExternalID(*user.Email)
 		if email != "" {

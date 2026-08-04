@@ -148,6 +148,10 @@ func warmExternalEntityCache(ctx dutycontext.Context, table string, aliasCache, 
 	return len(rows)
 }
 
+// warmExternalUserAliasMappings loads the normalized lookup index, but only
+// for aliases still present in the owning external_users.aliases source array.
+// This guard keeps an inconsistent or stale index row from changing identity
+// resolution.
 func warmExternalUserAliasMappings(ctx dutycontext.Context) int {
 	exists, err := externalUserAliasTableExists(ctx.DB())
 	if err != nil {
@@ -161,7 +165,12 @@ func warmExternalUserAliasMappings(ctx dutycontext.Context) int {
 	var mappings []externalUserAliasMapping
 	if err := ctx.DB().Table("external_user_aliases eua").
 		Select("eua.external_user_id, eua.alias").
-		Joins("JOIN external_users eu ON eu.id = eua.external_user_id AND eu.deleted_at IS NULL").
+		Joins(`JOIN external_users eu ON eu.id = eua.external_user_id
+			AND eu.deleted_at IS NULL
+			AND EXISTS (
+				SELECT 1 FROM unnest(COALESCE(eu.aliases, '{}'::text[])) AS a
+				WHERE lower(btrim(a)) = eua.alias
+			)`).
 		Where("eua.deleted_at IS NULL").
 		Find(&mappings).Error; err != nil {
 		logger.Errorf("failed to warm external_user_aliases cache: %v", err)
@@ -276,9 +285,10 @@ func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uu
 }
 
 // findExternalUserIDsInAliasMapping resolves normalized keys through the
-// durable mapping table. It is kept separate from aliases-array lookup so
-// manual mappings can take precedence while rolling upgrades can still run
-// against a Duty schema that does not have the table yet.
+// derived lookup index. external_users.aliases remains the source of truth, so
+// index rows are accepted only while their alias is still present in that
+// array. The separate lookup preserves rolling compatibility with Duty schemas
+// that do not have the index table yet.
 func findExternalUserIDsInAliasMapping(ctx api.ScrapeContext, aliases []string) ([]uuid.UUID, error) {
 	exists, err := externalUserAliasTableExists(ctx.DB())
 	if err != nil {
@@ -296,7 +306,12 @@ func findExternalUserIDsInAliasMapping(ctx api.ScrapeContext, aliases []string) 
 	var mappings []externalUserAliasMapping
 	if err := ctx.DB().Table("external_user_aliases eua").
 		Select("eua.external_user_id, eua.alias").
-		Joins("JOIN external_users eu ON eu.id = eua.external_user_id AND eu.deleted_at IS NULL").
+		Joins(`JOIN external_users eu ON eu.id = eua.external_user_id
+			AND eu.deleted_at IS NULL
+			AND EXISTS (
+				SELECT 1 FROM unnest(COALESCE(eu.aliases, '{}'::text[])) AS a
+				WHERE lower(btrim(a)) = eua.alias
+			)`).
 		Where("eua.deleted_at IS NULL AND eua.alias IN ?", normalized).
 		Find(&mappings).Error; err != nil {
 		return nil, fmt.Errorf("query external user alias mappings: %w", err)
@@ -358,8 +373,8 @@ func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeCon
 				seen[id] = true
 			}
 
-			// Mapping rows are authoritative. Only unresolved keys should fall
-			// back to the compatibility aliases array.
+			// The mapping table is a normalized index of external_users.aliases.
+			// Only keys absent from that index need the array-overlap fallback.
 			unmapped := misses[:0]
 			for _, alias := range misses {
 				if _, ok := aliasCache.Get(alias); !ok {

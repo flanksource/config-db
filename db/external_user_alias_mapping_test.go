@@ -17,6 +17,7 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 	var canonicalID uuid.UUID
 	var historicalID uuid.UUID
 	var mappingIDs []uuid.UUID
+	var staleAlias string
 	var ctx api.ScrapeContext
 
 	BeforeAll(func() {
@@ -40,22 +41,48 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 		canonicalID = uuid.New()
 		historicalID = uuid.New()
 		canonical := dutymodels.ExternalUser{
-			ID:        canonicalID,
-			Name:      "canonical mapped user",
-			Aliases:   pq.StringArray{"github://canonical-user"},
+			ID:   canonicalID,
+			Name: "canonical mapped user",
+			Aliases: pq.StringArray{
+				"github://canonical-user",
+				"github://old-user",
+				historicalID.String(),
+			},
 			UserType:  "user",
 			CreatedAt: time.Now(),
 		}
 		Expect(DefaultContext.DB().Create(&canonical).Error).NotTo(HaveOccurred())
 
 		for _, alias := range []string{historicalID.String(), "github://old-user"} {
-			mappingID := uuid.New()
+			var mappingID uuid.UUID
+			if tableCreated {
+				mappingID = uuid.New()
+				Expect(DefaultContext.DB().Exec(`
+					INSERT INTO external_user_aliases (id, external_user_id, alias, source)
+					VALUES (?, ?, ?, 'merge')
+				`, mappingID, canonicalID, alias).Error).NotTo(HaveOccurred())
+			} else {
+				var existing struct{ ID uuid.UUID }
+				Expect(DefaultContext.DB().Table("external_user_aliases").
+					Select("id").
+					Where("external_user_id = ? AND alias = ? AND deleted_at IS NULL", canonicalID, alias).
+					Take(&existing).Error).NotTo(HaveOccurred())
+				mappingID = existing.ID
+				Expect(mappingID).NotTo(Equal(uuid.Nil))
+			}
 			mappingIDs = append(mappingIDs, mappingID)
-			Expect(DefaultContext.DB().Exec(`
-				INSERT INTO external_user_aliases (id, external_user_id, alias, source)
-				VALUES (?, ?, ?, 'merge')
-			`, mappingID, canonicalID, alias).Error).NotTo(HaveOccurred())
 		}
+
+		// Simulate a stale derived-index row. Resolution must ignore it because
+		// the alias is not present in external_users.aliases.
+		staleAlias = "github://stale-index-only"
+		staleMappingID := uuid.New()
+		mappingIDs = append(mappingIDs, staleMappingID)
+		Expect(DefaultContext.DB().Exec(`
+			INSERT INTO external_user_aliases (id, external_user_id, alias, source)
+			VALUES (?, ?, ?, 'merge')
+		`, staleMappingID, canonicalID, staleAlias).Error).NotTo(HaveOccurred())
+
 		ExternalUserCache.Flush()
 		ExternalUserIDCache.Flush()
 	})
@@ -78,6 +105,21 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 		mappedByID, ok := ExternalUserIDCache.Get(historicalID.String())
 		Expect(ok).To(BeTrue())
 		Expect(mappedByID).To(Equal(canonicalID))
+	})
+
+	It("ignores a lookup-index row missing from the source aliases array", func() {
+		RefreshExternalUserCaches(DefaultContext)
+		_, ok := ExternalUserCache.Get(staleAlias)
+		Expect(ok).To(BeFalse())
+
+		candidateID := uuid.New()
+		user := dutymodels.ExternalUser{
+			ID:      candidateID,
+			Name:    "stale index candidate",
+			Aliases: pq.StringArray{staleAlias},
+		}
+		Expect(applyExternalUserAliasMapping(ctx, &user)).To(Succeed())
+		Expect(user.ID).To(Equal(candidateID))
 	})
 
 	It("rewrites a scraper-provided historical ID to the canonical user", func() {
