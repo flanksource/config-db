@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ type BigQueryRow struct {
 	Email          string    `bigquery:"email"`
 	Permission     string    `bigquery:"permission"`
 	PermissionType string    `bigquery:"permission_type"`
+	ProjectID      string    `bigquery:"project_id"`
 	Timestamp      time.Time `bigquery:"timestamp"`
 }
 
@@ -101,19 +103,25 @@ func buildAuditLogQuery(auditLogs v1.GCPAuditLogs) (string, []bigquery.QueryPara
 WITH auth as (
   select  
     timestamp,
-    proto_payload.audit_log,
     proto_payload.audit_log.service_name as service_name,
-    proto_payload.audit_log.authentication_info.principal_email as email,  
-    proto_payload.audit_log.authorization_info[0].permission_type AS permission_type,
-    proto_payload.audit_log.authorization_info[0].permission AS permission
-  FROM `+"`%s`"+`
+    proto_payload.audit_log.authentication_info.principal_email as email,
+    authorization.permission_type AS permission_type,
+    authorization.permission AS permission,
+    COALESCE(
+      NULLIF(JSON_VALUE(TO_JSON(resource.labels), '$.project_id'), ''),
+      REGEXP_EXTRACT(authorization.resource, r'(?:^|/)projects/([^/]+)'),
+      REGEXP_EXTRACT(log_name, r'(?:^|/)projects/([^/]+)'),
+      ''
+    ) AS project_id
+  FROM `+"`%s`"+`,
+  UNNEST(proto_payload.audit_log.authorization_info) AS authorization
   Where %s
 ) 
 
-SELECT email, permission, permission_type, max(timestamp) as timestamp
+SELECT email, permission, permission_type, project_id, max(timestamp) as timestamp
 from auth 
 %s
-group by email, permission, permission_type
+group by email, permission, permission_type, project_id
 `, auditLogs.Dataset, cteWhereClause, outerWhereClause)
 
 	finalArgs := append(cteArgs, outerArgs...)
@@ -124,9 +132,33 @@ group by email, permission, permission_type
 	return finalQuery, args, nil
 }
 
-// FetchAuditLogs fetches external roles and config accesses from BigQuery audit logs
-func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP, project string) (v1.ScrapeResults, error) {
-	bqClient, err := bigquery.NewClient(ctx, project, ctx.ClientOpts...)
+// auditLogAffectedProject resolves the project affected by a log row. Project
+// roots restrict an aggregated sink to the selected scrape scope; an
+// organization root means every affected project is allowed. Rows without an
+// affected project are skipped rather than attributed to the dataset project.
+func auditLogAffectedProject(row BigQueryRow, parents []string) (string, bool) {
+	var scopedProjects []string
+	for _, parent := range parents {
+		if project := projectFromParent(parent); project != "" {
+			scopedProjects = append(scopedProjects, project)
+		}
+	}
+
+	project := strings.TrimPrefix(row.ProjectID, v1.ProjectPrefix)
+	if project == "" {
+		return "", false
+	}
+	if len(scopedProjects) > 0 && !slices.Contains(scopedProjects, project) {
+		return "", false
+	}
+	return project, true
+}
+
+// FetchAuditLogs fetches external roles and config accesses from BigQuery audit
+// logs. datasetProject is only the BigQuery transport/billing project; each row
+// is attached to the project affected by the underlying audit event.
+func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP, datasetProject string, parents []string) (v1.ScrapeResults, error) {
+	bqClient, err := bigquery.NewClient(ctx, datasetProject, ctx.ClientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BigQuery client: %w", err)
 	}
@@ -162,15 +194,21 @@ func (gcp Scraper) FetchAuditLogs(ctx *GCPContext, config v1.GCP, project string
 			return nil, fmt.Errorf("failed to read BigQuery row: %w", err)
 		}
 
-		// All the audit logs are attached to the project config.
-		var resourceID v1.ExternalID
-		resourceID.ExternalID = fmt.Sprintf("https://www.googleapis.com/compute/v1/projects/%s", project)
-		resourceID.ConfigType = "GCP::Compute::Project"
+		affectedProject, ok := auditLogAffectedProject(row, parents)
+		if !ok {
+			ctx.Warnf("gcp audit logs: skipping access with unresolved or out-of-scope project %q", row.ProjectID)
+			continue
+		}
+
+		resourceID := v1.ExternalID{
+			ExternalID: fmt.Sprintf("https://www.googleapis.com/compute/v1/projects/%s", affectedProject),
+			ConfigType: v1.GCPProject,
+		}
 
 		uniquePermissions.Insert(row.Permission)
 
 		configAccesses = append(configAccesses, v1.ExternalConfigAccess{
-			ID:               generateConsistentID(fmt.Sprintf("%s::%s::%s::%s", project, row.Email, row.Permission, row.PermissionType)).String(),
+			ID:               generateConsistentID(fmt.Sprintf("%s::%s::%s::%s", affectedProject, row.Email, row.Permission, row.PermissionType)).String(),
 			ExternalUserID:   lo.ToPtr(generateConsistentID(row.Email)),
 			ExternalRoleID:   lo.ToPtr(generateConsistentID(row.Permission)),
 			OwnerScraperID:   ctx.ScrapeConfig().GetPersistedID(),

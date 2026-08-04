@@ -1,11 +1,17 @@
 package gcp
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+
+	"github.com/flanksource/config-db/api"
+	v1 "github.com/flanksource/config-db/api/v1"
+	dutyContext "github.com/flanksource/duty/context"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"google.golang.org/api/option"
 	"google.golang.org/protobuf/types/known/structpb"
-
-	v1 "github.com/flanksource/config-db/api/v1"
 )
 
 func sqlInstanceResult(name, selfLink, project string) v1.ScrapeResult {
@@ -54,6 +60,55 @@ var _ = Describe("collectSQLInstances", func() {
 
 		Expect(instances).To(HaveLen(1))
 		Expect(instances[0].selfLink).To(Equal("instance-id"))
+	})
+})
+
+var _ = Describe("Cloud SQL operation partial results", func() {
+	It("keeps successful project changes when another project fails", func() {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case strings.Contains(r.URL.Path, "/projects/gcp-proj-1/operations"):
+				_, _ = w.Write([]byte(`{"items":[{"name":"operation-a","operationType":"EXPORT","status":"DONE","targetId":"db-a","startTime":"2025-06-19T12:00:00Z"}]}`))
+			case strings.Contains(r.URL.Path, "/projects/gcp-proj-2/operations"):
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"error":{"code":403,"message":"permission denied"}}`))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":{"code":404,"message":"not found"}}`))
+			}
+		}))
+		defer server.Close()
+
+		ctx := &GCPContext{
+			ScrapeContext: api.NewScrapeContext(dutyContext.New()),
+			ClientOpts: []option.ClientOption{
+				option.WithEndpoint(server.URL + "/"),
+				option.WithoutAuthentication(),
+			},
+		}
+		assets := v1.ScrapeResults{
+			sqlInstanceResult("db-a", "https://sqladmin/instances/db-a", "gcp-proj-1"),
+			sqlInstanceResult("db-b", "https://sqladmin/instances/db-b", "gcp-proj-2"),
+		}
+
+		results, err := (Scraper{}).scrapeCloudSQLBackupsForAllInstances(ctx, v1.GCP{
+			Projects: []string{"gcp-proj-1", "gcp-proj-2"},
+		}, "organizations/1234", assets)
+
+		Expect(err).ToNot(HaveOccurred())
+		var changes []v1.ChangeResult
+		var errors int
+		for _, result := range results {
+			changes = append(changes, result.Changes...)
+			if result.Error != nil {
+				errors++
+				Expect(result.Error.Error()).To(ContainSubstring("gcp-proj-2"))
+			}
+		}
+		Expect(errors).To(Equal(1))
+		Expect(changes).To(HaveLen(1))
+		Expect(changes[0].ExternalChangeID).To(Equal("operation-a"))
 	})
 })
 

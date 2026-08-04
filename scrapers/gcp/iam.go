@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	asset "cloud.google.com/go/asset/apiv1"
@@ -51,41 +52,34 @@ func parseGCPMember(member string) (gcpPrincipal, bool) {
 	return gcpPrincipal{}, false
 }
 
-// iamScope identifies the account an IAM scrape is rooted at.
+// iamScope identifies the tenant an IAM scrape belongs to and the stable config
+// parent used for global predefined roles.
 type iamScope struct {
 	// Tenant is stamped on every discovered identity as its account_id. It is
 	// the organization whenever one is reachable, so the same principal resolves
 	// to one account across every project it appears in.
 	Tenant string
-	// Project is the configured project id, empty for organization-scoped scrapes.
-	Project string
-	// Root owns roles that belong to neither a single project nor a single
-	// organization, i.e. GCP's predefined roles.
-	Root v1.ConfigExternalKey
+	Root   v1.ConfigExternalKey
 }
 
-// scopeFor resolves the scope of one asset-inventory root. organization may be
-// empty, in which case a project falls back to tenanting by itself.
+// scopeFor resolves one asset-inventory root. When an organization is known it
+// is also the stable role root for every narrowed project pass; otherwise the
+// project is used for backward compatibility.
 func scopeFor(parent, organization string) iamScope {
-	project := projectFromParent(parent)
-	scope := iamScope{
-		Tenant:  project,
-		Project: project,
-		Root:    v1.ConfigExternalKey{Type: v1.GCPProject, ExternalID: project},
-	}
-
 	if organization != "" {
-		scope.Tenant = organization
-	}
-
-	if project == "" {
-		scope.Root = v1.ConfigExternalKey{
-			Type:       "GCP::" + organizationConfigClass,
-			ExternalID: resourceManagerPrefix + organizationPrefix + organization,
+		return iamScope{
+			Tenant: organization,
+			Root: v1.ConfigExternalKey{
+				Type:       "GCP::" + organizationConfigClass,
+				ExternalID: resourceManagerPrefix + organizationPrefix + organization,
+			},
 		}
 	}
-
-	return scope
+	project := projectFromParent(parent)
+	return iamScope{
+		Tenant: project,
+		Root:   v1.ConfigExternalKey{Type: v1.GCPProject, ExternalID: project},
+	}
 }
 
 // resolveOrganization finds the organization identities should be tenanted by,
@@ -115,7 +109,8 @@ type iamAccessResult struct {
 	Access []v1.ExternalConfigAccess
 	// GroupEmails are the real Google-group emails eligible for membership
 	// expansion (excludes domain / all-users pseudo-principals).
-	GroupEmails []string
+	GroupEmails                []string
+	SkippedConditionalBindings int
 }
 
 // buildIAMAccess collapses IAM policy bindings across all assets into role
@@ -138,6 +133,10 @@ func buildIAMAccess(assets []*assetpb.Asset, scope iamScope) iamAccessResult {
 		resourceType := fmt.Sprintf("GCP::%s", parseGCPConfigClass(a.AssetType))
 
 		for _, binding := range a.IamPolicy.Bindings {
+			if binding == nil {
+				continue
+			}
+
 			role := binding.Role
 			if role == "" {
 				continue
@@ -154,6 +153,15 @@ func buildIAMAccess(assets []*assetpb.Asset, scope iamScope) iamAccessResult {
 					Tenant:   scope.Tenant,
 					RoleType: roleType(role),
 				})
+			}
+
+			// ConfigAccess has no condition model, and IAM conditions can depend on
+			// request-time attributes that cannot be evaluated during a scrape. Do
+			// not turn a conditional grant into an unconditional one. The role
+			// definition remains discoverable, but all grant-derived edges are omitted.
+			if binding.Condition != nil {
+				res.SkippedConditionalBindings++
+				continue
 			}
 
 			if rrKey := role + "\x00" + resourceType + "\x00" + a.Name; !contains(seenRoleResource, rrKey) {
@@ -232,9 +240,9 @@ func contains(set map[string]struct{}, key string) bool {
 // a non-nil map so the item is a real config (not metadata-only); enrichRoleConfigs
 // augments it with the role's title / permissions from the IAM Admin API.
 //
-// A custom role names the project or organization that defines it, and is
-// parented there. Predefined roles belong to no single resource and hang off the
-// scrape root.
+// A custom role names the project or organization that defines it and is
+// parented there. Predefined roles are global, so every project pass uses the
+// same organization root when one is known.
 func newRoleConfig(role string, scope iamScope) v1.ScrapeResult {
 	kind := "custom"
 	if strings.HasPrefix(role, "roles/") {
@@ -257,10 +265,6 @@ func newRoleConfig(role string, scope iamScope) v1.ScrapeResult {
 			Type:       "GCP::" + organizationConfigClass,
 			ExternalID: resourceManagerPrefix + organizationPrefix + id,
 		}
-	default:
-		if scope.Project != "" {
-			config["project"] = scope.Project
-		}
 	}
 
 	result := v1.ScrapeResult{
@@ -276,6 +280,83 @@ func newRoleConfig(role string, scope iamScope) v1.ScrapeResult {
 	}
 
 	return result
+}
+
+// coalesceIAMRoleConfigs merges roles emitted by separate project roots. A
+// narrowed organization scrape can encounter the same predefined role in every
+// project; persisting those copies independently makes the final config depend
+// on project iteration order and can lose role-to-resource relationships.
+func coalesceIAMRoleConfigs(results v1.ScrapeResults) v1.ScrapeResults {
+	coalesced := make(v1.ScrapeResults, 0, len(results))
+	roleIndex := make(map[string]int)
+
+	for _, result := range results {
+		if result.Type != v1.IAMRole || result.ID == "" {
+			coalesced = append(coalesced, result)
+			continue
+		}
+
+		key := result.Type + "\x00" + v1.NormalizeExternalID(result.ID)
+		idx, found := roleIndex[key]
+		if !found {
+			roleIndex[key] = len(coalesced)
+			coalesced = append(coalesced, result)
+			continue
+		}
+
+		existing := &coalesced[idx]
+		for _, alias := range result.Aliases {
+			if !slices.Contains(existing.Aliases, alias) {
+				existing.Aliases = append(existing.Aliases, alias)
+			}
+		}
+		for _, parent := range result.Parents {
+			if !slices.Contains(existing.Parents, parent) {
+				existing.Parents = append(existing.Parents, parent)
+			}
+		}
+		for _, child := range result.Children {
+			if !slices.Contains(existing.Children, child) {
+				existing.Children = append(existing.Children, child)
+			}
+		}
+		for _, relationship := range result.RelationshipResults {
+			if !slices.ContainsFunc(existing.RelationshipResults, func(current v1.RelationshipResult) bool {
+				return relationshipResultKey(current) == relationshipResultKey(relationship)
+			}) {
+				existing.RelationshipResults = append(existing.RelationshipResults, relationship)
+			}
+		}
+
+		if existing.Description == "" {
+			existing.Description = result.Description
+		}
+		if target, ok := existing.Config.(map[string]any); ok {
+			if source, ok := result.Config.(map[string]any); ok {
+				for name, value := range source {
+					if _, found := target[name]; !found {
+						target[name] = value
+					}
+				}
+			}
+		}
+	}
+
+	return coalesced
+}
+
+func relationshipResultKey(relationship v1.RelationshipResult) string {
+	return strings.Join([]string{
+		relationship.ConfigID,
+		relationship.ConfigExternalID.ConfigType,
+		relationship.ConfigExternalID.ExternalID,
+		relationship.ConfigExternalID.ScraperID,
+		relationship.RelatedConfigID,
+		relationship.RelatedExternalID.ConfigType,
+		relationship.RelatedExternalID.ExternalID,
+		relationship.RelatedExternalID.ScraperID,
+		relationship.Relationship,
+	}, "\x00")
 }
 
 // roleOwner returns the kind of resource that defines a custom role and its id,
@@ -370,13 +451,20 @@ func (Scraper) fetchIAMPolicies(ctx *GCPContext, config v1.GCP, parent string, f
 		results = append(results, access.RoleConfigs[i])
 	}
 
-	results = append(results, v1.ScrapeResult{
+	accessResult := v1.ScrapeResult{
 		BaseScraper:    config.BaseScraper,
 		ExternalRoles:  access.Roles,
 		ExternalUsers:  access.Users,
 		ExternalGroups: access.Groups,
 		ConfigAccess:   access.Access,
-	})
+	}
+	if access.SkippedConditionalBindings > 0 {
+		accessResult.Warnings = append(accessResult.Warnings, v1.Warning{
+			Error: "conditional GCP IAM bindings cannot be modeled and were omitted from effective access",
+			Count: access.SkippedConditionalBindings,
+		})
+	}
+	results = append(results, accessResult)
 
 	return iamPolicyResult{Results: results, Scope: scope, GroupEmails: access.GroupEmails}, nil
 }

@@ -1,6 +1,8 @@
 package gcp
 
 import (
+	"fmt"
+
 	"cloud.google.com/go/asset/apiv1/assetpb"
 	"cloud.google.com/go/iam/apiv1/iampb"
 	. "github.com/onsi/ginkgo/v2"
@@ -10,30 +12,18 @@ import (
 )
 
 var _ = Describe("scopeFor", func() {
-	It("tenants by organization when one is known", func() {
+	It("tenants and roots roles by organization when one is known", func() {
 		scope := scopeFor("projects/gcp-proj-1", "1234")
 		Expect(scope.Tenant).To(Equal("1234"))
-		Expect(scope.Project).To(Equal("gcp-proj-1"))
-	})
-
-	It("falls back to the project when no organization is known", func() {
-		scope := scopeFor("projects/gcp-proj-1", "")
-		Expect(scope.Tenant).To(Equal("gcp-proj-1"))
-		Expect(scope.Project).To(Equal("gcp-proj-1"))
-	})
-
-	It("roots an organization parent at the organization", func() {
-		scope := scopeFor("organizations/1234", "1234")
-		Expect(scope.Tenant).To(Equal("1234"))
-		Expect(scope.Project).To(BeEmpty())
 		Expect(scope.Root).To(Equal(v1.ConfigExternalKey{
 			Type:       "GCP::ResourceManager::Organization",
 			ExternalID: "//cloudresourcemanager.googleapis.com/organizations/1234",
 		}))
 	})
 
-	It("roots a project parent at the project", func() {
-		scope := scopeFor("projects/gcp-proj-1", "1234")
+	It("falls back to the project when no organization is known", func() {
+		scope := scopeFor("projects/gcp-proj-1", "")
+		Expect(scope.Tenant).To(Equal("gcp-proj-1"))
 		Expect(scope.Root).To(Equal(v1.ConfigExternalKey{
 			Type:       v1.GCPProject,
 			ExternalID: "gcp-proj-1",
@@ -79,13 +69,7 @@ var _ = Describe("fetchResourceManagerHierarchy salvage", func() {
 })
 
 var _ = Describe("newRoleConfig", func() {
-	orgScope := iamScope{
-		Tenant: "1234",
-		Root: v1.ConfigExternalKey{
-			Type:       "GCP::ResourceManager::Organization",
-			ExternalID: "//cloudresourcemanager.googleapis.com/organizations/1234",
-		},
-	}
+	orgScope := scopeFor("projects/gcp-proj-1", "1234")
 
 	It("parents a project custom role to its own project", func() {
 		role := newRoleConfig("projects/gcp-proj-7/roles/customViewer", orgScope)
@@ -105,12 +89,14 @@ var _ = Describe("newRoleConfig", func() {
 		Expect(role.Config).To(HaveKeyWithValue("organization", "9999"))
 	})
 
-	It("parents a predefined role to the scrape root", func() {
+	It("parents a predefined role consistently to the organization", func() {
 		role := newRoleConfig("roles/storage.admin", orgScope)
 		Expect(role.Parents).To(ConsistOf(orgScope.Root))
+		Expect(role.Config).ToNot(HaveKey("project"))
+		Expect(role.Config).ToNot(HaveKey("organization"))
 	})
 
-	It("never emits an empty parent external id when org-scoped", func() {
+	It("never emits an empty parent external id", func() {
 		for _, id := range []string{"roles/viewer", "organizations/1234/roles/x", "projects/p/roles/y"} {
 			role := newRoleConfig(id, orgScope)
 			for _, parent := range role.Parents {
@@ -120,13 +106,42 @@ var _ = Describe("newRoleConfig", func() {
 	})
 })
 
+var _ = Describe("coalesceIAMRoleConfigs", func() {
+	It("merges a predefined role emitted by multiple project roots", func() {
+		scope := scopeFor("projects/gcp-proj-1", "1234")
+		roleA := newRoleConfig("roles/viewer", scope)
+		roleA.RelationshipResults = append(roleA.RelationshipResults, v1.RelationshipResult{
+			ConfigExternalID:  v1.ExternalID{ConfigType: v1.IAMRole, ExternalID: "roles/viewer"},
+			RelatedExternalID: v1.ExternalID{ConfigType: v1.GCSBucket, ExternalID: "bucket-a"},
+			Relationship:      "IAMBinding",
+		})
+		roleB := newRoleConfig("roles/viewer", scope)
+		roleB.RelationshipResults = append(roleB.RelationshipResults, v1.RelationshipResult{
+			ConfigExternalID:  v1.ExternalID{ConfigType: v1.IAMRole, ExternalID: "roles/viewer"},
+			RelatedExternalID: v1.ExternalID{ConfigType: v1.GCSBucket, ExternalID: "bucket-b"},
+			Relationship:      "IAMBinding",
+		})
+
+		results := coalesceIAMRoleConfigs(v1.ScrapeResults{roleA, roleB})
+
+		Expect(results).To(HaveLen(1))
+		Expect(results[0].Parents).To(ConsistOf(scope.Root))
+		Expect(results[0].RelationshipResults).To(HaveLen(2))
+	})
+
+	It("leaves unrelated and error results untouched", func() {
+		errResult := v1.ScrapeResult{Error: fmt.Errorf("failed")}
+		bucket := v1.ScrapeResult{ID: "bucket", Type: v1.GCSBucket}
+
+		Expect(coalesceIAMRoleConfigs(v1.ScrapeResults{errResult, bucket})).To(Equal(
+			v1.ScrapeResults{errResult, bucket},
+		))
+	})
+})
+
 var _ = Describe("buildIAMAccess tenant", func() {
 	It("stamps the organization tenant on every external identity", func() {
-		scope := iamScope{
-			Tenant:  "1234",
-			Project: "gcp-proj-1",
-			Root:    v1.ConfigExternalKey{Type: v1.GCPProject, ExternalID: "gcp-proj-1"},
-		}
+		scope := scopeFor("projects/gcp-proj-1", "1234")
 
 		res := buildIAMAccess([]*assetpb.Asset{
 			iamPolicyAsset("//storage.googleapis.com/projects/_/buckets/b", "storage.googleapis.com/Bucket",

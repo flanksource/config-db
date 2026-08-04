@@ -248,6 +248,7 @@ func addExtraAliases(results v1.ScrapeResults) v1.ScrapeResults {
 }
 
 func processResults(results v1.ScrapeResults) v1.ScrapeResults {
+	results = coalesceIAMRoleConfigs(results)
 	results = mergeDNSRecordSetsIntoManagedZone(results)
 	results = stripUnwantedFields(results)
 	results = cleanLinks(results)
@@ -434,12 +435,10 @@ func (gcp Scraper) scrapeParent(ctx *GCPContext, config v1.GCP, parent string) v
 	return results
 }
 
-// securityCenterParents returns the roots to read findings from: the
-// organization once when there is one, otherwise every scraped project.
-func securityCenterParents(config v1.GCP, parents []string) []string {
-	if config.IsOrgScoped() {
-		return []string{v1.OrganizationPrefix + config.OrganizationID()}
-	}
+// securityCenterParents returns the already-resolved scrape roots. An
+// unrestricted organization has one organization root, while a narrowed
+// organization has only its selected project roots.
+func securityCenterParents(parents []string) []string {
 	return parents
 }
 
@@ -488,10 +487,10 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			allResults = append(allResults, gcp.scrapeParent(gcpCtx, gcpConfig, parent)...)
 		}
 
-		// Security Center findings cover the whole organization in one listing;
-		// without an organization they are read per project.
+		// Security Center follows the resolved scope: one organization listing for
+		// an unrestricted organization, or one listing per selected project.
 		if !gcpConfig.Excludes(v1.ExcludeSecurityCenter) {
-			for _, parent := range securityCenterParents(gcpConfig, parents) {
+			for _, parent := range securityCenterParents(parents) {
 				if analysisResults, err := gcp.ListFindings(gcpCtx, parent); err != nil {
 					allResults.Errorf(err, "failed to scrape GCP Security Center findings for %s", parent)
 				} else {
@@ -505,7 +504,7 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		if gcpConfig.Includes(v1.IncludeAuditLogs) && len(gcpConfig.Include) > 0 {
 			if project := auditLogProject(gcpConfig); project == "" {
 				ctx.Warnf("gcp: skipping audit logs for %s, set auditLogs.project to the project holding the dataset", gcpConfig.Scope())
-			} else if accessLogResults, err := gcp.FetchAuditLogs(gcpCtx, gcpConfig, project); err != nil {
+			} else if accessLogResults, err := gcp.FetchAuditLogs(gcpCtx, gcpConfig, project, parents); err != nil {
 				allResults.Errorf(err, "failed to fetch GCP access logs for project %s", project)
 			} else {
 				allResults = append(allResults, accessLogResults...)

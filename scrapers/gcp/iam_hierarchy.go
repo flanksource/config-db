@@ -8,6 +8,7 @@ import (
 	"cloud.google.com/go/iam/apiv1/iampb"
 	v1 "github.com/flanksource/config-db/api/v1"
 	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v3"
+	expr "google.golang.org/genproto/googleapis/type/expr"
 )
 
 const resourceManagerPrefix = "//cloudresourcemanager.googleapis.com/"
@@ -255,10 +256,19 @@ func resourceManagerIAMPolicy(policy *cloudresourcemanager.Policy) *iampb.Policy
 		if binding == nil {
 			continue
 		}
-		bindings = append(bindings, &iampb.Binding{
+		converted := &iampb.Binding{
 			Role:    binding.Role,
 			Members: binding.Members,
-		})
+		}
+		if binding.Condition != nil {
+			converted.Condition = &expr.Expr{
+				Expression:  binding.Condition.Expression,
+				Title:       binding.Condition.Title,
+				Description: binding.Condition.Description,
+				Location:    binding.Condition.Location,
+			}
+		}
+		bindings = append(bindings, converted)
 	}
 	return &iampb.Policy{
 		Version:  int32(policy.Version),

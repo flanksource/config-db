@@ -54,6 +54,18 @@ var _ = Describe("qualifyProjects", func() {
 	})
 })
 
+var _ = Describe("securityCenterParents", func() {
+	It("keeps narrowed organization project roots", func() {
+		parents := []string{"projects/gcp-proj-1", "projects/gcp-proj-2"}
+		Expect(securityCenterParents(parents)).To(Equal(parents))
+	})
+
+	It("keeps an unrestricted organization root", func() {
+		parents := []string{"organizations/1234567890"}
+		Expect(securityCenterParents(parents)).To(Equal(parents))
+	})
+})
+
 var _ = Describe("projectFromParent", func() {
 	It("extracts the project id from a project root", func() {
 		Expect(projectFromParent("projects/gcp-proj-1")).To(Equal("gcp-proj-1"))

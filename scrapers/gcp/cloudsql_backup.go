@@ -37,10 +37,10 @@ func (gcp Scraper) scrapeCloudSQLBackupsForAllInstances(ctx *GCPContext, config 
 		}
 	}
 
-	if operationChanges, err := gcp.scrapeOperations(ctx, sqlService, instances); err != nil {
+	operationChanges, err := gcp.scrapeOperations(ctx, sqlService, instances)
+	allChanges = append(allChanges, operationChanges...)
+	if err != nil {
 		scrapeResults.Errorf(err, "failed to scrape Cloud SQL operations for %s", config.Scope())
-	} else {
-		allChanges = append(allChanges, operationChanges...)
 	}
 
 	if len(allChanges) > 0 {

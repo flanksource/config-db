@@ -53,19 +53,25 @@ func TestBuildAuditLogQuery_SpecificSQL(t *testing.T) {
 WITH auth as (
   select  
     timestamp,
-    proto_payload.audit_log,
     proto_payload.audit_log.service_name as service_name,
-    proto_payload.audit_log.authentication_info.principal_email as email,  
-    proto_payload.audit_log.authorization_info[0].permission_type AS permission_type,
-    proto_payload.audit_log.authorization_info[0].permission AS permission
-  FROM ` + "`default._AllLogs`" + `
+    proto_payload.audit_log.authentication_info.principal_email as email,
+    authorization.permission_type AS permission_type,
+    authorization.permission AS permission,
+    COALESCE(
+      NULLIF(JSON_VALUE(TO_JSON(resource.labels), '$.project_id'), ''),
+      REGEXP_EXTRACT(authorization.resource, r'(?:^|/)projects/([^/]+)'),
+      REGEXP_EXTRACT(log_name, r'(?:^|/)projects/([^/]+)'),
+      ''
+    ) AS project_id
+  FROM ` + "`default._AllLogs`" + `,
+  UNNEST(proto_payload.audit_log.authorization_info) AS authorization
   Where timestamp >= '2025-06-12' AND ARRAY_LENGTH(proto_payload.audit_log.authorization_info) > 0 AND (proto_payload.audit_log.request_metadata.caller_supplied_user_agent NOT LIKE ? AND proto_payload.audit_log.request_metadata.caller_supplied_user_agent NOT LIKE ?) AND (proto_payload.audit_log.authentication_info.principal_email NOT LIKE ? AND proto_payload.audit_log.authentication_info.principal_email NOT LIKE ? AND proto_payload.audit_log.authentication_info.principal_email NOT LIKE ?)
 ) 
 
-SELECT email, permission, permission_type, max(timestamp) as timestamp
+SELECT email, permission, permission_type, project_id, max(timestamp) as timestamp
 from auth 
 WHERE (permission NOT LIKE ? AND permission NOT LIKE ? AND permission NOT LIKE ? AND permission NOT LIKE ? AND permission NOT LIKE ? AND permission NOT LIKE ? AND permission NOT LIKE ? AND permission NOT LIKE ?) AND (service_name <> ?)
-group by email, permission, permission_type
+group by email, permission, permission_type, project_id
 `
 	g.Expect(query).To(gomega.Equal(expectedQuery), "query mismatch")
 
@@ -90,4 +96,27 @@ group by email, permission, permission_type
 	for i, expectedParam := range expectedParams {
 		g.Expect(params[i].Value).To(gomega.Equal(expectedParam), "parameter mismatch at index %d", i)
 	}
+}
+
+func TestAuditLogAffectedProject(t *testing.T) {
+	g := gomega.NewWithT(t)
+
+	project, ok := auditLogAffectedProject(
+		BigQueryRow{ProjectID: "workload-prod"},
+		[]string{"projects/workload-prod", "projects/workload-dev"},
+	)
+	g.Expect(ok).To(gomega.BeTrue())
+	g.Expect(project).To(gomega.Equal("workload-prod"))
+
+	_, ok = auditLogAffectedProject(
+		BigQueryRow{ProjectID: "outside-project"},
+		[]string{"projects/workload-prod"},
+	)
+	g.Expect(ok).To(gomega.BeFalse(), "an aggregated sink must not escape a narrowed scope")
+
+	_, ok = auditLogAffectedProject(BigQueryRow{}, []string{"projects/workload-prod"})
+	g.Expect(ok).To(gomega.BeFalse(), "a missing affected project must not fall back to the selected project")
+
+	_, ok = auditLogAffectedProject(BigQueryRow{}, []string{"organizations/1234"})
+	g.Expect(ok).To(gomega.BeFalse(), "an organization scrape must not fall back to the sink project")
 }

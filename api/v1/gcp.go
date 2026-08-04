@@ -52,8 +52,8 @@ type GCP struct {
 
 	// Organization to scrape, given as an organization number ("1234567890") or a
 	// qualified name ("organizations/1234567890"). Its resource hierarchy and
-	// Security Center findings are scraped once, and every project beneath it is
-	// scraped unless projects narrows the set.
+	// Security Center findings are scraped at the organization root unless projects
+	// narrows the scrape to selected project roots.
 	// Projects that belong to no organization can still be scraped by listing
 	// them in projects without an organization.
 	Organization string `json:"organization,omitempty"`
@@ -149,8 +149,8 @@ func (gcp GCP) Scope() string {
 	return strings.Join(gcp.ConfiguredProjects(), ", ")
 }
 
-// IsOrgScoped reports whether an organization was configured. Its hierarchy and
-// Security Center findings are then scraped once, on top of the per-project work.
+// IsOrgScoped reports whether an organization was configured. Its hierarchy is
+// then available in addition to the work performed at the resolved scrape roots.
 func (gcp GCP) IsOrgScoped() bool {
 	return gcp.Organization != ""
 }
