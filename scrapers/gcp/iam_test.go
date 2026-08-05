@@ -534,9 +534,7 @@ func TestBuildIAMAccess(t *testing.T) {
 		g.Expect(rc).ToNot(gomega.BeNil(), "missing role config for %s", role)
 		g.Expect(rc.Config).ToNot(gomega.BeNil(), "role config %s must carry a config body", role)
 		g.Expect(rc.Aliases).To(gomega.ContainElement(role))
-	}
-	for _, role := range []string{roleOwner, roleStorage, roleCustom} {
-		g.Expect(findRoleConfig(res.RoleConfigs, role).Parents).To(gomega.ContainElement(
+		g.Expect(rc.Parents).To(gomega.ContainElement(
 			v1.ConfigExternalKey{Type: v1.GCPProject, ExternalID: project},
 		))
 	}

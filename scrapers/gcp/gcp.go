@@ -435,13 +435,6 @@ func (gcp Scraper) scrapeParent(ctx *GCPContext, config v1.GCP, parent string) v
 	return results
 }
 
-// securityCenterParents returns the already-resolved scrape roots. An
-// unrestricted organization has one organization root, while a narrowed
-// organization has only its selected project roots.
-func securityCenterParents(parents []string) []string {
-	return parents
-}
-
 // auditLogProject returns the project holding the audit-log dataset: the one
 // configured explicitly, or the sole scraped project when it is unambiguous.
 func auditLogProject(config v1.GCP) string {
@@ -487,10 +480,10 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			allResults = append(allResults, gcp.scrapeParent(gcpCtx, gcpConfig, parent)...)
 		}
 
-		// Security Center follows the resolved scope: one organization listing for
-		// an unrestricted organization, or one listing per selected project.
+		// Security Center follows the resolved roots directly: one organization
+		// listing for an unrestricted organization, or one per selected project.
 		if !gcpConfig.Excludes(v1.ExcludeSecurityCenter) {
-			for _, parent := range securityCenterParents(parents) {
+			for _, parent := range parents {
 				if analysisResults, err := gcp.ListFindings(gcpCtx, parent); err != nil {
 					allResults.Errorf(err, "failed to scrape GCP Security Center findings for %s", parent)
 				} else {

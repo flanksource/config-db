@@ -45,13 +45,19 @@ type resourceHierarchy struct {
 // A node that cannot be read degrades the hierarchy config items but still yields
 // OrganizationID, so identities stay tenanted by organization.
 func fetchResourceManagerHierarchy(ctx *GCPContext, _ v1.GCP, parent string) (resourceHierarchy, error) {
+	projectID := projectFromParent(parent)
+	organization, isOrganization := strings.CutPrefix(parent, organizationPrefix)
+	if projectID == "" && (!isOrganization || organization == "") {
+		return resourceHierarchy{}, fmt.Errorf("unsupported GCP resource hierarchy root %q", parent)
+	}
+
 	service, err := cloudresourcemanager.NewService(ctx, ctx.ClientOpts...)
 	if err != nil {
 		return resourceHierarchy{}, fmt.Errorf("create Cloud Resource Manager client: %w", err)
 	}
 
-	if projectFromParent(parent) == "" {
-		hierarchy := resourceHierarchy{OrganizationID: strings.TrimPrefix(parent, organizationPrefix)}
+	if projectID == "" {
+		hierarchy := resourceHierarchy{OrganizationID: organization}
 		node, err := fetchResourceManagerNode(ctx, service, parent)
 		if err != nil {
 			return hierarchy, err
@@ -250,6 +256,16 @@ func resourceManagerMetadataForName(name string) (resourceManagerMetadata, error
 	}
 }
 
+// resourceManagerIAMPolicy preserves version-3 IAM conditions while adapting
+// Resource Manager policies to the common IAM policy representation.
+// buildIAMAccess deliberately excludes bindings with a non-nil Condition from
+// effective access because conditions cannot be modeled or evaluated safely; it
+// emits one bounded warning with the number omitted.
+//
+// Upgrade notice: older versions emitted these conditional bindings as
+// unconditional access edges. A full scrape reconciles those obsolete edges when
+// at least one current access row resolves; installations with only conditional
+// bindings may need to remove the legacy rows manually.
 func resourceManagerIAMPolicy(policy *cloudresourcemanager.Policy) *iampb.Policy {
 	bindings := make([]*iampb.Binding, 0, len(policy.Bindings))
 	for _, binding := range policy.Bindings {

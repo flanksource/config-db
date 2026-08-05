@@ -98,15 +98,15 @@ var _ = Describe("Cloud SQL operation partial results", func() {
 
 		Expect(err).ToNot(HaveOccurred())
 		var changes []v1.ChangeResult
-		var errors int
+		var errorCount int
 		for _, result := range results {
 			changes = append(changes, result.Changes...)
 			if result.Error != nil {
-				errors++
+				errorCount++
 				Expect(result.Error.Error()).To(ContainSubstring("gcp-proj-2"))
 			}
 		}
-		Expect(errors).To(Equal(1))
+		Expect(errorCount).To(Equal(1))
 		Expect(changes).To(HaveLen(1))
 		Expect(changes[0].ExternalChangeID).To(Equal("operation-a"))
 	})
@@ -118,20 +118,27 @@ var _ = Describe("instancesByProject", func() {
 			{name: "db-a", project: "gcp-proj-1"},
 			{name: "db-b", project: "gcp-proj-2"},
 			{name: "db-c", project: "gcp-proj-1"},
-		})
+		}, nil)
 
 		Expect(grouped).To(HaveLen(2))
 		Expect(grouped["gcp-proj-1"]).To(HaveLen(2))
 		Expect(grouped["gcp-proj-2"]).To(HaveLen(1))
 	})
 
-	It("drops instances with no resolvable project rather than querying an empty one", func() {
+	It("warns when dropping an instance with no resolvable project", func() {
+		var warningFormat string
+		var warningArgs []any
 		grouped := instancesByProject([]instanceInfo{
-			{name: "db-a", project: ""},
+			{name: "db-a", selfLink: "https://sqladmin/instances/db-a", project: ""},
 			{name: "db-b", project: "gcp-proj-1"},
+		}, func(format string, args ...any) {
+			warningFormat = format
+			warningArgs = args
 		})
 
 		Expect(grouped).To(HaveLen(1))
 		Expect(grouped).To(HaveKey("gcp-proj-1"))
+		Expect(warningFormat).To(ContainSubstring("owning project could not be resolved"))
+		Expect(warningArgs).To(ConsistOf("db-a", "https://sqladmin/instances/db-a"))
 	})
 })

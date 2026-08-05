@@ -104,10 +104,13 @@ func collectSQLInstances(results v1.ScrapeResults, fallbackProject string) []ins
 // instancesByProject groups instances by owning project so operations are listed
 // once per project. Instances with no resolvable project are dropped rather than
 // triggering a call against an empty project id.
-func instancesByProject(instances []instanceInfo) map[string][]instanceInfo {
+func instancesByProject(instances []instanceInfo, warn func(format string, args ...any)) map[string][]instanceInfo {
 	grouped := make(map[string][]instanceInfo)
 	for _, instance := range instances {
 		if instance.project == "" {
+			if warn != nil {
+				warn("gcp cloud sql: skipping operations for instance %s (%s): owning project could not be resolved", instance.name, instance.selfLink)
+			}
 			continue
 		}
 		grouped[instance.project] = append(grouped[instance.project], instance)
@@ -169,7 +172,7 @@ func (gcp Scraper) scrapeOperations(ctx *GCPContext, service *sqladmin.Service, 
 	var changes []v1.ChangeResult
 	var errs []error
 
-	for project, projectInstances := range instancesByProject(instances) {
+	for project, projectInstances := range instancesByProject(instances, ctx.Warnf) {
 		projectChanges, err := gcp.scrapeProjectOperations(ctx, service, project, projectInstances)
 		if err != nil {
 			errs = append(errs, err)

@@ -58,13 +58,10 @@ var _ = Describe("resolveOrganization", func() {
 	})
 })
 
-var _ = Describe("fetchResourceManagerHierarchy salvage", func() {
-	It("keeps the organization id discovered before an unreadable node", func() {
-		// The walk records organizations/1234 from the parent chain before it
-		// tries to read the organization resource, so a scrape service account
-		// without organization read access still tenants by organization.
-		hierarchy := resourceHierarchy{OrganizationID: "1234"}
-		Expect(scopeFor("projects/gcp-proj-1", hierarchy.OrganizationID).Tenant).To(Equal("1234"))
+var _ = Describe("fetchResourceManagerHierarchy", func() {
+	It("rejects unsupported roots before creating an API client", func() {
+		_, err := fetchResourceManagerHierarchy(&GCPContext{}, v1.GCP{}, "folders/1234")
+		Expect(err).To(MatchError(`unsupported GCP resource hierarchy root "folders/1234"`))
 	})
 })
 
@@ -116,6 +113,7 @@ var _ = Describe("coalesceIAMRoleConfigs", func() {
 			Relationship:      "IAMBinding",
 		})
 		roleB := newRoleConfig("roles/viewer", scope)
+		roleB.Config.(map[string]any)["title"] = "Viewer"
 		roleB.RelationshipResults = append(roleB.RelationshipResults, v1.RelationshipResult{
 			ConfigExternalID:  v1.ExternalID{ConfigType: v1.IAMRole, ExternalID: "roles/viewer"},
 			RelatedExternalID: v1.ExternalID{ConfigType: v1.GCSBucket, ExternalID: "bucket-b"},
@@ -127,6 +125,8 @@ var _ = Describe("coalesceIAMRoleConfigs", func() {
 		Expect(results).To(HaveLen(1))
 		Expect(results[0].Parents).To(ConsistOf(scope.Root))
 		Expect(results[0].RelationshipResults).To(HaveLen(2))
+		Expect(results[0].Config).To(HaveKeyWithValue("title", "Viewer"))
+		Expect(roleA.Config).ToNot(HaveKey("title"), "coalescing must not mutate its input maps")
 	})
 
 	It("leaves unrelated and error results untouched", func() {

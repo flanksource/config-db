@@ -119,4 +119,11 @@ func TestAuditLogAffectedProject(t *testing.T) {
 
 	_, ok = auditLogAffectedProject(BigQueryRow{}, []string{"organizations/1234"})
 	g.Expect(ok).To(gomega.BeFalse(), "an organization scrape must not fall back to the sink project")
+
+	project, ok = auditLogAffectedProject(
+		BigQueryRow{ProjectID: "organization-project"},
+		[]string{"organizations/1234"},
+	)
+	g.Expect(ok).To(gomega.BeTrue(), "an organization scope accepts every resolved project")
+	g.Expect(project).To(gomega.Equal("organization-project"))
 }

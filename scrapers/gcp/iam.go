@@ -333,11 +333,16 @@ func coalesceIAMRoleConfigs(results v1.ScrapeResults) v1.ScrapeResults {
 		}
 		if target, ok := existing.Config.(map[string]any); ok {
 			if source, ok := result.Config.(map[string]any); ok {
+				merged := make(map[string]any, len(target)+len(source))
+				for name, value := range target {
+					merged[name] = value
+				}
 				for name, value := range source {
-					if _, found := target[name]; !found {
-						target[name] = value
+					if _, found := merged[name]; !found {
+						merged[name] = value
 					}
 				}
+				existing.Config = merged
 			}
 		}
 	}
