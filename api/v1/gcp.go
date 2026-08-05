@@ -46,7 +46,6 @@ var (
 	AllIncludes = []string{IncludeIAMPolicy, IncludeAuditLogs, IncludeGroupMembers}
 )
 
-// +kubebuilder:validation:XValidation:rule="(has(self.organization) && size(self.organization) > 0) || (has(self.project) && size(self.project) > 0) || (has(self.projects) && self.projects.exists(p, size(p) > 0))",message="one of organization, project, or projects must be set"
 type GCP struct {
 	BaseScraper              `json:",inline"`
 	connection.GCPConnection `json:",inline"`
