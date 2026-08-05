@@ -25,6 +25,53 @@ func TestGCP(t *testing.T) {
 	RunSpecs(t, "GCP Suite")
 }
 
+var _ = Describe("parseResourceData aliases", func() {
+	assetWith := func(assetType string, fields map[string]any) *assetpb.Asset {
+		data, err := structpb.NewStruct(fields)
+		Expect(err).ToNot(HaveOccurred())
+		return &assetpb.Asset{AssetType: assetType, Resource: &assetpb.Resource{Data: data}}
+	}
+
+	It("aliases a service account by email so it matches its IAM principal", func() {
+		rd := parseResourceData(assetWith(serviceAccountAssetType, map[string]any{
+			"name":  "projects/gcp-proj-1/serviceAccounts/sa-etl@gcp-proj-1.iam.gserviceaccount.com",
+			"email": "sa-etl@gcp-proj-1.iam.gserviceaccount.com",
+		}))
+
+		Expect(rd.Aliases).To(ContainElement("sa-etl@gcp-proj-1.iam.gserviceaccount.com"))
+	})
+
+	It("does not alias other asset types by email", func() {
+		rd := parseResourceData(assetWith("storage.googleapis.com/Bucket", map[string]any{
+			"name":  "my-bucket",
+			"email": "owner@example.com",
+		}))
+
+		Expect(rd.Aliases).ToNot(ContainElement("owner@example.com"))
+	})
+
+	It("emits no empty aliases for an asset without a self link", func() {
+		rd := parseResourceData(assetWith(serviceAccountAssetType, map[string]any{
+			"name":  "projects/gcp-proj-1/serviceAccounts/sa-etl@gcp-proj-1.iam.gserviceaccount.com",
+			"email": "sa-etl@gcp-proj-1.iam.gserviceaccount.com",
+		}))
+
+		Expect(rd.Aliases).ToNot(ContainElement(""))
+	})
+
+	It("keeps the self link aliases for assets that have one", func() {
+		rd := parseResourceData(assetWith("compute.googleapis.com/Instance", map[string]any{
+			"name":     "vm-1",
+			"selfLink": "https://www.googleapis.com/compute/v1/projects/p/zones/us-east1-b/instances/vm-1",
+		}))
+
+		Expect(rd.Aliases).To(ContainElements(
+			"https://www.googleapis.com/compute/v1/projects/p/zones/us-east1-b/instances/vm-1",
+			"projects/p/zones/us-east1-b/instances/vm-1",
+		))
+	})
+})
+
 var _ = Describe("parseResourceData", func() {
 	It("extracts zone and region from testdata fixtures", func() {
 		files, err := os.ReadDir("testdata")

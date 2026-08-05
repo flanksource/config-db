@@ -913,6 +913,11 @@ func (in *GCP) DeepCopyInto(out *GCP) {
 	*out = *in
 	in.BaseScraper.DeepCopyInto(&out.BaseScraper)
 	in.GCPConnection.DeepCopyInto(&out.GCPConnection)
+	if in.Projects != nil {
+		in, out := &in.Projects, &out.Projects
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Include != nil {
 		in, out := &in.Include, &out.Include
 		*out = make([]string, len(*in))

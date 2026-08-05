@@ -5244,6 +5244,12 @@ spec:
                             description: MatchExpression uses MatchItems
                             type: string
                           type: array
+                        project:
+                          description: |-
+                            Project holding the BigQuery dataset. Defaults to the scraped project.
+                            An organization-scoped scrape must set this to the project its aggregated
+                            log sink writes to, since the organization itself holds no dataset.
+                          type: string
                         serviceNames:
                           description: Filter service names matching these patterns
                           items:
@@ -5353,14 +5359,28 @@ spec:
                       type: string
                     include:
                       description: |-
-                        Include is a list of GCP asset types to scrape, and/or feature flags that
-                        enable non-asset scrapers.
+                        Include holds GCP asset types and/or feature flags, and is a strict
+                        allowlist: leave it empty and everything except AuditLogs runs, but set it
+                        and only what is listed runs. Anything omitted is silently off, so narrowing
+                        one dimension turns the other off entirely:
+
+                          include: [storage.googleapis.com/Bucket]   # buckets only, NO IAM/RBAC
+                          include: [IAMPolicy]                       # IAM/RBAC only, NO assets
+
+                        List both to filter assets while keeping the rest:
+
+                          include: [storage.googleapis.com/Bucket, IAMPolicy, IAMGroupMembers]
+
                         Asset types reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types
-                        Example asset type: storage.googleapis.com/Bucket
-                        Feature flags: IAMPolicy (RBAC access from IAM policy bindings) and
-                        IAMGroupMembers (expand Google group membership via the Cloud Identity
-                        groups.readonly scope) both run by default; disable group expansion with
-                        exclude: [IAMGroupMembers]. AuditLogs (BigQuery audit-log access) is opt-in.
+
+                        Feature flags:
+                          IAMPolicy       - RBAC access from IAM policy bindings, and the resource
+                                            hierarchy (organization and folder config items), which
+                                            is read as part of the same pass.
+                          IAMGroupMembers - expand Google group membership via the Cloud Identity
+                                            groups.readonly scope. Disable with exclude: [IAMGroupMembers].
+                          AuditLogs       - BigQuery audit-log access. Opt-in: it runs only when
+                                            listed here explicitly.
                       items:
                         type: string
                       type: array
@@ -5378,8 +5398,26 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the Name for the resource.
                       type: string
+                    organization:
+                      description: |-
+                        Organization to scrape, given as an organization number ("1234567890") or a
+                        qualified name ("organizations/1234567890"). Its resource hierarchy and
+                        Security Center findings are scraped at the organization root unless projects
+                        narrows the scrape to selected project roots.
+                        Projects that belong to no organization can still be scraped by listing
+                        them in projects without an organization.
+                      type: string
                     project:
                       type: string
+                    projects:
+                      description: |-
+                        Projects narrows the scrape to these projects, given as project ids
+                        ("gcp-proj-1") or qualified names ("projects/gcp-proj-1"). Empty means every
+                        project in the organization. Combined with an organization, only projects
+                        that actually belong to it are scraped.
+                      items:
+                        type: string
+                      type: array
                     properties:
                       description: |-
                         Properties are custom templatable properties for the scraped config items
@@ -5855,8 +5893,6 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the type for the resource.
                       type: string
-                  required:
-                  - project
                   type: object
                 type: array
               github:

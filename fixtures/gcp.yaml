@@ -5,20 +5,31 @@ metadata:
   namespace: mc
 spec:
   gcp:
+    # An organization on its own scrapes every project beneath it. Add projects to
+    # narrow it to those that belong to the organization. Listing projects without
+    # an organization still works, but identities are then tenanted by project.
+    #- organization: "1234567890"
+    #  projects:
+    #    - workload-prod-eu-02
     - project: workload-prod-eu-02
       exclude:
         - SecurityCenter
         #- IAMGroupMembers  # disable Google-group expansion (needs Cloud Identity groups.readonly)
       #connection: connection://mc/gcloud-flanksource
+      # IAMPolicy and IAMGroupMembers run by default only when include is empty.
+      # Once include filters asset types, list the IAM flags explicitly to keep IAM data:
       #include:
         #- storage.googleapis.com/Bucket
         #- container.googleapis.com/Cluster
-        # IAMPolicy (RBAC: users/groups/service-accounts -> roles) and
-        # IAMGroupMembers (expand Google group membership) run by default.
+        #- IAMPolicy         # RBAC: users/groups/service-accounts -> roles
+        #- IAMGroupMembers   # expand Google group membership
         # AuditLogs is opt-in and only runs when listed here:
         #- AuditLogs         # access history from the BigQuery audit-log dataset
       #auditLogs:
         #dataset: default._AllLogs
+        # Project holding the dataset. Required when scraping an organization or
+        # more than one project, since the dataset lives in exactly one project.
+        #project: logging-prod
         #since: 30d
         #excludeMethods:
           #- io.k8s.*

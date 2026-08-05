@@ -11,8 +11,10 @@ import (
 	dutyCtx "github.com/flanksource/duty/context"
 	. "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	"github.com/samber/lo"
 	cloudidentity "google.golang.org/api/cloudidentity/v1"
 	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v3"
+	expr "google.golang.org/genproto/googleapis/type/expr"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 )
@@ -159,6 +161,12 @@ func TestTraverseGroupNestedFetchError(t *testing.T) {
 	g.Expect(err).To(gomega.HaveOccurred())
 }
 
+// projectIAMScope is the scope of a project-rooted scrape with no reachable
+// organization, which is what most of these tests exercise.
+func projectIAMScope(project string) iamScope {
+	return scopeFor(v1.ProjectPrefix+project, "")
+}
+
 func iamPolicyAsset(name, assetType string, bindings ...*iampb.Binding) *assetpb.Asset {
 	return &assetpb.Asset{
 		Name:      name,
@@ -218,7 +226,7 @@ var _ = Describe("buildIAMAccess", func() {
 					"serviceAccount:" + principal,
 				}},
 			),
-		}, project)
+		}, projectIAMScope(project))
 
 		source := iamPolicySource
 		gomega.Expect(result.Access).To(gomega.ConsistOf(
@@ -236,9 +244,88 @@ var _ = Describe("buildIAMAccess", func() {
 			},
 		))
 	})
+
+	It("omits conditional bindings from effective access", func() {
+		result := buildIAMAccess([]*assetpb.Asset{
+			iamPolicyAsset("//storage.googleapis.com/projects/_/buckets/conditional", "storage.googleapis.com/Bucket",
+				&iampb.Binding{
+					Role:      "roles/storage.objectViewer",
+					Members:   []string{"user:alice@example.com", "group:admins@example.com"},
+					Condition: &expr.Expr{Expression: "request.time < timestamp('2030-01-01T00:00:00Z')"},
+				},
+			),
+		}, projectIAMScope("my-project"))
+
+		gomega.Expect(result.SkippedConditionalBindings).To(gomega.Equal(1))
+		gomega.Expect(result.RoleConfigs).To(gomega.HaveLen(1), "the role definition remains discoverable")
+		gomega.Expect(result.Roles).To(gomega.HaveLen(1))
+		gomega.Expect(result.RoleConfigs[0].RelationshipResults).To(gomega.BeEmpty())
+		gomega.Expect(result.Access).To(gomega.BeEmpty())
+		gomega.Expect(result.Users).To(gomega.BeEmpty())
+		gomega.Expect(result.Groups).To(gomega.BeEmpty())
+		gomega.Expect(result.GroupEmails).To(gomega.BeEmpty())
+	})
+
+	It("still emits an unconditional sibling after skipping the same conditional tuple", func() {
+		conditional := &iampb.Binding{
+			Role:      "roles/viewer",
+			Members:   []string{"user:alice@example.com"},
+			Condition: &expr.Expr{Expression: "resource.name.startsWith('projects/prefix')"},
+		}
+		unconditional := &iampb.Binding{
+			Role:    "roles/viewer",
+			Members: []string{"user:alice@example.com"},
+		}
+
+		result := buildIAMAccess([]*assetpb.Asset{
+			iamPolicyAsset("//storage.googleapis.com/projects/_/buckets/mixed", "storage.googleapis.com/Bucket",
+				conditional, unconditional,
+			),
+		}, projectIAMScope("my-project"))
+
+		gomega.Expect(result.SkippedConditionalBindings).To(gomega.Equal(1))
+		gomega.Expect(result.Access).To(gomega.HaveLen(1))
+		gomega.Expect(result.Users).To(gomega.HaveLen(1))
+		gomega.Expect(result.RoleConfigs).To(gomega.HaveLen(1))
+		gomega.Expect(result.RoleConfigs[0].RelationshipResults).To(gomega.HaveLen(1))
+	})
 })
 
 var _ = Describe("fetch IAM policies", func() {
+	It("reports omitted conditional bindings as a bounded warning", func() {
+		ctx := &GCPContext{ScrapeContext: api.NewScrapeContext(dutyCtx.New())}
+		iamPolicy, err := (Scraper{}).fetchIAMPolicies(ctx, v1.GCP{Project: "app-prod"}, "projects/app-prod", iamPolicyFetchers{
+			listAssets: func(*GCPContext, v1.GCP, string) ([]*assetpb.Asset, error) {
+				return []*assetpb.Asset{iamPolicyAsset(
+					"//storage.googleapis.com/projects/_/buckets/conditional",
+					"storage.googleapis.com/Bucket",
+					&iampb.Binding{
+						Role:      "roles/viewer",
+						Members:   []string{"user:alice@example.com"},
+						Condition: &expr.Expr{Title: "temporary", Expression: "request.time < timestamp('2030-01-01T00:00:00Z')"},
+					},
+				)}, nil
+			},
+			fetchHierarchy: func(*GCPContext, v1.GCP, string) (resourceHierarchy, error) {
+				return resourceHierarchy{Project: &cloudresourcemanager.Project{Name: "projects/123", ProjectId: "app-prod"}}, nil
+			},
+			enrichRoles: func(*GCPContext, []v1.ScrapeResult) {},
+		})
+
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		var warnings []v1.Warning
+		var accesses []v1.ExternalConfigAccess
+		for _, result := range iamPolicy.Results {
+			warnings = append(warnings, result.Warnings...)
+			accesses = append(accesses, result.ConfigAccess...)
+		}
+		gomega.Expect(accesses).To(gomega.BeEmpty())
+		gomega.Expect(warnings).To(gomega.ConsistOf(v1.Warning{
+			Error: "conditional GCP IAM bindings cannot be modeled and were omitted from effective access",
+			Count: 1,
+		}))
+	})
+
 	DescribeTable("preserves asset policies when hierarchy discovery is unavailable",
 		func(project *cloudresourcemanager.Project, hierarchyErr error) {
 			const (
@@ -249,25 +336,38 @@ var _ = Describe("fetch IAM policies", func() {
 			)
 
 			ctx := &GCPContext{ScrapeContext: api.NewScrapeContext(dutyCtx.New())}
-			results, groups, err := (Scraper{}).fetchIAMPolicies(ctx, v1.GCP{Project: projectID}, iamPolicyFetchers{
-				listAssets: func(*GCPContext, v1.GCP) ([]*assetpb.Asset, error) {
+			iamPolicy, err := (Scraper{}).fetchIAMPolicies(ctx, v1.GCP{Project: projectID}, v1.ProjectPrefix+projectID, iamPolicyFetchers{
+				listAssets: func(*GCPContext, v1.GCP, string) ([]*assetpb.Asset, error) {
 					return []*assetpb.Asset{iamPolicyAsset(
 						bucketID,
 						"storage.googleapis.com/Bucket",
 						&iampb.Binding{Role: role, Members: []string{"user:" + principal}},
 					)}, nil
 				},
-				fetchHierarchy: func(*GCPContext, v1.GCP) (*cloudresourcemanager.Project, []resourceManagerNode, error) {
-					return project, nil, hierarchyErr
+				fetchHierarchy: func(*GCPContext, v1.GCP, string) (resourceHierarchy, error) {
+					return resourceHierarchy{Project: project}, hierarchyErr
 				},
 				enrichRoles: func(*GCPContext, []v1.ScrapeResult) {},
 			})
 
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			gomega.Expect(groups).To(gomega.BeEmpty())
-			gomega.Expect(results).To(gomega.HaveLen(2))
+			gomega.Expect(iamPolicy.GroupEmails).To(gomega.BeEmpty())
+			// No organization is reachable here, so the tenant stays the project.
+			gomega.Expect(iamPolicy.Scope.Tenant).To(gomega.Equal(projectID))
+
+			// An unreadable hierarchy is surfaced as a scraper error, not just a log
+			// line, because it silently costs the organization and folder configs.
+			hierarchyErrors := lo.Filter(iamPolicy.Results, func(r v1.ScrapeResult, _ int) bool {
+				return r.Error != nil
+			})
+			gomega.Expect(hierarchyErrors).To(gomega.HaveLen(1))
+			gomega.Expect(hierarchyErrors[0].Error.Error()).To(gomega.ContainSubstring("resource hierarchy"))
+
 			source := iamPolicySource
-			gomega.Expect(results[1].ConfigAccess).To(gomega.Equal([]v1.ExternalConfigAccess{{
+			accesses := lo.FlatMap(iamPolicy.Results, func(r v1.ScrapeResult, _ int) []v1.ExternalConfigAccess {
+				return r.ConfigAccess
+			})
+			gomega.Expect(accesses).To(gomega.Equal([]v1.ExternalConfigAccess{{
 				ConfigExternalID:    v1.ExternalID{ConfigType: v1.GCSBucket, ExternalID: bucketID},
 				ExternalUserAliases: []string{principal},
 				ExternalRoleAliases: []string{role},
@@ -344,7 +444,7 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 		gomega.Expect(configs[1].Aliases).To(gomega.Equal([]string{organizationExternalID}))
 		gomega.Expect(configs[1].Children).To(gomega.BeEmpty())
 
-		access := buildIAMAccess(policies, projectID)
+		access := buildIAMAccess(policies, projectIAMScope(projectID))
 		gomega.Expect(accessKeyed(access.Access,
 			v1.ExternalID{ConfigType: "GCP::ResourceManager::Folder", ExternalID: folderExternalID},
 			principal, "roles/resourcemanager.folderViewer",
@@ -353,6 +453,38 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 			v1.ExternalID{ConfigType: "GCP::ResourceManager::Organization", ExternalID: organizationExternalID},
 			principal, "roles/resourcemanager.organizationAdmin",
 		)).ToNot(gomega.BeNil())
+	})
+
+	It("preserves IAM conditions while converting Resource Manager policies", func() {
+		policy := resourceManagerIAMPolicy(&cloudresourcemanager.Policy{
+			Version: 3,
+			Bindings: []*cloudresourcemanager.Binding{{
+				Role:    "roles/viewer",
+				Members: []string{"user:alice@example.com"},
+				Condition: &cloudresourcemanager.Expr{
+					Title:       "temporary",
+					Description: "expires at the end of the migration",
+					Expression:  "request.time < timestamp('2030-01-01T00:00:00Z')",
+					Location:    "policy.yaml:12",
+				},
+			}},
+		})
+
+		gomega.Expect(policy.Version).To(gomega.Equal(int32(3)))
+		gomega.Expect(policy.Bindings).To(gomega.HaveLen(1))
+		gomega.Expect(policy.Bindings[0].Condition).ToNot(gomega.BeNil())
+		gomega.Expect(policy.Bindings[0].Condition.Title).To(gomega.Equal("temporary"))
+		gomega.Expect(policy.Bindings[0].Condition.Description).To(gomega.Equal("expires at the end of the migration"))
+		gomega.Expect(policy.Bindings[0].Condition.Expression).To(gomega.Equal("request.time < timestamp('2030-01-01T00:00:00Z')"))
+		gomega.Expect(policy.Bindings[0].Condition.Location).To(gomega.Equal("policy.yaml:12"))
+
+		access := buildIAMAccess([]*assetpb.Asset{{
+			Name:      "//cloudresourcemanager.googleapis.com/organizations/1234",
+			AssetType: organizationAssetType,
+			IamPolicy: policy,
+		}}, scopeFor("organizations/1234", "1234"))
+		gomega.Expect(access.SkippedConditionalBindings).To(gomega.Equal(1))
+		gomega.Expect(access.Access).To(gomega.BeEmpty())
 	})
 })
 
@@ -393,7 +525,7 @@ func TestBuildIAMAccess(t *testing.T) {
 		),
 	}
 
-	res := buildIAMAccess(assets, project)
+	res := buildIAMAccess(assets, projectIAMScope(project))
 
 	// One GCP::IAMRole config item per distinct bound role.
 	g.Expect(res.RoleConfigs).To(gomega.HaveLen(3), "expected one config item per distinct role")
@@ -402,7 +534,9 @@ func TestBuildIAMAccess(t *testing.T) {
 		g.Expect(rc).ToNot(gomega.BeNil(), "missing role config for %s", role)
 		g.Expect(rc.Config).ToNot(gomega.BeNil(), "role config %s must carry a config body", role)
 		g.Expect(rc.Aliases).To(gomega.ContainElement(role))
-		g.Expect(rc.Parents).To(gomega.ContainElement(v1.ConfigExternalKey{Type: v1.GCPProject, ExternalID: project}))
+		g.Expect(rc.Parents).To(gomega.ContainElement(
+			v1.ConfigExternalKey{Type: v1.GCPProject, ExternalID: project},
+		))
 	}
 
 	// storage.admin is bound on the project and the bucket -> 2 deduped edges.

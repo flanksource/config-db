@@ -23,7 +23,7 @@ type leafMember struct {
 // The config_access_unwrapped view joins external_user_groups a single level,
 // so nested groups are flattened: every transitive leaf member is linked
 // directly to the bound group it was reached from.
-func (Scraper) FetchGroupMemberships(ctx *GCPContext, config v1.GCP, groupEmails []string) (v1.ScrapeResults, error) {
+func (Scraper) FetchGroupMemberships(ctx *GCPContext, config v1.GCP, scope iamScope, groupEmails []string) (v1.ScrapeResults, error) {
 	if len(groupEmails) == 0 {
 		return nil, nil
 	}
@@ -34,7 +34,7 @@ func (Scraper) FetchGroupMemberships(ctx *GCPContext, config v1.GCP, groupEmails
 	}
 
 	exp := &groupExpander{ctx: ctx, svc: svc, memberships: map[string][]*cloudidentity.Membership{}}
-	acc := newMembershipAccumulator(config.Project)
+	acc := newMembershipAccumulator(scope.Tenant)
 
 	var results v1.ScrapeResults
 	for _, groupEmail := range groupEmails {
@@ -113,7 +113,7 @@ func traverseGroup(
 // membershipAccumulator deduplicates the users, groups, and user→group edges
 // discovered across all expanded bound groups.
 type membershipAccumulator struct {
-	project    string
+	tenant     string
 	userGroups []v1.ExternalUserGroup
 	users      []models.ExternalUser
 	groups     []models.ExternalGroup
@@ -122,9 +122,9 @@ type membershipAccumulator struct {
 	seenGroup  map[string]struct{}
 }
 
-func newMembershipAccumulator(project string) *membershipAccumulator {
+func newMembershipAccumulator(tenant string) *membershipAccumulator {
 	return &membershipAccumulator{
-		project:   project,
+		tenant:    tenant,
 		seenEdge:  make(map[string]struct{}),
 		seenUser:  make(map[string]struct{}),
 		seenGroup: make(map[string]struct{}),
@@ -146,7 +146,7 @@ func (a *membershipAccumulator) add(groupEmail string, leaves []leafMember, nest
 			a.users = append(a.users, models.ExternalUser{
 				Aliases:  pq.StringArray{leaf.email},
 				Name:     leaf.email,
-				Tenant:   a.project,
+				Tenant:   a.tenant,
 				UserType: leaf.userType,
 				Email:    lo.ToPtr(leaf.email),
 			})
@@ -159,7 +159,7 @@ func (a *membershipAccumulator) add(groupEmail string, leaves []leafMember, nest
 			a.groups = append(a.groups, models.ExternalGroup{
 				Aliases:   pq.StringArray{nestedEmail},
 				Name:      nestedEmail,
-				Tenant:    a.project,
+				Tenant:    a.tenant,
 				GroupType: "Group",
 			})
 		}

@@ -267,14 +267,26 @@
           "type": "boolean"
         },
         "project": {
-          "type": "string"
+          "type": "string",
+          "description": "Project is an alias for a single-entry projects list."
+        },
+        "organization": {
+          "type": "string",
+          "description": "Organization to scrape, given as an organization number (\"1234567890\") or a\nqualified name (\"organizations/1234567890\"). Its resource hierarchy and\nSecurity Center findings are scraped at the organization root unless projects\nnarrows the scrape to selected project roots.\nProjects that belong to no organization can still be scraped by listing\nthem in projects without an organization."
+        },
+        "projects": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Projects narrows the scrape to these projects, given as project ids\n(\"gcp-proj-1\") or qualified names (\"projects/gcp-proj-1\"). Empty means every\nproject in the organization. Combined with an organization, only projects\nthat actually belong to it are scraped."
         },
         "include": {
           "items": {
             "type": "string"
           },
           "type": "array",
-          "description": "Include is a list of GCP asset types to scrape, and/or feature flags that\nenable non-asset scrapers.\nAsset types reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types\nExample asset type: storage.googleapis.com/Bucket\nFeature flags: IAMPolicy (RBAC access from IAM policy bindings) and\nIAMGroupMembers (expand Google group membership via the Cloud Identity\ngroups.readonly scope) both run by default; disable group expansion with\nexclude: [IAMGroupMembers]. AuditLogs (BigQuery audit-log access) is opt-in."
+          "description": "Include holds GCP asset types and/or feature flags, and is a strict\nallowlist: leave it empty and everything except AuditLogs runs, but set it\nand only what is listed runs. Anything omitted is silently off, so narrowing\none dimension turns the other off entirely:\n\n  include: [storage.googleapis.com/Bucket]   # buckets only, NO IAM/RBAC\n  include: [IAMPolicy]                       # IAM/RBAC only, NO assets\n\nList both to filter assets while keeping the rest:\n\n  include: [storage.googleapis.com/Bucket, IAMPolicy, IAMGroupMembers]\n\nAsset types reference: https://cloud.google.com/asset-inventory/docs/supported-asset-types\n\nFeature flags:\n  IAMPolicy       - RBAC access from IAM policy bindings, and the resource\n                    hierarchy (organization and folder config items), which\n                    is read as part of the same pass.\n  IAMGroupMembers - expand Google group membership via the Cloud Identity\n                    groups.readonly scope. Disable with exclude: [IAMGroupMembers].\n  AuditLogs       - BigQuery audit-log access. Opt-in: it runs only when\n                    listed here explicitly."
         },
         "exclude": {
           "items": {
@@ -289,16 +301,17 @@
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "project"
-      ]
+      "type": "object"
     },
     "GCPAuditLogs": {
       "properties": {
         "dataset": {
           "type": "string",
           "description": "BigQuery dataset to query audit logs from\nExample: \"default._AllLogs\""
+        },
+        "project": {
+          "type": "string",
+          "description": "Project holding the BigQuery dataset. Defaults to the scraped project.\nAn organization-scoped scrape must set this to the project its aggregated\nlog sink writes to, since the organization itself holds no dataset."
         },
         "since": {
           "type": "string",
