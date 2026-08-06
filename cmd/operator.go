@@ -75,6 +75,12 @@ func run(ctx dutyContext.Context, args []string) error {
 	if err := db.InitChangeFingerprintCache(ctx, dedupWindow); err != nil {
 		return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 	}
+	if err := startTableUpdatesHandler(dutyCtx); err != nil {
+		return fmt.Errorf("failed to initialize table notification listener: %w", err)
+	}
+	if err := db.WarmExternalEntityCaches(dutyCtx); err != nil {
+		return fmt.Errorf("failed to initialize external entity caches: %w", err)
+	}
 
 	ctrl.SetLogger(logr.FromSlogHandler(logger.Handler()))
 
@@ -86,7 +92,6 @@ func run(ctx dutyContext.Context, args []string) error {
 	scrapers.StartEventListener(dutyCtx)
 
 	go serve(dutyCtx)
-	go tableUpdatesHandler(dutyCtx)
 
 	return launchKopper(dutyCtx)
 }

@@ -13,7 +13,6 @@ import (
 )
 
 var _ = Describe("external user alias mapping resolution", Ordered, func() {
-	var tableCreated bool
 	var canonicalID uuid.UUID
 	var historicalID uuid.UUID
 	var mappingIDs []uuid.UUID
@@ -22,22 +21,6 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 
 	BeforeAll(func() {
 		ctx = api.NewScrapeContext(DefaultContext)
-		exists, err := externalUserAliasTableExists(DefaultContext.DB())
-		Expect(err).NotTo(HaveOccurred())
-		if !exists {
-			tableCreated = true
-			Expect(DefaultContext.DB().Exec(`
-				CREATE TABLE external_user_aliases (
-					id uuid PRIMARY KEY,
-					external_user_id uuid NOT NULL,
-					alias text NOT NULL,
-					source text NOT NULL DEFAULT 'scrape',
-					created_at timestamptz NOT NULL DEFAULT now(),
-					deleted_at timestamptz NULL
-				)
-			`).Error).NotTo(HaveOccurred())
-		}
-
 		canonicalID = uuid.New()
 		historicalID = uuid.New()
 		canonical := dutymodels.ExternalUser{
@@ -54,23 +37,13 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 		Expect(DefaultContext.DB().Create(&canonical).Error).NotTo(HaveOccurred())
 
 		for _, alias := range []string{historicalID.String(), "github://old-user"} {
-			var mappingID uuid.UUID
-			if tableCreated {
-				mappingID = uuid.New()
-				Expect(DefaultContext.DB().Exec(`
-					INSERT INTO external_user_aliases (id, external_user_id, alias, source)
-					VALUES (?, ?, ?, 'merge')
-				`, mappingID, canonicalID, alias).Error).NotTo(HaveOccurred())
-			} else {
-				var existing struct{ ID uuid.UUID }
-				Expect(DefaultContext.DB().Table("external_user_aliases").
-					Select("id").
-					Where("external_user_id = ? AND alias = ? AND deleted_at IS NULL", canonicalID, alias).
-					Take(&existing).Error).NotTo(HaveOccurred())
-				mappingID = existing.ID
-				Expect(mappingID).NotTo(Equal(uuid.Nil))
-			}
-			mappingIDs = append(mappingIDs, mappingID)
+			var existing struct{ ID uuid.UUID }
+			Expect(DefaultContext.DB().Table("external_user_aliases").
+				Select("id").
+				Where("external_user_id = ? AND alias = ? AND deleted_at IS NULL", canonicalID, alias).
+				Take(&existing).Error).NotTo(HaveOccurred())
+			Expect(existing.ID).NotTo(Equal(uuid.Nil))
+			mappingIDs = append(mappingIDs, existing.ID)
 		}
 
 		// Simulate a stale derived-index row. Resolution must ignore it because
@@ -92,13 +65,10 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 		ExternalUserIDCache.Flush()
 		Expect(DefaultContext.DB().Exec("DELETE FROM external_user_aliases WHERE id IN ?", mappingIDs).Error).NotTo(HaveOccurred())
 		Expect(DefaultContext.DB().Exec("DELETE FROM external_users WHERE id = ?", canonicalID).Error).NotTo(HaveOccurred())
-		if tableCreated {
-			Expect(DefaultContext.DB().Exec("DROP TABLE external_user_aliases").Error).NotTo(HaveOccurred())
-		}
 	})
 
 	It("warms alias and historical ID redirects into cache", func() {
-		RefreshExternalUserCaches(DefaultContext)
+		Expect(RefreshExternalUserCaches(DefaultContext)).To(Succeed())
 		mappedByAlias, ok := ExternalUserCache.Get("github://old-user")
 		Expect(ok).To(BeTrue())
 		Expect(mappedByAlias).To(Equal(canonicalID))
@@ -107,8 +77,25 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 		Expect(mappedByID).To(Equal(canonicalID))
 	})
 
+	It("fails refresh without clearing the previous cache when the index is unavailable", func() {
+		Expect(RefreshExternalUserCaches(DefaultContext)).To(Succeed())
+		Expect(DefaultContext.DB().Exec(
+			"ALTER TABLE external_user_aliases RENAME TO external_user_aliases_unavailable",
+		).Error).NotTo(HaveOccurred())
+		defer func() {
+			Expect(DefaultContext.DB().Exec(
+				"ALTER TABLE external_user_aliases_unavailable RENAME TO external_user_aliases",
+			).Error).NotTo(HaveOccurred())
+		}()
+
+		Expect(RefreshExternalUserCaches(DefaultContext)).ToNot(Succeed())
+		mapped, ok := ExternalUserCache.Get("github://old-user")
+		Expect(ok).To(BeTrue())
+		Expect(mapped).To(Equal(canonicalID))
+	})
+
 	It("ignores a lookup-index row missing from the source aliases array", func() {
-		RefreshExternalUserCaches(DefaultContext)
+		Expect(RefreshExternalUserCaches(DefaultContext)).To(Succeed())
 		_, ok := ExternalUserCache.Get(staleAlias)
 		Expect(ok).To(BeFalse())
 
@@ -120,6 +107,25 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 		}
 		Expect(applyExternalUserAliasMapping(ctx, &user)).To(Succeed())
 		Expect(user.ID).To(Equal(candidateID))
+	})
+
+	It("keeps lookup misses cache-only until the next refresh", func() {
+		lateAlias := "github://added-after-refresh"
+		Expect(DefaultContext.DB().Exec(`
+			UPDATE external_users
+			SET aliases = array_append(COALESCE(aliases, '{}'::text[]), ?)
+			WHERE id = ?
+		`, lateAlias, canonicalID).Error).NotTo(HaveOccurred())
+
+		candidateID := uuid.New()
+		beforeRefresh := dutymodels.ExternalUser{ID: candidateID, Aliases: pq.StringArray{lateAlias}}
+		Expect(applyExternalUserAliasMapping(ctx, &beforeRefresh)).To(Succeed())
+		Expect(beforeRefresh.ID).To(Equal(candidateID))
+
+		Expect(RefreshExternalUserCaches(DefaultContext)).To(Succeed())
+		afterRefresh := dutymodels.ExternalUser{ID: candidateID, Aliases: pq.StringArray{lateAlias}}
+		Expect(applyExternalUserAliasMapping(ctx, &afterRefresh)).To(Succeed())
+		Expect(afterRefresh.ID).To(Equal(canonicalID))
 	})
 
 	It("rewrites a scraper-provided historical ID to the canonical user", func() {
@@ -138,7 +144,7 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 	})
 
 	It("resolves direct references to a historical user ID", func() {
-		ExternalUserIDCache.Delete(historicalID.String())
+		Expect(RefreshExternalUserCaches(DefaultContext)).To(Succeed())
 		resolved, err := findExternalEntityByID[dutymodels.ExternalUser](ctx, historicalID)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(resolved).NotTo(BeNil(), fmt.Sprintf("historical ID %s should resolve", historicalID))

@@ -149,7 +149,6 @@ func InitSemaphoreWeights(sc context.Context) {
 
 func SyncScrapeConfigs(sc context.Context) {
 	InitSemaphoreWeights(sc)
-	db.WarmExternalEntityCaches(sc)
 	DefaultSchedule = sc.Properties().String("scrapers.default.schedule", DefaultSchedule)
 	j := &job.Job{
 		Name:       "ConfigScraperSync",

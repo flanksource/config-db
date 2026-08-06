@@ -252,6 +252,7 @@ var _ = Describe("resolveExternalUserGroups", func() {
 		Expect(DefaultContext.DB().Create(&persistedGroup).Error).ToNot(HaveOccurred())
 		defer DefaultContext.DB().Delete(&models.ExternalUser{}, "id = ?", persistedUser.ID)
 		defer DefaultContext.DB().Delete(&models.ExternalGroup{}, "id = ?", persistedGroup.ID)
+		Expect(WarmExternalEntityCaches(DefaultContext)).To(Succeed())
 
 		in := []v1.ExternalUserGroup{
 			{
@@ -301,6 +302,7 @@ var _ = Describe("resolveExternalUserGroups", func() {
 		Expect(DefaultContext.DB().Create(&persistedGroup).Error).ToNot(HaveOccurred())
 		defer DefaultContext.DB().Delete(&models.ExternalUser{}, "id = ?", persistedUser.ID)
 		defer DefaultContext.DB().Delete(&models.ExternalGroup{}, "id = ?", persistedGroup.ID)
+		Expect(WarmExternalEntityCaches(DefaultContext)).To(Succeed())
 
 		in := []v1.ExternalUserGroup{
 			{ExternalUserID: &persistedUser.ID, ExternalGroupID: &persistedGroup.ID},
@@ -357,6 +359,7 @@ var _ = Describe("resolveExternalUserGroups", func() {
 		defer DefaultContext.DB().Delete(&models.ExternalUser{}, "id = ?", persistedUser.ID)
 		defer DefaultContext.DB().Delete(&models.ExternalGroup{}, "id = ?", persistedGroup.ID)
 		defer DefaultContext.DB().Delete(&models.ExternalUserGroup{}, "external_user_id = ? AND external_group_id = ?", persistedUser.ID, persistedGroup.ID)
+		Expect(WarmExternalEntityCaches(DefaultContext)).To(Succeed())
 
 		extract := NewExtractResult()
 		extract.externalUserGroups = []v1.ExternalUserGroup{

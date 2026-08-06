@@ -95,7 +95,9 @@ var Run = &cobra.Command{
 			}
 
 			dutyCtx = c
-			db.WarmExternalEntityCaches(dutyCtx)
+			if err := db.WarmExternalEntityCaches(dutyCtx); err != nil {
+				logger.Fatalf("Failed to initialize external entity caches: %v", err)
+			}
 			if blobs, err := dutyCtx.Blobs(); err != nil {
 				logger.Warnf("failed to initialize blob store: %v", err)
 			} else {
