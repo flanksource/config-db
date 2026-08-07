@@ -81,7 +81,7 @@ func FindConfigIDsByNamespaceNameClass(ctx context.Context, cluster, namespace, 
 // QueryConfigItems ...
 func QueryConfigItems(ctx api.ScrapeContext, request v1.QueryRequest) (*v1.QueryResult, error) {
 	results := ctx.DB().Raw(request.Query)
-	logger.Tracef(request.Query)
+	logger.Tracef("%s", request.Query)
 	if results.Error != nil {
 		return nil, fmt.Errorf("failed to parse query: %s -> %s", request.Query, results.Error)
 	}
