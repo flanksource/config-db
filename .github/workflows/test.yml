@@ -35,6 +35,8 @@ jobs:
           restore-keys: |
             cache-
       - name: Test
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: make test
 
   test-playwright:
