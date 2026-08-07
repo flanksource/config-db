@@ -151,9 +151,6 @@ var _ = Describe("e2e extraction fixtures", func() {
 
 			var createdItems []string
 			configIDByExternalID := make(map[string]uuid.UUID)
-			scraperModel, err := db.PersistScrapeConfigFromFile(DefaultContext, config)
-			Expect(err).ToNot(HaveOccurred())
-			config.SetUID(k8sTypes.UID(scraperModel.ID.String()))
 			otherScraperModel := dutymodels.ConfigScraper{
 				ID:        uuid.New(),
 				Name:      "e2e-other-" + name,
@@ -162,6 +159,34 @@ var _ = Describe("e2e extraction fixtures", func() {
 				Source:    dutymodels.SourceConfigFile,
 			}
 			otherScraperCreated := false
+
+			scraperModel, err := db.PersistScrapeConfigFromFile(DefaultContext, config)
+			Expect(err).ToNot(HaveOccurred())
+			DeferCleanup(func() {
+				DefaultContext.DB().Exec("DELETE FROM config_relationships WHERE config_id IN (SELECT id FROM config_items WHERE scraper_id = ?) OR related_id IN (SELECT id FROM config_items WHERE scraper_id = ?)", scraperModel.ID, scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM config_access_logs WHERE scraper_id = ?", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM config_access WHERE scraper_id = ?", scraperModel.ID)
+				for _, id := range createdItems {
+					DefaultContext.DB().Where("config_id = ?", id).Delete(&models.ConfigChange{})
+					DefaultContext.DB().Delete(&models.ConfigItem{}, "id = ?", id)
+				}
+				// Clean up external entities for this scraper.
+				DefaultContext.DB().Exec("DELETE FROM external_user_groups WHERE scraper_id IN ?", []uuid.UUID{scraperModel.ID, otherScraperModel.ID})
+				DefaultContext.DB().Exec("DELETE FROM external_users WHERE scraper_id = ?", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM external_groups WHERE scraper_id = ?", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM external_roles WHERE scraper_id = ?", scraperModel.ID)
+				if len(fixture.PrePopulate.ExternalUsers) > 0 {
+					Expect(db.RefreshExternalUserCaches(DefaultContext)).To(Succeed())
+				}
+				DefaultContext.DB().Exec("DELETE FROM config_changes WHERE config_id IN (SELECT id FROM config_items WHERE scraper_id = ?)", scraperModel.ID)
+				DefaultContext.DB().Exec("DELETE FROM config_items WHERE scraper_id = ?", scraperModel.ID)
+				DefaultContext.DB().Where("id = ?", scraperModel.ID).Delete(&dutymodels.ConfigScraper{})
+				if otherScraperCreated {
+					DefaultContext.DB().Where("id = ?", otherScraperModel.ID).Delete(&dutymodels.ConfigScraper{})
+				}
+			})
+
+			config.SetUID(k8sTypes.UID(scraperModel.ID.String()))
 			ownerScraperID := func(owner string) uuid.UUID {
 				if owner == "other" {
 					if !otherScraperCreated {
@@ -365,27 +390,6 @@ var _ = Describe("e2e extraction fixtures", func() {
 			if len(fixture.PrePopulate.ExternalUserGroups) > 0 {
 				Expect(db.RefreshExternalUserCaches(DefaultContext)).To(Succeed())
 			}
-
-			defer func() {
-				DefaultContext.DB().Exec("DELETE FROM config_relationships WHERE config_id IN (SELECT id FROM config_items WHERE scraper_id = ?) OR related_id IN (SELECT id FROM config_items WHERE scraper_id = ?)", scraperModel.ID, scraperModel.ID)
-				DefaultContext.DB().Exec("DELETE FROM config_access_logs WHERE scraper_id = ?", scraperModel.ID)
-				DefaultContext.DB().Exec("DELETE FROM config_access WHERE scraper_id = ?", scraperModel.ID)
-				for _, id := range createdItems {
-					DefaultContext.DB().Where("config_id = ?", id).Delete(&models.ConfigChange{})
-					DefaultContext.DB().Delete(&models.ConfigItem{}, "id = ?", id)
-				}
-				// Clean up external entities for this scraper
-				DefaultContext.DB().Exec("DELETE FROM external_user_groups WHERE scraper_id IN ?", []uuid.UUID{scraperModel.ID, otherScraperModel.ID})
-				DefaultContext.DB().Exec("DELETE FROM external_users WHERE scraper_id = ?", scraperModel.ID)
-				DefaultContext.DB().Exec("DELETE FROM external_groups WHERE scraper_id = ?", scraperModel.ID)
-				DefaultContext.DB().Exec("DELETE FROM external_roles WHERE scraper_id = ?", scraperModel.ID)
-				DefaultContext.DB().Exec("DELETE FROM config_changes WHERE config_id IN (SELECT id FROM config_items WHERE scraper_id = ?)", scraperModel.ID)
-				DefaultContext.DB().Exec("DELETE FROM config_items WHERE scraper_id = ?", scraperModel.ID)
-				DefaultContext.DB().Where("id = ?", scraperModel.ID).Delete(&dutymodels.ConfigScraper{})
-				if otherScraperCreated {
-					DefaultContext.DB().Where("id = ?", otherScraperModel.ID).Delete(&dutymodels.ConfigScraper{})
-				}
-			}()
 
 			scraperCtx := ctx.WithScrapeConfig(&config)
 			scraperCtx, err = scraperCtx.InitTempCache()
