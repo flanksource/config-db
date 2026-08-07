@@ -162,73 +162,22 @@ jobs:
       - name: Test
         run: make test-prod
 
-  test-clickhouse:
+  clickhouse-e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Free up disk space
-        run: |
-          initial_space=$(df / | grep / | awk '{print $4}')
-          sudo docker system prune -af
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf $AGENT_TOOLSDIRECTORY
-          sudo rm -rf /opt/hostedtoolcache
-
-          final_space=$(df / | grep / | awk '{print $4}')
-          difference=$((final_space - initial_space))
-          echo "Disk space difference (in KB): $difference"
-
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Kubernetes KinD Cluster
-        uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2
-
-      - name: Install Helm
-        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
-
-      - name: Verify cluster is ready
-        run: |
-          echo "Waiting for cluster to be ready..."
-          kubectl wait --for=condition=Ready nodes --all --timeout=300s
-          kubectl get nodes
-          kubectl get pods -A
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+      - name: Install Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
-          context: .
-          file: ./build/Dockerfile
-          push: true
-          tags: localhost:5000/flanksource/config-db:latest
-
-      - name: Package helm chart
-        run: |
-          helm dependency build ./chart
-          helm package ./chart --version 1.0.0
-
-      - name: Install Helm chart
-        run: |
-          helm install config-db config-db-1.0.0.tgz \
-            --namespace default \
-            --set clickhouse.enabled=true \
-            --set imageRegistry="kind-registry:5000"
-
-      - name: Check pod status
-        run: |
-          sleep 60
-          kubectl get pods
-          kubectl describe pods
-          sleep 60
-          kubectl get pods
-          kubectl describe pods
-
-      - name: Run clickhouse fixture
-        run: |
-          kubectl cp fixtures/clickhouse.yaml config-db-0:/app/clickhouse.yaml
-          kubectl exec -it config-db-0 -- /app/config-db run /app/clickhouse.yaml
+          go-version: 1.26.x
+          cache-dependency-path: |
+            go.sum
+            tests/clickhouse_e2e/go.sum
+      - name: Run ClickHouse storage E2E
+        working-directory: tests/clickhouse_e2e
+        run: go test -tags=clickhouse_e2e -v -count=1 -timeout=12m ./...
 
   test-slim:
     runs-on: ubuntu-latest

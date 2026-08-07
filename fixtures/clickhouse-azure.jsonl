@@ -1,0 +1,2 @@
+{"resource_id":"storage-001","resource_name":"primary-storage","sku":"Standard_LRS"}
+{"resource_id":"storage-002","resource_name":"archive-storage","sku":"Standard_GRS"}

@@ -15,7 +15,7 @@ import (
 	dutycontext "github.com/flanksource/duty/context"
 )
 
-var _ = Describe("TempCache ScraperID=all fallback", func() {
+var _ = Describe("TempCache", func() {
 	var (
 		ctx       ScrapeContext
 		scraperID uuid.UUID
@@ -57,5 +57,58 @@ var _ = Describe("TempCache ScraperID=all fallback", func() {
 		id, err := ctx.TempCache().FindExternalID(ctx, lookup)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(id).To(Equal("efs-config-id"))
+	})
+
+	It("invalidates a wildcard miss when inserting an alias", func() {
+		efsARN := "arn:aws:elasticfilesystem:eu-west-1:111111111111:file-system/fs-0f6dafb1128f44e71"
+		lookup := v1.ExternalID{
+			ConfigType: "AWS::EFS::FileSystem",
+			ExternalID: efsARN,
+			ScraperID:  "all",
+		}
+
+		item, err := ctx.TempCache().Find(ctx, lookup)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(item).To(BeNil())
+		_, cached := ctx.TempCache().notFound.Load(lookup.Key())
+		Expect(cached).To(BeTrue())
+
+		ctx.TempCache().Insert(models.ConfigItem{
+			ID:         "efs-config-id",
+			Type:       "AWS::EFS::FileSystem",
+			ExternalID: []string{v1.NormalizeExternalID(efsARN)},
+			ScraperID:  lo.ToPtr(scraperID),
+		})
+
+		item, err = ctx.TempCache().Find(ctx, lookup)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(item).ToNot(BeNil())
+		Expect(item.ID).To(Equal("efs-config-id"))
+	})
+
+	It("returns not found for an uncached external ID without a database", func() {
+		lookup := v1.ExternalID{
+			ConfigType: "AWS::EFS::FileSystem",
+			ExternalID: "missing-file-system",
+		}
+
+		item, err := ctx.TempCache().Find(ctx, lookup)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(item).To(BeNil())
+
+		lookup.ScraperID = ctx.ScraperID()
+		_, cached := ctx.TempCache().notFound.Load(lookup.Key())
+		Expect(cached).To(BeTrue())
+	})
+
+	It("returns not found for an uncached config ID without a database", func() {
+		id := uuid.NewString()
+
+		item, err := ctx.TempCache().Get(ctx, id)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(item).To(BeNil())
+
+		_, cached := ctx.TempCache().notFound.Load(id)
+		Expect(cached).To(BeTrue())
 	})
 })

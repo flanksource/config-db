@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -100,13 +101,25 @@ type SQLDetails struct {
 	Count   int              `json:"count,omitempty"`
 }
 
-// Connects to a db using the specified `driver` and `connectionstring`
-// Performs the test query given in `query`.
-// Gives the single row test query result as result.
+// QueryContext is the small database/sql surface shared by DB pools and pinned connections.
+type QueryContext interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+// QuerySQL runs query against a pooled database connection.
 func QuerySQL(db *sql.DB, query string) (*SQLDetails, error) {
-	rows, err := db.Query(query)
+	return QuerySQLContext(context.Background(), db, query)
+}
+
+// QuerySQLContext runs a SQL query on either a pool or a single pinned connection.
+func QuerySQLContext(ctx context.Context, db QueryContext, query string) (*SQLDetails, error) {
+	rows, err := db.QueryContext(ctx, query)
 	result := SQLDetails{}
-	if err != nil || rows.Err() != nil {
+	if err != nil {
+		return nil, fmt.Errorf("failed to query db: %s", err.Error())
+	}
+	defer rows.Close() //nolint:errcheck
+	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to query db: %s", err.Error())
 	}
 	columns, err := rows.Columns()
@@ -133,6 +146,9 @@ func QuerySQL(db *sql.DB, query string) (*SQLDetails, error) {
 			}
 		}
 		result.Rows = append(result.Rows, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 	result.Count = len(result.Rows)
 	return &result, nil
