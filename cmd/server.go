@@ -35,6 +35,7 @@ import (
 const (
 	externalUserCacheRefreshInterval = 6 * time.Hour
 	tableListenerReadyTimeout        = 10 * time.Second
+	tableListenerProbeFailureLimit   = 5
 )
 
 // Serve ...
@@ -81,10 +82,29 @@ func startTableUpdatesHandler(ctx dutyContext.Context) error {
 	defer timeout.Stop()
 
 	var lastErr error
+	consecutiveFailures := 0
 	for {
 		lastErr = ctx.DB().Exec(
 			"SELECT pg_notify('table_activity', 'external_user_cache_listener_ready')",
 		).Error
+		if lastErr != nil {
+			consecutiveFailures++
+		} else {
+			consecutiveFailures = 0
+		}
+
+		select {
+		case <-ready:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if consecutiveFailures >= tableListenerProbeFailureLimit {
+			return fmt.Errorf("table_activity listener readiness probe failed %d consecutive times: %w",
+				consecutiveFailures, lastErr)
+		}
+
 		select {
 		case <-ready:
 			return nil

@@ -15,7 +15,6 @@ import (
 var _ = Describe("external user alias mapping resolution", Ordered, func() {
 	var canonicalID uuid.UUID
 	var historicalID uuid.UUID
-	var mappingIDs []uuid.UUID
 	var staleAlias string
 	var ctx api.ScrapeContext
 
@@ -43,14 +42,12 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 				Where("external_user_id = ? AND alias = ? AND deleted_at IS NULL", canonicalID, alias).
 				Take(&existing).Error).NotTo(HaveOccurred())
 			Expect(existing.ID).NotTo(Equal(uuid.Nil))
-			mappingIDs = append(mappingIDs, existing.ID)
 		}
 
 		// Simulate a stale derived-index row. Resolution must ignore it because
 		// the alias is not present in external_users.aliases.
 		staleAlias = "github://stale-index-only"
 		staleMappingID := uuid.New()
-		mappingIDs = append(mappingIDs, staleMappingID)
 		Expect(DefaultContext.DB().Exec(`
 			INSERT INTO external_user_aliases (id, external_user_id, alias, source)
 			VALUES (?, ?, ?, 'merge')
@@ -63,7 +60,9 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 	AfterAll(func() {
 		ExternalUserCache.Flush()
 		ExternalUserIDCache.Flush()
-		Expect(DefaultContext.DB().Exec("DELETE FROM external_user_aliases WHERE id IN ?", mappingIDs).Error).NotTo(HaveOccurred())
+		Expect(DefaultContext.DB().Exec(
+			"DELETE FROM external_user_aliases WHERE external_user_id = ?", canonicalID,
+		).Error).NotTo(HaveOccurred())
 		Expect(DefaultContext.DB().Exec("DELETE FROM external_users WHERE id = ?", canonicalID).Error).NotTo(HaveOccurred())
 	})
 
@@ -82,11 +81,11 @@ var _ = Describe("external user alias mapping resolution", Ordered, func() {
 		Expect(DefaultContext.DB().Exec(
 			"ALTER TABLE external_user_aliases RENAME TO external_user_aliases_unavailable",
 		).Error).NotTo(HaveOccurred())
-		defer func() {
+		DeferCleanup(func() {
 			Expect(DefaultContext.DB().Exec(
 				"ALTER TABLE external_user_aliases_unavailable RENAME TO external_user_aliases",
 			).Error).NotTo(HaveOccurred())
-		}()
+		})
 
 		Expect(RefreshExternalUserCaches(DefaultContext)).ToNot(Succeed())
 		mapped, ok := ExternalUserCache.Get("github://old-user")
