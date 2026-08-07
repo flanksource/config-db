@@ -359,6 +359,13 @@ var _ = Describe("e2e extraction fixtures", func() {
 				Expect(DefaultContext.DB().Create(&row).Error).ToNot(HaveOccurred())
 			}
 
+			// Production receives table_activity notifications for these writes.
+			// The fixture harness does not run that listener, so membership fixtures
+			// must refresh before resolving their pre-populated users from the cache.
+			if len(fixture.PrePopulate.ExternalUserGroups) > 0 {
+				Expect(db.RefreshExternalUserCaches(DefaultContext)).To(Succeed())
+			}
+
 			defer func() {
 				DefaultContext.DB().Exec("DELETE FROM config_relationships WHERE config_id IN (SELECT id FROM config_items WHERE scraper_id = ?) OR related_id IN (SELECT id FROM config_items WHERE scraper_id = ?)", scraperModel.ID, scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM config_access_logs WHERE scraper_id = ?", scraperModel.ID)
