@@ -129,14 +129,6 @@ func (nc NamedCollection) Upsert(ctx api.ScrapeContext, conn *sql.DB) error {
 	return nil
 }
 
-func (nc NamedCollection) Drop(ctx api.ScrapeContext, conn *sql.DB) error {
-	if err := validateClickhouseIdentifier(nc.Name); err != nil {
-		return err
-	}
-	_, err := conn.ExecContext(ctx, fmt.Sprintf("DROP NAMED COLLECTION IF EXISTS %s;", nc.Name))
-	return err
-}
-
 func createNamedCollectionForStorage(ctx api.ScrapeContext, config v1.Clickhouse, conn *sql.DB) error {
 	ex := shell.Exec{}
 	var nc NamedCollection
