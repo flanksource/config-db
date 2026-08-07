@@ -523,7 +523,7 @@ var _ = Describe("External entities only (no config item) e2e test", Ordered, fu
 		_, found := db.ExternalUserCache.Get("alice")
 		Expect(found).To(BeFalse())
 
-		db.WarmExternalEntityCaches(DefaultContext)
+		Expect(db.WarmExternalEntityCaches(DefaultContext)).To(Succeed())
 
 		aliceID, found := db.ExternalUserCache.Get("alice")
 		Expect(found).To(BeTrue())

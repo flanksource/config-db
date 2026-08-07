@@ -3,6 +3,7 @@ package db
 import (
 	stdcontext "context"
 	"fmt"
+	"sync"
 	"time"
 
 	gocache "github.com/eko/gocache/lib/v4/cache"
@@ -16,20 +17,23 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/samber/lo"
-	"gorm.io/gorm"
 )
 
 var CACHE_TIMEOUT = properties.Duration(time.Hour*24, "external.cache.timeout")
 
 type typedCache[T any] struct {
+	mu    sync.RWMutex
+	name  string
 	inner gocache.CacheInterface[T]
 }
 
 func newTypedCache[T any](name string) *typedCache[T] {
-	return &typedCache[T]{inner: dutycache.NewCache[T](name, CACHE_TIMEOUT)}
+	return &typedCache[T]{name: name, inner: dutycache.NewCache[T](name, CACHE_TIMEOUT)}
 }
 
 func (c *typedCache[T]) Get(key string) (T, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	value, err := c.inner.Get(stdcontext.Background(), key)
 	if err != nil {
 		var zero T
@@ -39,15 +43,37 @@ func (c *typedCache[T]) Get(key string) (T, bool) {
 }
 
 func (c *typedCache[T]) Set(key string, value T) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	_ = c.inner.Set(stdcontext.Background(), key, value)
 }
 
 func (c *typedCache[T]) Delete(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	_ = c.inner.Delete(stdcontext.Background(), key)
 }
 
 func (c *typedCache[T]) Flush() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	_ = c.inner.Clear(stdcontext.Background())
+}
+
+func (c *typedCache[T]) buildReplacement(values map[string]T) (gocache.CacheInterface[T], error) {
+	replacement := dutycache.NewCache[T](c.name, CACHE_TIMEOUT)
+	for key, value := range values {
+		if err := replacement.Set(stdcontext.Background(), key, value); err != nil {
+			return nil, fmt.Errorf("populate %s cache: %w", c.name, err)
+		}
+	}
+	return replacement, nil
+}
+
+func (c *typedCache[T]) swap(replacement gocache.CacheInterface[T]) {
+	c.mu.Lock()
+	c.inner = replacement
+	c.mu.Unlock()
 }
 
 var OrphanCache = newTypedCache[bool]("orphan")
@@ -58,6 +84,14 @@ var ExternalUserCache = newTypedCache[uuid.UUID]("external-users-alias")
 // ExternalUserIDCache stores external_user_id -> winning external_user_id
 // (the id under which the row currently lives after any merges).
 var ExternalUserIDCache = newTypedCache[uuid.UUID]("external-users-id")
+
+// externalUserCachesMu makes the alias and ID cache generation switch atomic
+// for lookups that consult both caches.
+var externalUserCachesMu sync.RWMutex
+
+// externalUserCacheRefreshMu serializes notification, periodic, and startup
+// refreshes so an older snapshot cannot replace a newer generation.
+var externalUserCacheRefreshMu sync.Mutex
 
 // ExternalRoleCache stores alias -> external_role_id mapping
 var ExternalRoleCache = newTypedCache[uuid.UUID]("external-roles-alias")
@@ -107,11 +141,123 @@ func getEntityIDCache[T externalEntityWithID]() *typedCache[uuid.UUID] {
 	}
 }
 
+type externalEntityIDAliases struct {
+	ID      uuid.UUID
+	Aliases pq.StringArray `gorm:"type:text[]"`
+}
+
+type externalUserAliasMapping struct {
+	ExternalUserID uuid.UUID
+	Alias          string
+}
+
+func warmExternalEntityCache(ctx dutycontext.Context, table string, aliasCache, idCache *typedCache[uuid.UUID]) (int, error) {
+	var rows []externalEntityIDAliases
+	if err := ctx.DB().Table(table).
+		Select("id, aliases").
+		Where("deleted_at IS NULL").
+		Find(&rows).Error; err != nil {
+		return 0, fmt.Errorf("load %s cache: %w", table, err)
+	}
+
+	aliases := make(map[string]uuid.UUID)
+	ids := make(map[string]uuid.UUID)
+	for _, row := range rows {
+		for _, alias := range row.Aliases {
+			if norm := v1.NormalizeExternalID(alias); norm != "" {
+				aliases[norm] = row.ID
+			}
+		}
+		ids[row.ID.String()] = row.ID
+	}
+	aliasReplacement, err := aliasCache.buildReplacement(aliases)
+	if err != nil {
+		return 0, err
+	}
+	idReplacement, err := idCache.buildReplacement(ids)
+	if err != nil {
+		return 0, err
+	}
+	aliasCache.swap(aliasReplacement)
+	idCache.swap(idReplacement)
+	return len(rows), nil
+}
+
+// RefreshExternalUserCaches loads a complete cache generation before swapping
+// it into use. external_user_aliases is a required Duty schema dependency; a
+// missing table or failed query is returned to the caller and leaves the
+// previous cache generation untouched.
+func RefreshExternalUserCaches(ctx dutycontext.Context) error {
+	externalUserCacheRefreshMu.Lock()
+	defer externalUserCacheRefreshMu.Unlock()
+
+	var users []externalEntityIDAliases
+	if err := ctx.DB().Table("external_users").
+		Select("id, aliases").
+		Where("deleted_at IS NULL").
+		Find(&users).Error; err != nil {
+		return fmt.Errorf("load external_users cache: %w", err)
+	}
+
+	// Only accept derived-index rows that still exist in the authoritative
+	// external_users.aliases array.
+	var mappings []externalUserAliasMapping
+	if err := ctx.DB().Table("external_user_aliases eua").
+		Select("eua.external_user_id, eua.alias").
+		Joins(`JOIN external_users eu ON eu.id = eua.external_user_id
+			AND eu.deleted_at IS NULL
+			AND EXISTS (
+				SELECT 1 FROM unnest(COALESCE(eu.aliases, '{}'::text[])) AS a
+				WHERE lower(btrim(a)) = eua.alias
+			)`).
+		Where("eua.deleted_at IS NULL").
+		Find(&mappings).Error; err != nil {
+		return fmt.Errorf("load external_user_aliases cache: %w", err)
+	}
+
+	aliases := make(map[string]uuid.UUID)
+	ids := make(map[string]uuid.UUID)
+	for _, user := range users {
+		ids[user.ID.String()] = user.ID
+		for _, alias := range user.Aliases {
+			if norm := v1.NormalizeExternalID(alias); norm != "" {
+				aliases[norm] = user.ID
+			}
+		}
+	}
+	for _, mapping := range mappings {
+		norm := v1.NormalizeExternalID(mapping.Alias)
+		if norm == "" {
+			continue
+		}
+		aliases[norm] = mapping.ExternalUserID
+		if historicalID, err := uuid.Parse(norm); err == nil && historicalID != uuid.Nil {
+			ids[historicalID.String()] = mapping.ExternalUserID
+		}
+	}
+
+	aliasReplacement, err := ExternalUserCache.buildReplacement(aliases)
+	if err != nil {
+		return err
+	}
+	idReplacement, err := ExternalUserIDCache.buildReplacement(ids)
+	if err != nil {
+		return err
+	}
+
+	externalUserCachesMu.Lock()
+	ExternalUserCache.swap(aliasReplacement)
+	ExternalUserIDCache.swap(idReplacement)
+	externalUserCachesMu.Unlock()
+
+	logger.Infof("warmed external_users cache with %d entities and %d mappings", len(users), len(mappings))
+	return nil
+}
+
 // WarmExternalEntityCaches pre-fills the user/role/group alias caches from the database.
-func WarmExternalEntityCaches(ctx dutycontext.Context) {
-	type idAliases struct {
-		ID      uuid.UUID
-		Aliases pq.StringArray `gorm:"type:text[]"`
+func WarmExternalEntityCaches(ctx dutycontext.Context) error {
+	if err := RefreshExternalUserCaches(ctx); err != nil {
+		return err
 	}
 
 	for _, table := range []struct {
@@ -119,32 +265,21 @@ func WarmExternalEntityCaches(ctx dutycontext.Context) {
 		aliasCache *typedCache[uuid.UUID]
 		idCache    *typedCache[uuid.UUID]
 	}{
-		{"external_users", ExternalUserCache, ExternalUserIDCache},
 		{"external_roles", ExternalRoleCache, ExternalRoleIDCache},
 		{"external_groups", ExternalGroupCache, ExternalGroupIDCache},
 	} {
-		var rows []idAliases
-		if err := ctx.DB().Table(table.name).
-			Select("id, aliases").
-			Where("deleted_at IS NULL").
-			Find(&rows).Error; err != nil {
-			logger.Errorf("failed to warm %s cache: %v", table.name, err)
-			continue
+		count, err := warmExternalEntityCache(ctx, table.name, table.aliasCache, table.idCache)
+		if err != nil {
+			return err
 		}
-		for _, row := range rows {
-			for _, alias := range row.Aliases {
-				if norm := v1.NormalizeExternalID(alias); norm != "" {
-					table.aliasCache.Set(norm, row.ID)
-				}
-			}
-			table.idCache.Set(row.ID.String(), row.ID)
-		}
-		logger.Infof("warmed %s cache with %d entities", table.name, len(rows))
+		logger.Infof("warmed %s cache with %d entities", table.name, count)
 	}
+	return nil
 }
 
 // findExternalEntityIDByAliases looks up an external entity ID by aliases.
-// It first checks the cache, then queries the DB. Returns the ID if found, nil otherwise.
+// External-user misses remain cache-only; role and group misses retain their
+// existing database fallback.
 func findExternalEntityIDByAliases[T externalEntityWithID](ctx api.ScrapeContext, aliases []string) (*uuid.UUID, error) {
 	ids, err := findAllExternalEntityIDsByAliases[T](ctx, aliases)
 	if err != nil {
@@ -156,15 +291,9 @@ func findExternalEntityIDByAliases[T externalEntityWithID](ctx api.ScrapeContext
 	return lo.ToPtr(ids[0]), nil
 }
 
-// findExternalEntityByID resolves an external entity by canonical id. It checks
-// the id-cache first, then queries `id =` on the live table. If the row is
-// not found by id, it falls back to alias overlap — covering the case where
-// the entity was previously merged into a winner whose `aliases` array now
-// contains the original (loser) id.
-//
-// `entity.aliases` is invariant-free of `entity.id` for live entities, so the
-// alias fallback only fires for historical/loser ids — never for the entity's
-// current canonical id.
+// findExternalEntityByID resolves an external entity by canonical ID. External
+// users are cache-only because refreshes preload canonical and historical IDs;
+// role and group misses retain their existing database fallback.
 func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uuid.UUID) (*uuid.UUID, error) {
 	if id == uuid.Nil {
 		return nil, nil
@@ -178,13 +307,16 @@ func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uu
 	}
 
 	var zero T
+	if _, isUser := any(zero).(dutyModels.ExternalUser); isUser {
+		return nil, nil
+	}
 	var foundIDs []uuid.UUID
 	err := ctx.DB().Table(zero.TableName()).
 		Select("id").
 		Where("id = ? AND deleted_at IS NULL", id).
 		Limit(1).
 		Pluck("id", &foundIDs).Error
-	if err != nil && err != gorm.ErrRecordNotFound {
+	if err != nil {
 		return nil, fmt.Errorf("failed to query %s by id: %w", zero.TableName(), err)
 	}
 	var found uuid.UUID
@@ -212,6 +344,13 @@ func findExternalEntityByID[T externalEntityWithID](ctx api.ScrapeContext, id uu
 func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeContext, aliases []string) ([]uuid.UUID, error) {
 	aliasCache := getEntityCache[T]()
 	idCache := getEntityIDCache[T]()
+	var zero T
+	_, isUser := any(zero).(dutyModels.ExternalUser)
+	if isUser {
+		externalUserCachesMu.RLock()
+		defer externalUserCachesMu.RUnlock()
+	}
+
 	seen := make(map[uuid.UUID]bool)
 	misses := make([]string, 0, len(aliases))
 	checked := make(map[string]bool, len(aliases))
@@ -237,8 +376,15 @@ func findAllExternalEntityIDsByAliases[T externalEntityWithID](ctx api.ScrapeCon
 		misses = append(misses, norm)
 	}
 
+	if isUser {
+		result := make([]uuid.UUID, 0, len(seen))
+		for id := range seen {
+			result = append(result, id)
+		}
+		return result, nil
+	}
+
 	if len(misses) > 0 {
-		var zero T
 		var rows []struct {
 			ID      uuid.UUID
 			Aliases pq.StringArray `gorm:"type:text[]"`

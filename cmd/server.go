@@ -32,6 +32,12 @@ import (
 	"github.com/flanksource/config-db/utils"
 )
 
+const (
+	externalUserCacheRefreshInterval = 6 * time.Hour
+	tableListenerReadyTimeout        = 10 * time.Second
+	tableListenerProbeFailureLimit   = 5
+)
+
 // Serve ...
 var Serve = &cobra.Command{
 	Use: "serve",
@@ -48,25 +54,114 @@ var Serve = &cobra.Command{
 		if err := db.InitChangeFingerprintCache(ctx, dedupWindow); err != nil {
 			return fmt.Errorf("failed to initialize change fingerprint cache: %w", err)
 		}
+		if err := startTableUpdatesHandler(dutyCtx); err != nil {
+			return fmt.Errorf("failed to initialize table notification listener: %w", err)
+		}
+		if err := db.WarmExternalEntityCaches(dutyCtx); err != nil {
+			return fmt.Errorf("failed to initialize external entity caches: %w", err)
+		}
 
 		registerJobs(dutyCtx, args)
 		scrapers.StartEventListener(ctx)
-		go tableUpdatesHandler(dutyCtx)
 		serve(dutyCtx)
 
 		return nil
 	},
 }
 
+// startTableUpdatesHandler waits until PostgreSQL confirms the LISTEN is active.
+// Warming caches only after this handshake closes the startup gap between the
+// initial database snapshot and notification registration.
+func startTableUpdatesHandler(ctx dutyContext.Context) error {
+	ready := make(chan struct{})
+	go tableUpdatesHandler(ctx, ready)
+
+	probeTicker := time.NewTicker(100 * time.Millisecond)
+	defer probeTicker.Stop()
+	timeout := time.NewTimer(tableListenerReadyTimeout)
+	defer timeout.Stop()
+
+	var lastErr error
+	consecutiveFailures := 0
+	for {
+		lastErr = ctx.DB().Exec(
+			"SELECT pg_notify('table_activity', 'external_user_cache_listener_ready')",
+		).Error
+		if lastErr != nil {
+			consecutiveFailures++
+		} else {
+			consecutiveFailures = 0
+		}
+
+		select {
+		case <-ready:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if consecutiveFailures >= tableListenerProbeFailureLimit {
+			return fmt.Errorf("table_activity listener readiness probe failed %d consecutive times: %w",
+				consecutiveFailures, lastErr)
+		}
+
+		select {
+		case <-ready:
+			return nil
+		case <-probeTicker.C:
+			continue
+		case <-timeout.C:
+			return fmt.Errorf("timed out waiting for table_activity listener (last probe error: %v)", lastErr)
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
 // tableUpdatesHandler handles all "table_activity" pg notifications.
-func tableUpdatesHandler(ctx dutyContext.Context) {
+func tableUpdatesHandler(ctx dutyContext.Context, ready chan<- struct{}) {
 	notifyRouter := pg.NewNotifyRouter()
+	pluginUpdates := notifyRouter.GetOrCreateChannel("scrape_plugins")
+	// Source aliases and derived-index rows can change together during a merge.
+	// Route both notifications through one signal-mode channel so bursts collapse
+	// into a single source-of-truth cache refresh. A requested size of zero gives
+	// the Duty router one pending signal slot.
+	aliasUpdates := notifyRouter.GetOrCreateBufferedChannel(0, "external_users", "external_user_aliases")
+	listenerReady := notifyRouter.GetOrCreateBufferedChannel(0, "external_user_cache_listener_ready")
 	go notifyRouter.Run(ctx, "table_activity")
 
-	for range notifyRouter.GetOrCreateChannel("scrape_plugins") {
-		ctx.Logger.V(3).Infof("reloading plugins")
-		if _, err := db.ReloadAllScrapePlugins(ctx); err != nil {
-			logger.Errorf("failed to reload plugins: %w", err)
+	select {
+	case <-listenerReady:
+		close(ready)
+	case <-ctx.Done():
+		return
+	}
+
+	refreshTicker := time.NewTicker(externalUserCacheRefreshInterval)
+	defer refreshTicker.Stop()
+
+	refreshExternalUsers := func(reason string) {
+		ctx.Logger.V(3).Infof("reloading external user caches: %s", reason)
+		if err := db.RefreshExternalUserCaches(ctx); err != nil {
+			// Refresh builds a new generation before swapping, so the previous
+			// cache remains usable when a notification or periodic reload fails.
+			logger.Errorf("failed to reload external user caches (%s): %v", reason, err)
+		}
+	}
+
+	for {
+		select {
+		case <-pluginUpdates:
+			ctx.Logger.V(3).Infof("reloading plugins")
+			if _, err := db.ReloadAllScrapePlugins(ctx); err != nil {
+				logger.Errorf("failed to reload plugins: %v", err)
+			}
+		case <-aliasUpdates:
+			refreshExternalUsers("table notification")
+		case <-refreshTicker.C:
+			refreshExternalUsers("periodic refresh")
+		case <-ctx.Done():
+			return
 		}
 	}
 }

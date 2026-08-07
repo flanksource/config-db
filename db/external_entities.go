@@ -99,17 +99,28 @@ func syncExternalEntities(ctx api.ScrapeContext, extract *extractResult, scraper
 	}
 
 	if scraperID != nil {
-		for loserID := range userIDMap {
-			ExternalUserIDCache.Delete(loserID.String())
-		}
-		for loserID := range groupIDMap {
-			ExternalGroupIDCache.Delete(loserID.String())
+		externalUserCacheRefreshMu.Lock()
+		externalUserCachesMu.Lock()
+		for loserID, winnerID := range userIDMap {
+			ExternalUserIDCache.Set(loserID.String(), winnerID)
 		}
 		for _, u := range resolvedUsers {
-			ExternalUserIDCache.Set(u.ID.String(), u.ID)
-			for _, alias := range u.Aliases {
-				ExternalUserCache.Set(alias, u.ID)
+			canonicalID := u.ID
+			if winnerID, ok := userIDMap[u.ID]; ok {
+				canonicalID = winnerID
 			}
+			ExternalUserIDCache.Set(canonicalID.String(), canonicalID)
+			ExternalUserIDCache.Set(u.ID.String(), canonicalID)
+			for _, alias := range u.Aliases {
+				if norm := v1.NormalizeExternalID(alias); norm != "" {
+					ExternalUserCache.Set(norm, canonicalID)
+				}
+			}
+		}
+		externalUserCachesMu.Unlock()
+		externalUserCacheRefreshMu.Unlock()
+		for loserID := range groupIDMap {
+			ExternalGroupIDCache.Delete(loserID.String())
 		}
 		for _, g := range resolvedGroups {
 			ExternalGroupIDCache.Set(g.ID.String(), g.ID)
@@ -215,10 +226,9 @@ nextAlias:
 // pinned by alias overlap, or one of the canonical aliases themselves — never
 // a hash of the alias set:
 //
-//  1. Alias-overlap against the live `table` — if any persisted row shares an
-//     alias with the candidate, that row is the canonical one and its id wins.
-//     This is the cross-scraper merge case (ADO emits a user already known to
-//     AAD; AAD's id wins).
+//  1. Alias-overlap lookup — external users use the preloaded cache, while
+//     groups and roles retain their live-table lookup. If a persisted entity
+//     shares an alias, its ID wins. This is the cross-scraper merge case.
 //  2. The first UUID-shaped alias becomes the id. Canonical primitives like
 //     AAD object ids and SID-derived UUIDs are globally unique by construction,
 //     so picking one as the id is sound.
@@ -246,11 +256,24 @@ func resolveCanonicalID(ctx api.ScrapeContext, table string, aliases []string) (
 	return fresh, nil
 }
 
-// lookupExternalEntityIDByAliases returns the id of the first persisted row in
-// `table` whose aliases overlap any of `aliases`. Returns uuid.Nil if no row
-// matches. Reuses findPersistedExternalEntities's alias-overlap query.
+// lookupExternalEntityIDByAliases returns an existing entity whose aliases
+// overlap the supplied keys. External-user lookup is cache-only; groups and
+// roles retain their existing database lookup.
 func lookupExternalEntityIDByAliases(ctx api.ScrapeContext, table string, aliases []string) (uuid.UUID, error) {
-	if ctx.DB() == nil || len(aliases) == 0 {
+	if len(aliases) == 0 {
+		return uuid.Nil, nil
+	}
+	if table == "external_users" {
+		ids := findCachedExternalUserIDs(aliases)
+		if len(ids) > 1 {
+			return uuid.Nil, fmt.Errorf("external user aliases resolve to multiple users: %v", ids)
+		}
+		if len(ids) == 1 {
+			return ids[0], nil
+		}
+		return uuid.Nil, nil
+	}
+	if ctx.DB() == nil {
 		return uuid.Nil, nil
 	}
 	var rows []struct{ ID uuid.UUID }
@@ -267,6 +290,84 @@ func lookupExternalEntityIDByAliases(ctx api.ScrapeContext, table string, aliase
 	return rows[0].ID, nil
 }
 
+func findCachedExternalUserIDs(keys []string) []uuid.UUID {
+	externalUserCachesMu.RLock()
+	defer externalUserCachesMu.RUnlock()
+
+	seen := make(map[uuid.UUID]struct{})
+	var ids []uuid.UUID
+	for _, key := range keys {
+		norm := v1.NormalizeExternalID(key)
+		if norm == "" {
+			continue
+		}
+
+		var id uuid.UUID
+		var ok bool
+		if parsed, err := uuid.Parse(norm); err == nil && parsed != uuid.Nil {
+			id, ok = ExternalUserIDCache.Get(parsed.String())
+		}
+		if !ok {
+			id, ok = ExternalUserCache.Get(norm)
+			if ok {
+				if winner, redirected := ExternalUserIDCache.Get(id.String()); redirected {
+					id = winner
+				}
+			}
+		}
+		if !ok {
+			continue
+		}
+		if _, exists := seen[id]; !exists {
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// applyExternalUserAliasMapping resolves scraper keys through the normalized
+// index derived from external_users.aliases before considering a new user ID.
+// Historical IDs stored in the winner's aliases array therefore prevent a
+// merged identity from being recreated. If no ID or explicit alias resolves,
+// email becomes the fallback alias.
+func applyExternalUserAliasMapping(_ api.ScrapeContext, user *dutyModels.ExternalUser) error {
+	originalID := user.ID
+	lookupKeys := append([]string(nil), user.Aliases...)
+	if originalID != uuid.Nil {
+		lookupKeys = append([]string{originalID.String()}, lookupKeys...)
+	}
+
+	// Source aliases and their derived index are preloaded and refreshed by
+	// PostgreSQL notifications and the periodic cache refresh. Misses stay
+	// cache-only and converge on a later refresh.
+	mappedIDs := findCachedExternalUserIDs(lookupKeys)
+	if len(mappedIDs) > 1 {
+		return fmt.Errorf("external user keys resolve to multiple canonical users: %v", mappedIDs)
+	}
+
+	// Email is intentionally weaker than a provider ID or explicit alias. It
+	// only participates when none of those keys resolves to a source alias.
+	if len(mappedIDs) == 0 && user.Email != nil {
+		email := v1.NormalizeExternalID(*user.Email)
+		if email != "" {
+			user.Aliases = append(user.Aliases, email)
+			mappedIDs = findCachedExternalUserIDs([]string{email})
+		}
+	}
+
+	if len(mappedIDs) == 1 {
+		user.ID = mappedIDs[0]
+		if originalID != uuid.Nil && originalID != user.ID {
+			// Keep the emitted historical UUID in the compatibility alias array;
+			// Duty's trigger also persists it as a durable redirect.
+			user.Aliases = append(user.Aliases, originalID.String())
+		}
+	}
+	user.Aliases = canonicalizeAliases(user.Aliases)
+	return nil
+}
+
 func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser, scraperID *uuid.UUID, now time.Time) ([]dutyModels.ExternalUser, int, error) {
 	var valid []dutyModels.ExternalUser
 	var skipped int
@@ -274,8 +375,11 @@ func resolveExternalUsers(ctx api.ScrapeContext, users []dutyModels.ExternalUser
 	for i := range users {
 		u := &users[i]
 		u.ScraperID = lo.Ternary(u.ScraperID == uuid.Nil, lo.FromPtr(scraperID), u.ScraperID)
+		if err := applyExternalUserAliasMapping(ctx, u); err != nil {
+			return nil, 0, ctx.Oops().With("user", u.Name).Wrapf(err, "failed to apply external user alias mapping")
+		}
 		if u.ID == uuid.Nil && len(u.Aliases) == 0 {
-			ctx.Logger.Warnf("skipping external user %q with no ID and no aliases", u.Name)
+			ctx.Logger.Warnf("skipping external user %q with no ID, aliases, or email", u.Name)
 			skipped++
 			continue
 		}
@@ -406,6 +510,9 @@ func resolveExternalUserGroups(
 			if _, ok := validIDs[*direct]; ok {
 				return *direct
 			}
+			if id, ok := lookup[direct.String()]; ok {
+				return id
+			}
 			// Direct UUID references an entity not in this scrape — try to
 			// recover via the alias list before giving up.
 		}
@@ -470,20 +577,36 @@ func normalizeExternalAliases(aliases []string) []string {
 }
 
 func addPersistedExternalUserLookup(
-	ctx api.ScrapeContext,
+	_ api.ScrapeContext,
 	validIDs map[uuid.UUID]struct{},
 	byAlias map[string]uuid.UUID,
 	ids []uuid.UUID,
 	aliases []string,
 ) error {
-	var rows []dutyModels.ExternalUser
-	if err := findPersistedExternalEntities(ctx, "external_users", lo.Uniq(ids), lo.Uniq(aliases), &rows); err != nil {
-		return fmt.Errorf("find external users for user_groups: %w", err)
+	externalUserCachesMu.RLock()
+	defer externalUserCachesMu.RUnlock()
+
+	for _, id := range lo.Uniq(ids) {
+		if winner, ok := ExternalUserIDCache.Get(id.String()); ok {
+			validIDs[winner] = struct{}{}
+			byAlias[id.String()] = winner
+		}
 	}
-	for _, row := range rows {
-		validIDs[row.ID] = struct{}{}
-		for _, alias := range normalizeExternalAliases(row.Aliases) {
-			byAlias[alias] = row.ID
+	for _, alias := range normalizeExternalAliases(aliases) {
+		var id uuid.UUID
+		var ok bool
+		if parsed, err := uuid.Parse(alias); err == nil && parsed != uuid.Nil {
+			id, ok = ExternalUserIDCache.Get(parsed.String())
+		}
+		if !ok {
+			id, ok = ExternalUserCache.Get(alias)
+		}
+		if ok {
+			if winner, redirected := ExternalUserIDCache.Get(id.String()); redirected {
+				id = winner
+			}
+			validIDs[id] = struct{}{}
+			byAlias[alias] = id
 		}
 	}
 	return nil
@@ -977,10 +1100,27 @@ func ensureExternalUserFromAliases(ctx api.ScrapeContext, aliases []string, scra
 		return fmt.Errorf("failed to commit: %w", err)
 	}
 
-	ExternalUserIDCache.Set(id.String(), id)
-	for _, alias := range aliases {
-		ExternalUserCache.Set(alias, id)
+	winnerID := id
+	for _, merge := range merges {
+		if merge.LoserID == id {
+			winnerID = merge.WinnerID
+		}
 	}
+
+	externalUserCacheRefreshMu.Lock()
+	externalUserCachesMu.Lock()
+	for _, merge := range merges {
+		ExternalUserIDCache.Set(merge.LoserID.String(), merge.WinnerID)
+	}
+	ExternalUserIDCache.Set(winnerID.String(), winnerID)
+	ExternalUserIDCache.Set(id.String(), winnerID)
+	for _, alias := range aliases {
+		if norm := v1.NormalizeExternalID(alias); norm != "" {
+			ExternalUserCache.Set(norm, winnerID)
+		}
+	}
+	externalUserCachesMu.Unlock()
+	externalUserCacheRefreshMu.Unlock()
 	return nil
 }
 
