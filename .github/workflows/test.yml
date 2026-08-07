@@ -34,9 +34,11 @@ jobs:
           key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
           restore-keys: |
             cache-
-      - name: Test
+      - name: Setup envtest
         env:
           GITHUB_TOKEN: ${{ github.token }}
+        run: make envtest
+      - name: Test
         run: make test
 
   test-playwright:
