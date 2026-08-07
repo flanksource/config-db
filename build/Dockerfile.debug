@@ -20,7 +20,7 @@ COPY --from=rust-builder /app/external/diffgen/target ./external/diffgen/target
 
 RUN make build-debug
 
-FROM flanksource/base-image:v0.0.7@sha256:c3cda640ca7033a89e52c7f27776edfc95f825ece4b49de3b9c5af981d34a44e
+FROM flanksource/base-image:0.8.1@sha256:5811fe431c3b1e04d3926bab5be75c856c3d4214a9b680ac62540bd69204684e
 WORKDIR /app
 
 COPY --from=builder /app/.bin/config-db /app
