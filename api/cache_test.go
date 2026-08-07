@@ -59,6 +59,33 @@ var _ = Describe("TempCache", func() {
 		Expect(id).To(Equal("efs-config-id"))
 	})
 
+	It("invalidates a wildcard miss when inserting an alias", func() {
+		efsARN := "arn:aws:elasticfilesystem:eu-west-1:111111111111:file-system/fs-0f6dafb1128f44e71"
+		lookup := v1.ExternalID{
+			ConfigType: "AWS::EFS::FileSystem",
+			ExternalID: efsARN,
+			ScraperID:  "all",
+		}
+
+		item, err := ctx.TempCache().Find(ctx, lookup)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(item).To(BeNil())
+		_, cached := ctx.TempCache().notFound.Load(lookup.Key())
+		Expect(cached).To(BeTrue())
+
+		ctx.TempCache().Insert(models.ConfigItem{
+			ID:         "efs-config-id",
+			Type:       "AWS::EFS::FileSystem",
+			ExternalID: []string{v1.NormalizeExternalID(efsARN)},
+			ScraperID:  lo.ToPtr(scraperID),
+		})
+
+		item, err = ctx.TempCache().Find(ctx, lookup)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(item).ToNot(BeNil())
+		Expect(item.ID).To(Equal("efs-config-id"))
+	})
+
 	It("returns not found for an uncached external ID without a database", func() {
 		lookup := v1.ExternalID{
 			ConfigType: "AWS::EFS::FileSystem",

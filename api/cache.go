@@ -120,6 +120,7 @@ func (t *TempCache) Insert(item models.ConfigItem) {
 
 		// Remove from nonFound cache
 		t.notFound.Delete(key)
+		t.notFound.Delete(v1.ExternalID{ConfigType: item.Type, ExternalID: extID, ScraperID: "all"}.Key())
 	}
 
 	t.items.Store(strings.ToLower(item.ID), item)
