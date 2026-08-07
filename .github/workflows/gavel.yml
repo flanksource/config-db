@@ -33,7 +33,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@f08309cb310440cb3b494ca42e4ceeed426892d4 # v1.0.38
         with:
           tools: |
             bun
