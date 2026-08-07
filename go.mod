@@ -5,9 +5,9 @@ go 1.26.1
 require (
 	github.com/flanksource/artifacts v1.0.24
 	github.com/flanksource/clicky v1.21.48
-	github.com/flanksource/commons v1.53.1
+	github.com/flanksource/commons v1.55.0
 	github.com/flanksource/deps v1.0.36
-	github.com/flanksource/duty v1.0.1352
+	github.com/flanksource/duty v1.0.1359
 	github.com/flanksource/gomplate/v3 v3.24.86
 	github.com/flanksource/is-healthy v1.0.88
 	github.com/flanksource/ketall v1.1.12
@@ -502,7 +502,7 @@ require (
 	golang.org/x/text v0.38.0
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/api v0.287.0
-	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
+	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7
 	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 	gopkg.in/inf.v0 v0.9.1 // indirect
