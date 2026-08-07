@@ -67,7 +67,7 @@ RUN if [ "$BUILDARCH" != "$TARGETARCH" ]; then \
     fi && \
     CGO_ENABLED=1 GOOS=linux GOARCH="$TARGETARCH" make build-prod
 
-FROM flanksource/base-image:0.7.1@sha256:5e819e83199855d20ba5b988e8a6f369c6f4332fa6f07c184c99838d06a77cc8
+FROM flanksource/base-image:0.8.1@sha256:f5f0945741678d7702eb13da393102dbdd10a19fb20b6e06a7efe241d5395173
 
 WORKDIR /app
 
