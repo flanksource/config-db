@@ -23,6 +23,13 @@ type organizationRBAC struct {
 	Roles      []models.ExternalRole
 	UserGroups []v1.ExternalUserGroup
 	Access     []v1.ExternalConfigAccess
+
+	// Warnings names the teams whose access this scrape could record but not attribute.
+	// A team that grants repositories and returns no members is a half-succeeded scrape
+	// presenting as a successful one: the permissions land in config_access while no
+	// external_user_groups row does, so downstream every one of those grants belongs to
+	// a principal that no per-user view can reach.
+	Warnings []string
 }
 
 // organizationMember pairs a member with their organization role, which
@@ -91,6 +98,13 @@ func scrapeOrganizationRBAC(ctx api.ScrapeContext, scrape *organizationScrape) (
 	if err != nil {
 		errs.Errorf(err, "failed to map RBAC for GitHub organization %s", org)
 		return organizationRBAC{}, errs
+	}
+
+	// Loud, not silent. Access that reaches config_access but no membership row is
+	// invisible to every per-user view built on it, and an access review discovering
+	// that late is exactly what this scrape exists to prevent.
+	for _, warning := range rbac.Warnings {
+		ctx.Logger.Warnf("github organization %s: %s", org, warning)
 	}
 
 	return rbac, errs
@@ -318,6 +332,12 @@ func (b *organizationRBACBuilder) addTeam(team organizationTeam, members []*gith
 			Name:      team.Team.GetName(),
 			GroupType: "GitHub::Team",
 		})
+	}
+
+	if len(members) == 0 && len(team.Repos) > 0 {
+		b.result.Warnings = append(b.result.Warnings, fmt.Sprintf(
+			"team %q grants %d repository(s) but reports no members: its access cannot be attributed to any user; check the credential carries the organization Members: read permission",
+			team.Team.GetName(), len(team.Repos)))
 	}
 
 	for _, member := range members {
