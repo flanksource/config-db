@@ -12,7 +12,6 @@ import (
 	"github.com/flanksource/config-db/scrapers/changes"
 	"github.com/flanksource/duty/types"
 	"github.com/flanksource/gomplate/v3"
-	"github.com/samber/lo"
 )
 
 var lastScrapeTime = sync.Map{}
@@ -38,27 +37,80 @@ func (s Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			results = append(results, v1.ScrapeResult{Error: err})
 			continue
 		}
+		// users.list only enriches members with their name & email, so a token
+		// without users:read still yields the full channel & membership map with
+		// members identified by their Slack id.
+		var userWarnings []v1.Warning
 		if err := client.PopulateUsers(ctx); err != nil {
+			userWarnings = append(userWarnings, v1.Warning{
+				Error: fmt.Sprintf("failed to list users, members are identified by their slack id: %v", err),
+			})
+		}
+
+		workspace, err := client.AuthTest(ctx)
+		if err != nil {
 			results = append(results, v1.ScrapeResult{Error: err})
+			continue
+		} else if workspace.ID == "" {
+			results = append(results, v1.ScrapeResult{Error: fmt.Errorf("slack did not return a workspace id for the token")})
 			continue
 		}
 
-		channelsList, err := client.ListConversations(ctx)
+		channels, err := client.ListConversations(ctx)
 		if err != nil {
 			results = append(results, v1.ScrapeResult{Error: err})
 			continue
 		}
 
-		matchingChannels := lo.Filter(channelsList, func(channel ChannelDetail, _ int) bool {
-			return config.Channels.Match(channel.Name)
-		})
+		scrape := workspaceScrape{
+			Workspace: workspace,
+			Channels:  channels,
+			Users:     client.Users(),
+			Warnings:  userWarnings,
+		}
+		if config.ScrapeMembers() {
+			var errs v1.ScrapeResults
+			scrape.Members, errs = fetchChannelMembers(ctx, client, channels)
+			results = append(results, errs...)
+		}
+		results = append(results, buildWorkspaceResults(config.BaseScraper, scrape)...)
 
-		for _, channel := range matchingChannels {
+		if !config.Messages {
+			if len(config.Rules) > 0 {
+				ctx.Logger.Warnf("slack: %d change extraction rule(s) are inert because messages are disabled", len(config.Rules))
+			}
+			continue
+		}
+
+		for _, channel := range channels {
 			results = append(results, s.scrapeChannel(ctx, config, client, channel)...)
 		}
 	}
 
 	return results
+}
+
+// fetchChannelMembers reads the membership of every channel. A channel the
+// token cannot read is reported as an error result and left out of the
+// membership map, so the remaining channels still get their access records.
+func fetchChannelMembers(ctx api.ScrapeContext, client *SlackAPI, channels []ChannelDetail) (map[string][]string, v1.ScrapeResults) {
+	var errs v1.ScrapeResults
+	members := make(map[string][]string, len(channels))
+
+	for _, channel := range channels {
+		if channel.IsDirectMessage() {
+			continue
+		}
+
+		channelMembers, err := client.ConversationMembers(ctx, channel)
+		if err != nil {
+			errs = append(errs, v1.ScrapeResult{Error: err})
+			continue
+		}
+		members[channel.ID] = channelMembers
+	}
+
+	return members, errs
 }
 
 func (s Scraper) scrapeChannel(ctx api.ScrapeContext, config v1.Slack, client *SlackAPI, channel ChannelDetail) []v1.ScrapeResult {

@@ -3,6 +3,8 @@ package slack
 import (
 	"context"
 	"fmt"
+	nethttp "net/http"
+	"time"
 
 	"github.com/flanksource/commons/http"
 	"github.com/flanksource/config-db/api"
@@ -86,6 +88,26 @@ type SlackAPI struct {
 	usersList map[string]UserInfo
 }
 
+const slackAPIBaseURL = "https://slack.com/api/"
+
+// retryableStatuses are the responses worth another attempt. Slack answers a
+// throttled call with 429 and a Retry-After header, which RetryOnStatus honours
+// in preference to its own backoff.
+var retryableStatuses = []int{
+	nethttp.StatusTooManyRequests,
+	nethttp.StatusInternalServerError,
+	nethttp.StatusBadGateway,
+	nethttp.StatusServiceUnavailable,
+	nethttp.StatusGatewayTimeout,
+}
+
+func configureSlackClient(client *http.Client, baseURL string, maxAttempts int, retryDelay time.Duration) *http.Client {
+	return client.
+		BaseURL(baseURL).
+		Header("Content-Type", "application/json").
+		RetryStrategy(http.RetryOnStatus(maxAttempts, retryDelay, retryableStatuses...))
+}
+
 func NewSlackAPI(ctx api.ScrapeContext, token string) (*SlackAPI, error) {
 	conn := connection.HTTPConnection{
 		Bearer: types.EnvVar{ValueStatic: token},
@@ -94,8 +116,25 @@ func NewSlackAPI(ctx api.ScrapeContext, token string) (*SlackAPI, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.BaseURL("https://slack.com/api/").Header("Content-Type", "application/json")
+
+	configureSlackClient(client, slackAPIBaseURL,
+		ctx.Properties().Int("scraper.slack.maxAttempts", 5),
+		ctx.Properties().Duration("scraper.slack.retryDelay", time.Second),
+	)
+
 	return &SlackAPI{client: client}, nil
+}
+
+// intoSlackResponse decodes a slack response, turning a non-2xx status — an
+// exhausted 429 retry budget, most often — into an explicit error rather than a
+// JSON decode failure on an empty body.
+func intoSlackResponse(response *http.Response, method string, output any) error {
+	if !response.IsOK() {
+		body, _ := response.AsString()
+		return fmt.Errorf("%s failed with status %d: %s", method, response.StatusCode, body)
+	}
+
+	return response.Into(output)
 }
 
 func (t *SlackAPI) ConversationHistory(ctx context.Context, channel ChannelDetail, params *GetConversationHistoryParameters) ([]Message, error) {
@@ -117,9 +156,36 @@ func (t *SlackAPI) ConversationHistory(ctx context.Context, channel ChannelDetai
 	return output, nil
 }
 
+// ChannelText is the topic/purpose envelope returned by conversations.list.
+type ChannelText struct {
+	Value   string `json:"value,omitempty"`
+	Creator string `json:"creator,omitempty"`
+	LastSet int64  `json:"last_set,omitempty"`
+}
+
 type ChannelDetail struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	Created     int64       `json:"created,omitempty"`
+	Creator     string      `json:"creator,omitempty"`
+	IsChannel   bool        `json:"is_channel,omitempty"`
+	IsGroup     bool        `json:"is_group,omitempty"`
+	IsIM        bool        `json:"is_im,omitempty"`
+	IsMpim      bool        `json:"is_mpim,omitempty"`
+	IsPrivate   bool        `json:"is_private,omitempty"`
+	IsArchived  bool        `json:"is_archived,omitempty"`
+	IsGeneral   bool        `json:"is_general,omitempty"`
+	IsShared    bool        `json:"is_shared,omitempty"`
+	IsOrgShared bool        `json:"is_org_shared,omitempty"`
+	NumMembers  int         `json:"num_members,omitempty"`
+	Topic       ChannelText `json:"topic,omitempty"`
+	Purpose     ChannelText `json:"purpose,omitempty"`
+}
+
+// IsDirectMessage reports whether the conversation is a direct or multi-party
+// direct message rather than a channel.
+func (t ChannelDetail) IsDirectMessage() bool {
+	return t.IsIM || t.IsMpim
 }
 
 func (t ChannelDetail) String() string {
@@ -138,7 +204,7 @@ func (t *SlackAPI) ListConversations(ctx context.Context) ([]ChannelDetail, erro
 	var result []ChannelDetail
 	for {
 		response, err := t.client.R(ctx).
-			QueryParam("types", "public_channel,private_channel,mpim,im").
+			QueryParam("types", "public_channel,private_channel").
 			QueryParam("limit", "1000").
 			QueryParam("cursor", cursor).
 			Post("conversations.list", nil)
@@ -147,7 +213,7 @@ func (t *SlackAPI) ListConversations(ctx context.Context) ([]ChannelDetail, erro
 		}
 
 		var output ConversationList
-		if err := response.Into(&output); err != nil {
+		if err := intoSlackResponse(response, "conversations.list", &output); err != nil {
 			return nil, err
 		}
 
@@ -214,39 +280,146 @@ func (t *SlackAPI) getSlackConversationHistory(ctx context.Context, channel Chan
 }
 
 type UserInfo struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Profile struct {
-		DisplayName string `json:"display_name"`
-	} `json:"profile"`
+	ID       string      `json:"id"`
+	Name     string      `json:"name"`
+	RealName string      `json:"real_name,omitempty"`
+	TeamID   string      `json:"team_id,omitempty"`
+	Deleted  bool        `json:"deleted,omitempty"`
+	IsBot    bool        `json:"is_bot,omitempty"`
+	IsAdmin  bool        `json:"is_admin,omitempty"`
+	IsOwner  bool        `json:"is_owner,omitempty"`
+	Profile  UserProfile `json:"profile"`
+}
+
+type UserProfile struct {
+	DisplayName string `json:"display_name"`
+	RealName    string `json:"real_name,omitempty"`
+	Email       string `json:"email,omitempty"`
+	Title       string `json:"title,omitempty"`
 }
 
 type ListUsersResponse struct {
-	Ok      bool       `json:"ok"`
-	Error   string     `json:"error,omitempty"`
-	Members []UserInfo `json:"members,omitempty"`
+	Ok               bool             `json:"ok"`
+	Error            string           `json:"error,omitempty"`
+	Members          []UserInfo       `json:"members,omitempty"`
+	ResponseMetadata ResponseMetadata `json:"response_metadata"`
+}
+
+// Users returns the workspace users indexed by user id. PopulateUsers must be
+// called first.
+func (t *SlackAPI) Users() map[string]UserInfo {
+	return t.usersList
 }
 
 func (t *SlackAPI) PopulateUsers(ctx context.Context) error {
-	response, err := t.client.R(ctx).Get("users.list")
-	if err != nil {
-		return err
-	}
+	idToNameMap := make(map[string]UserInfo)
 
-	var output ListUsersResponse
-	if err := response.Into(&output); err != nil {
-		return err
-	}
+	var cursor string
+	for {
+		response, err := t.client.R(ctx).
+			QueryParam("limit", "200").
+			QueryParam("cursor", cursor).
+			Get("users.list")
+		if err != nil {
+			return err
+		}
 
-	if output.Error != "" {
-		return fmt.Errorf("failed to list users: %s", output.Error)
-	}
+		var output ListUsersResponse
+		if err := intoSlackResponse(response, "users.list", &output); err != nil {
+			return err
+		}
 
-	idToNameMap := make(map[string]UserInfo, len(output.Members))
-	for _, m := range output.Members {
-		idToNameMap[m.ID] = m
+		if output.Error != "" {
+			return fmt.Errorf("failed to list users: %s", output.Error)
+		}
+
+		for _, m := range output.Members {
+			idToNameMap[m.ID] = m
+		}
+
+		if output.ResponseMetadata.Cursor == "" {
+			break
+		}
+		cursor = output.ResponseMetadata.Cursor
 	}
 
 	t.usersList = idToNameMap
 	return nil
+}
+
+// Workspace identifies the Slack workspace the token belongs to.
+type Workspace struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url,omitempty"`
+}
+
+type authTestResponse struct {
+	Ok     bool   `json:"ok"`
+	Error  string `json:"error,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Team   string `json:"team,omitempty"`
+	TeamID string `json:"team_id,omitempty"`
+}
+
+// AuthTest identifies the workspace behind the token. Unlike team.info it
+// requires no additional scope.
+func (t *SlackAPI) AuthTest(ctx context.Context) (Workspace, error) {
+	response, err := t.client.R(ctx).Post("auth.test", nil)
+	if err != nil {
+		return Workspace{}, err
+	}
+
+	var output authTestResponse
+	if err := intoSlackResponse(response, "auth.test", &output); err != nil {
+		return Workspace{}, err
+	}
+
+	if !output.Ok {
+		return Workspace{}, fmt.Errorf("failed to identify slack workspace: %s", output.Error)
+	}
+
+	return Workspace{ID: output.TeamID, Name: output.Team, URL: output.URL}, nil
+}
+
+type conversationMembersResponse struct {
+	Ok               bool             `json:"ok"`
+	Error            string           `json:"error,omitempty"`
+	Members          []string         `json:"members,omitempty"`
+	ResponseMetadata ResponseMetadata `json:"response_metadata"`
+}
+
+// ConversationMembers returns the user ids of every member of the channel.
+func (t *SlackAPI) ConversationMembers(ctx context.Context, channel ChannelDetail) ([]string, error) {
+	var members []string
+
+	var cursor string
+	for {
+		response, err := t.client.R(ctx).
+			QueryParam("channel", channel.ID).
+			QueryParam("limit", "500").
+			QueryParam("cursor", cursor).
+			Get("conversations.members")
+		if err != nil {
+			return nil, err
+		}
+
+		var output conversationMembersResponse
+		if err := intoSlackResponse(response, "conversations.members", &output); err != nil {
+			return nil, err
+		}
+
+		if !output.Ok {
+			return nil, fmt.Errorf("failed to list members (channel: %s): %s", channel, output.Error)
+		}
+
+		members = append(members, output.Members...)
+
+		if output.ResponseMetadata.Cursor == "" {
+			break
+		}
+		cursor = output.ResponseMetadata.Cursor
+	}
+
+	return members, nil
 }

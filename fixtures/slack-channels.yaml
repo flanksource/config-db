@@ -1,0 +1,26 @@
+---
+# Scrapes every channel the token can see as a Slack::Channel config item,
+# parented to the Slack::Workspace, and records each channel member as a
+# config access entry against that channel.
+#
+# Required token scopes:
+#   channels:read, groups:read  - conversations.list & conversations.members
+#   users:read                  - users.list
+#   users:read.email            - populates the email of each external user
+#
+# Set `members: false` to scrape channels without their membership, and
+# `messages: true` to additionally extract changes from the message history.
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: slack-channels
+  namespace: default
+spec:
+  schedule: '@every 1h'
+  slack:
+    - members: true
+      token:
+        valueFrom:
+          secretKeyRef:
+            name: slack-mission-control-bot
+            key: token
