@@ -1,6 +1,9 @@
 package v1
 
-import "github.com/flanksource/duty/types"
+import (
+	"github.com/flanksource/duty/types"
+	"github.com/invopop/jsonschema"
+)
 
 // Slack scraper creates Slack::Workspace & Slack::Channel config items,
 // maps channel members to config access and optionally extracts changes from
@@ -33,6 +36,20 @@ type Slack struct {
 
 func (s Slack) ScrapeMembers() bool {
 	return s.Members == nil || *s.Members
+}
+
+// JSONSchemaExtend rejects `since` unless the spec also reads messages. The
+// scraper only ever applies the window to the message history, so accepting it
+// next to `messages: false` would silently discard the period it asks for.
+func (Slack) JSONSchemaExtend(schema *jsonschema.Schema) {
+	enabledMessages := jsonschema.NewProperties()
+	enabledMessages.Set("messages", &jsonschema.Schema{Const: true})
+
+	schema.If = &jsonschema.Schema{Required: []string{"since"}}
+	schema.Then = &jsonschema.Schema{
+		Required:   []string{"messages"},
+		Properties: enabledMessages,
+	}
 }
 
 type SlackChangeExtractionRule struct {

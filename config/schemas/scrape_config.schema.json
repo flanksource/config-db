@@ -4348,6 +4348,21 @@
       "description": "SeverityKeywords is used to identify the severity\nfrom the Kubernetes Event reason."
     },
     "Slack": {
+      "if": {
+        "required": [
+          "since"
+        ]
+      },
+      "then": {
+        "properties": {
+          "messages": {
+            "const": true
+          }
+        },
+        "required": [
+          "messages"
+        ]
+      },
       "properties": {
         "id": {
           "type": "string",
