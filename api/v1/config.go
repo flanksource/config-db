@@ -61,6 +61,10 @@ func parseConfig(configfile string) ([]ScrapeConfig, error) {
 			return nil, fmt.Errorf("error decoding yaml. file=%s: %w", configfile, err)
 		}
 
+		if err := rejectRemovedFields(chunk); err != nil {
+			return nil, fmt.Errorf("invalid config file=%s: %w", configfile, err)
+		}
+
 		scrapers = append(scrapers, config)
 	}
 

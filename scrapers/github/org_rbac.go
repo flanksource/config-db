@@ -334,12 +334,6 @@ func (b *organizationRBACBuilder) addTeam(team organizationTeam, members []*gith
 		})
 	}
 
-	if len(members) == 0 && len(team.Repos) > 0 {
-		b.result.Warnings = append(b.result.Warnings, fmt.Sprintf(
-			"team %q grants %d repository(s) but reports no members: its access cannot be attributed to any user; check the credential carries the organization Members: read permission",
-			team.Team.GetName(), len(team.Repos)))
-	}
-
 	for _, member := range members {
 		userAlias, err := b.addUser(member)
 		if err != nil {
@@ -358,11 +352,13 @@ func (b *organizationRBACBuilder) addTeam(team organizationTeam, members []*gith
 		})
 	}
 
+	var scrapedRepos int
 	for _, repo := range team.Repos {
 		name := repo.GetName()
 		if _, ok := b.repositories[strings.ToLower(name)]; !ok {
 			continue
 		}
+		scrapedRepos++
 
 		role, err := effectiveRepositoryRole(repo.GetRoleName(), repo.GetPermissions())
 		if err != nil {
@@ -385,6 +381,12 @@ func (b *organizationRBACBuilder) addTeam(team organizationTeam, members []*gith
 			ExternalGroupAliases: []string{groupAlias},
 			ExternalRoleAliases:  []string{roleAlias},
 		})
+	}
+
+	if len(members) == 0 && scrapedRepos > 0 {
+		b.result.Warnings = append(b.result.Warnings, fmt.Sprintf(
+			"team %q grants %d repository(s) but reports no members: its access cannot be attributed to any user; check the credential carries the organization Members: read permission",
+			team.Team.GetName(), scrapedRepos))
 	}
 
 	return nil

@@ -103,6 +103,27 @@ var _ = Describe("GitHub organization RBAC", func() {
 			Expect(result.Warnings).To(BeEmpty())
 		})
 
+		It("stays quiet when every repository it grants is outside the scrape", func() {
+			// No ConfigAccess record is emitted for a repository the scraper never
+			// collects, so there is no unattributed grant to warn about.
+			result, err := buildOrganizationRBAC(grantingTeam(nil,
+				[]*gogithub.Repository{{Name: gogithub.Ptr("unscraped"), RoleName: gogithub.Ptr("push")}}))
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Warnings).To(BeEmpty())
+			Expect(result.Access).To(BeEmpty())
+		})
+
+		It("counts only the repositories that reach config_access", func() {
+			result, err := buildOrganizationRBAC(grantingTeam(nil, []*gogithub.Repository{
+				{Name: gogithub.Ptr("telemetry"), RoleName: gogithub.Ptr("push")},
+				{Name: gogithub.Ptr("unscraped"), RoleName: gogithub.Ptr("admin")},
+			}))
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Warnings).To(ConsistOf(ContainSubstring(`team "Developers" grants 1 repository(s) but reports no members`)))
+		})
+
 		It("stays quiet when the members came through", func() {
 			result, err := buildOrganizationRBAC(grantingTeam([]*gogithub.User{newUser(102, "bob")}, telemetry))
 

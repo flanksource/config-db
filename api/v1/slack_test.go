@@ -25,6 +25,13 @@ var _ = Describe("Slack spec", func() {
 		Expect(slack[0].Messages).To(BeFalse())
 	})
 
+	It("refuses to load a spec that still sets the removed channels filter", func() {
+		// Loading it would discard the filter and scrape every channel, which is
+		// the opposite of what the config asks for.
+		_, err := ParseConfigs("testdata/slack-removed-channels.yaml")
+		Expect(err).To(MatchError(ContainSubstring("spec.slack[0].channels has been removed")))
+	})
+
 	It("only ingests messages when the spec opts in", func() {
 		configs, err := ParseConfigs("../../fixtures/slack.yaml")
 		Expect(err).NotTo(HaveOccurred())
