@@ -52,17 +52,30 @@ jobs:
         with:
           go-version: 1.26.x
           cache: false
-      - name: Restore Go modules
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      # The only writer of the go.sum-pinned build-cache layer. Everything below
+      # `needs: go-build`, so by the time consumers run the key is guaranteed to
+      # exist and they can restore it strictly.
+      - name: Restore Go caches
+        id: caches
+        uses: ./.github/actions/go-cache
         with:
-          path: ~/go/pkg/mod
-          key: go-mod-${{ hashFiles('**/go.sum') }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
+          modules-strict: "true"
       - name: Build
         run: make build
+      # Compiles every test package, which is what makes the cache useful to the
+      # test jobs and not just to another `make build`.
       - name: Build test packages
         run: go test -run=^$ ./...
+      - name: Report build cache size
+        run: du -sh "$(go env GOCACHE)"
+      # A restore-keys prefix hit reports cache-hit=false, which is what we want:
+      # the delta compiled above still needs saving under the new exact key.
+      - name: Save Go build cache
+        if: steps.caches.outputs.build-cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.caches.outputs.build-cache-key }}
 
   gavel:
     name: Gavel
@@ -85,13 +98,11 @@ jobs:
         with:
           go-version: 1.26.x
           cache: false
-      - name: Restore Go modules
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
         with:
-          path: ~/go/pkg/mod
-          key: go-mod-${{ hashFiles('**/go.sum') }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -120,13 +131,11 @@ jobs:
         with:
           go-version: 1.26.x
           cache: false
-      - name: Restore Go modules
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
         with:
-          path: ~/go/pkg/mod
-          key: go-mod-${{ hashFiles('**/go.sum') }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -180,13 +189,11 @@ jobs:
         with:
           go-version: 1.26.x
           cache: false
-      - name: Restore Go modules
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
         with:
-          path: ~/go/pkg/mod
-          key: go-mod-${{ hashFiles('**/go.sum') }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -217,13 +224,11 @@ jobs:
         with:
           go-version: 1.26.x
           cache: false
-      - name: Restore Go modules
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
         with:
-          path: ~/go/pkg/mod
-          key: go-mod-${{ hashFiles('**/go.sum') }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
       - name: Install deps
@@ -249,6 +254,8 @@ jobs:
         with:
           go-version: 1.26.x
           cache: false
+      # Module cache only, no build cache: this job compiles nothing on the runner,
+      # it only feeds the module cache to the Dockerfile as a build context.
       - name: Restore Go modules
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
         with:
@@ -348,13 +355,11 @@ jobs:
         with:
           go-version: 1.26.x
           cache: false
-      - name: Restore Go modules
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
         with:
-          path: ~/go/pkg/mod
-          key: go-mod-${{ hashFiles('**/go.sum') }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -386,13 +391,11 @@ jobs:
         with:
           go-version: 1.26.x
           cache: false
-      - name: Restore Go modules
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
         with:
-          path: ~/go/pkg/mod
-          key: go-mod-${{ hashFiles('**/go.sum') }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Free up disk space
         run: |
           sudo docker system prune -af
