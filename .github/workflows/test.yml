@@ -61,6 +61,8 @@ jobs:
           fail-on-cache-miss: true
       - name: Build
         run: make build
+      - name: Build test packages
+        run: go test -run=^$ ./...
 
   gavel:
     name: Gavel
