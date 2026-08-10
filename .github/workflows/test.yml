@@ -254,95 +254,36 @@ jobs:
         with:
           go-version: 1.26.x
           cache: false
-      # Module cache only, no build cache: this job compiles nothing on the runner,
-      # it only feeds the module cache to the Dockerfile as a build context.
-      - name: Restore Go modules
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
         with:
-          path: ~/go/pkg/mod
-          key: go-mod-${{ hashFiles('**/go.sum') }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
-      - name: Resolve Go module cache
-        id: go_env
-        run: echo "gomodparent=$(dirname "$(go env GOMODCACHE)")" >> "$GITHUB_OUTPUT"
-      - name: Free up disk space
+          modules-strict: "true"
+          build-cache-strict: "true"
+      - name: Install deps-start
+        env:
+          DEPS_START_VERSION: v1.0.39
         run: |
-          initial_space=$(df / | grep / | awk '{print $4}')
-          sudo docker system prune -af
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          sudo rm -rf /opt/hostedtoolcache
-
-          final_space=$(df / | grep / | awk '{print $4}')
-          difference=$((final_space - initial_space))
-          echo "Disk space difference (in KB): $difference"
-
-      - name: Kubernetes KinD Cluster
-        uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2
-
-      - name: Install Helm
-        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
-
-      - name: Verify cluster is ready
-        run: |
-          echo "Waiting for cluster to be ready..."
-          kubectl wait --for=condition=Ready nodes --all --timeout=300s
-          kubectl get nodes
-          kubectl get pods -A
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
-        with:
-          context: .
-          file: ./build/Dockerfile
-          build-contexts: |
-            gomodcache=${{ steps.go_env.outputs.gomodparent }}
-          push: true
-          tags: localhost:5000/flanksource/config-db:latest
-
-      - name: Package helm chart
-        run: |
-          helm dependency build ./chart
-          helm package ./chart --version 1.0.0
-
-      # helm renders chart/templates/plugins/*.yaml (kind: ScrapePlugin) in the
-      # same pass that installs chart/crds, so the release fails whenever the
-      # apiserver has not finished establishing the CRDs and refreshing discovery.
-      # Applying them up front and blocking on Established removes that race;
-      # helm then skips the CRDs it finds already installed. --server-side is
-      # required because the scrapeconfigs CRD is far past the 256KB cap on the
-      # last-applied-configuration annotation a client-side apply would write.
-      - name: Install CRDs
-        run: |
-          kubectl apply --server-side -f chart/crds
-          kubectl wait --for condition=Established --timeout=120s \
-            crd/scrapeconfigs.configs.flanksource.com \
-            crd/scrapeplugins.configs.flanksource.com
-
-      - name: Install Helm chart
-        run: |
-          helm install config-db config-db-1.0.0.tgz \
-            --namespace default \
-            --set clickhouse.enabled=true \
-            --set imageRegistry="kind-registry:5000"
-
-      - name: Check pod status
-        run: |
-          sleep 60
-          kubectl get pods
-          kubectl describe pods
-          sleep 60
-          kubectl get pods
-          kubectl describe pods
-
+          mkdir -p .tmp "$HOME/.local/bin"
+          curl --fail --location --silent --show-error \
+            --output .tmp/deps-start-linux-amd64 \
+            "https://github.com/flanksource/deps/releases/download/${DEPS_START_VERSION}/deps-start-linux-amd64"
+          curl --fail --location --silent --show-error \
+            --output .tmp/deps-start-linux-amd64.sha256 \
+            "https://github.com/flanksource/deps/releases/download/${DEPS_START_VERSION}/deps-start-linux-amd64.sha256"
+          cd .tmp
+          sha256sum --check deps-start-linux-amd64.sha256
+          install -m 0755 deps-start-linux-amd64 "$HOME/.local/bin/deps-start"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: make build
       - name: Run clickhouse fixture
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          kubectl cp fixtures/clickhouse.yaml config-db-0:/app/clickhouse.yaml
-          kubectl exec -it config-db-0 -- /app/config-db run /app/clickhouse.yaml
+          trap 'deps-start stop clickhouse' EXIT
+          CLICKHOUSE_URL="$(deps-start clickhouse@25.4 --runtime binary --output json --wait-timeout 5m | jq -er '.connection.url')"
+          export CLICKHOUSE_URL
+          go test -tags=integration -v ./scrapers/clickhouse
 
   test-slim:
     needs: go-build
