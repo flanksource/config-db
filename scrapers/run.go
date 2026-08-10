@@ -217,9 +217,12 @@ func Run(ctx api.ScrapeContext) (v1.ScrapeResults, error) {
 	defer cancel()
 	ctx.Context = timedContext
 
-	plugins, err := db.LoadAllPlugins(ctx.DutyContext())
-	if err != nil {
-		return nil, ctx.Oops().Wrapf(err, "failed to load plugins")
+	var plugins []v1.ScrapePluginSpec
+	if ctx.DB() != nil {
+		plugins, err = db.LoadAllPlugins(ctx.DutyContext())
+		if err != nil {
+			return nil, ctx.Oops().Wrapf(err, "failed to load plugins")
+		}
 	}
 
 	var results v1.ScrapeResults

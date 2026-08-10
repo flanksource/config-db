@@ -1,0 +1,56 @@
+on:
+  push:
+    branches:
+      - main
+
+name: Helm chart smoke test
+permissions:
+  contents: read
+
+jobs:
+  helm-chart-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Free up disk space
+        run: |
+          initial_space=$(df / | awk 'NR == 2 {print $4}')
+          sudo docker system prune -af
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /opt/hostedtoolcache
+
+          final_space=$(df / | awk 'NR == 2 {print $4}')
+          difference=$((final_space - initial_space))
+          echo "Disk space difference (in KB): $difference"
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create Kubernetes Kind cluster
+        uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2
+
+      - name: Install Helm
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
+
+      - name: Build ConfigDB image
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: ./build/Dockerfile
+          push: true
+          tags: localhost:5000/flanksource/config-db:latest
+
+      - name: Install chart with ClickHouse
+        run: |
+          helm dependency build ./chart
+          helm package ./chart --version 1.0.0
+          helm install config-db config-db-1.0.0.tgz \
+            --namespace default \
+            --set clickhouse.enabled=true \
+            --set imageRegistry="kind-registry:5000" \
+            --wait \
+            --timeout 5m

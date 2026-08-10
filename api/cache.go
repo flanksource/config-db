@@ -83,6 +83,10 @@ func (t *TempCache) Find(ctx ScrapeContext, lookup v1.ExternalID) (*models.Confi
 			return t.Get(ctx, alias.(string))
 		}
 	}
+	if ctx.DB() == nil {
+		t.notFound.Store(lookup.Key(), struct{}{})
+		return nil, nil
+	}
 
 	var result models.ConfigItem
 	if err := lookup.Find(ctx.DB()).Find(&result).Error; err != nil {
@@ -116,6 +120,7 @@ func (t *TempCache) Insert(item models.ConfigItem) {
 
 		// Remove from nonFound cache
 		t.notFound.Delete(key)
+		t.notFound.Delete(v1.ExternalID{ConfigType: item.Type, ExternalID: extID, ScraperID: "all"}.Key())
 	}
 
 	t.items.Store(strings.ToLower(item.ID), item)
@@ -155,10 +160,17 @@ func (t *TempCache) Get(ctx ScrapeContext, id string, opts ...CacheOption) (*mod
 		config := item.(models.ConfigItem)
 		return &config, nil
 	}
+	isConfigID := uuid.Validate(id) == nil
+	if ctx.DB() == nil {
+		if isConfigID {
+			t.notFound.Store(id, struct{}{})
+		}
+		return nil, nil
+	}
 
 	result := models.ConfigItem{}
 
-	if uuid.Validate(id) == nil {
+	if isConfigID {
 		if err := ctx.DB().Limit(1).Find(&result, "id = ? ", id).Error; err != nil {
 			return nil, dutydb.ErrorDetails(err)
 		}
@@ -182,7 +194,7 @@ func (t *TempCache) Get(ctx ScrapeContext, id string, opts ...CacheOption) (*mod
 	if result.ID != "" {
 		t.Insert(result)
 		return &result, nil
-	} else {
+	} else if isConfigID {
 		t.notFound.Store(id, struct{}{})
 	}
 

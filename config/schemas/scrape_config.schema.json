@@ -221,6 +221,12 @@
         },
         "path": {
           "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "structure": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

@@ -1,0 +1,26 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: clickhouse-azure-blob
+spec:
+  clickhouse:
+    - azureBlobStorage:
+        account: devstoreaccount1
+        container: config-db
+        path: resources.jsonl
+        endpoint: http://azurite:10000/devstoreaccount1
+        collection: azure_blob_storage_e2e
+      query: |
+        SELECT
+          resource_id,
+          resource_name,
+          sku
+        FROM azureBlobStorage(
+          azure_blob_storage_e2e,
+          format = 'JSONEachRow',
+          structure = 'resource_id String, resource_name String, sku String'
+        )
+        ORDER BY resource_id
+      type: Azure::Storage::Account
+      id: $.resource_id
+      name: $.resource_name
