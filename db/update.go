@@ -249,10 +249,20 @@ func shouldExcludeChange(ctx api.ScrapeContext, result *v1.ScrapeResult, changeR
 
 	env := changeResult.AsMap()
 	env["config"] = result.Config
-	ciID := lo.CoalesceOrEmpty(lo.FromPtr(result.ConfigID), changeResult.ConfigID, changeResult.ExternalID)
-	confObj, err := ctx.TempCache().Get(ctx, ciID)
+	configID := lo.CoalesceOrEmpty(lo.FromPtr(result.ConfigID), changeResult.ConfigID)
+	var confObj *models.ConfigItem
+	var err error
+	if configID != "" {
+		confObj, err = ctx.TempCache().Get(ctx, configID)
+	} else if changeResult.ExternalID != "" {
+		confObj, err = ctx.TempCache().Find(ctx, v1.ExternalID{
+			ConfigType: changeResult.ConfigType,
+			ExternalID: changeResult.ExternalID,
+			ScraperID:  changeResult.ScraperID,
+		})
+	}
 	if err != nil && ctx.PropertyOn(true, "log.changes.unmatched") {
-		ctx.Errorf("error finding config object with id[%s] for change exclusion: %v", ciID, err)
+		ctx.Errorf("error finding config object with id[%s] for change exclusion: %v", lo.CoalesceOrEmpty(configID, changeResult.ExternalID), err)
 	} else if confObj != nil {
 		env["config_item"] = confObj.AsMap()
 		if confObj.Config != nil && env["config"] == nil {

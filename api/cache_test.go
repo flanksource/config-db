@@ -101,6 +101,35 @@ var _ = Describe("TempCache", func() {
 		Expect(cached).To(BeTrue())
 	})
 
+	It("resolves an external ID inserted after a standalone miss", func() {
+		externalID := "fs-0f6dafb1128f44e71"
+		item, err := ctx.TempCache().Get(ctx, externalID)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(item).To(BeNil())
+		_, cached := ctx.TempCache().notFound.Load(externalID)
+		Expect(cached).To(BeFalse())
+
+		lookup := v1.ExternalID{
+			ConfigType: "AWS::EFS::FileSystem",
+			ExternalID: externalID,
+		}
+		item, err = ctx.TempCache().Find(ctx, lookup)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(item).To(BeNil())
+
+		ctx.TempCache().Insert(models.ConfigItem{
+			ID:         uuid.NewString(),
+			Type:       lookup.ConfigType,
+			ExternalID: []string{externalID},
+			ScraperID:  lo.ToPtr(scraperID),
+		})
+
+		item, err = ctx.TempCache().Find(ctx, lookup)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(item).ToNot(BeNil())
+		Expect(item.ExternalID).To(ContainElement(externalID))
+	})
+
 	It("returns not found for an uncached config ID without a database", func() {
 		id := uuid.NewString()
 

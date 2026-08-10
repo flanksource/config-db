@@ -160,14 +160,17 @@ func (t *TempCache) Get(ctx ScrapeContext, id string, opts ...CacheOption) (*mod
 		config := item.(models.ConfigItem)
 		return &config, nil
 	}
+	isConfigID := uuid.Validate(id) == nil
 	if ctx.DB() == nil {
-		t.notFound.Store(id, struct{}{})
+		if isConfigID {
+			t.notFound.Store(id, struct{}{})
+		}
 		return nil, nil
 	}
 
 	result := models.ConfigItem{}
 
-	if uuid.Validate(id) == nil {
+	if isConfigID {
 		if err := ctx.DB().Limit(1).Find(&result, "id = ? ", id).Error; err != nil {
 			return nil, dutydb.ErrorDetails(err)
 		}
@@ -191,7 +194,7 @@ func (t *TempCache) Get(ctx ScrapeContext, id string, opts ...CacheOption) (*mod
 	if result.ID != "" {
 		t.Insert(result)
 		return &result, nil
-	} else {
+	} else if isConfigID {
 		t.notFound.Store(id, struct{}{})
 	}
 
