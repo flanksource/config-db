@@ -5,10 +5,10 @@ go 1.26.1
 require (
 	github.com/flanksource/artifacts v1.0.24
 	github.com/flanksource/clicky v1.21.48
-	github.com/flanksource/commons v1.55.0
+	github.com/flanksource/commons v1.56.0
 	github.com/flanksource/deps v1.0.36
-	github.com/flanksource/duty v1.0.1359
-	github.com/flanksource/gomplate/v3 v3.24.86
+	github.com/flanksource/duty v1.0.1361
+	github.com/flanksource/gomplate/v3 v3.24.87
 	github.com/flanksource/is-healthy v1.0.89
 	github.com/flanksource/ketall v1.1.12
 	github.com/flanksource/kopper v1.0.31
