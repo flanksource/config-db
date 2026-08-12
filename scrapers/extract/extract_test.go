@@ -73,7 +73,7 @@ var _ = Describe("Extraction fixtures", func() {
 
 			env := resultToEnv(result)
 			// Ensure all slice keys exist for CEL assertions
-			for _, key := range []string{"changes", "analysis", "access_logs", "config_access", "external_users", "external_groups", "external_user_groups", "external_roles", "warnings"} {
+			for _, key := range []string{"changes", "analysis", "access_logs", "config_access", "external_users", "external_groups", "external_user_groups", "external_roles", "external_costs", "warnings"} {
 				if _, ok := env[key]; !ok {
 					env[key] = []any{}
 				}

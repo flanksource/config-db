@@ -50,6 +50,7 @@ func CaptureScrapeSnapshot(ctx api.ScrapeContext, runStart time.Time) (*v1.Scrap
 		{externalUserGroupsSQL, &snap.ExternalUserGroups, "external_user_groups"},
 		{configAccessSQL, &snap.ConfigAccess, "config_access"},
 		{configAccessLogsSQL, &snap.ConfigAccessLogs, "config_access_logs"},
+		{externalCostsSQL, &snap.ExternalCosts, "external_costs"},
 	}
 	for _, s := range singles {
 		counts, err := querySingle(ctx, runStart, s.sql)
@@ -301,4 +302,22 @@ SELECT
   MAX(created_at) AS last_created_at,
   NULL::timestamptz AS last_updated_at
 FROM config_access_logs
+`
+
+// config_costs is append-only: it has created_at and updated_at but no deleted_at,
+// since a closed billing period is never retracted, only aged out by retention.
+const externalCostsSQL = `
+SELECT
+  COUNT(*)                                                                  AS total,
+  COUNT(*) FILTER (WHERE updated_at >= ?::timestamptz)                      AS updated_last,
+  COUNT(*) FILTER (WHERE updated_at >= ?::timestamptz - interval '1 hour')  AS updated_hour,
+  COUNT(*) FILTER (WHERE updated_at >= ?::timestamptz - interval '1 day')   AS updated_day,
+  COUNT(*) FILTER (WHERE updated_at >= ?::timestamptz - interval '7 days')  AS updated_week,
+  0 AS deleted_last,
+  0 AS deleted_hour,
+  0 AS deleted_day,
+  0 AS deleted_week,
+  MAX(created_at) AS last_created_at,
+  MAX(updated_at) AS last_updated_at
+FROM config_costs
 `

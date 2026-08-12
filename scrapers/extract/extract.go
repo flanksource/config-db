@@ -34,6 +34,7 @@ type ExtractedConfig struct {
 	ExternalGroups     []models.ExternalGroup       `json:"external_groups,omitempty"`
 	ExternalUserGroups []models.ExternalUserGroup   `json:"external_user_groups,omitempty"`
 	ExternalRoles      []models.ExternalRole        `json:"external_roles,omitempty"`
+	ExternalCosts      []v1.ExternalCost            `json:"external_costs,omitempty"`
 	Summary            ExtractionSummary            `json:"summary,omitempty"`
 	Warnings           []v1.Warning                 `json:"warnings,omitempty"`
 
@@ -54,6 +55,7 @@ func (e ExtractedConfig) HasEntities() bool {
 	return len(e.ConfigAccess) > 0 || len(e.AccessLogs) > 0 ||
 		len(e.ExternalUsers) > 0 || len(e.ExternalGroups) > 0 ||
 		len(e.ExternalRoles) > 0 || len(e.ExternalUserGroups) > 0 ||
+		len(e.ExternalCosts) > 0 ||
 		len(e.Changes) > 0 || len(e.Analysis) > 0
 }
 
@@ -94,6 +96,7 @@ func (e ExtractedConfig) Pretty() api.Text {
 		{"user_groups", len(e.ExternalUserGroups)},
 		{"access", len(e.ConfigAccess)},
 		{"access_logs", len(e.AccessLogs)},
+		{"costs", len(e.ExternalCosts)},
 	} {
 		if e.count == 0 {
 			continue
@@ -112,6 +115,7 @@ func (e ExtractedConfig) Merge(other ExtractedConfig) ExtractedConfig {
 	e.ExternalUserGroups = append(e.ExternalUserGroups, other.ExternalUserGroups...)
 	e.ExternalRoles = append(e.ExternalRoles, other.ExternalRoles...)
 	e.ExternalGroups = append(e.ExternalGroups, other.ExternalGroups...)
+	e.ExternalCosts = append(e.ExternalCosts, other.ExternalCosts...)
 	e.Summary = e.Summary.Merge(other.Summary)
 	for _, w := range other.Warnings {
 		e.AddWarning(w)
@@ -148,6 +152,7 @@ type ExtractionSummary struct {
 	Roles        v1.EntitySummary[models.ExternalRole]  `json:"roles,omitzero"`
 	ConfigAccess v1.EntitySummary[struct{}]             `json:"config_access,omitzero"`
 	AccessLogs   v1.EntitySummary[struct{}]             `json:"access_logs,omitzero"`
+	Costs        v1.EntitySummary[struct{}]             `json:"external_costs,omitzero"`
 	Changes      v1.EntitySummary[struct{}]             `json:"changes,omitzero"`
 	Analysis     v1.EntitySummary[struct{}]             `json:"analysis,omitzero"`
 }
@@ -155,6 +160,7 @@ type ExtractionSummary struct {
 func (e ExtractionSummary) IsEmpty() bool {
 	return e.Users.IsEmpty() && e.Groups.IsEmpty() && e.Roles.IsEmpty() &&
 		e.ConfigAccess.IsEmpty() && e.AccessLogs.IsEmpty() &&
+		e.Costs.IsEmpty() &&
 		e.Changes.IsEmpty() && e.Analysis.IsEmpty()
 }
 
@@ -174,6 +180,7 @@ func (e ExtractionSummary) Pretty() api.Text {
 		{"roles", e.Roles},
 		{"config_access", e.ConfigAccess},
 		{"access_logs", e.AccessLogs},
+		{"external_costs", e.Costs},
 	} {
 		if e.summary.IsEmpty() {
 			continue
@@ -189,6 +196,7 @@ func (e ExtractionSummary) Merge(other ExtractionSummary) ExtractionSummary {
 	e.Roles = e.Roles.Merge(other.Roles)
 	e.ConfigAccess = e.ConfigAccess.Merge(other.ConfigAccess)
 	e.AccessLogs = e.AccessLogs.Merge(other.AccessLogs)
+	e.Costs = e.Costs.Merge(other.Costs)
 	e.Analysis = e.Analysis.Merge(other.Analysis)
 	e.Changes = e.Changes.Merge(other.Changes)
 	return e
@@ -271,6 +279,7 @@ func ExtractConfigChangesFromConfig(resolver Resolver, scraperID *uuid.UUID, con
 		{&result.ExternalGroups, "external groups", []string{"external_groups", "groups"}},
 		{&result.ExternalUserGroups, "external user groups", []string{"external_user_groups", "user_groups"}},
 		{&result.ExternalRoles, "external roles", []string{"external_roles", "roles"}},
+		{&result.ExternalCosts, "external costs", []string{"external_costs", "costs"}},
 	}
 
 	for _, f := range fields {
@@ -281,6 +290,7 @@ func ExtractConfigChangesFromConfig(resolver Resolver, scraperID *uuid.UUID, con
 
 	result.Summary.Changes.Scraped = len(result.Changes)
 	result.Summary.Analysis.Scraped = len(result.Analysis)
+	result.Summary.Costs.Scraped = len(result.ExternalCosts)
 
 	expandConfigAccessShorthand(configMap, result.ConfigAccess)
 	expandAccessLogShorthand(configMap, result.AccessLogs)
@@ -566,7 +576,7 @@ func toStringSlice(v any) []string {
 // sanitizeConfigIDFields pre-processes raw config map items so that
 // non-UUID `config_id` values are moved to `external_id` before JSON unmarshal.
 func sanitizeConfigIDFields(configMap map[string]any) {
-	for _, key := range []string{"access_logs", "logs", "config_access", "access"} {
+	for _, key := range []string{"access_logs", "logs", "config_access", "access", "external_costs", "costs"} {
 		items := toMapSlice(configMap[key])
 		for _, item := range items {
 			v, ok := item["config_id"]
@@ -710,6 +720,28 @@ func applyConfigRefDefaults(configMap map[string]any, result *ExtractedConfig) {
 		}
 	}
 
+	for i := range result.ExternalCosts {
+		cost := &result.ExternalCosts[i]
+		if cost.ConfigID != nil || cost.ConfigExternalID.ExternalID != "" {
+			continue
+		}
+		if defaultConfigID != uuid.Nil {
+			cost.ConfigID = &defaultConfigID
+			continue
+		}
+		// A cost nested under a config item inherits its identity, but an explicit
+		// resource_id still wins as the lookup key. The config type may well be absent
+		// (it lives in the scraper spec rather than the scraped body), which is fine —
+		// resolution falls back to matching on the external id alone.
+		ref := defaultExternalID
+		if cost.ResourceID != "" {
+			ref.ExternalID = cost.ResourceID
+		}
+		if ref.ExternalID != "" {
+			cost.ConfigExternalID = ref
+		}
+	}
+
 	for i := range result.Changes {
 		if result.Changes[i].ExternalID != "" && result.Changes[i].ConfigType != "" {
 			continue
@@ -779,6 +811,17 @@ func validateConfigRefs(result *ExtractedConfig) {
 		validAccess = append(validAccess, ca)
 	}
 	result.ConfigAccess = validAccess
+
+	var validCosts []v1.ExternalCost
+	for _, c := range result.ExternalCosts {
+		if err := c.Validate(); err != nil {
+			result.Summary.Costs.Skipped++
+			result.AddWarning(v1.Warning{Error: err.Error(), Result: c})
+			continue
+		}
+		validCosts = append(validCosts, c)
+	}
+	result.ExternalCosts = validCosts
 
 	var validLogs []v1.ExternalConfigAccessLog
 	for _, al := range result.AccessLogs {

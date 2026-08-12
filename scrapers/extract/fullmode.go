@@ -84,6 +84,7 @@ func ExtractFullMode(ctx api.ScrapeContext, scraperID *uuid.UUID, scraped v1.Scr
 		}},
 		{len(all.ConfigAccess) > 0, func(r *v1.ScrapeResult) { r.ConfigAccess = all.ConfigAccess }},
 		{len(all.AccessLogs) > 0, func(r *v1.ScrapeResult) { r.ConfigAccessLogs = all.AccessLogs }},
+		{len(all.ExternalCosts) > 0, func(r *v1.ScrapeResult) { r.ExternalCosts = all.ExternalCosts }},
 		{len(all.Warnings) > 0, func(r *v1.ScrapeResult) { r.Warnings = all.Warnings }},
 	}
 

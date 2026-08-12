@@ -165,6 +165,9 @@ var _ = Describe("e2e extraction fixtures", func() {
 			DeferCleanup(func() {
 				DefaultContext.DB().Exec("DELETE FROM config_relationships WHERE config_id IN (SELECT id FROM config_items WHERE scraper_id = ?) OR related_id IN (SELECT id FROM config_items WHERE scraper_id = ?)", scraperModel.ID, scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM config_access_logs WHERE scraper_id = ?", scraperModel.ID)
+				// Costs matched to a config item cascade with it, but unmatched rows have
+				// no config item to cascade from.
+				DefaultContext.DB().Exec("DELETE FROM config_costs WHERE scraper_id = ?", scraperModel.ID)
 				DefaultContext.DB().Exec("DELETE FROM config_access WHERE scraper_id = ?", scraperModel.ID)
 				for _, id := range createdItems {
 					DefaultContext.DB().Where("config_id = ?", id).Delete(&models.ConfigChange{})
@@ -488,7 +491,7 @@ func buildE2EEnv(results []v1.ScrapeResult, summary v1.ScrapeSummary) map[string
 	}
 	env["changes"] = changesSlice
 
-	for _, key := range []string{"analysis", "access_logs", "config_access", "external_users", "external_groups", "external_user_groups", "external_roles", "warnings"} {
+	for _, key := range []string{"analysis", "access_logs", "config_access", "external_users", "external_groups", "external_user_groups", "external_roles", "external_costs", "warnings"} {
 		env[key] = []any{}
 	}
 
@@ -497,6 +500,11 @@ func buildE2EEnv(results []v1.ScrapeResult, summary v1.ScrapeSummary) map[string
 		"changes": map[string]any{
 			"scraped": len(allChanges),
 			"saved":   totals.Changes,
+		},
+		"external_costs": map[string]any{
+			"scraped": summary.ExternalCosts.Scraped,
+			"saved":   summary.ExternalCosts.Saved,
+			"skipped": summary.ExternalCosts.Skipped,
 		},
 	}
 
