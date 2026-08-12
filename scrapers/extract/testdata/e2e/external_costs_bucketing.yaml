@@ -1,0 +1,29 @@
+# Two hourly FOCUS rows for the same resource and SKU collapse into one day-grain row,
+# while spend for a resource that was never scraped is retained unmatched rather than
+# dropped or folded into somebody else's total.
+spec:
+  full: true
+  file:
+    - type: RDS
+      id: $.external_id
+      paths:
+        - fixtures/data/external_costs_focus.json
+pre_populate:
+  configs:
+    - config_class: Database
+      type: RDS
+      external_id: ["db-instance-1"]
+      config: '{"instance_class":"db.t3.medium"}'
+assertions:
+  - summary.external_costs.scraped == 3
+  - summary.external_costs.saved == 2
+  - size(db.external_costs(scraper_id)) == 2
+  - size(db.external_costs(scraper_id).filter(c, has(c.config_id))) == 1
+  - size(db.external_costs(scraper_id).filter(c, !has(c.config_id))) == 1
+  - db.external_costs(scraper_id).filter(c, has(c.config_id))[0].grain == 'day'
+  - db.external_costs(scraper_id).filter(c, has(c.config_id))[0].billing_currency == 'USD'
+  - double(db.external_costs(scraper_id).filter(c, has(c.config_id))[0].effective_cost) == 0.4
+  - double(db.external_costs(scraper_id).filter(c, has(c.config_id))[0].billed_cost) == 0.5
+  - db.external_costs(scraper_id).filter(c, has(c.config_id))[0].external_id == 'db-instance-1'
+  - db.external_costs(scraper_id).filter(c, !has(c.config_id))[0].external_id == 'i-does-not-exist'
+  - double(db.external_costs(scraper_id).filter(c, !has(c.config_id))[0].effective_cost) == 9.5

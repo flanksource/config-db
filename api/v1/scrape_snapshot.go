@@ -82,6 +82,7 @@ type ScrapeSnapshot struct {
 	ExternalUserGroups EntityWindowCounts `json:"external_user_groups"`
 	ConfigAccess       EntityWindowCounts `json:"config_access"`
 	ConfigAccessLogs   EntityWindowCounts `json:"config_access_logs"`
+	ExternalCosts      EntityWindowCounts `json:"external_costs"`
 }
 
 // ScrapeSnapshotPair holds the before and after captures plus the computed diff.
@@ -104,6 +105,7 @@ type ScrapeSnapshotDiff struct {
 	ExternalUserGroups EntityWindowCounts            `json:"external_user_groups"`
 	ConfigAccess       EntityWindowCounts            `json:"config_access"`
 	ConfigAccessLogs   EntityWindowCounts            `json:"config_access_logs"`
+	ExternalCosts      EntityWindowCounts            `json:"external_costs"`
 }
 
 // DiffSnapshots computes After - Before field-wise. Nil snapshots are treated
@@ -126,6 +128,7 @@ func DiffSnapshots(before, after *ScrapeSnapshot) ScrapeSnapshotDiff {
 		ExternalUserGroups: a.ExternalUserGroups.Sub(b.ExternalUserGroups),
 		ConfigAccess:       a.ConfigAccess.Sub(b.ConfigAccess),
 		ConfigAccessLogs:   a.ConfigAccessLogs.Sub(b.ConfigAccessLogs),
+		ExternalCosts:      a.ExternalCosts.Sub(b.ExternalCosts),
 	}
 }
 

@@ -1,0 +1,20 @@
+# snake_case is equally accepted, and a cost with no explicit config reference inherits
+# the enclosing config item's identity.
+input:
+  config:
+    name: web-server
+  type: AWS::EC2::Instance
+  external_id: "i-0abc123"
+  costs:
+    - charge_period_start: "2026-08-03T00:00:00Z"
+      charge_period_end: "2026-08-04T00:00:00Z"
+      billed_cost: 1.5
+      effective_cost: 1.2
+      billing_currency: USD
+      service_name: AmazonEC2
+assertions:
+  - size(external_costs) == 1
+  - external_costs[0].external_config_id.external_id == 'i-0abc123'
+  - external_costs[0].external_config_id.config_type == 'AWS::EC2::Instance'
+  - external_costs[0].billing_currency == 'USD'
+  - summary.external_costs.scraped == 1

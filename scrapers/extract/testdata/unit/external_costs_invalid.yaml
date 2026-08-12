@@ -1,0 +1,28 @@
+# Costs that cannot be stored are rejected with a warning rather than silently dropped:
+# an inverted charge period, and a missing currency.
+input:
+  config:
+    name: web-server
+  type: AWS::EC2::Instance
+  external_id: "i-0abc123"
+  external_costs:
+    - charge_period_start: "2026-08-04T00:00:00Z"
+      charge_period_end: "2026-08-03T00:00:00Z"
+      billed_cost: 1
+      effective_cost: 1
+      billing_currency: USD
+    - charge_period_start: "2026-08-03T00:00:00Z"
+      charge_period_end: "2026-08-04T00:00:00Z"
+      billed_cost: 1
+      effective_cost: 1
+    - charge_period_start: "2026-08-03T00:00:00Z"
+      charge_period_end: "2026-08-04T00:00:00Z"
+      billed_cost: 2
+      effective_cost: 2
+      billing_currency: EUR
+assertions:
+  - size(external_costs) == 1
+  - external_costs[0].billing_currency == 'EUR'
+  - summary.external_costs.scraped == 3
+  - summary.external_costs.skipped == 2
+  - size(warnings) == 2

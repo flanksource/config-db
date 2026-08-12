@@ -1,0 +1,33 @@
+# A raw FOCUS v1.4 export row pastes in with no transform: PascalCase column names are
+# accepted verbatim and x_* custom columns survive in the focus payload.
+input:
+  config:
+    name: web-server
+  type: AWS::EC2::Instance
+  external_id: "i-0abc123"
+  external_costs:
+    - ResourceId: "i-0abc123"
+      ChargePeriodStart: "2026-08-03T14:00:00Z"
+      ChargePeriodEnd: "2026-08-03T15:00:00Z"
+      BilledCost: 0.0416
+      EffectiveCost: 0.0312
+      BillingCurrency: USD
+      ChargeCategory: Usage
+      ServiceName: AmazonEC2
+      ServiceCategory: Compute
+      SkuId: BoxUsage:m5.large
+      RegionId: us-east-1
+      PricingQuantity: 1
+      PricingUnit: Hours
+      x_CostCenter: platform
+      Tags:
+        env: prod
+assertions:
+  - size(external_costs) == 1
+  - external_costs[0].resource_id == 'i-0abc123'
+  - external_costs[0].billing_currency == 'USD'
+  - external_costs[0].service_name == 'AmazonEC2'
+  - external_costs[0].sku_id == 'BoxUsage:m5.large'
+  - external_costs[0].region_id == 'us-east-1'
+  - external_costs[0].pricing_unit == 'Hours'
+  - summary.external_costs.scraped == 1

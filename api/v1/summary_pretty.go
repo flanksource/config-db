@@ -40,6 +40,9 @@ func (s ScrapeSummary) PrettyShort() string {
 	if !s.AccessLogs.IsEmpty() {
 		parts = append(parts, fmt.Sprintf("logs=%d", s.AccessLogs.Saved))
 	}
+	if !s.ExternalCosts.IsEmpty() {
+		parts = append(parts, fmt.Sprintf("costs=%d", s.ExternalCosts.Saved))
+	}
 	if len(parts) == 0 {
 		return "no changes"
 	}
@@ -98,6 +101,7 @@ func (s *ScrapeSummary) Pretty() api.Text {
 	appendEntity("External Roles:", s.ExternalRoles)
 	appendEntity("Config Access:", s.ConfigAccess)
 	appendEntity("Access Logs:", s.AccessLogs)
+	appendEntity("External Costs:", s.ExternalCosts)
 
 	return t
 }

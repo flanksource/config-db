@@ -822,6 +822,8 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
+	saveExternalCosts(ctx, extractResult.externalCosts, scraperID, &summary)
+
 	summary.AccessLogs.Scraped = len(extractResult.configAccessLogs)
 	var resolvedAccessLogs []dutyModels.ConfigAccessLog
 	resolvedConfigTypes := make(map[uuid.UUID]string) // ConfigID → ConfigType for resolved logs
@@ -1713,6 +1715,7 @@ type extractResult struct {
 	externalRoles    []dutyModels.ExternalRole
 	configAccesses   []v1.ExternalConfigAccess
 	configAccessLogs []v1.ExternalConfigAccessLog
+	externalCosts    []v1.ExternalCost
 
 	changeSummary   v1.ChangeSummaryByType
 	orphanedChanges []v1.ChangeResult
@@ -1768,6 +1771,10 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 
 		if len(result.ExternalUserGroups) > 0 {
 			extractResult.externalUserGroups = append(extractResult.externalUserGroups, result.ExternalUserGroups...)
+		}
+
+		if len(result.ExternalCosts) > 0 {
+			extractResult.externalCosts = append(extractResult.externalCosts, result.ExternalCosts...)
 		}
 
 		if len(result.Warnings) > 0 {

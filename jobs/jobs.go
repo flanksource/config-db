@@ -26,6 +26,14 @@ func ScheduleJobs(ctx context.Context) {
 		}
 	}
 
+	for _, j := range configCostJobs {
+		job := j
+		job.Context = ctx
+		if err := job.AddToScheduler(FuncScheduler); err != nil {
+			logger.Fatalf(err.Error())
+		}
+	}
+
 	if err := job.NewJob(ctx, "Process Change Retention Rules", "@every 1h", ProcessChangeRetentionRules).
 		RunOnStart().AddToScheduler(FuncScheduler); err != nil {
 		logger.Errorf("Failed to schedule sync jobs for team component: %v", err)

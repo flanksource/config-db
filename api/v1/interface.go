@@ -381,6 +381,7 @@ type ScrapeSummary struct {
 	ExternalRoles  EntitySummary[models.ExternalRole]  `json:"external_roles,omitempty"`
 	ConfigAccess   EntitySummary[struct{}]             `json:"config_access,omitempty"`
 	AccessLogs     EntitySummary[struct{}]             `json:"access_logs,omitempty"`
+	ExternalCosts  EntitySummary[struct{}]             `json:"external_costs,omitempty"`
 
 	OrphanedChanges []ChangeResult `json:"orphaned_changes,omitempty"`
 	FKErrorChanges  []ChangeResult `json:"fk_error_changes,omitempty"`
@@ -418,7 +419,8 @@ func (summary ScrapeSummary) HasUpdates() bool {
 		!summary.ExternalGroups.IsEmpty() ||
 		!summary.ExternalRoles.IsEmpty() ||
 		!summary.ConfigAccess.IsEmpty() ||
-		!summary.AccessLogs.IsEmpty()
+		!summary.AccessLogs.IsEmpty() ||
+		!summary.ExternalCosts.IsEmpty()
 }
 
 func (s *ScrapeSummary) UnmarshalJSON(data []byte) error {
@@ -428,7 +430,7 @@ func (s *ScrapeSummary) UnmarshalJSON(data []byte) error {
 	}
 
 	// Detect new-format payloads by checking for any known top-level key
-	newFormatKeys := []string{"config_types", "external_users", "external_groups", "external_roles", "config_access", "access_logs"}
+	newFormatKeys := []string{"config_types", "external_users", "external_groups", "external_roles", "config_access", "access_logs", "external_costs"}
 	isNewFormat := false
 	for _, key := range newFormatKeys {
 		if _, ok := raw[key]; ok {
@@ -623,6 +625,7 @@ func (s *ScrapeSummary) Merge(other ScrapeSummary) {
 	s.ExternalRoles = s.ExternalRoles.Merge(other.ExternalRoles)
 	s.ConfigAccess = s.ConfigAccess.Merge(other.ConfigAccess)
 	s.AccessLogs = s.AccessLogs.Merge(other.AccessLogs)
+	s.ExternalCosts = s.ExternalCosts.Merge(other.ExternalCosts)
 	for _, w := range other.Warnings {
 		s.AddScrapeWarning(w)
 	}
@@ -1290,6 +1293,7 @@ type ScrapeResult struct {
 	ExternalGroups   []models.ExternalGroup    `json:"-"`
 	ConfigAccess     []ExternalConfigAccess    `json:"-"`
 	ConfigAccessLogs []ExternalConfigAccessLog `json:"-"`
+	ExternalCosts    []ExternalCost            `json:"-"`
 	Warnings         []Warning                 `json:"-"`
 
 	// Transform context captured for diagnostics.
@@ -1477,6 +1481,9 @@ func (s *ScrapeResult) Pretty() api.Text {
 	if len(s.ConfigAccessLogs) > 0 {
 		t = t.Append(" accessLogs=", "text-muted").Append(len(s.ConfigAccessLogs))
 	}
+	if len(s.ExternalCosts) > 0 {
+		t = t.Append(" costs=", "text-muted").Append(len(s.ExternalCosts))
+	}
 	if len(s.ExternalRoles) > 0 {
 		t = t.Append(" roles=", "text-muted").Append(len(s.ExternalRoles))
 	}
@@ -1656,6 +1663,7 @@ func BuildCounts(all FullScrapeResults) CountsGrid {
 		{"External User Groups", len(all.ExternalUserGroups)},
 		{"Config Access", len(all.ConfigAccess)},
 		{"Config Access Logs", len(all.ConfigAccessLogs)},
+		{"External Costs", len(all.ExternalCosts)},
 	}
 }
 
@@ -2031,6 +2039,7 @@ type FullScrapeResults struct {
 	ExternalUserGroups []ExternalUserGroup         `json:"external_user_groups,omitempty"`
 	ConfigAccess       []ExternalConfigAccess      `json:"config_access,omitempty"`
 	ConfigAccessLogs   []ExternalConfigAccessLog   `json:"config_access_logs,omitempty"`
+	ExternalCosts      []ExternalCost              `json:"external_costs,omitempty"`
 }
 
 func MergeScrapeResults(results ...ScrapeResults) FullScrapeResults {
@@ -2065,6 +2074,7 @@ func MergeScrapeResults(results ...ScrapeResults) FullScrapeResults {
 			full.ExternalUserGroups = append(full.ExternalUserGroups, r.ExternalUserGroups...)
 			full.ConfigAccess = append(full.ConfigAccess, r.ConfigAccess...)
 			full.ConfigAccessLogs = append(full.ConfigAccessLogs, r.ConfigAccessLogs...)
+			full.ExternalCosts = append(full.ExternalCosts, r.ExternalCosts...)
 		}
 	}
 
