@@ -287,6 +287,10 @@
           "$ref": "#/$defs/GitHubPermissions",
           "description": "Permissions configures repository collaborator and team access collection"
         },
+        "commits": {
+          "$ref": "#/$defs/GitHubCommits",
+          "description": "Commits configures commit metadata collection from each repository's default branch"
+        },
         "securityFilters": {
           "$ref": "#/$defs/GitHubSecurityFilters",
           "description": "SecurityFilters for security alerts (only used when security=true)"
@@ -297,7 +301,22 @@
       "required": [
         "repositories"
       ],
-      "description": "GitHub scraper creates GitHub::Repository config items and optionally\nattaches security alerts and OpenSSF scorecard results as analyses."
+      "description": "GitHub scraper creates GitHub::Repository config items, optionally collects\ncommits as changes, and attaches security alerts and OpenSSF scorecard results as analyses."
+    },
+    "GitHubCommits": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled enables commit collection."
+        },
+        "maxAge": {
+          "type": "string",
+          "description": "MaxAge limits commits to this age. Defaults to 30d."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "GitHubCommits configures repository commit collection."
     },
     "GitHubOrganization": {
       "properties": {
