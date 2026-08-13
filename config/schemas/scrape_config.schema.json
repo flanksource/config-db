@@ -2001,6 +2001,10 @@
           "$ref": "#/$defs/GitHubPermissions",
           "description": "Permissions configures repository collaborator and team access collection"
         },
+        "commits": {
+          "$ref": "#/$defs/GitHubCommits",
+          "description": "Commits configures commit metadata collection from each repository's default branch"
+        },
         "securityFilters": {
           "$ref": "#/$defs/GitHubSecurityFilters",
           "description": "SecurityFilters for security alerts (only used when security=true)"
@@ -2011,7 +2015,7 @@
       "required": [
         "repositories"
       ],
-      "description": "GitHub scraper creates GitHub::Repository config items and optionally\nattaches security alerts and OpenSSF scorecard results as analyses."
+      "description": "GitHub scraper creates GitHub::Repository config items, optionally collects\ncommits as changes, and attaches security alerts and OpenSSF scorecard results as analyses."
     },
     "GitHubActions": {
       "properties": {
@@ -2122,6 +2126,21 @@
         "repository"
       ],
       "description": "GitHubActions scraper scrapes the workflow and its runs based on the given filter.\nBy default, it fetches the last 7 days of workflow runs (Configurable via property: scrapers.githubactions.maxAge)"
+    },
+    "GitHubCommits": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled enables commit collection."
+        },
+        "maxAge": {
+          "type": "string",
+          "description": "MaxAge limits commits to this age. Defaults to 30d."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "GitHubCommits configures repository commit collection."
     },
     "GitHubOrganization": {
       "properties": {

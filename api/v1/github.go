@@ -34,8 +34,8 @@ type GitHubActions struct {
 	Branch string `yaml:"branch,omitempty" json:"branch,omitempty"`
 }
 
-// GitHub scraper creates GitHub::Repository config items and optionally
-// attaches security alerts and OpenSSF scorecard results as analyses.
+// GitHub scraper creates GitHub::Repository config items, optionally collects
+// commits as changes, and attaches security alerts and OpenSSF scorecard results as analyses.
 type GitHub struct {
 	BaseScraper `json:",inline" yaml:",inline"`
 
@@ -61,8 +61,20 @@ type GitHub struct {
 	// Permissions configures repository collaborator and team access collection
 	Permissions *GitHubPermissions `yaml:"permissions,omitempty" json:"permissions,omitempty"`
 
+	// Commits configures commit metadata collection from each repository's default branch
+	Commits *GitHubCommits `yaml:"commits,omitempty" json:"commits,omitempty"`
+
 	// SecurityFilters for security alerts (only used when security=true)
 	SecurityFilters GitHubSecurityFilters `yaml:"securityFilters,omitempty" json:"securityFilters,omitempty"`
+}
+
+// GitHubCommits configures repository commit collection.
+type GitHubCommits struct {
+	// Enabled enables commit collection.
+	Enabled bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+
+	// MaxAge limits commits to this age. Defaults to 30d.
+	MaxAge string `yaml:"maxAge,omitempty" json:"maxAge,omitempty"`
 }
 
 // GitHubPermissions configures repository RBAC collection.
