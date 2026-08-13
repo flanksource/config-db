@@ -34,6 +34,7 @@ type jsonResults struct {
 	ExternalUserGroups []v1.ExternalUserGroup
 	ConfigAccess       []v1.ExternalConfigAccess
 	ConfigAccessLogs   []v1.ExternalConfigAccessLog
+	ExternalCosts      []v1.ExternalCost
 	HAR                []har.Entry `json:"har,omitempty"`
 }
 
@@ -119,6 +120,7 @@ func parseUISnapshot(data []byte) (scrapeui.Snapshot, error) {
 			ExternalUserGroups: results.ExternalUserGroups,
 			ConfigAccess:       results.ConfigAccess,
 			ConfigAccessLogs:   results.ConfigAccessLogs,
+			ExternalCosts:      results.ExternalCosts,
 		},
 		Relationships: results.Relationships,
 		ConfigMeta:    results.ConfigMeta,

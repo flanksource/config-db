@@ -16,9 +16,11 @@ import { AccessLogTable } from './components/AccessLogTable';
 import { ScrapeConfigPanel } from './components/ScrapeConfigPanel';
 import { SnapshotPanel } from './components/SnapshotPanel';
 import { JsonView } from './components/JsonView';
+import { CostTable } from './components/CostTable';
 
 const TAB_DEFS: { key: Tab; label: string; icon: string; countKey?: string }[] = [
   { key: 'configs', label: 'Configs', icon: 'codicon:server-process', countKey: 'configs' },
+  { key: 'costs', label: 'Costs', icon: 'codicon:credit-card', countKey: 'external_costs' },
   { key: 'logs', label: 'Logs', icon: 'codicon:terminal' },
   { key: 'har', label: 'HTTP', icon: 'codicon:globe' },
   { key: 'users', label: 'Users', icon: 'codicon:person', countKey: 'external_users' },
@@ -414,6 +416,7 @@ export function App() {
         )}
 
         {tab === 'har' && <HARPanel entries={snapshot?.har || []} search={search} />}
+        {tab === 'costs' && <CostTable entries={snapshot?.results?.external_costs || []} search={search} />}
 
         {tab === 'users' && <EntityTable title="Users" kind="user" entities={snapshot?.results?.external_users || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} userGroups={snapshot?.results?.external_user_groups} allUsers={snapshot?.results?.external_users} allGroups={snapshot?.results?.external_groups} lookups={lookups} search={search} selectedId={routeId} onSelect={(id) => navigate({ tab: 'users', id })} onNavigate={(kind, id) => navigate({ tab: kind === 'user' ? 'users' : kind === 'group' ? 'groups' : 'roles', id })} />}
         {tab === 'groups' && <EntityTable title="Groups" kind="group" entities={snapshot?.results?.external_groups || []} access={snapshot?.results?.config_access} accessLogs={snapshot?.results?.config_access_logs} userGroups={snapshot?.results?.external_user_groups} allUsers={snapshot?.results?.external_users} allGroups={snapshot?.results?.external_groups} lookups={lookups} search={search} selectedId={routeId} onSelect={(id) => navigate({ tab: 'groups', id })} onNavigate={(kind, id) => navigate({ tab: kind === 'user' ? 'users' : kind === 'group' ? 'groups' : 'roles', id })} />}

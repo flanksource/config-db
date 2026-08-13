@@ -655,7 +655,7 @@ func hasExternalEntities(config any) bool {
 	if !ok {
 		return false
 	}
-	for _, key := range []string{"external_users", "external_groups", "external_roles", "external_user_groups", "users", "roles", "groups", "user_groups", "access_logs", "config_access", "access"} {
+	for _, key := range []string{"external_users", "external_groups", "external_roles", "external_user_groups", "users", "roles", "groups", "user_groups", "access_logs", "config_access", "access", "external_costs", "costs"} {
 		val, ok := m[key]
 		if !ok {
 			continue

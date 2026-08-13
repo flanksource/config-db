@@ -573,25 +573,56 @@ func toStringSlice(v any) []string {
 	}
 }
 
-// sanitizeConfigIDFields pre-processes raw config map items so that
-// non-UUID `config_id` values are moved to `external_id` before JSON unmarshal.
+// sanitizeConfigIDFields pre-processes raw config map items so non-UUID config-ID
+// values are treated as external IDs before unmarshalling into UUID fields.
 func sanitizeConfigIDFields(configMap map[string]any) {
 	for _, key := range []string{"access_logs", "logs", "config_access", "access", "external_costs", "costs"} {
 		items := toMapSlice(configMap[key])
 		for _, item := range items {
-			v, ok := item["config_id"]
-			if !ok {
-				continue
+			aliases := []string{"config_id"}
+			if key == "external_costs" || key == "costs" {
+				aliases = []string{"config_id", "ConfigId", "ConfigID"}
 			}
-			s, ok := v.(string)
-			if !ok {
-				continue
-			}
-			if _, err := uuid.Parse(s); err != nil {
-				if _, hasExt := item["external_id"]; !hasExt {
-					item["external_id"] = s
+
+			var value string
+			consistent := true
+			found := make([]string, 0, len(aliases))
+			for _, alias := range aliases {
+				v, ok := item[alias]
+				if !ok {
+					continue
 				}
-				delete(item, "config_id")
+				s, ok := v.(string)
+				if !ok {
+					consistent = false
+					break
+				}
+				if len(found) > 0 && s != value {
+					// Leave conflicting aliases intact so ExternalCost.UnmarshalJSON can
+					// return its precise alias-conflict error.
+					consistent = false
+					break
+				}
+				value = s
+				found = append(found, alias)
+			}
+			if !consistent || len(found) == 0 {
+				continue
+			}
+			if _, err := uuid.Parse(value); err == nil {
+				continue
+			}
+
+			if key == "external_costs" || key == "costs" {
+				_, hasExternalRef := findKey(item, "external_config_id", "ExternalConfigId", "ExternalConfigID")
+				if !hasExternalRef {
+					item["external_config_id"] = map[string]any{"external_id": value}
+				}
+			} else if _, hasExt := item["external_id"]; !hasExt {
+				item["external_id"] = value
+			}
+			for _, alias := range found {
+				delete(item, alias)
 			}
 		}
 	}
@@ -722,23 +753,16 @@ func applyConfigRefDefaults(configMap map[string]any, result *ExtractedConfig) {
 
 	for i := range result.ExternalCosts {
 		cost := &result.ExternalCosts[i]
-		if cost.ConfigID != nil || cost.ConfigExternalID.ExternalID != "" {
+		// Any explicit reference blocks inherited identity. Resolution later checks all
+		// explicit forms for consistency rather than silently applying precedence.
+		if cost.ConfigID != nil || cost.ConfigExternalID.ConfigID != "" ||
+			cost.ConfigExternalID.ExternalID != "" || cost.ResourceID != "" {
 			continue
 		}
 		if defaultConfigID != uuid.Nil {
 			cost.ConfigID = &defaultConfigID
-			continue
-		}
-		// A cost nested under a config item inherits its identity, but an explicit
-		// resource_id still wins as the lookup key. The config type may well be absent
-		// (it lives in the scraper spec rather than the scraped body), which is fine —
-		// resolution falls back to matching on the external id alone.
-		ref := defaultExternalID
-		if cost.ResourceID != "" {
-			ref.ExternalID = cost.ResourceID
-		}
-		if ref.ExternalID != "" {
-			cost.ConfigExternalID = ref
+		} else if defaultExternalID.ExternalID != "" {
+			cost.ConfigExternalID = defaultExternalID
 		}
 	}
 

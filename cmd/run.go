@@ -275,6 +275,7 @@ type runHTMLOutput struct {
 	ExternalUserGroups []v1.ExternalUserGroup       `pretty:"table"`
 	ConfigAccess       []v1.ExternalConfigAccess    `pretty:"table"`
 	ConfigAccessLogs   []v1.ExternalConfigAccessLog `pretty:"table"`
+	ExternalCosts      []v1.ExternalCost            `pretty:"table"`
 	Logs               v1.LogOutput                 `json:"-"`
 	HTTPTraffic        []har.Entry                  `json:"har,omitempty"`
 
@@ -522,6 +523,7 @@ func printOutput(results v1.ScrapeResults, summary, lastScrapeSummary *v1.Scrape
 		ExternalUserGroups: all.ExternalUserGroups,
 		ConfigAccess:       all.ConfigAccess,
 		ConfigAccessLogs:   all.ConfigAccessLogs,
+		ExternalCosts:      all.ExternalCosts,
 		HTTPTraffic:        harCollector.Entries(),
 		Logs:               v1.BuildLogOutput(logs),
 	}

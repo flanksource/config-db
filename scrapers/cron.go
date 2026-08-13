@@ -76,6 +76,7 @@ type runArtifactFailedResult struct {
 	ExternalUserGroups []v1.ExternalUserGroup       `json:"external_user_groups,omitempty"`
 	ConfigAccess       []v1.ExternalConfigAccess    `json:"config_access,omitempty"`
 	ConfigAccessLogs   []v1.ExternalConfigAccessLog `json:"config_access_logs,omitempty"`
+	ExternalCosts      []v1.ExternalCost            `json:"external_costs,omitempty"`
 	TransformExpr      string                       `json:"transform_expr,omitempty"`
 }
 
@@ -97,6 +98,7 @@ func buildRunArtifactResults(results v1.ScrapeResults) runArtifactResults {
 			ExternalUserGroups: result.ExternalUserGroups,
 			ConfigAccess:       result.ConfigAccess,
 			ConfigAccessLogs:   result.ConfigAccessLogs,
+			ExternalCosts:      result.ExternalCosts,
 			TransformExpr:      result.TransformExpr,
 		})
 	}

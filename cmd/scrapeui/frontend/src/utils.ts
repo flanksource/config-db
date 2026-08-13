@@ -292,6 +292,11 @@ export function globalSearch(
     if (a.external_user_aliases?.some(x => containsCI(x, lq))) n++;
   if (n) counts.access_logs = n;
 
+  n = 0;
+  for (const cost of results?.external_costs || [])
+    if (containsCI(JSON.stringify(cost), lq)) n++;
+  if (n) counts.costs = n;
+
   if (containsCI(logs, lq)) counts.logs = 1;
 
   n = 0;

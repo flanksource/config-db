@@ -35,6 +35,7 @@ type Counts struct {
 	ExternalRoles  int `json:"external_roles"`
 	ConfigAccess   int `json:"config_access"`
 	AccessLogs     int `json:"access_logs"`
+	ExternalCosts  int `json:"external_costs"`
 	Errors         int `json:"errors"`
 }
 

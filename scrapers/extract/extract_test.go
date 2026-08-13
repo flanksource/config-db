@@ -91,6 +91,39 @@ var _ = Describe("Extraction fixtures", func() {
 	}
 })
 
+var _ = Describe("External cost config aliases", func() {
+	baseCost := func() map[string]any {
+		return map[string]any{
+			"ConfigID":          "AWS::EC2::Instance/i-123",
+			"ResourceID":        "i-123",
+			"ChargePeriodStart": "2026-08-03T00:00:00Z",
+			"ChargePeriodEnd":   "2026-08-04T00:00:00Z",
+			"BilledCost":        1,
+			"EffectiveCost":     1,
+			"BillingCurrency":   "USD",
+		}
+	}
+
+	It("converts a PascalCase non-UUID config ID to an external reference", func() {
+		result, err := ExtractConfigChangesFromConfig(nil, nil, map[string]any{
+			"external_costs": []any{baseCost()},
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.ExternalCosts).To(HaveLen(1))
+		Expect(result.ExternalCosts[0].ConfigID).To(BeNil())
+		Expect(result.ExternalCosts[0].ConfigExternalID.ExternalID).To(Equal("AWS::EC2::Instance/i-123"))
+	})
+
+	It("preserves conflicting aliases for precise validation", func() {
+		item := baseCost()
+		item["config_id"] = "different-target"
+		_, err := ExtractConfigChangesFromConfig(nil, nil, map[string]any{
+			"external_costs": []any{item},
+		})
+		Expect(err).To(MatchError(ContainSubstring("conflicting aliases")))
+	})
+})
+
 var _ = Describe("ExtractedConfig warnings", func() {
 	It("deduplicates warnings inline and increments count", func() {
 		result := ExtractedConfig{}

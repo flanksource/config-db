@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/flanksource/duty/context"
 	dutyModels "github.com/flanksource/duty/models"
@@ -25,7 +26,8 @@ func init() {
 	context.CelEnvFuncs["db.config_access"] = configAccessCEL(false)
 	context.CelEnvFuncs["db.config_access_all"] = configAccessCEL(true)
 	context.CelEnvFuncs["db.config_access_logs"] = configAccessLogsCEL()
-	context.CelEnvFuncs["db.external_costs"] = externalCostsCEL()
+	context.CelEnvFuncs["db.external_costs"] = externalCostsCEL(false)
+	context.CelEnvFuncs["db.external_costs_all"] = externalCostsCEL(true)
 }
 
 func externalUsersCEL(includeDeleted bool) func(context.Context) cel.EnvOption {
@@ -210,20 +212,34 @@ func queryConfigAccessLogs(ctx context.Context, scraperID uuid.UUID) ref.Val {
 	return types.DefaultTypeAdapter.NativeToValue(result)
 }
 
-// config_costs has no deleted_at — cost history is immutable once a billing period
-// closes, so there is no _all variant to pair with this.
-func externalCostsCEL() func(context.Context) cel.EnvOption {
+// Cost CEL queries are bounded to retained recent history. The _all name is registered
+// for API consistency; config_costs has no soft-deletion distinction.
+func externalCostsCEL(all bool) func(context.Context) cel.EnvOption {
+	name := "db.external_costs"
+	if all {
+		name += "_all"
+	}
 	return func(ctx context.Context) cel.EnvOption {
-		return cel.Function("db.external_costs",
-			cel.Overload("db_external_costs_string",
-				[]*cel.Type{cel.StringType},
-				cel.ListType(cel.DynType),
+		return cel.Function(name,
+			cel.Overload(strings.ReplaceAll(name, ".", "_")+"_string",
+				[]*cel.Type{cel.StringType}, cel.ListType(cel.DynType),
 				cel.UnaryBinding(func(arg ref.Val) ref.Val {
 					scraperID, err := uuid.Parse(arg.Value().(string))
 					if err != nil {
 						return types.WrapErr(err)
 					}
-					return queryEntities[dutyModels.ConfigCost](ctx, "config_costs", scraperID, true)
+					var rows []dutyModels.ConfigCost
+					if err := ctx.DB().Table("config_costs").Where("scraper_id = ?", scraperID).
+						Order("period_start DESC, id DESC").Limit(1000).Find(&rows).Error; err != nil {
+						return types.WrapErr(err)
+					}
+					raw, _ := json.Marshal(rows)
+					var result []any
+					_ = json.Unmarshal(raw, &result)
+					if result == nil {
+						result = []any{}
+					}
+					return types.DefaultTypeAdapter.NativeToValue(result)
 				}),
 			),
 		)

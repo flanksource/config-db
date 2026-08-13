@@ -51,6 +51,7 @@ const ENTITY_ROWS: { key: keyof ScrapeSnapshot & keyof ScrapeSnapshotDiff; label
   { key: 'external_user_groups', label: 'External User Groups' },
   { key: 'config_access', label: 'Config Access' },
   { key: 'config_access_logs', label: 'Access Logs' },
+  { key: 'external_costs', label: 'External Costs' },
 ];
 
 function CountsRow({ label, counts, isDiff }: { label: string; counts: EntityWindowCounts; isDiff: boolean }) {

@@ -1,33 +1,24 @@
-// Keeps config_costs serviceable: refreshes the rollup the catalog reads, attaches
-// late-arriving resources, optionally coarsens old buckets, and enforces retention.
+// Keeps config_costs serviceable: refreshes rollups, reconciles unmatched rows, and
+// enforces retention. Cost coarsening is intentionally disabled.
 package jobs
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/flanksource/commons/duration"
 	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/duty/job"
+	"github.com/flanksource/duty/models"
+	"github.com/google/uuid"
 )
 
-var configCostJobs = []*job.Job{
-	RefreshConfigCostsRollup,
-	CompactConfigCosts,
-}
+var configCostJobs = []*job.Job{RefreshConfigCostsRollup, CompactConfigCosts}
 
-// RefreshConfigCostsRollup keeps the trailing-window totals the `configs` view serves in
-// step with config_costs. The windows are relative to now(), so the rollup drifts stale
-// on its own even when nothing new is scraped.
-//
-// Scheduled here rather than alongside the other catalog matview refreshes in
-// incident-commander because config-db owns the writes to config_costs.
 var RefreshConfigCostsRollup = &job.Job{
-	Name:       "RefreshConfigCostsRollup",
-	Schedule:   "@every 1h",
-	Singleton:  true,
-	JobHistory: true,
-	Retention:  job.RetentionBalanced,
+	Name: "RefreshConfigCostsRollup", Schedule: "@every 1h", Singleton: true,
+	JobHistory: true, Retention: job.RetentionBalanced,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
 		if err := ctx.DB().Exec("SELECT refresh_config_costs_rollup()").Error; err != nil {
@@ -38,193 +29,174 @@ var RefreshConfigCostsRollup = &job.Job{
 	},
 }
 
-// CompactConfigCosts runs three passes, each independent of the others.
 var CompactConfigCosts = &job.Job{
-	Name:       "CompactConfigCosts",
-	Schedule:   "@every 1h",
-	Singleton:  true,
-	JobHistory: true,
-	Retention:  job.RetentionBalanced,
+	Name: "CompactConfigCosts", Schedule: "@every 1h", Singleton: true,
+	JobHistory: true, Retention: job.RetentionBalanced,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
-
-		attached, err := attachUnmatchedCosts(ctx)
+		attached, ambiguous, err := attachUnmatchedCosts(ctx)
 		if err != nil {
 			return err
 		}
 		ctx.History.SuccessCount += attached
-
-		coarsened, err := coarsenConfigCosts(ctx)
-		if err != nil {
-			return err
+		// Ambiguous rows are accounting errors, but successful attachments in the same
+		// pass still count so the job is recorded as a warning rather than a total failure.
+		if attached == 0 && len(ambiguous) > 0 {
+			ctx.History.SuccessCount++
 		}
-		ctx.History.SuccessCount += coarsened
-
+		if len(ambiguous) > 0 {
+			ctx.History.AddDetails("ambiguous_config_costs", ambiguous)
+			for _, item := range ambiguous {
+				ctx.History.AddErrorf("config cost %s is ambiguous across configs %v", item.OrphanID, item.ConfigIDs)
+			}
+		}
 		expired, err := expireConfigCosts(ctx)
 		if err != nil {
 			return err
 		}
 		ctx.History.SuccessCount += expired
-
 		return nil
 	},
 }
 
-// attachUnmatchedCosts claims spend whose resource has since been scraped.
-//
-// A cost already exists for the target bucket when the same resource was matched on a
-// later run, so the orphan's amounts are folded into it and the orphan dropped. This is
-// what stops a late-arriving resource from leaking into an account-level total.
-func attachUnmatchedCosts(ctx job.JobRuntime) (int, error) {
-	merge := ctx.DB().Exec(`
-		WITH matched AS (
-			SELECT c.id AS orphan_id, ci.id AS config_id
-			FROM config_costs c
-			JOIN config_items ci ON c.external_id = ANY(ci.external_id)
-			WHERE c.config_id IS NULL AND ci.deleted_at IS NULL
-		),
-		folded AS (
-			UPDATE config_costs target
-			SET billed_cost      = target.billed_cost + o.billed_cost,
-			    effective_cost   = target.effective_cost + o.effective_cost,
-			    list_cost        = COALESCE(target.list_cost, 0) + COALESCE(o.list_cost, 0),
-			    contracted_cost  = COALESCE(target.contracted_cost, 0) + COALESCE(o.contracted_cost, 0),
-			    pricing_quantity = COALESCE(target.pricing_quantity, 0) + COALESCE(o.pricing_quantity, 0),
-			    updated_at       = now()
-			FROM config_costs o
-			JOIN matched m ON m.orphan_id = o.id
-			WHERE target.config_id = m.config_id
-			  AND target.period_start = o.period_start
-			  AND target.period_end = o.period_end
-			  AND target.fingerprint = o.fingerprint
-			RETURNING o.id AS orphan_id
-		)
-		DELETE FROM config_costs WHERE id IN (SELECT orphan_id FROM folded)`)
-	if merge.Error != nil {
-		return 0, fmt.Errorf("failed to fold unmatched costs into existing buckets: %w", merge.Error)
-	}
-
-	attach := ctx.DB().Exec(`
-		UPDATE config_costs c
-		SET config_id = ci.id, updated_at = now()
-		FROM config_items ci
-		WHERE c.config_id IS NULL
-		  AND ci.deleted_at IS NULL
-		  AND c.external_id = ANY(ci.external_id)`)
-	if attach.Error != nil {
-		return 0, fmt.Errorf("failed to attach unmatched costs: %w", attach.Error)
-	}
-
-	return int(merge.RowsAffected + attach.RowsAffected), nil
+type ambiguousConfigCost struct {
+	OrphanID  uuid.UUID   `json:"orphan_id"`
+	ConfigIDs []uuid.UUID `json:"config_ids"`
 }
 
-// coarsenConfigCosts rolls day buckets up into weeks and weeks into months once they are
-// older than the configured thresholds.
-//
-// Disabled by default: coarsening discards the daily detail permanently, so it is an
-// explicit operator choice rather than something that happens silently.
-func coarsenConfigCosts(ctx job.JobRuntime) (int, error) {
-	var total int
+// attachUnmatchedCosts is a single atomic reconciliation pass. Candidate lookup honors
+// the identity retained at ingestion. Ambiguous rows stay unmatched and are reported
+// without blocking unambiguous rows. When both an orphan and a matched row exist, the
+// newest row wins wholesale; amounts are never summed.
+func attachUnmatchedCosts(ctx job.JobRuntime) (int, []ambiguousConfigCost, error) {
+	tx := ctx.DB().Begin()
+	if tx.Error != nil {
+		return 0, nil, tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
 
-	for _, step := range []struct {
-		from, to string
-		truncTo  string
-		interval string
-		property string
-	}{
-		{"day", "week", "week", "7 days", "config.costs.compact.week.after"},
-		{"week", "month", "month", "1 month", "config.costs.compact.month.after"},
-	} {
-		threshold := properties.String("", step.property)
-		if threshold == "" {
+	// Serialize reconciliation against cost upserts so candidates and duplicate rows do
+	// not change while the deterministic winner is selected and applied.
+	if err := tx.Exec(`LOCK TABLE config_costs IN SHARE ROW EXCLUSIVE MODE`).Error; err != nil {
+		tx.Rollback()
+		return 0, nil, fmt.Errorf("failed to lock config costs for reconciliation: %w", err)
+	}
+
+	candidateSQL := `
+		SELECT c.id AS orphan_id, ci.id AS config_id
+		FROM config_costs c
+		JOIN config_items ci
+		  ON c.external_id = ANY(ci.external_id) AND ci.deleted_at IS NULL
+		 AND (c.external_config_type IS NULL OR ci.type = c.external_config_type)
+		 AND (c.external_config_scraper_id IS NULL OR c.external_config_scraper_id = 'all'
+		      OR c.external_config_type IN ('AWS::Region', 'AWS::AvailabilityZone', 'GitHub::Organization')
+		      OR ci.scraper_id::text = c.external_config_scraper_id)
+		 AND (c.external_config_labels IS NULL OR c.external_config_labels = '{}'::jsonb OR ci.labels @> c.external_config_labels)
+		WHERE c.config_id IS NULL
+		ORDER BY c.id, ci.id`
+
+	type candidate struct {
+		OrphanID uuid.UUID `gorm:"column:orphan_id"`
+		ConfigID uuid.UUID `gorm:"column:config_id"`
+	}
+	var raw []candidate
+	if err := tx.Raw(candidateSQL).Scan(&raw).Error; err != nil {
+		tx.Rollback()
+		return 0, nil, fmt.Errorf("failed to inspect unmatched costs: %w", err)
+	}
+
+	matches := make(map[uuid.UUID][]uuid.UUID)
+	for _, row := range raw {
+		matches[row.OrphanID] = append(matches[row.OrphanID], row.ConfigID)
+	}
+	ambiguous := make([]ambiguousConfigCost, 0)
+	for orphanID, ids := range matches {
+		if len(ids) > 1 {
+			ambiguous = append(ambiguous, ambiguousConfigCost{OrphanID: orphanID, ConfigIDs: ids})
+			delete(matches, orphanID)
+		}
+	}
+	sort.Slice(ambiguous, func(i, j int) bool { return ambiguous[i].OrphanID.String() < ambiguous[j].OrphanID.String() })
+
+	type costVersion struct {
+		ID        uuid.UUID `gorm:"column:id"`
+		UpdatedAt time.Time `gorm:"column:updated_at"`
+	}
+	changed := 0
+	for orphanID, ids := range matches {
+		configID := ids[0]
+		var orphan costVersion
+		if err := tx.Table("config_costs").Select("id, updated_at").Where("id = ?", orphanID).First(&orphan).Error; err != nil {
+			tx.Rollback()
+			return 0, nil, fmt.Errorf("failed to load unmatched cost %s: %w", orphanID, err)
+		}
+
+		var target costVersion
+		targetQuery := tx.Raw(`
+			SELECT t.id, t.updated_at
+			FROM config_costs o
+			JOIN config_costs t
+			  ON t.config_id = ? AND t.source_key = o.source_key
+			 AND t.period_start = o.period_start AND t.period_end = o.period_end
+			 AND t.fingerprint = o.fingerprint
+			WHERE o.id = ?
+			ORDER BY t.updated_at DESC, t.id DESC
+			LIMIT 1`, configID, orphanID).Scan(&target)
+		if targetQuery.Error != nil {
+			tx.Rollback()
+			return 0, nil, fmt.Errorf("failed to inspect matched duplicate for %s: %w", orphanID, targetQuery.Error)
+		}
+
+		if target.ID == uuid.Nil {
+			if err := tx.Model(&models.ConfigCost{}).Where("id = ?", orphanID).
+				UpdateColumn("config_id", configID).Error; err != nil {
+				tx.Rollback()
+				return 0, nil, fmt.Errorf("failed to attach unmatched cost %s: %w", orphanID, err)
+			}
+			changed++
 			continue
 		}
 
-		parsed, err := duration.ParseDuration(threshold)
-		if err != nil {
-			return total, fmt.Errorf("invalid %s: %w", step.property, err)
+		orphanWins := orphan.UpdatedAt.After(target.UpdatedAt) || (orphan.UpdatedAt.Equal(target.UpdatedAt) && orphan.ID.String() > target.ID.String())
+		if orphanWins {
+			// Delete the conflicting target before attaching the winning orphan so the unique
+			// key is never transiently duplicated.
+			if err := tx.Delete(&models.ConfigCost{}, "id = ?", target.ID).Error; err != nil {
+				tx.Rollback()
+				return 0, nil, fmt.Errorf("failed to delete older matched cost %s: %w", target.ID, err)
+			}
+			if err := tx.Model(&models.ConfigCost{}).Where("id = ?", orphanID).
+				UpdateColumn("config_id", configID).Error; err != nil {
+				tx.Rollback()
+				return 0, nil, fmt.Errorf("failed to attach winning unmatched cost %s: %w", orphanID, err)
+			}
+		} else if err := tx.Delete(&models.ConfigCost{}, "id = ?", orphanID).Error; err != nil {
+			tx.Rollback()
+			return 0, nil, fmt.Errorf("failed to delete older unmatched cost %s: %w", orphanID, err)
 		}
-
-		rolled, err := coarsenGrain(ctx, step.from, step.to, step.truncTo, step.interval, time.Duration(parsed))
-		if err != nil {
-			return total, err
-		}
-		total += rolled
-	}
-
-	return total, nil
-}
-
-func coarsenGrain(ctx job.JobRuntime, from, to, truncTo, interval string, olderThan time.Duration) (int, error) {
-	tx := ctx.DB().Begin()
-	if tx.Error != nil {
-		return 0, tx.Error
-	}
-
-	insert := tx.Exec(fmt.Sprintf(`
-		INSERT INTO config_costs (
-			config_id, scraper_id, external_id, period_start, period_end, grain,
-			charge_category, charge_class, service_name, service_category, sku_id, region_id,
-			billing_account_id, sub_account_id, billing_currency,
-			billed_cost, effective_cost, list_cost, contracted_cost, pricing_quantity, pricing_unit,
-			focus, fingerprint
-		)
-		SELECT
-			config_id, MIN(scraper_id), external_id,
-			date_trunc('%s', period_start),
-			date_trunc('%s', period_start) + interval '%s',
-			'%s',
-			charge_category, charge_class, service_name, service_category, sku_id, region_id,
-			billing_account_id, sub_account_id, billing_currency,
-			SUM(billed_cost), SUM(effective_cost), SUM(list_cost), SUM(contracted_cost),
-			SUM(pricing_quantity), MIN(pricing_unit),
-			NULL, fingerprint
-		FROM config_costs
-		WHERE grain = '%s' AND period_end < now() - make_interval(secs => ?)
-		GROUP BY config_id, external_id, 4, charge_category, charge_class, service_name,
-		         service_category, sku_id, region_id, billing_account_id, sub_account_id,
-		         billing_currency, fingerprint
-		ON CONFLICT (config_id, period_start, period_end, fingerprint)
-		DO UPDATE SET billed_cost      = config_costs.billed_cost + excluded.billed_cost,
-		              effective_cost   = config_costs.effective_cost + excluded.effective_cost,
-		              list_cost        = COALESCE(config_costs.list_cost, 0) + COALESCE(excluded.list_cost, 0),
-		              contracted_cost  = COALESCE(config_costs.contracted_cost, 0) + COALESCE(excluded.contracted_cost, 0),
-		              pricing_quantity = COALESCE(config_costs.pricing_quantity, 0) + COALESCE(excluded.pricing_quantity, 0),
-		              updated_at       = now()`,
-		truncTo, truncTo, interval, to, from), olderThan.Seconds())
-	if insert.Error != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("failed to roll %s costs into %s: %w", from, to, insert.Error)
-	}
-
-	del := tx.Exec(fmt.Sprintf(
-		`DELETE FROM config_costs WHERE grain = '%s' AND period_end < now() - make_interval(secs => ?)`, from),
-		olderThan.Seconds())
-	if del.Error != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("failed to drop coarsened %s costs: %w", from, del.Error)
+		changed++
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	return int(del.RowsAffected), nil
+	return changed, ambiguous, nil
 }
 
-// expireConfigCosts drops history past the retention window. The default covers thirteen
-// months so a year-on-year comparison still has last year's month to compare against.
 func expireConfigCosts(ctx job.JobRuntime) (int, error) {
 	retention := properties.String("400d", "config.costs.retention")
 	parsed, err := duration.ParseDuration(retention)
 	if err != nil {
 		return 0, fmt.Errorf("invalid config.costs.retention: %w", err)
 	}
-
-	tx := ctx.DB().Exec(
-		`DELETE FROM config_costs WHERE period_end < now() - make_interval(secs => ?)`,
-		time.Duration(parsed).Seconds())
-	if tx.Error != nil {
-		return 0, fmt.Errorf("failed to expire config costs: %w", tx.Error)
+	result := ctx.DB().Exec(`DELETE FROM config_costs WHERE period_end < now() - make_interval(secs => ?)`, time.Duration(parsed).Seconds())
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to expire config costs: %w", result.Error)
 	}
-	return int(tx.RowsAffected), nil
+	return int(result.RowsAffected), nil
 }

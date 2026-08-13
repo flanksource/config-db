@@ -31,6 +31,7 @@ func (s *ScrapeSnapshot) PrettyShort() string {
 	add("user_groups", s.ExternalUserGroups.Total)
 	add("access", s.ConfigAccess.Total)
 	add("access_logs", s.ConfigAccessLogs.Total)
+	add("costs", s.ExternalCosts.Total)
 	if len(parts) == 0 {
 		return "empty"
 	}
@@ -68,6 +69,7 @@ func (s *ScrapeSnapshot) Pretty() api.Text {
 		{"External User Groups", s.ExternalUserGroups},
 		{"Config Access", s.ConfigAccess},
 		{"Access Logs", s.ConfigAccessLogs},
+		{"External Costs", s.ExternalCosts},
 	} {
 		if !e.counts.IsZero() {
 			t = appendEntityRow(t, e.label, e.counts)
@@ -99,6 +101,7 @@ func (d ScrapeSnapshotDiff) PrettyShort() string {
 	addIfNonZero("user_groups", d.ExternalUserGroups.Total)
 	addIfNonZero("access", d.ConfigAccess.Total)
 	addIfNonZero("access_logs", d.ConfigAccessLogs.Total)
+	addIfNonZero("costs", d.ExternalCosts.Total)
 	if len(parts) == 0 {
 		return "no changes"
 	}
@@ -141,6 +144,9 @@ func (d ScrapeSnapshotDiff) Pretty() api.Text {
 	}
 	if !d.ConfigAccessLogs.IsZero() {
 		t = appendDiffRow(t, "Access Logs", d.ConfigAccessLogs)
+	}
+	if !d.ExternalCosts.IsZero() {
+		t = appendDiffRow(t, "External Costs", d.ExternalCosts)
 	}
 
 	return t

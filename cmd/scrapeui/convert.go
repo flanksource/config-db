@@ -318,6 +318,7 @@ func BuildCounts(results v1.FullScrapeResults, uiRels []UIRelationship) Counts {
 		ExternalRoles:  len(results.ExternalRoles),
 		ConfigAccess:   len(results.ConfigAccess),
 		AccessLogs:     len(results.ConfigAccessLogs),
+		ExternalCosts:  len(results.ExternalCosts),
 	}
 	for _, r := range results.Configs {
 		if r.Error != nil {
