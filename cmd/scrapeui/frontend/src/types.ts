@@ -132,6 +132,25 @@ export interface ExternalConfigAccessLog {
   [key: string]: any;
 }
 
+export interface ExternalCost {
+  config_id?: string;
+  external_config_id?: any;
+  resource_id?: string;
+  source_key?: string;
+  source_record_id?: string;
+  charge_period_start: string;
+  charge_period_end: string;
+  billed_cost: string | number;
+  effective_cost: string | number;
+  billing_currency: string;
+  charge_category?: string;
+  charge_class?: string;
+  service_name?: string;
+  sku_id?: string;
+  region_id?: string;
+  [key: string]: any;
+}
+
 export interface FullScrapeResults {
   configs?: ScrapeResult[];
   changes?: ConfigChange[];
@@ -142,6 +161,7 @@ export interface FullScrapeResults {
   external_user_groups?: ExternalUserGroup[];
   config_access?: ExternalConfigAccess[];
   config_access_logs?: ExternalConfigAccessLog[];
+  external_costs?: ExternalCost[];
 }
 
 // HAR types matching github.com/flanksource/commons/har
@@ -186,6 +206,7 @@ export interface Counts {
   external_roles: number;
   config_access: number;
   access_logs: number;
+  external_costs: number;
   errors: number;
 }
 
@@ -239,6 +260,7 @@ export interface ScrapeSnapshot {
   external_user_groups: EntityWindowCounts;
   config_access: EntityWindowCounts;
   config_access_logs: EntityWindowCounts;
+  external_costs: EntityWindowCounts;
 }
 
 export interface ScrapeSnapshotDiff {
@@ -250,6 +272,7 @@ export interface ScrapeSnapshotDiff {
   external_user_groups: EntityWindowCounts;
   config_access: EntityWindowCounts;
   config_access_logs: EntityWindowCounts;
+  external_costs: EntityWindowCounts;
 }
 
 export interface ScrapeSnapshotPair {
@@ -301,4 +324,4 @@ export interface TypeGroup {
   counts: { healthy: number; unhealthy: number; warning: number; unknown: number; errors: number };
 }
 
-export type Tab = 'configs' | 'logs' | 'har' | 'users' | 'groups' | 'roles' | 'access' | 'access_logs' | 'issues' | 'snapshot' | 'last_summary' | 'spec';
+export type Tab = 'configs' | 'costs' | 'logs' | 'har' | 'users' | 'groups' | 'roles' | 'access' | 'access_logs' | 'issues' | 'snapshot' | 'last_summary' | 'spec';

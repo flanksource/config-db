@@ -803,7 +803,14 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		}
 	}
 
-	saveExternalCosts(ctx, extractResult.externalCosts, scraperID, &summary)
+	if err := saveExternalCosts(ctx, extractResult.externalCosts, scraperID, &summary); err != nil {
+		// Costs are an independent accounting stream. Surface a scrape-level error and
+		// skip this cost batch, but do not prevent catalog, changes, access, or analysis
+		// from completing.
+		message := fmt.Sprintf("failed to save some external costs: %v", err)
+		summary.AddScrapeWarning(v1.Warning{Error: message})
+		ctx.JobHistory().AddError(message)
+	}
 
 	summary.AccessLogs.Scraped = len(extractResult.configAccessLogs)
 	var resolvedAccessLogs []dutyModels.ConfigAccessLog

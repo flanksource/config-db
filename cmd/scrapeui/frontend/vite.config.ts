@@ -40,6 +40,7 @@ function fileApiPlugin(): Plugin {
         results: {
           configs: raw.Configs || raw.configs || [],
           changes: raw.Changes || raw.changes || [],
+          external_costs: raw.ExternalCosts || raw.external_costs || [],
           analysis: raw.Analysis || raw.analysis || [],
           external_users: raw.ExternalUsers || raw.external_users || [],
           external_groups: raw.ExternalGroups || raw.external_groups || [],

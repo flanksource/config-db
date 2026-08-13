@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -18,30 +20,24 @@ import (
 )
 
 // ExternalCost carries one charge period's spend for a single resource.
-//
-// The charge period is half-open — [ChargePeriodStart, ChargePeriodEnd) — matching
-// FOCUS. Persistence snaps it to a clock-aligned bucket; see db.bucketFor.
-//
 // +kubebuilder:object:generate=false
 type ExternalCost struct {
 	ConfigID         *uuid.UUID `json:"config_id,omitempty"`
 	ConfigExternalID ExternalID `json:"external_config_id,omitempty"`
+	ResourceID       string     `json:"resource_id,omitempty"`
+	ScraperID        string     `json:"scraper_id,omitempty"`
 
-	// ResourceID is the FOCUS ResourceId. It doubles as the config lookup key when no
-	// explicit config reference is given, and is retained on the persisted row so
-	// unmatched spend can be attached once the config item shows up.
-	ResourceID string `json:"resource_id,omitempty"`
-
-	// ScraperID controls how ConfigExternalID is resolved. Empty means the running
-	// scraper; `all` disregards scraper ownership, which is what a SQL scraper emitting
-	// costs for Kubernetes- or AWS-scraped resources needs.
-	ScraperID string `json:"scraper_id,omitempty"`
+	// SourceKey identifies the producer namespace. SaveResults supplies
+	// scraper:<scraper UUID> when it is omitted.
+	SourceKey      string  `json:"source_key,omitempty"`
+	SourceRecordID *string `json:"source_record_id,omitempty"`
 
 	ChargePeriodStart time.Time `json:"charge_period_start"`
 	ChargePeriodEnd   time.Time `json:"charge_period_end"`
 
-	BilledCost      decimal.Decimal  `json:"billed_cost"`
-	EffectiveCost   decimal.Decimal  `json:"effective_cost"`
+	// Pointers distinguish a missing required monetary field from an explicit zero.
+	BilledCost      *decimal.Decimal `json:"billed_cost"`
+	EffectiveCost   *decimal.Decimal `json:"effective_cost"`
 	ListCost        *decimal.Decimal `json:"list_cost,omitempty"`
 	ContractedCost  *decimal.Decimal `json:"contracted_cost,omitempty"`
 	BillingCurrency string           `json:"billing_currency"`
@@ -58,23 +54,22 @@ type ExternalCost struct {
 	PricingQuantity *decimal.Decimal `json:"pricing_quantity,omitempty"`
 	PricingUnit     string           `json:"pricing_unit,omitempty"`
 
-	// Focus keeps every key that isn't one of the fields above: the FOCUS long tail
-	// (Tags, SkuPriceDetails, CommitmentDiscount*, ...) and the x_* custom columns that
-	// FOCUS v1.4 CustomColumnHandling requires providers to be able to carry through.
+	// Focus retains FOCUS dimensions without a dedicated field and x_* columns.
 	Focus types.JSONMap `json:"-"`
 }
 
-// ChargeCategoryUsage is the FOCUS default when a row does not state one.
 const ChargeCategoryUsage = "Usage"
 
-// costFieldAliases maps each field to the keys that fill it. Both the FOCUS
-// PascalCase column names and this repo's snake_case convention are accepted, so a raw
-// FOCUS export row pastes in with no transform.
+var currencyCode = regexp.MustCompile(`^[A-Z]{3}$`)
+
+// costFieldAliases accepts both the API's snake_case and native FOCUS spelling.
 var costFieldAliases = map[string][]string{
 	"config_id":           {"config_id", "ConfigId", "ConfigID"},
-	"external_config_id":  {"external_config_id"},
+	"external_config_id":  {"external_config_id", "ExternalConfigId", "ExternalConfigID"},
 	"resource_id":         {"resource_id", "ResourceId", "ResourceID"},
-	"scraper_id":          {"scraper_id", "ScraperId"},
+	"scraper_id":          {"scraper_id", "ScraperId", "ScraperID"},
+	"source_key":          {"source_key", "SourceKey"},
+	"source_record_id":    {"source_record_id", "SourceRecordId", "SourceRecordID"},
 	"charge_period_start": {"charge_period_start", "ChargePeriodStart"},
 	"charge_period_end":   {"charge_period_end", "ChargePeriodEnd"},
 	"billed_cost":         {"billed_cost", "BilledCost"},
@@ -94,6 +89,14 @@ var costFieldAliases = map[string][]string{
 	"pricing_unit":        {"pricing_unit", "PricingUnit"},
 }
 
+func equivalentJSON(a, b json.RawMessage) bool {
+	var av, bv any
+	if json.Unmarshal(a, &av) != nil || json.Unmarshal(b, &bv) != nil {
+		return false
+	}
+	return reflect.DeepEqual(av, bv)
+}
+
 func (c *ExternalCost) UnmarshalJSON(data []byte) error {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -101,79 +104,116 @@ func (c *ExternalCost) UnmarshalJSON(data []byte) error {
 	}
 
 	canonical := make(map[string]json.RawMessage, len(raw))
-	focus := types.JSONMap{}
 	consumed := make(map[string]struct{}, len(raw))
-
 	for field, aliases := range costFieldAliases {
+		var selected json.RawMessage
+		var selectedAlias string
 		for _, alias := range aliases {
 			v, ok := raw[alias]
 			if !ok {
 				continue
 			}
-			if _, taken := canonical[field]; !taken {
-				canonical[field] = v
-			}
 			consumed[alias] = struct{}{}
+			if selected != nil && !equivalentJSON(selected, v) {
+				return fmt.Errorf("external cost has conflicting aliases %q and %q for %s", selectedAlias, alias, field)
+			}
+			if selected == nil {
+				selected, selectedAlias = v, alias
+			}
+		}
+		if selected != nil {
+			canonical[field] = selected
 		}
 	}
 
-	for key, v := range raw {
-		if _, ok := consumed[key]; ok {
-			continue
-		}
-		var decoded any
-		if err := json.Unmarshal(v, &decoded); err != nil {
-			return fmt.Errorf("failed to unmarshal external cost key %q: %w", key, err)
-		}
-		focus[key] = decoded
-	}
-
+	type wire ExternalCost
 	normalized, err := json.Marshal(canonical)
 	if err != nil {
 		return err
 	}
-
-	type alias ExternalCost
-	var aux alias
-	if err := json.Unmarshal(normalized, &aux); err != nil {
+	var decoded wire
+	if err := json.Unmarshal(normalized, &decoded); err != nil {
 		return err
 	}
+	*c = ExternalCost(decoded)
 
-	*c = ExternalCost(aux)
-	if len(focus) > 0 {
-		c.Focus = focus
+	for key, value := range raw {
+		if _, ok := consumed[key]; ok {
+			continue
+		}
+		if c.Focus == nil {
+			c.Focus = types.JSONMap{}
+		}
+		var v any
+		if err := json.Unmarshal(value, &v); err != nil {
+			return fmt.Errorf("failed to unmarshal external cost key %q: %w", key, err)
+		}
+		c.Focus[key] = v
 	}
 	return nil
 }
 
-// Fingerprint is the merge key for this cost within its bucket: a hash of the dimension
-// tuple only. Metrics are deliberately excluded — two rows with the same dimensions in
-// the same period are the same line item and their amounts merge.
+// MarshalJSON emits the stable snake_case API shape and losslessly adds unknown FOCUS
+// fields. Dedicated fields always win over colliding Focus keys.
+func (c ExternalCost) MarshalJSON() ([]byte, error) {
+	type wire ExternalCost
+	base, err := json.Marshal(wire(c))
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]json.RawMessage
+	if err := json.Unmarshal(base, &out); err != nil {
+		return nil, err
+	}
+	recognized := map[string]struct{}{}
+	for _, aliases := range costFieldAliases {
+		for _, alias := range aliases {
+			recognized[alias] = struct{}{}
+		}
+	}
+	for key, value := range c.Focus {
+		if _, reserved := recognized[key]; reserved {
+			continue
+		}
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal external cost key %q: %w", key, err)
+		}
+		out[key] = encoded
+	}
+	return json.Marshal(out)
+}
+
+// Fingerprint hashes the stable, explicitly modeled identity fields only. Focus is a
+// lossless passthrough payload, not identity: providers may add passthrough columns at any
+// time, and including them would turn a schema change into a second billable observation.
+// Consequently, generic producers that need multiple rows with identical modeled
+// dimensions in one bucket must supply distinct source_record_id values. When supplied,
+// that ID is the entire row identity. SourceKey is part of the database merge key, so
+// identical record IDs from different feeds coexist.
 func (c ExternalCost) Fingerprint() string {
+	if c.SourceRecordID != nil && strings.TrimSpace(*c.SourceRecordID) != "" {
+		sum := sha256.Sum256([]byte("source-record\x00" + strings.TrimSpace(*c.SourceRecordID)))
+		return hex.EncodeToString(sum[:])
+	}
+
+	labels, _ := json.Marshal(c.ConfigExternalID.Labels)
+	selector := strings.Join([]string{c.ConfigExternalID.ConfigType, c.ConfigExternalID.ScraperID, string(labels)}, "\x00")
 	parts := []string{
-		c.resourceKey(),
-		c.chargeCategory(),
-		c.ChargeClass,
-		c.ServiceName,
-		c.ServiceCategory,
-		c.SkuID,
-		c.RegionID,
-		c.BillingAccountID,
-		c.SubAccountID,
-		c.BillingCurrency,
-		c.PricingUnit,
+		c.resourceKey(), selector, c.chargeCategory(), c.ChargeClass, c.ServiceName,
+		c.ServiceCategory, c.SkuID, c.RegionID, c.BillingAccountID,
+		c.SubAccountID, c.BillingCurrency, c.PricingUnit,
 	}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(sum[:])
 }
 
-// resourceKey identifies the resource this cost belongs to, for fingerprinting only.
 func (c ExternalCost) resourceKey() string {
-	if c.ResourceID != "" {
-		return c.ResourceID
+	if strings.TrimSpace(c.ResourceID) != "" {
+		return NormalizeExternalID(c.ResourceID)
 	}
 	if c.ConfigExternalID.ExternalID != "" {
-		return c.ConfigExternalID.ExternalID
+		return NormalizeExternalID(c.ConfigExternalID.ExternalID)
 	}
 	if c.ConfigID != nil {
 		return c.ConfigID.String()
@@ -188,43 +228,59 @@ func (c ExternalCost) chargeCategory() string {
 	return c.ChargeCategory
 }
 
-// HasConfigRef reports whether this cost can be attached to a config item, either
-// directly or by external id lookup.
-//
-// Tests ConfigExternalID.ExternalID rather than ExternalID.IsEmpty(): a cost may carry an
-// external id with no config type (the type usually lives in the scraper spec, not the
-// scraped body), and lookup by external id alone still resolves.
 func (c ExternalCost) HasConfigRef() bool {
-	return c.ConfigID != nil || c.ConfigExternalID.ExternalID != "" || c.ResourceID != ""
+	return c.ConfigID != nil || c.ConfigExternalID.ConfigID != "" ||
+		strings.TrimSpace(c.ConfigExternalID.ExternalID) != "" || strings.TrimSpace(c.ResourceID) != ""
 }
 
-func (c ExternalCost) Validate() error {
+func (c *ExternalCost) Validate() error {
 	if !c.HasConfigRef() {
-		return fmt.Errorf("external cost has no config reference and no resource_id")
+		return fmt.Errorf("external cost has no config reference or meaningful resource_id")
+	}
+	if c.ConfigID != nil && c.ConfigExternalID.ConfigID != "" && !strings.EqualFold(c.ConfigID.String(), c.ConfigExternalID.ConfigID) {
+		return fmt.Errorf("external cost has conflicting config_id values %s and %s", c.ConfigID, c.ConfigExternalID.ConfigID)
 	}
 	if c.ChargePeriodStart.IsZero() || c.ChargePeriodEnd.IsZero() {
 		return fmt.Errorf("external cost is missing charge_period_start or charge_period_end")
 	}
 	if !c.ChargePeriodEnd.After(c.ChargePeriodStart) {
-		return fmt.Errorf("external cost charge_period_end (%s) must be after charge_period_start (%s)",
-			c.ChargePeriodEnd.Format(time.RFC3339), c.ChargePeriodStart.Format(time.RFC3339))
+		return fmt.Errorf("external cost charge_period_end (%s) must be after charge_period_start (%s)", c.ChargePeriodEnd.Format(time.RFC3339), c.ChargePeriodStart.Format(time.RFC3339))
 	}
-	if c.BillingCurrency == "" {
-		return fmt.Errorf("external cost is missing billing_currency")
+	if c.BilledCost == nil {
+		return fmt.Errorf("external cost is missing billed_cost")
+	}
+	if c.EffectiveCost == nil {
+		return fmt.Errorf("external cost is missing effective_cost")
+	}
+	c.BillingCurrency = strings.ToUpper(strings.TrimSpace(c.BillingCurrency))
+	if !currencyCode.MatchString(c.BillingCurrency) {
+		return fmt.Errorf("external cost billing_currency must be a nonempty 3-letter code")
+	}
+	c.ResourceID = NormalizeExternalID(c.ResourceID)
+	c.ConfigExternalID.ExternalID = NormalizeExternalID(c.ConfigExternalID.ExternalID)
+	c.SourceKey = strings.TrimSpace(c.SourceKey)
+	if c.SourceRecordID != nil {
+		v := strings.TrimSpace(*c.SourceRecordID)
+		if v == "" {
+			c.SourceRecordID = nil
+		} else {
+			c.SourceRecordID = &v
+		}
 	}
 	return nil
 }
 
-func (c ExternalCost) String() string {
-	return c.Pretty().String()
-}
+func (c ExternalCost) String() string { return c.Pretty().String() }
 
 func (c ExternalCost) Pretty() api.Text {
 	t := clicky.Text(c.resourceKey(), "font-bold")
 	if c.ServiceName != "" {
 		t = t.Append(" service=", "text-muted").Append(c.ServiceName)
 	}
-	t = t.Append(" ", "").Append(fmt.Sprintf("%s %s", c.EffectiveCost.String(), c.BillingCurrency), "text-green-700")
-	t = t.Append(" ", "").Append(c.ChargePeriodStart.Format(time.RFC3339), "text-muted")
-	return t
+	amount := "<missing>"
+	if c.EffectiveCost != nil {
+		amount = c.EffectiveCost.String()
+	}
+	t = t.Append(" ", "").Append(fmt.Sprintf("%s %s", amount, c.BillingCurrency), "text-green-700")
+	return t.Append(" ", "").Append(c.ChargePeriodStart.Format(time.RFC3339), "text-muted")
 }

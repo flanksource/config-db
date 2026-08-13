@@ -87,6 +87,9 @@
         "secretKey": {
           "$ref": "#/$defs/EnvVar"
         },
+        "sessionToken": {
+          "$ref": "#/$defs/EnvVar"
+        },
         "assumeRole": {
           "type": "string"
         },
@@ -198,6 +201,9 @@
           "$ref": "#/$defs/EnvVar"
         },
         "secretKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "sessionToken": {
           "$ref": "#/$defs/EnvVar"
         },
         "assumeRole": {
@@ -1113,6 +1119,10 @@
         },
         "region": {
           "type": "string"
+        },
+        "lookbackDays": {
+          "type": "integer",
+          "description": "LookbackDays controls the UTC-midnight lower bound for each CUR scrape.\nValues \u003c= 0 use the 45-day default; the current partial UTC day is included."
         }
       },
       "additionalProperties": false,
@@ -3518,6 +3528,9 @@
           "$ref": "#/$defs/EnvVar"
         },
         "secretKey": {
+          "$ref": "#/$defs/EnvVar"
+        },
+        "sessionToken": {
           "$ref": "#/$defs/EnvVar"
         },
         "assumeRole": {

@@ -811,6 +811,9 @@
         "secretKey": {
           "$ref": "#/$defs/EnvVar"
         },
+        "sessionToken": {
+          "$ref": "#/$defs/EnvVar"
+        },
         "assumeRole": {
           "type": "string"
         },

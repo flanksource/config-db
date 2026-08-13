@@ -1,33 +1,27 @@
-// Snaps scraped FOCUS charge periods onto clock-aligned buckets, merges them by
-// dimension fingerprint, and upserts the result into config_costs.
+// Snaps scraped FOCUS charge periods onto clock-aligned buckets and persists them.
 package db
 
 import (
+	"errors"
 	"fmt"
+	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/flanksource/duty"
 	dutyModels "github.com/flanksource/duty/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
-// bucketFor snaps a half-open charge period onto the clock-aligned bucket that holds it.
-//
-//	duration ≤ 24h        → the day containing the start
-//	duration ≤ 7d         → the ISO week containing the start (Monday-anchored, as date_trunc)
-//	duration > 7d         → the calendar month containing the start
-//
-// Periods are snapped, never split: a monthly recurring charge stays one row. The
-// returned bounds are half-open [start, end) and always UTC.
 func bucketFor(start, end time.Time) (time.Time, time.Time, string) {
 	start = start.UTC()
 	duration := end.UTC().Sub(start)
-
 	switch {
 	case duration <= 24*time.Hour:
 		day := truncateDay(start)
@@ -45,107 +39,72 @@ func truncateDay(t time.Time) time.Time {
 	t = t.UTC()
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
-
-// truncateWeek anchors on Monday to match Postgres date_trunc('week', ...).
 func truncateWeek(t time.Time) time.Time {
 	day := truncateDay(t)
-	offset := (int(day.Weekday()) + 6) % 7
-	return day.AddDate(0, 0, -offset)
+	return day.AddDate(0, 0, -(int(day.Weekday())+6)%7)
 }
 
-// bucketCosts merges scraped costs into the rows that will be written to config_costs.
-//
-// Rows sharing a target, a bucket, and a dimension fingerprint are one line item, and
-// their summable metrics add up. Currencies, SKUs, charge categories and corrections all
-// live in the fingerprint, so they never merge into each other.
-//
-// The unit prices FOCUS declares row-scoped (ListUnitPrice, ContractedUnitPrice,
-// PricingCurrency*UnitPrice) are never summed; they ride along in the focus payload of
-// the first contributing row.
-//
-// Config references must already be resolved: ConfigID set, or nil for spend that could
-// not be attached to a config item.
 func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID) []dutyModels.ConfigCost {
 	type key struct {
-		configID    string
-		externalID  string
-		periodStart time.Time
-		periodEnd   time.Time
-		fingerprint string
+		source, configID, externalID, fingerprint string
+		periodStart, periodEnd                    time.Time
 	}
-
 	merged := make(map[key]*dutyModels.ConfigCost, len(costs))
 	order := make([]key, 0, len(costs))
-
 	for _, c := range costs {
-		periodStart, periodEnd, grain := bucketFor(c.ChargePeriodStart, c.ChargePeriodEnd)
-
-		var configID string
+		start, end, grain := bucketFor(c.ChargePeriodStart, c.ChargePeriodEnd)
+		configID := ""
 		if c.ConfigID != nil {
 			configID = c.ConfigID.String()
 		}
-		externalID := c.ResourceID
+		externalID := v1.NormalizeExternalID(c.ResourceID)
 		if externalID == "" {
-			externalID = c.ConfigExternalID.ExternalID
+			externalID = v1.NormalizeExternalID(c.ConfigExternalID.ExternalID)
 		}
-
-		k := key{
-			configID:    configID,
-			externalID:  externalID,
-			periodStart: periodStart,
-			periodEnd:   periodEnd,
-			fingerprint: c.Fingerprint(),
-		}
-
-		if existing, ok := merged[k]; ok {
-			existing.BilledCost = existing.BilledCost.Add(c.BilledCost)
-			existing.EffectiveCost = existing.EffectiveCost.Add(c.EffectiveCost)
+		k := key{c.SourceKey, configID, externalID, c.Fingerprint(), start, end}
+		if existing := merged[k]; existing != nil {
+			existing.BilledCost = existing.BilledCost.Add(*c.BilledCost)
+			existing.EffectiveCost = existing.EffectiveCost.Add(*c.EffectiveCost)
 			existing.ListCost = addOptional(existing.ListCost, c.ListCost)
 			existing.ContractedCost = addOptional(existing.ContractedCost, c.ContractedCost)
 			existing.PricingQuantity = addOptional(existing.PricingQuantity, c.PricingQuantity)
 			continue
 		}
-
+		labels := make(map[string]any, len(c.ConfigExternalID.Labels))
+		for k, v := range c.ConfigExternalID.Labels {
+			labels[k] = v
+		}
 		row := &dutyModels.ConfigCost{
-			ConfigID:         c.ConfigID,
-			ScraperID:        scraperID,
-			ExternalID:       nilIfEmpty(externalID),
-			PeriodStart:      periodStart,
-			PeriodEnd:        periodEnd,
-			Grain:            grain,
-			ChargeCategory:   chargeCategoryOrDefault(c.ChargeCategory),
-			ChargeClass:      nilIfEmpty(c.ChargeClass),
-			ServiceName:      nilIfEmpty(c.ServiceName),
-			ServiceCategory:  nilIfEmpty(c.ServiceCategory),
-			SkuID:            nilIfEmpty(c.SkuID),
-			RegionID:         nilIfEmpty(c.RegionID),
-			BillingAccountID: nilIfEmpty(c.BillingAccountID),
-			SubAccountID:     nilIfEmpty(c.SubAccountID),
-			BillingCurrency:  c.BillingCurrency,
-			BilledCost:       c.BilledCost,
-			EffectiveCost:    c.EffectiveCost,
-			ListCost:         copyOptional(c.ListCost),
-			ContractedCost:   copyOptional(c.ContractedCost),
-			PricingQuantity:  copyOptional(c.PricingQuantity),
-			PricingUnit:      nilIfEmpty(c.PricingUnit),
-			Focus:            c.Focus,
-			Fingerprint:      k.fingerprint,
+			ConfigID: c.ConfigID, ScraperID: scraperID, SourceKey: c.SourceKey,
+			SourceRecordID: c.SourceRecordID, ExternalID: nilIfEmpty(externalID),
+			ExternalConfigType:      nilIfEmpty(c.ConfigExternalID.ConfigType),
+			ExternalConfigScraperID: nilIfEmpty(firstNonempty(c.ConfigExternalID.ScraperID, c.ScraperID)),
+			ExternalConfigLabels:    labels,
+			PeriodStart:             start, PeriodEnd: end, Grain: grain,
+			ChargeCategory: chargeCategoryOrDefault(c.ChargeCategory), ChargeClass: nilIfEmpty(c.ChargeClass),
+			ServiceName: nilIfEmpty(c.ServiceName), ServiceCategory: nilIfEmpty(c.ServiceCategory),
+			SkuID: nilIfEmpty(c.SkuID), RegionID: nilIfEmpty(c.RegionID),
+			BillingAccountID: nilIfEmpty(c.BillingAccountID), SubAccountID: nilIfEmpty(c.SubAccountID),
+			BillingCurrency: c.BillingCurrency, BilledCost: *c.BilledCost, EffectiveCost: *c.EffectiveCost,
+			ListCost: copyOptional(c.ListCost), ContractedCost: copyOptional(c.ContractedCost),
+			PricingQuantity: copyOptional(c.PricingQuantity), PricingUnit: nilIfEmpty(c.PricingUnit),
+			Focus: c.Focus, Fingerprint: k.fingerprint,
 		}
 		merged[k] = row
 		order = append(order, k)
 	}
-
-	// Stable output so a re-scrape of identical input produces an identical batch.
 	sort.Slice(order, func(i, j int) bool {
 		if !order[i].periodStart.Equal(order[j].periodStart) {
 			return order[i].periodStart.Before(order[j].periodStart)
+		}
+		if order[i].source != order[j].source {
+			return order[i].source < order[j].source
 		}
 		if order[i].fingerprint != order[j].fingerprint {
 			return order[i].fingerprint < order[j].fingerprint
 		}
 		return order[i].configID < order[j].configID
 	})
-
 	out := make([]dutyModels.ConfigCost, 0, len(order))
 	for _, k := range order {
 		out = append(out, *merged[k])
@@ -153,20 +112,26 @@ func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID) []dutyModels.Con
 	return out
 }
 
-func chargeCategoryOrDefault(category string) string {
-	if category == "" {
+func firstNonempty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+func chargeCategoryOrDefault(v string) string {
+	if v == "" {
 		return v1.ChargeCategoryUsage
 	}
-	return category
+	return v
 }
-
 func nilIfEmpty(s string) *string {
 	if s == "" {
 		return nil
 	}
 	return &s
 }
-
 func copyOptional(d *decimal.Decimal) *decimal.Decimal {
 	if d == nil {
 		return nil
@@ -174,7 +139,6 @@ func copyOptional(d *decimal.Decimal) *decimal.Decimal {
 	v := *d
 	return &v
 }
-
 func addOptional(a, b *decimal.Decimal) *decimal.Decimal {
 	if b == nil {
 		return a
@@ -182,31 +146,19 @@ func addOptional(a, b *decimal.Decimal) *decimal.Decimal {
 	if a == nil {
 		return copyOptional(b)
 	}
-	sum := a.Add(*b)
-	return &sum
+	v := a.Add(*b)
+	return &v
 }
 
-// upsertConfigCosts writes the bucketed rows, replacing the metrics of any bucket that
-// already exists.
-//
-// Replace rather than accumulate: FOCUS providers deliver open billing periods with
-// overwrite semantics, so re-scraping today restates today's total. Adding would
-// double-count on every run. Corrections arrive as their own rows with a distinct
-// fingerprint and therefore still add correctly.
-//
-// There is no stale-row soft delete. A period disappearing from the source is not a
-// deletion — a closed billing period is immutable. Removal is retention-driven only.
 func upsertConfigCosts(ctx api.ScrapeContext, costs []dutyModels.ConfigCost, scraperID *uuid.UUID) (int, error) {
 	if len(costs) == 0 {
 		return 0, nil
 	}
-
 	suffix := "no_scraper"
 	if scraperID != nil {
 		suffix = sanitizeForTempTable(scraperID.String())
 	}
-	tempTable := fmt.Sprintf("_scrape_config_costs_%s", suffix)
-
+	table := fmt.Sprintf("_scrape_config_costs_%s", suffix)
 	tx := ctx.DB().Begin()
 	if tx.Error != nil {
 		return 0, fmt.Errorf("failed to begin transaction: %w", tx.Error)
@@ -217,92 +169,184 @@ func upsertConfigCosts(ctx api.ScrapeContext, costs []dutyModels.ConfigCost, scr
 			panic(r)
 		}
 	}()
-
 	if err := duty.ApplySessionProperties(ctx.DutyContext(), tx); err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("failed to apply session properties: %w", err)
+		return 0, err
 	}
-
-	// The temp table inherits config_costs' merge index (INCLUDING ALL), so duplicates
-	// within this batch collapse here before the real insert sees them.
-	if err := createTempAndInsert(tx, tempTable, "config_costs", costs); err != nil {
+	// A source-native record may be corrected onto a different target or period. The
+	// regular merge key includes both, so serialize cost writes and remove the previous
+	// version by its immutable source identity before inserting the restatement.
+	if err := tx.Exec(`LOCK TABLE config_costs IN SHARE ROW EXCLUSIVE MODE`).Error; err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("failed to lock config costs: %w", err)
+	}
+	if err := createTempAndInsert(tx, table, "config_costs", costs); err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("failed to setup temp config costs: %w", err)
 	}
+	deleteRestated := fmt.Sprintf(`DELETE FROM config_costs existing USING %s incoming
+		WHERE incoming.source_record_id IS NOT NULL
+		  AND existing.source_key = incoming.source_key
+		  AND existing.source_record_id = incoming.source_record_id`, table)
+	if err := tx.Exec(deleteRestated).Error; err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("failed to replace restated source records: %w", err)
+	}
 
-	insert := fmt.Sprintf(`
-		INSERT INTO config_costs SELECT * FROM %s
-		ON CONFLICT (config_id, period_start, period_end, fingerprint)
-		DO UPDATE SET billed_cost = excluded.billed_cost,
-		              effective_cost = excluded.effective_cost,
-		              list_cost = excluded.list_cost,
-		              contracted_cost = excluded.contracted_cost,
-		              pricing_quantity = excluded.pricing_quantity,
-		              focus = excluded.focus,
-		              scraper_id = excluded.scraper_id,
-		              updated_at = now()`, tempTable)
-
-	result := tx.Exec(insert)
+	query := fmt.Sprintf(`INSERT INTO config_costs SELECT * FROM %s
+		ON CONFLICT (source_key, config_id, period_start, period_end, fingerprint)
+		DO UPDATE SET external_id=excluded.external_id,
+		external_config_type=excluded.external_config_type,
+		external_config_scraper_id=excluded.external_config_scraper_id,
+		external_config_labels=excluded.external_config_labels,
+		charge_category=excluded.charge_category, charge_class=excluded.charge_class,
+		service_name=excluded.service_name, service_category=excluded.service_category,
+		sku_id=excluded.sku_id, region_id=excluded.region_id,
+		billing_account_id=excluded.billing_account_id, sub_account_id=excluded.sub_account_id,
+		billing_currency=excluded.billing_currency, pricing_unit=excluded.pricing_unit,
+		billed_cost=excluded.billed_cost, effective_cost=excluded.effective_cost,
+		list_cost=excluded.list_cost, contracted_cost=excluded.contracted_cost,
+		pricing_quantity=excluded.pricing_quantity, focus=excluded.focus,
+		source_record_id=excluded.source_record_id, scraper_id=excluded.scraper_id, updated_at=now()`, table)
+	result := tx.Exec(query)
 	if result.Error != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("failed to upsert config costs: %w", result.Error)
 	}
-
 	if err := tx.Commit().Error; err != nil {
-		return 0, fmt.Errorf("failed to commit config costs: %w", err)
+		return 0, err
 	}
-
 	return int(result.RowsAffected), nil
 }
 
-// saveExternalCosts resolves each scraped cost to a config item and merges it into
-// config_costs.
-//
-// Runs after the config item bulk insert so items created by this same scrape are
-// already resolvable. A cost whose resource cannot be resolved is not dropped: it is
-// stored with a null config_id and its resource id, visible through
-// config_costs_unmatched, and attached by the compaction job once the item appears.
-func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID *uuid.UUID, summary *v1.ScrapeSummary) {
+// findConfigMatches performs a deterministic, bounded lookup and exposes ambiguity.
+func findConfigMatches(db *gorm.DB, lookup v1.ExternalID, defaultScraperID *uuid.UUID) ([]uuid.UUID, error) {
+	externalID := v1.NormalizeExternalID(lookup.ExternalID)
+	if externalID == "" {
+		return nil, nil
+	}
+	q := db.Table("config_items").Select("id").Where("deleted_at IS NULL").Where("? = ANY(external_id)", externalID)
+	if lookup.ConfigType != "" {
+		q = q.Where("type = ?", lookup.ConfigType)
+	}
+	scope := lookup.ScraperID
+	if scope == "" && defaultScraperID != nil {
+		scope = defaultScraperID.String()
+	}
+	if scope != "" && scope != "all" && !slices.Contains(v1.ScraperLessTypes, lookup.ConfigType) {
+		q = q.Where("scraper_id = ?", scope)
+	}
+	keys := make([]string, 0, len(lookup.Labels))
+	for k := range lookup.Labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		q = q.Where("labels ->> ? = ?", k, lookup.Labels[k])
+	}
+	var ids []uuid.UUID
+	if err := q.Order("id ASC").Limit(3).Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func resolveCostTarget(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *uuid.UUID) error {
+	// Explicit UUID has absolute precedence. ResourceID remains provenance only.
+	if cost.ConfigExternalID.ConfigID != "" {
+		id, err := uuid.Parse(strings.TrimSpace(cost.ConfigExternalID.ConfigID))
+		if err != nil {
+			return fmt.Errorf("invalid external_config_id.config_id: %w", err)
+		}
+		if cost.ConfigID != nil && *cost.ConfigID != id {
+			return fmt.Errorf("conflicting explicit config UUIDs %s and %s", cost.ConfigID, id)
+		}
+		cost.ConfigID = &id
+	}
+	if cost.ConfigID != nil {
+		return nil
+	}
+
+	// Structured external identity wins over ResourceID. Type/scraper/labels only scope
+	// this external ID; they are never a standalone selector.
+	lookup := cost.ConfigExternalID
+	if lookup.ExternalID == "" {
+		lookup.ExternalID = cost.ResourceID
+	}
+	if lookup.ExternalID == "" {
+		return nil
+	}
+	if lookup.ScraperID == "" {
+		lookup.ScraperID = cost.ScraperID
+	}
+	ids, err := findConfigMatches(ctx.DB(), lookup, scraperID)
+	if err != nil {
+		return fmt.Errorf("find config %s: %w", lookup.Pretty().ANSI(), err)
+	}
+	if len(ids) > 1 {
+		return fmt.Errorf("ambiguous config reference %s matched %v", lookup.Pretty().ANSI(), ids)
+	}
+	if len(ids) == 1 {
+		id := ids[0]
+		cost.ConfigID = &id
+	}
+	return nil
+}
+
+func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID *uuid.UUID, summary *v1.ScrapeSummary) error {
 	if len(costs) == 0 {
-		return
+		return nil
 	}
 	summary.ExternalCosts.Scraped = len(costs)
-
 	resolved := make([]v1.ExternalCost, 0, len(costs))
-	for _, cost := range costs {
-		if cost.ConfigID == nil {
-			lookup := cost.ConfigExternalID
-			if lookup.ExternalID == "" {
-				lookup.ExternalID = cost.ResourceID
-			}
-			if lookup.ScraperID == "" && cost.ScraperID != "" {
-				lookup.ScraperID = cost.ScraperID
-			}
-
-			if lookup.ExternalID != "" {
-				configID, err := ctx.TempCache().FindExternalID(ctx, lookup)
-				if err != nil {
-					summary.AddWarning("ExternalCosts", fmt.Sprintf("failed to find config (%s) for cost: %v", lookup.Pretty().ANSI(), err))
-				} else if configID != "" {
-					id := uuid.MustParse(configID)
-					cost.ConfigID = &id
-				}
-			}
-		}
-
-		// config_costs requires a config item or a resource id to hang the spend on.
-		if cost.ConfigID == nil && cost.ResourceID == "" && cost.ConfigExternalID.ExternalID == "" {
+	sourceRecords := make(map[string]int)
+	var costErrors []error
+	for i := range costs {
+		cost := costs[i]
+		skip := func(err error) {
+			costErrors = append(costErrors, fmt.Errorf("external cost %d: %w", i, err))
 			summary.ExternalCosts.Skipped++
+		}
+		if cost.SourceKey == "" {
+			if scraperID == nil {
+				skip(fmt.Errorf("has no source_key and scraper UUID is unavailable"))
+				continue
+			}
+			cost.SourceKey = "scraper:" + scraperID.String()
+		}
+		if err := cost.Validate(); err != nil {
+			skip(err)
 			continue
 		}
-
+		if cost.SourceRecordID != nil {
+			key := cost.SourceKey + "\x00" + *cost.SourceRecordID
+			if previous, found := sourceRecords[key]; found {
+				skip(fmt.Errorf("repeats source record %q from external cost %d within source %q", *cost.SourceRecordID, previous, cost.SourceKey))
+				continue
+			}
+			sourceRecords[key] = i
+		}
+		if cost.ConfigExternalID.ScraperID == "" {
+			cost.ConfigExternalID.ScraperID = cost.ScraperID
+			if cost.ConfigExternalID.ScraperID == "" && scraperID != nil {
+				cost.ConfigExternalID.ScraperID = scraperID.String()
+			}
+		}
+		if err := resolveCostTarget(ctx, &cost, scraperID); err != nil {
+			skip(err)
+			continue
+		}
 		resolved = append(resolved, cost)
 	}
 
-	saved, err := upsertConfigCosts(ctx, bucketCosts(resolved, scraperID), scraperID)
-	if err != nil {
-		summary.AddWarning("ExternalCosts", fmt.Sprintf("failed to upsert config costs: %v", err))
-		return
+	if len(resolved) > 0 {
+		saved, err := upsertConfigCosts(ctx, bucketCosts(resolved, scraperID), scraperID)
+		if err != nil {
+			summary.ExternalCosts.Skipped += len(resolved)
+			costErrors = append(costErrors, fmt.Errorf("failed to persist %d valid external costs: %w", len(resolved), err))
+		} else {
+			summary.ExternalCosts.Saved += saved
+		}
 	}
-	summary.ExternalCosts.Saved += saved
+	return errors.Join(costErrors...)
 }

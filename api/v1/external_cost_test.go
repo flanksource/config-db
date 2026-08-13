@@ -1,4 +1,4 @@
-// Covers the tolerant FOCUS/snake_case unmarshaller and the dimension fingerprint.
+// Covers the tolerant FOCUS/snake_case unmarshaller and stable cost fingerprint.
 package v1
 
 import (
@@ -56,6 +56,26 @@ var _ = Describe("ExternalCost unmarshalling", func() {
 		Expect(cost.EffectiveCost.String()).To(Equal("1.2"))
 	})
 
+	It("rejects conflicting duplicate aliases", func() {
+		var cost ExternalCost
+		Expect(json.Unmarshal([]byte(`{"resource_id":"a","ResourceId":"b"}`), &cost)).
+			To(MatchError(ContainSubstring("conflicting aliases")))
+	})
+
+	It("marshals recognized fields without Focus overrides", func() {
+		var cost ExternalCost
+		Expect(json.Unmarshal([]byte(`{
+			"ResourceId":"i-0abc","ChargePeriodStart":"2026-08-03T00:00:00Z",
+			"ChargePeriodEnd":"2026-08-04T00:00:00Z","BilledCost":0,
+			"EffectiveCost":0,"BillingCurrency":"usd","x_team":"platform"
+		}`), &cost)).To(Succeed())
+		cost.Focus["resource_id"] = "evil"
+		encoded, err := json.Marshal(cost)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(encoded)).To(ContainSubstring(`"resource_id":"i-0abc"`))
+		Expect(string(encoded)).To(ContainSubstring(`"x_team":"platform"`))
+	})
+
 	It("keeps unrecognized keys, including x_* custom columns", func() {
 		var cost ExternalCost
 		Expect(json.Unmarshal([]byte(`{
@@ -105,6 +125,24 @@ var _ = Describe("ExternalCost.Validate", func() {
 		Expect(cost.Validate()).To(MatchError(ContainSubstring("must be after")))
 	})
 
+	It("distinguishes missing costs from explicit zero", func() {
+		cost := base()
+		cost.BilledCost = nil
+		Expect(cost.Validate()).To(MatchError(ContainSubstring("billed_cost")))
+		cost = base()
+		cost.EffectiveCost = nil
+		Expect(cost.Validate()).To(MatchError(ContainSubstring("effective_cost")))
+	})
+
+	It("normalizes and validates currency", func() {
+		cost := base()
+		cost.BillingCurrency = " usd "
+		Expect(cost.Validate()).To(Succeed())
+		Expect(cost.BillingCurrency).To(Equal("USD"))
+		cost.BillingCurrency = "US"
+		Expect(cost.Validate()).To(MatchError(ContainSubstring("3-letter")))
+	})
+
 	It("rejects a missing currency", func() {
 		cost := base()
 		cost.BillingCurrency = ""
@@ -137,6 +175,48 @@ var _ = Describe("ExternalCost.Fingerprint", func() {
 		other := base
 		other.BillingCurrency = "EUR"
 		Expect(other.Fingerprint()).ToNot(Equal(base.Fingerprint()))
+	})
+
+	It("keeps all Focus passthrough fields out of identity", func() {
+		a, b := base, base
+		a.Focus = map[string]any{"ListUnitPrice": 1.25, "PricingQuantity": 2}
+		b.Focus = map[string]any{
+			"ListUnitPrice":     9.75,
+			"PricingQuantity":   200,
+			"Tags":              map[string]any{"env": "prod"},
+			"x_CostCenter":      "platform",
+			"NewProviderColumn": "added-mid-period",
+		}
+		Expect(a.Fingerprint()).To(Equal(b.Fingerprint()))
+	})
+
+	It("scopes unmatched identity unless source_record_id is stable", func() {
+		a, b := base, base
+		a.ConfigExternalID = ExternalID{ConfigType: "TypeA", ScraperID: "all", Labels: map[string]string{"env": "prod"}}
+		b.ConfigExternalID = ExternalID{ConfigType: "TypeB", ScraperID: "all", Labels: map[string]string{"env": "prod"}}
+		Expect(a.Fingerprint()).ToNot(Equal(b.Fingerprint()))
+		record := "line-1"
+		a.SourceRecordID, b.SourceRecordID = &record, &record
+		Expect(a.Fingerprint()).To(Equal(b.Fingerprint()))
+	})
+
+	It("uses stable source records and ignores Focus changes", func() {
+		a, b := base, base
+		record := "line-1"
+		a.SourceRecordID = &record
+		Expect(a.Fingerprint()).ToNot(Equal(b.Fingerprint()))
+		b.SourceRecordID = &record
+		b.ServiceName = "corrected-service"
+		b.ResourceID = "corrected-resource"
+		b.Focus = map[string]any{"Tags": map[string]any{"env": "corrected"}}
+		Expect(a.Fingerprint()).To(Equal(b.Fingerprint()))
+
+		a.SourceRecordID, b.SourceRecordID = nil, nil
+		b.ServiceName = a.ServiceName
+		b.ResourceID = a.ResourceID
+		a.Focus = map[string]any{"Tags": map[string]any{"env": "prod", "team": "platform"}}
+		b.Focus = map[string]any{"Tags": map[string]any{"team": "platform", "env": "dev"}, "NewColumn": true}
+		Expect(a.Fingerprint()).To(Equal(b.Fingerprint()))
 	})
 
 	It("separates corrections from the original charge", func() {

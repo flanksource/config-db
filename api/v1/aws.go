@@ -121,6 +121,9 @@ type CostReporting struct {
 	Table        string `json:"table,omitempty"`
 	Database     string `json:"database,omitempty"`
 	Region       string `json:"region,omitempty"`
+	// LookbackDays controls the UTC-midnight lower bound for each CUR scrape.
+	// Values <= 0 use the 45-day default; the current partial UTC day is included.
+	LookbackDays int `json:"lookbackDays,omitempty"`
 }
 
 const (

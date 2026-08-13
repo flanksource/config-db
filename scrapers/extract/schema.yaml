@@ -760,86 +760,77 @@ $defs:
   # Source: api/v1/external_cost.go
   ExternalCost:
     type: object
-    description: >
-      A FOCUS v1.4 cost line item. Every property also accepts its FOCUS PascalCase
-      spelling (ChargePeriodStart, BilledCost, ResourceId, ...) so a raw FOCUS export
-      row can be emitted with no transform. Unrecognized keys — including the x_*
-      custom columns FOCUS requires providers to preserve — are kept in the row's
-      `focus` payload rather than dropped.
-
-      The charge period is half-open [charge_period_start, charge_period_end) and is
-      snapped to a clock-aligned day, week, or month bucket on save; periods longer
-      than a day are snapped, never split.
-
-      The config reference is inherited from the enclosing config item when omitted.
-      Costs that resolve to no config item are still stored, keyed by resource_id, and
-      attached later by the compaction job.
-    required:
-      - charge_period_start
-      - charge_period_end
-      - billing_currency
+    additionalProperties: true
+    description: FOCUS v1.4 cost item; snake_case and native PascalCase aliases are accepted.
+    allOf:
+      - anyOf:
+          - required: [charge_period_start]
+          - required: [ChargePeriodStart]
+      - anyOf:
+          - required: [charge_period_end]
+          - required: [ChargePeriodEnd]
+      - anyOf:
+          - required: [billed_cost]
+          - required: [BilledCost]
+      - anyOf:
+          - required: [effective_cost]
+          - required: [EffectiveCost]
+      - anyOf:
+          - required: [billing_currency]
+          - required: [BillingCurrency]
     properties:
-      config_id:
-        type: string
-        format: uuid
-        description: Direct UUID of the config item this cost belongs to.
-      external_config_id:
-        type: object
-        description: External lookup for the config item (external_id + config_type).
-      resource_id:
-        type: string
-        description: >
-          FOCUS ResourceId. Used as the config lookup key when no explicit config
-          reference is given, and retained on the stored row so unmatched spend
-          remains attributable.
-      scraper_id:
-        type: string
-        description: >
-          Set to "all" when the costs reference config items owned by another scraper.
-      charge_period_start:
-        type: string
-        format: date-time
-        description: Inclusive start of the charge period, UTC.
-      charge_period_end:
-        type: string
-        format: date-time
-        description: Exclusive end of the charge period, UTC. Must be after the start.
-      billed_cost:
-        type: number
-        description: FOCUS BilledCost — the amount invoiced.
-      effective_cost:
-        type: number
-        description: FOCUS EffectiveCost — amortized cost including discounts.
-      list_cost:
-        type: number
-        description: FOCUS ListCost — cost at public list price.
-      contracted_cost:
-        type: number
-        description: FOCUS ContractedCost — cost at negotiated rates.
-      billing_currency:
-        type: string
-        description: ISO 4217 currency code. Currencies are never coalesced.
-      charge_category:
-        type: string
-        description: Usage, Purchase, Tax, Credit, or Adjustment. Defaults to Usage.
-      charge_class:
-        type: string
-        description: >
-          Set to Correction for a restatement of a closed period, otherwise unset.
-          Corrections carry their own fingerprint and add to the bucket total.
-      service_name:
-        type: string
-      service_category:
-        type: string
-      sku_id:
-        type: string
-      region_id:
-        type: string
-      billing_account_id:
-        type: string
-      sub_account_id:
-        type: string
-      pricing_quantity:
-        type: number
-      pricing_unit:
-        type: string
+      config_id: {type: string}
+      external_config_id: {type: object}
+      resource_id: {type: string, minLength: 1}
+      scraper_id: {type: string}
+      source_key: {type: string, minLength: 1}
+      source_record_id: {type: string, minLength: 1}
+      charge_period_start: {type: string, format: date-time}
+      charge_period_end: {type: string, format: date-time}
+      billed_cost: {type: number}
+      effective_cost: {type: number}
+      list_cost: {type: number}
+      contracted_cost: {type: number}
+      billing_currency: {type: string, pattern: '^[A-Za-z]{3}$'}
+      charge_category: {type: string}
+      charge_class: {type: string}
+      service_name: {type: string}
+      service_category: {type: string}
+      sku_id: {type: string}
+      region_id: {type: string}
+      billing_account_id: {type: string}
+      sub_account_id: {type: string}
+      pricing_quantity: {type: number}
+      pricing_unit: {type: string}
+      ConfigId: {type: string}
+      ConfigID: {type: string}
+      ExternalConfigId: {type: object}
+      ExternalConfigID: {type: object}
+      ResourceId: {type: string, minLength: 1}
+      ResourceID: {type: string, minLength: 1}
+      ScraperId: {type: string}
+      ScraperID: {type: string}
+      SourceKey: {type: string, minLength: 1}
+      SourceRecordId: {type: string, minLength: 1}
+      SourceRecordID: {type: string, minLength: 1}
+      ChargePeriodStart: {type: string, format: date-time}
+      ChargePeriodEnd: {type: string, format: date-time}
+      BilledCost: {type: number}
+      EffectiveCost: {type: number}
+      ListCost: {type: number}
+      ContractedCost: {type: number}
+      BillingCurrency: {type: string, pattern: '^[A-Za-z]{3}$'}
+      ChargeCategory: {type: string}
+      ChargeClass: {type: string}
+      ServiceName: {type: string}
+      ServiceCategory: {type: string}
+      SkuId: {type: string}
+      SkuID: {type: string}
+      RegionId: {type: string}
+      RegionID: {type: string}
+      BillingAccountId: {type: string}
+      BillingAccountID: {type: string}
+      SubAccountId: {type: string}
+      SubAccountID: {type: string}
+      PricingQuantity: {type: number}
+      PricingUnit: {type: string}

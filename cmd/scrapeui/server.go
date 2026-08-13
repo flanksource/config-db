@@ -154,6 +154,7 @@ func (s *Server) UpdateScraper(name string, status ScraperStatus, results []v1.S
 			s.results.ExternalUserGroups = append(s.results.ExternalUserGroups, merged.ExternalUserGroups...)
 			s.results.ConfigAccess = append(s.results.ConfigAccess, merged.ConfigAccess...)
 			s.results.ConfigAccessLogs = append(s.results.ConfigAccessLogs, merged.ConfigAccessLogs...)
+			s.results.ExternalCosts = append(s.results.ExternalCosts, merged.ExternalCosts...)
 
 			// External users/groups/roles: prefer the canonical post-merge
 			// entities from the summary (AAD-supplied winner IDs), but also

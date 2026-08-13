@@ -405,6 +405,7 @@ type AWSConnection struct {
 	ConnectionName string       `yaml:"connection,omitempty" json:"connection,omitempty"`
 	AccessKey      types.EnvVar `yaml:"accessKey,omitempty" json:"accessKey,omitempty"`
 	SecretKey      types.EnvVar `yaml:"secretKey,omitempty" json:"secretKey,omitempty"`
+	SessionToken   types.EnvVar `yaml:"sessionToken,omitempty" json:"sessionToken,omitempty"`
 	AssumeRole     string       `yaml:"assumeRole,omitempty" json:"assumeRole,omitempty"`
 	Endpoint       string       `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
 	// Skip TLS verify when connecting to aws
@@ -418,6 +419,7 @@ func (aws AWSConnection) ToDutyAWSConnection(region string) *connection.AWSConne
 		ConnectionName: aws.ConnectionName,
 		AccessKey:      aws.AccessKey,
 		SecretKey:      aws.SecretKey,
+		SessionToken:   aws.SessionToken,
 		AssumeRole:     aws.AssumeRole,
 		Endpoint:       aws.Endpoint,
 		SkipTLSVerify:  aws.SkipTLSVerify,
