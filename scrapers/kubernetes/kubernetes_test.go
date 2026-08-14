@@ -5,6 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func TestKubernetes(t *testing.T) {
@@ -18,6 +19,20 @@ var _ = Describe("extractAccountIDFromARN", func() {
 			Expect(extractAccountIDFromARN(input)).To(Equal(expected))
 		},
 		Entry("valid ARN", `- groups:\n  - system:masters\n  rolearn: arn:aws:iam::123456789012:role/kubernetes-admin\n  username: admin\n- groups:\n  - system:bootstrappers\n  - system:nodes\n  rolearn: arn:aws:iam::123456789012:role/eksctl-mission-control-demo-clust-NodeInstanceRole-VRLF7VBIVK3M\n  username: system:node:{{EC2PrivateDNSName}}\n`, "123456789012"),
+	)
+})
+
+var _ = Describe("GetConfigType", func() {
+	DescribeTable("distinguishes conflicting Kubernetes kinds",
+		func(apiVersion, kind, expected string) {
+			obj := &unstructured.Unstructured{}
+			obj.SetAPIVersion(apiVersion)
+			obj.SetKind(kind)
+			Expect(GetConfigType(obj)).To(Equal(expected))
+		},
+		Entry("core node", "v1", "Node", "Kubernetes::Node"),
+		Entry("Longhorn node", "longhorn.io/v1beta2", "Node", "Kubernetes::LonghornNode"),
+		Entry("CNPG cluster", "postgresql.cnpg.io/v1", "Cluster", "Kubernetes::CNPGCluster"),
 	)
 })
 

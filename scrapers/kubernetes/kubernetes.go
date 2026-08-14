@@ -44,16 +44,27 @@ const (
 var ResourceIDMapPerCluster PerClusterResourceIDMap
 
 func GetConfigType(obj *unstructured.Unstructured) string {
-	apiVersion := obj.GetAPIVersion()
+	return getConfigType(obj.GetAPIVersion(), obj.GetKind())
+}
+
+func getConfigType(apiVersion, kind string) string {
+	apiGroup, _, _ := strings.Cut(apiVersion, "/")
+	switch apiGroup + "/" + kind {
+	case "longhorn.io/Node":
+		return ConfigTypePrefix + "LonghornNode"
+	case "postgresql.cnpg.io/Cluster":
+		return ConfigTypePrefix + "CNPGCluster"
+	}
+
 	if strings.Contains(apiVersion, ".upbound.io") || strings.Contains(apiVersion, ".crossplane.io") {
-		return "Crossplane::" + obj.GetKind()
+		return "Crossplane::" + kind
 	}
 
 	if strings.HasSuffix(apiVersion, ".flanksource.com/v1") {
-		return api.MissionControlConfigTypePrefix + obj.GetKind()
+		return api.MissionControlConfigTypePrefix + kind
 	}
 
-	return ConfigTypePrefix + obj.GetKind()
+	return ConfigTypePrefix + kind
 }
 
 type KubernetesScraper struct{}
@@ -649,7 +660,7 @@ func getKubernetesParent(ctx *KubernetesContext, obj *unstructured.Unstructured)
 			}}, allParents...)
 		} else {
 			allParents = append([]v1.ConfigExternalKey{{
-				Type:       ConfigTypePrefix + ref.Kind,
+				Type:       getConfigType(ref.APIVersion, ref.Kind),
 				ExternalID: string(ref.UID),
 			}}, allParents...)
 		}
