@@ -56,14 +56,41 @@ func FindConfigIDsByRelationshipSelector(ctx context.Context, selector duty.Rela
 		return nil, nil
 	}
 
-	return query.FindConfigIDsByResourceSelector(ctx, 0, selector.ToResourceSelector())
+	// duty treats relationship external IDs as generic property field selectors,
+	// but config external IDs are stored in their own normalized array column.
+	externalID := v1.NormalizeExternalID(selector.ExternalID)
+	selector.ExternalID = ""
+
+	if selector.IsEmpty() {
+		if externalID == "" {
+			return nil, nil
+		}
+		var ids []uuid.UUID
+		err := ctx.DB().Model(&dutyModels.ConfigItem{}).
+			Where("? = ANY(external_id)", externalID).
+			Pluck("id", &ids).Error
+		return ids, err
+	}
+
+	ids, err := query.FindConfigIDsByResourceSelector(ctx, 0, selector.ToResourceSelector())
+	if err != nil || externalID == "" || len(ids) == 0 {
+		return ids, err
+	}
+
+	var filtered []uuid.UUID
+	err = ctx.DB().Model(&dutyModels.ConfigItem{}).
+		Where("id IN ?", ids).
+		Where("? = ANY(external_id)", externalID).
+		Pluck("id", &filtered).Error
+	return filtered, err
 }
 
 func FindConfigsByRelationshipSelector(ctx context.Context, selector duty.RelationshipSelector) ([]dutyModels.ConfigItem, error) {
-	if selector.IsEmpty() {
-		return nil, nil
+	ids, err := FindConfigIDsByRelationshipSelector(ctx, selector)
+	if err != nil || len(ids) == 0 {
+		return nil, err
 	}
-	return query.FindConfigsByResourceSelector(ctx, 0, selector.ToResourceSelector())
+	return query.GetConfigsByIDs(ctx, ids)
 }
 
 // FindConfigIDsByNamespaceNameClass returns the uuid of config items which matches the given type, name & namespace
