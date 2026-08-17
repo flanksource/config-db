@@ -27,10 +27,18 @@ type ExternalCost struct {
 	ResourceID       string     `json:"resource_id,omitempty"`
 	ScraperID        string     `json:"scraper_id,omitempty"`
 
+	// RootConfigID is the emitting scraper's root config item — AWS::::Account,
+	// GCP::Project, and so on. Every scraper package hardcodes its own.
+	//
+	// Spend that has no resource of its own (tax, support, credits) or whose ResourceID
+	// does not resolve is attributed here. config_costs.config_id is NOT NULL, so this is
+	// what stops unattributable spend from being dropped; ResourceID is still stored as
+	// provenance, so the row shows what the money was actually for.
+	RootConfigID ExternalID `json:"root_config_id,omitempty"`
+
 	// SourceKey identifies the producer namespace. SaveResults supplies
 	// scraper:<scraper UUID> when it is omitted.
-	SourceKey      string  `json:"source_key,omitempty"`
-	SourceRecordID *string `json:"source_record_id,omitempty"`
+	SourceKey string `json:"source_key,omitempty"`
 
 	ChargePeriodStart time.Time `json:"charge_period_start"`
 	ChargePeriodEnd   time.Time `json:"charge_period_end"`
@@ -66,10 +74,10 @@ var currencyCode = regexp.MustCompile(`^[A-Z]{3}$`)
 var costFieldAliases = map[string][]string{
 	"config_id":           {"config_id", "ConfigId", "ConfigID"},
 	"external_config_id":  {"external_config_id", "ExternalConfigId", "ExternalConfigID"},
+	"root_config_id":      {"root_config_id", "RootConfigId", "RootConfigID"},
 	"resource_id":         {"resource_id", "ResourceId", "ResourceID"},
 	"scraper_id":          {"scraper_id", "ScraperId", "ScraperID"},
 	"source_key":          {"source_key", "SourceKey"},
-	"source_record_id":    {"source_record_id", "SourceRecordId", "SourceRecordID"},
 	"charge_period_start": {"charge_period_start", "ChargePeriodStart"},
 	"charge_period_end":   {"charge_period_end", "ChargePeriodEnd"},
 	"billed_cost":         {"billed_cost", "BilledCost"},
@@ -187,16 +195,15 @@ func (c ExternalCost) MarshalJSON() ([]byte, error) {
 // Fingerprint hashes the stable, explicitly modeled identity fields only. Focus is a
 // lossless passthrough payload, not identity: providers may add passthrough columns at any
 // time, and including them would turn a schema change into a second billable observation.
-// Consequently, generic producers that need multiple rows with identical modeled
-// dimensions in one bucket must supply distinct source_record_id values. When supplied,
-// that ID is the entire row identity. SourceKey is part of the database merge key, so
-// identical record IDs from different feeds coexist.
+//
+// The account identifiers are hashed here even though they are stored inside the focus
+// payload rather than in their own columns. Demoting them from columns must not demote
+// them out of identity, or spend from two sub-accounts sharing a resource id would merge
+// into one row under whichever account happened to be seen first.
+//
+// SourceKey is part of the database merge key rather than the fingerprint, so identical
+// dimensions arriving from two different feeds stay separate rows.
 func (c ExternalCost) Fingerprint() string {
-	if c.SourceRecordID != nil && strings.TrimSpace(*c.SourceRecordID) != "" {
-		sum := sha256.Sum256([]byte("source-record\x00" + strings.TrimSpace(*c.SourceRecordID)))
-		return hex.EncodeToString(sum[:])
-	}
-
 	labels, _ := json.Marshal(c.ConfigExternalID.Labels)
 	selector := strings.Join([]string{c.ConfigExternalID.ConfigType, c.ConfigExternalID.ScraperID, string(labels)}, "\x00")
 	parts := []string{
@@ -228,14 +235,26 @@ func (c ExternalCost) chargeCategory() string {
 	return c.ChargeCategory
 }
 
+// HasConfigRef reports whether this cost can be attributed to a config item — either to a
+// specific resource, or to the emitting scraper's root.
+//
+// Tests ConfigExternalID.ExternalID rather than ExternalID.IsEmpty(): a cost may carry an
+// external id with no config type (the type usually lives in the scraper spec, not the
+// scraped body), and lookup by external id alone still resolves.
 func (c ExternalCost) HasConfigRef() bool {
 	return c.ConfigID != nil || c.ConfigExternalID.ConfigID != "" ||
-		strings.TrimSpace(c.ConfigExternalID.ExternalID) != "" || strings.TrimSpace(c.ResourceID) != ""
+		strings.TrimSpace(c.ConfigExternalID.ExternalID) != "" ||
+		strings.TrimSpace(c.ResourceID) != "" || c.HasRootRef()
+}
+
+// HasRootRef reports whether a fallback target is available for spend with no resource.
+func (c ExternalCost) HasRootRef() bool {
+	return c.RootConfigID.ConfigID != "" || strings.TrimSpace(c.RootConfigID.ExternalID) != ""
 }
 
 func (c *ExternalCost) Validate() error {
 	if !c.HasConfigRef() {
-		return fmt.Errorf("external cost has no config reference or meaningful resource_id")
+		return fmt.Errorf("external cost has no config reference, resource_id, or root_config_id")
 	}
 	if c.ConfigID != nil && c.ConfigExternalID.ConfigID != "" && !strings.EqualFold(c.ConfigID.String(), c.ConfigExternalID.ConfigID) {
 		return fmt.Errorf("external cost has conflicting config_id values %s and %s", c.ConfigID, c.ConfigExternalID.ConfigID)
@@ -256,17 +275,13 @@ func (c *ExternalCost) Validate() error {
 	if !currencyCode.MatchString(c.BillingCurrency) {
 		return fmt.Errorf("external cost billing_currency must be a nonempty 3-letter code")
 	}
-	c.ResourceID = NormalizeExternalID(c.ResourceID)
-	c.ConfigExternalID.ExternalID = NormalizeExternalID(c.ConfigExternalID.ExternalID)
+	// Identifiers keep the case the provider used: they are stored as provenance. Both
+	// places that compare them normalize independently — findConfigMatches when looking a
+	// config item up, and resourceKey when hashing the fingerprint — so normalizing here
+	// would only lose information.
+	c.ResourceID = strings.TrimSpace(c.ResourceID)
+	c.ConfigExternalID.ExternalID = strings.TrimSpace(c.ConfigExternalID.ExternalID)
 	c.SourceKey = strings.TrimSpace(c.SourceKey)
-	if c.SourceRecordID != nil {
-		v := strings.TrimSpace(*c.SourceRecordID)
-		if v == "" {
-			c.SourceRecordID = nil
-		} else {
-			c.SourceRecordID = &v
-		}
-	}
 	return nil
 }
 

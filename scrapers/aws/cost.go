@@ -201,7 +201,18 @@ func (r curLineItem) toExternalCost() (v1.ExternalCost, error) {
 	}
 	category, class := chargeKind(r.LineItemType)
 	resourceID := r.stableResourceID()
+	// Every scraper package names its own root config item. Spend with no resource of its
+	// own — tax, support, credits — and spend whose resource has not been scraped yet is
+	// attributed here rather than dropped, since config_costs.config_id is NOT NULL. The
+	// usage account owns the resource; the payer account is the fallback for charges
+	// raised at the organisation level.
+	rootAccount := r.UsageAccountID
+	if strings.TrimSpace(rootAccount) == "" {
+		rootAccount = r.PayerAccountID
+	}
+
 	cost = v1.ExternalCost{ResourceID: resourceID, ScraperID: "all", ChargePeriodStart: start,
+		RootConfigID:    v1.ExternalID{ConfigType: v1.AWSAccount, ExternalID: rootAccount, ScraperID: "all"},
 		ChargePeriodEnd: end, BilledCost: &billed, EffectiveCost: &effective, BillingCurrency: r.Currency,
 		ChargeCategory: category, ChargeClass: class, ServiceName: r.ProductCode, RegionID: r.Region,
 		SubAccountID: r.UsageAccountID, BillingAccountID: r.PayerAccountID,

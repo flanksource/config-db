@@ -784,7 +784,6 @@ $defs:
       resource_id: {type: string, minLength: 1}
       scraper_id: {type: string}
       source_key: {type: string, minLength: 1}
-      source_record_id: {type: string, minLength: 1}
       charge_period_start: {type: string, format: date-time}
       charge_period_end: {type: string, format: date-time}
       billed_cost: {type: number}
@@ -811,8 +810,6 @@ $defs:
       ScraperId: {type: string}
       ScraperID: {type: string}
       SourceKey: {type: string, minLength: 1}
-      SourceRecordId: {type: string, minLength: 1}
-      SourceRecordID: {type: string, minLength: 1}
       ChargePeriodStart: {type: string, format: date-time}
       ChargePeriodEnd: {type: string, format: date-time}
       BilledCost: {type: number}

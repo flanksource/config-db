@@ -3,6 +3,17 @@
   "external_costs": [
     {
       "ChargePeriodStart": "2026-08-03T00:00:00Z",
+      "ChargePeriodEnd": "2026-08-03T00:30:00Z",
+      "BilledCost": 0.25,
+      "EffectiveCost": 0.2,
+      "BillingCurrency": "USD",
+      "ChargeCategory": "Usage",
+      "ServiceName": "AmazonRDS",
+      "SkuId": "InstanceUsage:db.t3.medium",
+      "x_CostCenter": "platform"
+    },
+    {
+      "ChargePeriodStart": "2026-08-03T00:30:00Z",
       "ChargePeriodEnd": "2026-08-03T01:00:00Z",
       "BilledCost": 0.25,
       "EffectiveCost": 0.2,
@@ -13,18 +24,11 @@
       "x_CostCenter": "platform"
     },
     {
-      "ChargePeriodStart": "2026-08-03T01:00:00Z",
-      "ChargePeriodEnd": "2026-08-03T02:00:00Z",
-      "BilledCost": 0.25,
-      "EffectiveCost": 0.2,
-      "BillingCurrency": "USD",
-      "ChargeCategory": "Usage",
-      "ServiceName": "AmazonRDS",
-      "SkuId": "InstanceUsage:db.t3.medium",
-      "x_CostCenter": "platform"
-    },
-    {
       "resource_id": "i-does-not-exist",
+      "root_config_id": {
+        "external_id": "billing-root-1",
+        "config_type": "Test::Account"
+      },
       "charge_period_start": "2026-08-03T00:00:00Z",
       "charge_period_end": "2026-08-03T01:00:00Z",
       "billed_cost": 9.5,

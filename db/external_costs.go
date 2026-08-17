@@ -9,8 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flanksource/commons/duration"
+	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/duty"
 	dutyModels "github.com/flanksource/duty/models"
+	"github.com/flanksource/duty/types"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -19,32 +22,101 @@ import (
 	v1 "github.com/flanksource/config-db/api/v1"
 )
 
-func bucketFor(start, end time.Time) (time.Time, time.Time, string) {
+// Compaction level widths. The stored grain names the level, not its width, so an
+// operator can retune resolution without a migration.
+const (
+	PropCostLevel1 = "config.costs.level1"
+	PropCostLevel2 = "config.costs.level2"
+	PropCostLevel3 = "config.costs.level3"
+
+	DefaultCostLevel1 = "1h"
+	DefaultCostLevel2 = "24h"
+	DefaultCostLevel3 = "720h" // 30 days
+)
+
+// CostLevels is the resolved width of each compaction level, finest first.
+type CostLevels struct {
+	L1, L2, L3 time.Duration
+}
+
+// ResolveCostLevels reads the configured level widths and checks they still form a
+// ladder.
+//
+// Each width must divide the next exactly. That is what makes compaction pure summation:
+// a level-1 bucket always falls entirely inside one level-2 bucket, so no row is ever
+// split and no amount is ever derived. A misconfiguration is rejected here rather than
+// silently producing approximate money.
+func ResolveCostLevels() (CostLevels, error) {
+	var levels CostLevels
+	for _, l := range []struct {
+		property, fallback string
+		into               *time.Duration
+	}{
+		{PropCostLevel1, DefaultCostLevel1, &levels.L1},
+		{PropCostLevel2, DefaultCostLevel2, &levels.L2},
+		{PropCostLevel3, DefaultCostLevel3, &levels.L3},
+	} {
+		raw := properties.String(l.fallback, l.property)
+		parsed, err := duration.ParseDuration(raw)
+		if err != nil {
+			return levels, fmt.Errorf("invalid %s %q: %w", l.property, raw, err)
+		}
+		*l.into = time.Duration(parsed)
+	}
+
+	switch {
+	case levels.L1 <= 0 || levels.L2 <= 0 || levels.L3 <= 0:
+		return levels, fmt.Errorf("cost level widths must be positive (got %s, %s, %s)", levels.L1, levels.L2, levels.L3)
+	case levels.L2%levels.L1 != 0:
+		return levels, fmt.Errorf("cost level2 (%s) must be a whole multiple of level1 (%s)", levels.L2, levels.L1)
+	case levels.L3%levels.L2 != 0:
+		return levels, fmt.Errorf("cost level3 (%s) must be a whole multiple of level2 (%s)", levels.L3, levels.L2)
+	}
+	return levels, nil
+}
+
+// bucketFor snaps a half-open charge period onto the bucket containing it, at the finest
+// level wide enough to hold it.
+//
+// Periods are snapped, never split: a monthly recurring charge stays one row. Returned
+// bounds are half-open [start, end) and always UTC.
+//
+// Note the level ladder is independent of the age ladder: a charge period longer than
+// level 2 is written at level 3 immediately and still lives in config_costs until the
+// compaction job ages it out.
+func bucketFor(start, end time.Time, levels CostLevels) (time.Time, time.Time, string) {
 	start = start.UTC()
 	duration := end.UTC().Sub(start)
+
+	width, grain := levels.L3, dutyModels.ConfigCostLevel3
 	switch {
-	case duration <= 24*time.Hour:
-		day := truncateDay(start)
-		return day, day.AddDate(0, 0, 1), dutyModels.ConfigCostGrainDay
-	case duration <= 7*24*time.Hour:
-		week := truncateWeek(start)
-		return week, week.AddDate(0, 0, 7), dutyModels.ConfigCostGrainWeek
-	default:
-		month := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
-		return month, month.AddDate(0, 1, 0), dutyModels.ConfigCostGrainMonth
+	case duration <= levels.L1:
+		width, grain = levels.L1, dutyModels.ConfigCostLevel1
+	case duration <= levels.L2:
+		width, grain = levels.L2, dutyModels.ConfigCostLevel2
 	}
+
+	bucket := truncateTo(start, width)
+	return bucket, bucket.Add(width), grain
 }
 
-func truncateDay(t time.Time) time.Time {
-	t = t.UTC()
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
-}
-func truncateWeek(t time.Time) time.Time {
-	day := truncateDay(t)
-	return day.AddDate(0, 0, -(int(day.Weekday())+6)%7)
+// truncateTo floors t onto a multiple of width, anchored on the Unix epoch — the same
+// arithmetic as the cost_bucket() SQL function the compaction job uses, so the two agree
+// exactly. Anchoring on the epoch makes the common widths land on natural boundaries:
+// an hour gives clock hours, a day gives UTC midnights.
+func truncateTo(t time.Time, width time.Duration) time.Time {
+	secs, w := t.UTC().Unix(), int64(width/time.Second)
+	if w <= 0 {
+		return t.UTC()
+	}
+	r := secs % w
+	if r < 0 {
+		r += w
+	}
+	return time.Unix(secs-r, 0).UTC()
 }
 
-func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID) []dutyModels.ConfigCost {
+func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID, levels CostLevels) []dutyModels.ConfigCost {
 	type key struct {
 		source, configID, externalID, fingerprint string
 		periodStart, periodEnd                    time.Time
@@ -52,10 +124,15 @@ func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID) []dutyModels.Con
 	merged := make(map[key]*dutyModels.ConfigCost, len(costs))
 	order := make([]key, 0, len(costs))
 	for _, c := range costs {
-		start, end, grain := bucketFor(c.ChargePeriodStart, c.ChargePeriodEnd)
+		start, end, grain := bucketFor(c.ChargePeriodStart, c.ChargePeriodEnd, levels)
 		configID := ""
 		if c.ConfigID != nil {
 			configID = c.ConfigID.String()
+		}
+		if configID == "" {
+			// resolveCostTarget guarantees a target before bucketing; a zero value here
+			// would silently attribute the row to the nil UUID.
+			continue
 		}
 		externalID := v1.NormalizeExternalID(c.ResourceID)
 		if externalID == "" {
@@ -75,8 +152,8 @@ func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID) []dutyModels.Con
 			labels[k] = v
 		}
 		row := &dutyModels.ConfigCost{
-			ConfigID: c.ConfigID, ScraperID: scraperID, SourceKey: c.SourceKey,
-			SourceRecordID: c.SourceRecordID, ExternalID: nilIfEmpty(externalID),
+			ConfigID: *c.ConfigID, ScraperID: scraperID, SourceKey: c.SourceKey,
+			ExternalID:              nilIfEmpty(externalID),
 			ExternalConfigType:      nilIfEmpty(c.ConfigExternalID.ConfigType),
 			ExternalConfigScraperID: nilIfEmpty(firstNonempty(c.ConfigExternalID.ScraperID, c.ScraperID)),
 			ExternalConfigLabels:    labels,
@@ -84,11 +161,10 @@ func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID) []dutyModels.Con
 			ChargeCategory: chargeCategoryOrDefault(c.ChargeCategory), ChargeClass: nilIfEmpty(c.ChargeClass),
 			ServiceName: nilIfEmpty(c.ServiceName), ServiceCategory: nilIfEmpty(c.ServiceCategory),
 			SkuID: nilIfEmpty(c.SkuID), RegionID: nilIfEmpty(c.RegionID),
-			BillingAccountID: nilIfEmpty(c.BillingAccountID), SubAccountID: nilIfEmpty(c.SubAccountID),
 			BillingCurrency: c.BillingCurrency, BilledCost: *c.BilledCost, EffectiveCost: *c.EffectiveCost,
 			ListCost: copyOptional(c.ListCost), ContractedCost: copyOptional(c.ContractedCost),
 			PricingQuantity: copyOptional(c.PricingQuantity), PricingUnit: nilIfEmpty(c.PricingUnit),
-			Focus: c.Focus, Fingerprint: k.fingerprint,
+			Focus: withAccounts(c), Fingerprint: k.fingerprint,
 		}
 		merged[k] = row
 		order = append(order, k)
@@ -108,6 +184,32 @@ func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID) []dutyModels.Con
 	out := make([]dutyModels.ConfigCost, 0, len(order))
 	for _, k := range order {
 		out = append(out, *merged[k])
+	}
+	return out
+}
+
+// Account identifier keys inside the focus payload. They have no dedicated columns, but
+// ExternalCost.Fingerprint still hashes them, so two sub-accounts never merge.
+const (
+	focusBillingAccountID = "billing_account_id"
+	focusSubAccountID     = "sub_account_id"
+)
+
+// withAccounts folds the account identifiers into the focus payload without mutating the
+// caller's map.
+func withAccounts(c v1.ExternalCost) types.JSONMap {
+	if c.BillingAccountID == "" && c.SubAccountID == "" {
+		return c.Focus
+	}
+	out := make(types.JSONMap, len(c.Focus)+2)
+	for k, v := range c.Focus {
+		out[k] = v
+	}
+	if c.BillingAccountID != "" {
+		out[focusBillingAccountID] = c.BillingAccountID
+	}
+	if c.SubAccountID != "" {
+		out[focusSubAccountID] = c.SubAccountID
 	}
 	return out
 }
@@ -173,26 +275,13 @@ func upsertConfigCosts(ctx api.ScrapeContext, costs []dutyModels.ConfigCost, scr
 		tx.Rollback()
 		return 0, err
 	}
-	// A source-native record may be corrected onto a different target or period. The
-	// regular merge key includes both, so serialize cost writes and remove the previous
-	// version by its immutable source identity before inserting the restatement.
-	if err := tx.Exec(`LOCK TABLE config_costs IN SHARE ROW EXCLUSIVE MODE`).Error; err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("failed to lock config costs: %w", err)
-	}
 	if err := createTempAndInsert(tx, table, "config_costs", costs); err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("failed to setup temp config costs: %w", err)
 	}
-	deleteRestated := fmt.Sprintf(`DELETE FROM config_costs existing USING %s incoming
-		WHERE incoming.source_record_id IS NOT NULL
-		  AND existing.source_key = incoming.source_key
-		  AND existing.source_record_id = incoming.source_record_id`, table)
-	if err := tx.Exec(deleteRestated).Error; err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("failed to replace restated source records: %w", err)
-	}
 
+	// Plain upsert against the single merge key. There is no second identity to
+	// reconcile, so this needs neither a table lock nor a delete-then-insert pass.
 	query := fmt.Sprintf(`INSERT INTO config_costs SELECT * FROM %s
 		ON CONFLICT (source_key, config_id, period_start, period_end, fingerprint)
 		DO UPDATE SET external_id=excluded.external_id,
@@ -202,12 +291,11 @@ func upsertConfigCosts(ctx api.ScrapeContext, costs []dutyModels.ConfigCost, scr
 		charge_category=excluded.charge_category, charge_class=excluded.charge_class,
 		service_name=excluded.service_name, service_category=excluded.service_category,
 		sku_id=excluded.sku_id, region_id=excluded.region_id,
-		billing_account_id=excluded.billing_account_id, sub_account_id=excluded.sub_account_id,
 		billing_currency=excluded.billing_currency, pricing_unit=excluded.pricing_unit,
 		billed_cost=excluded.billed_cost, effective_cost=excluded.effective_cost,
 		list_cost=excluded.list_cost, contracted_cost=excluded.contracted_cost,
 		pricing_quantity=excluded.pricing_quantity, focus=excluded.focus,
-		source_record_id=excluded.source_record_id, scraper_id=excluded.scraper_id, updated_at=now()`, table)
+		grain=excluded.grain, scraper_id=excluded.scraper_id, updated_at=now()`, table)
 	result := tx.Exec(query)
 	if result.Error != nil {
 		tx.Rollback()
@@ -251,8 +339,17 @@ func findConfigMatches(db *gorm.DB, lookup v1.ExternalID, defaultScraperID *uuid
 	return ids, nil
 }
 
+// resolveCostTarget picks the config item this cost is attributed to.
+//
+// Precedence: explicit UUID, then structured external identity, then resource id, then the
+// emitting scraper's root config item. config_costs.config_id is NOT NULL, so the root is
+// what keeps spend that has no resource — or whose resource has not been scraped yet —
+// from being dropped. ResourceID is preserved on the row either way, so a root-attributed
+// charge still shows what it was for.
+//
+// An external identity matching more than one config item is treated as unattributable
+// and falls back to the root: never guess a resource, never lose the money.
 func resolveCostTarget(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *uuid.UUID) error {
-	// Explicit UUID has absolute precedence. ResourceID remains provenance only.
 	if cost.ConfigExternalID.ConfigID != "" {
 		id, err := uuid.Parse(strings.TrimSpace(cost.ConfigExternalID.ConfigID))
 		if err != nil {
@@ -273,24 +370,58 @@ func resolveCostTarget(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *
 	if lookup.ExternalID == "" {
 		lookup.ExternalID = cost.ResourceID
 	}
-	if lookup.ExternalID == "" {
-		return nil
-	}
 	if lookup.ScraperID == "" {
 		lookup.ScraperID = cost.ScraperID
 	}
-	ids, err := findConfigMatches(ctx.DB(), lookup, scraperID)
-	if err != nil {
-		return fmt.Errorf("find config %s: %w", lookup.Pretty().ANSI(), err)
+
+	if lookup.ExternalID != "" {
+		ids, err := findConfigMatches(ctx.DB(), lookup, scraperID)
+		if err != nil {
+			return fmt.Errorf("find config %s: %w", lookup.Pretty().ANSI(), err)
+		}
+		if len(ids) == 1 {
+			cost.ConfigID = &ids[0]
+			return nil
+		}
+		if len(ids) > 1 {
+			ctx.Logger.V(3).Infof("cost reference %s matched %d configs; attributing to the root", lookup.Pretty().ANSI(), len(ids))
+		}
 	}
-	if len(ids) > 1 {
-		return fmt.Errorf("ambiguous config reference %s matched %v", lookup.Pretty().ANSI(), ids)
-	}
-	if len(ids) == 1 {
-		id := ids[0]
+
+	return resolveCostRoot(ctx, cost, scraperID)
+}
+
+// resolveCostRoot attributes the cost to the emitting scraper's root config item.
+func resolveCostRoot(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *uuid.UUID) error {
+	root := cost.RootConfigID
+	if root.ConfigID != "" {
+		id, err := uuid.Parse(strings.TrimSpace(root.ConfigID))
+		if err != nil {
+			return fmt.Errorf("invalid root_config_id.config_id: %w", err)
+		}
 		cost.ConfigID = &id
+		return nil
 	}
-	return nil
+	if root.ExternalID == "" {
+		return fmt.Errorf("cost has no resolvable config and the scraper supplied no root_config_id")
+	}
+	if root.ScraperID == "" {
+		root.ScraperID = cost.ScraperID
+	}
+
+	ids, err := findConfigMatches(ctx.DB(), root, scraperID)
+	if err != nil {
+		return fmt.Errorf("find root config %s: %w", root.Pretty().ANSI(), err)
+	}
+	switch len(ids) {
+	case 0:
+		return fmt.Errorf("root config %s has not been scraped yet", root.Pretty().ANSI())
+	case 1:
+		cost.ConfigID = &ids[0]
+		return nil
+	default:
+		return fmt.Errorf("root config %s matched %d config items", root.Pretty().ANSI(), len(ids))
+	}
 }
 
 func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID *uuid.UUID, summary *v1.ScrapeSummary) error {
@@ -298,8 +429,13 @@ func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID
 		return nil
 	}
 	summary.ExternalCosts.Scraped = len(costs)
+
+	levels, err := ResolveCostLevels()
+	if err != nil {
+		return err
+	}
+
 	resolved := make([]v1.ExternalCost, 0, len(costs))
-	sourceRecords := make(map[string]int)
 	var costErrors []error
 	for i := range costs {
 		cost := costs[i]
@@ -318,14 +454,6 @@ func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID
 			skip(err)
 			continue
 		}
-		if cost.SourceRecordID != nil {
-			key := cost.SourceKey + "\x00" + *cost.SourceRecordID
-			if previous, found := sourceRecords[key]; found {
-				skip(fmt.Errorf("repeats source record %q from external cost %d within source %q", *cost.SourceRecordID, previous, cost.SourceKey))
-				continue
-			}
-			sourceRecords[key] = i
-		}
 		if cost.ConfigExternalID.ScraperID == "" {
 			cost.ConfigExternalID.ScraperID = cost.ScraperID
 			if cost.ConfigExternalID.ScraperID == "" && scraperID != nil {
@@ -340,7 +468,7 @@ func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID
 	}
 
 	if len(resolved) > 0 {
-		saved, err := upsertConfigCosts(ctx, bucketCosts(resolved, scraperID), scraperID)
+		saved, err := upsertConfigCosts(ctx, bucketCosts(resolved, scraperID, levels), scraperID)
 		if err != nil {
 			summary.ExternalCosts.Skipped += len(resolved)
 			costErrors = append(costErrors, fmt.Errorf("failed to persist %d valid external costs: %w", len(resolved), err))

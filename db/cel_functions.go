@@ -212,8 +212,11 @@ func queryConfigAccessLogs(ctx context.Context, scraperID uuid.UUID) ref.Val {
 	return types.DefaultTypeAdapter.NativeToValue(result)
 }
 
-// Cost CEL queries are bounded to retained recent history. The _all name is registered
-// for API consistency; config_costs has no soft-deletion distinction.
+// Reads config_costs, the raw landing zone, deliberately: this is what a scrape just
+// wrote, which is what e2e fixtures assert on. config_cost_compact is derived later by a
+// job and would still be empty at that point.
+//
+// The _all name is registered for API consistency; config_costs has no soft deletion.
 func externalCostsCEL(all bool) func(context.Context) cel.EnvOption {
 	name := "db.external_costs"
 	if all {

@@ -1,6 +1,14 @@
-# Two hourly FOCUS rows for the same resource and SKU collapse into one day-grain row,
-# while spend for a resource that was never scraped is retained unmatched rather than
-# dropped or folded into somebody else's total.
+# Two sub-hour FOCUS rows for the same resource and SKU collapse into one level-1 row
+# (level 1 defaults to an hour).
+#
+# The third row exercises the root fallback, which is what lets config_costs.config_id be
+# NOT NULL: it names a resource that was never scraped, so it lands on the scraper's root
+# config item rather than being dropped, keeping the unresolved resource id as provenance.
+#
+# Note the first two rows carry no reference of their own and so inherit the enclosing
+# config item — inheritance deliberately beats the root, since the enclosing item is more
+# specific than the account. Spend with no resource at all reaches the root only when it
+# isn't nested under a config item, which is the shape the AWS scraper emits.
 spec:
   full: true
   file:
@@ -14,16 +22,26 @@ pre_populate:
       type: RDS
       external_id: ["db-instance-1"]
       config: '{"instance_class":"db.t3.medium"}'
+    - config_class: Account
+      type: Test::Account
+      external_id: ["billing-root-1"]
+      config: '{"account":"billing-root-1"}'
 assertions:
   - summary.external_costs.scraped == 3
   - summary.external_costs.saved == 2
+  # The two half-hour rows merge into one; the unresolved one stays separate.
   - size(db.external_costs(scraper_id)) == 2
-  - size(db.external_costs(scraper_id).filter(c, has(c.config_id))) == 1
-  - size(db.external_costs(scraper_id).filter(c, !has(c.config_id))) == 1
-  - db.external_costs(scraper_id).filter(c, has(c.config_id))[0].grain == 'day'
-  - db.external_costs(scraper_id).filter(c, has(c.config_id))[0].billing_currency == 'USD'
-  - double(db.external_costs(scraper_id).filter(c, has(c.config_id))[0].effective_cost) == 0.4
-  - double(db.external_costs(scraper_id).filter(c, has(c.config_id))[0].billed_cost) == 0.5
-  - db.external_costs(scraper_id).filter(c, has(c.config_id))[0].external_id == 'db-instance-1'
-  - db.external_costs(scraper_id).filter(c, !has(c.config_id))[0].external_id == 'i-does-not-exist'
-  - double(db.external_costs(scraper_id).filter(c, !has(c.config_id))[0].effective_cost) == 9.5
+  - db.external_costs(scraper_id).all(c, has(c.config_id))
+  - db.external_costs(scraper_id).all(c, c.grain == 'level1')
+
+  # Resource-attributed: the two halves summed onto the resource itself.
+  - size(db.external_costs(scraper_id).filter(c, c.external_id == 'db-instance-1')) == 1
+  - double(db.external_costs(scraper_id).filter(c, c.external_id == 'db-instance-1')[0].effective_cost) == 0.4
+  - double(db.external_costs(scraper_id).filter(c, c.external_id == 'db-instance-1')[0].billed_cost) == 0.5
+
+  # Unresolved resource: attributed to the root, resource id kept as provenance.
+  - size(db.external_costs(scraper_id).filter(c, c.external_id == 'i-does-not-exist')) == 1
+  - double(db.external_costs(scraper_id).filter(c, c.external_id == 'i-does-not-exist')[0].effective_cost) == 9.5
+  # It landed somewhere other than the resource it names.
+  - db.external_costs(scraper_id).filter(c, c.external_id == 'i-does-not-exist')[0].config_id !=
+    db.external_costs(scraper_id).filter(c, c.external_id == 'db-instance-1')[0].config_id
