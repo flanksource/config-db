@@ -33,6 +33,8 @@ var _ = Describe("GetConfigType", func() {
 		Entry("core node", "v1", "Node", "Kubernetes::Node"),
 		Entry("Longhorn node", "longhorn.io/v1beta2", "Node", "Kubernetes::LonghornNode"),
 		Entry("CNPG cluster", "postgresql.cnpg.io/v1", "Cluster", "Kubernetes::CNPGCluster"),
+		Entry("Crossplane resource", "s3.aws.upbound.io/v1beta1", "Bucket", "Crossplane::Bucket"),
+		Entry("Flanksource resource", "configs.flanksource.com/v1", "ScrapeConfig", "MissionControl::ScrapeConfig"),
 	)
 })
 

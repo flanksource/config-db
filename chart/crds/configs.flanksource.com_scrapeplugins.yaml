@@ -215,6 +215,39 @@ spec:
                       type: object
                     type: array
                 type: object
+              configs:
+                description: |-
+                  Configs maps fields on emitted config items. It does not rewrite type strings
+                  already embedded in changes, parents, access entries, or relationship results.
+                properties:
+                  mapping:
+                    description: |-
+                      Mapping overrides fields on scraped config items. Rules are evaluated in order
+                      against pre-mapping values, and the first matching rule wins.
+                    items:
+                      description: |-
+                        ConfigMapping overrides fields on a config item when Match evaluates true.
+                        Output fields are optional; an empty output leaves the scraped value unchanged.
+                      properties:
+                        match:
+                          description: |-
+                            Match is a CEL expression selecting which config items this mapping applies to.
+                            It receives the full config-item environment, including config, config_type,
+                            labels, and tags. A non-match leaves the item unchanged.
+                          type: string
+                        type:
+                          description: Type replaces the config type. Use value for
+                            a literal or expr for a CEL expression.
+                          properties:
+                            expr:
+                              type: string
+                            value:
+                              description: Value is a static value
+                              type: string
+                          type: object
+                      type: object
+                    type: array
+                type: object
               locations:
                 items:
                   properties:

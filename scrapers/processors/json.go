@@ -858,7 +858,57 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 		}
 	}
 
+	if err := applyConfigMappings(ctx, &input, input.BaseScraper.Transform.Configs.Mapping); err != nil {
+		return input, err
+	}
+
 	return input, nil
+}
+
+func applyConfigMappings(ctx api.ScrapeContext, input *v1.ScrapeResult, mappings []v1.ConfigMapping) error {
+	if len(mappings) == 0 {
+		return nil
+	}
+
+	// Attribute extraction may have changed values after an earlier AsMap call.
+	// Keep this environment fixed so mapping rules only see pre-mapping values.
+	input.FlushMap()
+	env := input.AsMap()
+
+	for i, mapping := range mappings {
+		matched := mapping.Match == ""
+		if !matched {
+			var err error
+			matched, err = ctx.RunTemplateBool(gomplate.Template{
+				Expression: mapping.Match,
+				CacheKey:   "processors.config.mapping.match:" + mapping.Match,
+				CacheTime:  utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
+			}, env)
+			if err != nil {
+				return fmt.Errorf("failed to evaluate config mapping %d match: %w", i, err)
+			}
+		}
+
+		if !matched {
+			continue
+		}
+
+		if mapping.Type.Empty() {
+			return nil
+		}
+
+		mappedType, err := mapping.Type.Eval(env)
+		if err != nil {
+			return fmt.Errorf("failed to evaluate config mapping %d type: %w", i, err)
+		}
+		if mappedType != "" {
+			input.Type = mappedType
+			input.FlushMap()
+		}
+		return nil
+	}
+
+	return nil
 }
 
 func (e Extract) applyMask(ctx api.ScrapeContext, results []v1.ScrapeResult) ([]v1.ScrapeResult, error) {

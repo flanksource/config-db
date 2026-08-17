@@ -1,0 +1,62 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapePlugin
+metadata:
+  name: cnpg
+spec:
+  configs:
+    mapping:
+      - match: >-
+          config_type.startsWith("Kubernetes::") &&
+          has(config.apiVersion) &&
+          config.apiVersion.startsWith("postgresql.cnpg.io/") &&
+          has(config.kind)
+        type:
+          expr: '"CNPG::" + config.kind'
+
+  relationship:
+    # Backup-like resources reference a Cluster in the same namespace.
+    - filter: >-
+        config_type in [
+          "CNPG::Backup",
+          "CNPG::ScheduledBackup",
+          "CNPG::Pooler",
+          "CNPG::Database",
+          "CNPG::Publication",
+          "CNPG::Subscription",
+          "CNPG::DatabaseRole"
+        ]
+      external_id:
+        expr: '("Kubernetes/" + tags.cluster + "/Cluster/" + tags.namespace + "/" + config.spec.cluster.name).lowerAscii()'
+      type:
+        value: CNPG::Cluster
+      parent: true
+
+    # FailoverQuorum has the same name and namespace as its owning Cluster.
+    - filter: 'config_type == "CNPG::FailoverQuorum"'
+      external_id:
+        expr: '("Kubernetes/" + tags.cluster + "/Cluster/" + tags.namespace + "/" + name).lowerAscii()'
+      type:
+        value: CNPG::Cluster
+      parent: true
+
+    # ImageCatalog is namespaced with the Cluster.
+    - filter: >-
+        config_type == "CNPG::Cluster" &&
+        has(config.spec.imageCatalogRef) &&
+        config.spec.imageCatalogRef.kind == "ImageCatalog" &&
+        has(config.spec.imageCatalogRef.name)
+      external_id:
+        expr: '("Kubernetes/" + tags.cluster + "/ImageCatalog/" + tags.namespace + "/" + config.spec.imageCatalogRef.name).lowerAscii()'
+      type:
+        value: CNPG::ImageCatalog
+
+    # ClusterImageCatalog is cluster-scoped, so its alias has an empty namespace segment.
+    - filter: >-
+        config_type == "CNPG::Cluster" &&
+        has(config.spec.imageCatalogRef) &&
+        config.spec.imageCatalogRef.kind == "ClusterImageCatalog" &&
+        has(config.spec.imageCatalogRef.name)
+      external_id:
+        expr: '("Kubernetes/" + tags.cluster + "/ClusterImageCatalog//" + config.spec.imageCatalogRef.name).lowerAscii()'
+      type:
+        value: CNPG::ClusterImageCatalog
