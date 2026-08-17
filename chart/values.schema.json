@@ -539,6 +539,12 @@
           "title": "github",
           "type": "boolean"
         },
+        "cnpg": {
+          "default": false,
+          "description": "Enable the CloudNativePG config mapping and relationships plugin",
+          "title": "cnpg",
+          "type": "boolean"
+        },
         "locations": {
           "properties": {
             "aws": {

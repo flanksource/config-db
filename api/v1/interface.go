@@ -1963,6 +1963,11 @@ func (s *ScrapeResult) AsMap() map[string]any {
 	return s._map
 }
 
+// FlushMap invalidates the map representation after fields on the result change.
+func (s *ScrapeResult) FlushMap() {
+	s._map = nil
+}
+
 func NewScrapeResult(base BaseScraper) *ScrapeResult {
 	return &ScrapeResult{
 		BaseScraper: base,

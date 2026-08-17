@@ -622,6 +622,13 @@ plugins:
   # -- Enable GitHub repository metadata properties
   github: true
 
+  # @schema
+  # required: false
+  # type: boolean
+  # @schema
+  # -- Enable the CloudNativePG config mapping and relationships plugin
+  cnpg: false
+
   locations:
     # @schema
     # required: false

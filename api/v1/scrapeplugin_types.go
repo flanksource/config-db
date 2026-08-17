@@ -36,6 +36,9 @@ func (t *ScrapePlugin) GetObservedGeneration() int64 {
 
 type ScrapePluginSpec struct {
 	Change TransformChange `json:"changes,omitempty"`
+	// Configs maps fields on emitted config items. It does not rewrite type strings
+	// already embedded in changes, parents, access entries, or relationship results.
+	Configs TransformConfigs `json:"configs,omitempty"`
 
 	// Retention config for changes, types, and stale items.
 	Retention *RetentionSpec `json:"retention,omitempty"`

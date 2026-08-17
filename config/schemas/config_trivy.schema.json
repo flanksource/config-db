@@ -69,6 +69,21 @@
       ],
       "description": "ConfigFieldExclusion defines fields with JSONPath that needs to\nbe removed from the config."
     },
+    "ConfigMapping": {
+      "properties": {
+        "match": {
+          "type": "string",
+          "description": "Match is a CEL expression selecting which config items this mapping applies to.\nIt receives the full config-item environment, including config, config_type,\nlabels, and tags. A non-match leaves the item unchanged."
+        },
+        "type": {
+          "$ref": "#/$defs/ValueExpression",
+          "description": "Type replaces the config type. Use value for a literal or expr for a CEL expression."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ConfigMapping overrides fields on a config item when Match evaluates true.\nOutput fields are optional; an empty output leaves the scraped value unchanged."
+    },
     "ConfigProperties": {
       "properties": {
         "type": {
@@ -369,6 +384,10 @@
         "changes": {
           "$ref": "#/$defs/TransformChange"
         },
+        "configs": {
+          "$ref": "#/$defs/TransformConfigs",
+          "description": "Configs maps fields on emitted config items. It does not rewrite type strings\nalready embedded in changes, parents, access entries, or relationship results.\nConfigs emitted by a transform script do not retain this transform configuration."
+        },
         "locations": {
           "items": {
             "$ref": "#/$defs/LocationOrAlias"
@@ -404,6 +423,20 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "TransformConfigs": {
+      "properties": {
+        "mapping": {
+          "items": {
+            "$ref": "#/$defs/ConfigMapping"
+          },
+          "type": "array",
+          "description": "Mapping overrides fields on scraped config items. Rules are evaluated in order\nagainst pre-mapping values, and the first matching rule wins."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "TransformConfigs mirrors TransformChange for scraped config items."
     },
     "Trivy": {
       "properties": {
@@ -550,6 +583,18 @@
       "additionalProperties": false,
       "type": "object",
       "description": "TrivyK8sOptions holds in Trivy flags that are Kubernetes specific."
+    },
+    "ValueExpression": {
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     }
   }
 }

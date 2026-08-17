@@ -277,7 +277,7 @@ func consumeResources(ctx job.JobRuntime, scrapeConfig v1.ScrapeConfig, config v
 		for _, c := range deletedResources {
 			ctx.Counter("scraper_deleted",
 				"scraper_id", cc.ScraperID(),
-				"kind", kubernetes.GetConfigType(c),
+				"kind", c.GetKind(),
 				"reason", string(v1.DeleteReasonEvent),
 			).Add(1)
 		}
