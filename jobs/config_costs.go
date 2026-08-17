@@ -1,27 +1,47 @@
-// Keeps config_costs serviceable: refreshes rollups, reconciles unmatched rows, and
-// enforces retention. Cost coarsening is intentionally disabled.
+// Derives the queryable cost series in config_cost_compact from the raw config_costs
+// landing zone, refreshes the summary the catalog reads, and enforces retention on both.
 package jobs
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/flanksource/commons/duration"
 	"github.com/flanksource/commons/properties"
 	"github.com/flanksource/duty/job"
 	"github.com/flanksource/duty/models"
-	"github.com/google/uuid"
+
+	"github.com/flanksource/config-db/db"
 )
 
-var configCostJobs = []*job.Job{RefreshConfigCostsRollup, CompactConfigCosts}
+// Compaction and retention thresholds. Every one is a property so an operator can trade
+// resolution against storage without a release.
+const (
+	propCompactDayAfter  = "config.costs.compact.level2.after" // raw rows older than this are summarised at level 2
+	propCompact30dAfter  = "config.costs.compact.level3.after" // level-2 rows older than this are rolled into level 3
+	propCompactWindow    = "config.costs.compact.window"       // how far back to look for restated raw rows
+	propCostsRetention   = "config.costs.retention"            // config_costs
+	propCompactRetention = "config.costs.compact.retention"    // config_cost_compact
 
-var RefreshConfigCostsRollup = &job.Job{
-	Name: "RefreshConfigCostsRollup", Schedule: "@every 1h", Singleton: true,
+	defaultCompactDayAfter  = "48h"
+	defaultCompact30dAfter  = "90d"
+	defaultCompactWindow    = "2h"
+	defaultCostsRetention   = "90d"
+	defaultCompactRetention = "365d"
+)
+
+var configCostJobs = []*job.Job{RefreshConfigCostSummary, CompactConfigCosts}
+
+// RefreshConfigCostSummary keeps the trailing-window totals the `configs` view serves in
+// step with config_cost_compact. The windows are relative to now(), so the summary goes
+// stale on its own even when nothing new is scraped — and cost_1h decays fastest, which is
+// what sets the cadence.
+var RefreshConfigCostSummary = &job.Job{
+	Name: "RefreshConfigCostSummary", Schedule: "@every 15m", Singleton: true,
 	JobHistory: true, Retention: job.RetentionBalanced,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
-		if err := ctx.DB().Exec("SELECT refresh_config_costs_rollup()").Error; err != nil {
+		if err := ctx.DB().Exec("SELECT refresh_config_cost_summary()").Error; err != nil {
 			return err
 		}
 		ctx.History.SuccessCount++
@@ -29,49 +49,149 @@ var RefreshConfigCostsRollup = &job.Job{
 	},
 }
 
+// CompactConfigCosts rebuilds config_cost_compact from config_costs and ages the result
+// down the level ladder. Runs every 30 minutes so the finest level the summary reads is
+// never far behind the scrapers.
 var CompactConfigCosts = &job.Job{
-	Name: "CompactConfigCosts", Schedule: "@every 1h", Singleton: true,
+	Name: "CompactConfigCosts", Schedule: "@every 30m", Singleton: true,
 	JobHistory: true, Retention: job.RetentionBalanced,
 	Fn: func(ctx job.JobRuntime) error {
 		ctx.History.ResourceType = JobResourceType
-		attached, ambiguous, err := attachUnmatchedCosts(ctx)
+
+		// Level widths come from properties and must still form a ladder; a
+		// misconfiguration is rejected before anything is written.
+		levels, err := db.ResolveCostLevels()
 		if err != nil {
 			return err
 		}
-		ctx.History.SuccessCount += attached
-		// Ambiguous rows are accounting errors, but successful attachments in the same
-		// pass still count so the job is recorded as a warning rather than a total failure.
-		if attached == 0 && len(ambiguous) > 0 {
-			ctx.History.SuccessCount++
+
+		// Raw rows younger than the threshold are summarised at level 1, older ones at
+		// level 2. Both read from config_costs, which keeps its rows, so both must
+		// REPLACE the bucket rather than add to it.
+		levelUp, err := thresholdOf(propCompactDayAfter, defaultCompactDayAfter)
+		if err != nil {
+			return err
 		}
-		if len(ambiguous) > 0 {
-			ctx.History.AddDetails("ambiguous_config_costs", ambiguous)
-			for _, item := range ambiguous {
-				ctx.History.AddErrorf("config cost %s is ambiguous across configs %v", item.OrphanID, item.ConfigIDs)
-			}
+
+		fine, err := compactFromRaw(ctx, models.ConfigCostLevel1, levels.L1,
+			fmt.Sprintf("period_end >= now() - make_interval(secs => %f)", levelUp.Seconds()))
+		if err != nil {
+			return err
 		}
-		expired, err := expireConfigCosts(ctx)
+		ctx.History.SuccessCount += fine
+
+		coarse, err := compactFromRaw(ctx, models.ConfigCostLevel2, levels.L2,
+			fmt.Sprintf("period_end < now() - make_interval(secs => %f)", levelUp.Seconds()))
+		if err != nil {
+			return err
+		}
+		ctx.History.SuccessCount += coarse
+
+		rolled, err := rollToCoarsestLevel(ctx, levels)
+		if err != nil {
+			return err
+		}
+		ctx.History.SuccessCount += rolled
+
+		expired, err := expireCosts(ctx, "config_costs", propCostsRetention, defaultCostsRetention)
 		if err != nil {
 			return err
 		}
 		ctx.History.SuccessCount += expired
+
+		expired, err = expireCosts(ctx, "config_cost_compact", propCompactRetention, defaultCompactRetention)
+		if err != nil {
+			return err
+		}
+		ctx.History.SuccessCount += expired
+
 		return nil
 	},
 }
 
-type ambiguousConfigCost struct {
-	OrphanID  uuid.UUID   `json:"orphan_id"`
-	ConfigIDs []uuid.UUID `json:"config_ids"`
+// compactFromRaw recomputes one grain of config_cost_compact from config_costs.
+//
+// Only buckets containing raw rows touched since the last pass are rebuilt. Providers
+// restate open billing periods for weeks, and config_costs keeps its rows rather than
+// handing them over, so a bucket already written here can change afterwards — which is why
+// the conflict clause SETs the recomputed total instead of adding to it. Adding would
+// double-count every restatement.
+func compactFromRaw(ctx job.JobRuntime, grain string, width time.Duration, ageFilter string) (int, error) {
+	window, err := thresholdOf(propCompactWindow, defaultCompactWindow)
+	if err != nil {
+		return 0, err
+	}
+
+	// cost_bucket takes the width as a parameter, which is what lets it stay IMMUTABLE
+	// while the width itself is an operator setting. It is the same epoch-anchored
+	// arithmetic as db.truncateTo, so ingestion and compaction agree exactly.
+	seconds := int64(width / time.Second)
+	bucketStart := fmt.Sprintf("cost_bucket(period_start, %d)", seconds)
+	bucketEnd := fmt.Sprintf("cost_bucket(period_start, %d) + make_interval(secs => %d)", seconds, seconds)
+
+	// Grouping by the full identity tuple means scraper_id and pricing_unit are exact
+	// rather than an arbitrary MIN(): both are functionally determined by columns already
+	// in the group — scraper_id by source_key, pricing_unit by fingerprint.
+	query := fmt.Sprintf(`
+		INSERT INTO config_cost_compact (
+			config_id, scraper_id, source_key, external_id, external_config_type,
+			external_config_scraper_id, external_config_labels, period_start, period_end, grain,
+			charge_category, charge_class, service_name, service_category, sku_id, region_id,
+			billing_currency, billed_cost, effective_cost, list_cost, contracted_cost,
+			pricing_quantity, pricing_unit, focus, fingerprint
+		)
+		SELECT
+			config_id, scraper_id, source_key, external_id, external_config_type,
+			external_config_scraper_id, external_config_labels,
+			%s, %s, ?::text,
+			charge_category, charge_class, service_name, service_category, sku_id, region_id,
+			billing_currency,
+			SUM(billed_cost), SUM(effective_cost), SUM(list_cost), SUM(contracted_cost),
+			SUM(pricing_quantity), pricing_unit,
+			(array_agg(focus ORDER BY period_start))[1], fingerprint
+		FROM config_costs
+		WHERE %s
+		  AND (config_id, source_key, fingerprint) IN (
+			SELECT config_id, source_key, fingerprint FROM config_costs
+			WHERE updated_at >= now() - make_interval(secs => ?)
+		  )
+		GROUP BY config_id, scraper_id, source_key, external_id, external_config_type,
+		         external_config_scraper_id, external_config_labels, 8, 9,
+		         charge_category, charge_class, service_name, service_category, sku_id,
+		         region_id, billing_currency, pricing_unit, fingerprint
+		ON CONFLICT (source_key, config_id, period_start, period_end, fingerprint)
+		DO UPDATE SET grain            = excluded.grain,
+		              external_id      = excluded.external_id,
+		              billed_cost      = excluded.billed_cost,
+		              effective_cost   = excluded.effective_cost,
+		              list_cost        = excluded.list_cost,
+		              contracted_cost  = excluded.contracted_cost,
+		              pricing_quantity = excluded.pricing_quantity,
+		              focus            = excluded.focus,
+		              updated_at       = now()`, bucketStart, bucketEnd, ageFilter)
+
+	result := ctx.DB().Exec(query, grain, window.Seconds())
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to compact raw costs at %s grain: %w", grain, result.Error)
+	}
+	return int(result.RowsAffected), nil
 }
 
-// attachUnmatchedCosts is a single atomic reconciliation pass. Candidate lookup honors
-// the identity retained at ingestion. Ambiguous rows stay unmatched and are reported
-// without blocking unambiguous rows. When both an orphan and a matched row exist, the
-// newest row wins wholesale; amounts are never summed.
-func attachUnmatchedCosts(ctx job.JobRuntime) (int, []ambiguousConfigCost, error) {
+// rollToCoarsestLevel coarsens level-2 rows that have outlived the raw data they were
+// built from.
+//
+// Unlike compactFromRaw this is terminal and additive: config_costs no longer holds the
+// source rows, so the 1d rows are the only remaining record and are summed into the 30d
+// bucket and deleted. Idempotent because the second pass finds no 1d rows left in range.
+func rollToCoarsestLevel(ctx job.JobRuntime, levels db.CostLevels) (int, error) {
+	threshold, err := thresholdOf(propCompact30dAfter, defaultCompact30dAfter)
+	if err != nil {
+		return 0, err
+	}
+
 	tx := ctx.DB().Begin()
 	if tx.Error != nil {
-		return 0, nil, tx.Error
+		return 0, tx.Error
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -80,123 +200,80 @@ func attachUnmatchedCosts(ctx job.JobRuntime) (int, []ambiguousConfigCost, error
 		}
 	}()
 
-	// Serialize reconciliation against cost upserts so candidates and duplicate rows do
-	// not change while the deterministic winner is selected and applied.
-	if err := tx.Exec(`LOCK TABLE config_costs IN SHARE ROW EXCLUSIVE MODE`).Error; err != nil {
+	// Level widths divide each other, so a level-2 bucket always falls entirely inside one
+	// level-3 bucket and this stays pure summation.
+	seconds := int64(levels.L3 / time.Second)
+	insert := fmt.Sprintf(`
+		INSERT INTO config_cost_compact (
+			config_id, scraper_id, source_key, external_id, external_config_type,
+			external_config_scraper_id, external_config_labels, period_start, period_end, grain,
+			charge_category, charge_class, service_name, service_category, sku_id, region_id,
+			billing_currency, billed_cost, effective_cost, list_cost, contracted_cost,
+			pricing_quantity, pricing_unit, focus, fingerprint
+		)
+		SELECT
+			config_id, scraper_id, source_key, external_id, external_config_type,
+			external_config_scraper_id, external_config_labels,
+			cost_bucket(period_start, %[1]d), cost_bucket(period_start, %[1]d) + make_interval(secs => %[1]d), ?::text,
+			charge_category, charge_class, service_name, service_category, sku_id, region_id,
+			billing_currency,
+			SUM(billed_cost), SUM(effective_cost), SUM(list_cost), SUM(contracted_cost),
+			SUM(pricing_quantity), pricing_unit,
+			(array_agg(focus ORDER BY period_start))[1], fingerprint
+		FROM config_cost_compact
+		WHERE grain = ? AND period_end < now() - make_interval(secs => ?)
+		GROUP BY config_id, scraper_id, source_key, external_id, external_config_type,
+		         external_config_scraper_id, external_config_labels, 8, 9,
+		         charge_category, charge_class, service_name, service_category, sku_id,
+		         region_id, billing_currency, pricing_unit, fingerprint
+		ON CONFLICT (source_key, config_id, period_start, period_end, fingerprint)
+		DO UPDATE SET billed_cost      = config_cost_compact.billed_cost + excluded.billed_cost,
+		              effective_cost   = config_cost_compact.effective_cost + excluded.effective_cost,
+		              list_cost        = COALESCE(config_cost_compact.list_cost, 0) + COALESCE(excluded.list_cost, 0),
+		              contracted_cost  = COALESCE(config_cost_compact.contracted_cost, 0) + COALESCE(excluded.contracted_cost, 0),
+		              pricing_quantity = COALESCE(config_cost_compact.pricing_quantity, 0) + COALESCE(excluded.pricing_quantity, 0),
+		              updated_at       = now()`, seconds)
+
+	if err := tx.Exec(insert, models.ConfigCostLevel3, models.ConfigCostLevel2, threshold.Seconds()).Error; err != nil {
 		tx.Rollback()
-		return 0, nil, fmt.Errorf("failed to lock config costs for reconciliation: %w", err)
+		return 0, fmt.Errorf("failed to roll level-2 costs into level 3: %w", err)
 	}
 
-	candidateSQL := `
-		SELECT c.id AS orphan_id, ci.id AS config_id
-		FROM config_costs c
-		JOIN config_items ci
-		  ON c.external_id = ANY(ci.external_id) AND ci.deleted_at IS NULL
-		 AND (c.external_config_type IS NULL OR ci.type = c.external_config_type)
-		 AND (c.external_config_scraper_id IS NULL OR c.external_config_scraper_id = 'all'
-		      OR c.external_config_type IN ('AWS::Region', 'AWS::AvailabilityZone', 'GitHub::Organization')
-		      OR ci.scraper_id::text = c.external_config_scraper_id)
-		 AND (c.external_config_labels IS NULL OR c.external_config_labels = '{}'::jsonb OR ci.labels @> c.external_config_labels)
-		WHERE c.config_id IS NULL
-		ORDER BY c.id, ci.id`
-
-	type candidate struct {
-		OrphanID uuid.UUID `gorm:"column:orphan_id"`
-		ConfigID uuid.UUID `gorm:"column:config_id"`
-	}
-	var raw []candidate
-	if err := tx.Raw(candidateSQL).Scan(&raw).Error; err != nil {
+	del := tx.Exec(`DELETE FROM config_cost_compact WHERE grain = ? AND period_end < now() - make_interval(secs => ?)`,
+		models.ConfigCostLevel2, threshold.Seconds())
+	if del.Error != nil {
 		tx.Rollback()
-		return 0, nil, fmt.Errorf("failed to inspect unmatched costs: %w", err)
-	}
-
-	matches := make(map[uuid.UUID][]uuid.UUID)
-	for _, row := range raw {
-		matches[row.OrphanID] = append(matches[row.OrphanID], row.ConfigID)
-	}
-	ambiguous := make([]ambiguousConfigCost, 0)
-	for orphanID, ids := range matches {
-		if len(ids) > 1 {
-			ambiguous = append(ambiguous, ambiguousConfigCost{OrphanID: orphanID, ConfigIDs: ids})
-			delete(matches, orphanID)
-		}
-	}
-	sort.Slice(ambiguous, func(i, j int) bool { return ambiguous[i].OrphanID.String() < ambiguous[j].OrphanID.String() })
-
-	type costVersion struct {
-		ID        uuid.UUID `gorm:"column:id"`
-		UpdatedAt time.Time `gorm:"column:updated_at"`
-	}
-	changed := 0
-	for orphanID, ids := range matches {
-		configID := ids[0]
-		var orphan costVersion
-		if err := tx.Table("config_costs").Select("id, updated_at").Where("id = ?", orphanID).First(&orphan).Error; err != nil {
-			tx.Rollback()
-			return 0, nil, fmt.Errorf("failed to load unmatched cost %s: %w", orphanID, err)
-		}
-
-		var target costVersion
-		targetQuery := tx.Raw(`
-			SELECT t.id, t.updated_at
-			FROM config_costs o
-			JOIN config_costs t
-			  ON t.config_id = ? AND t.source_key = o.source_key
-			 AND t.period_start = o.period_start AND t.period_end = o.period_end
-			 AND t.fingerprint = o.fingerprint
-			WHERE o.id = ?
-			ORDER BY t.updated_at DESC, t.id DESC
-			LIMIT 1`, configID, orphanID).Scan(&target)
-		if targetQuery.Error != nil {
-			tx.Rollback()
-			return 0, nil, fmt.Errorf("failed to inspect matched duplicate for %s: %w", orphanID, targetQuery.Error)
-		}
-
-		if target.ID == uuid.Nil {
-			if err := tx.Model(&models.ConfigCost{}).Where("id = ?", orphanID).
-				UpdateColumn("config_id", configID).Error; err != nil {
-				tx.Rollback()
-				return 0, nil, fmt.Errorf("failed to attach unmatched cost %s: %w", orphanID, err)
-			}
-			changed++
-			continue
-		}
-
-		orphanWins := orphan.UpdatedAt.After(target.UpdatedAt) || (orphan.UpdatedAt.Equal(target.UpdatedAt) && orphan.ID.String() > target.ID.String())
-		if orphanWins {
-			// Delete the conflicting target before attaching the winning orphan so the unique
-			// key is never transiently duplicated.
-			if err := tx.Delete(&models.ConfigCost{}, "id = ?", target.ID).Error; err != nil {
-				tx.Rollback()
-				return 0, nil, fmt.Errorf("failed to delete older matched cost %s: %w", target.ID, err)
-			}
-			if err := tx.Model(&models.ConfigCost{}).Where("id = ?", orphanID).
-				UpdateColumn("config_id", configID).Error; err != nil {
-				tx.Rollback()
-				return 0, nil, fmt.Errorf("failed to attach winning unmatched cost %s: %w", orphanID, err)
-			}
-		} else if err := tx.Delete(&models.ConfigCost{}, "id = ?", orphanID).Error; err != nil {
-			tx.Rollback()
-			return 0, nil, fmt.Errorf("failed to delete older unmatched cost %s: %w", orphanID, err)
-		}
-		changed++
+		return 0, fmt.Errorf("failed to drop rolled level-2 costs: %w", del.Error)
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return 0, nil, err
+		return 0, err
 	}
-	return changed, ambiguous, nil
+	return int(del.RowsAffected), nil
 }
 
-func expireConfigCosts(ctx job.JobRuntime) (int, error) {
-	retention := properties.String("400d", "config.costs.retention")
-	parsed, err := duration.ParseDuration(retention)
+// expireCosts drops history past the retention window. config_costs defaults to 90 days as
+// a raw audit trail; config_cost_compact defaults to a year so a year-on-year comparison
+// still has last year to compare against.
+func expireCosts(ctx job.JobRuntime, table, property, fallback string) (int, error) {
+	retention, err := thresholdOf(property, fallback)
 	if err != nil {
-		return 0, fmt.Errorf("invalid config.costs.retention: %w", err)
+		return 0, err
 	}
-	result := ctx.DB().Exec(`DELETE FROM config_costs WHERE period_end < now() - make_interval(secs => ?)`, time.Duration(parsed).Seconds())
+	result := ctx.DB().Exec(
+		fmt.Sprintf(`DELETE FROM %s WHERE period_end < now() - make_interval(secs => ?)`, table),
+		retention.Seconds())
 	if result.Error != nil {
-		return 0, fmt.Errorf("failed to expire config costs: %w", result.Error)
+		return 0, fmt.Errorf("failed to expire %s: %w", table, result.Error)
 	}
 	return int(result.RowsAffected), nil
+}
+
+func thresholdOf(property, fallback string) (time.Duration, error) {
+	raw := properties.String(fallback, property)
+	parsed, err := duration.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s %q: %w", property, raw, err)
+	}
+	return time.Duration(parsed), nil
 }

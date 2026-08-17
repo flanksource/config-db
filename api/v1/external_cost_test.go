@@ -190,33 +190,32 @@ var _ = Describe("ExternalCost.Fingerprint", func() {
 		Expect(a.Fingerprint()).To(Equal(b.Fingerprint()))
 	})
 
-	It("scopes unmatched identity unless source_record_id is stable", func() {
+	It("scopes unmatched identity by its external selector", func() {
 		a, b := base, base
 		a.ConfigExternalID = ExternalID{ConfigType: "TypeA", ScraperID: "all", Labels: map[string]string{"env": "prod"}}
 		b.ConfigExternalID = ExternalID{ConfigType: "TypeB", ScraperID: "all", Labels: map[string]string{"env": "prod"}}
 		Expect(a.Fingerprint()).ToNot(Equal(b.Fingerprint()))
-		record := "line-1"
-		a.SourceRecordID, b.SourceRecordID = &record, &record
-		Expect(a.Fingerprint()).To(Equal(b.Fingerprint()))
 	})
 
-	It("uses stable source records and ignores Focus changes", func() {
+	It("ignores Focus entirely", func() {
+		// Focus is a lossless passthrough, not identity: a provider adding a column must
+		// not turn one billable observation into two.
 		a, b := base, base
-		record := "line-1"
-		a.SourceRecordID = &record
-		Expect(a.Fingerprint()).ToNot(Equal(b.Fingerprint()))
-		b.SourceRecordID = &record
-		b.ServiceName = "corrected-service"
-		b.ResourceID = "corrected-resource"
-		b.Focus = map[string]any{"Tags": map[string]any{"env": "corrected"}}
-		Expect(a.Fingerprint()).To(Equal(b.Fingerprint()))
-
-		a.SourceRecordID, b.SourceRecordID = nil, nil
-		b.ServiceName = a.ServiceName
-		b.ResourceID = a.ResourceID
 		a.Focus = map[string]any{"Tags": map[string]any{"env": "prod", "team": "platform"}}
 		b.Focus = map[string]any{"Tags": map[string]any{"team": "platform", "env": "dev"}, "NewColumn": true}
 		Expect(a.Fingerprint()).To(Equal(b.Fingerprint()))
+	})
+
+	It("keeps the account identifiers in identity even though they are stored in focus", func() {
+		// Demoting them out of their own columns must not demote them out of the merge
+		// key, or two sub-accounts sharing a resource id would collapse into one row.
+		a, b := base, base
+		a.SubAccountID, b.SubAccountID = "111122223333", "444455556666"
+		Expect(a.Fingerprint()).ToNot(Equal(b.Fingerprint()))
+
+		a, b = base, base
+		a.BillingAccountID, b.BillingAccountID = "payer-a", "payer-b"
+		Expect(a.Fingerprint()).ToNot(Equal(b.Fingerprint()))
 	})
 
 	It("separates corrections from the original charge", func() {
