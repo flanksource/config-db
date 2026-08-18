@@ -2367,6 +2367,8 @@ spec:
                           type: string
                         endpoint:
                           type: string
+                        format:
+                          type: string
                         path:
                           type: string
                         region:
@@ -2419,6 +2421,8 @@ spec:
                         skipTLSVerify:
                           description: Skip TLS verify when connecting to aws
                           type: boolean
+                        structure:
+                          type: string
                       type: object
                     azureBlobStorage:
                       properties:
@@ -5898,13 +5902,25 @@ spec:
               github:
                 items:
                   description: |-
-                    GitHub scraper creates GitHub::Repository config items and optionally
-                    attaches security alerts and OpenSSF scorecard results as analyses.
+                    GitHub scraper creates GitHub::Repository config items, optionally collects
+                    commits as changes, and attaches security alerts and OpenSSF scorecard results as analyses.
                   properties:
                     class:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.
                       type: string
+                    commits:
+                      description: Commits configures commit metadata collection from
+                        each repository's default branch
+                      properties:
+                        enabled:
+                          description: Enabled enables commit collection.
+                          type: boolean
+                        maxAge:
+                          description: MaxAge limits commits to this age. Defaults
+                            to 30d.
+                          type: string
+                      type: object
                     connection:
                       description: ConnectionName, if provided, will be used to populate
                         personalAccessToken

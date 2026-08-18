@@ -65,6 +65,12 @@ func (ctx ScrapeContext) WithTempCache(cache *TempCache) ScrapeContext {
 var ScraperTempCache = sync.Map{}
 
 func (ctx ScrapeContext) InitTempCache() (ScrapeContext, error) {
+	// Standalone runs have no database, but still need an in-memory cache for
+	// resources discovered and referenced during the current scrape.
+	if ctx.DB() == nil {
+		return ctx.WithTempCache(NewTempCache()), nil
+	}
+
 	if ctx.ScrapeConfig().GetPersistedID() == nil {
 		cache, err := QueryCache(ctx.Context, "", "scraper_id IS NULL")
 		if err != nil {

@@ -38,6 +38,16 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	organizations := make(map[string]struct{})
 
 	for _, config := range ctx.ScrapeConfig().Spec.GitHub {
+		var commitsSince time.Time
+		if config.Commits != nil && config.Commits.Enabled {
+			maxAge, err := resolveCommitMaxAge(config.Commits.MaxAge)
+			if err != nil {
+				results.Errorf(err, "invalid GitHub commits configuration")
+				continue
+			}
+			commitsSince = time.Now().Add(-maxAge)
+		}
+
 		repositories, rateLimited := resolveRepositoryConfigs(ctx, config, &results)
 		if rateLimited {
 			return results
@@ -102,6 +112,14 @@ func (gh GithubScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			}
 
 			result := buildRepositoryResult(repo, repoConfig, config.BaseScraper, alerts, scorecard)
+			if config.Commits != nil && config.Commits.Enabled {
+				commitChanges, err := scrapeRepositoryCommits(ctx, client, externalConfigID, commitsSince)
+				if err != nil {
+					results.Errorf(err, "failed to scrape commits for %s", repoFullName)
+				} else {
+					result.Changes = commitChanges
+				}
+			}
 			if config.Permissions != nil && config.Permissions.Enabled {
 				access, err := fetchRepositoryAccess(ctx, repositoryAccessFetchOptions{
 					Client:     client,

@@ -100,11 +100,11 @@ endef
 gotest: ginkgo
 	$(validate-envtest-assets) \
 	KUBEBUILDER_ASSETS="$$ASSETS" \
-		ginkgo -r -v --skip-package=tests/e2e  ./...
+		ginkgo -r -v --skip-package=tests/e2e,tests/clickhouse_e2e ./...
 
 .PHONY: test-fast
 test-fast: ginkgo
-		ginkgo --tags slim --nodes=4   --label-filter "!slow" -r -v --skip-package=tests/e2e  ./...
+		ginkgo --tags slim --nodes=4 --label-filter "!slow" -r -v --skip-package=tests/e2e,tests/clickhouse_e2e ./...
 
 .PHONY: bench
 bench:
@@ -127,7 +127,7 @@ gotest-load:
 env: envtest ## Run tests.
 	$(validate-envtest-assets) \
 	KUBEBUILDER_ASSETS="$$ASSETS" \
-		ginkgo -r -v --skip-package=tests/e2e -coverprofile cover.out
+		ginkgo -r -v --skip-package=tests/e2e,tests/clickhouse_e2e -coverprofile cover.out
 
 .PHONY: ginkgo
 ginkgo:

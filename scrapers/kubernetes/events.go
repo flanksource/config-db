@@ -90,7 +90,7 @@ func getChangeFromEvent(event v1.KubernetesEvent, severityKeywords v1.SeverityKe
 		Details:          getDetailsFromEvent(event),
 		ExternalChangeID: event.GetUID(),
 		ExternalID:       string(event.InvolvedObject.UID),
-		ConfigType:       ConfigTypePrefix + event.InvolvedObject.Kind,
+		ConfigType:       getConfigType(event.InvolvedObject.APIVersion, event.InvolvedObject.Kind),
 		Severity:         severity,
 		Source:           getSourceFromEvent(event),
 		Summary:          event.Message,
