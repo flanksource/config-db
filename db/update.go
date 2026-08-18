@@ -568,6 +568,58 @@ func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 	return nil
 }
 
+const configLocationDiagnosticLimit = 50
+
+func saveConfigLocations(ctx api.ScrapeContext, locations []dutyModels.ConfigLocation) error {
+	if len(locations) == 0 {
+		return nil
+	}
+
+	uniqueLocations := lo.Uniq(locations)
+	err := ctx.DB().Transaction(func(tx *gorm.DB) error {
+		return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}, {Name: "location"}}, DoNothing: true}).
+			CreateInBatches(&uniqueLocations, 200).Error
+	})
+	if err == nil {
+		return nil
+	}
+
+	detailedErr := dutydb.ErrorDetails(err)
+	if !dutydb.IsForeignKeyError(err) {
+		return detailedErr
+	}
+
+	configIDs := lo.Uniq(lo.Map(uniqueLocations, func(location dutyModels.ConfigLocation, _ int) uuid.UUID {
+		return location.ID
+	}))
+	var existingIDs []uuid.UUID
+	if queryErr := ctx.DB().Table("config_items").Where("id IN ?", configIDs).Pluck("id", &existingIDs).Error; queryErr != nil {
+		return fmt.Errorf("%w; failed to diagnose config location foreign key violation: %v", detailedErr, queryErr)
+	}
+
+	existing := lo.SliceToMap(existingIDs, func(id uuid.UUID) (uuid.UUID, struct{}) {
+		return id, struct{}{}
+	})
+	missing := lo.Filter(uniqueLocations, func(location dutyModels.ConfigLocation, _ int) bool {
+		_, found := existing[location.ID]
+		return !found
+	})
+	if len(missing) == 0 {
+		return detailedErr
+	}
+
+	displayed := missing
+	if len(displayed) > configLocationDiagnosticLimit {
+		displayed = displayed[:configLocationDiagnosticLimit]
+	}
+	rows, marshalErr := json.Marshal(displayed)
+	if marshalErr != nil {
+		return fmt.Errorf("%w; %d config location row(s) reference missing config_items; failed to marshal offending rows: %v", detailedErr, len(missing), marshalErr)
+	}
+
+	return fmt.Errorf("%w; %d config location row(s) reference missing config_items; offending_rows=%s; displayed=%d", detailedErr, len(missing), rows, len(displayed))
+}
+
 func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSummary, error) {
 	var summary = v1.NewScrapeSummary()
 
@@ -603,12 +655,8 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		ctx.TempCache().Insert(*config)
 	}
 
-	if len(extractResult.locations) > 0 {
-		uniqueLocations := lo.Uniq(extractResult.locations)
-		if err := ctx.DB().Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}, {Name: "location"}}, DoNothing: true}).
-			CreateInBatches(&uniqueLocations, 200).Error; err != nil {
-			return summary, ctx.Oops().Wrapf(err, "failed to save config locations")
-		}
+	if err := saveConfigLocations(ctx, extractResult.locations); err != nil {
+		return summary, ctx.Oops().Wrapf(err, "failed to save config locations")
 	}
 
 	entityResult, synced, err := syncExternalEntities(ctx, extractResult, scraperID)
@@ -1726,26 +1774,29 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 				return nil, fmt.Errorf("config item %s has no external id", ci)
 			}
 
-			for _, extID := range ci.ExternalID {
-				parentTypeToConfigMap[configExternalKey{externalID: extID, parentType: ci.Type}] = ci.ID
+			existing, err := ctx.TempCache().Get(ctx, ci.ID)
+			if err != nil {
+				return nil, fmt.Errorf("unable to lookup existing config(%s): %w", ci, err)
 			}
 
-			existing := &models.ConfigItem{}
-			if ci.ID != "" {
-				if existing, err = ctx.TempCache().Get(ctx, ci.ID); err != nil {
-					return nil, fmt.Errorf("unable to lookup existing config(%s): %w", ci, err)
-				}
-			} else {
-				// We don't have a UUID for the config yet, so we need to look it up by external ID.
+			// The primary external ID can change while a stable alias continues to
+			// identify the same config. NewConfigItemFromResult always generates an
+			// ID, so an alias lookup must still be attempted after an exact-ID miss.
+			if existing == nil || existing.ID == "" {
 				for _, extID := range ci.ExternalID {
 					ext := v1.ExternalID{ConfigType: ci.Type, ExternalID: extID}
 					if c, err := ctx.TempCache().Find(ctx, ext); err != nil {
 						return nil, fmt.Errorf("unable to lookup external id(%s): %w", ext, err)
 					} else if c != nil && c.ID != "" {
 						existing = c
+						ci.ID = c.ID
 						break
 					}
 				}
+			}
+
+			for _, extID := range ci.ExternalID {
+				parentTypeToConfigMap[configExternalKey{externalID: extID, parentType: ci.Type}] = ci.ID
 			}
 
 			allConfigs = append(allConfigs, ci)
@@ -1765,23 +1816,34 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 				}
 			}
 
-			for _, l := range result.Locations {
-				extractResult.locations = append(extractResult.locations, dutyModels.ConfigLocation{
-					ID:       uuid.MustParse(ci.ID),
-					Location: l,
+			if result.Config == nil && (existing == nil || existing.ID == "") && len(result.Locations) > 0 {
+				extractResult.warnings = append(extractResult.warnings, v1.Warning{
+					Error:  fmt.Sprintf("skipping locations for unknown config type=%s external_id=%s", result.Type, result.ID),
+					Result: result,
 				})
-			}
-
-			cacheItem := *ci
-			if cacheItem.CreatedAt.IsZero() {
-				if existing != nil && existing.ID != "" && !existing.CreatedAt.IsZero() {
-					cacheItem.CreatedAt = existing.CreatedAt
-				} else {
-					cacheItem.CreatedAt = time.Now().UTC()
+			} else {
+				for _, l := range result.Locations {
+					extractResult.locations = append(extractResult.locations, dutyModels.ConfigLocation{
+						ID:       uuid.MustParse(ci.ID),
+						Location: l,
+					})
 				}
 			}
 
-			ctx.TempCache().Insert(cacheItem)
+			// Metadata-only results for unknown configs are not persisted, so caching
+			// them would create phantom config IDs that later rows could reference.
+			if result.Config != nil {
+				cacheItem := *ci
+				if cacheItem.CreatedAt.IsZero() {
+					if existing != nil && existing.ID != "" && !existing.CreatedAt.IsZero() {
+						cacheItem.CreatedAt = existing.CreatedAt
+					} else {
+						cacheItem.CreatedAt = time.Now().UTC()
+					}
+				}
+
+				ctx.TempCache().Insert(cacheItem)
+			}
 		}
 
 		if chResult, err := extractChanges(ctx, result, ci); err != nil {
