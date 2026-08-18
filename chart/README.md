@@ -10,7 +10,7 @@ A Helm chart for config-db
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for pod scheduling |
 | clickhouse.enabled | bool | `false` | Enable ClickHouse for analytics |
-| clickhouse.image.name | string | `"clickhouse/clickhouse-server"` | ClickHouse image name |
+| clickhouse.image.name | string | `"flanksource/clickhouse-server"` | ClickHouse image name |
 | clickhouse.image.tag | string | `"25.4"` | ClickHouse image tag |
 | clickhouse.properties | object | `{"keep_alive_timeout":"300","mark_cache_size":"67108864","max_concurrent_queries":"10","max_connections":"4","uncompressed_cache_size":"134217728"}` | ClickHouse server properties |
 | clickhouse.resources.limits.cpu | string | `"1"` |  |

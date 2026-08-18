@@ -269,7 +269,7 @@ clickhouse:
     # required: false
     # @schema
     # -- ClickHouse image name
-    name: clickhouse/clickhouse-server
+    name: flanksource/clickhouse-server
     # @schema
     # required: false
     # @schema

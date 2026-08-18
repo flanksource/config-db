@@ -17,7 +17,7 @@
         "image": {
           "properties": {
             "name": {
-              "default": "clickhouse/clickhouse-server",
+              "default": "flanksource/clickhouse-server",
               "description": "ClickHouse image name",
               "required": [],
               "title": "name"
