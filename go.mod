@@ -8,7 +8,7 @@ require (
 	github.com/flanksource/commons v1.56.0
 	github.com/flanksource/deps v1.0.36
 	github.com/flanksource/duty v1.0.1363
-	github.com/flanksource/gomplate/v3 v3.24.88
+	github.com/flanksource/gomplate/v3 v3.24.89
 	github.com/flanksource/is-healthy v1.0.90
 	github.com/flanksource/ketall v1.1.12
 	github.com/flanksource/kopper v1.0.31
@@ -65,7 +65,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
-	github.com/google/cel-go v0.28.1
+	github.com/google/cel-go v0.31.0
 	github.com/google/go-github/v73 v73.0.0
 	github.com/google/uuid v1.6.0
 	github.com/grafana/pyroscope-go v1.3.1
