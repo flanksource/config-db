@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/flanksource/duty/connection"
+	"github.com/flanksource/duty/types"
 )
 
 type Clickhouse struct {
@@ -13,8 +14,12 @@ type Clickhouse struct {
 	AWSS3            *AWSS3            `json:"awsS3,omitempty"`
 	AzureBlobStorage *AzureBlobStorage `json:"azureBlobStorage,omitempty"`
 
+	// URL is the ClickHouse connection URL:
 	// clickhouse://<user>:<password>@<host>:<port>/<database>?param1=value1&param2=value2
-	ClickhouseURL string `json:"clickhouseURL,omitempty"`
+	URL types.EnvVar `yaml:"url,omitempty" json:"url,omitempty"`
+
+	// Deprecated: Use the url field instead.
+	ClickhouseURL string `yaml:"clickhouseURL,omitempty" json:"clickhouseURL,omitempty"`
 	Query         string `json:"query"`
 }
 

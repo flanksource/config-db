@@ -35,7 +35,11 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	ctx.Logger.Debugf("scraping %d clickhouse config(s)", len(configs))
 
 	for i, config := range configs {
-		clickhouseURL := lo.CoalesceOrEmpty(config.ClickhouseURL, ClickhouseURL)
+		clickhouseURL, err := resolveClickhouseURL(ctx, config)
+		if err != nil {
+			results.Errorf(err, "failed to resolve clickhouse URL")
+			continue
+		}
 		db, err := sql.Open("clickhouse", clickhouseURL)
 		if err != nil {
 			results.Errorf(err, "failed to open clickhouse connection")
@@ -89,6 +93,16 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 	}
 	return results
+}
+
+// resolveClickhouseURL preserves the legacy configuration and process-level
+// fallbacks while preferring the secret-aware url field.
+func resolveClickhouseURL(ctx api.ScrapeContext, config v1.Clickhouse) (string, error) {
+	value, err := ctx.GetEnvValueFromCache(config.URL, ctx.Namespace())
+	if err != nil {
+		return "", err
+	}
+	return lo.CoalesceOrEmpty(value, config.ClickhouseURL, ClickhouseURL), nil
 }
 
 type NamedCollection struct {
