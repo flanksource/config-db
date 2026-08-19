@@ -345,7 +345,11 @@ func findConfigMatches(db *gorm.DB, lookup v1.ExternalID, defaultScraperID *uuid
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		q = q.Where("labels ->> ? = ?", k, lookup.Labels[k])
+		// Scoping dimensions reach config_items through either map: the cloud scrapers
+		// write the owning account to tags, kubernetes writes its own to labels. Tags win
+		// where both carry the key, so a scraper-set scope is never overridden by a label
+		// the resource itself happens to carry.
+		q = q.Where("COALESCE(tags ->> ?, labels ->> ?) = ?", k, k, lookup.Labels[k])
 	}
 	var ids []uuid.UUID
 	if err := q.Order("id ASC").Limit(3).Pluck("id", &ids).Error; err != nil {
