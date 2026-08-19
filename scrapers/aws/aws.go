@@ -2411,6 +2411,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			aws.loadBalancers(awsCtx, awsConfig, results)
 			aws.availabilityZones(awsCtx, awsConfig, results)
 			aws.containerImages(awsCtx, awsConfig, results)
+			aws.cloudtrailTrails(awsCtx, awsConfig, results)
 			aws.cloudtrail(awsCtx, awsConfig, results)
 			aws.awsBackups(awsCtx, awsConfig, results)
 			// We are querying half a million amis, need to optimize for this
@@ -2549,6 +2550,8 @@ func getConsoleLink(region, resourceType, resourceID string, opt map[string]stri
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?region=%s#RouteTableDetails:RouteTableId=%s", region, region, resourceID)
 	case v1.AWSS3Bucket:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/s3/buckets/%s", region, resourceID)
+	case v1.AWSCloudTrailTrail:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/cloudtrail/home?region=%s#/trails/%s", region, region, resourceID)
 	case v1.AWSEC2Subnet:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?region=%s#SubnetDetails:subnetId=%s", region, region, resourceID)
 	case v1.AWSLambdaFunction:
