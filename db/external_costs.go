@@ -64,9 +64,24 @@ func ResolveCostLevels() (CostLevels, error) {
 		*l.into = time.Duration(parsed)
 	}
 
+	// Widths cross into SQL as a whole number of seconds (cost_bucket takes a bigint), and
+	// bucketFor computes period_end from the untruncated duration. A sub-second width
+	// therefore truncates to zero and divides by zero in SQL, and a fractional-second one
+	// makes the bucket start and end disagree so the buckets stop tiling. Reject both here
+	// rather than let either reach the database.
+	for _, l := range []struct {
+		name  string
+		width time.Duration
+	}{{"level1", levels.L1}, {"level2", levels.L2}, {"level3", levels.L3}} {
+		if l.width < time.Second {
+			return levels, fmt.Errorf("cost %s width must be at least 1s (got %s)", l.name, l.width)
+		}
+		if l.width%time.Second != 0 {
+			return levels, fmt.Errorf("cost %s width must be a whole number of seconds (got %s)", l.name, l.width)
+		}
+	}
+
 	switch {
-	case levels.L1 <= 0 || levels.L2 <= 0 || levels.L3 <= 0:
-		return levels, fmt.Errorf("cost level widths must be positive (got %s, %s, %s)", levels.L1, levels.L2, levels.L3)
 	case levels.L2%levels.L1 != 0:
 		return levels, fmt.Errorf("cost level2 (%s) must be a whole multiple of level1 (%s)", levels.L2, levels.L1)
 	case levels.L3%levels.L2 != 0:
