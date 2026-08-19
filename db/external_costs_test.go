@@ -99,6 +99,20 @@ var _ = Describe("ResolveCostLevels", func() {
 		Expect(err).To(MatchError(ContainSubstring("whole multiple")))
 	})
 
+	It("rejects a width that cannot cross into SQL intact", func() {
+		// cost_bucket takes a bigint of seconds, so a sub-second width truncates to zero
+		// and divides by zero in Postgres.
+		properties.Set(PropCostLevel1, "500ms")
+		_, err := ResolveCostLevels()
+		Expect(err).To(MatchError(ContainSubstring("at least 1s")))
+
+		// A fractional-second width truncates for the bucket start but not for
+		// period_end, so the buckets would stop tiling.
+		properties.Set(PropCostLevel1, "90s500ms")
+		_, err = ResolveCostLevels()
+		Expect(err).To(MatchError(ContainSubstring("whole number of seconds")))
+	})
+
 	It("rejects an unparseable width", func() {
 		properties.Set(PropCostLevel1, "not-a-duration")
 		_, err := ResolveCostLevels()

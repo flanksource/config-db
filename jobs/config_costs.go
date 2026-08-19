@@ -65,27 +65,53 @@ var CompactConfigCosts = &job.Job{
 			return err
 		}
 
-		// Raw rows younger than the threshold are summarised at level 1, older ones at
-		// level 2. Both read from config_costs, which keeps its rows, so both must
-		// REPLACE the bucket rather than add to it.
+		// A raw row is compacted at the coarser of its own level and the level its age
+		// implies. Age alone is not enough: a month-long charge is level 3 the moment it
+		// is scraped, and forcing it into a level-1 bucket would report a month of spend
+		// as if it happened in one hour.
+		//
+		// Both passes read from config_costs, which keeps its rows, so both REPLACE the
+		// bucket rather than add to it.
 		levelUp, err := thresholdOf(propCompactDayAfter, defaultCompactDayAfter)
 		if err != nil {
 			return err
 		}
+		young := fmt.Sprintf("period_end >= now() - make_interval(secs => %f)", levelUp.Seconds())
+		aged := fmt.Sprintf("period_end < now() - make_interval(secs => %f)", levelUp.Seconds())
 
 		fine, err := compactFromRaw(ctx, models.ConfigCostLevel1, levels.L1,
-			fmt.Sprintf("period_end >= now() - make_interval(secs => %f)", levelUp.Seconds()))
+			fmt.Sprintf("grain = '%s' AND %s", models.ConfigCostLevel1, young))
 		if err != nil {
 			return err
 		}
 		ctx.History.SuccessCount += fine
 
 		coarse, err := compactFromRaw(ctx, models.ConfigCostLevel2, levels.L2,
-			fmt.Sprintf("period_end < now() - make_interval(secs => %f)", levelUp.Seconds()))
+			fmt.Sprintf("(grain = '%s' AND %s) OR grain = '%s'",
+				models.ConfigCostLevel1, aged, models.ConfigCostLevel2))
 		if err != nil {
 			return err
 		}
 		ctx.History.SuccessCount += coarse
+
+		// Long charge periods never pass through the finer levels at all.
+		native, err := compactFromRaw(ctx, models.ConfigCostLevel3, levels.L3,
+			fmt.Sprintf("grain = '%s'", models.ConfigCostLevel3))
+		if err != nil {
+			return err
+		}
+		ctx.History.SuccessCount += native
+
+		// A level-1 row that has aged past the threshold has just been rewritten at level
+		// 2. Without this the finer copy survives alongside the coarser one and the same
+		// money is counted twice.
+		superseded := ctx.DB().Exec(
+			fmt.Sprintf(`DELETE FROM config_cost_compact WHERE grain = ? AND %s`, aged),
+			models.ConfigCostLevel1)
+		if superseded.Error != nil {
+			return fmt.Errorf("failed to drop superseded level-1 costs: %w", superseded.Error)
+		}
+		ctx.History.SuccessCount += int(superseded.RowsAffected)
 
 		rolled, err := rollToCoarsestLevel(ctx, levels)
 		if err != nil {

@@ -167,3 +167,78 @@ var _ = Describe("config cost compaction", func() {
 		Expect(remaining).To(BeZero())
 	})
 })
+
+var _ = Describe("compaction level routing", func() {
+	var configIDs []uuid.UUID
+
+	createConfig := func(externalID string) uuid.UUID {
+		id := uuid.New()
+		configIDs = append(configIDs, id)
+		Expect(DefaultContext.DB().Exec(`
+			INSERT INTO config_items (id, type, config_class, external_id, created_at, updated_at)
+			VALUES (?, 'Test::CostTarget', 'Test', ARRAY[?]::text[], now(), now())`, id, externalID).Error).To(Succeed())
+		return id
+	}
+
+	AfterEach(func() {
+		if len(configIDs) > 0 {
+			Expect(DefaultContext.DB().Exec("DELETE FROM config_items WHERE id IN ?", configIDs).Error).To(Succeed())
+		}
+		configIDs = nil
+	})
+
+	It("does not leave a stale finer row behind when raw ages past the threshold", func() {
+		configID := createConfig("routing-ageing")
+		// A raw row whose period has already aged past the level-2 threshold, plus the
+		// level-1 compact row an earlier pass would have written while it was still
+		// young. Periods never move in reality; time passes, so this is the real shape of
+		// the transition.
+		hour := time.Now().UTC().Truncate(time.Hour).AddDate(0, 0, -5)
+		Expect(DefaultContext.DB().Create(&models.ConfigCost{
+			ID: uuid.New(), ConfigID: configID, SourceKey: "test:ageing",
+			PeriodStart: hour, PeriodEnd: hour.Add(time.Hour),
+			Grain: models.ConfigCostLevel1, ChargeCategory: "Usage", BillingCurrency: "USD",
+			BilledCost: decimal.NewFromInt(6), EffectiveCost: decimal.NewFromInt(6),
+			Fingerprint: "ageing",
+		}).Error).To(Succeed())
+		Expect(DefaultContext.DB().Create(&models.ConfigCostCompact{ConfigCost: models.ConfigCost{
+			ID: uuid.New(), ConfigID: configID, SourceKey: "test:ageing",
+			PeriodStart: hour, PeriodEnd: hour.Add(time.Hour),
+			Grain: models.ConfigCostLevel1, ChargeCategory: "Usage", BillingCurrency: "USD",
+			BilledCost: decimal.NewFromInt(6), EffectiveCost: decimal.NewFromInt(6),
+			Fingerprint: "ageing",
+		}}).Error).To(Succeed())
+
+		Expect(CompactConfigCosts.Fn(job.New(DefaultContext))).To(Succeed())
+
+		// The money must appear exactly once, at level 2, not once per level.
+		var rows []models.ConfigCostCompact
+		Expect(DefaultContext.DB().Where("config_id = ?", configID).Find(&rows).Error).To(Succeed())
+		var total decimal.Decimal
+		for _, r := range rows {
+			total = total.Add(r.EffectiveCost)
+			Expect(r.Grain).To(Equal(models.ConfigCostLevel2))
+		}
+		Expect(total.String()).To(Equal("6"), "found %d compact rows", len(rows))
+	})
+
+	It("keeps a long charge period at its own level regardless of age", func() {
+		configID := createConfig("routing-long")
+		// A monthly charge scraped today: bucketFor labels it level3.
+		start := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -20)
+		Expect(DefaultContext.DB().Create(&models.ConfigCost{
+			ID: uuid.New(), ConfigID: configID, SourceKey: "test:long",
+			PeriodStart: start, PeriodEnd: start.AddDate(0, 0, 30),
+			Grain: models.ConfigCostLevel3, ChargeCategory: "Purchase", BillingCurrency: "USD",
+			BilledCost: decimal.NewFromInt(300), EffectiveCost: decimal.NewFromInt(300),
+			Fingerprint: "long-charge",
+		}).Error).To(Succeed())
+
+		Expect(CompactConfigCosts.Fn(job.New(DefaultContext))).To(Succeed())
+
+		var row models.ConfigCostCompact
+		Expect(DefaultContext.DB().Where("config_id = ?", configID).First(&row).Error).To(Succeed())
+		Expect(row.Grain).To(Equal(models.ConfigCostLevel3))
+		Expect(row.PeriodEnd.Sub(row.PeriodStart)).To(BeNumerically(">", 24*time.Hour))
+	})
+})
