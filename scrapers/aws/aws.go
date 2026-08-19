@@ -36,12 +36,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	r53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go-v2/service/support"
+	"github.com/aws/smithy-go"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/duty/models"
 	"github.com/flanksource/duty/types"
@@ -1706,33 +1708,86 @@ func (aws Scraper) s3Buckets(ctx *AWSContext, config v1.AWS, results *v1.ScrapeR
 
 	ctx.Logger.V(2).Infof("scraping S3 buckets")
 
-	S3 := s3.NewFromConfig(*ctx.Session, getEndpointResolver[s3.Options](config))
-	buckets, err := S3.ListBuckets(ctx, nil)
+	client := s3.NewFromConfig(*ctx.Session, getEndpointResolver[s3.Options](config))
+	paginator := s3.NewListBucketsPaginator(client, &s3.ListBucketsInput{MaxBuckets: lo.ToPtr(int32(10000))})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			results.Errorf(err, "failed to list s3 buckets")
+			return
+		}
+
+		for _, bucket := range page.Buckets {
+			bucketName := lo.FromPtr(bucket.Name)
+			if config.ShouldExclude(v1.AWSS3Bucket, bucketName, nil) {
+				continue
+			}
+
+			bucketClient := client
+			if bucketRegion := lo.FromPtr(bucket.BucketRegion); bucketRegion != "" && bucketRegion != ctx.Session.Region {
+				bucketSession := ctx.Session.Copy()
+				bucketSession.Region = bucketRegion
+				bucketClient = s3.NewFromConfig(bucketSession, getEndpointResolver[s3.Options](config))
+			}
+
+			var policy *string
+			policyOutput, err := bucketClient.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{Bucket: bucket.Name})
+			if err != nil {
+				if !isNoSuchBucketPolicy(err) {
+					results.Errorf(err, "failed to get policy for s3 bucket %s", bucketName)
+					continue
+				}
+			} else {
+				policy = policyOutput.Policy
+			}
+
+			bucketConfig, err := s3BucketConfig(bucket, policy)
+			if err != nil {
+				results.Errorf(err, "failed to build config for s3 bucket %s", bucketName)
+				continue
+			}
+
+			labels := make(map[string]string)
+			*results = append(*results, v1.ScrapeResult{
+				Type:        v1.AWSS3Bucket,
+				CreatedAt:   bucket.CreationDate,
+				BaseScraper: config.BaseScraper,
+				Config:      bucketConfig,
+				ConfigClass: "ObjectStorage",
+				Name:        bucketName,
+				Labels:      labels,
+				Ignore:      []string{"name", "creationDate"},
+				Aliases:     []string{"AmazonS3/" + bucketName, fmt.Sprintf("arn:aws:s3:::%s", bucketName)},
+				ID:          bucketName,
+				Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
+				Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSS3Bucket, bucketName, nil)},
+			})
+		}
+	}
+}
+
+func s3BucketConfig(bucket s3Types.Bucket, policy *string) (map[string]any, error) {
+	config, err := utils.ToJSONMap(bucket)
 	if err != nil {
-		results.Errorf(err, "failed to list s3 buckets")
-		return
+		return nil, err
+	}
+	if policy == nil {
+		return config, nil
 	}
 
-	for _, bucket := range buckets.Buckets {
-		if config.ShouldExclude(v1.AWSS3Bucket, lo.FromPtr(bucket.Name), nil) {
-			continue
-		}
-		labels := make(map[string]string)
-		*results = append(*results, v1.ScrapeResult{
-			Type:        v1.AWSS3Bucket,
-			CreatedAt:   bucket.CreationDate,
-			BaseScraper: config.BaseScraper,
-			Config:      bucket,
-			ConfigClass: "ObjectStorage",
-			Name:        *bucket.Name,
-			Labels:      labels,
-			Ignore:      []string{"name", "creationDate"},
-			Aliases:     []string{"AmazonS3/" + *bucket.Name, fmt.Sprintf("arn:aws:s3:::%s", *bucket.Name)},
-			ID:          *bucket.Name,
-			Parents:     []v1.ConfigExternalKey{{Type: v1.AWSAccount, ExternalID: lo.FromPtr(ctx.Caller.Account)}},
-			Properties:  []*types.Property{getConsoleLink(ctx.Session.Region, v1.AWSS3Bucket, lo.FromPtr(bucket.Name), nil)},
-		})
+	document, err := utils.ToJSONMap(*policy)
+	if err != nil {
+		return nil, err
 	}
+	config["Policy"] = document
+	return config, nil
+}
+
+// GetBucketPolicy reports an absent policy as a generic AWS API error rather
+// than a typed S3 error.
+func isNoSuchBucketPolicy(err error) bool {
+	var apiError smithy.APIError
+	return errors.As(err, &apiError) && apiError.ErrorCode() == "NoSuchBucketPolicy"
 }
 
 func (aws Scraper) dnsZones(ctx *AWSContext, config v1.AWS, results *v1.ScrapeResults) {
@@ -2411,6 +2466,7 @@ func (aws Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			aws.loadBalancers(awsCtx, awsConfig, results)
 			aws.availabilityZones(awsCtx, awsConfig, results)
 			aws.containerImages(awsCtx, awsConfig, results)
+			aws.cloudtrailTrails(awsCtx, awsConfig, results)
 			aws.cloudtrail(awsCtx, awsConfig, results)
 			aws.awsBackups(awsCtx, awsConfig, results)
 			// We are querying half a million amis, need to optimize for this
@@ -2549,6 +2605,8 @@ func getConsoleLink(region, resourceType, resourceID string, opt map[string]stri
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?region=%s#RouteTableDetails:RouteTableId=%s", region, region, resourceID)
 	case v1.AWSS3Bucket:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/s3/buckets/%s", region, resourceID)
+	case v1.AWSCloudTrailTrail:
+		url = fmt.Sprintf("https://%s.console.aws.amazon.com/cloudtrail/home?region=%s#/trails/%s", region, region, resourceID)
 	case v1.AWSEC2Subnet:
 		url = fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?region=%s#SubnetDetails:subnetId=%s", region, region, resourceID)
 	case v1.AWSLambdaFunction:
