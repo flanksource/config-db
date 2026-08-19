@@ -69,7 +69,9 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					continue
 				}
 			}
-			ctx.Logger.Debugf("[clickhouse/%d] running query\n%s", i, clicky.CodeBlock("sql", config.Query).ANSI())
+			ctx.Logger.Debugf("[clickhouse/%d] running query\n%s", i, lazyString(func() string {
+				return clicky.CodeBlock("sql", config.Query).ANSI()
+			}))
 			qr, err = cdbsql.QuerySQL(db, config.Query)
 		}
 		if closeErr := db.Close(); closeErr != nil {
@@ -91,6 +93,13 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 	}
 	return results
+}
+
+// lazyString defers log argument rendering until the logger emits the line.
+type lazyString func() string
+
+func (l lazyString) String() string {
+	return l()
 }
 
 // lazyFormat renders a whole result set only if the line is actually emitted.
@@ -204,7 +213,9 @@ func queryAWSS3TemporaryTable(ctx api.ScrapeContext, config v1.Clickhouse, db *s
 		return nil, err
 	}
 
-	ctx.Logger.Debugf("running query against %s\n%s", awsS3TemporaryTableName, clicky.CodeBlock("sql", config.Query).ANSI())
+	ctx.Logger.Debugf("running query against %s\n%s", awsS3TemporaryTableName, lazyString(func() string {
+		return clicky.CodeBlock("sql", config.Query).ANSI()
+	}))
 	return cdbsql.QuerySQLContext(ctx, conn, config.Query)
 }
 
@@ -255,7 +266,9 @@ func createAWSS3TemporaryTable(ctx api.ScrapeContext, conn *sql.Conn, s3Config *
 	// Re-render the statement with placeholder credentials rather than redacting
 	// the real one, so the logged SQL can never leak the keys.
 	if masked, maskErr := awss3TemporaryTableSQL(resolvedConfig, maskedCredentials(creds), resolvedRegion); maskErr == nil {
-		ctx.Logger.Tracef("%s", clicky.CodeBlock("sql", masked).ANSI())
+		ctx.Logger.Tracef("%s", lazyString(func() string {
+			return clicky.CodeBlock("sql", masked).ANSI()
+		}))
 	}
 
 	if _, err := conn.ExecContext(ctx, cmd); err != nil {

@@ -79,32 +79,46 @@ func scraperLoggerName(ctx api.ScrapeContext) string {
 	return fmt.Sprintf("%s/%s", ctx.ScrapeConfig().Namespace, ctx.ScrapeConfig().Name)
 }
 
-// applyRunLogLevel sets the log level for this scrape run: spec.logLevel when
-// the scraper asks for one, the server's level otherwise.
+func moreVerboseLogLevel(current, requested logger.LogLevel) logger.LogLevel {
+	if requested > current {
+		return requested
+	}
+	return current
+}
+
+// effectiveRunLogLevel keeps the process level as a verbosity floor while
+// allowing scraper annotations and spec.logLevel to request more detail.
+func effectiveRunLogLevel(processLevel logger.LogLevel, config *v1.ScrapeConfig) logger.LogLevel {
+	level := processLevel
+	if config.IsDebug() {
+		level = moreVerboseLogLevel(level, logger.Debug)
+	}
+	if config.IsTrace() {
+		level = moreVerboseLogLevel(level, logger.Trace)
+	}
+
+	// Silent is not supported by the scrape spec: commons currently maps it
+	// below trace, which would enable every log level instead of disabling them.
+	if specLevel, ok := config.Spec.ParsedLogLevel(); ok && specLevel != logger.Silent {
+		level = moreVerboseLogLevel(level, specLevel)
+	}
+	return level
+}
+
+// applyRunLogLevel sets the most verbose level requested by the process or
+// scraper configuration on the logger used for this run.
 //
 // Must be called after WithName, where ctx.Logger becomes the logger named
 // after this scraper. That logger is held in a process-wide registry, so its
 // level outlives the run -- which is why this sets it on every run rather than
 // only when the spec asks. Otherwise one run with logLevel: trace would leave
 // the scraper at trace forever.
-//
-// The fallback comes from the root logger rather than the current level, since
-// the current level may be what a previous run left behind.
-func applyRunLogLevel(ctx api.ScrapeContext) {
+func applyRunLogLevel(ctx api.ScrapeContext, processLevel logger.LogLevel) {
 	if ctx.Logger == nil || ctx.ScrapeConfig() == nil {
 		return
 	}
 
-	level := logger.GetLogger().GetLevel()
-
-	// Silent falls back to the server level: commons maps it through
-	// LogLevel.Slog()'s default branch, which lands below trace and would turn
-	// everything on instead of off.
-	if specLevel, ok := ctx.ScrapeConfig().Spec.ParsedLogLevel(); ok && specLevel != logger.Silent {
-		level = specLevel
-	}
-
-	ctx.Logger.SetLogLevel(level)
+	ctx.Logger.SetLogLevel(effectiveRunLogLevel(processLevel, ctx.ScrapeConfig()))
 }
 
 func ensureHARCollector(ctx api.ScrapeContext, opts RunScraperOptions) api.ScrapeContext {
@@ -128,13 +142,14 @@ func RunScraper(ctx api.ScrapeContext, opts ...RunScraperOption) (*ScrapeOutput,
 
 	runStart := time.Now()
 	ctx = ctx.WithValue(contextKeyScrapeStart, runStart)
+	processLogLevel := ctx.Logger.GetLevel()
 	ctx.Context = ctx.
 		WithName(scraperLoggerName(ctx)).
 		WithNamespace(ctx.ScrapeConfig().Namespace)
 
 	// Applied before the run logger and the HAR collector are set up so both
-	// pick up the level the spec asked for.
-	applyRunLogLevel(ctx)
+	// pick up the most verbose level requested by the process or scraper.
+	applyRunLogLevel(ctx, processLogLevel)
 
 	var runLogs *bytes.Buffer
 	if runOpts.CaptureLogs {

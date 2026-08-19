@@ -1,11 +1,34 @@
 package clickhouse
 
 import (
+	"io"
 	"testing"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/flanksource/commons/logger"
 	v1 "github.com/flanksource/config-db/api/v1"
 )
+
+func TestLazyString(t *testing.T) {
+	log := logger.NewWithWriter(io.Discard)
+	log.SetLogLevel(logger.Info)
+
+	called := false
+	value := lazyString(func() string {
+		called = true
+		return "formatted"
+	})
+	log.Debugf("%s", value)
+	if called {
+		t.Fatal("lazy string was rendered while debug logging was disabled")
+	}
+
+	log.SetLogLevel(logger.Debug)
+	log.Debugf("%s", value)
+	if !called {
+		t.Fatal("lazy string was not rendered while debug logging was enabled")
+	}
+}
 
 func TestNamedCollectionCommands(t *testing.T) {
 	commands, err := (NamedCollection{
