@@ -7,9 +7,11 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/flanksource/clicky"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	cdbsql "github.com/flanksource/config-db/scrapers/sql"
@@ -30,7 +32,10 @@ func (ClickhouseScraper) CanScrape(configs v1.ScraperSpec) bool {
 func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
-	for _, config := range ctx.ScrapeConfig().Spec.Clickhouse {
+	configs := ctx.ScrapeConfig().Spec.Clickhouse
+	ctx.Logger.Debugf("scraping %d clickhouse config(s)", len(configs))
+
+	for i, config := range configs {
 		clickhouseURL := lo.CoalesceOrEmpty(config.ClickhouseURL, ClickhouseURL)
 		db, err := sql.Open("clickhouse", clickhouseURL)
 		if err != nil {
@@ -49,6 +54,9 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			_ = db.Close()
 			continue
 		}
+		ctx.Logger.Tracef("[clickhouse/%d] connection established", i)
+
+		start := time.Now()
 
 		var qr *cdbsql.SQLDetails
 		if config.AWSS3 != nil {
@@ -61,6 +69,7 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					continue
 				}
 			}
+			ctx.Logger.Debugf("[clickhouse/%d] running query\n%s", i, clicky.CodeBlock("sql", config.Query).ANSI())
 			qr, err = cdbsql.QuerySQL(db, config.Query)
 		}
 		if closeErr := db.Close(); closeErr != nil {
@@ -71,6 +80,9 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			continue
 		}
 
+		ctx.Logger.Debugf("[clickhouse/%d] query returned %d row(s) in %s", i, qr.Count, time.Since(start))
+		ctx.Logger.Tracef("[clickhouse/%d] response: columns=%v\n%s", i, qr.Columns, lazyFormat{qr})
+
 		for _, row := range qr.Rows {
 			results = append(results, v1.ScrapeResult{
 				BaseScraper: config.BaseScraper,
@@ -79,6 +91,21 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 	}
 	return results
+}
+
+// lazyFormat renders a whole result set only if the line is actually emitted.
+// commons checks the level before it formats its arguments, so String() never
+// runs when trace logging is off -- which matters here because the value being
+// rendered is every scraped row.
+type lazyFormat struct{ value any }
+
+func (l lazyFormat) String() string {
+	formatted, err := clicky.Format(l.value)
+	if err != nil {
+		return fmt.Sprintf("<unformattable: %v>", err)
+	}
+
+	return formatted
 }
 
 type NamedCollection struct {
@@ -121,6 +148,9 @@ func (nc NamedCollection) Upsert(ctx api.ScrapeContext, conn *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	// The commands embed the storage connection string, so only the collection
+	// name is logged.
+	ctx.Logger.Debugf("upserting named collection %s with keys %v", nc.Name, lo.Keys(nc.Values))
 	for _, cmd := range commands {
 		if _, err := conn.ExecContext(ctx, cmd); err != nil {
 			return err
@@ -173,6 +203,8 @@ func queryAWSS3TemporaryTable(ctx api.ScrapeContext, config v1.Clickhouse, db *s
 	if err := createAWSS3TemporaryTable(ctx, conn, config.AWSS3); err != nil {
 		return nil, err
 	}
+
+	ctx.Logger.Debugf("running query against %s\n%s", awsS3TemporaryTableName, clicky.CodeBlock("sql", config.Query).ANSI())
 	return cdbsql.QuerySQLContext(ctx, conn, config.Query)
 }
 
@@ -210,16 +242,39 @@ func createAWSS3TemporaryTable(ctx api.ScrapeContext, conn *sql.Conn, s3Config *
 	if creds.AccessKeyID == "" || creds.SecretAccessKey == "" {
 		return fmt.Errorf("AWS credentials resolved without access key or secret key")
 	}
+	ctx.Logger.Debugf("resolved AWS credentials from %q (session token: %t)",
+		lo.CoalesceOrEmpty(creds.Source, "unknown"), creds.SessionToken != "")
 
 	resolvedConfig, resolvedRegion := resolveAWSS3Config(s3Config, awsConn.Endpoint, awsConn.Region, session.Region)
 	cmd, err := awss3TemporaryTableSQL(resolvedConfig, creds, resolvedRegion)
 	if err != nil {
 		return err
 	}
+
+	ctx.Logger.Debugf("creating temporary table %s from %s", awsS3TemporaryTableName, awsS3URL(resolvedConfig, resolvedRegion))
+	// Re-render the statement with placeholder credentials rather than redacting
+	// the real one, so the logged SQL can never leak the keys.
+	if masked, maskErr := awss3TemporaryTableSQL(resolvedConfig, maskedCredentials(creds), resolvedRegion); maskErr == nil {
+		ctx.Logger.Tracef("%s", clicky.CodeBlock("sql", masked).ANSI())
+	}
+
 	if _, err := conn.ExecContext(ctx, cmd); err != nil {
 		return fmt.Errorf("failed to create clickhouse S3 temporary table %q: %w", awsS3TemporaryTableName, err)
 	}
 	return nil
+}
+
+// maskedCredentials returns credentials whose secrets are replaced by
+// placeholders, for rendering a loggable version of an S3 table statement.
+func maskedCredentials(creds awssdk.Credentials) awssdk.Credentials {
+	masked := awssdk.Credentials{
+		AccessKeyID:     "<redacted>",
+		SecretAccessKey: "<redacted>",
+	}
+	if creds.SessionToken != "" {
+		masked.SessionToken = "<redacted>"
+	}
+	return masked
 }
 
 func awss3TemporaryTableSQL(s3Config *v1.AWSS3, creds awssdk.Credentials, region string) (string, error) {

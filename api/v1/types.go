@@ -9,6 +9,7 @@ import (
 	"github.com/flanksource/clicky"
 	"github.com/flanksource/clicky/api"
 	"github.com/flanksource/commons/duration"
+	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/utils"
 
 	"github.com/google/uuid"
@@ -221,12 +222,31 @@ func (c ScraperSpec) IsEmpty() bool {
 	return len(c.AWS) == 0 && len(c.File) == 0
 }
 
+// ParsedLogLevel returns the level requested by spec.logLevel and whether the
+// field was set at all. An unrecognised value parses as info.
+func (c ScraperSpec) ParsedLogLevel() (logger.LogLevel, bool) {
+	level := strings.TrimSpace(c.LogLevel)
+	if level == "" {
+		return logger.Info, false
+	}
+
+	return logger.ParseLevel(nil, level), true
+}
+
+// logLevelAtLeast reports whether spec.logLevel asks for at least the given
+// verbosity. Silent is excluded: it sorts above trace numerically but means
+// "no logs at all".
+func (c ScraperSpec) logLevelAtLeast(min logger.LogLevel) bool {
+	level, ok := c.ParsedLogLevel()
+	return ok && level != logger.Silent && level >= min
+}
+
 func (c ScraperSpec) IsTrace() bool {
-	return c.LogLevel == "trace"
+	return c.logLevelAtLeast(logger.Trace)
 }
 
 func (c ScraperSpec) IsDebug() bool {
-	return c.LogLevel == "debug" || c.IsTrace()
+	return c.logLevelAtLeast(logger.Debug)
 }
 
 type ExternalID struct {
