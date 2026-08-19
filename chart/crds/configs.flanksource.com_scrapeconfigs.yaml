@@ -2636,7 +2636,7 @@ spec:
                         the class for the resource.
                       type: string
                     clickhouseURL:
-                      description: clickhouse://<user>:<password>@<host>:<port>/<database>?param1=value1&param2=value2
+                      description: 'Deprecated: Use the url field instead.'
                       type: string
                     createFields:
                       description: |-
@@ -3190,6 +3190,52 @@ spec:
                       description: A static value or JSONPath expression to use as
                         the type for the resource.
                       type: string
+                    url:
+                      description: |-
+                        URL is the ClickHouse connection URL:
+                        clickhouse://<user>:<password>@<host>:<port>/<database>?param1=value1&param2=value2
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                        valueFrom:
+                          properties:
+                            configMapKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            helmRef:
+                              properties:
+                                key:
+                                  description: Key is a JSONPath expression used to
+                                    fetch the key from the merged JSON.
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            secretKeyRef:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - key
+                              type: object
+                            serviceAccount:
+                              description: ServiceAccount specifies the service account
+                                whose token should be fetched
+                              type: string
+                          type: object
+                      type: object
                   required:
                   - query
                   type: object

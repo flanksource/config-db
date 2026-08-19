@@ -895,9 +895,13 @@
         "azureBlobStorage": {
           "$ref": "#/$defs/AzureBlobStorage"
         },
+        "url": {
+          "$ref": "#/$defs/EnvVar",
+          "description": "URL is the ClickHouse connection URL:\nclickhouse://\u003cuser\u003e:\u003cpassword\u003e@\u003chost\u003e:\u003cport\u003e/\u003cdatabase\u003e?param1=value1\u0026param2=value2"
+        },
         "clickhouseURL": {
           "type": "string",
-          "description": "clickhouse://\u003cuser\u003e:\u003cpassword\u003e@\u003chost\u003e:\u003cport\u003e/\u003cdatabase\u003e?param1=value1\u0026param2=value2"
+          "description": "Deprecated: Use the url field instead."
         },
         "query": {
           "type": "string"

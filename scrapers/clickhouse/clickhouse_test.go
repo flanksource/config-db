@@ -4,8 +4,54 @@ import (
 	"testing"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
+	dutyContext "github.com/flanksource/duty/context"
+	"github.com/flanksource/duty/types"
 )
+
+func TestResolveClickhouseURL(t *testing.T) {
+	originalClickhouseURL := ClickhouseURL
+	ClickhouseURL = "clickhouse://process-environment"
+	t.Cleanup(func() { ClickhouseURL = originalClickhouseURL })
+
+	ctx := api.NewScrapeContext(dutyContext.New())
+	tests := []struct {
+		name   string
+		config v1.Clickhouse
+		want   string
+	}{
+		{
+			name: "env var takes precedence",
+			config: v1.Clickhouse{
+				URL:           types.EnvVar{ValueStatic: "clickhouse://env-var"},
+				ClickhouseURL: "clickhouse://legacy",
+			},
+			want: "clickhouse://env-var",
+		},
+		{
+			name:   "legacy config fallback",
+			config: v1.Clickhouse{ClickhouseURL: "clickhouse://legacy"},
+			want:   "clickhouse://legacy",
+		},
+		{
+			name: "process environment fallback",
+			want: "clickhouse://process-environment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveClickhouseURL(ctx, tt.config)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("expected %q, got %q", tt.want, got)
+			}
+		})
+	}
+}
 
 func TestNamedCollectionCommands(t *testing.T) {
 	commands, err := (NamedCollection{
