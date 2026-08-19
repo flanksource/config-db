@@ -11,7 +11,6 @@ import (
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/flanksource/clicky"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
 	cdbsql "github.com/flanksource/config-db/scrapers/sql"
@@ -81,7 +80,6 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 
 		ctx.Logger.Debugf("[clickhouse/%d] query returned %d row(s) in %s", i, qr.Count, time.Since(start))
-		ctx.Logger.Tracef("[clickhouse/%d] response: columns=%v\n%s", i, qr.Columns, lazyFormat{qr})
 
 		for _, row := range qr.Rows {
 			results = append(results, v1.ScrapeResult{
@@ -91,21 +89,6 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		}
 	}
 	return results
-}
-
-// lazyFormat renders a whole result set only if the line is actually emitted.
-// commons checks the level before it formats its arguments, so String() never
-// runs when trace logging is off -- which matters here because the value being
-// rendered is every scraped row.
-type lazyFormat struct{ value any }
-
-func (l lazyFormat) String() string {
-	formatted, err := clicky.Format(l.value)
-	if err != nil {
-		return fmt.Sprintf("<unformattable: %v>", err)
-	}
-
-	return formatted
 }
 
 type NamedCollection struct {
