@@ -219,6 +219,41 @@ var _ = Describe("cost target resolution", func() {
 		Expect(c.ConfigID).To(Equal(&root))
 	})
 
+	It("scopes a resource id by the account tag the cloud scrapers write", func() {
+		// AWS writes the owning account to config_items.tags, not labels, on every
+		// resource it scrapes. A cost scoped to an account must still find its resource.
+		typeName := "Test::TaggedCost"
+		id := uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ARRAY[?]::text[], ?, now(), now())`,
+			id, scraperID, typeName, typeName, "i-tagged", `{"account":"111122223333"}`).Error).To(Succeed())
+		DeferCleanup(func() { DefaultContext.DB().Exec("DELETE FROM config_items WHERE id = ?", id) })
+
+		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
+		c.ConfigID = nil
+		c.ResourceID = "i-tagged"
+		c.ConfigExternalID = v1.ExternalID{ConfigType: typeName, Labels: map[string]string{"account": "111122223333"}}
+		Expect(resolveCostTarget(ctx, &c, &scraperID)).To(Succeed())
+		Expect(c.ConfigID).To(Equal(&id))
+	})
+
+	It("does not attribute a resource id scoped to a different account", func() {
+		typeName := "Test::TaggedCostOther"
+		id := uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ARRAY[?]::text[], ?, now(), now())`,
+			id, scraperID, typeName, typeName, "i-shared-name", `{"account":"111122223333"}`).Error).To(Succeed())
+		root := uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, created_at, updated_at) VALUES (?, ?, 'Test::Account', 'Test', ARRAY[?]::text[], now(), now())`, root, scraperID, "tagged-root").Error).To(Succeed())
+		DeferCleanup(func() { DefaultContext.DB().Exec("DELETE FROM config_items WHERE id IN ?", []uuid.UUID{id, root}) })
+
+		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
+		c.ConfigID = nil
+		c.ResourceID = "i-shared-name"
+		c.ConfigExternalID = v1.ExternalID{ConfigType: typeName, Labels: map[string]string{"account": "999988887777"}}
+		c.RootConfigID = v1.ExternalID{ExternalID: "tagged-root", ConfigType: "Test::Account"}
+		Expect(resolveCostTarget(ctx, &c, &scraperID)).To(Succeed())
+		Expect(c.ConfigID).To(Equal(&root))
+	})
+
 	It("errors when nothing resolves and the scraper supplied no root", func() {
 		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
 		c.ConfigID = nil
