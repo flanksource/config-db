@@ -97,7 +97,13 @@ spec:
     spec:
       containers:
       - name: clickhouse
-        image: "{{ tpl .Values.global.imageRegistry . }}/{{ tpl .Values.clickhouse.image.name . }}:{{tpl .Values.clickhouse.image.tag . }}"
+        {{- $registry := tpl .Values.global.imageRegistry . }}
+        {{- $defaultImageName := "flanksource/clickhouse-server" }}
+        {{- if eq $registry "docker.io" }}
+          {{- $defaultImageName = "clickhouse/clickhouse-server" }}
+        {{- end }}
+        {{- $imageName := tpl (.Values.clickhouse.image.name | default $defaultImageName) . }}
+        image: "{{ $registry }}/{{ $imageName }}:{{ tpl .Values.clickhouse.image.tag . }}"
         ports:
         - containerPort: 8123
           name: http

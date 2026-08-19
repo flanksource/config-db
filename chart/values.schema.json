@@ -17,8 +17,8 @@
         "image": {
           "properties": {
             "name": {
-              "default": "flanksource/clickhouse-server",
-              "description": "ClickHouse image name",
+              "default": "",
+              "description": "ClickHouse image name. Defaults to the upstream image on Docker Hub and the Flanksource mirror on other registries.",
               "required": [],
               "title": "name"
             },
