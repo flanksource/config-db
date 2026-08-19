@@ -268,8 +268,8 @@ clickhouse:
     # @schema
     # required: false
     # @schema
-    # -- ClickHouse image name
-    name: flanksource/clickhouse-server
+    # -- ClickHouse image name. Defaults to the upstream image on Docker Hub and the Flanksource mirror on other registries.
+    name: ''
     # @schema
     # required: false
     # @schema
