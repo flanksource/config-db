@@ -102,6 +102,8 @@ func resolveClickhouseURL(ctx api.ScrapeContext, config v1.Clickhouse) (string, 
 	if err != nil {
 		return "", err
 	}
+	// clickhouseURL remains readable for backward compatibility.
+	//nolint:staticcheck // SA1019: this is the deprecated field's compatibility path.
 	return lo.CoalesceOrEmpty(value, config.ClickhouseURL, ClickhouseURL), nil
 }
 
