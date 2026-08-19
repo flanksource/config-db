@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
@@ -30,7 +31,10 @@ func (ClickhouseScraper) CanScrape(configs v1.ScraperSpec) bool {
 func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
-	for _, config := range ctx.ScrapeConfig().Spec.Clickhouse {
+	configs := ctx.ScrapeConfig().Spec.Clickhouse
+	ctx.Logger.Debugf("scraping %d clickhouse config(s)", len(configs))
+
+	for i, config := range configs {
 		clickhouseURL := lo.CoalesceOrEmpty(config.ClickhouseURL, ClickhouseURL)
 		db, err := sql.Open("clickhouse", clickhouseURL)
 		if err != nil {
@@ -49,6 +53,9 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			_ = db.Close()
 			continue
 		}
+		ctx.Logger.Tracef("[clickhouse/%d] connection established", i)
+
+		start := time.Now()
 
 		var qr *cdbsql.SQLDetails
 		if config.AWSS3 != nil {
@@ -61,15 +68,18 @@ func (ch ClickhouseScraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 					continue
 				}
 			}
+			ctx.Logger.Debugf("[clickhouse/%d] running query", i)
 			qr, err = cdbsql.QuerySQL(db, config.Query)
 		}
 		if closeErr := db.Close(); closeErr != nil {
 			results.Errorf(closeErr, "failed to close clickhouse connection")
 		}
 		if err != nil {
-			results.Errorf(err, "failed to query clickhouse: %s", config.Query)
+			results.Errorf(err, "failed to query clickhouse")
 			continue
 		}
+
+		ctx.Logger.Debugf("[clickhouse/%d] query returned %d row(s) in %s", i, qr.Count, time.Since(start))
 
 		for _, row := range qr.Rows {
 			results = append(results, v1.ScrapeResult{
@@ -121,6 +131,9 @@ func (nc NamedCollection) Upsert(ctx api.ScrapeContext, conn *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	// The commands embed the storage connection string, so only the collection
+	// name is logged.
+	ctx.Logger.Debugf("upserting named collection %s with keys %v", nc.Name, lo.Keys(nc.Values))
 	for _, cmd := range commands {
 		if _, err := conn.ExecContext(ctx, cmd); err != nil {
 			return err
@@ -173,6 +186,8 @@ func queryAWSS3TemporaryTable(ctx api.ScrapeContext, config v1.Clickhouse, db *s
 	if err := createAWSS3TemporaryTable(ctx, conn, config.AWSS3); err != nil {
 		return nil, err
 	}
+
+	ctx.Logger.Debugf("running query against %s", awsS3TemporaryTableName)
 	return cdbsql.QuerySQLContext(ctx, conn, config.Query)
 }
 
@@ -210,12 +225,16 @@ func createAWSS3TemporaryTable(ctx api.ScrapeContext, conn *sql.Conn, s3Config *
 	if creds.AccessKeyID == "" || creds.SecretAccessKey == "" {
 		return fmt.Errorf("AWS credentials resolved without access key or secret key")
 	}
+	ctx.Logger.Debugf("resolved AWS credentials from %q (session token: %t)",
+		lo.CoalesceOrEmpty(creds.Source, "unknown"), creds.SessionToken != "")
 
 	resolvedConfig, resolvedRegion := resolveAWSS3Config(s3Config, awsConn.Endpoint, awsConn.Region, session.Region)
 	cmd, err := awss3TemporaryTableSQL(resolvedConfig, creds, resolvedRegion)
 	if err != nil {
 		return err
 	}
+
+	ctx.Logger.Debugf("creating temporary table %s from %s", awsS3TemporaryTableName, awsS3URL(resolvedConfig, resolvedRegion))
 	if _, err := conn.ExecContext(ctx, cmd); err != nil {
 		return fmt.Errorf("failed to create clickhouse S3 temporary table %q: %w", awsS3TemporaryTableName, err)
 	}
