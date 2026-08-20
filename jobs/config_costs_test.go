@@ -6,6 +6,8 @@ package jobs
 import (
 	"time"
 
+	"github.com/flanksource/commons/properties"
+
 	"github.com/flanksource/duty/job"
 	"github.com/flanksource/duty/models"
 	"github.com/google/uuid"
@@ -222,6 +224,82 @@ var _ = Describe("compaction level routing", func() {
 		Expect(total.String()).To(Equal("6"), "found %d compact rows", len(rows))
 	})
 
+	It("does not drop finer rows the coarse pass skipped", func() {
+		configID := createConfig("routing-stale-window")
+		// Raw rows that have aged past the level-2 threshold and have not been restated
+		// since — the steady state for any scraper whose schedule is longer than the
+		// restatement window. updated_at is set on INSERT, which the updated_at trigger
+		// leaves alone, so this is the real shape of an untouched backlog.
+		day := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -5)
+		for h := 0; h < 4; h++ {
+			start := day.Add(time.Duration(h) * time.Hour)
+			Expect(DefaultContext.DB().Exec(`
+				INSERT INTO config_costs (id, config_id, source_key, period_start, period_end, grain,
+					charge_category, billing_currency, billed_cost, effective_cost, fingerprint,
+					created_at, updated_at)
+				VALUES (?, ?, 'test:stale', ?, ?, ?, 'Usage', 'USD', 3, 3, 'stale',
+					now() - interval '10 days', now() - interval '10 days')`,
+				uuid.New(), configID, start, start.Add(time.Hour), models.ConfigCostLevel1).Error).To(Succeed())
+			// The level-1 compact row an earlier pass wrote while the period was young.
+			Expect(DefaultContext.DB().Exec(`
+				INSERT INTO config_cost_compact (id, config_id, source_key, period_start, period_end, grain,
+					charge_category, billing_currency, billed_cost, effective_cost, fingerprint)
+				VALUES (?, ?, 'test:stale', ?, ?, ?, 'Usage', 'USD', 3, 3, 'stale')`,
+				uuid.New(), configID, start, start.Add(time.Hour), models.ConfigCostLevel1).Error).To(Succeed())
+		}
+
+		Expect(CompactConfigCosts.Fn(job.New(DefaultContext))).To(Succeed())
+
+		// The coarse pass must take aged rows whether or not they were restated recently:
+		// the superseded-delete removes their level-1 copies on age alone, so anything the
+		// coarse pass skips is money that no longer exists anywhere in config_cost_compact.
+		var rows []models.ConfigCostCompact
+		Expect(DefaultContext.DB().Where("config_id = ?", configID).Find(&rows).Error).To(Succeed())
+		var total decimal.Decimal
+		for _, r := range rows {
+			total = total.Add(r.EffectiveCost)
+		}
+		Expect(total.String()).To(Equal("12"), "compaction dropped money; %d rows left", len(rows))
+	})
+
+	It("leaves an untouched backlog for the daily reconcile", func() {
+		configID := createConfig("routing-backlog")
+		// Aged raw rows with no level-1 copy and no recent restatement. Nothing marks
+		// them as needing work, so the incremental pass has no reason to find them —
+		// that is the whole point of not rescanning the aged range every run.
+		day := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -5)
+		for h := 0; h < 4; h++ {
+			start := day.Add(time.Duration(h) * time.Hour)
+			Expect(DefaultContext.DB().Exec(`
+				INSERT INTO config_costs (id, config_id, source_key, period_start, period_end, grain,
+					charge_category, billing_currency, billed_cost, effective_cost, fingerprint,
+					created_at, updated_at)
+				VALUES (?, ?, 'test:backlog', ?, ?, ?, 'Usage', 'USD', 3, 3, 'backlog',
+					now() - interval '10 days', now() - interval '10 days')`,
+				uuid.New(), configID, start, start.Add(time.Hour), models.ConfigCostLevel1).Error).To(Succeed())
+		}
+
+		Expect(CompactConfigCosts.Fn(job.New(DefaultContext))).To(Succeed())
+
+		var skipped int64
+		Expect(DefaultContext.DB().Model(&models.ConfigCostCompact{}).
+			Where("config_id = ?", configID).Count(&skipped).Error).To(Succeed())
+		Expect(skipped).To(BeZero(), "the incremental pass rescanned the aged range")
+
+		// The daily reconcile ignores the window and rebuilds from raw, which is what
+		// keeps a missed transition from becoming permanent.
+		Expect(ReconcileConfigCosts.Fn(job.New(DefaultContext))).To(Succeed())
+
+		var rows []models.ConfigCostCompact
+		Expect(DefaultContext.DB().Where("config_id = ?", configID).Find(&rows).Error).To(Succeed())
+		var total decimal.Decimal
+		for _, r := range rows {
+			total = total.Add(r.EffectiveCost)
+			Expect(r.Grain).To(Equal(models.ConfigCostLevel2))
+		}
+		Expect(total.String()).To(Equal("12"), "reconcile did not recover the backlog; %d rows", len(rows))
+	})
+
 	It("keeps a long charge period at its own level regardless of age", func() {
 		configID := createConfig("routing-long")
 		// A monthly charge scraped today: bucketFor labels it level3.
@@ -240,5 +318,39 @@ var _ = Describe("compaction level routing", func() {
 		Expect(DefaultContext.DB().Where("config_id = ?", configID).First(&row).Error).To(Succeed())
 		Expect(row.Grain).To(Equal(models.ConfigCostLevel3))
 		Expect(row.PeriodEnd.Sub(row.PeriodStart)).To(BeNumerically(">", 24*time.Hour))
+	})
+})
+
+// Compaction thresholds and retention are independent properties, but they are not
+// independent settings: raw costs must outlive the level they are compacted at, or the
+// superseded-delete removes the finer copy after the source it would be rebuilt from has
+// already expired.
+var _ = Describe("compaction threshold coherence", func() {
+	restore := func(property, value string) {
+		DeferCleanup(func() { properties.Set(property, value) })
+	}
+
+	It("refuses to run when raw retention is shorter than the level-2 threshold", func() {
+		restore(propCostsRetention, defaultCostsRetention)
+		properties.Set(propCostsRetention, "1h")
+
+		err := CompactConfigCosts.Fn(job.New(DefaultContext))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(propCostsRetention))
+		Expect(err.Error()).To(ContainSubstring(propCompactDayAfter))
+	})
+
+	It("refuses to run when compact retention is shorter than the level-3 threshold", func() {
+		restore(propCompactRetention, defaultCompactRetention)
+		properties.Set(propCompactRetention, "1h")
+
+		err := CompactConfigCosts.Fn(job.New(DefaultContext))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(propCompactRetention))
+		Expect(err.Error()).To(ContainSubstring(propCompact30dAfter))
+	})
+
+	It("runs with the shipped defaults", func() {
+		Expect(CompactConfigCosts.Fn(job.New(DefaultContext))).To(Succeed())
 	})
 })
