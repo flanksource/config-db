@@ -56,9 +56,15 @@ var _ = Describe("Change Fingerprints", func() {
 		Expect(fp1).To(Equal(fp2))
 	})
 
-	It("16 character long hex should be ignored", func() {
-		fp1, err1 := changes.Fingerprint(readChange("helm_upgrade_failed.json"))
-		fp2, err2 := changes.Fingerprint(readChange("helm_upgrade_failed_2.json"))
+	It("deduplicates equivalent Kubernetes events with distinct IDs", func() {
+		change1 := readChange("helm_upgrade_failed.json")
+		change2 := readChange("helm_upgrade_failed_2.json")
+		Expect(change1.ExternalChangeID).ToNot(BeNil())
+		Expect(change2.ExternalChangeID).ToNot(BeNil())
+		Expect(*change1.ExternalChangeID).ToNot(Equal(*change2.ExternalChangeID))
+
+		fp1, err1 := changes.Fingerprint(change1)
+		fp2, err2 := changes.Fingerprint(change2)
 		Expect(err1).ToNot(HaveOccurred())
 		Expect(err2).ToNot(HaveOccurred())
 		Expect(fp1).To(Equal(fp2))

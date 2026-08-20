@@ -1,4 +1,6 @@
 {
+  "external_change_id": "552e28a9-54a4-4ba7-8dc2-a68924cbba60",
+  "change_type": "UpgradeFailed",
   "details": {
     "reason": "UpgradeFailed",
     "source": {
