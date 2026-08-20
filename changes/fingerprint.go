@@ -82,10 +82,7 @@ func Fingerprint(change *models.ConfigChange) (string, error) {
 		return "", err
 	}
 
-	out := map[string]any{
-		"__change_type":        change.ChangeType,
-		"__external_change_id": lo.FromPtr(change.ExternalChangeID),
-	}
+	out := map[string]any{"__change_type": change.ChangeType}
 	for k, v := range flat {
 		if shouldIgnoreFingerprintPath(k) {
 			continue
