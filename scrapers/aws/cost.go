@@ -128,12 +128,8 @@ func fetchCosts(config v1.AWS) ([]LineItemRow, error) {
 
 type CostScraper struct{}
 
-func (awsCost CostScraper) CanScrape(config v1.ScraperSpec) bool {
-	for _, awsConfig := range config.AWS {
-		if awsConfig.CostReporting.S3BucketPath != "" || awsConfig.CostReporting.Table != "" {
-			return true
-		}
-	}
+// CanScrape disables legacy rolling-cost writes until they use the config_costs tables.
+func (CostScraper) CanScrape(v1.ScraperSpec) bool {
 	return false
 }
 

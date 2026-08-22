@@ -4,10 +4,10 @@ go 1.26.1
 
 require (
 	github.com/flanksource/artifacts v1.0.24
-	github.com/flanksource/clicky v1.21.48
+	github.com/flanksource/clicky v1.21.55
 	github.com/flanksource/commons v1.56.0
-	github.com/flanksource/deps v1.0.36
-	github.com/flanksource/duty v1.0.1363
+	github.com/flanksource/deps v1.0.40
+	github.com/flanksource/duty v1.0.1371
 	github.com/flanksource/gomplate/v3 v3.24.89
 	github.com/flanksource/is-healthy v1.0.90
 	github.com/flanksource/ketall v1.1.12
@@ -361,7 +361,7 @@ require (
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/excelize/v2 v2.11.0 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
-	github.com/yuin/goldmark v1.7.16 // indirect
+	github.com/yuin/goldmark v1.7.17 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zclconf/go-cty-yaml v1.2.0 // indirect
