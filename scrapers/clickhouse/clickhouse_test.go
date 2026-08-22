@@ -24,15 +24,9 @@ func TestResolveClickhouseURL(t *testing.T) {
 		{
 			name: "env var takes precedence",
 			config: v1.Clickhouse{
-				URL:           types.EnvVar{ValueStatic: "clickhouse://env-var"},
-				ClickhouseURL: "clickhouse://legacy", //nolint:staticcheck // The deprecated fallback is intentionally under test.
+				URL: types.EnvVar{ValueStatic: "clickhouse://env-var"},
 			},
 			want: "clickhouse://env-var",
-		},
-		{
-			name:   "legacy config fallback",
-			config: v1.Clickhouse{ClickhouseURL: "clickhouse://legacy"}, //nolint:staticcheck // The deprecated fallback is intentionally under test.
-			want:   "clickhouse://legacy",
 		},
 		{
 			name: "process environment fallback",
