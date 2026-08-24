@@ -124,7 +124,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-    uses: flanksource/action-workflows/.github/workflows/push-helm-chart.yml@4b41aaf6cf7727789c0d21cd0bc262e850ba543f # main
+    uses: flanksource/action-workflows/.github/workflows/push-helm-chart.yml@f8512a65d38c1ea53d5c83a4e30ee2ae56acac6f # main
     with:
       filename_regex: "config-db-*.tgz"
       version: ${{ needs.create-release.outputs.version }}
