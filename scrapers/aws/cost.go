@@ -235,7 +235,7 @@ func discoverCURColumns(db *sql.DB, database, table string) (map[string]bool, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 	columns := map[string]bool{}
 	for rows.Next() {
 		var c sql.NullString
@@ -258,7 +258,7 @@ func fetchCosts(config v1.AWS, accessKey, secretKey, sessionToken, sourceKey str
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 	columns, err := discoverCURColumns(db, config.CostReporting.Database, config.CostReporting.Table)
 	if err != nil {
 		return nil, err
@@ -271,7 +271,7 @@ func fetchCosts(config v1.AWS, accessKey, secretKey, sessionToken, sourceKey str
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 	var costs []v1.ExternalCost
 	for rows.Next() {
 		var r curLineItem
