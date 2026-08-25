@@ -81,11 +81,19 @@ func ResolveCostLevels() (CostLevels, error) {
 		}
 	}
 
+	// Dividing cleanly is not enough: each level has to be strictly coarser than the one
+	// below. Equal widths give a level its predecessor's exact bucket bounds, and since
+	// the merge key does not include the grain, the terminal roll then lands on the row it
+	// was built from — adding it to itself before the grain cleanup deletes it.
 	switch {
 	case levels.L2%levels.L1 != 0:
 		return levels, fmt.Errorf("cost level2 (%s) must be a whole multiple of level1 (%s)", levels.L2, levels.L1)
+	case levels.L2 <= levels.L1:
+		return levels, fmt.Errorf("cost level2 (%s) must be coarser than level1 (%s)", levels.L2, levels.L1)
 	case levels.L3%levels.L2 != 0:
 		return levels, fmt.Errorf("cost level3 (%s) must be a whole multiple of level2 (%s)", levels.L3, levels.L2)
+	case levels.L3 <= levels.L2:
+		return levels, fmt.Errorf("cost level3 (%s) must be coarser than level2 (%s)", levels.L3, levels.L2)
 	}
 	return levels, nil
 }
@@ -132,9 +140,12 @@ func truncateTo(t time.Time, width time.Duration) time.Time {
 }
 
 func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID, levels CostLevels) []dutyModels.ConfigCost {
+	// Mirrors the config_costs merge key exactly. Keying on anything the database does not
+	// treat as identity — the external id, for one — splits rows here that the database
+	// then rejects as two inserts onto one conflict key.
 	type key struct {
-		source, configID, externalID, fingerprint string
-		periodStart, periodEnd                    time.Time
+		source, configID, fingerprint string
+		periodStart, periodEnd        time.Time
 	}
 	merged := make(map[key]*dutyModels.ConfigCost, len(costs))
 	order := make([]key, 0, len(costs))
@@ -153,7 +164,7 @@ func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID, levels CostLevel
 		if externalID == "" {
 			externalID = v1.NormalizeExternalID(c.ConfigExternalID.ExternalID)
 		}
-		k := key{c.SourceKey, configID, externalID, c.Fingerprint(), start, end}
+		k := key{c.SourceKey, configID, c.Fingerprint(), start, end}
 		if existing := merged[k]; existing != nil {
 			existing.BilledCost = existing.BilledCost.Add(*c.BilledCost)
 			existing.EffectiveCost = existing.EffectiveCost.Add(*c.EffectiveCost)
