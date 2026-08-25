@@ -99,6 +99,24 @@ var _ = Describe("ResolveCostLevels", func() {
 		Expect(err).To(MatchError(ContainSubstring("whole multiple")))
 	})
 
+	It("rejects a ladder whose levels are not strictly coarser", func() {
+		// Equal widths divide cleanly, so the multiple check alone lets them through. They
+		// must still be rejected: the terminal roll builds a level-3 bucket from a level-2
+		// row and, at equal widths, lands on that row's own merge key. Its conflict clause
+		// adds rather than replaces and leaves the grain alone, so the row is doubled and
+		// then deleted by the grain cleanup that follows.
+		properties.Set(PropCostLevel1, "1h")
+		properties.Set(PropCostLevel2, "1h")
+		properties.Set(PropCostLevel3, "720h")
+		_, err := ResolveCostLevels()
+		Expect(err).To(MatchError(ContainSubstring("coarser")))
+
+		properties.Set(PropCostLevel2, "24h")
+		properties.Set(PropCostLevel3, "24h")
+		_, err = ResolveCostLevels()
+		Expect(err).To(MatchError(ContainSubstring("coarser")))
+	})
+
 	It("rejects a width that cannot cross into SQL intact", func() {
 		// cost_bucket takes a bigint of seconds, so a sub-second width truncates to zero
 		// and divides by zero in Postgres.
@@ -396,6 +414,24 @@ var _ = Describe("bucketCosts", func() {
 		Expect(got).To(HaveLen(2))
 		Expect(got[0].PeriodStart).To(Equal(got[1].PeriodStart))
 		Expect(got[0].Fingerprint).ToNot(Equal(got[1].Fingerprint))
+	})
+
+	It("merges rows the database would treat as one", func() {
+		// The in-memory key has to agree with the database merge key. Fingerprint() falls
+		// back to the config id when neither external id is set, so a row carrying the
+		// config id as its resource id fingerprints identically to one carrying nothing.
+		// Splitting them here produces two inserts on one conflict key, which Postgres
+		// rejects outright with "cannot affect row a second time".
+		a := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
+		a.ResourceID = ""
+		b := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "2")
+		b.ResourceID = testCostTarget.String()
+
+		Expect(a.Fingerprint()).To(Equal(b.Fingerprint()))
+
+		got := bucketCosts([]v1.ExternalCost{a, b}, nil, defaultLevels)
+		Expect(got).To(HaveLen(1))
+		Expect(got[0].EffectiveCost.String()).To(Equal("3"))
 	})
 
 	It("never merges across source keys", func() {

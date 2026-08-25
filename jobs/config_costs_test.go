@@ -136,8 +136,13 @@ var _ = Describe("config cost compaction", func() {
 
 	It("rolls day rows past the coarsening threshold into a 30d bucket and deletes them", func() {
 		configID := createConfig("compact-rolled")
-		// Older than the 90d default, so the terminal roll picks it up.
-		day := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -120)
+		// Older than the 90d default, so the terminal roll picks it up. cost_bucket anchors
+		// level-3 buckets on the epoch rather than the calendar, so the start is snapped to
+		// a bucket boundary: two consecutive days chosen off the run date straddle one
+		// roughly every thirty runs, and the roll would then produce two rows, not one.
+		width := int64(30 * 24 * time.Hour / time.Second)
+		epoch := time.Now().UTC().AddDate(0, 0, -120).Unix()
+		day := time.Unix(epoch/width*width, 0).UTC()
 		for i := 0; i < 2; i++ {
 			start := day.AddDate(0, 0, i)
 			Expect(DefaultContext.DB().Create(&models.ConfigCostCompact{ConfigCost: models.ConfigCost{

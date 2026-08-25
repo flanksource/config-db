@@ -65,7 +65,9 @@ func curCostExpression(columns map[string]bool) string {
 	if len(cases) > 0 {
 		effective = "CASE " + strings.Join(cases, " ") + " ELSE " + ordinary + " END"
 	}
-	return fmt.Sprintf("SUM(line_item_unblended_cost) AS billed_cost, SUM(%s) AS effective_cost", effective)
+	// Athena types these aggregates as double and the driver returns float64, but every
+	// column is scanned into a string. Cast here or the scan fails and the scrape aborts.
+	return fmt.Sprintf("CAST(SUM(line_item_unblended_cost) AS varchar) AS billed_cost, CAST(SUM(%s) AS varchar) AS effective_cost", effective)
 }
 
 var requiredCURColumns = []string{"line_item_usage_start_date", "line_item_usage_end_date", "line_item_resource_id", "line_item_product_code", "line_item_usage_account_id", "bill_payer_account_id", "line_item_currency_code", "line_item_unblended_cost", "line_item_usage_amount", "pricing_unit", "line_item_line_item_type"}

@@ -38,6 +38,12 @@ func TestBuildCostQueryVariants(t *testing.T) {
 	g.Expect(query).To(ContainSubstring("WHEN line_item_line_item_type = 'SavingsPlanRecurringFee'"))
 	g.Expect(query).To(ContainSubstring("TIMESTAMP '2026-07-01 00:00:00'"))
 
+	// Athena types these aggregates as double and the driver hands back float64, but the
+	// row scanner reads every column into a string. Without the cast the scan fails and
+	// the whole scrape aborts.
+	g.Expect(query).To(ContainSubstring("CAST(SUM(line_item_unblended_cost) AS varchar) AS billed_cost"))
+	g.Expect(query).To(MatchRegexp(`CAST\(SUM\(CASE .*\) AS varchar\) AS effective_cost`))
+
 	delete(columns, "line_item_unblended_cost")
 	_, err = buildCostQuery("cur_db", "cur_table", columns, time.Now())
 	g.Expect(err).To(MatchError(ContainSubstring("line_item_unblended_cost")))
