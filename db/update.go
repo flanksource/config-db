@@ -568,56 +568,52 @@ func syncCRDChanges(ctx api.ScrapeContext, configs []*models.ConfigItem) error {
 	return nil
 }
 
-const configLocationDiagnosticLimit = 50
+const (
+	configLocationDiagnosticLimit = 50
+	configLocationLookupBatchSize = 1000
+)
 
-func saveConfigLocations(ctx api.ScrapeContext, locations []dutyModels.ConfigLocation) error {
+func saveConfigLocations(ctx api.ScrapeContext, locations []dutyModels.ConfigLocation) ([]dutyModels.ConfigLocation, error) {
 	if len(locations) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	uniqueLocations := lo.Uniq(locations)
-	err := ctx.DB().Transaction(func(tx *gorm.DB) error {
-		return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}, {Name: "location"}}, DoNothing: true}).
-			CreateInBatches(&uniqueLocations, 200).Error
-	})
-	if err == nil {
-		return nil
-	}
-
-	detailedErr := dutydb.ErrorDetails(err)
-	if !dutydb.IsForeignKeyError(err) {
-		return detailedErr
-	}
-
 	configIDs := lo.Uniq(lo.Map(uniqueLocations, func(location dutyModels.ConfigLocation, _ int) uuid.UUID {
 		return location.ID
 	}))
 	var existingIDs []uuid.UUID
-	if queryErr := ctx.DB().Table("config_items").Where("id IN ?", configIDs).Pluck("id", &existingIDs).Error; queryErr != nil {
-		return fmt.Errorf("%w; failed to diagnose config location foreign key violation: %v", detailedErr, queryErr)
+	for _, batch := range lo.Chunk(configIDs, configLocationLookupBatchSize) {
+		var batchIDs []uuid.UUID
+		if err := ctx.DB().Table("config_items").Where("id IN ?", batch).Pluck("id", &batchIDs).Error; err != nil {
+			return nil, dutydb.ErrorDetails(err)
+		}
+		existingIDs = append(existingIDs, batchIDs...)
 	}
 
 	existing := lo.SliceToMap(existingIDs, func(id uuid.UUID) (uuid.UUID, struct{}) {
 		return id, struct{}{}
 	})
-	missing := lo.Filter(uniqueLocations, func(location dutyModels.ConfigLocation, _ int) bool {
+	valid, missing := lo.FilterReject(uniqueLocations, func(location dutyModels.ConfigLocation, _ int) bool {
 		_, found := existing[location.ID]
-		return !found
+		return found
 	})
-	if len(missing) == 0 {
-		return detailedErr
+
+	if len(valid) == 0 {
+		return missing, nil
 	}
 
-	displayed := missing
-	if len(displayed) > configLocationDiagnosticLimit {
-		displayed = displayed[:configLocationDiagnosticLimit]
-	}
-	rows, marshalErr := json.Marshal(displayed)
-	if marshalErr != nil {
-		return fmt.Errorf("%w; %d config location row(s) reference missing config_items; failed to marshal offending rows: %v", detailedErr, len(missing), marshalErr)
+	// Use a savepoint so an insert error does not abort a transaction supplied
+	// by the caller. Missing config items are filtered above because locations
+	// are derived metadata and must not prevent the configs themselves saving.
+	if err := ctx.DB().Transaction(func(tx *gorm.DB) error {
+		return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}, {Name: "location"}}, DoNothing: true}).
+			CreateInBatches(&valid, 200).Error
+	}); err != nil {
+		return missing, dutydb.ErrorDetails(err)
 	}
 
-	return fmt.Errorf("%w; %d config location row(s) reference missing config_items; offending_rows=%s; displayed=%d", detailedErr, len(missing), rows, len(displayed))
+	return missing, nil
 }
 
 func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSummary, error) {
@@ -655,8 +651,31 @@ func saveResults(ctx api.ScrapeContext, results []v1.ScrapeResult) (v1.ScrapeSum
 		ctx.TempCache().Insert(*config)
 	}
 
-	if err := saveConfigLocations(ctx, extractResult.locations); err != nil {
+	missingLocations, err := saveConfigLocations(ctx, extractResult.locations)
+	if err != nil {
 		return summary, ctx.Oops().Wrapf(err, "failed to save config locations")
+	}
+	if len(missingLocations) > 0 {
+		for _, id := range lo.Uniq(lo.Map(missingLocations, func(location dutyModels.ConfigLocation, _ int) uuid.UUID {
+			return location.ID
+		})) {
+			ctx.TempCache().Delete(id.String())
+		}
+
+		displayed := missingLocations
+		if len(displayed) > configLocationDiagnosticLimit {
+			displayed = displayed[:configLocationDiagnosticLimit]
+		}
+		summary.AddScrapeWarning(v1.Warning{
+			Error:  "skipping config location because its config item does not exist",
+			Output: displayed,
+			Count:  len(missingLocations),
+		})
+		if rows, marshalErr := json.Marshal(displayed); marshalErr == nil {
+			ctx.Logger.Warnf("skipped %d config location row(s) referencing missing config_items: rows=%s displayed=%d", len(missingLocations), rows, len(displayed))
+		} else {
+			ctx.Logger.Warnf("skipped %d config location row(s) referencing missing config_items", len(missingLocations))
+		}
 	}
 
 	entityResult, synced, err := syncExternalEntities(ctx, extractResult, scraperID)

@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/flanksource/config-db/api"
@@ -128,21 +127,25 @@ var _ = Describe("saving config locations", func() {
 		Expect(configCount).To(Equal(int64(1)))
 	})
 
-	It("reports the offending ID and location for a foreign key failure", func() {
+	It("skips locations whose config item does not exist", func() {
 		missingID := uuid.New()
 		location := "kubernetes://cluster/default/pod/" + uuid.NewString()
 
-		err := saveConfigLocations(api.NewScrapeContext(DefaultContext), []dutymodels.ConfigLocation{{
+		missing, err := saveConfigLocations(api.NewScrapeContext(DefaultContext), []dutymodels.ConfigLocation{{
 			ID:       missingID,
 			Location: location,
 		}})
-		Expect(err).To(HaveOccurred())
-		Expect(strings.Contains(err.Error(), missingID.String())).To(BeTrue(), err.Error())
-		Expect(strings.Contains(err.Error(), location)).To(BeTrue(), err.Error())
-		Expect(strings.Contains(err.Error(), "offending_rows=")).To(BeTrue(), err.Error())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(missing).To(Equal([]dutymodels.ConfigLocation{{ID: missingID, Location: location}}))
+
+		var locationCount int64
+		Expect(DefaultContext.DB().Model(&dutymodels.ConfigLocation{}).
+			Where("id = ? AND location = ?", missingID, location).
+			Count(&locationCount).Error).ToNot(HaveOccurred())
+		Expect(locationCount).To(BeZero())
 	})
 
-	It("can diagnose a foreign key failure without aborting a caller transaction", func() {
+	It("can skip a missing config location inside a caller transaction", func() {
 		missingID := uuid.New()
 		location := "kubernetes://cluster/default/pod/" + uuid.NewString()
 		tx := DefaultContext.DB().Begin()
@@ -152,11 +155,43 @@ var _ = Describe("saving config locations", func() {
 		})
 		ctx := api.NewScrapeContext(DefaultContext.WithDB(tx, DefaultContext.Pool()))
 
-		err := saveConfigLocations(ctx, []dutymodels.ConfigLocation{{ID: missingID, Location: location}})
-		Expect(err).To(HaveOccurred())
-		Expect(strings.Contains(err.Error(), missingID.String())).To(BeTrue(), err.Error())
-		Expect(strings.Contains(err.Error(), location)).To(BeTrue(), err.Error())
+		missing, err := saveConfigLocations(ctx, []dutymodels.ConfigLocation{{ID: missingID, Location: location}})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(missing).To(HaveLen(1))
 		Expect(tx.Exec("SELECT 1").Error).ToNot(HaveOccurred())
+	})
+
+	It("warns instead of failing when a cached config is missing from the database", func() {
+		missingID := uuid.New()
+		scraperID := uuid.New()
+		location := "kubernetes://cluster/default/pod/" + uuid.NewString()
+		ctx := api.NewScrapeContext(DefaultContext).WithScrapeConfig(&v1.ScrapeConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "stale-cache-config-location-integration-test",
+				Namespace: "default",
+				UID:       k8stypes.UID(scraperID.String()),
+			},
+		})
+		ctx.TempCache().Insert(models.ConfigItem{
+			ID:         missingID.String(),
+			ScraperID:  &scraperID,
+			Type:       "Kubernetes::Pod",
+			ExternalID: []string{missingID.String()},
+		})
+
+		summary, err := SaveResults(ctx, []v1.ScrapeResult{{
+			ID:        missingID.String(),
+			Type:      "Kubernetes::Pod",
+			Locations: []string{location},
+		}})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(summary.Warnings).To(HaveLen(1))
+		Expect(summary.Warnings[0].Error).To(Equal("skipping config location because its config item does not exist"))
+		Expect(summary.Warnings[0].Count).To(Equal(1))
+
+		cached, err := ctx.TempCache().Get(ctx, missingID.String())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cached).To(BeNil())
 	})
 
 	It("skips repeated locations for an unknown metadata-only config", func() {

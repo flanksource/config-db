@@ -127,6 +127,28 @@ func (t *TempCache) Insert(item models.ConfigItem) {
 	t.notFound.Delete(strings.ToLower(item.ID))
 }
 
+// Delete removes a config and its aliases from the cache. It is used when the
+// database proves that a cached config ID no longer exists.
+func (t *TempCache) Delete(id string) {
+	id = strings.ToLower(id)
+	value, found := t.items.LoadAndDelete(id)
+	t.notFound.Store(id, struct{}{})
+	if !found {
+		return
+	}
+
+	item := value.(models.ConfigItem)
+	scraperID := lo.FromPtr(item.ScraperID).String()
+	if scraperID == uuid.Nil.String() {
+		scraperID = t.GetScraperID()
+	}
+	for _, extID := range item.ExternalID {
+		key := v1.ExternalID{ConfigType: item.Type, ExternalID: extID, ScraperID: scraperID}.Key()
+		// Do not remove an alias that has since been reassigned to another item.
+		t.aliases.CompareAndDelete(key, item.ID)
+	}
+}
+
 type CacheOption string
 
 var IgnoreNotFound CacheOption = "IgnoreNotFound"

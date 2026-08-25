@@ -130,6 +130,30 @@ var _ = Describe("TempCache", func() {
 		Expect(item.ExternalID).To(ContainElement(externalID))
 	})
 
+	It("removes a stale config and its aliases", func() {
+		id := uuid.NewString()
+		externalID := "cluster/pod/default/stale"
+		lookup := v1.ExternalID{
+			ConfigType: "Kubernetes::Pod",
+			ExternalID: externalID,
+		}
+		ctx.TempCache().Insert(models.ConfigItem{
+			ID:         id,
+			Type:       lookup.ConfigType,
+			ExternalID: []string{externalID},
+			ScraperID:  lo.ToPtr(scraperID),
+		})
+
+		ctx.TempCache().Delete(id)
+
+		item, err := ctx.TempCache().Get(ctx, id)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(item).To(BeNil())
+		lookup.ScraperID = ctx.ScraperID()
+		_, aliased := ctx.TempCache().aliases.Load(lookup.Key())
+		Expect(aliased).To(BeFalse())
+	})
+
 	It("returns not found for an uncached config ID without a database", func() {
 		id := uuid.NewString()
 
