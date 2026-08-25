@@ -313,6 +313,10 @@
         "auditLogs": {
           "$ref": "#/$defs/GCPAuditLogs",
           "description": "AuditLogs query the BigQuery dataset for audit logs."
+        },
+        "costReporting": {
+          "$ref": "#/$defs/GCPCostReporting",
+          "description": "CostReporting reads the Cloud Billing export from BigQuery."
         }
       },
       "additionalProperties": false,
@@ -355,6 +359,29 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "GCPCostReporting": {
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Project holding the billing export dataset. Defaults to the scraped project."
+        },
+        "dataset": {
+          "type": "string",
+          "description": "Dataset holding the export table, e.g. \"billing_export\"."
+        },
+        "table": {
+          "type": "string",
+          "description": "Table is the export table, e.g.\n\"gcp_billing_export_resource_v1_01ABCD_2345EF_67890A\"."
+        },
+        "lookbackDays": {
+          "type": "integer",
+          "description": "LookbackDays controls the UTC-midnight lower bound for each export read.\nValues \u003c= 0 use the 45-day default; the current partial UTC day is included.\nBigQuery bills by bytes scanned, so this is the main cost control."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "GCPCostReporting locates the Cloud Billing export table.\n\nThis must be the *detailed* usage cost export\n(gcp_billing_export_resource_v1_\u003cBILLING_ACCOUNT_ID\u003e). The standard export carries no\nresource column at all, so every charge would be attributed to its project rather than\nto the resource that incurred it."
     },
     "HelmRefKeySelector": {
       "properties": {

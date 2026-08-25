@@ -96,6 +96,55 @@ type GCP struct {
 
 	// AuditLogs query the BigQuery dataset for audit logs.
 	AuditLogs GCPAuditLogs `json:"auditLogs,omitempty"`
+
+	// CostReporting reads the Cloud Billing export from BigQuery.
+	CostReporting GCPCostReporting `json:"costReporting,omitempty"`
+}
+
+// GCPCostReporting locates the Cloud Billing export table.
+//
+// This must be the *detailed* usage cost export
+// (gcp_billing_export_resource_v1_<BILLING_ACCOUNT_ID>). The standard export carries no
+// resource column at all, so every charge would be attributed to its project rather than
+// to the resource that incurred it.
+type GCPCostReporting struct {
+	// Project holding the billing export dataset. Defaults to the scraped project.
+	Project string `json:"project,omitempty"`
+
+	// Dataset holding the export table, e.g. "billing_export".
+	Dataset string `json:"dataset,omitempty"`
+
+	// Table is the export table, e.g.
+	// "gcp_billing_export_resource_v1_01ABCD_2345EF_67890A".
+	Table string `json:"table,omitempty"`
+
+	// LookbackDays controls the UTC-midnight lower bound for each export read.
+	// Values <= 0 use the 45-day default; the current partial UTC day is included.
+	// BigQuery bills by bytes scanned, so this is the main cost control.
+	LookbackDays int `json:"lookbackDays,omitempty"`
+}
+
+// IsEmpty reports whether cost reporting was left unconfigured.
+func (c GCPCostReporting) IsEmpty() bool {
+	return c.Project == "" && c.Dataset == "" && c.Table == "" && c.LookbackDays == 0
+}
+
+// Validate reports whether the export table can be located.
+func (c GCPCostReporting) Validate() error {
+	if c.IsEmpty() {
+		return nil
+	}
+	var missing []string
+	if c.Dataset == "" {
+		missing = append(missing, "dataset")
+	}
+	if c.Table == "" {
+		missing = append(missing, "table")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("incomplete GCP costReporting: missing %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 type GCPAuditLogs struct {

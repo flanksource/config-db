@@ -5,5 +5,5 @@ package scrapers
 import "github.com/flanksource/config-db/scrapers/gcp"
 
 func init() {
-	All = append(All, gcp.Scraper{})
+	All = append(All, gcp.Scraper{}, gcp.CostScraper{})
 }

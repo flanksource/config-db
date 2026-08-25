@@ -387,31 +387,74 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP, parent string)
 	return results, nil
 }
 
+// scrapeResourceHierarchy emits the project, folder and organization config items without
+// the surrounding IAM pass.
+func (Scraper) scrapeResourceHierarchy(ctx *GCPContext, config v1.GCP, parent string) (v1.ScrapeResults, error) {
+	hierarchy, err := fetchResourceManagerHierarchy(ctx, config, parent)
+	if err != nil {
+		return nil, err
+	}
+	results, _, err := buildResourceManagerHierarchy(hierarchy.Project, hierarchy.Nodes, config.BaseScraper)
+	return results, err
+}
+
 func (Scraper) CanScrape(configs v1.ScraperSpec) bool {
 	return len(configs.GCP) > 0
 }
 
+// parentScrapers holds the passes scrapeParent runs, so which of them the include list
+// reaches can be exercised without a live GCP project behind each one.
+type parentScrapers struct {
+	fetchAssets      func(*GCPContext, v1.GCP, string) (v1.ScrapeResults, error)
+	fetchSQLBackups  func(*GCPContext, v1.GCP, string, v1.ScrapeResults) (v1.ScrapeResults, error)
+	fetchHierarchy   func(*GCPContext, v1.GCP, string) (v1.ScrapeResults, error)
+	fetchIAMPolicies func(*GCPContext, v1.GCP, string) (iamPolicyResult, error)
+	fetchGroups      func(*GCPContext, v1.GCP, iamScope, []string) (v1.ScrapeResults, error)
+}
+
 // scrapeParent runs the passes that are scoped to one asset-inventory root.
 func (gcp Scraper) scrapeParent(ctx *GCPContext, config v1.GCP, parent string) v1.ScrapeResults {
+	return gcp.scrapeParentWith(ctx, config, parent, parentScrapers{
+		fetchAssets:      gcp.FetchAllAssets,
+		fetchSQLBackups:  gcp.scrapeCloudSQLBackupsForAllInstances,
+		fetchHierarchy:   gcp.scrapeResourceHierarchy,
+		fetchIAMPolicies: gcp.FetchIAMPolicies,
+		fetchGroups:      gcp.FetchGroupMemberships,
+	})
+}
+
+func (gcp Scraper) scrapeParentWith(ctx *GCPContext, config v1.GCP, parent string, scrapers parentScrapers) v1.ScrapeResults {
 	var results v1.ScrapeResults
 
 	if len(config.GetAssetTypes()) > 0 || len(config.Include) == 0 {
-		assetResults, err := gcp.FetchAllAssets(ctx, config, parent)
+		assetResults, err := scrapers.fetchAssets(ctx, config, parent)
 		if err != nil {
 			results.Errorf(err, "failed to fetch GCP assets for %s", parent)
 			return results
 		}
 		results = append(results, assetResults...)
 
-		if backupResults, err := gcp.scrapeCloudSQLBackupsForAllInstances(ctx, config, parent, assetResults); err != nil {
+		if backupResults, err := scrapers.fetchSQLBackups(ctx, config, parent, assetResults); err != nil {
 			results.Errorf(err, "failed to scrape Cloud SQL backups for %s", parent)
 		} else {
 			results = append(results, backupResults...)
 		}
 	}
 
+	if !config.Includes(v1.IncludeIAMPolicy) {
+		// The IAM pass reads the same hierarchy for grant scoping, so this runs only when
+		// that pass does not. The project item anchors every asset's parent edge and is the
+		// root unresolved spend is booked against, so it has to exist whatever the include
+		// list narrows the scrape to.
+		if hierarchyResults, err := scrapers.fetchHierarchy(ctx, config, parent); err != nil {
+			results.Errorf(err, "failed to read the GCP resource hierarchy above %s, its project, folder and organization config items will be missing", parent)
+		} else {
+			results = append(results, hierarchyResults...)
+		}
+	}
+
 	if config.Includes(v1.IncludeIAMPolicy) {
-		iamPolicy, err := gcp.FetchIAMPolicies(ctx, config, parent)
+		iamPolicy, err := scrapers.fetchIAMPolicies(ctx, config, parent)
 		if err != nil {
 			results.Errorf(err, "failed to fetch GCP IAM policies for %s", parent)
 			return results
@@ -423,7 +466,7 @@ func (gcp Scraper) scrapeParent(ctx *GCPContext, config v1.GCP, parent string) v
 		// groups.readonly scope; disable with exclude: [IAMGroupMembers] when
 		// the scrape service account lacks it.
 		if config.Includes(v1.IncludeGroupMembers) && !config.Excludes(v1.IncludeGroupMembers) {
-			memberResults, err := gcp.FetchGroupMemberships(ctx, config, iamPolicy.Scope, iamPolicy.GroupEmails)
+			memberResults, err := scrapers.fetchGroups(ctx, config, iamPolicy.Scope, iamPolicy.GroupEmails)
 			if err != nil {
 				results.Errorf(err, "failed to fetch GCP group memberships for %s", parent)
 			} else {

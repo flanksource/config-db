@@ -246,7 +246,7 @@ func (node resourceManagerNode) metadata() (resourceManagerMetadata, error) {
 func resourceManagerMetadataForName(name string) (resourceManagerMetadata, error) {
 	switch {
 	case strings.HasPrefix(name, "projects/") && len(strings.TrimPrefix(name, "projects/")) > 0:
-		return resourceManagerMetadata{Name: name, ConfigClass: "ResourceManager::Project", AssetType: "cloudresourcemanager.googleapis.com/Project"}, nil
+		return resourceManagerMetadata{Name: name, ConfigClass: "Project", AssetType: "cloudresourcemanager.googleapis.com/Project"}, nil
 	case strings.HasPrefix(name, "folders/") && len(strings.TrimPrefix(name, "folders/")) > 0:
 		return resourceManagerMetadata{Name: name, ConfigClass: "ResourceManager::Folder", AssetType: "cloudresourcemanager.googleapis.com/Folder"}, nil
 	case strings.HasPrefix(name, "organizations/") && len(strings.TrimPrefix(name, "organizations/")) > 0:

@@ -5621,6 +5621,29 @@ spec:
                       description: ConnectionName of the connection. It'll be used
                         to populate the endpoint and credentials.
                       type: string
+                    costReporting:
+                      description: CostReporting reads the Cloud Billing export from
+                        BigQuery.
+                      properties:
+                        dataset:
+                          description: Dataset holding the export table, e.g. "billing_export".
+                          type: string
+                        lookbackDays:
+                          description: |-
+                            LookbackDays controls the UTC-midnight lower bound for each export read.
+                            Values <= 0 use the 45-day default; the current partial UTC day is included.
+                            BigQuery bills by bytes scanned, so this is the main cost control.
+                          type: integer
+                        project:
+                          description: Project holding the billing export dataset.
+                            Defaults to the scraped project.
+                          type: string
+                        table:
+                          description: |-
+                            Table is the export table, e.g.
+                            "gcp_billing_export_resource_v1_01ABCD_2345EF_67890A".
+                          type: string
+                      type: object
                     createFields:
                       description: |-
                         CreateFields is a list of JSONPath expression used to identify the created time of the config.
