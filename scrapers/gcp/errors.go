@@ -95,6 +95,16 @@ func summarizeAPIError(err error) (string, bool) {
 // together with a count. Anything else keeps its full text and stays an error, because an
 // unexpected failure is worth reading in full.
 func reportAPIError(ctx *GCPContext, results *v1.ScrapeResults, err error, msg string, args ...any) {
+	// A pass that fans out over projects returns one error per project, joined. Classifying
+	// the join as a whole would let a single disabled API downgrade the entire thing to a
+	// warning and take every unrelated failure with it, so each cause is judged alone.
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, cause := range joined.Unwrap() {
+			reportAPIError(ctx, results, cause, msg, args...)
+		}
+		return
+	}
+
 	summary, configured := summarizeAPIError(err)
 	if !configured {
 		results.Errorf(err, msg, args...)

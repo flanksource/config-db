@@ -510,7 +510,7 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.19.0 // indirect
 )
 
-// ignore ./hack
+ignore ./hack
 
 // replace github.com/flanksource/clicky => ../clicky
 

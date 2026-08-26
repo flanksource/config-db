@@ -323,7 +323,11 @@ var _ = Describe("cost target resolution", func() {
 		var summary v1.ScrapeSummary
 
 		err := saveExternalCosts(ctx, []v1.ExternalCost{valid, invalid}, &scraperID, &summary)
-		Expect(err).To(MatchError(ContainSubstring("external cost 1")))
+		// Failures are grouped by cause rather than reported per row, so the message names
+		// the reason, how many rows hit it, and which row hit it first.
+		Expect(err).To(MatchError(ContainSubstring("skipped 1 of 2 external costs")))
+		Expect(err).To(MatchError(ContainSubstring("billing_currency must be a nonempty 3-letter code")))
+		Expect(err).To(MatchError(ContainSubstring("first at cost 1")))
 		Expect(summary.ExternalCosts.Saved).To(Equal(1))
 		Expect(summary.ExternalCosts.Skipped).To(Equal(1))
 

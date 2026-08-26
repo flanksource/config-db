@@ -167,3 +167,32 @@ func TestSummarizeWrappedRESTError(t *testing.T) {
 	g.Expect(ok).To(gomega.BeTrue())
 	g.Expect(summary).To(gomega.ContainSubstring("IAM_PERMISSION_DENIED"))
 }
+
+// A pass that fans out over projects joins its failures. Judging the join as a whole let a
+// single disabled API swallow every unrelated error alongside it.
+func TestReportAPIErrorSplitsJoinedCauses(t *testing.T) {
+	g := gomega.NewWithT(t)
+	ctx := &GCPContext{ScrapeContext: api.NewScrapeContext(dutyCtx.New())}
+
+	joined := errors.Join(
+		restErrorWith("SERVICE_DISABLED", map[string]any{"service": "sqladmin.googleapis.com"}),
+		errors.New("connection reset"),
+	)
+
+	var results v1.ScrapeResults
+	reportAPIError(ctx, &results, joined, "reading Cloud SQL operations for %s", "demo")
+
+	g.Expect(results).To(gomega.HaveLen(2))
+
+	var warnings, errs int
+	for _, result := range results {
+		if result.Error != nil {
+			errs++
+			g.Expect(result.Error).To(gomega.MatchError(gomega.ContainSubstring("connection reset")))
+		}
+		warnings += len(result.Warnings)
+	}
+	// The disabled API is a warning; the unrelated failure survives as an error.
+	g.Expect(warnings).To(gomega.Equal(1))
+	g.Expect(errs).To(gomega.Equal(1))
+}

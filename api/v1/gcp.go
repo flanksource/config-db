@@ -257,13 +257,28 @@ func (gcp GCP) Excludes(resource string) bool {
 	return false
 }
 
+// ProjectAssetType is the Resource Manager project. It is the config item every other
+// asset hangs its parent edge off and the root unattributed spend is booked against, so a
+// narrowed scrape still has to produce it.
+const ProjectAssetType = "cloudresourcemanager.googleapis.com/Project"
+
 // GetAssetTypes returns the asset types to scrape from Include field.
+//
+// A narrowed list always gains the project: the hierarchy pass deliberately does not emit
+// one — it links to the item the asset pass produces — so leaving it out means nothing
+// creates it and every parent edge and cost root dangles.
 func (gcp GCP) GetAssetTypes() []string {
 	var assetTypes []string
 	for _, include := range gcp.Include {
 		if !slices.Contains(AllIncludes, include) {
 			assetTypes = append(assetTypes, include)
 		}
+	}
+
+	// Any narrowing at all, including one that names only feature flags: an include list
+	// of just IAMPolicy would otherwise skip the asset pass entirely and leave no project.
+	if len(gcp.Include) > 0 && !slices.Contains(assetTypes, ProjectAssetType) {
+		assetTypes = append(assetTypes, ProjectAssetType)
 	}
 
 	return assetTypes

@@ -46,18 +46,21 @@ var _ = Describe("scrapeParent", func() {
 				if assetsFail != nil {
 					return nil, assetsFail
 				}
-				return v1.ScrapeResults{{Type: "GCP::Instance", ID: "i-1"}}, nil
+				return v1.ScrapeResults{{Type: "GCP::Instance", ID: "i-1"}, projectItem}, nil
 			},
 			fetchSQLBackups: func(*GCPContext, v1.GCP, string, v1.ScrapeResults) (v1.ScrapeResults, error) {
 				calls.backups++
 				return nil, nil
 			},
+			// buildResourceManagerHierarchy links to the project rather than emitting one,
+			// so this returns the organization it does emit. The project comes from the
+			// asset pass, which is why GetAssetTypes always asks for it.
 			fetchHierarchy: func(*GCPContext, v1.GCP, string) (v1.ScrapeResults, error) {
 				calls.hierarchy++
 				if failed != nil {
 					return nil, failed
 				}
-				return v1.ScrapeResults{projectItem}, nil
+				return v1.ScrapeResults{{Type: v1.GCPOrganization, ID: "organizations/123456789012"}}, nil
 			},
 			fetchIAMPolicies: func(*GCPContext, v1.GCP, string) (iamPolicyResult, error) {
 				calls.iam++
@@ -65,8 +68,11 @@ var _ = Describe("scrapeParent", func() {
 					return iamPolicyResult{}, iamFail
 				}
 				// The IAM pass carries the hierarchy itself, which is why the standalone
-				// pass has to stay out of its way.
-				return iamPolicyResult{Results: v1.ScrapeResults{projectItem}}, nil
+				// pass has to stay out of its way. Like the standalone pass it links to
+				// the project rather than emitting one.
+				return iamPolicyResult{Results: v1.ScrapeResults{
+					{Type: v1.GCPOrganization, ID: "organizations/123456789012"},
+				}}, nil
 			},
 			fetchGroups: func(*GCPContext, v1.GCP, iamScope, []string) (v1.ScrapeResults, error) {
 				calls.groups++
@@ -109,14 +115,15 @@ var _ = Describe("scrapeParent", func() {
 		Expect(projectItems(results)).To(HaveLen(1))
 	})
 
-	It("emits the project when the include list names only feature flags", func() {
-		// No asset types, so the asset pass is skipped entirely; the project still comes
-		// through, this time from the IAM pass.
+	It("scrapes the project even when the include list names only feature flags", func() {
+		// Only the asset pass emits a project — the hierarchy links to one. So an include
+		// list of just IAMPolicy still has to reach the asset pass, which GetAssetTypes
+		// guarantees by always asking for the project asset type.
 		config := v1.GCP{Include: []string{v1.IncludeIAMPolicy}}
 
 		results := Scraper{}.scrapeParentWith(ctx, config, parent, stubs())
 
-		Expect(calls.assets).To(BeZero())
+		Expect(calls.assets).To(Equal(1), "the project asset type keeps the asset pass alive")
 		Expect(calls.iam).To(Equal(1))
 		Expect(calls.hierarchy).To(BeZero())
 		Expect(projectItems(results)).To(HaveLen(1))
@@ -128,10 +135,10 @@ var _ = Describe("scrapeParent", func() {
 
 		results := Scraper{}.scrapeParentWith(ctx, config, parent, stubs())
 
-		Expect(projectItems(results)).To(BeEmpty())
 		Expect(results).To(ContainElement(HaveField("Error", MatchError(ContainSubstring("resource hierarchy")))))
-		// The assets scraped before the failure are still returned.
+		// The assets scraped before the failure are still returned, project included.
 		Expect(results).To(ContainElement(HaveField("ID", "i-1")))
+		Expect(projectItems(results)).To(HaveLen(1))
 	})
 
 	It("skips group expansion when it is excluded", func() {
@@ -143,10 +150,11 @@ var _ = Describe("scrapeParent", func() {
 		Expect(calls.groups).To(BeZero())
 	})
 
-	It("still emits the project when the asset pass cannot run", func() {
-		// A disabled asset API takes the IAM pass with it, because that lists assets before
-		// reading the hierarchy. The project has to survive both: it is the root every
-		// unattributed cost is booked against.
+	It("loses the project when the asset pass cannot run, and says so", func() {
+		// Only the asset pass emits a project, so a disabled asset API means there is none
+		// and every cost row roots against a config item that does not exist. The
+		// hierarchy still runs and still yields the organization, which is what
+		// project-less spend falls back to.
 		assetsFail = errContext
 		iamFail = errContext
 
@@ -155,7 +163,10 @@ var _ = Describe("scrapeParent", func() {
 		Expect(calls.assets).To(Equal(1))
 		Expect(calls.iam).To(Equal(1))
 		Expect(calls.hierarchy).To(Equal(1), "the hierarchy has to run once the IAM pass failed to supply it")
-		Expect(projectItems(results)).To(HaveLen(1))
+		Expect(projectItems(results)).To(BeEmpty())
+
+		// Not silent: the failure is on the run rather than only in the logs.
+		Expect(results).To(ContainElement(HaveField("Error", MatchError(ContainSubstring("GCP assets")))))
 	})
 
 	It("does not abandon later passes when the asset pass fails", func() {
@@ -167,7 +178,8 @@ var _ = Describe("scrapeParent", func() {
 		Expect(calls.iam).To(Equal(1))
 		// The backup pass reads the instances the asset pass found, so it has nothing to do.
 		Expect(calls.backups).To(BeZero())
-		Expect(projectItems(results)).To(HaveLen(1))
+		// The project is gone with the asset pass, which is the cost of it failing.
+		Expect(projectItems(results)).To(BeEmpty())
 	})
 
 	It("skips group expansion when the IAM pass failed", func() {
