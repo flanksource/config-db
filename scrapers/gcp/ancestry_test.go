@@ -91,7 +91,7 @@ var _ = Describe("resourceManagerParent", func() {
 		parent, err := resourceManagerParent([]string{"folders/5432", "organizations/1234"})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(parent).ToNot(BeNil())
-		Expect(parent.Type).To(Equal("GCP::ResourceManager::Organization"))
+		Expect(parent.Type).To(Equal("GCP::Organization"))
 		Expect(parent.ExternalID).To(Equal("//cloudresourcemanager.googleapis.com/organizations/1234"))
 	})
 

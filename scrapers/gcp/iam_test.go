@@ -431,7 +431,7 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 		gomega.Expect(configs[0].Type).To(gomega.Equal("GCP::ResourceManager::Folder"))
 		gomega.Expect(configs[0].Aliases).To(gomega.Equal([]string{folderExternalID}))
 		gomega.Expect(configs[0].Parents).To(gomega.Equal([]v1.ConfigExternalKey{{
-			Type:       "GCP::ResourceManager::Organization",
+			Type:       v1.GCPOrganization,
 			ExternalID: organizationExternalID,
 		}}))
 		gomega.Expect(configs[0].Children).To(gomega.Equal([]v1.ConfigExternalKey{{
@@ -440,7 +440,7 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 		}}))
 		gomega.Expect(configs[1].ID).To(gomega.Equal("organizations/" + organization))
 		gomega.Expect(configs[1].Name).To(gomega.Equal("example.com"))
-		gomega.Expect(configs[1].Type).To(gomega.Equal("GCP::ResourceManager::Organization"))
+		gomega.Expect(configs[1].Type).To(gomega.Equal(v1.GCPOrganization))
 		gomega.Expect(configs[1].Aliases).To(gomega.Equal([]string{organizationExternalID}))
 		gomega.Expect(configs[1].Children).To(gomega.BeEmpty())
 
@@ -450,7 +450,7 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 			principal, "roles/resourcemanager.folderViewer",
 		)).ToNot(gomega.BeNil())
 		gomega.Expect(accessKeyed(access.Access,
-			v1.ExternalID{ConfigType: "GCP::ResourceManager::Organization", ExternalID: organizationExternalID},
+			v1.ExternalID{ConfigType: v1.GCPOrganization, ExternalID: organizationExternalID},
 			principal, "roles/resourcemanager.organizationAdmin",
 		)).ToNot(gomega.BeNil())
 	})

@@ -250,7 +250,7 @@ func resourceManagerMetadataForName(name string) (resourceManagerMetadata, error
 	case strings.HasPrefix(name, "folders/") && len(strings.TrimPrefix(name, "folders/")) > 0:
 		return resourceManagerMetadata{Name: name, ConfigClass: "ResourceManager::Folder", AssetType: "cloudresourcemanager.googleapis.com/Folder"}, nil
 	case strings.HasPrefix(name, "organizations/") && len(strings.TrimPrefix(name, "organizations/")) > 0:
-		return resourceManagerMetadata{Name: name, ConfigClass: "ResourceManager::Organization", AssetType: "cloudresourcemanager.googleapis.com/Organization"}, nil
+		return resourceManagerMetadata{Name: name, ConfigClass: "Organization", AssetType: "cloudresourcemanager.googleapis.com/Organization"}, nil
 	default:
 		return resourceManagerMetadata{}, fmt.Errorf("unsupported GCP resource hierarchy name %q", name)
 	}

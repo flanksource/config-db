@@ -138,6 +138,14 @@ func parseResourceData(asset *assetpb.Asset) ResourceData {
 		aliases = append(aliases, data.Fields["email"].GetStringValue())
 	}
 
+	// A project is named by its id everywhere except in asset inventory, which records the
+	// number. Its own name field is the display name, which is equal to the id often
+	// enough to look usable and not often enough to rely on, so the id is aliased
+	// explicitly for anything that refers to a project the way people do.
+	if projectID := data.Fields["projectId"].GetStringValue(); projectID != "" {
+		aliases = append(aliases, projectID, v1.ProjectPrefix+projectID)
+	}
+
 	return ResourceData{
 		ID:        id,
 		Name:      getName(asset),
@@ -427,51 +435,55 @@ func (gcp Scraper) scrapeParentWith(ctx *GCPContext, config v1.GCP, parent strin
 	var results v1.ScrapeResults
 
 	if len(config.GetAssetTypes()) > 0 || len(config.Include) == 0 {
-		assetResults, err := scrapers.fetchAssets(ctx, config, parent)
-		if err != nil {
-			results.Errorf(err, "failed to fetch GCP assets for %s", parent)
-			return results
-		}
-		results = append(results, assetResults...)
-
-		if backupResults, err := scrapers.fetchSQLBackups(ctx, config, parent, assetResults); err != nil {
-			results.Errorf(err, "failed to scrape Cloud SQL backups for %s", parent)
+		// A pass that cannot run does not stop the others: they read different APIs, and
+		// one being disabled or ungranted says nothing about the rest.
+		if assetResults, err := scrapers.fetchAssets(ctx, config, parent); err != nil {
+			reportAPIError(ctx, &results, err, "skipping GCP assets for %s", parent)
 		} else {
-			results = append(results, backupResults...)
+			results = append(results, assetResults...)
+
+			// Reads the instances the asset pass found, so it has nothing to do without it.
+			if backupResults, err := scrapers.fetchSQLBackups(ctx, config, parent, assetResults); err != nil {
+				reportAPIError(ctx, &results, err, "skipping Cloud SQL backups for %s", parent)
+			} else {
+				results = append(results, backupResults...)
+			}
 		}
 	}
 
-	if !config.Includes(v1.IncludeIAMPolicy) {
-		// The IAM pass reads the same hierarchy for grant scoping, so this runs only when
-		// that pass does not. The project item anchors every asset's parent edge and is the
-		// root unresolved spend is booked against, so it has to exist whatever the include
-		// list narrows the scrape to.
+	// The IAM pass reads the resource hierarchy for its grant scoping and returns it, so
+	// the standalone pass below runs only when this one did not supply it.
+	var hierarchyScraped bool
+	if config.Includes(v1.IncludeIAMPolicy) {
+		if iamPolicy, err := scrapers.fetchIAMPolicies(ctx, config, parent); err != nil {
+			reportAPIError(ctx, &results, err, "skipping GCP IAM policies for %s", parent)
+		} else {
+			hierarchyScraped = true
+			results = append(results, iamPolicy.Results...)
+
+			// Group-membership expansion runs by default alongside IAM policy so
+			// group grants unwrap to their members. It needs the Cloud Identity
+			// groups.readonly scope; disable with exclude: [IAMGroupMembers] when
+			// the scrape service account lacks it.
+			if config.Includes(v1.IncludeGroupMembers) && !config.Excludes(v1.IncludeGroupMembers) {
+				if memberResults, err := scrapers.fetchGroups(ctx, config, iamPolicy.Scope, iamPolicy.GroupEmails); err != nil {
+					reportAPIError(ctx, &results, err, "skipping GCP group memberships for %s", parent)
+				} else {
+					results = append(results, memberResults...)
+				}
+			}
+		}
+	}
+
+	// The project item anchors every asset's parent edge and is the root unresolved spend
+	// is booked against, so it has to exist whatever the include list narrows the scrape
+	// to and whichever earlier pass failed. The IAM pass lists assets before it reads the
+	// hierarchy, so a disabled asset API takes the hierarchy down with it unless this runs.
+	if !hierarchyScraped {
 		if hierarchyResults, err := scrapers.fetchHierarchy(ctx, config, parent); err != nil {
-			results.Errorf(err, "failed to read the GCP resource hierarchy above %s, its project, folder and organization config items will be missing", parent)
+			reportAPIError(ctx, &results, err, "skipping the GCP resource hierarchy above %s, its project, folder and organization config items will be missing", parent)
 		} else {
 			results = append(results, hierarchyResults...)
-		}
-	}
-
-	if config.Includes(v1.IncludeIAMPolicy) {
-		iamPolicy, err := scrapers.fetchIAMPolicies(ctx, config, parent)
-		if err != nil {
-			results.Errorf(err, "failed to fetch GCP IAM policies for %s", parent)
-			return results
-		}
-		results = append(results, iamPolicy.Results...)
-
-		// Group-membership expansion runs by default alongside IAM policy so
-		// group grants unwrap to their members. It needs the Cloud Identity
-		// groups.readonly scope; disable with exclude: [IAMGroupMembers] when
-		// the scrape service account lacks it.
-		if config.Includes(v1.IncludeGroupMembers) && !config.Excludes(v1.IncludeGroupMembers) {
-			memberResults, err := scrapers.fetchGroups(ctx, config, iamPolicy.Scope, iamPolicy.GroupEmails)
-			if err != nil {
-				results.Errorf(err, "failed to fetch GCP group memberships for %s", parent)
-			} else {
-				results = append(results, memberResults...)
-			}
 		}
 	}
 
@@ -528,7 +540,7 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 		if !gcpConfig.Excludes(v1.ExcludeSecurityCenter) {
 			for _, parent := range parents {
 				if analysisResults, err := gcp.ListFindings(gcpCtx, parent); err != nil {
-					allResults.Errorf(err, "failed to scrape GCP Security Center findings for %s", parent)
+					reportAPIError(gcpCtx, &allResults, err, "skipping GCP Security Center findings for %s", parent)
 				} else {
 					allResults = append(allResults, analysisResults...)
 				}

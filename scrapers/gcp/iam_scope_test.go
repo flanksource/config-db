@@ -16,7 +16,7 @@ var _ = Describe("scopeFor", func() {
 		scope := scopeFor("projects/gcp-proj-1", "1234")
 		Expect(scope.Tenant).To(Equal("1234"))
 		Expect(scope.Root).To(Equal(v1.ConfigExternalKey{
-			Type:       "GCP::ResourceManager::Organization",
+			Type:       "GCP::Organization",
 			ExternalID: "//cloudresourcemanager.googleapis.com/organizations/1234",
 		}))
 	})
@@ -80,7 +80,7 @@ var _ = Describe("newRoleConfig", func() {
 	It("parents an organization custom role to its own organization", func() {
 		role := newRoleConfig("organizations/9999/roles/auditor", orgScope)
 		Expect(role.Parents).To(ConsistOf(v1.ConfigExternalKey{
-			Type:       "GCP::ResourceManager::Organization",
+			Type:       "GCP::Organization",
 			ExternalID: "//cloudresourcemanager.googleapis.com/organizations/9999",
 		}))
 		Expect(role.Config).To(HaveKeyWithValue("organization", "9999"))

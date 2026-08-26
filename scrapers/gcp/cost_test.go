@@ -4,12 +4,20 @@ package gcp
 
 import (
 	"testing"
+
+	"cloud.google.com/go/bigquery"
 	"time"
 
 	"github.com/onsi/gomega"
 
 	v1 "github.com/flanksource/config-db/api/v1"
 )
+
+// allCostColumns is an export carrying the optional list-price columns.
+var allCostColumns = map[string]bool{
+	"cost_at_list":                    true,
+	"cost_at_effective_price_default": true,
+}
 
 func TestCostLookbackBoundary(t *testing.T) {
 	g := gomega.NewWithT(t)
@@ -21,7 +29,7 @@ func TestCostLookbackBoundary(t *testing.T) {
 func TestBuildCostQuery(t *testing.T) {
 	g := gomega.NewWithT(t)
 
-	query, err := buildCostQuery("my-proj", "billing_export", "gcp_billing_export_resource_v1_01ABCD")
+	query, err := buildCostQuery("my-proj", "billing_export", "gcp_billing_export_resource_v1_01ABCD", allCostColumns)
 	g.Expect(err).ToNot(gomega.HaveOccurred())
 	g.Expect(query).To(gomega.ContainSubstring("`my-proj.billing_export.gcp_billing_export_resource_v1_01ABCD`"))
 
@@ -49,7 +57,7 @@ func TestBuildCostQueryRejectsBadIdentifiers(t *testing.T) {
 		{"my-proj", "d", "t`; DROP"},
 		{"my proj", "d", "t"},
 	} {
-		_, err := buildCostQuery(c.project, c.dataset, c.table)
+		_, err := buildCostQuery(c.project, c.dataset, c.table, allCostColumns)
 		g.Expect(err).To(gomega.HaveOccurred(), "expected %q.%q.%q to be rejected", c.project, c.dataset, c.table)
 	}
 }
@@ -63,6 +71,7 @@ func TestCostRowToExternalCost(t *testing.T) {
 		ServiceDescription: "Compute Engine",
 		SkuID:              "sku-123",
 		ProjectID:          "demo",
+		ProjectNumber:      "365415247865",
 		BillingAccountID:   "01ABCD-2345EF-67890A",
 		Region:             "us-central1",
 		Currency:           "USD",
@@ -76,7 +85,7 @@ func TestCostRowToExternalCost(t *testing.T) {
 		PricingQuantity:    "1",
 	}
 
-	cost, err := row.toExternalCost()
+	cost, err := row.toExternalCost("")
 	g.Expect(err).ToNot(gomega.HaveOccurred())
 
 	// The global name is the same full resource name the asset scrape stores as an alias,
@@ -88,9 +97,14 @@ func TestCostRowToExternalCost(t *testing.T) {
 	g.Expect(cost.BillingAccountID).To(gomega.Equal("01ABCD-2345EF-67890A"))
 	g.Expect(cost.ChargeCategory).To(gomega.Equal("Usage"))
 
-	// The root has to match the project config item, whose external id is qualified.
+	// The root has to match the alias asset inventory writes for a project, which is its
+	// full resource name and carries the number rather than the id.
 	g.Expect(cost.RootConfigID.ConfigType).To(gomega.Equal(v1.GCPProject))
-	g.Expect(cost.RootConfigID.ExternalID).To(gomega.Equal("projects/demo"))
+	g.Expect(cost.RootConfigID.ExternalID).To(
+		gomega.Equal("//cloudresourcemanager.googleapis.com/projects/365415247865"))
+
+	// The scoping label matches the project tag the asset scrape writes, which is the id.
+	g.Expect(cost.SubAccountID).To(gomega.Equal("demo"))
 }
 
 func TestCostRowFallsBackToUnallocated(t *testing.T) {
@@ -121,4 +135,92 @@ func TestCostSourceKeyExcludesCredentials(t *testing.T) {
 	g.Expect(key).To(gomega.Equal("gcp-billing:connection=connection://gcp/default:my-proj.billing_export.tbl"))
 
 	g.Expect(costSourceKey(v1.GCP{}, "my-proj", "d", "t")).To(gomega.ContainSubstring("credentials=ambient"))
+}
+
+func TestProjectResourceName(t *testing.T) {
+	g := gomega.NewWithT(t)
+
+	row := costRow{ProjectID: "demo", ProjectNumber: "365415247865"}
+	g.Expect(row.projectResourceName()).To(
+		gomega.Equal("//cloudresourcemanager.googleapis.com/projects/365415247865"))
+
+	// Without a number there is no identifier the asset scrape would have written, so the
+	// row is left to skip rather than rooted somewhere it does not belong.
+	g.Expect(costRow{ProjectID: "demo"}.projectResourceName()).To(gomega.BeEmpty())
+}
+
+func TestCostRootFallsBackToOrganization(t *testing.T) {
+	g := gomega.NewWithT(t)
+	const org = "//cloudresourcemanager.googleapis.com/organizations/1092049285013"
+
+	// A row that names a project is booked there, which keeps the charge where it was
+	// incurred even when the organization is known.
+	withProject := costRow{ProjectID: "demo", ProjectNumber: "365415247865"}
+	root := withProject.costRoot(org)
+	g.Expect(root.ConfigType).To(gomega.Equal(v1.GCPProject))
+	g.Expect(root.ExternalID).To(
+		gomega.Equal("//cloudresourcemanager.googleapis.com/projects/365415247865"))
+
+	// Tax, support and billing-account adjustments name no project at all. Without the
+	// organization they have nowhere to go and the money is dropped.
+	noProject := costRow{CostType: "regular", ServiceDescription: "Duet AI"}
+	root = noProject.costRoot(org)
+	g.Expect(root.ConfigType).To(gomega.Equal(v1.GCPOrganization))
+	g.Expect(root.ExternalID).To(gomega.Equal(org))
+
+	// A project-scoped scrape names no organization, so such a row still has no root.
+	g.Expect(noProject.costRoot("")).To(gomega.Equal(v1.ExternalID{}))
+}
+
+func TestOrganizationResourceName(t *testing.T) {
+	g := gomega.NewWithT(t)
+	const want = "//cloudresourcemanager.googleapis.com/organizations/1092049285013"
+
+	// Accepted either bare or already qualified.
+	g.Expect(organizationResourceName(v1.GCP{Organization: "1092049285013"})).To(gomega.Equal(want))
+	g.Expect(organizationResourceName(v1.GCP{Organization: "organizations/1092049285013"})).To(gomega.Equal(want))
+	g.Expect(organizationResourceName(v1.GCP{})).To(gomega.BeEmpty())
+}
+
+func TestOptionalListPriceColumns(t *testing.T) {
+	g := gomega.NewWithT(t)
+
+	// Present: read and aggregated like the rest of the money.
+	query, err := buildCostQuery("p", "d", "t", allCostColumns)
+	g.Expect(err).ToNot(gomega.HaveOccurred())
+	g.Expect(query).To(gomega.ContainSubstring("CAST(SUM(IFNULL(cost_at_list, 0)) AS STRING) AS list_cost"))
+	g.Expect(query).To(gomega.ContainSubstring("AS contracted_cost"))
+
+	// Absent: selected as NULL so the query still runs against an export written before
+	// these columns existed, rather than failing on an unknown field.
+	query, err = buildCostQuery("p", "d", "t", map[string]bool{})
+	g.Expect(err).ToNot(gomega.HaveOccurred())
+	g.Expect(query).To(gomega.ContainSubstring("CAST(NULL AS STRING) AS list_cost"))
+	g.Expect(query).ToNot(gomega.ContainSubstring("cost_at_list,"))
+}
+
+func TestOptionalCostsReachTheExternalCost(t *testing.T) {
+	g := gomega.NewWithT(t)
+	start := time.Date(2026, 8, 20, 1, 0, 0, 0, time.UTC)
+	row := costRow{
+		ProjectID: "demo", ProjectNumber: "365415247865", Currency: "USD",
+		UsageStartTime: start, UsageEndTime: start.Add(time.Hour),
+		BilledCost: "1.50", EffectiveCost: "1.20", PricingQuantity: "1",
+		ListCost:       bigquery.NullString{StringVal: "2.00", Valid: true},
+		ContractedCost: bigquery.NullString{StringVal: "1.75", Valid: true},
+	}
+
+	cost, err := row.toExternalCost("")
+	g.Expect(err).ToNot(gomega.HaveOccurred())
+	g.Expect(cost.ListCost).ToNot(gomega.BeNil())
+	g.Expect(cost.ListCost.String()).To(gomega.Equal("2"))
+	g.Expect(cost.ContractedCost.String()).To(gomega.Equal("1.75"))
+
+	// An export without them leaves the fields unset rather than reporting a list price of
+	// zero, which would read as everything being free.
+	row.ListCost, row.ContractedCost = bigquery.NullString{}, bigquery.NullString{}
+	cost, err = row.toExternalCost("")
+	g.Expect(err).ToNot(gomega.HaveOccurred())
+	g.Expect(cost.ListCost).To(gomega.BeNil())
+	g.Expect(cost.ContractedCost).To(gomega.BeNil())
 }

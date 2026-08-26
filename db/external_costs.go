@@ -454,6 +454,54 @@ func resolveCostRoot(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *uu
 	}
 }
 
+// maxCostSkipCauses bounds how many distinct reasons are named before the rest are
+// counted anonymously.
+const maxCostSkipCauses = 5
+
+// costSkips groups per-row failures by cause. A single missing root config produces one
+// failure per row, so reporting them individually buries the job history under tens of
+// thousands of identical lines and says nothing the count does not.
+type costSkips struct {
+	total  int
+	counts map[string]int
+	first  map[string]int
+	order  []string
+}
+
+func (s *costSkips) add(index int, err error) {
+	s.total++
+	if s.counts == nil {
+		s.counts, s.first = map[string]int{}, map[string]int{}
+	}
+	cause := err.Error()
+	if _, seen := s.counts[cause]; !seen {
+		if len(s.order) >= maxCostSkipCauses {
+			return // counted in total, not named
+		}
+		s.order = append(s.order, cause)
+		s.first[cause] = index
+	}
+	s.counts[cause]++
+}
+
+// err summarises the failures, naming each distinct cause once with how often it occurred
+// and where it first did.
+func (s *costSkips) err(scraped int) error {
+	if s.total == 0 {
+		return nil
+	}
+	named := 0
+	parts := make([]string, 0, len(s.order)+1)
+	for _, cause := range s.order {
+		named += s.counts[cause]
+		parts = append(parts, fmt.Sprintf("%s (x%d, first at cost %d)", cause, s.counts[cause], s.first[cause]))
+	}
+	if rest := s.total - named; rest > 0 {
+		parts = append(parts, fmt.Sprintf("and %d more with other causes", rest))
+	}
+	return fmt.Errorf("skipped %d of %d external costs: %s", s.total, scraped, strings.Join(parts, "; "))
+}
+
 func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID *uuid.UUID, summary *v1.ScrapeSummary) error {
 	if len(costs) == 0 {
 		return nil
@@ -466,11 +514,11 @@ func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID
 	}
 
 	resolved := make([]v1.ExternalCost, 0, len(costs))
-	var costErrors []error
+	var skips costSkips
 	for i := range costs {
 		cost := costs[i]
 		skip := func(err error) {
-			costErrors = append(costErrors, fmt.Errorf("external cost %d: %w", i, err))
+			skips.add(i, err)
 			summary.ExternalCosts.Skipped++
 		}
 		if cost.SourceKey == "" {
@@ -497,14 +545,26 @@ func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID
 		resolved = append(resolved, cost)
 	}
 
-	if len(resolved) > 0 {
-		saved, err := upsertConfigCosts(ctx, bucketCosts(resolved, scraperID, levels), scraperID)
-		if err != nil {
-			summary.ExternalCosts.Skipped += len(resolved)
-			costErrors = append(costErrors, fmt.Errorf("failed to persist %d valid external costs: %w", len(resolved), err))
-		} else {
-			summary.ExternalCosts.Saved += saved
-		}
+	// Every row failing to resolve looks the same from outside as never having scraped
+	// any, so say which it was. The usual cause is a target whose config item does not
+	// exist yet, which resolves itself once that scrape has run at least once.
+	if len(resolved) == 0 {
+		ctx.Warnf("external costs: %v", skips.err(len(costs)))
+		return skips.err(len(costs))
 	}
-	return errors.Join(costErrors...)
+
+	saved, err := upsertConfigCosts(ctx, bucketCosts(resolved, scraperID, levels), scraperID)
+	if err != nil {
+		summary.ExternalCosts.Skipped += len(resolved)
+		return errors.Join(skips.err(len(costs)),
+			fmt.Errorf("failed to persist %d valid external costs: %w", len(resolved), err))
+	}
+
+	summary.ExternalCosts.Saved += saved
+
+	if err := skips.err(len(costs)); err != nil {
+		ctx.Warnf("external costs: %v", err)
+		return err
+	}
+	return nil
 }

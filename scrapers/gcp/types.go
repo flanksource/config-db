@@ -142,7 +142,7 @@ var typeOverrides = map[string]string{
 
 	// Organization resources (3 total)
 	"apigee.googleapis.com/Organization":               "Apigee::Organization",
-	"cloudresourcemanager.googleapis.com/Organization": "ResourceManager::Organization",
+	"cloudresourcemanager.googleapis.com/Organization": "Organization",
 
 	// Policy resources (3 total)
 	"dns.googleapis.com/Policy":                  "CloudDNS::Policy",

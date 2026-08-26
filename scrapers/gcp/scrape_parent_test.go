@@ -23,9 +23,11 @@ var _ = Describe("scrapeParent", func() {
 	}
 
 	var (
-		ctx    *GCPContext
-		calls  callCounts
-		failed error
+		ctx        *GCPContext
+		calls      callCounts
+		failed     error
+		assetsFail error
+		iamFail    error
 	)
 
 	projectItem := v1.ScrapeResult{Type: v1.GCPProject, ID: parent}
@@ -33,7 +35,7 @@ var _ = Describe("scrapeParent", func() {
 	BeforeEach(func() {
 		ctx = &GCPContext{ScrapeContext: api.NewScrapeContext(dutyCtx.New())}
 		calls = callCounts{}
-		failed = nil
+		failed, assetsFail, iamFail = nil, nil, nil
 	})
 
 	// Every pass is stubbed, so a spec asserts only which of them the include list reaches.
@@ -41,6 +43,9 @@ var _ = Describe("scrapeParent", func() {
 		return parentScrapers{
 			fetchAssets: func(*GCPContext, v1.GCP, string) (v1.ScrapeResults, error) {
 				calls.assets++
+				if assetsFail != nil {
+					return nil, assetsFail
+				}
 				return v1.ScrapeResults{{Type: "GCP::Instance", ID: "i-1"}}, nil
 			},
 			fetchSQLBackups: func(*GCPContext, v1.GCP, string, v1.ScrapeResults) (v1.ScrapeResults, error) {
@@ -56,6 +61,9 @@ var _ = Describe("scrapeParent", func() {
 			},
 			fetchIAMPolicies: func(*GCPContext, v1.GCP, string) (iamPolicyResult, error) {
 				calls.iam++
+				if iamFail != nil {
+					return iamPolicyResult{}, iamFail
+				}
 				// The IAM pass carries the hierarchy itself, which is why the standalone
 				// pass has to stay out of its way.
 				return iamPolicyResult{Results: v1.ScrapeResults{projectItem}}, nil
@@ -133,5 +141,41 @@ var _ = Describe("scrapeParent", func() {
 
 		Expect(calls.iam).To(Equal(1))
 		Expect(calls.groups).To(BeZero())
+	})
+
+	It("still emits the project when the asset pass cannot run", func() {
+		// A disabled asset API takes the IAM pass with it, because that lists assets before
+		// reading the hierarchy. The project has to survive both: it is the root every
+		// unattributed cost is booked against.
+		assetsFail = errContext
+		iamFail = errContext
+
+		results := Scraper{}.scrapeParentWith(ctx, v1.GCP{}, parent, stubs())
+
+		Expect(calls.assets).To(Equal(1))
+		Expect(calls.iam).To(Equal(1))
+		Expect(calls.hierarchy).To(Equal(1), "the hierarchy has to run once the IAM pass failed to supply it")
+		Expect(projectItems(results)).To(HaveLen(1))
+	})
+
+	It("does not abandon later passes when the asset pass fails", func() {
+		assetsFail = errContext
+
+		results := Scraper{}.scrapeParentWith(ctx, v1.GCP{}, parent, stubs())
+
+		// The IAM pass reads a different API, so it still runs.
+		Expect(calls.iam).To(Equal(1))
+		// The backup pass reads the instances the asset pass found, so it has nothing to do.
+		Expect(calls.backups).To(BeZero())
+		Expect(projectItems(results)).To(HaveLen(1))
+	})
+
+	It("skips group expansion when the IAM pass failed", func() {
+		iamFail = errContext
+
+		Scraper{}.scrapeParentWith(ctx, v1.GCP{}, parent, stubs())
+
+		Expect(calls.groups).To(BeZero())
+		Expect(calls.hierarchy).To(Equal(1))
 	})
 })

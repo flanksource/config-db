@@ -50,6 +50,28 @@ var _ = Describe("parseResourceData aliases", func() {
 		Expect(rd.Aliases).ToNot(ContainElement("owner@example.com"))
 	})
 
+	It("aliases a project by its id, which is how everything else names it", func() {
+		// Asset inventory records a project by number and its name field is the display
+		// name, so without this a project is unmatchable by the id people and billing
+		// exports use.
+		rd := parseResourceData(assetWith("cloudresourcemanager.googleapis.com/Project", map[string]any{
+			"name":          "Prod Workload Project EU2",
+			"projectId":     "workload-prod-eu-02",
+			"projectNumber": "37170934282",
+		}))
+
+		Expect(rd.Aliases).To(ContainElement("workload-prod-eu-02"))
+		Expect(rd.Aliases).To(ContainElement("projects/workload-prod-eu-02"))
+	})
+
+	It("does not invent a project alias for other asset types", func() {
+		rd := parseResourceData(assetWith("storage.googleapis.com/Bucket", map[string]any{
+			"name": "my-bucket",
+		}))
+
+		Expect(rd.Aliases).ToNot(ContainElement(ContainSubstring("projects/")))
+	})
+
 	It("emits no empty aliases for an asset without a self link", func() {
 		rd := parseResourceData(assetWith(serviceAccountAssetType, map[string]any{
 			"name":  "projects/gcp-proj-1/serviceAccounts/sa-etl@gcp-proj-1.iam.gserviceaccount.com",
