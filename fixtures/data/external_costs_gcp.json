@@ -4,7 +4,7 @@
     {
       "resource_id": "//compute.googleapis.com/projects/demo/zones/us-central1-a/instances/vm-1",
       "root_config_id": {
-        "external_id": "//cloudresourcemanager.googleapis.com/projects/365415247865",
+        "external_id": "//cloudresourcemanager.googleapis.com/projects/210987654321",
         "config_type": "GCP::Project"
       },
       "charge_period_start": "2026-08-03T00:00:00Z",
@@ -17,9 +17,9 @@
       "sub_account_id": "demo"
     },
     {
-      "resource_id": "gcp:unallocated:012394-00F442-85A410:demo:Duet AI:regular",
+      "resource_id": "gcp:unallocated:01ABCD-2345EF-67890A:demo:Duet AI:regular",
       "root_config_id": {
-        "external_id": "//cloudresourcemanager.googleapis.com/projects/365415247865",
+        "external_id": "//cloudresourcemanager.googleapis.com/projects/210987654321",
         "config_type": "GCP::Project"
       },
       "charge_period_start": "2026-08-03T00:00:00Z",
@@ -31,9 +31,9 @@
       "sub_account_id": "demo"
     },
     {
-      "resource_id": "gcp:unallocated:012394-00F442-85A410::Invoice:tax",
+      "resource_id": "gcp:unallocated:01ABCD-2345EF-67890A::Invoice:tax",
       "root_config_id": {
-        "external_id": "//cloudresourcemanager.googleapis.com/organizations/1092049285013",
+        "external_id": "//cloudresourcemanager.googleapis.com/organizations/123456789012",
         "config_type": "GCP::Organization"
       },
       "charge_period_start": "2026-08-03T00:00:00Z",

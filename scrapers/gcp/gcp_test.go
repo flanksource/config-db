@@ -55,13 +55,13 @@ var _ = Describe("parseResourceData aliases", func() {
 		// name, so without this a project is unmatchable by the id people and billing
 		// exports use.
 		rd := parseResourceData(assetWith("cloudresourcemanager.googleapis.com/Project", map[string]any{
-			"name":          "Prod Workload Project EU2",
-			"projectId":     "workload-prod-eu-02",
-			"projectNumber": "37170934282",
+			"name":          "Example Project Two",
+			"projectId":     "example-project-2",
+			"projectNumber": "345678901234",
 		}))
 
-		Expect(rd.Aliases).To(ContainElement("workload-prod-eu-02"))
-		Expect(rd.Aliases).To(ContainElement("projects/workload-prod-eu-02"))
+		Expect(rd.Aliases).To(ContainElement("example-project-2"))
+		Expect(rd.Aliases).To(ContainElement("projects/example-project-2"))
 	})
 
 	It("does not invent a project alias for other asset types", func() {

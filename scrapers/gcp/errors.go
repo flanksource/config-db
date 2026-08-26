@@ -2,9 +2,11 @@
 package gcp
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
+	"google.golang.org/api/googleapi"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/status"
 
@@ -20,24 +22,49 @@ var configurationReasons = map[string]string{
 	"ACCESS_TOKEN_SCOPE_INSUFFICIENT": "credentials lack the required scope",
 }
 
-// apiErrorInfo returns the structured detail Google attaches to its API errors.
-func apiErrorInfo(err error) *errdetails.ErrorInfo {
-	st, ok := status.FromError(err)
-	if !ok {
-		return nil
+// apiErrorDetail is the ErrorInfo Google attaches to a failure, normalised across its two
+// transports: gRPC carries it as a typed detail, REST as decoded JSON.
+type apiErrorDetail struct {
+	Reason   string
+	Metadata map[string]string
+}
+
+// apiErrorInfo returns that detail, from whichever transport produced the error. The
+// Cloud Asset and Security Center clients are gRPC; Resource Manager, Cloud Identity and
+// SQL Admin are REST, and they report the same conditions in a different envelope.
+func apiErrorInfo(err error) *apiErrorDetail {
+	if st, ok := status.FromError(err); ok {
+		for _, detail := range st.Details() {
+			if info, ok := detail.(*errdetails.ErrorInfo); ok {
+				return &apiErrorDetail{Reason: info.GetReason(), Metadata: info.GetMetadata()}
+			}
+		}
 	}
-	for _, detail := range st.Details() {
-		if info, ok := detail.(*errdetails.ErrorInfo); ok {
-			return info
+
+	var apiErr *googleapi.Error
+	if errors.As(err, &apiErr) {
+		for _, detail := range apiErr.Details {
+			fields, ok := detail.(map[string]any)
+			if !ok || !strings.HasSuffix(fmt.Sprint(fields["@type"]), "google.rpc.ErrorInfo") {
+				continue
+			}
+			reason, _ := fields["reason"].(string)
+			metadata := map[string]string{}
+			if raw, ok := fields["metadata"].(map[string]any); ok {
+				for k, v := range raw {
+					metadata[k] = fmt.Sprint(v)
+				}
+			}
+			return &apiErrorDetail{Reason: reason, Metadata: metadata}
 		}
 	}
 	return nil
 }
 
 // summarizeAPIError reduces a Google API error to the facts worth acting on: what was
-// refused, for which service, and on whose behalf.
+// refused, and on which service or resource.
 //
-// The full text says the same thing four times over — a prose message, an ErrorInfo, a
+// The full text says the same thing several times over — a prose message, an ErrorInfo, a
 // Help link and a localized copy — and runs past a dozen lines, which buries every other
 // error in the run.
 func summarizeAPIError(err error) (string, bool) {
@@ -45,17 +72,18 @@ func summarizeAPIError(err error) (string, bool) {
 	if info == nil {
 		return "", false
 	}
-	explanation, ok := configurationReasons[info.GetReason()]
+	explanation, ok := configurationReasons[info.Reason]
 	if !ok {
 		return "", false
 	}
 
-	parts := []string{fmt.Sprintf("%s (%s)", explanation, info.GetReason())}
-	if service := info.GetMetadata()["service"]; service != "" {
-		parts = append(parts, "service="+service)
-	}
-	if consumer := info.GetMetadata()["consumer"]; consumer != "" {
-		parts = append(parts, "consumer="+consumer)
+	parts := []string{fmt.Sprintf("%s (%s)", explanation, info.Reason)}
+	// A disabled API names the service and the project billed for it; a denied call names
+	// the permission and what it was refused on.
+	for _, key := range []string{"service", "consumer", "permission", "resource"} {
+		if value := info.Metadata[key]; value != "" {
+			parts = append(parts, key+"="+value)
+		}
 	}
 	return strings.Join(parts, " "), true
 }

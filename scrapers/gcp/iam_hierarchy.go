@@ -36,6 +36,9 @@ type resourceHierarchy struct {
 	// names it before any node is read, so it survives a scrape service account
 	// that may not read the organization resource itself.
 	OrganizationID string
+	// Warnings records the nodes whose IAM policy could not be read. The node itself
+	// survives, so the caller reports these rather than losing them with the error.
+	Warnings v1.ScrapeResults
 }
 
 // fetchResourceManagerHierarchy walks upwards from parent. An organization root
@@ -58,7 +61,7 @@ func fetchResourceManagerHierarchy(ctx *GCPContext, _ v1.GCP, parent string) (re
 
 	if projectID == "" {
 		hierarchy := resourceHierarchy{OrganizationID: organization}
-		node, err := fetchResourceManagerNode(ctx, service, parent)
+		node, err := fetchResourceManagerNode(ctx, service, parent, &hierarchy.Warnings)
 		if err != nil {
 			return hierarchy, err
 		}
@@ -85,7 +88,7 @@ func fetchResourceManagerHierarchy(ctx *GCPContext, _ v1.GCP, parent string) (re
 			hierarchy.OrganizationID = organization
 		}
 
-		node, err := fetchResourceManagerNode(ctx, service, parent)
+		node, err := fetchResourceManagerNode(ctx, service, parent, &hierarchy.Warnings)
 		if err != nil {
 			return hierarchy, err
 		}
@@ -101,7 +104,14 @@ func fetchResourceManagerHierarchy(ctx *GCPContext, _ v1.GCP, parent string) (re
 	return hierarchy, nil
 }
 
-func fetchResourceManagerNode(ctx *GCPContext, service *cloudresourcemanager.Service, name string) (resourceManagerNode, error) {
+// fetchResourceManagerNode reads one ancestor.
+//
+// The resource and its IAM policy are separate reads behind separate permissions, and only
+// the resource is needed to build the config item. A refused policy therefore costs the
+// grants at that level and nothing else: taking the node down with it would also lose the
+// organization and folder config items, which is where unattributed spend is booked and
+// what every asset hangs its parent edge off.
+func fetchResourceManagerNode(ctx *GCPContext, service *cloudresourcemanager.Service, name string, warnings *v1.ScrapeResults) (resourceManagerNode, error) {
 	request := &cloudresourcemanager.GetIamPolicyRequest{
 		Options: &cloudresourcemanager.GetPolicyOptions{RequestedPolicyVersion: 3},
 	}
@@ -114,7 +124,8 @@ func fetchResourceManagerNode(ctx *GCPContext, service *cloudresourcemanager.Ser
 		}
 		policy, err := service.Folders.GetIamPolicy(name, request).Context(ctx).Do()
 		if err != nil {
-			return resourceManagerNode{}, fmt.Errorf("get IAM policy for GCP folder %s: %w", name, err)
+			reportAPIError(ctx, warnings, err, "skipping the IAM policy for GCP folder %s, its folder-level grants will be missing", name)
+			return resourceManagerNode{Resource: folder}, nil
 		}
 		return resourceManagerNode{Resource: folder, Policy: policy}, nil
 	case strings.HasPrefix(name, "organizations/"):
@@ -124,7 +135,8 @@ func fetchResourceManagerNode(ctx *GCPContext, service *cloudresourcemanager.Ser
 		}
 		policy, err := service.Organizations.GetIamPolicy(name, request).Context(ctx).Do()
 		if err != nil {
-			return resourceManagerNode{}, fmt.Errorf("get IAM policy for GCP organization %s: %w", name, err)
+			reportAPIError(ctx, warnings, err, "skipping the IAM policy for GCP organization %s, its organization-level grants will be missing", name)
+			return resourceManagerNode{Resource: organization}, nil
 		}
 		return resourceManagerNode{Resource: organization, Policy: policy}, nil
 	default:

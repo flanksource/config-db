@@ -438,11 +438,11 @@ func (Scraper) fetchIAMPolicies(ctx *GCPContext, config v1.GCP, parent string, f
 	var hierarchyResults v1.ScrapeResults
 	hierarchy, err := fetchers.fetchHierarchy(ctx, config, parent)
 	if err != nil {
-		hierarchyResults.Errorf(err, "failed to read the GCP resource hierarchy above %s, its organization and folder config items will be missing", parent)
+		reportAPIError(ctx, &hierarchyResults, err, "skipping the GCP resource hierarchy above %s, its organization and folder config items will be missing", parent)
 	} else if results, policies, err := buildResourceManagerHierarchy(hierarchy.Project, hierarchy.Nodes, config.BaseScraper); err != nil {
 		hierarchyResults.Errorf(err, "invalid GCP resource hierarchy above %s, its organization and folder config items will be missing", parent)
 	} else {
-		hierarchyResults = results
+		hierarchyResults = append(hierarchy.Warnings, results...)
 		assets = append(assets, policies...)
 	}
 

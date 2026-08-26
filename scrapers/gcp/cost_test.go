@@ -71,7 +71,7 @@ func TestCostRowToExternalCost(t *testing.T) {
 		ServiceDescription: "Compute Engine",
 		SkuID:              "sku-123",
 		ProjectID:          "demo",
-		ProjectNumber:      "365415247865",
+		ProjectNumber:      "210987654321",
 		BillingAccountID:   "01ABCD-2345EF-67890A",
 		Region:             "us-central1",
 		Currency:           "USD",
@@ -101,7 +101,7 @@ func TestCostRowToExternalCost(t *testing.T) {
 	// full resource name and carries the number rather than the id.
 	g.Expect(cost.RootConfigID.ConfigType).To(gomega.Equal(v1.GCPProject))
 	g.Expect(cost.RootConfigID.ExternalID).To(
-		gomega.Equal("//cloudresourcemanager.googleapis.com/projects/365415247865"))
+		gomega.Equal("//cloudresourcemanager.googleapis.com/projects/210987654321"))
 
 	// The scoping label matches the project tag the asset scrape writes, which is the id.
 	g.Expect(cost.SubAccountID).To(gomega.Equal("demo"))
@@ -140,9 +140,9 @@ func TestCostSourceKeyExcludesCredentials(t *testing.T) {
 func TestProjectResourceName(t *testing.T) {
 	g := gomega.NewWithT(t)
 
-	row := costRow{ProjectID: "demo", ProjectNumber: "365415247865"}
+	row := costRow{ProjectID: "demo", ProjectNumber: "210987654321"}
 	g.Expect(row.projectResourceName()).To(
-		gomega.Equal("//cloudresourcemanager.googleapis.com/projects/365415247865"))
+		gomega.Equal("//cloudresourcemanager.googleapis.com/projects/210987654321"))
 
 	// Without a number there is no identifier the asset scrape would have written, so the
 	// row is left to skip rather than rooted somewhere it does not belong.
@@ -151,15 +151,15 @@ func TestProjectResourceName(t *testing.T) {
 
 func TestCostRootFallsBackToOrganization(t *testing.T) {
 	g := gomega.NewWithT(t)
-	const org = "//cloudresourcemanager.googleapis.com/organizations/1092049285013"
+	const org = "//cloudresourcemanager.googleapis.com/organizations/123456789012"
 
 	// A row that names a project is booked there, which keeps the charge where it was
 	// incurred even when the organization is known.
-	withProject := costRow{ProjectID: "demo", ProjectNumber: "365415247865"}
+	withProject := costRow{ProjectID: "demo", ProjectNumber: "210987654321"}
 	root := withProject.costRoot(org)
 	g.Expect(root.ConfigType).To(gomega.Equal(v1.GCPProject))
 	g.Expect(root.ExternalID).To(
-		gomega.Equal("//cloudresourcemanager.googleapis.com/projects/365415247865"))
+		gomega.Equal("//cloudresourcemanager.googleapis.com/projects/210987654321"))
 
 	// Tax, support and billing-account adjustments name no project at all. Without the
 	// organization they have nowhere to go and the money is dropped.
@@ -174,11 +174,11 @@ func TestCostRootFallsBackToOrganization(t *testing.T) {
 
 func TestOrganizationResourceName(t *testing.T) {
 	g := gomega.NewWithT(t)
-	const want = "//cloudresourcemanager.googleapis.com/organizations/1092049285013"
+	const want = "//cloudresourcemanager.googleapis.com/organizations/123456789012"
 
 	// Accepted either bare or already qualified.
-	g.Expect(organizationResourceName(v1.GCP{Organization: "1092049285013"})).To(gomega.Equal(want))
-	g.Expect(organizationResourceName(v1.GCP{Organization: "organizations/1092049285013"})).To(gomega.Equal(want))
+	g.Expect(organizationResourceName(v1.GCP{Organization: "123456789012"})).To(gomega.Equal(want))
+	g.Expect(organizationResourceName(v1.GCP{Organization: "organizations/123456789012"})).To(gomega.Equal(want))
 	g.Expect(organizationResourceName(v1.GCP{})).To(gomega.BeEmpty())
 }
 
@@ -203,7 +203,7 @@ func TestOptionalCostsReachTheExternalCost(t *testing.T) {
 	g := gomega.NewWithT(t)
 	start := time.Date(2026, 8, 20, 1, 0, 0, 0, time.UTC)
 	row := costRow{
-		ProjectID: "demo", ProjectNumber: "365415247865", Currency: "USD",
+		ProjectID: "demo", ProjectNumber: "210987654321", Currency: "USD",
 		UsageStartTime: start, UsageEndTime: start.Add(time.Hour),
 		BilledCost: "1.50", EffectiveCost: "1.20", PricingQuantity: "1",
 		ListCost:       bigquery.NullString{StringVal: "2.00", Valid: true},

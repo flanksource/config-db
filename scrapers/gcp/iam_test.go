@@ -380,6 +380,36 @@ var _ = Describe("fetch IAM policies", func() {
 })
 
 var _ = Describe("buildResourceManagerHierarchy", func() {
+	It("still emits the config items when an IAM policy could not be read", func() {
+		// Reading a node and reading its IAM policy are separate permissions. Losing the
+		// policy costs the grants at that level; it must not also cost the organization
+		// and folder config items, which anchor every asset's parent edge and are the
+		// root unattributed spend is booked against.
+		const organization = "123456789012"
+		nodes := []resourceManagerNode{
+			{
+				Resource: &cloudresourcemanager.Organization{
+					Name:        "organizations/" + organization,
+					DisplayName: "example.com",
+					State:       "ACTIVE",
+				},
+				// Refused, so the node carries no policy.
+				Policy: nil,
+			},
+		}
+
+		configs, policies, err := buildResourceManagerHierarchy(nil, nodes, v1.BaseScraper{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+		gomega.Expect(configs).To(gomega.HaveLen(1))
+		gomega.Expect(configs[0].Type).To(gomega.Equal(v1.GCPOrganization))
+		gomega.Expect(configs[0].Aliases).To(gomega.ContainElement(
+			"//cloudresourcemanager.googleapis.com/organizations/" + organization))
+
+		// Only the grants are lost.
+		gomega.Expect(policies).To(gomega.BeEmpty())
+	})
+
 	It("emits the project ancestor chain and resource-scoped IAM policies", func() {
 		const (
 			projectID     = "app-prod"

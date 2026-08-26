@@ -3,10 +3,12 @@ package gcp
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	dutyCtx "github.com/flanksource/duty/context"
 	"github.com/onsi/gomega"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,13 +22,13 @@ import (
 func serviceDisabledError(t *testing.T, reason string) error {
 	t.Helper()
 	st, err := status.New(codes.PermissionDenied,
-		"Security Command Center API has not been used in project 532356464728 before or it is disabled.").
+		"Security Command Center API has not been used in project 210987654321 before or it is disabled.").
 		WithDetails(&errdetails.ErrorInfo{
 			Reason: reason,
 			Domain: "googleapis.com",
 			Metadata: map[string]string{
 				"service":  "securitycenter.googleapis.com",
-				"consumer": "projects/532356464728",
+				"consumer": "projects/210987654321",
 			},
 		})
 	if err != nil {
@@ -41,7 +43,7 @@ func TestSummarizeAPIError(t *testing.T) {
 	summary, ok := summarizeAPIError(serviceDisabledError(t, "SERVICE_DISABLED"))
 	g.Expect(ok).To(gomega.BeTrue())
 	g.Expect(summary).To(gomega.Equal(
-		"API is not enabled (SERVICE_DISABLED) service=securitycenter.googleapis.com consumer=projects/532356464728"))
+		"API is not enabled (SERVICE_DISABLED) service=securitycenter.googleapis.com consumer=projects/210987654321"))
 
 	// A reason that is not a configuration state keeps its full text.
 	_, ok = summarizeAPIError(serviceDisabledError(t, "RESOURCE_EXHAUSTED"))
@@ -58,7 +60,7 @@ func TestReportAPIErrorBecomesAScrapeWarning(t *testing.T) {
 
 	var results v1.ScrapeResults
 	reportAPIError(ctx, &results, serviceDisabledError(t, "SERVICE_DISABLED"),
-		"skipping GCP Security Center findings for %s", "organizations/1092049285013")
+		"skipping GCP Security Center findings for %s", "organizations/123456789012")
 
 	// A disabled API is a deployment choice, so it must not be recorded as a scrape error.
 	g.Expect(results).To(gomega.HaveLen(1))
@@ -67,10 +69,10 @@ func TestReportAPIErrorBecomesAScrapeWarning(t *testing.T) {
 	// It rides the scrape summary, which is what an operator sees on a run.
 	g.Expect(results[0].Warnings).To(gomega.HaveLen(1))
 	warning := results[0].Warnings[0].Error
-	g.Expect(warning).To(gomega.ContainSubstring("organizations/1092049285013"))
+	g.Expect(warning).To(gomega.ContainSubstring("organizations/123456789012"))
 	g.Expect(warning).To(gomega.ContainSubstring("SERVICE_DISABLED"))
 	g.Expect(warning).To(gomega.ContainSubstring("securitycenter.googleapis.com"))
-	g.Expect(warning).To(gomega.ContainSubstring("projects/532356464728"))
+	g.Expect(warning).To(gomega.ContainSubstring("projects/210987654321"))
 }
 
 // The summary folds repeats together, so the same API disabled across many projects reads
@@ -82,7 +84,7 @@ func TestRepeatedSkipsCollapseInTheSummary(t *testing.T) {
 	var results v1.ScrapeResults
 	for i := 0; i < 3; i++ {
 		reportAPIError(ctx, &results, serviceDisabledError(t, "SERVICE_DISABLED"),
-			"skipping GCP Security Center findings for %s", "organizations/1092049285013")
+			"skipping GCP Security Center findings for %s", "organizations/123456789012")
 	}
 
 	var summary v1.ScrapeSummary
@@ -106,4 +108,62 @@ func TestReportAPIErrorKeepsUnexpectedFailures(t *testing.T) {
 	g.Expect(results).To(gomega.HaveLen(1))
 	g.Expect(results[0].Error).To(gomega.MatchError(gomega.ContainSubstring("connection reset")))
 	g.Expect(results[0].Warnings).To(gomega.BeEmpty())
+}
+
+// restErrorWith rebuilds a googleapi.Error the way the REST clients return it: details as
+// decoded JSON rather than typed protos.
+func restErrorWith(reason string, metadata map[string]any) error {
+	return &googleapi.Error{
+		Code:    403,
+		Message: "denied",
+		Details: []any{
+			map[string]any{
+				"@type":    "type.googleapis.com/google.rpc.ErrorInfo",
+				"reason":   reason,
+				"domain":   "cloudresourcemanager.googleapis.com",
+				"metadata": metadata,
+			},
+			map[string]any{"@type": "type.googleapis.com/google.rpc.Help"},
+		},
+	}
+}
+
+// Resource Manager, Cloud Identity and SQL Admin are REST clients, so their failures never
+// reach the gRPC status extractor and were reported in full until this was handled.
+func TestSummarizeRESTAPIError(t *testing.T) {
+	g := gomega.NewWithT(t)
+
+	// A denied call names the permission and the resource, not a service and consumer.
+	summary, ok := summarizeAPIError(restErrorWith("IAM_PERMISSION_DENIED", map[string]any{
+		"permission":         "resourcemanager.organizations.getIamPolicy",
+		"resource":           "organizations/123456789012",
+		"troubleshooter_url": "https://console.cloud.google.com/...",
+	}))
+	g.Expect(ok).To(gomega.BeTrue())
+	g.Expect(summary).To(gomega.Equal(
+		"missing IAM permission (IAM_PERMISSION_DENIED) permission=resourcemanager.organizations.getIamPolicy resource=organizations/123456789012"))
+
+	// A disabled API names the service and the project billed for it.
+	summary, ok = summarizeAPIError(restErrorWith("SERVICE_DISABLED", map[string]any{
+		"service":  "cloudidentity.googleapis.com",
+		"consumer": "projects/210987654321",
+	}))
+	g.Expect(ok).To(gomega.BeTrue())
+	g.Expect(summary).To(gomega.Equal(
+		"API is not enabled (SERVICE_DISABLED) service=cloudidentity.googleapis.com consumer=projects/210987654321"))
+
+	// An unrelated REST failure keeps its full text.
+	_, ok = summarizeAPIError(&googleapi.Error{Code: 500, Message: "backend error"})
+	g.Expect(ok).To(gomega.BeFalse())
+}
+
+// The error arrives wrapped by the layers it passed through, so it has to be unwrapped.
+func TestSummarizeWrappedRESTError(t *testing.T) {
+	g := gomega.NewWithT(t)
+	wrapped := fmt.Errorf("get IAM policy for GCP organization organizations/123456789012: %w",
+		restErrorWith("IAM_PERMISSION_DENIED", map[string]any{"permission": "resourcemanager.organizations.getIamPolicy"}))
+
+	summary, ok := summarizeAPIError(wrapped)
+	g.Expect(ok).To(gomega.BeTrue())
+	g.Expect(summary).To(gomega.ContainSubstring("IAM_PERMISSION_DENIED"))
 }

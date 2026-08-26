@@ -21,11 +21,11 @@ pre_populate:
       config: '{"machineType":"e2-medium"}'
     - config_class: Project
       type: GCP::Project
-      external_id: ["//cloudresourcemanager.googleapis.com/projects/365415247865"]
+      external_id: ["//cloudresourcemanager.googleapis.com/projects/210987654321"]
       config: '{"projectId":"demo"}'
     - config_class: Organization
       type: GCP::Organization
-      external_id: ["//cloudresourcemanager.googleapis.com/organizations/1092049285013"]
+      external_id: ["//cloudresourcemanager.googleapis.com/organizations/123456789012"]
       config: '{"displayName":"flanksource"}'
 assertions:
   - summary.external_costs.scraped == 3

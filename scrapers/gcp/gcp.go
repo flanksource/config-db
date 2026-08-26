@@ -403,7 +403,7 @@ func (Scraper) scrapeResourceHierarchy(ctx *GCPContext, config v1.GCP, parent st
 		return nil, err
 	}
 	results, _, err := buildResourceManagerHierarchy(hierarchy.Project, hierarchy.Nodes, config.BaseScraper)
-	return results, err
+	return append(hierarchy.Warnings, results...), err
 }
 
 func (Scraper) CanScrape(configs v1.ScraperSpec) bool {
@@ -553,7 +553,7 @@ func (gcp Scraper) Scrape(ctx api.ScrapeContext) v1.ScrapeResults {
 			if project := auditLogProject(gcpConfig); project == "" {
 				ctx.Warnf("gcp: skipping audit logs for %s, set auditLogs.project to the project holding the dataset", gcpConfig.Scope())
 			} else if accessLogResults, err := gcp.FetchAuditLogs(gcpCtx, gcpConfig, project, parents); err != nil {
-				allResults.Errorf(err, "failed to fetch GCP access logs for project %s", project)
+				reportAPIError(gcpCtx, &allResults, err, "skipping GCP access logs for project %s", project)
 			} else {
 				allResults = append(allResults, accessLogResults...)
 			}
