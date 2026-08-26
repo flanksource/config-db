@@ -57,7 +57,8 @@ jobs:
         run: make envtest
       - uses: flanksource/gavel@43a9189b99e71ed928f418e01cd34aa797c2c0e0 # main
         with:
-          args: test --ignore tests/e2e --ignore bench
+          # Gavel's CLI has a separate 10-minute default that can expire during prebuild.
+          args: test --timeout 17m --ignore tests/e2e --ignore bench
           version: latest
           comment: "true"
           comment-header: gavel
