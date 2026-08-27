@@ -224,3 +224,34 @@ func TestOptionalCostsReachTheExternalCost(t *testing.T) {
 	g.Expect(cost.ListCost).To(gomega.BeNil())
 	g.Expect(cost.ContractedCost).To(gomega.BeNil())
 }
+
+// The export and asset inventory spell the same resource differently — project number vs
+// id, singular vs plural kind, numeric id vs name. The trailing segment is the one part
+// they agree on, and it is what the asset scrape stores as an alias.
+func TestResourceLookupID(t *testing.T) {
+	g := gomega.NewWithT(t)
+
+	// A compute disk as the billing export writes it.
+	g.Expect(costRow{
+		ResourceGlobalName: "//compute.googleapis.com/projects/345678901234/zones/europe-west1-c/disk/1342029463145423244",
+	}.resourceLookupID()).To(gomega.Equal("1342029463145423244"))
+
+	// An instance, whose zone is numeric too. Still the trailing segment.
+	g.Expect(costRow{
+		ResourceGlobalName: "//compute.googleapis.com/projects/345678901234/zones/2103/instances/1109397387100823948",
+	}.resourceLookupID()).To(gomega.Equal("1109397387100823948"))
+
+	// Services that name resources rather than numbering them work the same way.
+	g.Expect(costRow{
+		ResourceGlobalName: "//storage.googleapis.com/projects/demo/buckets/my-bucket",
+	}.resourceLookupID()).To(gomega.Equal("my-bucket"))
+
+	// Falls back to the service-local name when there is no global name.
+	g.Expect(costRow{ResourceName: "vm-1"}.resourceLookupID()).To(gomega.Equal("vm-1"))
+
+	// Spend with no resource must not resolve to anything: it belongs on the project or
+	// organization, and a synthetic id is not something the asset scrape ever wrote.
+	g.Expect(costRow{
+		ProjectID: "demo", BillingAccountID: "01ABCD", ServiceDescription: "Tax", CostType: "tax",
+	}.resourceLookupID()).To(gomega.BeEmpty())
+}
