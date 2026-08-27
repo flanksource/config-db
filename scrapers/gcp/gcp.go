@@ -415,6 +415,22 @@ func (Scraper) scrapeResourceHierarchy(ctx *GCPContext, config v1.GCP, parent st
 	return append(hierarchy.Warnings, results...), err
 }
 
+// projectIDFromAliases recovers the project id from a resource name that carries it, which
+// is any alias naming a project by something other than the number.
+func projectIDFromAliases(aliases []string, projectNumber string) string {
+	for _, alias := range aliases {
+		_, rest, found := strings.Cut(alias, "/projects/")
+		if !found {
+			continue
+		}
+		segment, _, _ := strings.Cut(rest, "/")
+		if segment != "" && segment != projectNumber {
+			return segment
+		}
+	}
+	return ""
+}
+
 // withProjectNumberAliases adds the project-number form of every alias that names the
 // project by id, and the id form of every alias that names it by number.
 //
@@ -423,7 +439,18 @@ func (Scraper) scrapeResourceHierarchy(ctx *GCPContext, config v1.GCP, parent st
 // resource as //compute.googleapis.com/projects/<number>/…. Storing both is what lets a
 // charge find the resource it paid for.
 func withProjectNumberAliases(aliases []string, projectID, projectNumber string) []string {
-	if projectID == "" || projectNumber == "" || projectID == projectNumber {
+	if projectNumber == "" {
+		return aliases
+	}
+
+	// The number→id mapping comes from the project's own asset. An organization-scoped
+	// scrape that did not return it leaves the resolver answering with the bare number,
+	// and there is no fallback project to stand in. The id is still on the asset itself,
+	// since its resource name is written with it, so read it back from there.
+	if projectID == "" || projectID == projectNumber {
+		projectID = projectIDFromAliases(aliases, projectNumber)
+	}
+	if projectID == "" || projectID == projectNumber {
 		return aliases
 	}
 

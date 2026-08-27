@@ -152,6 +152,20 @@ var _ = Describe("withProjectNumberAliases", func() {
 			To(ConsistOf(byNumber, byID))
 	})
 
+	// An organization-scoped scrape has no fallback project, so when the project's own
+	// asset is not returned the resolver answers with the bare number. The id is still
+	// written into every resource name, which is enough to expand from.
+	It("recovers the id from the resource name when the project asset is missing", func() {
+		Expect(withProjectNumberAliases([]string{byID}, projectNumber, projectNumber)).
+			To(ConsistOf(byID, byNumber))
+	})
+
+	It("recovers nothing when only the number form is known", func() {
+		// Nothing names the project by id, so there is no id to expand to.
+		Expect(withProjectNumberAliases([]string{byNumber}, projectNumber, projectNumber)).
+			To(ConsistOf(byNumber))
+	})
+
 	It("does not duplicate a spelling that is already there", func() {
 		Expect(withProjectNumberAliases([]string{byID, byNumber}, projectID, projectNumber)).
 			To(ConsistOf(byID, byNumber))
@@ -163,8 +177,31 @@ var _ = Describe("withProjectNumberAliases", func() {
 			To(ConsistOf(email))
 	})
 
-	It("does nothing without both spellings to work from", func() {
+	It("does nothing without a number to translate to", func() {
 		Expect(withProjectNumberAliases([]string{byID}, projectID, "")).To(ConsistOf(byID))
-		Expect(withProjectNumberAliases([]string{byID}, "", projectNumber)).To(ConsistOf(byID))
+	})
+
+	It("derives the id when it was not resolved but the number is known", func() {
+		Expect(withProjectNumberAliases([]string{byID}, "", projectNumber)).
+			To(ConsistOf(byID, byNumber))
+	})
+})
+
+var _ = Describe("projectIDFromAliases", func() {
+	It("reads the id out of a resource name", func() {
+		Expect(projectIDFromAliases([]string{
+			"//compute.googleapis.com/projects/example-project-2/zones/europe-west1-c/disks/d1",
+		}, "345678901234")).To(Equal("example-project-2"))
+	})
+
+	It("ignores the number form, which is what it is trying to translate", func() {
+		Expect(projectIDFromAliases([]string{
+			"//compute.googleapis.com/projects/345678901234/zones/europe-west1-c/disks/d1",
+		}, "345678901234")).To(BeEmpty())
+	})
+
+	It("ignores aliases that name no project", func() {
+		Expect(projectIDFromAliases([]string{"sa@example.iam.gserviceaccount.com", "4869414832650143795"},
+			"345678901234")).To(BeEmpty())
 	})
 })
