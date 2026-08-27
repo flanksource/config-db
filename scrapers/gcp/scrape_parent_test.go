@@ -4,6 +4,7 @@ package gcp
 
 import (
 	"errors"
+	"slices"
 
 	dutyCtx "github.com/flanksource/duty/context"
 	. "github.com/onsi/ginkgo/v2"
@@ -41,12 +42,20 @@ var _ = Describe("scrapeParent", func() {
 	// Every pass is stubbed, so a spec asserts only which of them the include list reaches.
 	stubs := func() parentScrapers {
 		return parentScrapers{
-			fetchAssets: func(*GCPContext, v1.GCP, string) (v1.ScrapeResults, error) {
+			// Cloud Asset Inventory returns only the types it was asked for, so the project
+			// appears only when GetAssetTypes requested it. Returning it unconditionally
+			// would let these specs pass against a build that never asks.
+			fetchAssets: func(_ *GCPContext, config v1.GCP, _ string) (v1.ScrapeResults, error) {
 				calls.assets++
 				if assetsFail != nil {
 					return nil, assetsFail
 				}
-				return v1.ScrapeResults{{Type: "GCP::Instance", ID: "i-1"}, projectItem}, nil
+				assets := v1.ScrapeResults{{Type: "GCP::Instance", ID: "i-1"}}
+				types := config.GetAssetTypes()
+				if len(types) == 0 || slices.Contains(types, v1.ProjectAssetType) {
+					assets = append(assets, projectItem)
+				}
+				return assets, nil
 			},
 			fetchSQLBackups: func(*GCPContext, v1.GCP, string, v1.ScrapeResults) (v1.ScrapeResults, error) {
 				calls.backups++
