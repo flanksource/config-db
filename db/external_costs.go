@@ -306,22 +306,38 @@ func upsertConfigCosts(ctx api.ScrapeContext, costs []dutyModels.ConfigCost, scr
 		return 0, fmt.Errorf("failed to setup temp config costs: %w", err)
 	}
 
+	// Columns the scrape restates. Both the SET list and the guard below are built from
+	// this, so they cannot drift apart and start rewriting rows nothing changed.
+	restated := []string{
+		"external_id", "external_config_type", "external_config_scraper_id",
+		"external_config_labels", "charge_category", "charge_class", "service_name",
+		"service_category", "sku_id", "region_id", "billing_currency", "pricing_unit",
+		"billed_cost", "effective_cost", "list_cost", "contracted_cost",
+		"pricing_quantity", "focus", "grain", "scraper_id",
+	}
+	assignments := make([]string, 0, len(restated)+1)
+	current := make([]string, 0, len(restated))
+	incoming := make([]string, 0, len(restated))
+	for _, column := range restated {
+		assignments = append(assignments, fmt.Sprintf("%[1]s=excluded.%[1]s", column))
+		current = append(current, "config_costs."+column)
+		incoming = append(incoming, "excluded."+column)
+	}
+	assignments = append(assignments, "updated_at=now()")
+
 	// Plain upsert against the single merge key. There is no second identity to
 	// reconcile, so this needs neither a table lock nor a delete-then-insert pass.
+	//
+	// The guard matters more than it looks: providers restate a window unchanged for weeks,
+	// so most of a re-scrape is byte-identical. Without it every one of those rows is
+	// rewritten, and because updated_at is indexed the rewrite cannot be a HOT update and
+	// touches every index on the table.
 	query := fmt.Sprintf(`INSERT INTO config_costs SELECT * FROM %s
 		ON CONFLICT (source_key, config_id, period_start, period_end, fingerprint)
-		DO UPDATE SET external_id=excluded.external_id,
-		external_config_type=excluded.external_config_type,
-		external_config_scraper_id=excluded.external_config_scraper_id,
-		external_config_labels=excluded.external_config_labels,
-		charge_category=excluded.charge_category, charge_class=excluded.charge_class,
-		service_name=excluded.service_name, service_category=excluded.service_category,
-		sku_id=excluded.sku_id, region_id=excluded.region_id,
-		billing_currency=excluded.billing_currency, pricing_unit=excluded.pricing_unit,
-		billed_cost=excluded.billed_cost, effective_cost=excluded.effective_cost,
-		list_cost=excluded.list_cost, contracted_cost=excluded.contracted_cost,
-		pricing_quantity=excluded.pricing_quantity, focus=excluded.focus,
-		grain=excluded.grain, scraper_id=excluded.scraper_id, updated_at=now()`, table)
+		DO UPDATE SET %s
+		WHERE (%s) IS DISTINCT FROM (%s)`,
+		table, strings.Join(assignments, ", "),
+		strings.Join(current, ", "), strings.Join(incoming, ", "))
 	result := tx.Exec(query)
 	if result.Error != nil {
 		tx.Rollback()
@@ -333,11 +349,46 @@ func upsertConfigCosts(ctx api.ScrapeContext, costs []dutyModels.ConfigCost, scr
 	return int(result.RowsAffected), nil
 }
 
+// configLookups memoises resolution for the duration of one save.
+//
+// A provider restates the same resource for every hour of the window, so a batch is
+// overwhelmingly repeats: one real export resolved 164 distinct resources across 177,580
+// rows. The memo is built per save rather than shared, because config items are written
+// earlier in the same call and a longer-lived cache would answer "not scraped yet" for a
+// resource that had just been created.
+type configLookups map[string][]uuid.UUID
+
+// lookupKey covers every field findConfigMatches filters on, labels included: two lookups
+// differing only by scope are different questions.
+func lookupKey(lookup v1.ExternalID, defaultScraperID *uuid.UUID) string {
+	scope := lookup.ScraperID
+	if scope == "" && defaultScraperID != nil {
+		scope = defaultScraperID.String()
+	}
+	keys := make([]string, 0, len(lookup.Labels))
+	for k := range lookup.Labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys)+3)
+	parts = append(parts, lookup.ConfigType, v1.NormalizeExternalID(lookup.ExternalID), scope)
+	for _, k := range keys {
+		parts = append(parts, k+"="+lookup.Labels[k])
+	}
+	return strings.Join(parts, "\x00")
+}
+
 // findConfigMatches performs a deterministic, bounded lookup and exposes ambiguity.
-func findConfigMatches(db *gorm.DB, lookup v1.ExternalID, defaultScraperID *uuid.UUID) ([]uuid.UUID, error) {
+func findConfigMatches(db *gorm.DB, lookup v1.ExternalID, defaultScraperID *uuid.UUID, memo configLookups) ([]uuid.UUID, error) {
 	externalID := v1.NormalizeExternalID(lookup.ExternalID)
 	if externalID == "" {
 		return nil, nil
+	}
+	key := lookupKey(lookup, defaultScraperID)
+	if memo != nil {
+		if cached, ok := memo[key]; ok {
+			return cached, nil
+		}
 	}
 	q := db.Table("config_items").Select("id").Where("deleted_at IS NULL").Where("? = ANY(external_id)", externalID)
 	if lookup.ConfigType != "" {
@@ -366,6 +417,9 @@ func findConfigMatches(db *gorm.DB, lookup v1.ExternalID, defaultScraperID *uuid
 	if err := q.Order("id ASC").Limit(3).Pluck("id", &ids).Error; err != nil {
 		return nil, err
 	}
+	if memo != nil {
+		memo[key] = ids
+	}
 	return ids, nil
 }
 
@@ -379,7 +433,7 @@ func findConfigMatches(db *gorm.DB, lookup v1.ExternalID, defaultScraperID *uuid
 //
 // An external identity matching more than one config item is treated as unattributable
 // and falls back to the root: never guess a resource, never lose the money.
-func resolveCostTarget(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *uuid.UUID) error {
+func resolveCostTarget(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *uuid.UUID, memo configLookups) error {
 	if cost.ConfigExternalID.ConfigID != "" {
 		id, err := uuid.Parse(strings.TrimSpace(cost.ConfigExternalID.ConfigID))
 		if err != nil {
@@ -405,7 +459,7 @@ func resolveCostTarget(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *
 	}
 
 	if lookup.ExternalID != "" {
-		ids, err := findConfigMatches(ctx.DB(), lookup, scraperID)
+		ids, err := findConfigMatches(ctx.DB(), lookup, scraperID, memo)
 		if err != nil {
 			return fmt.Errorf("find config %s: %w", lookup.Pretty().ANSI(), err)
 		}
@@ -418,11 +472,11 @@ func resolveCostTarget(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *
 		}
 	}
 
-	return resolveCostRoot(ctx, cost, scraperID)
+	return resolveCostRoot(ctx, cost, scraperID, memo)
 }
 
 // resolveCostRoot attributes the cost to the emitting scraper's root config item.
-func resolveCostRoot(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *uuid.UUID) error {
+func resolveCostRoot(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *uuid.UUID, memo configLookups) error {
 	root := cost.RootConfigID
 	if root.ConfigID != "" {
 		id, err := uuid.Parse(strings.TrimSpace(root.ConfigID))
@@ -439,7 +493,7 @@ func resolveCostRoot(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *uu
 		root.ScraperID = cost.ScraperID
 	}
 
-	ids, err := findConfigMatches(ctx.DB(), root, scraperID)
+	ids, err := findConfigMatches(ctx.DB(), root, scraperID, memo)
 	if err != nil {
 		return fmt.Errorf("find root config %s: %w", root.Pretty().ANSI(), err)
 	}
@@ -454,6 +508,54 @@ func resolveCostRoot(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *uu
 	}
 }
 
+// maxCostSkipCauses bounds how many distinct reasons are named before the rest are
+// counted anonymously.
+const maxCostSkipCauses = 5
+
+// costSkips groups per-row failures by cause. A single missing root config produces one
+// failure per row, so reporting them individually buries the job history under tens of
+// thousands of identical lines and says nothing the count does not.
+type costSkips struct {
+	total  int
+	counts map[string]int
+	first  map[string]int
+	order  []string
+}
+
+func (s *costSkips) add(index int, err error) {
+	s.total++
+	if s.counts == nil {
+		s.counts, s.first = map[string]int{}, map[string]int{}
+	}
+	cause := err.Error()
+	if _, seen := s.counts[cause]; !seen {
+		if len(s.order) >= maxCostSkipCauses {
+			return // counted in total, not named
+		}
+		s.order = append(s.order, cause)
+		s.first[cause] = index
+	}
+	s.counts[cause]++
+}
+
+// err summarises the failures, naming each distinct cause once with how often it occurred
+// and where it first did.
+func (s *costSkips) err(scraped int) error {
+	if s.total == 0 {
+		return nil
+	}
+	named := 0
+	parts := make([]string, 0, len(s.order)+1)
+	for _, cause := range s.order {
+		named += s.counts[cause]
+		parts = append(parts, fmt.Sprintf("%s (x%d, first at cost %d)", cause, s.counts[cause], s.first[cause]))
+	}
+	if rest := s.total - named; rest > 0 {
+		parts = append(parts, fmt.Sprintf("and %d more with other causes", rest))
+	}
+	return fmt.Errorf("skipped %d of %d external costs: %s", s.total, scraped, strings.Join(parts, "; "))
+}
+
 func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID *uuid.UUID, summary *v1.ScrapeSummary) error {
 	if len(costs) == 0 {
 		return nil
@@ -466,11 +568,12 @@ func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID
 	}
 
 	resolved := make([]v1.ExternalCost, 0, len(costs))
-	var costErrors []error
+	memo := make(configLookups)
+	var skips costSkips
 	for i := range costs {
 		cost := costs[i]
 		skip := func(err error) {
-			costErrors = append(costErrors, fmt.Errorf("external cost %d: %w", i, err))
+			skips.add(i, err)
 			summary.ExternalCosts.Skipped++
 		}
 		if cost.SourceKey == "" {
@@ -490,21 +593,33 @@ func saveExternalCosts(ctx api.ScrapeContext, costs []v1.ExternalCost, scraperID
 				cost.ConfigExternalID.ScraperID = scraperID.String()
 			}
 		}
-		if err := resolveCostTarget(ctx, &cost, scraperID); err != nil {
+		if err := resolveCostTarget(ctx, &cost, scraperID, memo); err != nil {
 			skip(err)
 			continue
 		}
 		resolved = append(resolved, cost)
 	}
 
-	if len(resolved) > 0 {
-		saved, err := upsertConfigCosts(ctx, bucketCosts(resolved, scraperID, levels), scraperID)
-		if err != nil {
-			summary.ExternalCosts.Skipped += len(resolved)
-			costErrors = append(costErrors, fmt.Errorf("failed to persist %d valid external costs: %w", len(resolved), err))
-		} else {
-			summary.ExternalCosts.Saved += saved
-		}
+	// Every row failing to resolve looks the same from outside as never having scraped
+	// any, so say which it was. The usual cause is a target whose config item does not
+	// exist yet, which resolves itself once that scrape has run at least once.
+	if len(resolved) == 0 {
+		ctx.Warnf("external costs: %v", skips.err(len(costs)))
+		return skips.err(len(costs))
 	}
-	return errors.Join(costErrors...)
+
+	saved, err := upsertConfigCosts(ctx, bucketCosts(resolved, scraperID, levels), scraperID)
+	if err != nil {
+		summary.ExternalCosts.Skipped += len(resolved)
+		return errors.Join(skips.err(len(costs)),
+			fmt.Errorf("failed to persist %d valid external costs: %w", len(resolved), err))
+	}
+
+	summary.ExternalCosts.Saved += saved
+
+	if err := skips.err(len(costs)); err != nil {
+		ctx.Warnf("external costs: %v", err)
+		return err
+	}
+	return nil
 }

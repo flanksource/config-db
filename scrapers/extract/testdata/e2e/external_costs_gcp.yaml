@@ -1,0 +1,57 @@
+# GCP attributes spend at three levels, and the identifiers differ at each: a resource is
+# named by its full resource name, a project by its number, an organization by its id.
+# Getting any of them wrong loses the money silently, so each is pinned here.
+#
+# The unallocated rows carry a resource id that resolves to nothing, which is what the
+# billing export produces for spend with no resource of its own — Duet AI against a
+# project, tax against the billing account.
+spec:
+  full: true
+  file:
+    - type: GCP::Instance
+      id: $.external_id
+      paths:
+        - fixtures/data/external_costs_gcp.json
+pre_populate:
+  configs:
+    - config_class: VirtualMachine
+      type: GCP::Instance
+      external_id:
+        ["//compute.googleapis.com/projects/demo/zones/us-central1-a/instances/vm-1"]
+      config: '{"machineType":"e2-medium"}'
+    - config_class: Project
+      type: GCP::Project
+      external_id: ["//cloudresourcemanager.googleapis.com/projects/210987654321"]
+      config: '{"projectId":"demo"}'
+    - config_class: Organization
+      type: GCP::Organization
+      external_id: ["//cloudresourcemanager.googleapis.com/organizations/123456789012"]
+      config: '{"displayName":"flanksource"}'
+assertions:
+  - summary.external_costs.scraped == 3
+  - summary.external_costs.saved == 3
+  - size(db.external_costs(scraper_id)) == 3
+  - db.external_costs(scraper_id).all(c, has(c.config_id))
+
+  # Sub-hour spend still lands at the finest level.
+  - db.external_costs(scraper_id).all(c, c.grain == 'level1')
+
+  # The resource name is what ties a charge to the instance that incurred it.
+  - size(db.external_costs(scraper_id).filter(c, c.external_id.endsWith('instances/vm-1'))) == 1
+  - double(db.external_costs(scraper_id).filter(c, c.external_id.endsWith('instances/vm-1'))[0].effective_cost) == 1.2
+
+  # The list price is carried through, so the discount is visible rather than implied.
+  - double(db.external_costs(scraper_id).filter(c, c.external_id.endsWith('instances/vm-1'))[0].list_cost) == 2.0
+
+  # Spend with no resource of its own is booked to its project rather than dropped.
+  - size(db.external_costs(scraper_id).filter(c, c.service_name == 'Duet AI')) == 1
+  - double(db.external_costs(scraper_id).filter(c, c.service_name == 'Duet AI')[0].effective_cost) == 4.0
+
+  # Spend with no project at all is booked to the organization, which is the only root left.
+  - size(db.external_costs(scraper_id).filter(c, c.charge_category == 'Tax')) == 1
+  - double(db.external_costs(scraper_id).filter(c, c.charge_category == 'Tax')[0].effective_cost) == 8.5
+
+  # The three land on three different config items: instance, project, organization.
+  - size(db.external_costs(scraper_id).map(c, c.config_id).filter(x, true)) == 3
+  - db.external_costs(scraper_id).filter(c, c.service_name == 'Duet AI')[0].config_id !=
+    db.external_costs(scraper_id).filter(c, c.charge_category == 'Tax')[0].config_id

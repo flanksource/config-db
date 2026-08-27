@@ -231,7 +231,7 @@ var _ = Describe("buildIAMAccess", func() {
 		source := iamPolicySource
 		gomega.Expect(result.Access).To(gomega.ConsistOf(
 			v1.ExternalConfigAccess{
-				ConfigExternalID:    v1.ExternalID{ConfigType: "GCP::ResourceManager::Project", ExternalID: projectName},
+				ConfigExternalID:    v1.ExternalID{ConfigType: v1.GCPProject, ExternalID: projectName},
 				ExternalUserAliases: []string{principal},
 				ExternalRoleAliases: []string{role},
 				Source:              &source,
@@ -380,6 +380,36 @@ var _ = Describe("fetch IAM policies", func() {
 })
 
 var _ = Describe("buildResourceManagerHierarchy", func() {
+	It("still emits the config items when an IAM policy could not be read", func() {
+		// Reading a node and reading its IAM policy are separate permissions. Losing the
+		// policy costs the grants at that level; it must not also cost the organization
+		// and folder config items, which anchor every asset's parent edge and are the
+		// root unattributed spend is booked against.
+		const organization = "123456789012"
+		nodes := []resourceManagerNode{
+			{
+				Resource: &cloudresourcemanager.Organization{
+					Name:        "organizations/" + organization,
+					DisplayName: "example.com",
+					State:       "ACTIVE",
+				},
+				// Refused, so the node carries no policy.
+				Policy: nil,
+			},
+		}
+
+		configs, policies, err := buildResourceManagerHierarchy(nil, nodes, v1.BaseScraper{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+		gomega.Expect(configs).To(gomega.HaveLen(1))
+		gomega.Expect(configs[0].Type).To(gomega.Equal(v1.GCPOrganization))
+		gomega.Expect(configs[0].Aliases).To(gomega.ContainElement(
+			"//cloudresourcemanager.googleapis.com/organizations/" + organization))
+
+		// Only the grants are lost.
+		gomega.Expect(policies).To(gomega.BeEmpty())
+	})
+
 	It("emits the project ancestor chain and resource-scoped IAM policies", func() {
 		const (
 			projectID     = "app-prod"
@@ -431,16 +461,16 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 		gomega.Expect(configs[0].Type).To(gomega.Equal("GCP::ResourceManager::Folder"))
 		gomega.Expect(configs[0].Aliases).To(gomega.Equal([]string{folderExternalID}))
 		gomega.Expect(configs[0].Parents).To(gomega.Equal([]v1.ConfigExternalKey{{
-			Type:       "GCP::ResourceManager::Organization",
+			Type:       v1.GCPOrganization,
 			ExternalID: organizationExternalID,
 		}}))
 		gomega.Expect(configs[0].Children).To(gomega.Equal([]v1.ConfigExternalKey{{
-			Type:       "GCP::ResourceManager::Project",
+			Type:       v1.GCPProject,
 			ExternalID: "//cloudresourcemanager.googleapis.com/projects/" + projectNumber,
 		}}))
 		gomega.Expect(configs[1].ID).To(gomega.Equal("organizations/" + organization))
 		gomega.Expect(configs[1].Name).To(gomega.Equal("example.com"))
-		gomega.Expect(configs[1].Type).To(gomega.Equal("GCP::ResourceManager::Organization"))
+		gomega.Expect(configs[1].Type).To(gomega.Equal(v1.GCPOrganization))
 		gomega.Expect(configs[1].Aliases).To(gomega.Equal([]string{organizationExternalID}))
 		gomega.Expect(configs[1].Children).To(gomega.BeEmpty())
 
@@ -450,7 +480,7 @@ var _ = Describe("buildResourceManagerHierarchy", func() {
 			principal, "roles/resourcemanager.folderViewer",
 		)).ToNot(gomega.BeNil())
 		gomega.Expect(accessKeyed(access.Access,
-			v1.ExternalID{ConfigType: "GCP::ResourceManager::Organization", ExternalID: organizationExternalID},
+			v1.ExternalID{ConfigType: v1.GCPOrganization, ExternalID: organizationExternalID},
 			principal, "roles/resourcemanager.organizationAdmin",
 		)).ToNot(gomega.BeNil())
 	})
@@ -499,7 +529,7 @@ func TestBuildIAMAccess(t *testing.T) {
 	)
 	projectName := "//cloudresourcemanager.googleapis.com/projects/my-project"
 	bucketName := "//storage.googleapis.com/projects/_/buckets/my-bucket"
-	projectResource := v1.ExternalID{ConfigType: "GCP::ResourceManager::Project", ExternalID: projectName}
+	projectResource := v1.ExternalID{ConfigType: v1.GCPProject, ExternalID: projectName}
 	bucketResource := v1.ExternalID{ConfigType: v1.GCSBucket, ExternalID: bucketName}
 
 	assets := []*assetpb.Asset{
@@ -549,7 +579,7 @@ func TestBuildIAMAccess(t *testing.T) {
 		relatedTypes[rel.RelatedExternalID.ExternalID] = rel.RelatedExternalID.ConfigType
 	}
 	g.Expect(relatedTypes[bucketName]).To(gomega.Equal(v1.GCSBucket))
-	g.Expect(relatedTypes[projectName]).To(gomega.Equal("GCP::ResourceManager::Project"))
+	g.Expect(relatedTypes[projectName]).To(gomega.Equal(v1.GCPProject))
 
 	// owner bound only on the project -> single edge.
 	ownerRC := findRoleConfig(res.RoleConfigs, roleOwner)

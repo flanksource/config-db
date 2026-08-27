@@ -40,7 +40,7 @@ func (Scraper) FetchGroupMemberships(ctx *GCPContext, config v1.GCP, scope iamSc
 	for _, groupEmail := range groupEmails {
 		leaves, nested, err := traverseGroup(groupEmail, exp.directMemberships, ctx.Warnf)
 		if err != nil {
-			results.Errorf(err, "failed to expand group %s", groupEmail)
+			reportAPIError(ctx, &results, err, "skipping expansion of group %s", groupEmail)
 			continue
 		}
 		acc.add(groupEmail, leaves, nested)

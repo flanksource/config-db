@@ -17,7 +17,7 @@ const (
 	organizationAssetType = "cloudresourcemanager.googleapis.com/Organization"
 
 	organizationPrefix      = "organizations/"
-	organizationConfigClass = "ResourceManager::Organization"
+	organizationConfigClass = "Organization"
 )
 
 // isResourceManagerNode reports whether an asset is a node of the resource

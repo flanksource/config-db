@@ -26,15 +26,28 @@ var _ = Describe("GCP", func() {
 			GCP{Include: []string{"AsSets", "AuDitLoGs"}}, "auditlogs", true),
 	)
 
+	// A narrowed list always gains the project. The hierarchy pass links to that config
+	// item rather than emitting one, so leaving it out means nothing creates it and every
+	// parent edge and cost root dangles.
 	DescribeTable("GetAssetTypes",
 		func(config GCP, expected []string) {
-			Expect(config.GetAssetTypes()).To(Equal(expected))
+			if len(expected) == 0 {
+				Expect(config.GetAssetTypes()).To(BeEmpty())
+				return
+			}
+			Expect(config.GetAssetTypes()).To(ConsistOf(expected))
 		},
-		Entry("empty asset types and include - returns empty",
+		Entry("not narrowed, so everything is scraped and there is nothing to add",
 			GCP{}, nil),
-		Entry("include with asset types",
+		Entry("narrowed to asset types",
 			GCP{Include: []string{"storage.googleapis.com/Bucket", "compute.googleapis.com/Instance"}},
-			[]string{"storage.googleapis.com/Bucket", "compute.googleapis.com/Instance"}),
+			[]string{"storage.googleapis.com/Bucket", "compute.googleapis.com/Instance", ProjectAssetType}),
+		Entry("narrowed to feature flags, which would otherwise skip the asset pass entirely",
+			GCP{Include: []string{IncludeIAMPolicy}},
+			[]string{ProjectAssetType}),
+		Entry("already asked for, so not duplicated",
+			GCP{Include: []string{ProjectAssetType}},
+			[]string{ProjectAssetType}),
 	)
 
 	DescribeTable("ConfiguredProjects",

@@ -142,7 +142,7 @@ var typeOverrides = map[string]string{
 
 	// Organization resources (3 total)
 	"apigee.googleapis.com/Organization":               "Apigee::Organization",
-	"cloudresourcemanager.googleapis.com/Organization": "ResourceManager::Organization",
+	"cloudresourcemanager.googleapis.com/Organization": "Organization",
 
 	// Policy resources (3 total)
 	"dns.googleapis.com/Policy":                  "CloudDNS::Policy",
@@ -155,8 +155,11 @@ var typeOverrides = map[string]string{
 	"vmwareengine.googleapis.com/PrivateConnection":  "VMwareEngine::PrivateConnection",
 
 	// Project resources (3 total)
-	"compute.googleapis.com/Project":              "Project",
-	"cloudresourcemanager.googleapis.com/Project": "ResourceManager::Project",
+	// The Resource Manager project is the project: it is what every asset hangs off and
+	// what unresolved spend is booked against. Compute's per-project settings resource is
+	// namespaced by its service like every other entry here.
+	"compute.googleapis.com/Project":              "Compute::Project",
+	"cloudresourcemanager.googleapis.com/Project": "Project",
 
 	// Repository resources (3 total)
 	"artifactregistry.googleapis.com/Repository":    "ArtifactRegistry::Repository",

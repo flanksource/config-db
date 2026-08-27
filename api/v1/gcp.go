@@ -30,7 +30,8 @@ const (
 	GCPBackup    = "GCP::Backup"
 	GCPBackupRun = "GCP::BackupRun"
 
-	GCPProject = "GCP::Project"
+	GCPProject      = "GCP::Project"
+	GCPOrganization = "GCP::Organization"
 )
 
 const (
@@ -96,6 +97,55 @@ type GCP struct {
 
 	// AuditLogs query the BigQuery dataset for audit logs.
 	AuditLogs GCPAuditLogs `json:"auditLogs,omitempty"`
+
+	// CostReporting reads the Cloud Billing export from BigQuery.
+	CostReporting GCPCostReporting `json:"costReporting,omitempty"`
+}
+
+// GCPCostReporting locates the Cloud Billing export table.
+//
+// This must be the *detailed* usage cost export
+// (gcp_billing_export_resource_v1_<BILLING_ACCOUNT_ID>). The standard export carries no
+// resource column at all, so every charge would be attributed to its project rather than
+// to the resource that incurred it.
+type GCPCostReporting struct {
+	// Project holding the billing export dataset. Defaults to the scraped project.
+	Project string `json:"project,omitempty"`
+
+	// Dataset holding the export table, e.g. "billing_export".
+	Dataset string `json:"dataset,omitempty"`
+
+	// Table is the export table, e.g.
+	// "gcp_billing_export_resource_v1_01ABCD_2345EF_67890A".
+	Table string `json:"table,omitempty"`
+
+	// LookbackDays controls the UTC-midnight lower bound for each export read.
+	// Values <= 0 use the 45-day default; the current partial UTC day is included.
+	// BigQuery bills by bytes scanned, so this is the main cost control.
+	LookbackDays int `json:"lookbackDays,omitempty"`
+}
+
+// IsEmpty reports whether cost reporting was left unconfigured.
+func (c GCPCostReporting) IsEmpty() bool {
+	return c.Project == "" && c.Dataset == "" && c.Table == "" && c.LookbackDays == 0
+}
+
+// Validate reports whether the export table can be located.
+func (c GCPCostReporting) Validate() error {
+	if c.IsEmpty() {
+		return nil
+	}
+	var missing []string
+	if c.Dataset == "" {
+		missing = append(missing, "dataset")
+	}
+	if c.Table == "" {
+		missing = append(missing, "table")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("incomplete GCP costReporting: missing %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 type GCPAuditLogs struct {
@@ -207,13 +257,28 @@ func (gcp GCP) Excludes(resource string) bool {
 	return false
 }
 
+// ProjectAssetType is the Resource Manager project. It is the config item every other
+// asset hangs its parent edge off and the root unattributed spend is booked against, so a
+// narrowed scrape still has to produce it.
+const ProjectAssetType = "cloudresourcemanager.googleapis.com/Project"
+
 // GetAssetTypes returns the asset types to scrape from Include field.
+//
+// A narrowed list always gains the project: the hierarchy pass deliberately does not emit
+// one — it links to the item the asset pass produces — so leaving it out means nothing
+// creates it and every parent edge and cost root dangles.
 func (gcp GCP) GetAssetTypes() []string {
 	var assetTypes []string
 	for _, include := range gcp.Include {
 		if !slices.Contains(AllIncludes, include) {
 			assetTypes = append(assetTypes, include)
 		}
+	}
+
+	// Any narrowing at all, including one that names only feature flags: an include list
+	// of just IAMPolicy would otherwise skip the asset pass entirely and leave no project.
+	if len(gcp.Include) > 0 && !slices.Contains(assetTypes, ProjectAssetType) {
+		assetTypes = append(assetTypes, ProjectAssetType)
 	}
 
 	return assetTypes
