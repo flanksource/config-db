@@ -130,3 +130,41 @@ var _ = Describe("parseResourceData", func() {
 		Expect(processed).To(BeNumerically(">", 0), "expected at least one .json fixture in testdata/")
 	})
 })
+
+// Asset inventory names a resource by project id, the billing export names the same
+// resource by project number, and neither side can be changed. Carrying both spellings is
+// what lets a charge find the resource it paid for.
+var _ = Describe("withProjectNumberAliases", func() {
+	const (
+		projectID     = "example-project-2"
+		projectNumber = "345678901234"
+		byID          = "//compute.googleapis.com/projects/example-project-2/zones/europe-west1-c/disks/gke-node-1"
+		byNumber      = "//compute.googleapis.com/projects/345678901234/zones/europe-west1-c/disks/gke-node-1"
+	)
+
+	It("adds the number form to an alias written with the id", func() {
+		Expect(withProjectNumberAliases([]string{byID}, projectID, projectNumber)).
+			To(ConsistOf(byID, byNumber))
+	})
+
+	It("adds the id form to an alias written with the number", func() {
+		Expect(withProjectNumberAliases([]string{byNumber}, projectID, projectNumber)).
+			To(ConsistOf(byNumber, byID))
+	})
+
+	It("does not duplicate a spelling that is already there", func() {
+		Expect(withProjectNumberAliases([]string{byID, byNumber}, projectID, projectNumber)).
+			To(ConsistOf(byID, byNumber))
+	})
+
+	It("leaves aliases that do not name a project alone", func() {
+		const email = "sa-etl@example-project-2.iam.gserviceaccount.com"
+		Expect(withProjectNumberAliases([]string{email}, projectID, projectNumber)).
+			To(ConsistOf(email))
+	})
+
+	It("does nothing without both spellings to work from", func() {
+		Expect(withProjectNumberAliases([]string{byID}, projectID, "")).To(ConsistOf(byID))
+		Expect(withProjectNumberAliases([]string{byID}, "", projectNumber)).To(ConsistOf(byID))
+	})
+})

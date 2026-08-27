@@ -163,6 +163,24 @@ func chargeKind(costType string) (string, string) {
 	}
 }
 
+// resourceLookupID is what the charge is resolved against.
+//
+// The export writes a resource as //compute.googleapis.com/projects/<number>/zones/<zone>/
+// disk/<numeric id>, while asset inventory writes the same resource by project id, plural
+// kind and name. The one part both agree on is the trailing numeric id, which the asset
+// scrape stores as an alias. Matching on it is safe because the lookup is scoped to the
+// owning project, so a numeric id cannot reach a resource in another one.
+func (r costRow) resourceLookupID() string {
+	name := r.stableResourceID()
+	if strings.HasPrefix(name, "gcp:unallocated:") {
+		return ""
+	}
+	if index := strings.LastIndex(name, "/"); index >= 0 && index < len(name)-1 {
+		return name[index+1:]
+	}
+	return name
+}
+
 // stableResourceID prefers the globally unique name, which is the same full resource name
 // the asset scrape stores as an alias. Not every service populates it.
 func (r costRow) stableResourceID() string {
@@ -272,7 +290,10 @@ func (r costRow) toExternalCost(organization string) (v1.ExternalCost, error) {
 	}
 
 	cost = v1.ExternalCost{
-		ResourceID:        r.stableResourceID(),
+		ResourceID: r.stableResourceID(),
+		// Resolution prefers this over ResourceID, so the full resource name is still what
+		// gets stored as provenance.
+		ConfigExternalID:  v1.ExternalID{ExternalID: r.resourceLookupID()},
 		ScraperID:         "all",
 		RootConfigID:      r.costRoot(organization),
 		ChargePeriodStart: r.UsageStartTime.UTC(),

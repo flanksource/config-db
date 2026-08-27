@@ -365,6 +365,15 @@ func (gcp Scraper) FetchAllAssets(ctx *GCPContext, config v1.GCP, parent string)
 	for i := range results {
 		ancestry := ancestries[i]
 
+		// Asset inventory names a resource by project id; the billing export names the same
+		// resource by project number. Carry both so either side matches, rather than making
+		// every consumer know which convention its source used.
+		results[i].Aliases = withProjectNumberAliases(
+			results[i].Aliases,
+			resolver.resolve(ancestry.ancestors),
+			projectNumberFromAncestors(ancestry.ancestors),
+		)
+
 		if project := resolver.resolve(ancestry.ancestors); project != "" {
 			if results[i].Tags == nil {
 				results[i].Tags = map[string]string{}
@@ -404,6 +413,43 @@ func (Scraper) scrapeResourceHierarchy(ctx *GCPContext, config v1.GCP, parent st
 	}
 	results, _, err := buildResourceManagerHierarchy(hierarchy.Project, hierarchy.Nodes, config.BaseScraper)
 	return append(hierarchy.Warnings, results...), err
+}
+
+// withProjectNumberAliases adds the project-number form of every alias that names the
+// project by id, and the id form of every alias that names it by number.
+//
+// A resource has one identity and two spellings: asset inventory writes
+// //compute.googleapis.com/projects/<id>/… while the billing export writes the same
+// resource as //compute.googleapis.com/projects/<number>/…. Storing both is what lets a
+// charge find the resource it paid for.
+func withProjectNumberAliases(aliases []string, projectID, projectNumber string) []string {
+	if projectID == "" || projectNumber == "" || projectID == projectNumber {
+		return aliases
+	}
+
+	byID, byNumber := "/projects/"+projectID+"/", "/projects/"+projectNumber+"/"
+	seen := make(map[string]struct{}, len(aliases))
+	for _, alias := range aliases {
+		seen[alias] = struct{}{}
+	}
+
+	for _, alias := range aliases {
+		var other string
+		switch {
+		case strings.Contains(alias, byID):
+			other = strings.ReplaceAll(alias, byID, byNumber)
+		case strings.Contains(alias, byNumber):
+			other = strings.ReplaceAll(alias, byNumber, byID)
+		default:
+			continue
+		}
+		if _, ok := seen[other]; ok {
+			continue
+		}
+		seen[other] = struct{}{}
+		aliases = append(aliases, other)
+	}
+	return aliases
 }
 
 func (Scraper) CanScrape(configs v1.ScraperSpec) bool {

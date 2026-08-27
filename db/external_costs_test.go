@@ -197,7 +197,7 @@ var _ = Describe("cost target resolution", func() {
 		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
 		c.ConfigID = &id
 		c.ResourceID = "not-an-alias"
-		Expect(resolveCostTarget(ctx, &c, &scraperID)).To(Succeed())
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).To(Succeed())
 		Expect(c.ConfigID).To(Equal(&id))
 	})
 
@@ -211,7 +211,7 @@ var _ = Describe("cost target resolution", func() {
 		c.ConfigID = nil
 		c.ResourceID = "lower-priority"
 		c.ConfigExternalID = v1.ExternalID{ExternalID: "preferred", ConfigType: typeName}
-		Expect(resolveCostTarget(ctx, &c, &scraperID)).To(Succeed())
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).To(Succeed())
 		Expect(c.ConfigID).To(Equal(&id))
 	})
 
@@ -233,7 +233,7 @@ var _ = Describe("cost target resolution", func() {
 		c.ResourceID = ""
 		c.ConfigExternalID = v1.ExternalID{ExternalID: "duplicate", ConfigType: typeName}
 		c.RootConfigID = v1.ExternalID{ExternalID: "ambiguous-root", ConfigType: "Test::Account"}
-		Expect(resolveCostTarget(ctx, &c, &scraperID)).To(Succeed())
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).To(Succeed())
 		Expect(c.ConfigID).To(Equal(&root))
 	})
 
@@ -250,7 +250,7 @@ var _ = Describe("cost target resolution", func() {
 		c.ConfigID = nil
 		c.ResourceID = "i-tagged"
 		c.ConfigExternalID = v1.ExternalID{ConfigType: typeName, Labels: map[string]string{"account": "111122223333"}}
-		Expect(resolveCostTarget(ctx, &c, &scraperID)).To(Succeed())
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).To(Succeed())
 		Expect(c.ConfigID).To(Equal(&id))
 	})
 
@@ -268,7 +268,7 @@ var _ = Describe("cost target resolution", func() {
 		c.ResourceID = "i-shared-name"
 		c.ConfigExternalID = v1.ExternalID{ConfigType: typeName, Labels: map[string]string{"account": "999988887777"}}
 		c.RootConfigID = v1.ExternalID{ExternalID: "tagged-root", ConfigType: "Test::Account"}
-		Expect(resolveCostTarget(ctx, &c, &scraperID)).To(Succeed())
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).To(Succeed())
 		Expect(c.ConfigID).To(Equal(&root))
 	})
 
@@ -276,7 +276,7 @@ var _ = Describe("cost target resolution", func() {
 		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
 		c.ConfigID = nil
 		c.ResourceID = "never-scraped"
-		Expect(resolveCostTarget(ctx, &c, &scraperID)).
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).
 			To(MatchError(ContainSubstring("no root_config_id")))
 	})
 
@@ -307,6 +307,80 @@ var _ = Describe("cost target resolution", func() {
 		var stored models.ConfigItem
 		Expect(DefaultContext.DB().First(&stored, "id = ?", configID).Error).To(Succeed())
 		DeferCleanup(func() { DefaultContext.DB().Delete(&models.ConfigItem{}, configID) })
+	})
+
+	It("resolves each distinct target once for the whole batch", func() {
+		// A provider restates the same resource for every hour of the window, so a batch is
+		// overwhelmingly repeats: one real export resolved 164 distinct resources across
+		// 177,580 rows. Without the memo that is one query per row.
+		typeName := "Test::MemoTarget"
+		id := uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, created_at, updated_at) VALUES (?, ?, ?, ?, ARRAY[?]::text[], now(), now())`, id, scraperID, typeName, typeName, "memo-target").Error).To(Succeed())
+		DeferCleanup(func() { DefaultContext.DB().Exec("DELETE FROM config_items WHERE id = ?", id) })
+
+		memo := make(configLookups)
+		for i := 0; i < 5; i++ {
+			c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
+			c.ConfigID = nil
+			c.ResourceID = "memo-target"
+			c.ConfigExternalID = v1.ExternalID{ConfigType: typeName}
+			Expect(resolveCostTarget(ctx, &c, &scraperID, memo)).To(Succeed())
+			Expect(c.ConfigID).To(Equal(&id))
+		}
+		Expect(memo).To(HaveLen(1), "five identical lookups must ask the database once")
+
+		// A different scope is a different question, not a cache hit.
+		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
+		c.ConfigID = nil
+		c.ResourceID = "memo-target"
+		c.ConfigExternalID = v1.ExternalID{ConfigType: typeName, Labels: map[string]string{"project": "other"}}
+		c.RootConfigID = v1.ExternalID{ExternalID: "memo-target", ConfigType: typeName}
+		Expect(resolveCostTarget(ctx, &c, &scraperID, memo)).To(Succeed())
+		Expect(memo).To(HaveLen(2), "a scoped lookup must not reuse the unscoped answer")
+	})
+
+	It("does not rewrite rows a re-scrape left unchanged", func() {
+		// Providers restate a window unchanged for weeks, so most of a re-scrape is
+		// byte-identical. Rewriting those rows costs a new tuple version and an update to
+		// every index on the table, because updated_at is indexed and rules out a HOT
+		// update. On a real export that was the difference between 36s and 2.5s.
+		target := uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, created_at, updated_at) VALUES (?, ?, 'Test::CostTarget', 'Test', ARRAY[?]::text[], now(), now())`, target, scraperID, "unchanged-rescrape").Error).To(Succeed())
+		DeferCleanup(func() { DefaultContext.DB().Exec("DELETE FROM config_items WHERE id = ?", target) })
+
+		row := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "7")
+		row.ConfigID = &target
+		row.SourceKey = "test:unchanged-rescrape"
+		DeferCleanup(func() {
+			DefaultContext.DB().Where("source_key = ?", row.SourceKey).Delete(&models.ConfigCost{})
+		})
+
+		var first v1.ScrapeSummary
+		Expect(saveExternalCosts(ctx, []v1.ExternalCost{row}, &scraperID, &first)).To(Succeed())
+		Expect(first.ExternalCosts.Saved).To(Equal(1))
+
+		var stored models.ConfigCost
+		Expect(DefaultContext.DB().Where("source_key = ?", row.SourceKey).First(&stored).Error).To(Succeed())
+
+		// The same row again: nothing to write.
+		var second v1.ScrapeSummary
+		Expect(saveExternalCosts(ctx, []v1.ExternalCost{row}, &scraperID, &second)).To(Succeed())
+		Expect(second.ExternalCosts.Saved).To(BeZero(), "an unchanged row must not be rewritten")
+
+		var untouched models.ConfigCost
+		Expect(DefaultContext.DB().Where("source_key = ?", row.SourceKey).First(&untouched).Error).To(Succeed())
+		Expect(untouched.UpdatedAt).To(Equal(stored.UpdatedAt), "updated_at moving means the tuple was rewritten")
+
+		// A restatement still lands.
+		restated := decimal.RequireFromString("9")
+		row.EffectiveCost = &restated
+		var third v1.ScrapeSummary
+		Expect(saveExternalCosts(ctx, []v1.ExternalCost{row}, &scraperID, &third)).To(Succeed())
+		Expect(third.ExternalCosts.Saved).To(Equal(1))
+
+		var updated models.ConfigCost
+		Expect(DefaultContext.DB().Where("source_key = ?", row.SourceKey).First(&updated).Error).To(Succeed())
+		Expect(updated.EffectiveCost.String()).To(Equal("9"))
 	})
 
 	It("saves valid cost rows when another row is invalid", func() {
