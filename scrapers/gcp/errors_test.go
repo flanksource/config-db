@@ -196,3 +196,32 @@ func TestReportAPIErrorSplitsJoinedCauses(t *testing.T) {
 	g.Expect(warnings).To(gomega.Equal(1))
 	g.Expect(errs).To(gomega.Equal(1))
 }
+
+// The join is often behind a fmt.Errorf by the time it is reported. summarizeAPIError
+// reaches wrapped causes, so a join that is not itself unwrapped would be classified by
+// whichever cause matched first and the rest would be dropped without a trace.
+func TestReportAPIErrorSplitsWrappedJoinedCauses(t *testing.T) {
+	g := gomega.NewWithT(t)
+	ctx := &GCPContext{ScrapeContext: api.NewScrapeContext(dutyCtx.New())}
+
+	wrapped := fmt.Errorf("scraping Cloud SQL operations: %w", errors.Join(
+		restErrorWith("SERVICE_DISABLED", map[string]any{"service": "sqladmin.googleapis.com"}),
+		errors.New("connection reset"),
+	))
+
+	var results v1.ScrapeResults
+	reportAPIError(ctx, &results, wrapped, "reading Cloud SQL operations for %s", "demo")
+
+	g.Expect(results).To(gomega.HaveLen(2))
+
+	var warnings, errs int
+	for _, result := range results {
+		if result.Error != nil {
+			errs++
+			g.Expect(result.Error).To(gomega.MatchError(gomega.ContainSubstring("connection reset")))
+		}
+		warnings += len(result.Warnings)
+	}
+	g.Expect(warnings).To(gomega.Equal(1))
+	g.Expect(errs).To(gomega.Equal(1))
+}

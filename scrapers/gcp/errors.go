@@ -98,7 +98,12 @@ func reportAPIError(ctx *GCPContext, results *v1.ScrapeResults, err error, msg s
 	// A pass that fans out over projects returns one error per project, joined. Classifying
 	// the join as a whole would let a single disabled API downgrade the entire thing to a
 	// warning and take every unrelated failure with it, so each cause is judged alone.
-	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+	//
+	// Found through errors.As rather than a direct assertion: summarizeAPIError already
+	// reaches wrapped causes, so a join behind a fmt.Errorf would otherwise be classified
+	// by whichever cause happened to match first and the rest would be dropped.
+	var joined interface{ Unwrap() []error }
+	if errors.As(err, &joined) {
 		for _, cause := range joined.Unwrap() {
 			reportAPIError(ctx, results, cause, msg, args...)
 		}
