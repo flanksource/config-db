@@ -75,6 +75,24 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "ConfigChangeGenerator": {
+      "properties": {
+        "filter": {
+          "type": "string",
+          "description": "Filter is a CEL expression selecting the config items to convert."
+        },
+        "expr": {
+          "type": "string",
+          "description": "Expr is a CEL expression returning the generated changes as JSON."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "expr"
+      ],
+      "description": "ConfigChangeGenerator creates config changes from a scraped config item.\nThe CEL expression must return a JSON array of ChangeResult objects."
+    },
     "ConfigFieldExclusion": {
       "properties": {
         "types": {
@@ -726,6 +744,13 @@
     },
     "TransformChange": {
       "properties": {
+        "generate": {
+          "items": {
+            "$ref": "#/$defs/ConfigChangeGenerator"
+          },
+          "type": "array",
+          "description": "Generate creates changes from matching config items without replacing those items."
+        },
         "mapping": {
           "items": {
             "$ref": "#/$defs/ChangeMapping"

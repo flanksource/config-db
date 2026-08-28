@@ -72,6 +72,26 @@ spec:
                     items:
                       type: string
                     type: array
+                  generate:
+                    description: Generate creates changes from matching config items
+                      without replacing those items.
+                    items:
+                      description: |-
+                        ConfigChangeGenerator creates config changes from a scraped config item.
+                        The CEL expression must return a JSON array of ChangeResult objects.
+                      properties:
+                        expr:
+                          description: Expr is a CEL expression returning the generated
+                            changes as JSON.
+                          type: string
+                        filter:
+                          description: Filter is a CEL expression selecting the config
+                            items to convert.
+                          type: string
+                      required:
+                      - expr
+                      type: object
+                    type: array
                   mapping:
                     description: Mapping is a list of CEL expressions that maps a
                       change to the specified type

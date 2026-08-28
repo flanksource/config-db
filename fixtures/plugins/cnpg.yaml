@@ -13,6 +13,72 @@ spec:
         type:
           expr: '"CNPG::" + config.kind'
 
+  changes:
+    generate:
+      - filter: >-
+          config_type == "CNPG::Backup" &&
+          has(tags.cluster) &&
+          has(tags.namespace) &&
+          has(config.metadata.creationTimestamp) &&
+          has(config.spec.cluster.name) &&
+          has(config.status.phase) &&
+          config.status.phase.lowerAscii() in [
+            "pending",
+            "running",
+            "finalizing",
+            "completed",
+            "failed",
+            "invalid backup definition",
+            "walarchivingfailing"
+          ]
+        expr: |
+          [{
+            "external_id": ("Kubernetes/" + tags.cluster + "/Cluster/" + tags.namespace + "/" + config.spec.cluster.name).lowerAscii(),
+            "config_type": "CNPG::Cluster",
+            "external_change_id": id,
+            "change_type": config.status.phase.lowerAscii() == "completed"
+              ? "BackupCompleted"
+              : config.status.phase.lowerAscii() in ["failed", "invalid backup definition", "walarchivingfailing"]
+                ? "BackupFailed"
+                : "BackupStarted",
+            "summary": "CloudNativePG backup " + name + " " + config.status.phase.lowerAscii(),
+            "severity": config.status.phase.lowerAscii() in ["failed", "invalid backup definition", "walarchivingfailing"] ? "high" : "info",
+            "source": "CloudNativePG",
+            "created_at": has(config.status.startedAt) ? config.status.startedAt : config.metadata.creationTimestamp,
+            "details": {
+              "kind": "Backup/v1",
+              "backup_type": "StorageBackup",
+              "created_by": {
+                "kind": "Identity/v1",
+                "type": "System:Auto",
+                "name": "CloudNativePG"
+              },
+              "environment": {
+                "kind": "Environment/v1",
+                "name": tags.cluster,
+                "type": "Kubernetes",
+                "identifier": tags.cluster + "/" + tags.namespace,
+                "tags": {
+                  "cluster": tags.cluster,
+                  "namespace": tags.namespace
+                }
+              },
+              "id": id,
+              "timestamp": has(config.status.startedAt) ? config.status.startedAt : config.metadata.creationTimestamp,
+              "end": has(config.status.stoppedAt) ? config.status.stoppedAt : "",
+              "status": config.status.phase.lowerAscii() == "completed"
+                ? "Completed"
+                : config.status.phase.lowerAscii() in ["failed", "invalid backup definition", "walarchivingfailing"]
+                  ? "Failed"
+                  : config.status.phase.lowerAscii() == "pending" ? "Pending" : "Running",
+              "properties": {
+                "cluster": config.spec.cluster.name,
+                "method": has(config.spec.method) ? config.spec.method : ""
+              },
+              "raw": config
+            }
+          }].toJSON()
+
   relationship:
     # Backup-like resources reference a Cluster in the same namespace.
     - filter: >-

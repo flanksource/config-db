@@ -1,6 +1,7 @@
 package processors
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -127,6 +128,137 @@ func TestConfigMappingSeesExtractedLabels(t *testing.T) {
 	}
 	if result.Type != "Example::Production" {
 		t.Fatalf("expected mapping to see inherited labels, got %q", result.Type)
+	}
+}
+
+func TestCNPGPluginGeneratesTypedBackupChangesAndPreservesConfig(t *testing.T) {
+	data, err := os.ReadFile("../../fixtures/plugins/cnpg.yaml")
+	if err != nil {
+		t.Fatalf("failed to read CNPG plugin: %v", err)
+	}
+
+	var plugin v1.ScrapePlugin
+	if err := yaml.Unmarshal(data, &plugin); err != nil {
+		t.Fatalf("failed to parse CNPG plugin: %v", err)
+	}
+
+	ctx := api.NewScrapeContext(dutycontext.New()).WithScrapeConfig(&v1.ScrapeConfig{})
+	tests := []struct {
+		name               string
+		phase              string
+		startedAt          string
+		stoppedAt          string
+		expectedChangeType string
+		expectedStatus     types.Status
+		expectedSeverity   string
+	}{
+		{
+			name:               "completed",
+			phase:              "completed",
+			startedAt:          "2026-06-08T03:31:27Z",
+			stoppedAt:          "2026-06-08T03:35:27Z",
+			expectedChangeType: types.ChangeTypeBackupCompleted,
+			expectedStatus:     types.StatusCompleted,
+			expectedSeverity:   "info",
+		},
+		{
+			name:               "failed",
+			phase:              "failed",
+			expectedChangeType: types.ChangeTypeBackupFailed,
+			expectedStatus:     types.StatusFailed,
+			expectedSeverity:   "high",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status := map[string]any{"phase": tt.phase}
+			if tt.startedAt != "" {
+				status["startedAt"] = tt.startedAt
+			}
+			if tt.stoppedAt != "" {
+				status["stoppedAt"] = tt.stoppedAt
+			}
+
+			config := map[string]any{
+				"apiVersion": "postgresql.cnpg.io/v1",
+				"kind":       "Backup",
+				"metadata": map[string]any{
+					"uid":               "backup-uid",
+					"name":              "orders-20260608033127",
+					"namespace":         "database",
+					"creationTimestamp": "2026-06-08T03:31:00Z",
+				},
+				"spec": map[string]any{
+					"method":  "plugin",
+					"cluster": map[string]any{"name": "Orders"},
+				},
+				"status": status,
+			}
+			result := v1.ScrapeResult{
+				ID:     "backup-uid",
+				Name:   "orders-20260608033127",
+				Type:   "Kubernetes::Backup",
+				Config: config,
+				Tags: v1.JSONStringMap{
+					"cluster":   "Production",
+					"namespace": "Database",
+				},
+			}
+
+			if err := applyConfigMappings(ctx, &result, plugin.Spec.Configs.Mapping); err != nil {
+				t.Fatalf("failed to apply config mapping: %v", err)
+			}
+			if err := applyConfigChangeGenerators(ctx, &result, plugin.Spec.Change.Generate); err != nil {
+				t.Fatalf("failed to generate backup change: %v", err)
+			}
+
+			if result.Type != "CNPG::Backup" {
+				t.Fatalf("expected mapped config type CNPG::Backup, got %q", result.Type)
+			}
+			if result.Config == nil || result.ID != "backup-uid" {
+				t.Fatal("generator did not preserve the source backup config item")
+			}
+			if len(result.Changes) != 1 {
+				t.Fatalf("expected one generated change, got %d", len(result.Changes))
+			}
+
+			change := result.Changes[0]
+			if change.ChangeType != tt.expectedChangeType {
+				t.Errorf("expected change type %q, got %q", tt.expectedChangeType, change.ChangeType)
+			}
+			if change.ExternalID != "kubernetes/production/cluster/database/orders" {
+				t.Errorf("unexpected target external ID %q", change.ExternalID)
+			}
+			if change.ConfigType != "CNPG::Cluster" {
+				t.Errorf("expected target type CNPG::Cluster, got %q", change.ConfigType)
+			}
+			if change.ExternalChangeID != "backup-uid" {
+				t.Errorf("expected stable external change ID backup-uid, got %q", change.ExternalChangeID)
+			}
+			if change.Severity != tt.expectedSeverity {
+				t.Errorf("expected severity %q, got %q", tt.expectedSeverity, change.Severity)
+			}
+			if _, ok := change.Details["raw"].(map[string]any); !ok {
+				t.Errorf("expected raw CNPG backup object in change details, got %T", change.Details["raw"])
+			}
+
+			detailJSON, err := json.Marshal(change.Details)
+			if err != nil {
+				t.Fatalf("failed to marshal generated details: %v", err)
+			}
+			detail, err := types.UnmarshalChangeDetails(detailJSON)
+			if err != nil {
+				t.Fatalf("generated details are not a typed backup: %v", err)
+			}
+			backup, ok := detail.(types.Backup)
+			if !ok {
+				t.Fatalf("expected types.Backup, got %T", detail)
+			}
+			if backup.Status != tt.expectedStatus || backup.BackupType != types.BackupTypeStorageBackup {
+				t.Errorf("unexpected typed backup details: status=%q backup_type=%q", backup.Status, backup.BackupType)
+			}
+		})
 	}
 }
 
