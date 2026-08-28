@@ -25,12 +25,18 @@ var _ = Describe("config mappings", func() {
 		base := BaseScraper{
 			Transform: Transform{
 				Configs: TransformConfigs{Mapping: []ConfigMapping{{Match: "scrape-config"}}},
-				Change:  TransformChange{Exclude: []string{"scrape-config"}},
+				Change: TransformChange{
+					Generate: []ConfigChangeGenerator{{Filter: "scrape-config"}},
+					Exclude:  []string{"scrape-config"},
+				},
 			},
 		}
 		plugin := ScrapePluginSpec{
-			Configs:      TransformConfigs{Mapping: []ConfigMapping{{Match: "plugin"}}},
-			Change:       TransformChange{Exclude: []string{"plugin"}},
+			Configs: TransformConfigs{Mapping: []ConfigMapping{{Match: "plugin"}}},
+			Change: TransformChange{
+				Generate: []ConfigChangeGenerator{{Filter: "plugin"}},
+				Exclude:  []string{"plugin"},
+			},
 			Locations:    []LocationOrAlias{{}},
 			Aliases:      []LocationOrAlias{{}},
 			Relationship: []RelationshipConfig{{Filter: "true"}},
@@ -42,6 +48,9 @@ var _ = Describe("config mappings", func() {
 		Expect(got.Transform.Configs.Mapping).To(HaveLen(2))
 		Expect(got.Transform.Configs.Mapping[0].Match).To(Equal("scrape-config"))
 		Expect(got.Transform.Configs.Mapping[1].Match).To(Equal("plugin"))
+		Expect(got.Transform.Change.Generate).To(HaveLen(2))
+		Expect(got.Transform.Change.Generate[0].Filter).To(Equal("scrape-config"))
+		Expect(got.Transform.Change.Generate[1].Filter).To(Equal("plugin"))
 		Expect(got.Transform.Change.Exclude).To(Equal([]string{"scrape-config", "plugin"}))
 		Expect(got.Transform.Locations).To(HaveLen(1))
 		Expect(got.Transform.Aliases).To(HaveLen(1))
@@ -58,6 +67,7 @@ var _ = Describe("config mappings", func() {
 		Expect(plugin.Name).To(Equal("cnpg"))
 		Expect(plugin.Spec.Configs.Mapping).To(HaveLen(1))
 		Expect(plugin.Spec.Configs.Mapping[0].Type.Expr).To(Equal(types.CelExpression(`"CNPG::" + config.kind`)))
+		Expect(plugin.Spec.Change.Generate).To(HaveLen(1))
 		Expect(plugin.Spec.Relationship).To(HaveLen(4))
 	})
 })

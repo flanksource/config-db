@@ -167,7 +167,18 @@ type ChangeMapping struct {
 	Target *duty.RelationshipSelectorTemplate `json:"target,omitempty"`
 }
 
+// ConfigChangeGenerator creates config changes from a scraped config item.
+// The CEL expression must return a JSON array of ChangeResult objects.
+type ConfigChangeGenerator struct {
+	// Filter is a CEL expression selecting the config items to convert.
+	Filter string `json:"filter,omitempty"`
+	// Expr is a CEL expression returning the generated changes as JSON.
+	Expr string `json:"expr"`
+}
+
 type TransformChange struct {
+	// Generate creates changes from matching config items without replacing those items.
+	Generate []ConfigChangeGenerator `json:"generate,omitempty"`
 	// Mapping is a list of CEL expressions that maps a change to the specified type
 	Mapping []ChangeMapping `json:"mapping,omitempty"`
 	// Exclude is a list of CEL expressions that excludes a given change
@@ -175,7 +186,7 @@ type TransformChange struct {
 }
 
 func (t *TransformChange) IsEmpty() bool {
-	return len(t.Exclude) == 0 && len(t.Mapping) == 0
+	return len(t.Generate) == 0 && len(t.Exclude) == 0 && len(t.Mapping) == 0
 }
 
 type RelationshipConfig struct {
@@ -319,6 +330,7 @@ type BaseScraper struct {
 
 func (base BaseScraper) ApplyPlugins(plugins ...ScrapePluginSpec) BaseScraper {
 	for _, p := range plugins {
+		base.Transform.Change.Generate = append(base.Transform.Change.Generate, p.Change.Generate...)
 		base.Transform.Change.Exclude = append(base.Transform.Change.Exclude, p.Change.Exclude...)
 		base.Transform.Change.Mapping = append(base.Transform.Change.Mapping, p.Change.Mapping...)
 		base.Transform.Configs.Mapping = append(base.Transform.Configs.Mapping, p.Configs.Mapping...)

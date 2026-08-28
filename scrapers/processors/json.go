@@ -861,6 +861,9 @@ func (e Extract) extractAttributes(ctx api.ScrapeContext, input v1.ScrapeResult)
 	if err := applyConfigMappings(ctx, &input, input.BaseScraper.Transform.Configs.Mapping); err != nil {
 		return input, err
 	}
+	if err := applyConfigChangeGenerators(ctx, &input, input.BaseScraper.Transform.Change.Generate); err != nil {
+		return input, err
+	}
 
 	return input, nil
 }
