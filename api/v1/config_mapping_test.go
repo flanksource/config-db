@@ -2,6 +2,7 @@ package v1
 
 import (
 	"os"
+	"strings"
 
 	"github.com/flanksource/duty/types"
 	. "github.com/onsi/ginkgo/v2"
@@ -69,5 +70,17 @@ var _ = Describe("config mappings", func() {
 		Expect(plugin.Spec.Configs.Mapping[0].Type.Expr).To(Equal(types.CelExpression(`"CNPG::" + config.kind`)))
 		Expect(plugin.Spec.Change.Generate).To(HaveLen(1))
 		Expect(plugin.Spec.Relationship).To(HaveLen(4))
+	})
+
+	It("keeps the shipped CNPG chart plugin in sync with its fixture", func() {
+		fixture, err := os.ReadFile("../../fixtures/plugins/cnpg.yaml")
+		Expect(err).NotTo(HaveOccurred())
+		chart, err := os.ReadFile("../../chart/templates/plugins/cnpg.yaml")
+		Expect(err).NotTo(HaveOccurred())
+
+		chartLines := strings.Split(strings.TrimSpace(string(chart)), "\n")
+		Expect(len(chartLines)).To(BeNumerically(">", 2))
+		shippedPlugin := strings.Join(chartLines[1:len(chartLines)-1], "\n")
+		Expect(strings.TrimSpace(shippedPlugin)).To(Equal(strings.TrimSpace(string(fixture))))
 	})
 })

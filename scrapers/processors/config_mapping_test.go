@@ -146,54 +146,63 @@ func TestCNPGPluginGeneratesTypedBackupChangesAndPreservesConfig(t *testing.T) {
 	tests := []struct {
 		name               string
 		phase              string
+		method             string
 		startedAt          string
 		stoppedAt          string
+		omitCreationTime   bool
+		errorMessage       string
+		commandError       string
 		expectedChangeType string
 		expectedStatus     types.Status
+		expectedBackupType types.BackupType
 		expectedSeverity   string
 	}{
-		{
-			name:               "completed",
-			phase:              "completed",
-			startedAt:          "2026-06-08T03:31:27Z",
-			stoppedAt:          "2026-06-08T03:35:27Z",
-			expectedChangeType: types.ChangeTypeBackupCompleted,
-			expectedStatus:     types.StatusCompleted,
-			expectedSeverity:   "info",
-		},
-		{
-			name:               "failed",
-			phase:              "failed",
-			expectedChangeType: types.ChangeTypeBackupFailed,
-			expectedStatus:     types.StatusFailed,
-			expectedSeverity:   "high",
-		},
+		{name: "pending", phase: "pending", method: "plugin", expectedChangeType: types.ChangeTypeBackupStarted, expectedStatus: types.StatusPending, expectedBackupType: types.BackupTypeStorageBackup, expectedSeverity: "info"},
+		{name: "started without timestamps", phase: "started", method: "plugin", omitCreationTime: true, expectedChangeType: types.ChangeTypeBackupStarted, expectedStatus: types.StatusRunning, expectedBackupType: types.BackupTypeStorageBackup, expectedSeverity: "info"},
+		{name: "running", phase: "running", method: "plugin", startedAt: "2026-06-08T03:31:27Z", expectedChangeType: types.ChangeTypeBackupStarted, expectedStatus: types.StatusRunning, expectedBackupType: types.BackupTypeStorageBackup, expectedSeverity: "info"},
+		{name: "finalizing", phase: "finalizing", method: "plugin", expectedChangeType: types.ChangeTypeBackupStarted, expectedStatus: types.StatusRunning, expectedBackupType: types.BackupTypeStorageBackup, expectedSeverity: "info"},
+		{name: "completed volume snapshot", phase: "completed", method: "volumeSnapshot", startedAt: "2026-06-08T03:31:27Z", stoppedAt: "2026-06-08T03:35:27Z", expectedChangeType: types.ChangeTypeBackupCompleted, expectedStatus: types.StatusCompleted, expectedBackupType: types.BackupTypeSnapshot, expectedSeverity: "info"},
+		{name: "failed", phase: "failed", method: "plugin", errorMessage: "backup upload failed", commandError: "exit status 1", expectedChangeType: types.ChangeTypeBackupFailed, expectedStatus: types.StatusFailed, expectedBackupType: types.BackupTypeStorageBackup, expectedSeverity: "high"},
+		{name: "wal archiving failing", phase: "walArchivingFailing", method: "plugin", commandError: "WAL archiving is not working", expectedChangeType: types.ChangeTypeBackupFailed, expectedStatus: types.StatusFailed, expectedBackupType: types.BackupTypeStorageBackup, expectedSeverity: "high"},
+		{name: "invalid backup definition", phase: "invalid backup definition", method: "plugin", errorMessage: "backup configuration is invalid", expectedChangeType: types.ChangeTypeBackupFailed, expectedStatus: types.StatusFailed, expectedBackupType: types.BackupTypeStorageBackup, expectedSeverity: "high"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			status := map[string]any{"phase": tt.phase}
+			status := map[string]any{
+				"phase":           tt.phase,
+				"method":          tt.method,
+				"backupId":        "20260608T033127",
+				"destinationPath": "s3://backups/orders",
+			}
 			if tt.startedAt != "" {
 				status["startedAt"] = tt.startedAt
 			}
 			if tt.stoppedAt != "" {
 				status["stoppedAt"] = tt.stoppedAt
 			}
+			if tt.errorMessage != "" {
+				status["error"] = tt.errorMessage
+			}
+			if tt.commandError != "" {
+				status["commandError"] = tt.commandError
+			}
+
+			metadata := map[string]any{
+				"uid":       "backup-uid",
+				"name":      "orders-20260608033127",
+				"namespace": "database",
+			}
+			if !tt.omitCreationTime {
+				metadata["creationTimestamp"] = "2026-06-08T03:31:00Z"
+			}
 
 			config := map[string]any{
 				"apiVersion": "postgresql.cnpg.io/v1",
 				"kind":       "Backup",
-				"metadata": map[string]any{
-					"uid":               "backup-uid",
-					"name":              "orders-20260608033127",
-					"namespace":         "database",
-					"creationTimestamp": "2026-06-08T03:31:00Z",
-				},
-				"spec": map[string]any{
-					"method":  "plugin",
-					"cluster": map[string]any{"name": "Orders"},
-				},
-				"status": status,
+				"metadata":   metadata,
+				"spec":       map[string]any{"cluster": map[string]any{"name": "Orders"}},
+				"status":     status,
 			}
 			result := v1.ScrapeResult{
 				ID:     "backup-uid",
@@ -209,9 +218,7 @@ func TestCNPGPluginGeneratesTypedBackupChangesAndPreservesConfig(t *testing.T) {
 			if err := applyConfigMappings(ctx, &result, plugin.Spec.Configs.Mapping); err != nil {
 				t.Fatalf("failed to apply config mapping: %v", err)
 			}
-			if err := applyConfigChangeGenerators(ctx, &result, plugin.Spec.Change.Generate); err != nil {
-				t.Fatalf("failed to generate backup change: %v", err)
-			}
+			applyConfigChangeGenerators(ctx, &result, plugin.Spec.Change.Generate)
 
 			if result.Type != "CNPG::Backup" {
 				t.Fatalf("expected mapped config type CNPG::Backup, got %q", result.Type)
@@ -220,7 +227,7 @@ func TestCNPGPluginGeneratesTypedBackupChangesAndPreservesConfig(t *testing.T) {
 				t.Fatal("generator did not preserve the source backup config item")
 			}
 			if len(result.Changes) != 1 {
-				t.Fatalf("expected one generated change, got %d", len(result.Changes))
+				t.Fatalf("expected one generated change, got %d (warnings=%v)", len(result.Changes), result.Warnings)
 			}
 
 			change := result.Changes[0]
@@ -239,8 +246,22 @@ func TestCNPGPluginGeneratesTypedBackupChangesAndPreservesConfig(t *testing.T) {
 			if change.Severity != tt.expectedSeverity {
 				t.Errorf("expected severity %q, got %q", tt.expectedSeverity, change.Severity)
 			}
+			if tt.omitCreationTime && change.CreatedAt != nil {
+				t.Errorf("expected missing timestamps to leave created_at empty, got %v", change.CreatedAt)
+			}
 			if _, ok := change.Details["raw"].(map[string]any); !ok {
 				t.Errorf("expected raw CNPG backup object in change details, got %T", change.Details["raw"])
+			}
+			changeJSON, err := json.Marshal(change)
+			if err != nil {
+				t.Fatalf("failed to marshal generated change: %v", err)
+			}
+			var persistedChange v1.ChangeResult
+			if err := json.Unmarshal(changeJSON, &persistedChange); err != nil {
+				t.Fatalf("failed to round-trip generated change: %v", err)
+			}
+			if _, ok := persistedChange.Details["raw"].(map[string]any); !ok {
+				t.Errorf("expected generic details JSON to preserve raw CNPG backup, got %T", persistedChange.Details["raw"])
 			}
 
 			detailJSON, err := json.Marshal(change.Details)
@@ -255,8 +276,14 @@ func TestCNPGPluginGeneratesTypedBackupChangesAndPreservesConfig(t *testing.T) {
 			if !ok {
 				t.Fatalf("expected types.Backup, got %T", detail)
 			}
-			if backup.Status != tt.expectedStatus || backup.BackupType != types.BackupTypeStorageBackup {
+			if backup.Status != tt.expectedStatus || backup.BackupType != tt.expectedBackupType {
 				t.Errorf("unexpected typed backup details: status=%q backup_type=%q", backup.Status, backup.BackupType)
+			}
+			if backup.Event.Properties["method"] != tt.method || backup.Event.Properties["backup_id"] != "20260608T033127" || backup.Event.Properties["destination_path"] != "s3://backups/orders" {
+				t.Errorf("missing promoted backup properties: %#v", backup.Event.Properties)
+			}
+			if backup.Event.Properties["error"] != tt.errorMessage || backup.Event.Properties["command_error"] != tt.commandError {
+				t.Errorf("missing promoted failure details: %#v", backup.Event.Properties)
 			}
 		})
 	}
