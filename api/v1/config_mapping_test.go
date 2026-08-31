@@ -68,7 +68,7 @@ var _ = Describe("config mappings", func() {
 		Expect(plugin.Name).To(Equal("cnpg"))
 		Expect(plugin.Spec.Configs.Mapping).To(HaveLen(1))
 		Expect(plugin.Spec.Configs.Mapping[0].Type.Expr).To(Equal(types.CelExpression(`"CNPG::" + config.kind`)))
-		Expect(plugin.Spec.Change.Generate).To(HaveLen(1))
+		Expect(plugin.Spec.Change.Generate).To(HaveLen(2))
 		Expect(plugin.Spec.Relationship).To(HaveLen(4))
 	})
 

@@ -15,40 +15,31 @@ spec:
 
   changes:
     generate:
+      # A backup contributes two changes: one for when it started and one for how
+      # it terminated. Both are derived from whatever status a scrape happens to
+      # observe, so a backup first seen already completed still yields both rows
+      # instead of depending on catching it mid-flight.
+      #
+      # started: status.startedAt is the authoritative "it actually began" signal.
+      # CNPG sets phase=running before startedAt, and never sets startedAt at all
+      # when WAL archiving is failing, so keying off the timestamp rather than the
+      # phase keeps this row honest.
       - filter: >-
           config_type == "CNPG::Backup" &&
           has(tags.cluster) &&
           has(tags.namespace) &&
           has(config.spec.cluster.name) &&
-          has(config.status.phase) &&
-          config.status.phase.lowerAscii() in [
-            "pending",
-            "started",
-            "running",
-            "finalizing",
-            "completed",
-            "failed",
-            "invalid backup definition",
-            "walarchivingfailing"
-          ]
-        # The backup UID intentionally identifies one lifecycle row. Subsequent
-        # phases update BackupStarted in place to BackupCompleted or BackupFailed.
+          has(config.status.startedAt)
         expr: |
           [{
             "external_id": ("Kubernetes/" + tags.cluster + "/Cluster/" + tags.namespace + "/" + config.spec.cluster.name).lowerAscii(),
             "config_type": "CNPG::Cluster",
-            "external_change_id": id,
-            "change_type": config.status.phase.lowerAscii() == "completed"
-              ? "BackupCompleted"
-              : config.status.phase.lowerAscii() in ["failed", "invalid backup definition", "walarchivingfailing"]
-                ? "BackupFailed"
-                : "BackupStarted",
-            "summary": "CloudNativePG backup " + name + " " + config.status.phase.lowerAscii(),
-            "severity": config.status.phase.lowerAscii() in ["failed", "invalid backup definition", "walarchivingfailing"] ? "high" : "info",
+            "external_change_id": id + "/started",
+            "change_type": "BackupStarted",
+            "summary": "CloudNativePG backup " + name + " started",
+            "severity": "info",
             "source": "CloudNativePG",
-            "created_at": has(config.status.startedAt)
-              ? config.status.startedAt
-              : has(config.metadata.creationTimestamp) ? config.metadata.creationTimestamp : null,
+            "created_at": config.status.startedAt,
             "details": {
               "kind": "Backup/v1",
               "backup_type": has(config.status.method) && config.status.method.lowerAscii() == "volumesnapshot"
@@ -69,28 +60,86 @@ spec:
                   "namespace": tags.namespace
                 }
               },
-              "id": id,
+              "id": id + "/started",
+              "timestamp": config.status.startedAt,
+              "status": "Running",
+              "properties": {
+                "backup_name": name,
+                "cluster": config.spec.cluster.name,
+                "method": has(config.status.method) ? config.status.method : ""
+              }
+            }
+          }].toJSON()
+
+      # terminated: walArchivingFailing counts as terminal because the instance
+      # manager sets it and returns without ever starting the backup, and nothing
+      # requeues that backup, so it is a dead run rather than a phase it recovers
+      # from. Such a backup produces only this row, never a started one.
+      - filter: >-
+          config_type == "CNPG::Backup" &&
+          has(tags.cluster) &&
+          has(tags.namespace) &&
+          has(config.spec.cluster.name) &&
+          has(config.status.phase) &&
+          config.status.phase.lowerAscii() in [
+            "completed",
+            "failed",
+            "invalid backup definition",
+            "walarchivingfailing"
+          ]
+        expr: |
+          [{
+            "external_id": ("Kubernetes/" + tags.cluster + "/Cluster/" + tags.namespace + "/" + config.spec.cluster.name).lowerAscii(),
+            "config_type": "CNPG::Cluster",
+            "external_change_id": id + "/terminated",
+            "change_type": config.status.phase.lowerAscii() == "completed"
+              ? "BackupCompleted"
+              : "BackupFailed",
+            "summary": "CloudNativePG backup " + name + " " + config.status.phase.lowerAscii(),
+            "severity": config.status.phase.lowerAscii() == "completed" ? "info" : "high",
+            "source": "CloudNativePG",
+            "created_at": has(config.status.stoppedAt)
+              ? config.status.stoppedAt
+              : has(config.status.startedAt)
+                ? config.status.startedAt
+                : has(config.metadata.creationTimestamp) ? config.metadata.creationTimestamp : null,
+            "details": {
+              "kind": "Backup/v1",
+              "backup_type": has(config.status.method) && config.status.method.lowerAscii() == "volumesnapshot"
+                ? "Snapshot"
+                : "StorageBackup",
+              "created_by": {
+                "kind": "Identity/v1",
+                "type": "System:Auto",
+                "name": "CloudNativePG"
+              },
+              "environment": {
+                "kind": "Environment/v1",
+                "name": tags.cluster,
+                "type": "Kubernetes",
+                "identifier": tags.cluster + "/" + tags.namespace,
+                "tags": {
+                  "cluster": tags.cluster,
+                  "namespace": tags.namespace
+                }
+              },
+              "id": id + "/terminated",
               "timestamp": has(config.status.startedAt)
                 ? config.status.startedAt
                 : has(config.metadata.creationTimestamp) ? config.metadata.creationTimestamp : "",
               "end": has(config.status.stoppedAt) ? config.status.stoppedAt : "",
-              "status": config.status.phase.lowerAscii() == "completed"
-                ? "Completed"
-                : config.status.phase.lowerAscii() in ["failed", "invalid backup definition", "walarchivingfailing"]
-                  ? "Failed"
-                  : config.status.phase.lowerAscii() == "pending" ? "Pending" : "Running",
+              "status": config.status.phase.lowerAscii() == "completed" ? "Completed" : "Failed",
               "properties": {
+                "backup_name": name,
                 "cluster": config.spec.cluster.name,
                 "method": has(config.status.method) ? config.status.method : "",
                 "backup_id": has(config.status.backupId) ? config.status.backupId : "",
                 "destination_path": has(config.status.destinationPath) ? config.status.destinationPath : "",
                 "error": has(config.status.error) ? config.status.error : "",
                 "command_error": has(config.status.commandError) ? config.status.commandError : ""
-              },
-              "raw": config
+              }
             }
           }].toJSON()
-
   relationship:
     # Backup-like resources reference a Cluster in the same namespace.
     - filter: >-
