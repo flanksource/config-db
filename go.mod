@@ -7,7 +7,7 @@ require (
 	github.com/flanksource/clicky v1.21.55
 	github.com/flanksource/commons v1.56.0
 	github.com/flanksource/deps v1.0.40
-	github.com/flanksource/duty v1.0.1374
+	github.com/flanksource/duty v1.0.1375
 	github.com/flanksource/gomplate/v3 v3.24.89
 	github.com/flanksource/is-healthy v1.0.90
 	github.com/flanksource/ketall v1.1.12
