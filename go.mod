@@ -7,7 +7,7 @@ require (
 	github.com/flanksource/clicky v1.21.55
 	github.com/flanksource/commons v1.56.0
 	github.com/flanksource/deps v1.0.40
-	github.com/flanksource/duty v1.0.1372
+	github.com/flanksource/duty v1.0.1374
 	github.com/flanksource/gomplate/v3 v3.24.89
 	github.com/flanksource/is-healthy v1.0.90
 	github.com/flanksource/ketall v1.1.12
@@ -103,6 +103,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
 	go.opentelemetry.io/otel/sdk v1.44.0
 	gocloud.dev v0.46.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260622175928-b703f567277d
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.31.2
 	k8s.io/apimachinery v0.36.2
@@ -387,7 +388,6 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260622175928-b703f567277d // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
