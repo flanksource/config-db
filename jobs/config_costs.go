@@ -33,9 +33,9 @@ const (
 var configCostJobs = []*job.Job{RefreshConfigCostSummary, CompactConfigCosts, ReconcileConfigCosts}
 
 // RefreshConfigCostSummary keeps the trailing-window totals the `configs` view serves in
-// step with config_cost_compact. The windows are relative to now(), so the summary goes
-// stale on its own even when nothing new is scraped — and cost_1h decays fastest, which is
-// what sets the cadence.
+// step with config_cost_compact. The windows end at the newest charge period present
+// rather than at now(), so the totals move when new spend lands rather than decaying on
+// their own — and the cadence tracks how quickly compaction makes that spend visible.
 var RefreshConfigCostSummary = &job.Job{
 	Name: "RefreshConfigCostSummary", Schedule: "@every 15m", Singleton: true,
 	JobHistory: true, Retention: job.RetentionBalanced,
@@ -172,10 +172,10 @@ func compactCosts(ctx job.JobRuntime, full bool) error {
 // runs — selecting exactly that set means the two can never disagree.
 func pendingBuckets(bucketSeconds int64, window, levelUp time.Duration) string {
 	return fmt.Sprintf(`
-		SELECT DISTINCT config_id, source_key, fingerprint, cost_bucket(period_start, %[1]d) AS bucket
+		SELECT DISTINCT source_key, fingerprint, cost_bucket(period_start, %[1]d) AS bucket
 		FROM config_costs WHERE updated_at >= now() - make_interval(secs => %[2]f)
 		UNION
-		SELECT DISTINCT config_id, source_key, fingerprint, cost_bucket(period_start, %[1]d) AS bucket
+		SELECT DISTINCT source_key, fingerprint, cost_bucket(period_start, %[1]d) AS bucket
 		FROM config_cost_compact
 		WHERE grain = '%[3]s' AND period_end < now() - make_interval(secs => %[4]f)`,
 		bucketSeconds, window.Seconds(), models.ConfigCostLevel1, levelUp.Seconds())
@@ -191,7 +191,12 @@ const compactTargetColumns = `config_id, scraper_id, source_key, external_id, ex
 // Grouping by the full identity tuple means scraper_id and pricing_unit are exact rather
 // than an arbitrary MIN(): both are functionally determined by columns already in the
 // group — scraper_id by source_key, pricing_unit by fingerprint.
-const compactGroupBy = `c.config_id, c.scraper_id, c.source_key, c.external_id, c.external_config_type,
+//
+// config_id is not in the group. It is an attribution that moves when the catalog
+// discovers the resource a charge names, so grouping by it would split one bucket into a
+// row per target the charge has held, and those rows then collide on the merge key. The
+// bucket takes the most recently resolved target instead, matching the ingest rule.
+const compactGroupBy = `c.scraper_id, c.source_key, c.external_id, c.external_config_type,
 		         c.external_config_scraper_id, c.external_config_labels,
 		         c.charge_category, c.charge_class, c.service_name, c.service_category,
 		         c.sku_id, c.region_id, c.billing_currency, c.pricing_unit, c.fingerprint`
@@ -200,8 +205,9 @@ const compactGroupBy = `c.config_id, c.scraper_id, c.source_key, c.external_id, 
 // billing periods for weeks, so a bucket already written here can change afterwards. The
 // conflict clause SETs the recomputed total instead of adding to it; adding would
 // double-count every restatement.
-const compactOnConflict = `ON CONFLICT (source_key, config_id, period_start, period_end, fingerprint)
+const compactOnConflict = `ON CONFLICT (source_key, period_start, period_end, fingerprint)
 		DO UPDATE SET grain            = excluded.grain,
+		              config_id        = excluded.config_id,
 		              external_id      = excluded.external_id,
 		              billed_cost      = excluded.billed_cost,
 		              effective_cost   = excluded.effective_cost,
@@ -214,7 +220,8 @@ const compactOnConflict = `ON CONFLICT (source_key, config_id, period_start, per
 // compactAggregates is the SELECT list shared by both access paths. Callers supply the
 // expressions for period_start and period_end, which is where the two differ.
 func compactAggregates(bucketStart, bucketEnd string) string {
-	return fmt.Sprintf(`c.config_id, c.scraper_id, c.source_key, c.external_id, c.external_config_type,
+	return fmt.Sprintf(`(array_agg(c.config_id ORDER BY c.updated_at DESC))[1],
+			c.scraper_id, c.source_key, c.external_id, c.external_config_type,
 			c.external_config_scraper_id, c.external_config_labels,
 			%s, %s, ?::text,
 			c.charge_category, c.charge_class, c.service_name, c.service_category, c.sku_id, c.region_id,
@@ -238,7 +245,7 @@ func compactIncremental(ctx job.JobRuntime, grain string, width, window, levelUp
 		SELECT %s
 		FROM pending p
 		JOIN config_costs c
-		  ON c.source_key = p.source_key AND c.config_id = p.config_id
+		  ON c.source_key = p.source_key
 		 AND c.fingerprint = p.fingerprint
 		 AND c.period_start >= p.bucket
 		 AND c.period_start <  p.bucket + make_interval(secs => %d)
@@ -312,7 +319,8 @@ func rollToCoarsestLevel(ctx job.JobRuntime, levels db.CostLevels, threshold tim
 			pricing_quantity, pricing_unit, focus, fingerprint
 		)
 		SELECT
-			config_id, scraper_id, source_key, external_id, external_config_type,
+			(array_agg(config_id ORDER BY updated_at DESC))[1],
+			scraper_id, source_key, external_id, external_config_type,
 			external_config_scraper_id, external_config_labels,
 			cost_bucket(period_start, %[1]d), cost_bucket(period_start, %[1]d) + make_interval(secs => %[1]d), ?::text,
 			charge_category, charge_class, service_name, service_category, sku_id, region_id,
@@ -322,12 +330,13 @@ func rollToCoarsestLevel(ctx job.JobRuntime, levels db.CostLevels, threshold tim
 			(array_agg(focus ORDER BY period_start))[1], fingerprint
 		FROM config_cost_compact
 		WHERE grain = ? AND period_end < now() - make_interval(secs => ?)
-		GROUP BY config_id, scraper_id, source_key, external_id, external_config_type,
+		GROUP BY scraper_id, source_key, external_id, external_config_type,
 		         external_config_scraper_id, external_config_labels, 8, 9,
 		         charge_category, charge_class, service_name, service_category, sku_id,
 		         region_id, billing_currency, pricing_unit, fingerprint
-		ON CONFLICT (source_key, config_id, period_start, period_end, fingerprint)
-		DO UPDATE SET billed_cost      = config_cost_compact.billed_cost + excluded.billed_cost,
+		ON CONFLICT (source_key, period_start, period_end, fingerprint)
+		DO UPDATE SET config_id        = excluded.config_id,
+		              billed_cost      = config_cost_compact.billed_cost + excluded.billed_cost,
 		              effective_cost   = config_cost_compact.effective_cost + excluded.effective_cost,
 		              list_cost        = COALESCE(config_cost_compact.list_cost, 0) + COALESCE(excluded.list_cost, 0),
 		              contracted_cost  = COALESCE(config_cost_compact.contracted_cost, 0) + COALESCE(excluded.contracted_cost, 0),

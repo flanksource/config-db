@@ -95,6 +95,33 @@ var _ = Describe("config cost compaction", func() {
 		Expect(row.EffectiveCost.String()).To(Equal("6"))
 	})
 
+	It("collapses a bucket whose charge changed target part-way through", func() {
+		// A charge is re-resolved every scrape, so a bucket can span the moment its target
+		// moved off the account root onto the resource the catalog has just discovered.
+		// Grouping by config_id would split that bucket into one row per target, and the
+		// two then collide on the merge key. The bucket takes the newest target instead.
+		root := createConfig("compact-retarget-root")
+		resource := createConfig("compact-retarget-resource")
+		day := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -5)
+
+		for h := 0; h < 2; h++ {
+			start := day.Add(time.Duration(h) * time.Hour)
+			rawCost(root, "test:retarget", "retarget", "1", start, start.Add(time.Hour), models.ConfigCostLevel1)
+		}
+		for h := 2; h < 4; h++ {
+			start := day.Add(time.Duration(h) * time.Hour)
+			rawCost(resource, "test:retarget", "retarget", "1", start, start.Add(time.Hour), models.ConfigCostLevel1)
+		}
+
+		Expect(CompactConfigCosts.Fn(job.New(DefaultContext))).To(Succeed())
+
+		var rows []models.ConfigCostCompact
+		Expect(DefaultContext.DB().Where("source_key = ?", "test:retarget").Find(&rows).Error).To(Succeed())
+		Expect(rows).To(HaveLen(1), "one charge in one bucket must compact to one row")
+		Expect(rows[0].ConfigID).To(Equal(resource), "the most recently resolved target wins")
+		Expect(rows[0].EffectiveCost.String()).To(Equal("4"), "no spend may be lost or duplicated")
+	})
+
 	It("replaces a restated bucket rather than adding to it", func() {
 		// config_costs keeps its rows, and providers restate open billing periods for
 		// weeks. Re-running compaction on a restated bucket must recompute the total, not
