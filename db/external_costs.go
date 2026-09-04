@@ -428,6 +428,30 @@ func findConfigMatches(db *gorm.DB, lookup v1.ExternalID, defaultScraperID *uuid
 	return ids, nil
 }
 
+// costLookupCandidates returns lookup identities from most to least precise.
+//
+// GCP's billing export usually supplies the same full resource name Cloud Asset
+// Inventory stores. Some services instead end that name in a numeric provider id while
+// inventory stores the human-readable name and the numeric id as a separate alias. Try
+// the full name first so a short name cannot collide with another type, then retain the
+// numeric-id fallback for those services.
+func costLookupCandidates(lookup v1.ExternalID) []v1.ExternalID {
+	candidates := []v1.ExternalID{lookup}
+	name := strings.TrimSpace(lookup.ExternalID)
+	if !strings.HasPrefix(name, "//") || !strings.Contains(name, ".googleapis.com/") {
+		return candidates
+	}
+	if index := strings.LastIndex(name, "/"); index >= 0 && index < len(name)-1 {
+		basename := name[index+1:]
+		if v1.NormalizeExternalID(basename) != v1.NormalizeExternalID(name) {
+			fallback := lookup
+			fallback.ExternalID = basename
+			candidates = append(candidates, fallback)
+		}
+	}
+	return candidates
+}
+
 // resolveCostTarget picks the config item this cost is attributed to.
 //
 // Precedence: explicit UUID, then structured external identity, then resource id, then the
@@ -464,16 +488,21 @@ func resolveCostTarget(ctx api.ScrapeContext, cost *v1.ExternalCost, scraperID *
 	}
 
 	if lookup.ExternalID != "" {
-		ids, err := findConfigMatches(ctx.DB(), lookup, scraperID, memo)
-		if err != nil {
-			return fmt.Errorf("find config %s: %w", lookup.Pretty().ANSI(), err)
-		}
-		if len(ids) == 1 {
-			cost.ConfigID = &ids[0]
-			return nil
-		}
-		if len(ids) > 1 {
-			ctx.Logger.V(3).Infof("cost reference %s matched %d configs; attributing to the root", lookup.Pretty().ANSI(), len(ids))
+		for _, candidate := range costLookupCandidates(lookup) {
+			ids, err := findConfigMatches(ctx.DB(), candidate, scraperID, memo)
+			if err != nil {
+				return fmt.Errorf("find config %s: %w", candidate.Pretty().ANSI(), err)
+			}
+			if len(ids) == 1 {
+				cost.ConfigID = &ids[0]
+				return nil
+			}
+			if len(ids) > 1 {
+				// A less precise candidate cannot disambiguate an already ambiguous exact
+				// identity, so stop here rather than letting the basename guess.
+				ctx.Logger.V(3).Infof("cost reference %s matched %d configs; attributing to the root", candidate.Pretty().ANSI(), len(ids))
+				return resolveCostRoot(ctx, cost, scraperID, memo)
+			}
 		}
 	}
 

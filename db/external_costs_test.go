@@ -215,6 +215,51 @@ var _ = Describe("cost target resolution", func() {
 		Expect(c.ConfigID).To(Equal(&id))
 	})
 
+	It("prefers a full GCP resource name over its colliding basename", func() {
+		projectName := "workload-prod-eu-02"
+		fullName := "//container.googleapis.com/projects/workload-prod-eu-02/locations/europe-west1/clusters/workload-prod-eu-02"
+		clusterID, projectID := uuid.New(), uuid.New()
+
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ARRAY[?]::text[], ?, now(), now())`,
+			clusterID, scraperID, v1.GCPGKECluster, "GCP", fullName, `{"project":"workload-prod-eu-02"}`).Error).To(Succeed())
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ARRAY[?]::text[], ?, now(), now())`,
+			projectID, scraperID, v1.GCPProject, "GCP", projectName, `{"project":"workload-prod-eu-02"}`).Error).To(Succeed())
+		DeferCleanup(func() {
+			DefaultContext.DB().Exec("DELETE FROM config_items WHERE id IN ?", []uuid.UUID{clusterID, projectID})
+		})
+
+		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
+		c.ConfigID = nil
+		c.ResourceID = fullName
+		c.ConfigExternalID = v1.ExternalID{
+			ExternalID: fullName,
+			Labels:     map[string]string{"project": projectName},
+		}
+		c.RootConfigID = v1.ExternalID{ExternalID: projectName, ConfigType: v1.GCPProject}
+
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).To(Succeed())
+		Expect(c.ConfigID).To(Equal(&clusterID))
+	})
+
+	It("falls back to a GCP resource basename when only its numeric id is aliased", func() {
+		fullName := "//compute.googleapis.com/projects/210987654321/zones/us-central1-a/disks/987654321"
+		resourceID := uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, tags, created_at, updated_at) VALUES (?, ?, 'GCP::Disk', 'GCP', ARRAY['987654321']::text[], ?, now(), now())`,
+			resourceID, scraperID, `{"project":"demo"}`).Error).To(Succeed())
+		DeferCleanup(func() { DefaultContext.DB().Exec("DELETE FROM config_items WHERE id = ?", resourceID) })
+
+		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
+		c.ConfigID = nil
+		c.ResourceID = fullName
+		c.ConfigExternalID = v1.ExternalID{
+			ExternalID: fullName,
+			Labels:     map[string]string{"project": "demo"},
+		}
+
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).To(Succeed())
+		Expect(c.ConfigID).To(Equal(&resourceID))
+	})
+
 	It("falls back to the root when a scoped external id matches multiple configs", func() {
 		typeName := "Test::AmbiguousCost"
 		ids := []uuid.UUID{uuid.New(), uuid.New()}

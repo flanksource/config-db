@@ -91,6 +91,7 @@ func TestCostRowToExternalCost(t *testing.T) {
 	// The global name is the same full resource name the asset scrape stores as an alias,
 	// which is what lets the charge resolve to the instance.
 	g.Expect(cost.ResourceID).To(gomega.Equal(row.ResourceGlobalName))
+	g.Expect(cost.ConfigExternalID.ExternalID).To(gomega.Equal(row.ResourceGlobalName))
 	g.Expect(cost.BilledCost.String()).To(gomega.Equal("1.5"))
 	g.Expect(cost.EffectiveCost.String()).To(gomega.Equal("1.2"))
 	g.Expect(cost.SubAccountID).To(gomega.Equal("demo"))
@@ -225,26 +226,19 @@ func TestOptionalCostsReachTheExternalCost(t *testing.T) {
 	g.Expect(cost.ContractedCost).To(gomega.BeNil())
 }
 
-// The export and asset inventory spell the same resource differently — project number vs
-// id, singular vs plural kind, numeric id vs name. The trailing segment is the one part
-// they agree on, and it is what the asset scrape stores as an alias.
+// The full global name is the primary lookup identity. The generic cost resolver only
+// falls back to its trailing segment when the exact name is absent from inventory.
 func TestResourceLookupID(t *testing.T) {
 	g := gomega.NewWithT(t)
 
-	// A compute disk as the billing export writes it.
-	g.Expect(costRow{
-		ResourceGlobalName: "//compute.googleapis.com/projects/345678901234/zones/europe-west1-c/disk/1342029463145423244",
-	}.resourceLookupID()).To(gomega.Equal("1342029463145423244"))
-
-	// An instance, whose zone is numeric too. Still the trailing segment.
-	g.Expect(costRow{
-		ResourceGlobalName: "//compute.googleapis.com/projects/345678901234/zones/2103/instances/1109397387100823948",
-	}.resourceLookupID()).To(gomega.Equal("1109397387100823948"))
-
-	// Services that name resources rather than numbering them work the same way.
-	g.Expect(costRow{
-		ResourceGlobalName: "//storage.googleapis.com/projects/demo/buckets/my-bucket",
-	}.resourceLookupID()).To(gomega.Equal("my-bucket"))
+	for _, globalName := range []string{
+		"//compute.googleapis.com/projects/345678901234/zones/europe-west1-c/disk/1342029463145423244",
+		"//compute.googleapis.com/projects/345678901234/zones/2103/instances/1109397387100823948",
+		"//storage.googleapis.com/projects/demo/buckets/my-bucket",
+		"//container.googleapis.com/projects/workload-prod-eu-02/locations/europe-west1/clusters/workload-prod-eu-02",
+	} {
+		g.Expect(costRow{ResourceGlobalName: globalName}.resourceLookupID()).To(gomega.Equal(globalName))
+	}
 
 	// Falls back to the service-local name when there is no global name.
 	g.Expect(costRow{ResourceName: "vm-1"}.resourceLookupID()).To(gomega.Equal("vm-1"))
