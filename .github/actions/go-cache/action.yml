@@ -1,0 +1,93 @@
+name: Go caches
+description: >-
+  Restore the shared Go module cache and the two-layer Go build cache (GOCACHE).
+  Caching module source alone leaves every job recompiling the whole ~500-module
+  dependency tree; the build cache is what makes a warm job cheap. Only the
+  dedicated cache jobs (go-cache.yml, and test.yml's go-build) save — everyone
+  else restores, so a dozen jobs never race to write multi-GB entries.
+
+inputs:
+  go-version:
+    description: Go minor version. Namespaces the build-cache keys, since GOCACHE entries are toolchain-specific.
+    required: false
+    default: "1.26"
+  modules-strict:
+    description: Fail the job when the module cache is missing.
+    required: false
+    default: "false"
+  build-cache-strict:
+    description: >-
+      Fail the job when no build cache layer could be restored at all. Set by jobs
+      that `needs:` a dedicated cache job, where the key is guaranteed to exist.
+    required: false
+    default: "false"
+
+outputs:
+  build-cache-hit:
+    description: "true when the go.sum-pinned layer restored on an exact key match (a restore-keys prefix hit reports false)"
+    value: ${{ steps.pinned.outputs.cache-hit }}
+  build-cache-key:
+    description: The go.sum-pinned key, for a dedicated cache job's matching save step.
+    value: ${{ steps.keys.outputs.pinned }}
+  base-cache-hit:
+    description: "true when this week's base layer already exists"
+    value: ${{ steps.base.outputs.cache-hit }}
+  base-cache-key:
+    description: This week's base-layer key, for go-cache.yml's save step.
+    value: ${{ steps.keys.outputs.base }}
+
+runs:
+  using: composite
+  steps:
+    # The base layer rotates weekly. Go trims build-cache entries whose mtime is
+    # over 5 days old, and tar restores the original mtimes, so a base layer that
+    # never rotated would eventually restore only to be walked and deleted.
+    - name: Compute cache keys
+      id: keys
+      shell: bash
+      run: |
+        ns="${{ runner.os }}-${{ runner.arch }}-${{ inputs.go-version }}"
+        sum="${{ hashFiles('**/go.sum') }}"
+        test -n "$sum" || { echo "::error::hashFiles('**/go.sum') resolved empty" >&2; exit 1; }
+        {
+          echo "base=go-cache-base-${ns}-$(date -u +%GW%V)"
+          echo "base-prefix=go-cache-base-${ns}-"
+          echo "pinned=go-cache-${ns}-${sum}"
+          echo "pinned-prefix=go-cache-${ns}-"
+        } | tee -a "$GITHUB_OUTPUT"
+
+    - name: Restore Go modules
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      with:
+        path: ~/go/pkg/mod
+        key: go-mod-${{ hashFiles('**/go.sum') }}
+        enableCrossOsArchive: true
+        fail-on-cache-miss: ${{ inputs.modules-strict }}
+
+    # GOCACHE is content-addressed ($GOCACHE/<xx>/<hash>-d), so the two layers
+    # extract over each other additively. Base first — the go.sum-pinned layer is
+    # the more specific one and has to land last.
+    - name: Restore Go build cache (base layer)
+      id: base
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      with:
+        path: ~/.cache/go-build
+        key: ${{ steps.keys.outputs.base }}
+        restore-keys: ${{ steps.keys.outputs.base-prefix }}
+
+    # On a go.sum change the exact key misses and the prefix restores the previous
+    # revision's cache, so Go recompiles only the modules that actually moved.
+    - name: Restore Go build cache (go.sum layer)
+      id: pinned
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+      with:
+        path: ~/.cache/go-build
+        key: ${{ steps.keys.outputs.pinned }}
+        restore-keys: ${{ steps.keys.outputs.pinned-prefix }}
+        fail-on-cache-miss: ${{ inputs.build-cache-strict }}
+
+    # Go runs its 5-day trim whenever trim.txt is over a day old. tar preserves
+    # mtimes, so without this a restored cache can be swept immediately.
+    - name: Reset build cache trim clock
+      shell: bash
+      run: rm -f "$(go env GOCACHE)/trim.txt"

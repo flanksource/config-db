@@ -64,6 +64,75 @@ var _ = Describe("GitHub organization RBAC", func() {
 		})
 	})
 
+	Describe("a team that grants access to nobody", func() {
+		grantingTeam := func(members []*gogithub.User, repos []*gogithub.Repository) organizationRBACInput {
+			return organizationRBACInput{
+				Owner: "acme",
+				Teams: []organizationTeam{{
+					Team: &gogithub.Team{
+						ID:   gogithub.Ptr[int64](201),
+						Name: gogithub.Ptr("Developers"),
+						Slug: gogithub.Ptr("developers"),
+					},
+					Members: members,
+					Repos:   repos,
+				}},
+				Repositories: organizationRepositories("acme", []v1.GitHubRepository{{Owner: "acme", Repo: "telemetry"}}),
+			}
+		}
+		telemetry := []*gogithub.Repository{{Name: gogithub.Ptr("telemetry"), RoleName: gogithub.Ptr("push")}}
+
+		It("warns, because the permissions land while no membership does", func() {
+			// The grants still reach config_access, so the scrape looks successful; without a
+			// membership row every one of them belongs to a principal no per-user view reaches.
+			result, err := buildOrganizationRBAC(grantingTeam(nil, telemetry))
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Warnings).To(ConsistOf(ContainSubstring(`team "Developers" grants 1 repository(s) but reports no members`)))
+			Expect(result.Warnings[0]).To(ContainSubstring("Members: read"))
+			Expect(result.Access).ToNot(BeEmpty())
+			Expect(result.UserGroups).To(BeEmpty())
+		})
+
+		It("stays quiet for an empty team that grants nothing", func() {
+			// An empty team holding no repositories withholds no access from anyone, and
+			// warning about it would bury the case that does.
+			result, err := buildOrganizationRBAC(grantingTeam(nil, nil))
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Warnings).To(BeEmpty())
+		})
+
+		It("stays quiet when every repository it grants is outside the scrape", func() {
+			// No ConfigAccess record is emitted for a repository the scraper never
+			// collects, so there is no unattributed grant to warn about.
+			result, err := buildOrganizationRBAC(grantingTeam(nil,
+				[]*gogithub.Repository{{Name: gogithub.Ptr("unscraped"), RoleName: gogithub.Ptr("push")}}))
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Warnings).To(BeEmpty())
+			Expect(result.Access).To(BeEmpty())
+		})
+
+		It("counts only the repositories that reach config_access", func() {
+			result, err := buildOrganizationRBAC(grantingTeam(nil, []*gogithub.Repository{
+				{Name: gogithub.Ptr("telemetry"), RoleName: gogithub.Ptr("push")},
+				{Name: gogithub.Ptr("unscraped"), RoleName: gogithub.Ptr("admin")},
+			}))
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Warnings).To(ConsistOf(ContainSubstring(`team "Developers" grants 1 repository(s) but reports no members`)))
+		})
+
+		It("stays quiet when the members came through", func() {
+			result, err := buildOrganizationRBAC(grantingTeam([]*gogithub.User{newUser(102, "bob")}, telemetry))
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Warnings).To(BeEmpty())
+			Expect(result.UserGroups).ToNot(BeEmpty())
+		})
+	})
+
 	It("maps members to organization roles and teams to repository grants", func() {
 		result, err := buildOrganizationRBAC(organizationRBACInput{
 			Owner: "acme",

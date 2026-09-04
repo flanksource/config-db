@@ -1,37 +1,57 @@
 name: Gavel
 on:
-  pull_request:
+  workflow_call:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  # Mirrors the `test` job in test.yml: same runner, timeout, provisioning and
-  # scope. The only differences are the ones gavel itself requires — write
-  # permissions for the sticky PR comment, an explicit `make envtest` (gavel
-  # invokes packages directly instead of going through `make test`, so it does
-  # not pick up envtest via the target's prerequisites), and the two package
-  # ignores that reproduce `gotest`'s --skip-package=tests/e2e plus the ginkgo
-  # runner's inability to run ./bench's Go benchmarks.
+  # One check per test suite. Running all 34 packages behind a single check hit
+  # gavel's 10m global deadline on a runner (`make test` needs ~19m there), which
+  # kills every subprocess mid-write and leaves an unparseable results artifact —
+  # a red check with no attribution. Each shard below runs a disjoint slice, so it
+  # fits the default deadline on its own and reports its own failures. Together the
+  # four `--ignore`/`--work-dir` selections cover exactly the 34 packages that
+  # `--ignore tests/e2e --ignore bench` used to, with no overlap: `tests/e2e` is the
+  # only consumer of the loki/opensearch service containers and `ginkgo -r` cannot
+  # run ./bench's Go benchmarks, so both stay out.
   gavel:
     permissions:
       contents: read
       pull-requests: write
       issues: write
-    name: gavel
+    name: gavel (${{ matrix.suite.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          # ./api, ./api/v1, ./changes, ./cmd, ./cmd/scrapeui, ./db, ./tests, ./utils
+          - name: core
+            args: --ignore tests/e2e --ignore bench --ignore scrapers --ignore jobs
+          - name: scrapers
+            args: --work-dir scrapers --ignore exec
+          # Split out because it is the slowest single package in the tree.
+          - name: scrapers-exec
+            args: --work-dir scrapers/exec
+          - name: jobs
+            args: --work-dir jobs
     steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: 1.26.x
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+          cache: false
+      # Called from test.yml behind `needs: go-build`, so the go.sum-pinned build
+      # cache is guaranteed to exist by the time this runs.
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
+        with:
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -41,25 +61,18 @@ jobs:
             powershell
             postgrest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            .bin
-          key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
-          restore-keys: |
-            cache-
       # ./scrapers boots envtest with a hard-coded BinaryAssetsDirectory of .bin.
+      # gavel invokes packages directly rather than through `make test`, so it does
+      # not pick envtest up from that target's prerequisites.
       - name: Setup envtest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make envtest
       - uses: flanksource/gavel@43a9189b99e71ed928f418e01cd34aa797c2c0e0 # main
         with:
-          args: test --ignore tests/e2e --ignore bench
+          args: test ${{ matrix.suite.args }}
           version: latest
           comment: "true"
-          comment-header: gavel
+          comment-header: gavel-${{ matrix.suite.name }}
           fail-on-error: "true"
-          artifact-name: gavel-results
+          artifact-name: gavel-results-${{ matrix.suite.name }}

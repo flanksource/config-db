@@ -4450,6 +4450,21 @@
       "description": "SeverityKeywords is used to identify the severity\nfrom the Kubernetes Event reason."
     },
     "Slack": {
+      "if": {
+        "required": [
+          "since"
+        ]
+      },
+      "then": {
+        "properties": {
+          "messages": {
+            "const": true
+          }
+        },
+        "required": [
+          "messages"
+        ]
+      },
       "properties": {
         "id": {
           "type": "string",
@@ -4527,28 +4542,32 @@
           "$ref": "#/$defs/EnvVar",
           "description": "Slack token"
         },
+        "members": {
+          "type": "boolean",
+          "description": "Members maps channel members to external users and config access records.\nDefault: true"
+        },
+        "messages": {
+          "type": "boolean",
+          "description": "Messages reads the message history of every channel and extracts changes\nfrom it using the rules below.\nDefault: false"
+        },
         "since": {
           "type": "string",
-          "description": "Fetch the messages since this period.\nDefault: 7d\n\nSpecify the duration string.\n  eg: 1h, 7d, ..."
-        },
-        "channels": {
-          "$ref": "#/$defs/MatchExpressions",
-          "description": "Process messages from these channels and discard others.\nIf empty, all channels are matched."
+          "description": "Fetch the messages since this period. Requires messages to be enabled.\nDefault: 7d\n\nSpecify the duration string.\n  eg: 1h, 7d, ..."
         },
         "rules": {
           "items": {
             "$ref": "#/$defs/SlackChangeExtractionRule"
           },
           "type": "array",
-          "description": "Rules define the change extraction rules."
+          "description": "Rules define the change extraction rules applied to the message history."
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "token",
-        "rules"
-      ]
+        "token"
+      ],
+      "description": "Slack scraper creates Slack::Workspace \u0026 Slack::Channel config items,\nmaps channel members to config access and optionally extracts changes from\nthe message history."
     },
     "SlackChangeAcceptanceFilter": {
       "properties": {

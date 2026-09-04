@@ -5,17 +5,104 @@ name: Test
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  go-mod-cache:
+    name: Go module cache
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: 1.26.x
+          cache: false
+      - name: Cache Go modules
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ hashFiles('**/go.sum') }}
+          enableCrossOsArchive: true
+      - name: Download Go modules
+        run: go mod download
+
+  go-build:
+    name: Go build (${{ matrix.platform.arch }})
+    needs: go-mod-cache
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        with:
+          go-version: 1.26.x
+          cache: false
+      # The only writer of the go.sum-pinned build-cache layer. Everything below
+      # `needs: go-build`, so by the time consumers run the key is guaranteed to
+      # exist and they can restore it strictly.
+      - name: Restore Go caches
+        id: caches
+        uses: ./.github/actions/go-cache
+        with:
+          modules-strict: "true"
+      - name: Build
+        run: make build
+      # Compiles every test package, which is what makes the cache useful to the
+      # test jobs and not just to another `make build`.
+      - name: Build test packages
+        run: go test -run=^$ ./...
+      - name: Report build cache size
+        run: du -sh "$(go env GOCACHE)"
+      # A restore-keys prefix hit reports cache-hit=false, which is what we want:
+      # the delta compiled above still needs saving under the new exact key.
+      - name: Save Go build cache
+        if: steps.caches.outputs.build-cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.caches.outputs.build-cache-key }}
+
+  gavel:
+    name: Gavel
+    needs: go-build
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    uses: ./.github/workflows/gavel.yml
+
+  test:
+    needs: go-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        with:
+          go-version: 1.26.x
+          cache: false
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
+        with:
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -25,15 +112,6 @@ jobs:
             powershell
             postgrest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            .bin
-          key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
-          restore-keys: |
-            cache-
       - name: Setup envtest
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -42,15 +120,22 @@ jobs:
         run: make test
 
   test-playwright:
+    needs: go-build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: 1.26.x
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+          cache: false
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
+        with:
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -59,13 +144,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Playwright browsers
         run: |
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          ln -sf $HOME/.local/bin/bun $HOME/.local/bin/bunx
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          ln -sf "$HOME/.local/bin/bun" "$HOME/.local/bin/bunx"
           bunx playwright@1.52.0 install --with-deps chromium
       - name: Test
         run: go test -tags e2e -v -count=1 -timeout 180s ./scrapers/playwright/
 
   e2e:
+    needs: go-build
     runs-on: ubuntu-latest
     services:
       loki:
@@ -96,12 +182,18 @@ jobs:
           --ulimit memlock=-1:-1
           --ulimit nofile=65536:65536
     steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: 1.26.x
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+          cache: false
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
+        with:
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -111,15 +203,6 @@ jobs:
             powershell
             postgrest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            .bin
-          key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
-          restore-keys: |
-            cache-
       - name: E2E Test
         run: |
           make ginkgo
@@ -130,26 +213,24 @@ jobs:
           OPENSEARCH_URL: http://localhost:9200
 
   test-prod:
+    needs: go-build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: 1.26.x
+          cache: false
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
+        with:
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            .bin
-          key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
-          restore-keys: |
-            cache-
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -162,7 +243,8 @@ jobs:
       - name: Test
         run: make test-prod
 
-  clickhouse-e2e:
+  test-clickhouse:
+    needs: go-build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -172,22 +254,54 @@ jobs:
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: 1.26.x
-          cache-dependency-path: |
-            go.sum
-            tests/clickhouse_e2e/go.sum
-      - name: Run ClickHouse storage E2E
-        working-directory: tests/clickhouse_e2e
-        run: go test -tags=clickhouse_e2e -v -count=1 -timeout=12m ./...
+          cache: false
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
+        with:
+          modules-strict: "true"
+          build-cache-strict: "true"
+      - name: Install deps-start
+        env:
+          DEPS_START_VERSION: v1.0.39
+        run: |
+          mkdir -p .tmp "$HOME/.local/bin"
+          curl --fail --location --silent --show-error \
+            --output .tmp/deps-start-linux-amd64 \
+            "https://github.com/flanksource/deps/releases/download/${DEPS_START_VERSION}/deps-start-linux-amd64"
+          curl --fail --location --silent --show-error \
+            --output .tmp/deps-start-linux-amd64.sha256 \
+            "https://github.com/flanksource/deps/releases/download/${DEPS_START_VERSION}/deps-start-linux-amd64.sha256"
+          cd .tmp
+          sha256sum --check deps-start-linux-amd64.sha256
+          install -m 0755 deps-start-linux-amd64 "$HOME/.local/bin/deps-start"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: make build
+      - name: Run clickhouse fixture
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          trap 'deps-start stop clickhouse' EXIT
+          CLICKHOUSE_URL="$(deps-start clickhouse@25.4 --runtime binary --output json --wait-timeout 5m | jq -er '.connection.url')"
+          export CLICKHOUSE_URL
+          go test -tags=integration -v ./scrapers/clickhouse
 
   test-slim:
+    needs: go-build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: 1.26.x
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+          cache: false
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
+        with:
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -200,15 +314,6 @@ jobs:
             kube-apiserver@v1.34.0
             kubectl@v1.34.0
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            .bin
-          key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
-          restore-keys: |
-            cache-
       - name: Setup
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -217,9 +322,22 @@ jobs:
         run: make test-fast
 
   test-load:
+    needs: go-build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        with:
+          go-version: 1.26.x
+          cache: false
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
+        with:
+          modules-strict: "true"
+          build-cache-strict: "true"
       - name: Free up disk space
         run: |
           sudo docker system prune -af
@@ -227,14 +345,8 @@ jobs:
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/share/boost
-      - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
-        with:
-          go-version: 1.26.x
       - name: Setup kubernetes cluster
         uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install deps
         uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
         with:
@@ -243,15 +355,6 @@ jobs:
             kube-apiserver@v1.34.0
             kubectl@v1.34.0
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            .bin
-          key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
-          restore-keys: |
-            cache-
       - name: Setup envtest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

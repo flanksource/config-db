@@ -15595,15 +15595,11 @@ spec:
                 type: string
               slack:
                 items:
+                  description: |-
+                    Slack scraper creates Slack::Workspace & Slack::Channel config items,
+                    maps channel members to config access and optionally extracts changes from
+                    the message history.
                   properties:
-                    channels:
-                      description: |-
-                        Process messages from these channels and discard others.
-                        If empty, all channels are matched.
-                      items:
-                        description: MatchExpression uses MatchItems
-                        type: string
-                      type: array
                     class:
                       description: A static value or JSONPath expression to use as
                         the class for the resource.
@@ -15648,6 +15644,17 @@ spec:
                         type: string
                       description: Labels for each config item.
                       type: object
+                    members:
+                      description: |-
+                        Members maps channel members to external users and config access records.
+                        Default: true
+                      type: boolean
+                    messages:
+                      description: |-
+                        Messages reads the message history of every channel and extracts changes
+                        from it using the rules below.
+                        Default: false
+                      type: boolean
                     name:
                       description: A static value or JSONPath expression to use as
                         the Name for the resource.
@@ -15722,7 +15729,8 @@ spec:
                         type: object
                       type: array
                     rules:
-                      description: Rules define the change extraction rules.
+                      description: Rules define the change extraction rules applied
+                        to the message history.
                       items:
                         properties:
                           config:
@@ -15908,11 +15916,10 @@ spec:
                         required:
                         - config
                         type: object
-                      minItems: 1
                       type: array
                     since:
                       description: |-
-                        Fetch the messages since this period.
+                        Fetch the messages since this period. Requires messages to be enabled.
                         Default: 7d
 
                         Specify the duration string.
@@ -16420,7 +16427,6 @@ spec:
                         the type for the resource.
                       type: string
                   required:
-                  - rules
                   - token
                   type: object
                 type: array

@@ -18,6 +18,14 @@ jobs:
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: 1.26.x
+          # setup-go's own cache would store ~/go/pkg/mod a second time under its
+          # own key, competing for the same 10GB repo budget as the shared entry.
+          cache: false
+
+      # Non-strict: this workflow has no `needs:` edge to a job that writes the
+      # cache, so a cold key here has to degrade to a slow build, not a red check.
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
 
       - name: Generate resources
         run: make resources

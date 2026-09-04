@@ -1,27 +1,55 @@
 package v1
 
-import "github.com/flanksource/duty/types"
+import (
+	"github.com/flanksource/duty/types"
+	"github.com/invopop/jsonschema"
+)
 
+// Slack scraper creates Slack::Workspace & Slack::Channel config items,
+// maps channel members to config access and optionally extracts changes from
+// the message history.
 type Slack struct {
 	BaseScraper `json:",inline"`
 
 	// Slack token
 	Token types.EnvVar `yaml:"token" json:"token"`
 
-	// Fetch the messages since this period.
+	// Members maps channel members to external users and config access records.
+	// Default: true
+	Members *bool `yaml:"members,omitempty" json:"members,omitempty"`
+
+	// Messages reads the message history of every channel and extracts changes
+	// from it using the rules below.
+	// Default: false
+	Messages bool `yaml:"messages,omitempty" json:"messages,omitempty"`
+
+	// Fetch the messages since this period. Requires messages to be enabled.
 	// Default: 7d
 	//
 	// Specify the duration string.
 	//   eg: 1h, 7d, ...
 	Since string `yaml:"since,omitempty" json:"since,omitempty"`
 
-	// Process messages from these channels and discard others.
-	// If empty, all channels are matched.
-	Channels types.MatchExpressions `yaml:"channels,omitempty" json:"channels,omitempty"`
+	// Rules define the change extraction rules applied to the message history.
+	Rules []SlackChangeExtractionRule `yaml:"rules,omitempty" json:"rules,omitempty"`
+}
 
-	// Rules define the change extraction rules.
-	// +kubebuilder:validation:MinItems=1
-	Rules []SlackChangeExtractionRule `yaml:"rules" json:"rules"`
+func (s Slack) ScrapeMembers() bool {
+	return s.Members == nil || *s.Members
+}
+
+// JSONSchemaExtend rejects `since` unless the spec also reads messages. The
+// scraper only ever applies the window to the message history, so accepting it
+// next to `messages: false` would silently discard the period it asks for.
+func (Slack) JSONSchemaExtend(schema *jsonschema.Schema) {
+	enabledMessages := jsonschema.NewProperties()
+	enabledMessages.Set("messages", &jsonschema.Schema{Const: true})
+
+	schema.If = &jsonschema.Schema{Required: []string{"since"}}
+	schema.Then = &jsonschema.Schema{
+		Required:   []string{"messages"},
+		Properties: enabledMessages,
+	}
 }
 
 type SlackChangeExtractionRule struct {

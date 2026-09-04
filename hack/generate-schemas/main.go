@@ -47,7 +47,7 @@ var generateSchema = &cobra.Command{
 var schemaPath string
 
 func main() {
-	generateSchema.Flags().StringVar(&schemaPath, "schema-path", "../../config/schemas", "Path to save JSON schema to")
+	generateSchema.Flags().StringVar(&schemaPath, "schema-path", "config/schemas", "Path to save JSON schema to")
 	if err := generateSchema.Execute(); err != nil {
 		os.Exit(1)
 	}

@@ -1,0 +1,16 @@
+apiVersion: configs.flanksource.com/v1
+kind: ScrapeConfig
+metadata:
+  name: slack-removed-channels
+  namespace: default
+spec:
+  schedule: '@every 1h'
+  slack:
+    - messages: true
+      token:
+        valueFrom:
+          secretKeyRef:
+            name: slack-mission-control-bot
+            key: token
+      channels:
+        - engineering

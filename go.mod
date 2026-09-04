@@ -71,6 +71,7 @@ require (
 	github.com/grafana/pyroscope-go v1.3.1
 	github.com/hashicorp/go-getter v1.8.6
 	github.com/hexops/gotextdiff v1.0.3
+	github.com/invopop/jsonschema v0.14.0
 	github.com/labstack/echo-contrib v0.50.1
 	github.com/labstack/echo/v4 v4.15.4
 	github.com/lib/pq v1.12.3

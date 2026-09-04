@@ -48,16 +48,7 @@ tidy:
 # Generate OpenAPI schema
 .PHONY: gen-schemas
 gen-schemas:
-	cp go.mod hack/generate-schemas && \
-	cd hack/generate-schemas && \
-	go mod edit -module=github.com/flanksource/config-db/hack/generate-schemas && \
-	go mod edit -require=github.com/flanksource/config-db@v1.0.0 && \
-	go mod edit -replace=github.com/flanksource/config-db=../../ && \
-	if grep -v "^//" ../../go.mod | grep -q "replace.*github.com/flanksource/duty.*=>"; then \
-		go mod edit -replace=github.com/flanksource/duty=../../../duty; \
-	fi && \
-	go mod tidy && \
-	go run .
+	go run ./hack/generate-schemas
 
 docker:
 	docker build . -f build/Dockerfile -t ${IMG}

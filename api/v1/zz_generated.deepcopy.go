@@ -2639,10 +2639,10 @@ func (in *Slack) DeepCopyInto(out *Slack) {
 	*out = *in
 	in.BaseScraper.DeepCopyInto(&out.BaseScraper)
 	in.Token.DeepCopyInto(&out.Token)
-	if in.Channels != nil {
-		in, out := &in.Channels, &out.Channels
-		*out = make(types.MatchExpressions, len(*in))
-		copy(*out, *in)
+	if in.Members != nil {
+		in, out := &in.Members, &out.Members
+		*out = new(bool)
+		**out = **in
 	}
 	if in.Rules != nil {
 		in, out := &in.Rules, &out.Rules

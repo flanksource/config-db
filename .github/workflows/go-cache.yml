@@ -1,0 +1,81 @@
+name: Go cache
+
+# Seeds the base layer of the two-layer Go build cache. test.yml's `go-build` job
+# writes the go.sum-pinned layer on every PR; this workflow writes the long-lived
+# layer underneath it, so an LRU eviction of the pinned layer never degrades a PR
+# to a fully cold compile of the ~500-module dependency tree.
+on:
+  push:
+    branches: [main]
+  schedule:
+    # The base key rotates weekly (see .github/actions/go-cache); Go trims entries
+    # unused for 5 days, so refresh well inside that window.
+    - cron: "0 3 * * 1,4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  seed:
+    name: Seed Go caches (${{ matrix.platform.arch }})
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+        with:
+          go-version: 1.26.x
+          cache: false
+      - name: Restore Go caches
+        id: caches
+        uses: ./.github/actions/go-cache
+      - name: Download Go modules
+        run: go mod download
+      # Compiling with the default tag set is enough. A package's Go action ID is
+      # derived from its post-constraint file list and compiler flags, not from the
+      # raw -tags string, so every dependency without a slim/rustdiffgen/e2e build
+      # constraint gets an identical ID in the tagged jobs and hits this cache.
+      - name: Warm the build cache
+        run: |
+          make build
+          go test -run=^$ ./...
+      - name: Report build cache size
+        run: du -sh "$(go env GOCACHE)" "$(go env GOMODCACHE)"
+      # Both arches share one module cache — it holds source, not objects — so let a
+      # single leg write it rather than have the other race on the same key.
+      - name: Save Go modules
+        if: matrix.platform.arch == 'amd64'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ hashFiles('**/go.sum') }}
+          enableCrossOsArchive: true
+      # Skipped on the main pushes that land inside a week already seeded; the
+      # scheduled run is what rotates the key and refreshes the entry.
+      - name: Save Go build cache (base layer)
+        if: steps.caches.outputs.base-cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.caches.outputs.base-cache-key }}
+      - name: Save Go build cache (go.sum layer)
+        if: steps.caches.outputs.build-cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.caches.outputs.build-cache-key }}

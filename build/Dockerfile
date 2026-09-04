@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 ## Builder stages run on the build platform and cross-compile to TARGETARCH,
 ## so multi-arch builds don't pay for QEMU emulation of cargo/rustc/go.
 FROM --platform=$BUILDPLATFORM rust:bookworm@sha256:29fe4376919e25b7587a1063d7b521d9db735fc137d3cf30ae41eb326d209471 AS rust-builder-base
@@ -33,12 +35,16 @@ RUN cargo build --release --target "$(cat /rust-target)" && \
     mkdir -p target/release && \
     cp "target/$(cat /rust-target)/release/libdiffgen.a" target/release/libdiffgen.a
 
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm@sha256:4f4ab2c90005e7e63cb631f0b4427f05422f241622ee3ec4727cc5febbf83e34 AS gomodcache
+RUN mkdir -p /mod
+
 FROM --platform=$BUILDPLATFORM golang:1.26-bookworm@sha256:4f4ab2c90005e7e63cb631f0b4427f05422f241622ee3ec4727cc5febbf83e34 AS builder-base
 WORKDIR /app
 
 COPY go.mod /app/go.mod
 COPY go.sum /app/go.sum
-RUN go mod download
+RUN --mount=type=cache,id=gomodcache,from=gomodcache,source=mod,target=/go/pkg/mod \
+    go mod download
 
 FROM builder-base AS builder
 
@@ -59,7 +65,8 @@ COPY ./ ./
 
 COPY --from=rust-builder /app/external/diffgen/target/release ./external/diffgen/target/release
 
-RUN if [ "$BUILDARCH" != "$TARGETARCH" ]; then \
+RUN --mount=type=cache,id=gomodcache,from=gomodcache,source=mod,target=/go/pkg/mod \
+    if [ "$BUILDARCH" != "$TARGETARCH" ]; then \
     case "$TARGETARCH" in \
     amd64) export CC=x86_64-linux-gnu-gcc ;; \
     arm64) export CC=aarch64-linux-gnu-gcc ;; \

@@ -28,6 +28,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Non-strict: this workflow has no `needs:` edge to a job that writes the
+      # cache, so a cold key here has to degrade to a slow build, not a red check.
+      - name: Restore Go caches
+        uses: ./.github/actions/go-cache
+
       - name: Post "benchmark running" comment
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:

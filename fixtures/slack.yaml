@@ -14,8 +14,7 @@ metadata:
 spec:
   schedule: '@every 1m'
   slack:
-    - channels:
-        - 'notification-*'
+    - messages: true
       since: 14d
       token:
         valueFrom:
