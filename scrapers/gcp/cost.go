@@ -163,20 +163,19 @@ func chargeKind(costType string) (string, string) {
 	}
 }
 
-// resourceLookupID is what the charge is resolved against.
+// resourceLookupID is the most precise identifier the charge can be resolved against.
 //
-// The export writes a resource as //compute.googleapis.com/projects/<number>/zones/<zone>/
-// disk/<numeric id>, while asset inventory writes the same resource by project id, plural
-// kind and name. The one part both agree on is the trailing numeric id, which the asset
-// scrape stores as an alias. Matching on it is safe because the lookup is scoped to the
-// owning project, so a numeric id cannot reach a resource in another one.
+// Cloud Asset Inventory stores the full resource name as an alias, including an
+// additional project-number spelling when billing and inventory disagree on whether a
+// project is named by id or number. Prefer that full name here: using only its final
+// segment can collide with a different resource type in the same project (for example a
+// GKE cluster whose name is also its project id). The resolver retains a basename
+// fallback for services whose billing name ends in a numeric id while inventory names the
+// resource differently and stores that id as a separate alias.
 func (r costRow) resourceLookupID() string {
 	name := r.stableResourceID()
 	if strings.HasPrefix(name, "gcp:unallocated:") {
 		return ""
-	}
-	if index := strings.LastIndex(name, "/"); index >= 0 && index < len(name)-1 {
-		return name[index+1:]
 	}
 	return name
 }
