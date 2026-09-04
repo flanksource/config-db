@@ -143,9 +143,12 @@ func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID, levels CostLevel
 	// Mirrors the config_costs merge key exactly. Keying on anything the database does not
 	// treat as identity — the external id, for one — splits rows here that the database
 	// then rejects as two inserts onto one conflict key.
+	// config_id is deliberately absent. The fingerprint already carries the resource the
+	// charge is for, so which config item the charge resolved to is an attribution that
+	// moves between scrapes, not part of the charge's identity.
 	type key struct {
-		source, configID, fingerprint string
-		periodStart, periodEnd        time.Time
+		source, fingerprint    string
+		periodStart, periodEnd time.Time
 	}
 	merged := make(map[key]*dutyModels.ConfigCost, len(costs))
 	order := make([]key, 0, len(costs))
@@ -164,7 +167,7 @@ func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID, levels CostLevel
 		if externalID == "" {
 			externalID = v1.NormalizeExternalID(c.ConfigExternalID.ExternalID)
 		}
-		k := key{c.SourceKey, configID, c.Fingerprint(), start, end}
+		k := key{c.SourceKey, c.Fingerprint(), start, end}
 		if existing := merged[k]; existing != nil {
 			existing.BilledCost = existing.BilledCost.Add(*c.BilledCost)
 			existing.EffectiveCost = existing.EffectiveCost.Add(*c.EffectiveCost)
@@ -202,10 +205,7 @@ func bucketCosts(costs []v1.ExternalCost, scraperID *uuid.UUID, levels CostLevel
 		if order[i].source != order[j].source {
 			return order[i].source < order[j].source
 		}
-		if order[i].fingerprint != order[j].fingerprint {
-			return order[i].fingerprint < order[j].fingerprint
-		}
-		return order[i].configID < order[j].configID
+		return order[i].fingerprint < order[j].fingerprint
 	})
 	out := make([]dutyModels.ConfigCost, 0, len(order))
 	for _, k := range order {
@@ -308,8 +308,13 @@ func upsertConfigCosts(ctx api.ScrapeContext, costs []dutyModels.ConfigCost, scr
 
 	// Columns the scrape restates. Both the SET list and the guard below are built from
 	// this, so they cannot drift apart and start rewriting rows nothing changed.
+	//
+	// config_id is restated like any other column: a charge is re-resolved every scrape,
+	// and when the catalog discovers the resource it names the charge moves off the
+	// account root onto that resource. The newest resolution is the best one, and letting
+	// it overwrite is what keeps a retarget from leaving the old booking behind.
 	restated := []string{
-		"external_id", "external_config_type", "external_config_scraper_id",
+		"config_id", "external_id", "external_config_type", "external_config_scraper_id",
 		"external_config_labels", "charge_category", "charge_class", "service_name",
 		"service_category", "sku_id", "region_id", "billing_currency", "pricing_unit",
 		"billed_cost", "effective_cost", "list_cost", "contracted_cost",
@@ -333,7 +338,7 @@ func upsertConfigCosts(ctx api.ScrapeContext, costs []dutyModels.ConfigCost, scr
 	// rewritten, and because updated_at is indexed the rewrite cannot be a HOT update and
 	// touches every index on the table.
 	query := fmt.Sprintf(`INSERT INTO config_costs SELECT * FROM %s
-		ON CONFLICT (source_key, config_id, period_start, period_end, fingerprint)
+		ON CONFLICT (source_key, period_start, period_end, fingerprint)
 		DO UPDATE SET %s
 		WHERE (%s) IS DISTINCT FROM (%s)`,
 		table, strings.Join(assignments, ", "),

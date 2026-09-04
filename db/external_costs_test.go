@@ -629,3 +629,61 @@ var _ = Describe("bucketCosts", func() {
 })
 
 func decPtr(d decimal.Decimal) *decimal.Decimal { return &d }
+
+// A charge is re-resolved on every scrape, and the target moves as soon as the catalog
+// discovers the resource the charge names. The charge is still one charge, so the earlier
+// booking must move with it rather than survive alongside the new one.
+var _ = Describe("cost retargeting", func() {
+	var (
+		scraperID uuid.UUID
+		root      uuid.UUID
+		resource  uuid.UUID
+		ctx       api.ScrapeContext
+	)
+
+	BeforeEach(func() {
+		scraperID = uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_scrapers (id, name, namespace, spec, source) VALUES (?, ?, 'default', '{}', 'ConfigFile')`, scraperID, "cost-retarget-"+scraperID.String()).Error).To(Succeed())
+
+		root, resource = uuid.New(), uuid.New()
+		for _, item := range []struct {
+			id       uuid.UUID
+			itemType string
+		}{{root, "Test::Account"}, {resource, "Test::Instance"}} {
+			Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, created_at, updated_at) VALUES (?, ?, ?, ?, now(), now())`,
+				item.id, scraperID, item.itemType, item.itemType).Error).To(Succeed())
+		}
+
+		DeferCleanup(func() {
+			DefaultContext.DB().Exec("DELETE FROM config_costs WHERE scraper_id = ?", scraperID)
+			DefaultContext.DB().Exec("DELETE FROM config_items WHERE id IN ?", []uuid.UUID{root, resource})
+			DefaultContext.DB().Exec("DELETE FROM config_scrapers WHERE id = ?", scraperID)
+		})
+
+		scrapeConfig := v1.ScrapeConfig{ObjectMeta: metav1.ObjectMeta{UID: k8stypes.UID(scraperID.String())}}
+		ctx = api.NewScrapeContext(DefaultContext).WithScrapeConfig(&scrapeConfig)
+	})
+
+	// The same charge, differing only in which config item it resolved to.
+	chargeFor := func(target uuid.UUID) []models.ConfigCost {
+		c := cost("2026-08-03T00:00:00Z", "2026-08-03T01:00:00Z", "5")
+		c.ConfigID = &target
+		c.SourceKey = "retarget-test"
+		return bucketCosts([]v1.ExternalCost{c}, &scraperID, defaultLevels)
+	}
+
+	It("moves the booking to the new target instead of storing it twice", func() {
+		_, err := upsertConfigCosts(ctx, chargeFor(root), &scraperID)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = upsertConfigCosts(ctx, chargeFor(resource), &scraperID)
+		Expect(err).ToNot(HaveOccurred())
+
+		var rows []models.ConfigCost
+		Expect(DefaultContext.DB().Where("scraper_id = ?", scraperID).Find(&rows).Error).To(Succeed())
+
+		Expect(rows).To(HaveLen(1), "the same charge must not be booked against two config items")
+		Expect(rows[0].ConfigID).To(Equal(resource), "the latest resolution wins")
+		Expect(rows[0].EffectiveCost.String()).To(Equal("5"), "retargeting must not change the amount")
+	})
+})
