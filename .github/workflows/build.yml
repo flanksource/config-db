@@ -4,8 +4,17 @@ name: Build
 permissions:
   contents: read
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  container:
+    name: Container (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - name: Harden Runner
@@ -33,9 +42,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
-      # Build both release platforms so PRs catch cross-compilation breakage
-      # before it reaches the release workflow
       - name: Build Container
-        run: docker buildx build --platform linux/amd64,linux/arm64 -f build/Dockerfile .
+        run: docker buildx build --platform "$PLATFORM" -f build/Dockerfile .
         env:
+          PLATFORM: ${{ matrix.platform }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Keep the existing required-check name and reject failed or skipped builds.
+  build:
+    needs: container
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check both platforms
+        run: test "$RESULT" = success
+        env:
+          RESULT: ${{ needs.container.result }}
