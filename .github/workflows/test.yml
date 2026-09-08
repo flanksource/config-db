@@ -5,6 +5,8 @@ name: Test
 permissions:
   contents: read
 
+# Lint verifies generation, formatting and untagged vet. These suites use the
+# committed generated files so each variant need not repeat that preparation.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,7 +41,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: make envtest
       - name: Test
-        run: make test
+        run: make gotest
 
   test-playwright:
     runs-on: ubuntu-latest
@@ -160,7 +162,7 @@ jobs:
             postgrest
           GITHUB_TOKEN: ${{ github.token }}
       - name: Test
-        run: make test-prod
+        run: make envtest gotest-prod
 
   clickhouse-e2e:
     runs-on: ubuntu-latest
@@ -212,7 +214,7 @@ jobs:
       - name: Setup
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: make manifests generate fmt vet envtest
+        run: make envtest
       - name: Test
         run: make test-fast
 
