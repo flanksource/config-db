@@ -317,6 +317,67 @@ var _ = Describe("cost target resolution", func() {
 		Expect(c.ConfigID).To(Equal(&root))
 	})
 
+	It("attributes a charge to a resource the catalog has soft deleted", func() {
+		// Deleting a VM does not un-bill the days it ran. The resource is still the best
+		// answer to what the charge was for, and the alternative is the account root —
+		// which reports the resource as one the catalog never discovered.
+		typeName := "Test::DeletedCost"
+		id := uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ARRAY[?]::text[], now(), now(), now())`,
+			id, scraperID, typeName, typeName, "i-retired").Error).To(Succeed())
+		root := uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, created_at, updated_at) VALUES (?, ?, 'Test::Account', 'Test', ARRAY[?]::text[], now(), now())`, root, scraperID, "deleted-root").Error).To(Succeed())
+		DeferCleanup(func() { DefaultContext.DB().Exec("DELETE FROM config_items WHERE id IN ?", []uuid.UUID{id, root}) })
+
+		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
+		c.ConfigID = nil
+		c.ResourceID = "i-retired"
+		c.ConfigExternalID = v1.ExternalID{ConfigType: typeName}
+		c.RootConfigID = v1.ExternalID{ExternalID: "deleted-root", ConfigType: "Test::Account"}
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).To(Succeed())
+		Expect(c.ConfigID).To(Equal(&id))
+	})
+
+	It("prefers a live resource over a soft-deleted one sharing its external id", func() {
+		// A resource torn down and rebuilt under the same name leaves both rows behind.
+		// Counting them as an ambiguous pair would send the charge to the root; the live
+		// one is what the charge is for.
+		typeName := "Test::RecreatedCost"
+		deleted, live := uuid.New(), uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ARRAY[?]::text[], now(), now(), now())`,
+			deleted, scraperID, typeName, typeName, "i-recreated").Error).To(Succeed())
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, created_at, updated_at) VALUES (?, ?, ?, ?, ARRAY[?]::text[], now(), now())`,
+			live, scraperID, typeName, typeName, "i-recreated").Error).To(Succeed())
+		DeferCleanup(func() { DefaultContext.DB().Exec("DELETE FROM config_items WHERE id IN ?", []uuid.UUID{deleted, live}) })
+
+		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
+		c.ConfigID = nil
+		c.ResourceID = "i-recreated"
+		c.ConfigExternalID = v1.ExternalID{ConfigType: typeName}
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).To(Succeed())
+		Expect(c.ConfigID).To(Equal(&live))
+	})
+
+	It("falls back to the root when only soft-deleted resources match ambiguously", func() {
+		typeName := "Test::AmbiguousDeletedCost"
+		ids := []uuid.UUID{uuid.New(), uuid.New()}
+		for _, id := range ids {
+			Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ARRAY[?]::text[], now(), now(), now())`,
+				id, scraperID, typeName, typeName, "i-ambiguous-deleted").Error).To(Succeed())
+		}
+		root := uuid.New()
+		Expect(DefaultContext.DB().Exec(`INSERT INTO config_items (id, scraper_id, type, config_class, external_id, created_at, updated_at) VALUES (?, ?, 'Test::Account', 'Test', ARRAY[?]::text[], now(), now())`, root, scraperID, "ambiguous-deleted-root").Error).To(Succeed())
+		DeferCleanup(func() { DefaultContext.DB().Exec("DELETE FROM config_items WHERE id IN ?", append(ids, root)) })
+
+		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
+		c.ConfigID = nil
+		c.ResourceID = "i-ambiguous-deleted"
+		c.ConfigExternalID = v1.ExternalID{ConfigType: typeName}
+		c.RootConfigID = v1.ExternalID{ExternalID: "ambiguous-deleted-root", ConfigType: "Test::Account"}
+		Expect(resolveCostTarget(ctx, &c, &scraperID, make(configLookups))).To(Succeed())
+		Expect(c.ConfigID).To(Equal(&root))
+	})
+
 	It("errors when nothing resolves and the scraper supplied no root", func() {
 		c := cost("2026-08-03T01:00:00Z", "2026-08-03T02:00:00Z", "1")
 		c.ConfigID = nil

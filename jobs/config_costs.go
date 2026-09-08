@@ -30,7 +30,7 @@ const (
 	defaultCompactRetention = "365d"
 )
 
-var configCostJobs = []*job.Job{RefreshConfigCostSummary, CompactConfigCosts, ReconcileConfigCosts}
+var configCostJobs = []*job.Job{RefreshConfigCostSummary, CompactConfigCosts, ReconcileConfigCosts, ReattributeConfigCosts}
 
 // RefreshConfigCostSummary keeps the trailing-window totals the `configs` view serves in
 // step with config_cost_compact. The windows end at the newest charge period present

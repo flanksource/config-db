@@ -395,7 +395,7 @@ func findConfigMatches(db *gorm.DB, lookup v1.ExternalID, defaultScraperID *uuid
 			return cached, nil
 		}
 	}
-	q := db.Table("config_items").Select("id").Where("deleted_at IS NULL").Where("? = ANY(external_id)", externalID)
+	q := db.Table("config_items").Select("id, deleted_at IS NULL AS live").Where("? = ANY(external_id)", externalID)
 	if lookup.ConfigType != "" {
 		q = q.Where("type = ?", lookup.ConfigType)
 	}
@@ -418,9 +418,27 @@ func findConfigMatches(db *gorm.DB, lookup v1.ExternalID, defaultScraperID *uuid
 		// the resource itself happens to carry.
 		q = q.Where("COALESCE(tags ->> ?, labels ->> ?) = ?", k, k, lookup.Labels[k])
 	}
-	var ids []uuid.UUID
-	if err := q.Order("id ASC").Limit(3).Pluck("id", &ids).Error; err != nil {
+	// Soft-deleted resources are candidates too. Deleting a VM does not un-bill the days it
+	// ran, and the only alternative target is the account root — which reports a resource
+	// the catalog knows perfectly well as one it never discovered.
+	//
+	// Live resources are ordered first so a resource torn down and rebuilt under the same
+	// name resolves to the one that still exists, rather than reading as an ambiguous pair.
+	var matches []struct {
+		ID   uuid.UUID
+		Live bool
+	}
+	if err := q.Order("(deleted_at IS NULL) DESC, id ASC").Limit(3).Scan(&matches).Error; err != nil {
 		return nil, err
+	}
+	// Only the most alive tier decides: a deleted resource never makes a live match
+	// ambiguous, and never disambiguates one either.
+	var ids []uuid.UUID
+	for _, match := range matches {
+		if match.Live != matches[0].Live {
+			break
+		}
+		ids = append(ids, match.ID)
 	}
 	if memo != nil {
 		memo[key] = ids
