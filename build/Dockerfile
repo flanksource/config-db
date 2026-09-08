@@ -59,7 +59,10 @@ COPY ./ ./
 
 COPY --from=rust-builder /app/external/diffgen/target/release ./external/diffgen/target/release
 
-RUN if [ "$BUILDARCH" != "$TARGETARCH" ]; then \
+## Keep compiler scratch out of mode=max layer exports. GHA does not persist
+## this mount across fresh builders; dependency layers remain cacheable.
+RUN --mount=type=cache,id=config-db-go-${TARGETARCH},target=/root/.cache/go-build \
+    if [ "$BUILDARCH" != "$TARGETARCH" ]; then \
     case "$TARGETARCH" in \
     amd64) export CC=x86_64-linux-gnu-gcc ;; \
     arm64) export CC=aarch64-linux-gnu-gcc ;; \
