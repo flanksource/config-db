@@ -32,12 +32,14 @@ jobs:
 
       - name: Generate resources
         run: make resources
-      - name: Verify generated CRDs are committed
+      - name: Verify generated resources and formatting are committed
         run: |
-          if [ -n "$(git status --porcelain -- chart/crds)" ]; then
-            git status --short -- chart/crds
-            echo "::error::Generated CRDs are out of date. Run 'make manifests' and commit the changes."
+          if [ -n "$(git status --porcelain -- '*.go' chart/crds config/schemas)" ]; then
+            git status --short -- '*.go' chart/crds config/schemas
+            echo "::error::Generated resources or Go formatting are out of date. Run 'make resources' and commit the changes."
             exit 1
           fi
+      - name: Vet
+        run: make vet
       - name: golangci-lint
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
