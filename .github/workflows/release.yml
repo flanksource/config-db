@@ -32,18 +32,20 @@ jobs:
         with:
           node-version: "16"
       - name: Install Go
+        id: go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
         with:
           go-version: v1.26.x
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
+          cache: false
+      - name: Cache Go modules and build outputs
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4
         with:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-            .bin
-          key: cache-${{ hashFiles('**/go.sum') }}-${{ hashFiles('.bin/*') }}
+          key: go-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            cache-
+            go-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-
 
       - run: make release
         env:
