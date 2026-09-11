@@ -44,7 +44,7 @@ jobs:
           restore-keys: |
             go-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-
       - name: Install deps
-        uses: flanksource/deps@f04324f706a671af0fd0b1d7f9a708c9ec1643f4 # v1.0.28
+        uses: flanksource/deps@ce24920a5f27748e5a027b96b91603343288021e # v1.0.42
         with:
           tools: |
             bun
@@ -57,7 +57,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make envtest
-      - uses: flanksource/gavel@43a9189b99e71ed928f418e01cd34aa797c2c0e0 # main
+      - uses: flanksource/gavel@ce9724f2970b378bdca07ae207308fe61303bcfb # main
         with:
           args: test --ignore tests/e2e --ignore bench
           version: latest
