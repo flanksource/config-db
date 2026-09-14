@@ -604,10 +604,10 @@ func extractLocation(ctx api.ScrapeContext, env map[string]any, locationOrAlias 
 		}
 
 		for _, value := range l.Values {
+			// A shared cache key mixes delimiter passes and reuses value functions
+			// that captured another config's fields. Let gomplate disable caching.
 			v, err := gomplate.RunTemplate(env, gomplate.Template{
 				Template:       value,
-				CacheKey:       "extract.location.gomplate:" + value,
-				CacheTime:      utils.RandomDurationBetween(24*time.Hour, 36*time.Hour),
 				ValueFunctions: true,
 				DelimSets: []gomplate.Delims{
 					{Left: "{{", Right: "}}"},
