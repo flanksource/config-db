@@ -1813,9 +1813,9 @@ func extractConfigsAndChangesFromResults(ctx api.ScrapeContext, results []v1.Scr
 			}
 
 			// The primary external ID can change while a stable alias continues to
-			// identify the same config. NewConfigItemFromResult always generates an
-			// ID, so an alias lookup must still be attempted after an exact-ID miss.
-			if existing == nil || existing.ID == "" {
+			// identify the same config. An explicit ConfigID is authoritative, so
+			// never replace it with a config matched by an alias.
+			if result.ConfigID == nil && (existing == nil || existing.ID == "") {
 				for _, extID := range ci.ExternalID {
 					ext := v1.ExternalID{ConfigType: ci.Type, ExternalID: extID}
 					if c, err := ctx.TempCache().Find(ctx, ext); err != nil {
