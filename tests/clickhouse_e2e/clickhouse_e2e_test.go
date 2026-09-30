@@ -210,7 +210,9 @@ func startContainer(t *testing.T, ctx context.Context, request testcontainers.Co
 
 func seedS3(t *testing.T, ctx context.Context, container testcontainers.Container, fixture string) {
 	t.Helper()
-	endpoint, err := container.Endpoint(ctx, "http")
+	// SeaweedFS exposes several ports; Endpoint picks the lowest (7333),
+	// which is not the S3 gateway. Select the mapped S3 port explicitly.
+	endpoint, err := container.PortEndpoint(ctx, "8333/tcp", "http")
 	require.NoError(t, err)
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx,
