@@ -11,7 +11,7 @@ spec:
           value: clickhouse-s3-secret-key
         region:
           - us-east-1
-        endpoint: http://minio:9000
+        endpoint: http://seaweedfs:8333
         bucket: cloudtrail
         path: AWSLogs/123456789012/CloudTrail/us-east-1/2026/07/10/*.json.gz
         format: JSONAsString

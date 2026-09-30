@@ -479,7 +479,7 @@ var _ = Describe("External entities only (no config item) e2e test", Ordered, fu
 		Expect(err).NotTo(HaveOccurred())
 		Expect(users).To(HaveLen(1))
 		Expect(users[0].Name).To(Equal("Alice"))
-		Expect(users[0].Aliases).To(ContainElements("alice", "alice@example.com"))
+		Expect(users[0].Aliases).To(ContainElements("external-entities-only-alice", "external-entities-only-alice@example.com"))
 	})
 
 	It("should have saved external groups", func() {
@@ -488,7 +488,7 @@ var _ = Describe("External entities only (no config item) e2e test", Ordered, fu
 		Expect(err).NotTo(HaveOccurred())
 		Expect(groups).To(HaveLen(1))
 		Expect(groups[0].Name).To(Equal("Engineers"))
-		Expect(groups[0].Aliases).To(ContainElements("engineers", "eng-team"))
+		Expect(groups[0].Aliases).To(ContainElements("external-entities-only-engineers", "external-entities-only-eng-team"))
 	})
 
 	It("should not have created any config items", func() {
@@ -520,24 +520,24 @@ var _ = Describe("External entities only (no config item) e2e test", Ordered, fu
 		db.ExternalUserCache.Flush()
 		db.ExternalGroupCache.Flush()
 
-		_, found := db.ExternalUserCache.Get("alice")
+		_, found := db.ExternalUserCache.Get("external-entities-only-alice")
 		Expect(found).To(BeFalse())
 
 		Expect(db.WarmExternalEntityCaches(DefaultContext)).To(Succeed())
 
-		aliceID, found := db.ExternalUserCache.Get("alice")
+		aliceID, found := db.ExternalUserCache.Get("external-entities-only-alice")
 		Expect(found).To(BeTrue())
 		Expect(aliceID).NotTo(Equal(uuid.Nil))
 
-		aliceEmailID, found := db.ExternalUserCache.Get("alice@example.com")
+		aliceEmailID, found := db.ExternalUserCache.Get("external-entities-only-alice@example.com")
 		Expect(found).To(BeTrue())
 		Expect(aliceEmailID).To(Equal(aliceID))
 
-		engID, found := db.ExternalGroupCache.Get("engineers")
+		engID, found := db.ExternalGroupCache.Get("external-entities-only-engineers")
 		Expect(found).To(BeTrue())
 		Expect(engID).NotTo(Equal(uuid.Nil))
 
-		engTeamID, found := db.ExternalGroupCache.Get("eng-team")
+		engTeamID, found := db.ExternalGroupCache.Get("external-entities-only-eng-team")
 		Expect(found).To(BeTrue())
 		Expect(engTeamID).To(Equal(engID))
 	})

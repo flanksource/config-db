@@ -181,13 +181,16 @@ var CleanupConfigScrapers = &job.Job{
 			}
 		}
 
-		// Hard delete old config scrapers that have no remaining config_items references
+		// Keep scrapers referenced by historical access records, even when their
+		// config items have been removed. Those records have restrictive FKs.
 		retention := ctx.Properties().Duration("config_scraper.retention.period", (time.Hour * 24 * time.Duration(ConfigScraperRetentionDays)))
 		days := int64(retention.Hours() / 24)
 		if err := ctx.DB().Exec(`
 			DELETE FROM config_scrapers
 			WHERE (NOW() - deleted_at) > INTERVAL '1 day' * ?
-			AND id NOT IN (SELECT DISTINCT scraper_id FROM config_items WHERE scraper_id IS NOT NULL)
+			AND NOT EXISTS (SELECT 1 FROM config_items WHERE config_items.scraper_id = config_scrapers.id)
+			AND NOT EXISTS (SELECT 1 FROM config_access WHERE config_access.scraper_id = config_scrapers.id)
+			AND NOT EXISTS (SELECT 1 FROM config_access_logs WHERE config_access_logs.scraper_id = config_scrapers.id)
 		`, days).Error; err != nil {
 			ctx.History.AddErrorf("error hard deleting config_scrapers: %v", err)
 		}
