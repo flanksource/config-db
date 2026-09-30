@@ -32,9 +32,9 @@ import (
 
 const (
 	clickhouseImage   = "clickhouse/clickhouse-server:25.4.13.22"
-	minioImage        = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
-	minioAccessKey    = "clickhouse-s3-access-key"
-	minioSecretKey    = "clickhouse-s3-secret-key"
+	seaweedImage      = "chrislusf/seaweedfs:3.97"
+	s3AccessKey       = "clickhouse-s3-access-key"
+	s3SecretKey       = "clickhouse-s3-secret-key"
 	azuriteImage      = "mcr.microsoft.com/azure-storage/azurite:3.35.0"
 	azuriteAccount    = "devstoreaccount1"
 	azuriteAccountKey = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" // gitleaks:allow
@@ -65,19 +65,17 @@ func TestClickHouseObjectStorageE2E(t *testing.T) {
 	require.NoError(t, err)
 	testcontainers.CleanupNetwork(t, nw)
 
-	minio := startContainer(t, ctx, testcontainers.ContainerRequest{
-		Image:        minioImage,
-		ExposedPorts: []string{"9000/tcp"},
+	seaweed := startContainer(t, ctx, testcontainers.ContainerRequest{
+		Image:        seaweedImage,
+		ExposedPorts: []string{"8333/tcp"},
 		Env: map[string]string{
-			"MINIO_ROOT_USER":     minioAccessKey,
-			"MINIO_ROOT_PASSWORD": minioSecretKey,
+			"AWS_ACCESS_KEY_ID":     s3AccessKey,
+			"AWS_SECRET_ACCESS_KEY": s3SecretKey,
 		},
-		Cmd:            []string{"server", "/data"},
+		Cmd:            []string{"server", "-dir=/data", "-filer", "-s3", "-ip.bind=0.0.0.0"},
 		Networks:       []string{nw.Name},
-		NetworkAliases: map[string][]string{nw.Name: {"minio"}},
-		WaitingFor: wait.ForHTTP("/minio/health/ready").
-			WithPort("9000/tcp").
-			WithStartupTimeout(90 * time.Second),
+		NetworkAliases: map[string][]string{nw.Name: {"seaweedfs"}},
+		WaitingFor:     wait.ForListeningPort("8333/tcp").WithStartupTimeout(90 * time.Second),
 	})
 
 	azurite := startContainer(t, ctx, testcontainers.ContainerRequest{
@@ -103,7 +101,7 @@ func TestClickHouseObjectStorageE2E(t *testing.T) {
 			WithStartupTimeout(2 * time.Minute),
 	})
 
-	seedMinIO(t, ctx, minio, filepath.Join(repoRoot, "fixtures", "clickhouse-cloudtrail.json"))
+	seedS3(t, ctx, seaweed, filepath.Join(repoRoot, "fixtures", "clickhouse-cloudtrail.json"))
 	seedAzurite(t, ctx, azurite, filepath.Join(repoRoot, "fixtures", "clickhouse-azure.jsonl"))
 	clickhouseURL := containerClickHouseURL(t, ctx, clickhouse)
 
@@ -210,14 +208,14 @@ func startContainer(t *testing.T, ctx context.Context, request testcontainers.Co
 	return container
 }
 
-func seedMinIO(t *testing.T, ctx context.Context, container testcontainers.Container, fixture string) {
+func seedS3(t *testing.T, ctx context.Context, container testcontainers.Container, fixture string) {
 	t.Helper()
 	endpoint, err := container.Endpoint(ctx, "http")
 	require.NoError(t, err)
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion("us-east-1"),
-		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(minioAccessKey, minioSecretKey, "")),
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(s3AccessKey, s3SecretKey, "")),
 	)
 	require.NoError(t, err)
 	client := s3.NewFromConfig(cfg, func(options *s3.Options) {
