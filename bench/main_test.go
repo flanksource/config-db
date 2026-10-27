@@ -25,7 +25,7 @@ var (
 
 func TestMain(m *testing.M) {
 	var err error
-	testCtx, err = setup.SetupDB("config_db_bench", setup.WithoutDummyData, setup.WithoutRLS)
+	testCtx, err = setup.SetupDB("config_db_bench", setup.WithoutDummyData)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to setup benchmark db: %v\n", err)
 		os.Exit(1)

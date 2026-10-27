@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 
+	_ "github.com/flanksource/commons/logger/yamlcolor"
 	"github.com/flanksource/config-db/cmd"
 )
 

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/collections/prommetrics"
 	"github.com/flanksource/commons/hash"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -32,9 +33,7 @@ func drainQueue(q *collections.Queue[*QueueItem]) []string {
 
 func newQueue(name string) *collections.Queue[*QueueItem] {
 	q, err := collections.NewQueue(collections.QueueOpts[*QueueItem]{
-		Metrics: collections.MetricsOpts[*QueueItem]{
-			Name: fmt.Sprintf("m_%s", hash.Sha256Hex(name)[:10]),
-		},
+		Metrics:    prommetrics.New(prommetrics.Options[*QueueItem]{Name: fmt.Sprintf("m_%s", hash.Sha256Hex(name)[:10])}),
 		Comparator: pqComparator,
 		Equals:     queueItemIsEqual,
 		Dedupe:     true,

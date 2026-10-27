@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/flanksource/commons/collections"
+	"github.com/flanksource/commons/collections/prommetrics"
 	"github.com/flanksource/commons/logger"
 	"github.com/flanksource/config-db/api"
 	v1 "github.com/flanksource/config-db/api/v1"
@@ -262,12 +263,7 @@ func (t *SharedInformerManager) getOrCreate(ctx api.ScrapeContext, watchResource
 	}
 
 	queue, err := collections.NewQueue(collections.QueueOpts[*QueueItem]{
-		Metrics: collections.MetricsOpts[*QueueItem]{
-			Name: "shared_informer",
-			Labels: map[string]any{
-				"scraper_id": ctx.ScraperID(),
-			},
-		},
+		Metrics:    prommetrics.New(prommetrics.Options[*QueueItem]{Name: "shared_informer", Labels: map[string]any{"scraper_id": ctx.ScraperID()}}),
 		Comparator: pqComparator,
 		Equals:     queueItemIsEqual,
 		Dedupe:     true,

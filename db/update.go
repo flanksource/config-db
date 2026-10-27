@@ -1253,7 +1253,7 @@ func generateDiffChange(ctx api.ScrapeContext, newConf, prev models.ConfigItem) 
 	if duration > ctx.Properties().Duration("scraper.log.slow_diff_threshold", time.Second) {
 		ctx.Logger.Warnf("SLOW DIFF >= %s", msg)
 	} else if ctx.Properties().On(false, "scraper.log.items") {
-		ctx.Logger.V(4).Infof(msg)
+		ctx.Logger.V(4).Infof("%s", msg)
 	}
 
 	if diff == "" {
