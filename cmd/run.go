@@ -78,7 +78,7 @@ var Run = &cobra.Command{
 		logger.Infof("Scraping %v", configFiles)
 		scraperConfigs, err := v1.ParseConfigs(configFiles...)
 		if err != nil {
-			logger.Fatalf(err.Error())
+			logger.Fatalf("%s", err.Error())
 		}
 
 		if logger.IsTraceEnabled() {

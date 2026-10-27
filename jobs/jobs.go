@@ -22,7 +22,7 @@ func ScheduleJobs(ctx context.Context) {
 		job := j
 		job.Context = ctx
 		if err := job.AddToScheduler(FuncScheduler); err != nil {
-			logger.Fatalf(err.Error())
+			logger.Fatalf("%s", err.Error())
 		}
 	}
 
@@ -30,7 +30,7 @@ func ScheduleJobs(ctx context.Context) {
 		job := j
 		job.Context = ctx
 		if err := job.AddToScheduler(FuncScheduler); err != nil {
-			logger.Fatalf(err.Error())
+			logger.Fatalf("%s", err.Error())
 		}
 	}
 
@@ -44,7 +44,7 @@ func ScheduleJobs(ctx context.Context) {
 			job := j
 			job.Context = ctx
 			if err := job.AddToScheduler(FuncScheduler); err != nil {
-				logger.Fatalf(err.Error())
+				logger.Fatalf("%s", err.Error())
 			}
 		}
 	}

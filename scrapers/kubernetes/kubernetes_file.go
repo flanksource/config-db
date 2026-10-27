@@ -63,7 +63,7 @@ func findDeployments(ctx api.ScrapeContext, client kubernetes.Interface, config 
 		if config.Name != "" {
 			deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, config.Name, metav1.GetOptions{})
 			if ctx.IsTrace() {
-				ctx.Logger.V(3).Infof("%s => %d", config, deployment)
+				ctx.Logger.V(3).Infof("%s => %v", config, deployment)
 			}
 			if errors.IsNotFound(err) {
 				continue
